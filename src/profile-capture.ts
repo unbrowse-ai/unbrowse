@@ -67,15 +67,14 @@ async function findChromeDebugPort(): Promise<string | null> {
 /** Check if Chrome process is running (macOS/Linux). */
 async function isChromeRunning(): Promise<boolean> {
   try {
-    const proc = Bun.spawn(["pgrep", "-x", "Google Chrome"], { stdout: "pipe", stderr: "pipe" });
-    const code = await proc.exited;
-    return code === 0;
+    const { execSync } = await import("node:child_process");
+    execSync("pgrep -x 'Google Chrome'", { timeout: 3000, stdio: "ignore" });
+    return true;
   } catch {
-    // Try alternative
     try {
-      const proc = Bun.spawn(["pgrep", "-f", "Google Chrome"], { stdout: "pipe", stderr: "pipe" });
-      const code = await proc.exited;
-      return code === 0;
+      const { execSync } = await import("node:child_process");
+      execSync("pgrep -f 'Google Chrome'", { timeout: 3000, stdio: "ignore" });
+      return true;
     } catch {
       return false;
     }
@@ -230,6 +229,7 @@ export async function captureFromChromeProfile(
   const context = await chromium.launchPersistentContext(profilePath, {
     channel: "chrome",
     headless: opts.headless ?? false,
+    timeout: 15_000,
     args: [
       "--disable-blink-features=AutomationControlled",
       "--remote-debugging-port=9222",
