@@ -1,34 +1,86 @@
 /**
  * CDP Capture — Live network capture via clawdbot's browser control API.
  *
- * Uses the Playwright-backed browser control HTTP API to fetch captured
- * network requests, response bodies, and cookies from a running browser
- * session. No Chrome extension required — works with the managed `clawd` profile.
+ * Uses the browser control HTTP server (port 18791) which wraps Playwright's
+ * network capture. Works with both `clawd` (managed Playwright) and `chrome`
+ * (extension relay) profiles — no Chrome extension required for `clawd`.
  *
- * Browser control API (default port 18791):
- *   GET  /requests         — all captured network requests
- *   POST /response/body    — get response body for a specific request
- *   GET  /cookies          — all cookies from the browser
- *   POST /cookies/set      — set a cookie
- *   POST /cookies/clear    — clear cookies
+ * Browser control API (port 18791):
+ *   GET  /requests              — captured network requests (max 500)
+ *   GET  /requests?filter=api   — filter by URL substring
+ *   GET  /requests?clear=true   — clear buffer after reading
+ *   POST /response/body         — get response body for a request ID
+ *   GET  /cookies               — all cookies from the browser
+ *   POST /cookies/set           — set a cookie
+ *   POST /cookies/clear         — clear cookies
+ *
+ * Playwright captures requests via page.on("request") / page.on("response")
+ * events. The control server at 18791 exposes them as a REST API.
  */
 
-import type { HarEntry, CdpNetworkEntry } from "./types.js";
+import type { HarEntry } from "./types.js";
 
-/** Default browser control port (matches clawdbot browser tool). */
+/** Default browser control port (gateway port + 2). */
 const DEFAULT_PORT = 18791;
 
+/** Shape returned by clawdbot's GET /requests endpoint. */
+interface BrowserRequestEntry {
+  id: string;
+  timestamp: string;
+  method: string;
+  url: string;
+  resourceType: string;
+  status?: number;
+  ok?: boolean;
+  failureText?: string;
+}
+
+/** Response from GET /requests. */
+interface RequestsResponse {
+  ok: boolean;
+  targetId?: string;
+  requests: BrowserRequestEntry[];
+  error?: string;
+}
+
+/** Response from GET /cookies. */
+interface CookiesResponse {
+  ok: boolean;
+  cookies?: { name: string; value: string; domain?: string; path?: string }[];
+  error?: string;
+}
+
 /**
- * Fetch all captured network requests from the browser control API.
+ * Fetch all captured network requests from clawdbot's browser control API.
+ *
+ * @param filter - Optional URL substring filter (e.g., "api" to only get API calls)
+ * @param clear - Clear the request buffer after reading
  */
-export async function fetchCapturedRequests(port = DEFAULT_PORT): Promise<CdpNetworkEntry[]> {
-  const resp = await fetch(`http://127.0.0.1:${port}/requests`, {
+export async function fetchCapturedRequests(
+  port = DEFAULT_PORT,
+  filter?: string,
+  clear = false,
+): Promise<BrowserRequestEntry[]> {
+  const url = new URL(`http://127.0.0.1:${port}/requests`);
+  if (filter) url.searchParams.set("filter", filter);
+  if (clear) url.searchParams.set("clear", "true");
+
+  const resp = await fetch(url.toString(), {
     signal: AbortSignal.timeout(10_000),
   });
+
   if (!resp.ok) {
-    throw new Error(`Browser control API /requests failed: ${resp.status} ${resp.statusText}`);
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Browser /requests failed (${resp.status}): ${text}`);
   }
-  return resp.json() as Promise<CdpNetworkEntry[]>;
+
+  const data = await resp.json() as RequestsResponse;
+
+  if (!data.ok && data.error) {
+    throw new Error(data.error);
+  }
+
+  return data.requests ?? [];
 }
 
 /**
@@ -57,50 +109,56 @@ export async function fetchBrowserCookies(port = DEFAULT_PORT): Promise<Record<s
   const resp = await fetch(`http://127.0.0.1:${port}/cookies`, {
     signal: AbortSignal.timeout(10_000),
   });
+
   if (!resp.ok) {
-    throw new Error(`Browser control API /cookies failed: ${resp.status} ${resp.statusText}`);
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Browser /cookies failed (${resp.status}): ${text}`);
   }
-  const data = await resp.json() as { name: string; value: string }[];
+
+  const data = await resp.json() as CookiesResponse;
+
+  if (!data.ok && data.error) {
+    throw new Error(data.error);
+  }
+
   const cookies: Record<string, string> = {};
-  for (const c of data) {
+  for (const c of data.cookies ?? []) {
     cookies[c.name] = c.value;
   }
   return cookies;
 }
 
 /**
- * Convert CDP network entries to HAR format for pipeline reuse.
+ * Convert clawdbot browser request entries to HAR format for pipeline reuse.
  *
- * This lets us feed live browser captures through the same HAR parser
- * that handles uploaded HAR files.
+ * Note: Playwright's capture doesn't expose request headers through the
+ * /requests endpoint. Headers are extracted separately via cookies and
+ * the auth-extractor analyzes the HAR to identify auth patterns.
  */
-export function cdpToHar(entries: CdpNetworkEntry[]): { log: { entries: HarEntry[] } } {
+export function requestsToHar(entries: BrowserRequestEntry[]): { log: { entries: HarEntry[] } } {
   const harEntries: HarEntry[] = entries.map((entry) => ({
     request: {
       method: entry.method,
       url: entry.url,
-      headers: Object.entries(entry.headers ?? {}).map(([name, value]) => ({ name, value })),
-      cookies: [], // Cookies fetched separately
+      headers: [], // Not available from Playwright /requests — auth comes from cookies
+      cookies: [],
     },
     response: {
-      status: entry.responseStatus ?? 0,
-      headers: Object.entries(entry.responseHeaders ?? {}).map(([name, value]) => ({ name, value })),
+      status: entry.status ?? 0,
+      headers: [],
     },
-    time: entry.timestamp,
+    time: entry.timestamp ? new Date(entry.timestamp).getTime() : undefined,
   }));
 
-  return {
-    log: {
-      entries: harEntries,
-    },
-  };
+  return { log: { entries: harEntries } };
 }
 
 /**
  * Capture network traffic + cookies from a running browser session
- * and convert to HAR format ready for the parser pipeline.
+ * and convert to HAR format for the parser pipeline.
  *
- * Call this after the browser has been opened and pages visited.
+ * Requires a browser session started via clawdbot's browser tool
+ * (e.g., `browser action=start profile=clawd targetUrl=...`).
  */
 export async function captureFromBrowser(port = DEFAULT_PORT): Promise<{
   har: { log: { entries: HarEntry[] } };
@@ -112,9 +170,9 @@ export async function captureFromBrowser(port = DEFAULT_PORT): Promise<{
     fetchBrowserCookies(port),
   ]);
 
-  const har = cdpToHar(entries);
+  const har = requestsToHar(entries);
 
-  // Inject cookies into HAR entries so the parser can pick them up
+  // Inject cookies into every HAR entry so the parser picks them up as auth
   const cookieArray = Object.entries(cookies).map(([name, value]) => ({ name, value }));
   for (const entry of har.log.entries) {
     entry.request.cookies = cookieArray;
