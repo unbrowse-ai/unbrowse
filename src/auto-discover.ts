@@ -124,7 +124,7 @@ export class AutoDiscovery {
 
           try {
             // Re-parse with full data for this domain
-            const result = generateSkill(apiData, this.outputDir);
+            const result = await generateSkill(apiData, this.outputDir);
             this.learnedDomains.add(result.service);
             generated.push(result.service);
 

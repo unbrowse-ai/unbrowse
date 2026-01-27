@@ -195,7 +195,7 @@ const plugin = {
 
             try {
               const apiData = parseHar(harData as any);
-              const result = generateSkill(apiData, p.outputDir ?? defaultOutputDir);
+              const result = await generateSkill(apiData, p.outputDir ?? defaultOutputDir);
               discovery.markLearned(result.service);
 
               const summary = [
@@ -239,7 +239,7 @@ const plugin = {
                 if (!apiData.cookies[name]) apiData.cookies[name] = value;
               }
 
-              const result = generateSkill(apiData, p.outputDir ?? defaultOutputDir);
+              const result = await generateSkill(apiData, p.outputDir ?? defaultOutputDir);
               discovery.markLearned(result.service);
 
               const summary = [
@@ -502,7 +502,7 @@ const plugin = {
                   }
 
                   const apiData = parseHar(har);
-                  const result = generateSkill(apiData, defaultOutputDir);
+                  const result = await generateSkill(apiData, defaultOutputDir);
                   discovery.markLearned(result.service);
 
                   const summary = [

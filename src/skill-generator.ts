@@ -299,9 +299,9 @@ testApi().then((ok) => process.exit(ok ? 0 : 1));
  * Generate a complete skill package from parsed API data.
  *
  * Creates the skill directory with SKILL.md, auth.json, scripts/api.ts,
- * and test.ts. Returns metadata about the generated skill.
+ * and test.ts. Credentials are also stored in the encrypted vault if available.
  */
-export function generateSkill(data: ApiData, outputDir?: string): SkillResult {
+export async function generateSkill(data: ApiData, outputDir?: string): Promise<SkillResult> {
   const service = data.service;
   const skillsDir = outputDir
     ? resolve(outputDir)
@@ -326,6 +326,24 @@ export function generateSkill(data: ApiData, outputDir?: string): SkillResult {
   // test.ts
   const testTs = generateTestTs(service, data);
   writeFileSync(join(skillDir, "test.ts"), testTs, "utf-8");
+
+  // Store credentials in encrypted vault (best-effort — vault may not be set up)
+  try {
+    const { Vault } = await import("./vault.js");
+    const vault = new Vault();
+    vault.store(service, {
+      baseUrl: data.baseUrl,
+      authMethod: data.authMethod,
+      headers: Object.keys(data.authHeaders).length > 0 ? data.authHeaders : undefined,
+      cookies: Object.keys(data.cookies).length > 0 ? data.cookies : undefined,
+      extra: Object.keys(data.authInfo).length > 0
+        ? Object.fromEntries(Object.entries(data.authInfo).slice(0, 20))
+        : undefined,
+    });
+    vault.close();
+  } catch {
+    // Vault not available — that's fine, auth.json still written
+  }
 
   return {
     skillFile: join(skillsDir, `${service}.skill`),

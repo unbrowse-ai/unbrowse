@@ -33,6 +33,8 @@ interface BrowserRequestEntry {
   status?: number;
   ok?: boolean;
   failureText?: string;
+  headers?: Record<string, string>;         // Available after install.sh patches clawdbot
+  responseHeaders?: Record<string, string>;  // Available after install.sh patches clawdbot
 }
 
 /** Response from GET /requests. */
@@ -131,24 +133,34 @@ export async function fetchBrowserCookies(port = DEFAULT_PORT): Promise<Record<s
 /**
  * Convert clawdbot browser request entries to HAR format for pipeline reuse.
  *
- * Note: Playwright's capture doesn't expose request headers through the
- * /requests endpoint. Headers are extracted separately via cookies and
- * the auth-extractor analyzes the HAR to identify auth patterns.
+ * After install.sh patches clawdbot, request and response headers are
+ * included in the /requests endpoint. Without the patch, headers are empty
+ * and auth is extracted from cookies instead.
  */
 export function requestsToHar(entries: BrowserRequestEntry[]): { log: { entries: HarEntry[] } } {
-  const harEntries: HarEntry[] = entries.map((entry) => ({
-    request: {
-      method: entry.method,
-      url: entry.url,
-      headers: [], // Not available from Playwright /requests — auth comes from cookies
-      cookies: [],
-    },
-    response: {
-      status: entry.status ?? 0,
-      headers: [],
-    },
-    time: entry.timestamp ? new Date(entry.timestamp).getTime() : undefined,
-  }));
+  const harEntries: HarEntry[] = entries.map((entry) => {
+    // Convert Record<string,string> headers to HAR name/value pairs
+    const reqHeaders = entry.headers
+      ? Object.entries(entry.headers).map(([name, value]) => ({ name, value }))
+      : [];
+    const respHeaders = entry.responseHeaders
+      ? Object.entries(entry.responseHeaders).map(([name, value]) => ({ name, value }))
+      : [];
+
+    return {
+      request: {
+        method: entry.method,
+        url: entry.url,
+        headers: reqHeaders,
+        cookies: [],
+      },
+      response: {
+        status: entry.status ?? 0,
+        headers: respHeaders,
+      },
+      time: entry.timestamp ? new Date(entry.timestamp).getTime() : undefined,
+    };
+  });
 
   return { log: { entries: harEntries } };
 }
