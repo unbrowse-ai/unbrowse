@@ -12,14 +12,33 @@ const STATIC_EXTS = [".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".w
 
 /** Third-party domains to skip (analytics, payments, social, etc.). */
 const SKIP_DOMAINS = [
+  // Analytics & tracking
   "google-analytics.com", "analytics.google.com", "www.google-analytics.com",
-  "mixpanel.com", "api-js.mixpanel.com",
-  "stripe.com", "js.stripe.com", "r.stripe.com", "m.stripe.com",
-  "intercom.io", "api-iam.intercom.io",
-  "facebook.com", "instagram.com", "connect.facebook.net",
+  "mixpanel.com", "api-js.mixpanel.com", "mparticle.com", "jssdks.mparticle.com",
+  "segment.io", "segment.com", "cdn.segment.com", "api.segment.io",
+  "amplitude.com", "api.amplitude.com", "heap.io", "heapanalytics.com",
+  "posthog.com", "i.posthog.com", "eu.i.posthog.com", "us.i.posthog.com",
+  "plausible.io", "matomo.org",
+  // Ads & attribution
   "doubleclick.net", "googletagmanager.com", "googlesyndication.com",
+  "facebook.com", "instagram.com", "connect.facebook.net",
+  "appsflyer.com", "wa.appsflyer.com", "intentiq.com", "api.intentiq.com",
+  "id5-sync.com", "diagnostics.id5-sync.com", "33across.com",
+  "btloader.com", "api.btloader.com", "hbwrapper.com",
+  // Payments
+  "stripe.com", "js.stripe.com", "r.stripe.com", "m.stripe.com",
+  // Support & engagement
+  "intercom.io", "api-iam.intercom.io",
+  // UX & monitoring
   "hotjar.com", "clarity.ms", "sentry.io",
+  // CDNs
   "cdn.jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com",
+  // Consent
+  "onetrust.com", "geolocation.onetrust.com", "cookielaw.org", "cdn.cookielaw.org",
+  // Auth providers (third-party SSO, not the target app's auth)
+  "accounts.google.com", "play.google.com", "stack-auth.com", "api.stack-auth.com",
+  // Cloudflare
+  "cdn-cgi",
 ];
 
 /** Auth header names to capture. */
@@ -34,10 +53,18 @@ const CONTEXT_HEADER_NAMES = new Set([
   "outletid", "userid", "supplierid", "companyid",
 ]);
 
-/** Check if a URL is a static asset. */
+/** Path prefixes to skip (infra noise on any domain). */
+const SKIP_PATHS = [
+  "/cdn-cgi/", "/_next/data/", "/__nextjs", "/sockjs-node/",
+  "/favicon", "/manifest.json", "/robots.txt", "/sitemap",
+];
+
+/** Check if a URL is a static asset or infra noise. */
 function isStaticAsset(url: string): boolean {
   const path = new URL(url).pathname.toLowerCase();
-  return STATIC_EXTS.some((ext) => path.endsWith(ext));
+  if (STATIC_EXTS.some((ext) => path.endsWith(ext))) return true;
+  if (SKIP_PATHS.some((prefix) => path.startsWith(prefix))) return true;
+  return false;
 }
 
 /** Check if a domain should be skipped (third-party). */
