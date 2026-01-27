@@ -354,10 +354,10 @@ const plugin = {
           name: "unbrowse_capture",
           label: "Capture from Chrome",
           description:
-            "Capture API traffic by launching Chrome with the user's real profile. All cookies, " +
+            "Capture API traffic using Chrome with the user's real profile. All cookies, " +
             "sessions, and logged-in state are available — no extension needed. Provide URLs to visit " +
             "and Playwright captures all network requests directly. Generates a complete skill package. " +
-            "Chrome must be closed first (only one instance per profile). " +
+            "Works whether Chrome is open or closed (auto-detects and connects via CDP or launches). " +
             "Use profile=browser only if connecting to clawdbot's managed browser.",
           parameters: CAPTURE_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
@@ -409,7 +409,7 @@ const plugin = {
               } catch (err) {
                 const msg = (err as Error).message;
                 if (msg.includes("Target page, context or browser has been closed")) {
-                  return { content: [{ type: "text", text: "Chrome is already running. Close Chrome first, then retry. Only one instance can use the profile." }] };
+                  return { content: [{ type: "text", text: "Browser context closed unexpectedly. Try again." }] };
                 }
                 if (msg.includes("playwright")) {
                   return { content: [{ type: "text", text: `Playwright not available: ${msg}. Install with: bun add playwright` }] };
