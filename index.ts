@@ -379,8 +379,9 @@ const plugin = {
 
               try {
                 const { captureFromChromeProfile } = await import("./src/profile-capture.js");
-                const { har, cookies, requestCount } = await captureFromChromeProfile(p.urls, {
+                const { har, cookies, requestCount, method } = await captureFromChromeProfile(p.urls, {
                   waitMs: p.waitMs,
+                  browserPort,
                 });
 
                 if (requestCount === 0) {
@@ -396,7 +397,7 @@ const plugin = {
                 discovery.markLearned(result.service);
 
                 const summary = [
-                  `Chrome profile capture: ${requestCount} requests from ${p.urls.length} page(s)`,
+                  `Chrome capture (${method}): ${requestCount} requests from ${p.urls.length} page(s)`,
                   `Skill: ${result.service}`,
                   `Auth: ${result.authMethod}`,
                   `Endpoints: ${result.endpointCount}`,
@@ -590,15 +591,24 @@ const plugin = {
             async function execInChrome(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string } | null> {
               try {
                 const { chromium } = await import("playwright");
-                const { homedir: getHome } = await import("node:os");
-                const profilePath = join(getHome(), "Library", "Application Support", "Google", "Chrome");
 
-                const context = await chromium.launchPersistentContext(profilePath, {
-                  channel: "chrome",
-                  headless: true,
-                  args: ["--disable-blink-features=AutomationControlled"],
-                  ignoreDefaultArgs: ["--enable-automation"],
-                });
+                // Try CDP connect to existing browsers (same cascade as profile-capture.ts)
+                let browser: any = null;
+                for (const port of [browserPort, 9222, 9229]) {
+                  try {
+                    const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
+                    if (!resp.ok) continue;
+                    const data = await resp.json() as { webSocketDebuggerUrl?: string };
+                    const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
+                    browser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
+                    break;
+                  } catch { continue; }
+                }
+
+                if (!browser) return null; // No browser available for in-browser execution
+
+                const context = browser.contexts()[0];
+                if (!context) { await browser.close(); return null; }
 
                 const page = context.pages()[0] ?? await context.newPage();
                 await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
@@ -623,7 +633,7 @@ const plugin = {
                   }
                 }, { url, opts: fetchOpts });
 
-                await context.close();
+                await browser.close();
                 return result;
               } catch {
                 return null;
@@ -688,47 +698,54 @@ const plugin = {
                 }
               }
 
-              // Strategy 2: re-grab cookies from Chrome profile
+              // Strategy 2: re-grab cookies via CDP connect (Chrome profile)
               try {
                 const { chromium } = await import("playwright");
-                const { homedir: getHome } = await import("node:os");
-                const profilePath = join(getHome(), "Library", "Application Support", "Google", "Chrome");
-
-                const context = await chromium.launchPersistentContext(profilePath, {
-                  channel: "chrome",
-                  headless: true,
-                  args: ["--disable-blink-features=AutomationControlled"],
-                  ignoreDefaultArgs: ["--enable-automation"],
-                });
-
-                const page = context.pages()[0] ?? await context.newPage();
-                await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
-
-                // Grab fresh cookies from the browser
-                const browserCookies = await context.cookies();
-                const freshCookies: Record<string, string> = {};
-                for (const c of browserCookies) {
-                  freshCookies[c.name] = c.value;
+                let browser: any = null;
+                for (const port of [browserPort, 9222, 9229]) {
+                  try {
+                    const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
+                    if (!resp.ok) continue;
+                    const data = await resp.json() as { webSocketDebuggerUrl?: string };
+                    const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
+                    browser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
+                    break;
+                  } catch { continue; }
                 }
-                await context.close();
 
-                if (Object.keys(freshCookies).length > 0) {
-                  cookies = freshCookies;
+                if (browser) {
+                  const context = browser.contexts()[0];
+                  if (context) {
+                    const page = context.pages()[0] ?? await context.newPage();
+                    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
 
-                  // Persist
-                  const { writeFileSync } = await import("node:fs");
-                  const existing = existsSync(authPath)
-                    ? JSON.parse(readFileSync(authPath, "utf-8"))
-                    : {};
-                  existing.cookies = freshCookies;
-                  existing.timestamp = new Date().toISOString();
-                  existing.refreshedAt = new Date().toISOString();
-                  writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
+                    const browserCookies = await context.cookies();
+                    const freshCookies: Record<string, string> = {};
+                    for (const c of browserCookies) {
+                      freshCookies[c.name] = c.value;
+                    }
+                    await browser.close();
 
-                  return true;
+                    if (Object.keys(freshCookies).length > 0) {
+                      cookies = freshCookies;
+
+                      const { writeFileSync } = await import("node:fs");
+                      const existing = existsSync(authPath)
+                        ? JSON.parse(readFileSync(authPath, "utf-8"))
+                        : {};
+                      existing.cookies = freshCookies;
+                      existing.timestamp = new Date().toISOString();
+                      existing.refreshedAt = new Date().toISOString();
+                      writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
+
+                      return true;
+                    }
+                  } else {
+                    await browser.close();
+                  }
                 }
               } catch {
-                // Chrome not available
+                // No browser available via CDP
               }
 
               return false;

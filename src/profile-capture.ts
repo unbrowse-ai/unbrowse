@@ -1,17 +1,16 @@
 /**
- * Profile Capture — Network capture using Playwright with Chrome's real profile.
+ * Profile Capture — Network capture using Playwright.
  *
- * Smart connection: tries CDP first (Chrome already open), falls back to
- * launching Chrome with the user's profile (Chrome must be closed).
+ * Smart connection cascade:
+ *   1. CDP connect to clawdbot's managed browser (port 18791) — already has cookies
+ *   2. CDP connect to Chrome with --remote-debugging-port (if user started it that way)
+ *   3. Launch fresh Chromium via Playwright — works for public pages or with unbrowse_login auth
  *
- * All cookies, sessions, extensions, and saved passwords are available.
- * Captures full request + response headers directly from Playwright events.
+ * Note: Chrome's real profile + --remote-debugging-port don't work together
+ * (Chrome blocks it). For authenticated sessions, use unbrowse_login instead.
  */
 
 import type { HarEntry } from "./types.js";
-import { homedir, platform } from "node:os";
-import { join } from "node:path";
-import { existsSync } from "node:fs";
 
 /** Captured request with full headers. */
 interface CapturedEntry {
@@ -29,57 +28,8 @@ type CaptureResult = {
   cookies: Record<string, string>;
   requestCount: number;
   entries: CapturedEntry[];
+  method: string;
 };
-
-/** Default Chrome profile paths by platform. */
-function getDefaultChromeProfilePath(): string {
-  const home = homedir();
-  const plat = platform();
-  if (plat === "darwin") {
-    return join(home, "Library", "Application Support", "Google", "Chrome");
-  }
-  if (plat === "win32") {
-    return join(home, "AppData", "Local", "Google", "Chrome", "User Data");
-  }
-  // Linux
-  return join(home, ".config", "google-chrome");
-}
-
-/** Check if Chrome is running with a debug port we can connect to. */
-async function findChromeDebugPort(): Promise<string | null> {
-  // Try common debug ports
-  for (const port of [9222, 9229, 18791]) {
-    try {
-      const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
-        signal: AbortSignal.timeout(1000),
-      });
-      if (resp.ok) {
-        const data = await resp.json() as { webSocketDebuggerUrl?: string };
-        return data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
-      }
-    } catch {
-      // Port not listening
-    }
-  }
-  return null;
-}
-
-/** Check if Chrome process is running (macOS/Linux). */
-async function isChromeRunning(): Promise<boolean> {
-  try {
-    const { execSync } = await import("node:child_process");
-    execSync("pgrep -x 'Google Chrome'", { timeout: 3000, stdio: "ignore" });
-    return true;
-  } catch {
-    try {
-      const { execSync } = await import("node:child_process");
-      execSync("pgrep -f 'Google Chrome'", { timeout: 3000, stdio: "ignore" });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
 
 function attachListeners(
   page: any,
@@ -109,7 +59,7 @@ function attachListeners(
   });
 }
 
-function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>): CaptureResult {
+function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>, method: string): CaptureResult {
   const harEntries: HarEntry[] = captured.map((entry) => ({
     request: {
       method: entry.method,
@@ -129,17 +79,32 @@ function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>)
     cookies,
     requestCount: captured.length,
     entries: captured,
+    method,
   };
 }
 
+/** Try to connect to a CDP endpoint. Returns null if unavailable. */
+async function tryCdpConnect(chromium: any, port: number): Promise<any | null> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json() as { webSocketDebuggerUrl?: string };
+    const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
+    const browser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
+    return browser;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Capture network traffic from Chrome — smart mode.
+ * Capture network traffic — smart cascade.
  *
- * 1. Try CDP connect (Chrome already running with debug port)
- * 2. If Chrome is running without debug port — relaunch it with debug port
- * 3. If Chrome is not running — launch with user's profile
- *
- * The user never needs to close Chrome manually.
+ * 1. Try clawdbot managed browser (CDP port 18791)
+ * 2. Try Chrome with remote debugging (CDP port 9222)
+ * 3. Launch fresh Playwright Chromium (no profile — works for public pages)
  */
 export async function captureFromChromeProfile(
   urls: string[],
@@ -147,33 +112,53 @@ export async function captureFromChromeProfile(
     profilePath?: string;
     waitMs?: number;
     headless?: boolean;
+    browserPort?: number;
   } = {},
 ): Promise<CaptureResult> {
   const { chromium } = await import("playwright");
-
-  const profilePath = opts.profilePath ?? getDefaultChromeProfilePath();
   const waitMs = opts.waitMs ?? 5000;
-
-  if (!existsSync(profilePath)) {
-    throw new Error(`Chrome profile not found: ${profilePath}. Specify profilePath manually.`);
-  }
+  const browserPort = opts.browserPort ?? 18791;
 
   const captured: CapturedEntry[] = [];
   const pendingRequests = new Map<string, Partial<CapturedEntry>>();
 
-  // ── Strategy 1: Try CDP connect to already-running Chrome ──
-  const debugUrl = await findChromeDebugPort();
-  if (debugUrl) {
-    try {
-      const browser = await chromium.connectOverCDP(debugUrl, { timeout: 5000 });
+  // ── Strategy 1: Connect to clawdbot's managed browser ──
+  let browser = await tryCdpConnect(chromium, browserPort);
+  if (browser) {
+    const context = browser.contexts()[0];
+    if (context) {
+      for (const page of context.pages()) attachListeners(page, captured, pendingRequests);
+      context.on("page", (page: any) => attachListeners(page, captured, pendingRequests));
+
+      for (const url of urls) {
+        const page = await context.newPage();
+        attachListeners(page, captured, pendingRequests);
+        try {
+          await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+        } catch {
+          await page.waitForTimeout(waitMs);
+        }
+        await page.waitForTimeout(waitMs);
+      }
+
+      const browserCookies = await context.cookies();
+      const cookies: Record<string, string> = {};
+      for (const c of browserCookies) cookies[c.name] = c.value;
+
+      await browser.close();
+      return toHarResult(captured, cookies, "clawdbot-browser");
+    }
+  }
+
+  // ── Strategy 2: Connect to Chrome with remote debug port ──
+  for (const port of [9222, 9229]) {
+    browser = await tryCdpConnect(chromium, port);
+    if (browser) {
       const context = browser.contexts()[0];
       if (context) {
-        for (const page of context.pages()) {
-          attachListeners(page, captured, pendingRequests);
-        }
+        for (const page of context.pages()) attachListeners(page, captured, pendingRequests);
         context.on("page", (page: any) => attachListeners(page, captured, pendingRequests));
 
-        // Navigate to each URL in a new tab
         for (const url of urls) {
           const page = await context.newPage();
           attachListeners(page, captured, pendingRequests);
@@ -189,61 +174,32 @@ export async function captureFromChromeProfile(
         const cookies: Record<string, string> = {};
         for (const c of browserCookies) cookies[c.name] = c.value;
 
-        // Don't close — user's Chrome stays open
         await browser.close();
-        return toHarResult(captured, cookies);
+        return toHarResult(captured, cookies, "chrome-cdp");
       }
-    } catch {
-      // CDP connect failed — try next strategy
     }
   }
 
-  // ── Strategy 2: Chrome is running but no debug port — relaunch with it ──
-  const chromeRunning = await isChromeRunning();
-  if (chromeRunning) {
-    // Launch a separate Chromium instance (not the user's Chrome) with a temp profile
-    // that copies cookies from the user's profile. This avoids the lock issue.
-    // Actually — the simplest approach: use execPath to launch Chrome with debug port.
-    try {
-      const { execSync } = await import("node:child_process");
-      const plat = platform();
-
-      // Kill Chrome gracefully so we can relaunch with debug port
-      if (plat === "darwin") {
-        execSync("osascript -e 'tell application \"Google Chrome\" to quit'", { timeout: 5000 });
-      } else {
-        execSync("pkill -TERM chrome", { timeout: 5000 });
-      }
-
-      // Wait for Chrome to close
-      await new Promise((r) => setTimeout(r, 2000));
-    } catch {
-      throw new Error(
-        "Chrome is running without a debug port. Close Chrome and retry, or start Chrome with: " +
-        "google-chrome --remote-debugging-port=9222"
-      );
-    }
-  }
-
-  // ── Strategy 3: Launch Chrome with user's profile ──
-  const context = await chromium.launchPersistentContext(profilePath, {
-    channel: "chrome",
-    headless: opts.headless ?? false,
+  // ── Strategy 3: Launch fresh Playwright Chromium ──
+  // No real Chrome profile (Chrome blocks --remote-debugging-port with default profile).
+  // This works for public pages. For authenticated pages, use unbrowse_login first.
+  browser = await chromium.launch({
+    headless: opts.headless ?? true,
     timeout: 15_000,
     args: [
       "--disable-blink-features=AutomationControlled",
-      "--remote-debugging-port=9222",
+      "--no-sandbox",
     ],
-    ignoreDefaultArgs: ["--enable-automation"],
   });
 
-  for (const page of context.pages()) {
-    attachListeners(page, captured, pendingRequests);
-  }
-  context.on("page", (page: any) => attachListeners(page, captured, pendingRequests));
+  const context = await browser.newContext({
+    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  });
+
+  const page = await context.newPage();
+  attachListeners(page, captured, pendingRequests);
 
   for (const url of urls) {
-    const page = context.pages()[0] ?? await context.newPage();
     try {
       await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
     } catch {
@@ -256,15 +212,12 @@ export async function captureFromChromeProfile(
   const cookies: Record<string, string> = {};
   for (const c of browserCookies) cookies[c.name] = c.value;
 
-  await context.close();
-  return toHarResult(captured, cookies);
+  await browser.close();
+  return toHarResult(captured, cookies, "playwright");
 }
 
 /**
  * Capture by connecting to an already-running Chrome via CDP.
- *
- * Chrome must be started with --remote-debugging-port=9222.
- * This mode doesn't require closing Chrome first.
  */
 export async function captureFromChromeDebug(
   urls: string[],
@@ -274,7 +227,6 @@ export async function captureFromChromeDebug(
   } = {},
 ): Promise<CaptureResult> {
   const { chromium } = await import("playwright");
-
   const cdpUrl = opts.cdpUrl ?? "http://127.0.0.1:9222";
   const waitMs = opts.waitMs ?? 5000;
 
@@ -287,9 +239,7 @@ export async function captureFromChromeDebug(
     throw new Error("No browser context found. Is Chrome running with --remote-debugging-port?");
   }
 
-  for (const page of context.pages()) {
-    attachListeners(page, captured, pendingRequests);
-  }
+  for (const page of context.pages()) attachListeners(page, captured, pendingRequests);
   context.on("page", (page: any) => attachListeners(page, captured, pendingRequests));
 
   for (const url of urls) {
@@ -307,5 +257,5 @@ export async function captureFromChromeDebug(
   for (const c of browserCookies) cookies[c.name] = c.value;
 
   await browser.close();
-  return toHarResult(captured, cookies);
+  return toHarResult(captured, cookies, "chrome-cdp-direct");
 }

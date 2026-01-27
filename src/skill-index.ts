@@ -80,7 +80,7 @@ export class SkillIndexClient {
     if (!this.evmPrivateKey) return;
 
     try {
-      const { wrapFetchWithPayment } = await import("x402/client");
+      const { wrapFetchWithPayment } = await import("x402/client") as any;
       const { privateKeyToAccount } = await import("viem/accounts");
 
       const account = privateKeyToAccount(this.evmPrivateKey as `0x${string}`);
