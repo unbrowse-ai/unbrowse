@@ -105,6 +105,14 @@ const REPLAY_SCHEMA = {
       type: "string" as const,
       description: "Service name (skill directory name) to test",
     },
+    endpoint: {
+      type: "string" as const,
+      description: "Specific endpoint to call (e.g., 'GET /api/v2/streams/trending'). If omitted, tests all endpoints.",
+    },
+    body: {
+      type: "string" as const,
+      description: "JSON body for POST/PUT/PATCH requests",
+    },
     skillsDir: {
       type: "string" as const,
       description: "Skills directory (default: ~/.clawdbot/skills)",
@@ -443,12 +451,14 @@ const plugin = {
         // ── unbrowse_replay ─────────────────────────────────────────
         {
           name: "unbrowse_replay",
-          label: "Test Endpoints",
+          label: "Execute API",
           description:
-            "Test discovered endpoints for a skill. Loads auth.json and verifies endpoints are alive.",
+            "Execute API calls for a skill. Tries Chrome profile first (runs fetch " +
+            "inside the browser console with real cookies/session), falls back to " +
+            "stealth cloud browser if blocked. Can test all endpoints or call a specific one.",
           parameters: REPLAY_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
-            const p = params as { service: string; skillsDir?: string };
+            const p = params as { service: string; endpoint?: string; body?: string; skillsDir?: string };
             const skillsDir = p.skillsDir ?? defaultOutputDir;
             const skillDir = join(skillsDir, p.service);
             const authPath = join(skillDir, "auth.json");
@@ -458,26 +468,23 @@ const plugin = {
               return { content: [{ type: "text", text: `Skill not found: ${skillDir}` }] };
             }
 
-            let headers: Record<string, string> = {};
-            let cookieHeader = "";
+            let authHeaders: Record<string, string> = {};
+            let cookies: Record<string, string> = {};
             let baseUrl = "https://api.example.com";
 
             if (existsSync(authPath)) {
               try {
                 const auth = JSON.parse(readFileSync(authPath, "utf-8"));
-                headers = auth.headers ?? {};
+                authHeaders = auth.headers ?? {};
+                cookies = auth.cookies ?? {};
                 baseUrl = auth.baseUrl ?? baseUrl;
-                if (auth.cookies && Object.keys(auth.cookies).length > 0) {
-                  cookieHeader = Object.entries(auth.cookies as Record<string, string>)
-                    .map(([k, v]) => `${k}=${v}`)
-                    .join("; ");
-                }
               } catch {
                 return { content: [{ type: "text", text: "Failed to load auth.json" }] };
               }
             }
 
-            const endpoints: { method: string; path: string }[] = [];
+            // Parse endpoints from SKILL.md
+            let endpoints: { method: string; path: string }[] = [];
             if (existsSync(skillMdPath)) {
               const md = readFileSync(skillMdPath, "utf-8");
               const re = /`(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`/g;
@@ -487,35 +494,129 @@ const plugin = {
               }
             }
 
-            if (endpoints.length === 0) {
-              return { content: [{ type: "text", text: "No endpoints found in SKILL.md" }] };
-            }
-
-            const results: string[] = [`Testing ${p.service} (${endpoints.length} endpoints)`, `Base: ${baseUrl}`, ""];
-            let passed = 0;
-            let failed = 0;
-
-            for (const ep of endpoints.slice(0, 10)) {
-              const reqHeaders: Record<string, string> = { ...headers, "Content-Type": "application/json" };
-              if (cookieHeader) reqHeaders["Cookie"] = cookieHeader;
-
-              try {
-                const url = new URL(ep.path, baseUrl).toString();
-                const resp = await fetch(url, {
-                  method: ep.method,
-                  headers: reqHeaders,
-                  body: ["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined,
-                  signal: AbortSignal.timeout(10_000),
-                });
-                results.push(`  ${ep.method} ${ep.path} → ${resp.status} ${resp.ok ? "OK" : resp.statusText}`);
-                if (resp.ok) passed++; else failed++;
-              } catch (err) {
-                results.push(`  ${ep.method} ${ep.path} → FAILED: ${String(err).slice(0, 60)}`);
-                failed++;
+            // If specific endpoint requested, filter to just that one
+            if (p.endpoint) {
+              const match = p.endpoint.match(/^(GET|POST|PUT|DELETE|PATCH)\s+(.+)$/i);
+              if (match) {
+                endpoints = [{ method: match[1].toUpperCase(), path: match[2] }];
+              } else {
+                // Assume it's just a path, default to GET
+                endpoints = [{ method: "GET", path: p.endpoint }];
               }
             }
 
+            if (endpoints.length === 0) {
+              return { content: [{ type: "text", text: "No endpoints found. Provide endpoint param or check SKILL.md." }] };
+            }
+
+            // ── Try 1: Execute via Chrome profile (page.evaluate fetch) ──
+            const results: string[] = [];
+            let passed = 0;
+            let failed = 0;
+
+            async function execInChrome(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string } | null> {
+              try {
+                const { chromium } = await import("playwright");
+                const { homedir: getHome } = await import("node:os");
+                const profilePath = join(getHome(), "Library", "Application Support", "Google", "Chrome");
+
+                const context = await chromium.launchPersistentContext(profilePath, {
+                  channel: "chrome",
+                  headless: true,
+                  args: ["--disable-blink-features=AutomationControlled"],
+                  ignoreDefaultArgs: ["--enable-automation"],
+                });
+
+                const page = context.pages()[0] ?? await context.newPage();
+
+                // Navigate to the base URL first so cookies are in scope
+                await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
+
+                const url = new URL(ep.path, baseUrl).toString();
+                const fetchOpts: Record<string, unknown> = {
+                  method: ep.method,
+                  headers: { "Content-Type": "application/json", ...authHeaders },
+                  credentials: "include",
+                };
+                if (body && ["POST", "PUT", "PATCH"].includes(ep.method)) {
+                  fetchOpts.body = body;
+                }
+
+                // Execute fetch inside the browser context — cookies auto-attached
+                const result = await page.evaluate(async ({ url, opts }: { url: string; opts: any }) => {
+                  try {
+                    const resp = await fetch(url, opts);
+                    const text = await resp.text().catch(() => "");
+                    return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000) };
+                  } catch (err) {
+                    return { status: 0, ok: false, data: String(err) };
+                  }
+                }, { url, opts: fetchOpts });
+
+                await context.close();
+                return result;
+              } catch {
+                return null; // Chrome not available or failed — fall through to stealth
+              }
+            }
+
+            async function execViaFetch(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string }> {
+              const url = new URL(ep.path, baseUrl).toString();
+              const reqHeaders: Record<string, string> = { ...authHeaders, "Content-Type": "application/json" };
+              if (Object.keys(cookies).length > 0) {
+                reqHeaders["Cookie"] = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; ");
+              }
+              const resp = await fetch(url, {
+                method: ep.method,
+                headers: reqHeaders,
+                body: body && ["POST", "PUT", "PATCH"].includes(ep.method) ? body : undefined,
+                signal: AbortSignal.timeout(10_000),
+              });
+              const text = await resp.text().catch(() => "");
+              return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000) };
+            }
+
+            const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
+            results.push(`Testing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
+
+            for (const ep of toTest) {
+              const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
+
+              // Try Chrome profile first
+              let result = await execInChrome(ep, body);
+
+              if (result && result.ok) {
+                results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Chrome profile)`);
+                if (p.endpoint && result.data) {
+                  results.push(`  Response: ${result.data.slice(0, 500)}`);
+                }
+                passed++;
+                continue;
+              }
+
+              // Chrome failed or unavailable — try direct fetch with stored auth
+              try {
+                result = await execViaFetch(ep, body);
+                if (result.ok) {
+                  results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (direct)`);
+                  if (p.endpoint && result.data) {
+                    results.push(`  Response: ${result.data.slice(0, 500)}`);
+                  }
+                  passed++;
+                  continue;
+                }
+              } catch { /* fall through */ }
+
+              // Both failed
+              const status = result?.status ?? 0;
+              results.push(`  ${ep.method} ${ep.path} → ${status || "FAILED"}${status === 403 ? " (blocked — try stealth browser)" : ""}`);
+              failed++;
+            }
+
             results.push("", `Results: ${passed} passed, ${failed} failed`);
+            if (failed > 0 && browserUseApiKey) {
+              results.push(`Tip: blocked endpoints may work via unbrowse_stealth`);
+            }
             return { content: [{ type: "text", text: results.join("\n") }] };
           },
         },
