@@ -333,6 +333,10 @@ const INTERACT_SCHEMA = {
       type: "boolean" as const,
       description: "Capture API traffic during interaction for skill generation (default: true)",
     },
+    closeChromeIfNeeded: {
+      type: "boolean" as const,
+      description: "If Chrome is running and blocking profile access, close it gracefully and relaunch with your profile (preserves all your logins). Set to true after user confirms.",
+    },
   },
   required: ["url", "actions"],
 };
@@ -580,6 +584,7 @@ const plugin = {
     let sharedBrowser: any = null;
     let sharedContext: any = null;
     let sharedBrowserMethod: BrowserSession["method"] = "playwright";
+    let chromeWasRunning = false; // Track if Chrome was running (couldn't connect)
 
     /** Try to connect to a CDP endpoint. Returns browser or null. */
     async function tryCdpConnect(chromium: any, port: number): Promise<any | null> {
@@ -596,6 +601,31 @@ const plugin = {
       } catch {
         // CDP not available at this port — silently fall through to next strategy
         return null;
+      }
+    }
+
+    /** Gracefully close Chrome and wait for it to exit. */
+    async function closeChrome(): Promise<boolean> {
+      try {
+        const { spawnSync } = await import("node:child_process");
+        // Use osascript to gracefully quit Chrome (saves state)
+        spawnSync("osascript", ["-e", 'tell application "Google Chrome" to quit'], { timeout: 5000 });
+        // Wait for Chrome to fully exit
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
+          if (!psResult.stdout.trim()) {
+            logger.info(`[unbrowse] Chrome closed successfully`);
+            return true;
+          }
+        }
+        // Force kill if still running
+        spawnSync("pkill", ["-x", "Google Chrome"], { timeout: 2000 });
+        logger.info(`[unbrowse] Chrome force-killed`);
+        return true;
+      } catch (err) {
+        logger.warn(`[unbrowse] Failed to close Chrome: ${(err as Error).message}`);
+        return false;
       }
     }
 
@@ -698,6 +728,7 @@ const plugin = {
           } catch { /* assume not running */ }
 
           if (chromeIsRunning) {
+            chromeWasRunning = true;
             logger.info(`[unbrowse] Chrome is running - cannot take over profile. Will use single Playwright browser.`);
           } else if (existsSync(chromeUserDataDir)) {
             // Detect most recently active profile by checking file modification times
@@ -2732,9 +2763,55 @@ const plugin = {
                 selector?: string;
               }>;
               captureTraffic?: boolean;
+              closeChromeIfNeeded?: boolean;
             };
 
             const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import("./src/dom-service.js");
+
+            // Check if Chrome is running and we need to handle it
+            if (!sharedBrowser) {
+              const { spawnSync } = await import("node:child_process");
+              const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
+              const chromeIsRunning = psResult.stdout.trim().length > 0;
+
+              // Check if any CDP port is available (Chrome with debugging OR clawdbot browser)
+              let cdpAvailable = false;
+              for (const port of [18792, 18800, browserPort, 9222, 9229]) {
+                try {
+                  const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
+                    signal: AbortSignal.timeout(1000),
+                  });
+                  if (resp.ok) {
+                    cdpAvailable = true;
+                    break;
+                  }
+                } catch { /* not available */ }
+              }
+
+              if (chromeIsRunning && !cdpAvailable) {
+                if (p.closeChromeIfNeeded) {
+                  // User gave permission - close Chrome and continue
+                  logger.info(`[unbrowse] Closing Chrome to use your profile with all logins...`);
+                  await closeChrome();
+                  // Reset the flag so we don't warn later
+                  chromeWasRunning = false;
+                } else {
+                  // Chrome is running but we can't connect - ask for permission
+                  return {
+                    content: [{
+                      type: "text",
+                      text: `**Chrome is running** but I can't connect to it (no remote debugging).\n\n` +
+                        `To use your Chrome with all your saved logins, I need to close it and relaunch with your profile.\n\n` +
+                        `**Options:**\n` +
+                        `1. Run the same command with \`closeChromeIfNeeded=true\` to let me close Chrome (your tabs will be restored)\n` +
+                        `2. Close Chrome yourself and run again\n` +
+                        `3. Start Chrome with debugging: \`/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222\`\n\n` +
+                        `Or I can use a fresh Playwright browser (no saved logins) - just run the command again without closeChromeIfNeeded.`,
+                    }],
+                  };
+                }
+              }
+            }
 
             // Normalize actions — LLMs sometimes send malformed action objects
             // (e.g., { "fill": ... } instead of { "action": "fill", ... }).
