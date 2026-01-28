@@ -1,8 +1,101 @@
+# Dependencies
 node_modules/
+.pnp/
+.pnp.js
+
+# Build output
 dist/
+out/
+build/
 *.js
 *.js.map
 *.d.ts
-!clawdbot.plugin.json
+!src/**/*.d.ts
+
+# Keep these declaration files
 !clawdbot.d.ts
+
+# Lockfiles (let users generate their own)
+package-lock.json
+bun.lock
+yarn.lock
+pnpm-lock.yaml
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Environment and secrets
+.env
+.env.*
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# IDE and editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# AI agent config directories
+.agent/
+.agents/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.opencode/
+.qwen/
+.windsurf/
+.aider*
+.continue/
+
+# Local AI assistant context (contains user-specific paths)
+CLAUDE.md
+
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Large media files
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+# Test and coverage
+coverage/
+.nyc_output/
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+
+# Remotion/trailer (marketing video generation)
+trailer/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Optional: skills directory (user-generated)
+# Uncomment if you don't want to track captured skills
+# skills/
