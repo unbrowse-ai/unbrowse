@@ -11,9 +11,10 @@
  *   unbrowse_capture   — Provide URLs → auto-launches browser → captures all API traffic
  *   unbrowse_replay    — Execute API calls with stored credentials (auto-refresh on 401)
  *   unbrowse_login     — Log in with credentials via Playwright/stealth (for auth-required sites)
+ *   unbrowse_interact  — Drive browser pages (click, fill, select, read) for multi-step flows
  *   unbrowse_learn     — Parse a HAR file → generate skill
  *   unbrowse_skills    — List all discovered skills
- *   unbrowse_stealth   — Launch stealth cloud browser (BrowserBase)
+ *   unbrowse_stealth   — Launch stealth cloud browser (BrowserBase) — API execution only
  *   unbrowse_auth      — Extract auth from a running browser via CDP (low-level)
  *   unbrowse_publish   — Publish skill to cloud index (earn USDC via x402)
  *   unbrowse_search    — Search & install skills from the cloud index
@@ -225,6 +226,53 @@ const WALLET_SCHEMA = {
     },
   },
   required: [] as string[],
+};
+
+const INTERACT_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    url: {
+      type: "string" as const,
+      description: "URL to navigate to. Uses authenticated session from a previously captured skill.",
+    },
+    service: {
+      type: "string" as const,
+      description: "Service name to load auth from (uses auth.json from this skill). Auto-detected from URL domain if omitted.",
+    },
+    actions: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          action: {
+            type: "string" as const,
+            description: 'Action type: "click", "fill", "select", "wait", "screenshot", "read", "scroll", "press"',
+          },
+          selector: {
+            type: "string" as const,
+            description: 'CSS selector for the target element (e.g. "button.book-now", "#time-select", "input[name=guests]")',
+          },
+          value: {
+            type: "string" as const,
+            description: 'Value for "fill" (text input), "select" (option value), or "press" (key name like "Enter")',
+          },
+          timeout: {
+            type: "number" as const,
+            description: "Wait timeout in ms (default: 10000). For 'wait' action, how long to wait.",
+          },
+        },
+        required: ["action"],
+      },
+      description:
+        "Sequence of browser actions to perform. Each action can click elements, fill inputs, select dropdowns, " +
+        "wait for elements/navigation, read page text, scroll, or press keys. API traffic is captured throughout.",
+    },
+    captureTraffic: {
+      type: "boolean" as const,
+      description: "Capture API traffic during interaction for skill generation (default: true)",
+    },
+  },
+  required: ["url", "actions"],
 };
 
 const LOGIN_SCHEMA = {
@@ -1934,6 +1982,392 @@ const plugin = {
             return { content: [{ type: "text", text: lines.join("\n") }] };
           },
         },
+        // ── unbrowse_interact ──────────────────────────────────────────
+        {
+          name: "unbrowse_interact",
+          label: "Browser Interaction",
+          description:
+            "Drive a browser to interact with web pages — click buttons, fill forms, select options, " +
+            "read page content, and capture API traffic throughout. Uses local Playwright (not stealth) " +
+            "with auth from a previously captured skill's auth.json. Use this for multi-step flows " +
+            "like booking, purchasing, or navigating authenticated dashboards.",
+          parameters: INTERACT_SCHEMA,
+          async execute(_toolCallId: string, params: unknown) {
+            const p = params as {
+              url: string;
+              service?: string;
+              actions: Array<{
+                action: "click" | "fill" | "select" | "wait" | "screenshot" | "read" | "scroll" | "press";
+                selector?: string;
+                value?: string;
+                timeout?: number;
+              }>;
+              captureTraffic?: boolean;
+            };
+
+            // Derive service name from URL if not provided
+            let service = p.service;
+            if (!service) {
+              try {
+                const host = new URL(p.url).hostname;
+                service = host
+                  .replace(/^(www|api|app|auth|login)\./, "")
+                  .replace(/\.(com|io|org|net|dev|co|ai)$/, "")
+                  .replace(/\./g, "-");
+              } catch {
+                return { content: [{ type: "text", text: "Invalid URL." }] };
+              }
+            }
+
+            // Load auth from skill's auth.json
+            const skillDir = join(defaultOutputDir, service);
+            const authPath = join(skillDir, "auth.json");
+            let authHeaders: Record<string, string> = {};
+            let authCookies: Record<string, string> = {};
+            let storedLocalStorage: Record<string, string> = {};
+            let storedSessionStorage: Record<string, string> = {};
+            let baseUrl = "";
+
+            if (existsSync(authPath)) {
+              try {
+                const auth = JSON.parse(readFileSync(authPath, "utf-8"));
+                authHeaders = auth.headers ?? {};
+                authCookies = auth.cookies ?? {};
+                baseUrl = auth.baseUrl ?? "";
+                storedLocalStorage = auth.localStorage ?? {};
+                storedSessionStorage = auth.sessionStorage ?? {};
+              } catch { /* proceed without auth */ }
+            }
+
+            // Launch local Playwright (NOT stealth — stealth is for API execution only)
+            let browser: any = null;
+            let context: any = null;
+            let page: any = null;
+
+            try {
+              const { chromium } = await import("playwright");
+
+              browser = await chromium.launch({
+                headless: true,
+                args: [
+                  "--disable-blink-features=AutomationControlled",
+                  "--no-sandbox",
+                  "--disable-dev-shm-usage",
+                ],
+              });
+
+              context = await browser.newContext({
+                userAgent:
+                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              });
+
+              // Inject cookies
+              if (Object.keys(authCookies).length > 0) {
+                try {
+                  const domain = new URL(p.url).hostname;
+                  const cookieObjects = Object.entries(authCookies).map(([name, value]) => ({
+                    name,
+                    value,
+                    domain,
+                    path: "/",
+                  }));
+                  await context.addCookies(cookieObjects);
+                } catch { /* non-critical */ }
+              }
+
+              // Inject custom headers
+              if (Object.keys(authHeaders).length > 0) {
+                try {
+                  await context.setExtraHTTPHeaders(authHeaders);
+                } catch { /* non-critical */ }
+              }
+
+              page = await context.newPage();
+
+              // Capture API traffic if requested
+              const shouldCapture = p.captureTraffic !== false;
+              const capturedRequests: Array<{
+                method: string;
+                url: string;
+                status: number;
+                resourceType: string;
+              }> = [];
+
+              if (shouldCapture) {
+                const pendingReqs = new Map<string, { method: string; url: string; resourceType: string }>();
+
+                page.on("request", (req: any) => {
+                  const rt = req.resourceType();
+                  if (rt === "xhr" || rt === "fetch" || rt === "document") {
+                    pendingReqs.set(req.url() + req.method(), {
+                      method: req.method(),
+                      url: req.url(),
+                      resourceType: rt,
+                    });
+                  }
+                });
+
+                page.on("response", (resp: any) => {
+                  const req = resp.request();
+                  const key = req.url() + req.method();
+                  const entry = pendingReqs.get(key);
+                  if (entry) {
+                    capturedRequests.push({ ...entry, status: resp.status() });
+                    pendingReqs.delete(key);
+                  }
+                });
+              }
+
+              // Navigate to the URL
+              try {
+                await page.goto(p.url, { waitUntil: "networkidle", timeout: 30_000 });
+              } catch {
+                // Wait a bit if networkidle doesn't resolve
+                await page.waitForTimeout(3000);
+              }
+
+              // Inject localStorage/sessionStorage after navigation
+              const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
+              if (hasStorage) {
+                try {
+                  await page.evaluate(
+                    ({ ls, ss }: { ls: Record<string, string>; ss: Record<string, string> }) => {
+                      for (const [k, v] of Object.entries(ls)) {
+                        try { window.localStorage.setItem(k, v); } catch { /* ignore */ }
+                      }
+                      for (const [k, v] of Object.entries(ss)) {
+                        try { window.sessionStorage.setItem(k, v); } catch { /* ignore */ }
+                      }
+                    },
+                    { ls: storedLocalStorage, ss: storedSessionStorage },
+                  );
+                } catch { /* page may block storage access */ }
+              }
+
+              // Execute actions
+              const actionResults: string[] = [];
+
+              for (const act of p.actions) {
+                const timeout = act.timeout ?? 10_000;
+
+                try {
+                  switch (act.action) {
+                    case "click": {
+                      if (!act.selector) {
+                        actionResults.push("click: missing selector");
+                        break;
+                      }
+                      await page.waitForSelector(act.selector, { timeout });
+                      await page.click(act.selector);
+                      // Wait for potential navigation/XHR
+                      await page.waitForTimeout(500);
+                      actionResults.push(`click: ${act.selector} ✓`);
+                      break;
+                    }
+
+                    case "fill": {
+                      if (!act.selector || act.value === undefined) {
+                        actionResults.push("fill: missing selector or value");
+                        break;
+                      }
+                      await page.waitForSelector(act.selector, { timeout });
+                      await page.fill(act.selector, act.value);
+                      await page.waitForTimeout(200);
+                      actionResults.push(`fill: ${act.selector} = "${act.value}" ✓`);
+                      break;
+                    }
+
+                    case "select": {
+                      if (!act.selector || !act.value) {
+                        actionResults.push("select: missing selector or value");
+                        break;
+                      }
+                      await page.waitForSelector(act.selector, { timeout });
+                      await page.selectOption(act.selector, act.value);
+                      await page.waitForTimeout(200);
+                      actionResults.push(`select: ${act.selector} = "${act.value}" ✓`);
+                      break;
+                    }
+
+                    case "wait": {
+                      if (act.selector) {
+                        await page.waitForSelector(act.selector, { timeout });
+                        actionResults.push(`wait: ${act.selector} appeared ✓`);
+                      } else {
+                        const ms = act.timeout ?? 2000;
+                        await page.waitForTimeout(ms);
+                        actionResults.push(`wait: ${ms}ms ✓`);
+                      }
+                      break;
+                    }
+
+                    case "screenshot": {
+                      // Return a text description of what's visible
+                      const title = await page.title();
+                      const url = page.url();
+                      actionResults.push(`screenshot: "${title}" (${url})`);
+                      break;
+                    }
+
+                    case "read": {
+                      if (act.selector) {
+                        await page.waitForSelector(act.selector, { timeout });
+                        const text = await page.textContent(act.selector);
+                        actionResults.push(`read [${act.selector}]: ${(text ?? "").slice(0, 1000)}`);
+                      } else {
+                        // Read visible page text
+                        const text = await page.evaluate(() => {
+                          return document.body?.innerText?.slice(0, 3000) ?? "";
+                        });
+                        actionResults.push(`read [body]: ${text.slice(0, 2000)}`);
+                      }
+                      break;
+                    }
+
+                    case "scroll": {
+                      if (act.selector) {
+                        await page.waitForSelector(act.selector, { timeout });
+                        await page.evaluate((sel: string) => {
+                          document.querySelector(sel)?.scrollIntoView({ behavior: "smooth" });
+                        }, act.selector);
+                        actionResults.push(`scroll: ${act.selector} into view ✓`);
+                      } else {
+                        const amount = parseInt(act.value ?? "500", 10);
+                        await page.evaluate((y: number) => window.scrollBy(0, y), amount);
+                        actionResults.push(`scroll: ${amount}px ✓`);
+                      }
+                      await page.waitForTimeout(300);
+                      break;
+                    }
+
+                    case "press": {
+                      const key = act.value ?? "Enter";
+                      if (act.selector) {
+                        await page.waitForSelector(act.selector, { timeout });
+                        await page.focus(act.selector);
+                      }
+                      await page.keyboard.press(key);
+                      await page.waitForTimeout(300);
+                      actionResults.push(`press: ${key} ✓`);
+                      break;
+                    }
+
+                    default:
+                      actionResults.push(`unknown action: ${act.action}`);
+                  }
+                } catch (err) {
+                  actionResults.push(`${act.action}: FAILED — ${(err as Error).message}`);
+                }
+              }
+
+              // Read final page state
+              const finalTitle = await page.title().catch(() => "");
+              const finalUrl = page.url();
+              const finalText = await page
+                .evaluate(() => document.body?.innerText?.slice(0, 2000) ?? "")
+                .catch(() => "");
+
+              // Capture updated cookies/storage for persistence
+              const finalCookies = await context.cookies().catch(() => []);
+              const updatedCookies: Record<string, string> = {};
+              for (const c of finalCookies as Array<{ name: string; value: string }>) {
+                updatedCookies[c.name] = c.value;
+              }
+
+              let updatedLocalStorage: Record<string, string> = {};
+              let updatedSessionStorage: Record<string, string> = {};
+              try {
+                const freshState = await page.evaluate(() => {
+                  const authKeywords =
+                    /token|auth|session|jwt|access|refresh|csrf|xsrf|key|cred|user|login|bearer/i;
+                  const ls: Record<string, string> = {};
+                  for (let i = 0; i < window.localStorage.length; i++) {
+                    const key = window.localStorage.key(i);
+                    if (key && authKeywords.test(key)) {
+                      const val = window.localStorage.getItem(key);
+                      if (val) ls[key] = val;
+                    }
+                  }
+                  const ss: Record<string, string> = {};
+                  for (let i = 0; i < window.sessionStorage.length; i++) {
+                    const key = window.sessionStorage.key(i);
+                    if (key && authKeywords.test(key)) {
+                      const val = window.sessionStorage.getItem(key);
+                      if (val) ss[key] = val;
+                    }
+                  }
+                  return { localStorage: ls, sessionStorage: ss };
+                });
+                updatedLocalStorage = freshState.localStorage;
+                updatedSessionStorage = freshState.sessionStorage;
+              } catch { /* page may be closed */ }
+
+              // Persist updated auth state back to auth.json
+              try {
+                const { mkdirSync, writeFileSync } = await import("node:fs");
+                mkdirSync(join(skillDir, "scripts"), { recursive: true });
+                const existing = existsSync(authPath) ? JSON.parse(readFileSync(authPath, "utf-8")) : {};
+                existing.cookies = { ...authCookies, ...updatedCookies };
+                existing.localStorage = { ...storedLocalStorage, ...updatedLocalStorage };
+                existing.sessionStorage = { ...storedSessionStorage, ...updatedSessionStorage };
+                existing.lastInteractAt = new Date().toISOString();
+                if (!existing.baseUrl) existing.baseUrl = baseUrl || new URL(p.url).origin;
+                writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
+              } catch { /* non-critical */ }
+
+              // Clean up
+              await context?.close().catch(() => {});
+              await browser?.close().catch(() => {});
+
+              // If we captured enough traffic, offer skill generation
+              const apiCalls = capturedRequests.filter(
+                (r) => r.resourceType === "xhr" || r.resourceType === "fetch",
+              );
+
+              // Build result summary
+              const resultLines = [
+                `Interaction complete: ${p.actions.length} action(s)`,
+                `Page: "${finalTitle}" (${finalUrl})`,
+                "",
+                "Actions:",
+                ...actionResults.map((r) => `  ${r}`),
+              ];
+
+              if (apiCalls.length > 0) {
+                resultLines.push(
+                  "",
+                  `API traffic captured: ${apiCalls.length} request(s)`,
+                  ...apiCalls.slice(0, 20).map(
+                    (r) => `  ${r.method} ${r.url.slice(0, 100)} → ${r.status}`,
+                  ),
+                );
+                if (apiCalls.length > 20) {
+                  resultLines.push(`  ... and ${apiCalls.length - 20} more`);
+                }
+              }
+
+              if (finalText) {
+                resultLines.push("", "Page content (truncated):", finalText.slice(0, 1500));
+              }
+
+              logger.info(
+                `[unbrowse] Interact: ${p.actions.length} actions on ${finalUrl} (${apiCalls.length} API calls)`,
+              );
+              return { content: [{ type: "text", text: resultLines.join("\n") }] };
+            } catch (err) {
+              const msg = (err as Error).message;
+              // Clean up on error
+              await context?.close().catch(() => {});
+              await browser?.close().catch(() => {});
+              if (msg.includes("playwright")) {
+                return {
+                  content: [{ type: "text", text: `Playwright not available: ${msg}. Install with: bun add playwright` }],
+                };
+              }
+              return { content: [{ type: "text", text: `Interaction failed: ${msg}` }] };
+            }
+          },
+        },
       ];
 
       return toolList;
@@ -1950,6 +2384,7 @@ const plugin = {
       "unbrowse_search",
       "unbrowse_login",
       "unbrowse_wallet",
+      "unbrowse_interact",
     ];
 
     api.registerTool(tools, { names: toolNames });
@@ -1993,9 +2428,11 @@ const plugin = {
         "- Use unbrowse_capture to visit URLs and capture API traffic automatically via Playwright",
         "- Use unbrowse_login to log into authenticated sites with credentials",
         "- Use unbrowse_replay to call APIs using captured auth (auto-refreshes on 401)",
+        "- Use unbrowse_interact to drive pages (click buttons, fill forms, select options, read content) — for multi-step flows like booking",
         "- Use unbrowse_search to find skills other agents have already discovered",
         "- Check unbrowse_skills first to see if you already have a skill for the service",
         "The browser launches automatically — no Chrome extension, no manual steps needed.",
+        "IMPORTANT: Do NOT ask the user to manually interact with a browser. Use unbrowse_interact to drive pages yourself.",
         "",
       ];
 
