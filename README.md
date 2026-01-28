@@ -2,321 +2,183 @@
 
 **Browse once. Automate forever.**
 
-The action layer for AI agents. Capture what happens when you browse, replay it 50x faster without a browser.
+Unbrowse is a self-learning browser agent that captures API traffic from websites and turns it into reusable skills. When APIs need to be called again, it replays them directly—no screenshots, no clicking, no waiting.
 
 ```
 You browse a website
         ↓
 Unbrowse captures all API calls
         ↓
-Agents replay them directly—no screenshots, no clicking
+Agents replay them directly
         ↓
 0.3 seconds. 95% reliable. Works on any site.
 ```
 
----
+## Why Unbrowse?
 
-## The Problem
+Traditional browser automation:
+1. Take screenshot → 2. Send to vision model → 3. Parse response → 4. Click element → 5. Wait → 6. Repeat
 
-AI agents still interact with websites like it's 1999:
+**Result:** 30+ seconds per action, 60% reliability, breaks when UI changes.
 
-1. Take screenshot
-2. Parse with vision model  
-3. Click button
-4. Wait for page load
-5. Repeat
+Unbrowse:
+1. Capture APIs once → 2. Replay directly forever
 
-**30-45 seconds per action. 70% success rate. Breaks when the UI changes.**
-
-This is insane. When you click "Buy Now," your browser sends a simple HTTP request. The button is just decoration.
-
-## The Solution
-
-Unbrowse captures those HTTP requests and replays them directly:
-
-- **No screenshots** — direct network communication
-- **No waiting** — sub-second execution
-- **No breaking** — APIs are more stable than UIs
-- **No limits** — works on sites without public APIs
-
-| | Browser Automation | Unbrowse |
-|---|---|---|
-| Speed | 30-45s/action | 0.3s/action |
-| Reliability | ~70% | ~95% |
-| Cost | $0.01-0.05/action | $0.0001/action |
-| Coverage | Sites with APIs | Any website |
-
----
+**Result:** 0.3 seconds per action, 95% reliability, survives UI redesigns.
 
 ## Quick Start
 
 ```bash
 # Install
-cd extensions/unbrowse && bun install
+npm install
+npx playwright install chromium
 
-# Capture a site (crawls, discovers APIs, generates skill)
-bunx unbrowse capture https://eatigo.com
+# Capture APIs from any website
+unbrowse_capture urls=["https://api.example.com"]
 
-# Or interact manually (browser-use style)
-bunx unbrowse interact https://eatigo.com/book
-
-# Replay without browser
-bunx unbrowse replay eatigo search '{"cuisine": "japanese"}'
+# Replay without a browser
+unbrowse_replay service="example" endpoint="GET /api/users"
 ```
 
----
+See the [Quickstart Guide](./docs/QUICKSTART.md) for more examples.
 
-## How It Works
+## Features
 
-### 1. Capture
+### Automatic Skill Generation
+- Captures XHR/Fetch traffic from any website
+- Extracts endpoints, auth headers, cookies, tokens
+- Generates SKILL.md documentation + TypeScript client
+- Detects OAuth/JWT refresh patterns for auto-renewal
 
-Point Unbrowse at any URL. It launches a browser, watches all network traffic, and learns how the site works.
+### Smart Authentication
+- Captures session cookies, Bearer tokens, API keys
+- Stores credentials in encrypted vault (AES-256-GCM)
+- Auto-refreshes expired tokens
+- Integrates with macOS Keychain and 1Password
 
-```bash
-unbrowse_capture --url "https://booking.com"
-```
+### Browser Connection Cascade
+- Connects to existing Chrome sessions (CDP)
+- Uses Chrome profile with saved logins
+- Falls back to Playwright for fresh sessions
+- Stealth cloud browser for anti-bot protection
 
-What it captures:
-- Every XHR/fetch request as full HAR entries
-- Auth patterns (cookies, headers, tokens)
-- Session state (localStorage, sessionStorage)
-- Endpoint schemas and parameters
-
-### 2. Generate
-
-Unbrowse turns captured traffic into a **skill**—a reusable package any agent can use.
-
-```
-booking.com/
-├── SKILL.md      # Human-readable API docs
-├── auth.json     # Session state (local only)
-└── scripts/
-    └── api.ts    # TypeScript client
-```
-
-### 3. Replay
-
-Execute API calls without a browser. Auth is handled automatically.
-
-```bash
-unbrowse_replay --skill "booking" --action "search" \
-  --params '{"city": "tokyo", "dates": "2025-03-01"}'
-```
-
-If auth expires, Unbrowse re-runs login and retries. Session state persists across calls.
-
-### 4. Share
-
-Publish skills to the marketplace. Others download and use them. You earn.
-
-```bash
-unbrowse_publish --skill "booking"  # Credentials stripped automatically
-```
-
-Skills go through security review before becoming available.
-
----
-
-## Browser Interaction
-
-`unbrowse_interact` drives pages autonomously—click, fill, select by element index:
-
-```
-[1] <button> Book Now
-[2] <input type="text" placeholder="Search">
-[3] <select name="guests"> options=[1, 2, 3, 4, 5+]
-```
-
-| Action | Example | Description |
-|--------|---------|-------------|
-| `click_element` | `index=1` | Click by index |
-| `input_text` | `index=2, text="Tokyo"` | Type into input |
-| `select_option` | `index=3, text="2"` | Select dropdown |
-| `extract_content` | — | Read full page |
-| `done` | `text="Booked"` | Signal completion |
-
-All network traffic during interaction is captured automatically.
-
----
+### Skill Marketplace
+- Publish skills for others to use
+- Search and install community skills
+- Earn USDC when your skills are downloaded
+- x402 micropayments on Solana
 
 ## Tools
 
-| Tool | Purpose |
-|------|---------|
-| `unbrowse_capture` | Visit URLs, crawl, capture traffic, generate skill |
-| `unbrowse_replay` | Execute API calls with captured auth |
-| `unbrowse_interact` | Browser-use style page interaction |
-| `unbrowse_login` | Login with credentials, capture full session |
-| `unbrowse_learn` | Parse HAR files into skills |
+| Tool | Description |
+|------|-------------|
+| `unbrowse_capture` | Visit URLs, capture traffic, generate skill |
+| `unbrowse_replay` | Execute APIs using stored credentials |
+| `unbrowse_login` | Log in with credentials, capture session |
+| `unbrowse_interact` | Drive browser with indexed element targeting |
+| `unbrowse_stealth` | Cloud browser with anti-bot detection |
 | `unbrowse_skills` | List local skills |
-| `unbrowse_publish` | Push to marketplace |
-| `unbrowse_search` | Find and install community skills |
+| `unbrowse_search` | Search marketplace |
+| `unbrowse_publish` | Publish skill to marketplace |
 
----
+## Documentation
 
-## Session Persistence
+- [**Quickstart Guide**](./docs/QUICKSTART.md) — Get started in 5 minutes
+- [**Architecture**](./docs/ARCHITECTURE.md) — How it all works
+- [**Contributing**](./CONTRIBUTING.md) — Development setup
 
-Auth state lives in `auth.json` and persists across tool calls:
+## How Skills Work
 
-```json
-{
-  "service": "eatigo",
-  "authMethod": "Cookie + Bearer",
-  "headers": { "Authorization": "Bearer eyJ..." },
-  "cookies": { "session_id": "xyz" },
-  "localStorage": { "access_token": "..." }
-}
-```
-
-After every replay:
-- `Set-Cookie` headers accumulated
-- Session headers (csrf, auth) captured  
-- localStorage/sessionStorage re-extracted
-- Written back to `auth.json`
-
-Multi-step flows work across separate tool calls with no session loss.
-
----
-
-## Skill Marketplace
-
-### Download skills others have created
-
-```bash
-unbrowse_search --query "restaurant booking singapore"
-unbrowse_search --query "stock prices"
-```
-
-### Publish your own
-
-```bash
-unbrowse_publish --skill "mysite"
-```
-
-Skills go through two-layer security review:
-1. **Static scan** — 25+ patterns for shell exec, key access, eval, exfil
-2. **LLM review** — Claude/GPT analyzes for supply chain attacks
-
-Only approved skills appear in search and are downloadable.
-
----
-
-## Payments (x402)
-
-Unbrowse implements HTTP 402 Payment Required using Solana USDC micropayments.
-
-### Pricing Model: Skill Ownership
-
-Skills are purchased once and owned forever:
+A "skill" is a captured API integration:
 
 ```
-Agent discovers skill → pays $0.01 → downloads full package → unlimited replays
+~/.clawdbot/skills/twitter/
+├── SKILL.md           # Endpoint documentation
+├── auth.json          # Credentials (encrypted in vault)
+└── scripts/
+    └── api.ts         # Generated TypeScript client
 ```
 
-**Why ownership, not per-execution?**
-- **Offline-first**: Skills work without network after download
-- **Predictable costs**: Pay once, use forever—no metering surprises
-- **Fast execution**: No payment verification on every API call
-- **Privacy**: Usage patterns stay local
+**SKILL.md:**
+```markdown
+# Twitter API
 
-### 4-Party Revenue Split
+**Auth:** Bearer Token
+**Base URL:** https://api.twitter.com
 
-| Recipient | Share | Description |
-|-----------|-------|-------------|
-| Website Owner | 65% | Original API owner (via DNS verification) |
-| Platform | 30% | Unbrowse infrastructure |
-| Skill Creator | 3% | Agent/human who indexed the site |
-| Fee Payer | 2% + gas | Transaction processing |
-
-Unclaimed shares (e.g., unverified website owners) go to platform treasury.
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Agent Request                            │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Skill Marketplace Server                     │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │ GET /skills │→ │ x402 Gate   │→ │ Verify Solana Payment   │  │
-│  │ /:id/download│  │ (402 resp)  │  │ via x402 Smart Contract │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-              Payment verified? │
-                    ┌───────────┴───────────┐
-                    │                       │
-                   Yes                      No
-                    │                       │
-                    ▼                       ▼
-          Return skill package      Return 402 with
-          (SKILL.md + api.ts)       payment instructions
+## Endpoints
+- `GET /2/users/me` — Get authenticated user ✓
+- `GET /2/tweets/:id` — Get tweet by ID ✓
+- `POST /2/tweets` — Create tweet
 ```
 
-### Payment Flow
+**Usage:**
+```typescript
+// Direct API call
+unbrowse_replay service="twitter" endpoint="GET /2/users/me"
 
-1. Agent requests `GET /skills/:id/download`
-2. Server returns `402 Payment Required` with x402 schema
-3. Agent constructs Solana transaction with 4-party split
-4. Agent submits signed transaction in `X-Payment` header
-5. Server verifies transaction via simulation + on-chain confirmation
-6. Server returns skill package, records download + earnings
-
-### Configuration
-
-| Env Var | Description |
-|---------|-------------|
-| `FDRY_TREASURY_WALLET` | Platform treasury (required for paid mode) |
-| `SOLANA_RPC_URL` | RPC endpoint (devnet or mainnet) |
-| `USDC_MINT` | USDC token mint address |
-| `DOWNLOAD_PRICE_CENTS` | Price per download (default: 1.0) |
-
-Skills are free when `FDRY_TREASURY_WALLET` is not set (dev mode).
-
----
+// With body
+unbrowse_replay service="twitter" endpoint="POST /2/tweets" body='{"text":"Hello!"}'
+```
 
 ## Configuration
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `skillsOutputDir` | `~/.moltbot/skills` | Local skill storage |
-| `autoDiscover` | `true` | Auto-generate skills while browsing |
-| `browserPort` | `18791` | CDP browser control port |
-| `credentialSource` | `none` | Password lookup: `keychain`, `1password`, `vault` |
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse": {
+        "config": {
+          "skillsOutputDir": "~/.clawdbot/skills",
+          "browserUseApiKey": "your-browserbase-key",
+          "credentialSource": "keychain",
+          "creatorWallet": "your-solana-address"
+        }
+      }
+    }
+  }
+}
+```
 
----
+| Option | Description |
+|--------|-------------|
+| `skillsOutputDir` | Where skills are saved |
+| `browserUseApiKey` | BrowserBase API key for stealth browser |
+| `credentialSource` | `"keychain"`, `"1password"`, `"vault"`, or `"none"` |
+| `creatorWallet` | Solana address to receive marketplace earnings |
+| `autoDiscover` | Auto-generate skills from browser activity |
 
-## Security
+## Marketplace
 
-- **Credentials stay local** — `auth.json` never leaves your machine
-- **Auto-sanitization** — Publishing strips all credentials
-- **Two-layer review** — Static + LLM analysis before approval
-- **Pending until reviewed** — Only approved skills are discoverable
+Share and monetize your API skills:
 
----
+```bash
+# Publish a skill
+unbrowse_publish service="my-api"
 
-## The Vision
+# Search for skills
+unbrowse_search query="twitter"
 
-**Google indexed information. Unbrowse indexes actions.**
+# Install a skill ($0.01 USDC)
+unbrowse_search install="skill-id"
+```
 
-When agents need to act on the web—buy, book, post, extract—they query Unbrowse's skill index instead of fumbling through UIs.
+Set up your wallet:
+```bash
+unbrowse_wallet action="setup"
+```
 
-2 billion websites. 5,000 public APIs. Unbrowse makes the other 1,999,995,000 accessible to AI.
+## Requirements
 
----
-
-## Links
-
-- [Documentation](https://docs.unbrowse.ai)
-- [Skill Marketplace](https://skills.unbrowse.ai)
-- [GitHub](https://github.com/getfoundry/unbrowse)
-
----
+- Node.js 18+ or Bun
+- Playwright (`npx playwright install chromium`)
+- macOS (for Keychain integration) or any OS (for vault storage)
 
 ## License
 
 MIT
-```
+
+## Links
+
+- [Clawdbot](https://github.com/lekt9/clawdbot) — The AI agent framework
+- [BrowserBase](https://browserbase.com) — Cloud browser provider
