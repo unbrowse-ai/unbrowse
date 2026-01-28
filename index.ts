@@ -689,14 +689,30 @@ const plugin = {
           } catch (err) {
             // Profile likely locked - try quitting Chrome first
             const errMsg = (err as Error).message;
-            if (errMsg.includes("lock") || errMsg.includes("already running") || errMsg.includes("SingletonLock")) {
+            logger.info(`[unbrowse] Chrome launch failed: ${errMsg}`);
+            if (errMsg.includes("lock") || errMsg.includes("already running") || errMsg.includes("SingletonLock") || errMsg.includes("user data directory")) {
               logger.info(`[unbrowse] Chrome is running, attempting to quit it...`);
               try {
-                const { execSync } = await import("node:child_process");
+                const { execSync, spawnSync } = await import("node:child_process");
                 // Gracefully quit Chrome on macOS
                 execSync(`osascript -e 'tell application "Google Chrome" to quit' 2>/dev/null || true`, { timeout: 5000 });
                 // Wait for Chrome to fully close
-                await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 3000));
+
+                // Check if Chrome is still running, force kill if needed
+                const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
+                if (psResult.stdout.trim()) {
+                  logger.info(`[unbrowse] Chrome still running, force killing...`);
+                  execSync(`pkill -9 "Google Chrome" 2>/dev/null || true`, { timeout: 3000 });
+                  await new Promise(r => setTimeout(r, 2000));
+                }
+
+                // Remove SingletonLock file if it exists
+                const lockFile = join(chromeUserDataDir, "SingletonLock");
+                if (existsSync(lockFile)) {
+                  const { unlinkSync } = await import("node:fs");
+                  try { unlinkSync(lockFile); } catch { /* ignore */ }
+                }
 
                 // Try again
                 const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
@@ -722,8 +738,8 @@ const plugin = {
                 browserSessions.set(service, session);
                 logger.info(`[unbrowse] Launched Chrome with user profile for ${service} (after quitting)`);
                 return session;
-              } catch {
-                logger.warn(`[unbrowse] Could not quit Chrome or relaunch with profile`);
+              } catch (retryErr) {
+                logger.warn(`[unbrowse] Could not quit Chrome or relaunch with profile: ${(retryErr as Error).message}`);
               }
             }
           }
