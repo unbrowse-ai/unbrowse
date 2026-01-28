@@ -34,6 +34,12 @@ export interface LoginResult {
   requestCount: number;
   /** HAR log for skill generation */
   har: { log: { entries: HarEntry[] } };
+  /** localStorage tokens captured from the authenticated page */
+  localStorage: Record<string, string>;
+  /** sessionStorage tokens captured from the authenticated page */
+  sessionStorage: Record<string, string>;
+  /** Meta tag tokens (CSRF, etc.) from the page DOM */
+  metaTokens: Record<string, string>;
 }
 
 interface CapturedEntry {
@@ -251,6 +257,104 @@ export async function loginAndCapture(
     }
   }
 
+  // ── Extract client-side auth state ────────────────────────────────
+  // Modern SPAs store auth in localStorage/sessionStorage (JWTs, access tokens)
+  // and embed CSRF tokens in meta tags. These are invisible to cookie/header capture.
+
+  let localStorage: Record<string, string> = {};
+  let sessionStorage: Record<string, string> = {};
+  let metaTokens: Record<string, string> = {};
+
+  try {
+    const clientState = await page.evaluate(() => {
+      // Keywords that indicate auth-related storage entries
+      const authKeywords = /token|auth|session|jwt|access|refresh|csrf|xsrf|key|cred|user|login|bearer/i;
+
+      // Grab localStorage entries matching auth keywords
+      const ls: Record<string, string> = {};
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key && authKeywords.test(key)) {
+          const val = window.localStorage.getItem(key);
+          if (val) ls[key] = val;
+        }
+      }
+
+      // Grab sessionStorage entries matching auth keywords
+      const ss: Record<string, string> = {};
+      for (let i = 0; i < window.sessionStorage.length; i++) {
+        const key = window.sessionStorage.key(i);
+        if (key && authKeywords.test(key)) {
+          const val = window.sessionStorage.getItem(key);
+          if (val) ss[key] = val;
+        }
+      }
+
+      // Extract meta tag tokens (CSRF, API keys, etc.)
+      const meta: Record<string, string> = {};
+      const metaKeywords = /csrf|xsrf|token|nonce|api[-_]?key|auth/i;
+      document.querySelectorAll("meta[name], meta[property], meta[http-equiv]").forEach((el) => {
+        const name = el.getAttribute("name") || el.getAttribute("property") || el.getAttribute("http-equiv") || "";
+        const content = el.getAttribute("content") || "";
+        if (name && content && metaKeywords.test(name)) {
+          meta[name] = content;
+        }
+      });
+
+      // Also check common JS globals that SPAs use for auth
+      const win = window as any;
+      const globalKeys = [
+        "__NEXT_DATA__", "__NUXT__", "__INITIAL_STATE__",
+        "_csrf", "csrfToken", "CSRF_TOKEN",
+      ];
+      for (const gk of globalKeys) {
+        if (win[gk]) {
+          try {
+            const val = typeof win[gk] === "string" ? win[gk] : JSON.stringify(win[gk]);
+            // Only store if it looks like it contains auth data
+            if (val && authKeywords.test(val) && val.length < 10000) {
+              ls[`__global:${gk}`] = val;
+            }
+          } catch { /* skip non-serializable */ }
+        }
+      }
+
+      return { localStorage: ls, sessionStorage: ss, metaTokens: meta };
+    });
+
+    localStorage = clientState.localStorage;
+    sessionStorage = clientState.sessionStorage;
+    metaTokens = clientState.metaTokens;
+
+    // Promote any JWT/bearer tokens found in storage to authHeaders
+    // so they're automatically used in unbrowse_replay fetch calls
+    for (const [key, value] of [...Object.entries(localStorage), ...Object.entries(sessionStorage)]) {
+      const lk = key.toLowerCase();
+      // JWT detection: starts with eyJ (base64 {"alg":...)
+      if (value.startsWith("eyJ") || /^Bearer\s/i.test(value)) {
+        const tokenValue = value.startsWith("eyJ") ? `Bearer ${value}` : value;
+        // Use the most specific key name we can find
+        if (lk.includes("access") || lk.includes("auth") || lk.includes("token")) {
+          authHeaders["authorization"] = tokenValue;
+        }
+      }
+      // Also grab explicit CSRF tokens for the header
+      if (lk.includes("csrf") || lk.includes("xsrf")) {
+        authHeaders["x-csrf-token"] = value;
+      }
+    }
+
+    // Same for meta tokens
+    for (const [name, value] of Object.entries(metaTokens)) {
+      const ln = name.toLowerCase();
+      if (ln.includes("csrf") || ln.includes("xsrf")) {
+        authHeaders["x-csrf-token"] = value;
+      }
+    }
+  } catch {
+    // Page might be navigated away or context closed — non-critical
+  }
+
   // Derive base URL from the login URL
   const parsedUrl = new URL(loginUrl);
   const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
@@ -284,5 +388,8 @@ export async function loginAndCapture(
     baseUrl,
     requestCount: captured.length,
     har: { log: { entries: harEntries } },
+    localStorage,
+    sessionStorage,
+    metaTokens,
   };
 }

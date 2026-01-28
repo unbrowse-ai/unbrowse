@@ -726,6 +726,8 @@ const plugin = {
             let authHeaders: Record<string, string> = {};
             let cookies: Record<string, string> = {};
             let baseUrl = "https://api.example.com";
+            let storedLocalStorage: Record<string, string> = {};
+            let storedSessionStorage: Record<string, string> = {};
             let loginConfig: {
               loginUrl: string;
               formFields?: Record<string, string>;
@@ -743,6 +745,38 @@ const plugin = {
                 cookies = auth.cookies ?? {};
                 baseUrl = auth.baseUrl ?? baseUrl;
                 loginConfig = auth.loginConfig ?? null;
+
+                // Restore client-side auth tokens (JWTs from localStorage/sessionStorage)
+                // These were captured by session-login from the SPA's browser state.
+                const ls = auth.localStorage as Record<string, string> | undefined;
+                const ss = auth.sessionStorage as Record<string, string> | undefined;
+                const meta = auth.metaTokens as Record<string, string> | undefined;
+                storedLocalStorage = ls ?? {};
+                storedSessionStorage = ss ?? {};
+
+                for (const [key, value] of [...Object.entries(ls ?? {}), ...Object.entries(ss ?? {})]) {
+                  const lk = key.toLowerCase();
+                  // Promote JWTs to Authorization header
+                  if (value.startsWith("eyJ") || /^Bearer\s/i.test(value)) {
+                    const tokenValue = value.startsWith("eyJ") ? `Bearer ${value}` : value;
+                    if (lk.includes("access") || lk.includes("auth") || lk.includes("token")) {
+                      if (!authHeaders["authorization"]) {
+                        authHeaders["authorization"] = tokenValue;
+                      }
+                    }
+                  }
+                  // Promote CSRF tokens to header
+                  if (lk.includes("csrf") || lk.includes("xsrf")) {
+                    authHeaders["x-csrf-token"] = value;
+                  }
+                }
+
+                for (const [name, value] of Object.entries(meta ?? {})) {
+                  const ln = name.toLowerCase();
+                  if (ln.includes("csrf") || ln.includes("xsrf")) {
+                    authHeaders["x-csrf-token"] = value;
+                  }
+                }
               } catch { /* skip */ }
             }
             loadAuth();
@@ -799,8 +833,36 @@ const plugin = {
                 const context = chromeBrowser.contexts()[0];
                 if (!context) { await chromeBrowser.close(); chromeBrowser = null; return null; }
 
+                // Inject stored cookies into the browser context
+                if (Object.keys(cookies).length > 0) {
+                  try {
+                    const domain = new URL(baseUrl).hostname;
+                    const cookieObjects = Object.entries(cookies).map(([name, value]) => ({
+                      name, value, domain, path: "/",
+                    }));
+                    await context.addCookies(cookieObjects);
+                  } catch { /* non-critical */ }
+                }
+
                 chromePage = context.pages()[0] ?? await context.newPage();
                 await chromePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
+
+                // Inject stored localStorage/sessionStorage into the page
+                // This restores SPA auth state (JWTs, access tokens) captured during login
+                const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
+                if (hasStorage) {
+                  try {
+                    await chromePage.evaluate(({ ls, ss }: { ls: Record<string, string>; ss: Record<string, string> }) => {
+                      for (const [k, v] of Object.entries(ls)) {
+                        try { window.localStorage.setItem(k, v); } catch { /* ignore */ }
+                      }
+                      for (const [k, v] of Object.entries(ss)) {
+                        try { window.sessionStorage.setItem(k, v); } catch { /* ignore */ }
+                      }
+                    }, { ls: storedLocalStorage, ss: storedSessionStorage });
+                  } catch { /* page may block storage access — non-critical */ }
+                }
+
                 return chromePage;
               } catch {
                 return null;
@@ -1064,10 +1126,38 @@ const plugin = {
               }
             }
 
-            // Clean up browser session after all calls complete
+            // Capture updated client-side state from the browser before cleanup
+            if (chromePage) {
+              try {
+                const freshState = await chromePage.evaluate(() => {
+                  const authKeywords = /token|auth|session|jwt|access|refresh|csrf|xsrf|key|cred|user|login|bearer/i;
+                  const ls: Record<string, string> = {};
+                  for (let i = 0; i < window.localStorage.length; i++) {
+                    const key = window.localStorage.key(i);
+                    if (key && authKeywords.test(key)) {
+                      const val = window.localStorage.getItem(key);
+                      if (val) ls[key] = val;
+                    }
+                  }
+                  const ss: Record<string, string> = {};
+                  for (let i = 0; i < window.sessionStorage.length; i++) {
+                    const key = window.sessionStorage.key(i);
+                    if (key && authKeywords.test(key)) {
+                      const val = window.sessionStorage.getItem(key);
+                      if (val) ss[key] = val;
+                    }
+                  }
+                  return { localStorage: ls, sessionStorage: ss };
+                });
+                storedLocalStorage = { ...storedLocalStorage, ...freshState.localStorage };
+                storedSessionStorage = { ...storedSessionStorage, ...freshState.sessionStorage };
+              } catch { /* page may be gone */ }
+            }
+
+            // Clean up browser session after capturing state
             await cleanupChrome();
 
-            // Persist accumulated cookies + headers back to auth.json so the
+            // Persist accumulated cookies + headers + storage back to auth.json so the
             // next unbrowse_replay call (or credential refresh) picks them up.
             // This keeps the session alive across separate tool calls.
             try {
@@ -1078,6 +1168,8 @@ const plugin = {
               existing.headers = authHeaders;
               existing.cookies = cookies;
               existing.baseUrl = baseUrl;
+              existing.localStorage = storedLocalStorage;
+              existing.sessionStorage = storedSessionStorage;
               existing.lastReplayAt = new Date().toISOString();
               if (loginConfig) existing.loginConfig = loginConfig;
               writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
@@ -1603,6 +1695,10 @@ const plugin = {
                 timestamp: new Date().toISOString(),
                 headers: result.authHeaders,
                 cookies: result.cookies,
+                // Client-side auth state (SPAs store JWTs in storage, CSRF in meta tags)
+                localStorage: result.localStorage,
+                sessionStorage: result.sessionStorage,
+                metaTokens: result.metaTokens,
               };
 
               // Store login config so replay can re-login when creds expire
@@ -1647,12 +1743,18 @@ const plugin = {
               }
 
               const backend = browserUseApiKey ? "stealth cloud (BrowserBase)" : "local Playwright";
+              const lsCount = Object.keys(result.localStorage).length;
+              const ssCount = Object.keys(result.sessionStorage).length;
+              const metaCount = Object.keys(result.metaTokens).length;
               const summary = [
                 `Session captured via ${backend}`,
                 `Service: ${service}`,
                 credentialUsed ? `Credentials: auto-filled from ${credentialUsed.source} (${credentialUsed.label})` : "",
                 `Cookies: ${Object.keys(result.cookies).length}`,
                 `Auth headers: ${Object.keys(result.authHeaders).length}`,
+                lsCount > 0 ? `localStorage tokens: ${lsCount} (${Object.keys(result.localStorage).join(", ")})` : "",
+                ssCount > 0 ? `sessionStorage tokens: ${ssCount}` : "",
+                metaCount > 0 ? `Meta tokens: ${metaCount} (${Object.keys(result.metaTokens).join(", ")})` : "",
                 `Network requests: ${result.requestCount}`,
                 `Base URL: ${result.baseUrl}`,
                 `Auth saved: ${join(skillDir, "auth.json")}`,
