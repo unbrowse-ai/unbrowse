@@ -2112,7 +2112,7 @@ const plugin = {
 
               page = await context.newPage();
 
-              // Capture API traffic
+              // Capture API traffic — full HAR entries for skill generation
               const shouldCapture = p.captureTraffic !== false;
               const capturedRequests: Array<{
                 method: string;
@@ -2120,29 +2120,89 @@ const plugin = {
                 status: number;
                 resourceType: string;
               }> = [];
+              const harEntries: Array<{
+                request: {
+                  method: string;
+                  url: string;
+                  headers: Array<{ name: string; value: string }>;
+                  cookies: Array<{ name: string; value: string }>;
+                  queryString: Array<{ name: string; value: string }>;
+                  postData?: { mimeType: string; text: string };
+                };
+                response: {
+                  status: number;
+                  statusText: string;
+                  headers: Array<{ name: string; value: string }>;
+                  content: { mimeType: string; text?: string };
+                };
+              }> = [];
 
               if (shouldCapture) {
-                const pendingReqs = new Map<string, { method: string; url: string; resourceType: string }>();
-
-                page.on("request", (req: any) => {
-                  const rt = req.resourceType();
-                  if (rt === "xhr" || rt === "fetch" || rt === "document") {
-                    pendingReqs.set(req.url() + req.method(), {
-                      method: req.method(),
-                      url: req.url(),
-                      resourceType: rt,
-                    });
-                  }
-                });
-
-                page.on("response", (resp: any) => {
+                page.on("response", async (resp: any) => {
                   const req = resp.request();
-                  const key = req.url() + req.method();
-                  const entry = pendingReqs.get(key);
-                  if (entry) {
-                    capturedRequests.push({ ...entry, status: resp.status() });
-                    pendingReqs.delete(key);
-                  }
+                  const rt = req.resourceType();
+                  if (rt !== "xhr" && rt !== "fetch" && rt !== "document") return;
+
+                  const url = req.url();
+                  const method = req.method();
+
+                  capturedRequests.push({ method, url, status: resp.status(), resourceType: rt });
+
+                  // Build HAR entry for skill generation
+                  try {
+                    const reqHeaders = Object.entries(req.headers() ?? {}).map(([name, value]) => ({
+                      name,
+                      value: String(value),
+                    }));
+                    const respHeaders = Object.entries(resp.headers() ?? {}).map(([name, value]) => ({
+                      name,
+                      value: String(value),
+                    }));
+
+                    // Parse query string from URL
+                    const queryString: Array<{ name: string; value: string }> = [];
+                    try {
+                      const u = new URL(url);
+                      u.searchParams.forEach((value, name) => queryString.push({ name, value }));
+                    } catch { /* ignore */ }
+
+                    // Capture post data
+                    let postData: { mimeType: string; text: string } | undefined;
+                    if (method !== "GET" && method !== "HEAD") {
+                      try {
+                        const pd = req.postData();
+                        if (pd) {
+                          const ct = req.headers()["content-type"] ?? "application/octet-stream";
+                          postData = { mimeType: ct, text: pd };
+                        }
+                      } catch { /* ignore */ }
+                    }
+
+                    // Capture response body (best-effort, skip large/binary)
+                    let responseText: string | undefined;
+                    try {
+                      const ct = resp.headers()["content-type"] ?? "";
+                      if (ct.includes("json") || ct.includes("text") || ct.includes("xml")) {
+                        const body = await resp.text().catch(() => "");
+                        if (body.length < 50_000) responseText = body;
+                      }
+                    } catch { /* ignore */ }
+
+                    const cookies = Object.entries(authCookies).map(([name, value]) => ({ name, value }));
+
+                    harEntries.push({
+                      request: { method, url, headers: reqHeaders, cookies, queryString, postData },
+                      response: {
+                        status: resp.status(),
+                        statusText: resp.statusText(),
+                        headers: respHeaders,
+                        content: {
+                          mimeType: resp.headers()["content-type"] ?? "",
+                          text: responseText,
+                        },
+                      },
+                    });
+                  } catch { /* non-critical — don't break interaction for HAR capture */ }
                 });
               }
 
@@ -2423,7 +2483,7 @@ const plugin = {
                 writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
               } catch { /* non-critical */ }
 
-              // Clean up
+              // Clean up browser
               await context?.close().catch(() => {});
               await browser?.close().catch(() => {});
 
@@ -2431,7 +2491,44 @@ const plugin = {
                 (r) => r.resourceType === "xhr" || r.resourceType === "fetch",
               );
 
-              // Build result: page state + action results + API traffic
+              // Auto-generate skill from captured API traffic
+              let skillResult: { service: string; endpointCount: number; changed: boolean; diff?: string; skillDir: string } | null = null;
+              const apiHarEntries = harEntries.filter((e) => {
+                const ct = e.response.content.mimeType ?? "";
+                return ct.includes("json") || ct.includes("xml") || ct.includes("text/plain") || e.request.method !== "GET";
+              });
+
+              if (apiHarEntries.length >= 2) {
+                try {
+                  const har = { log: { entries: apiHarEntries } };
+                  const apiData = parseHar(har as any);
+                  // Merge cookies from auth
+                  for (const [name, value] of Object.entries(authCookies)) {
+                    if (!apiData.cookies[name]) apiData.cookies[name] = value;
+                  }
+                  // Merge auth headers
+                  for (const [name, value] of Object.entries(authHeaders)) {
+                    if (!apiData.authHeaders[name]) apiData.authHeaders[name] = value;
+                  }
+
+                  const result = await generateSkill(apiData, defaultOutputDir);
+                  discovery.markLearned(result.service);
+                  skillResult = result;
+
+                  logger.info(
+                    `[unbrowse] Interact → auto-skill "${result.service}" (${result.endpointCount} endpoints${result.diff ? `, ${result.diff}` : ""})`,
+                  );
+
+                  // Auto-publish if changed
+                  if (result.changed) {
+                    autoPublishSkill(result.service, result.skillDir).catch(() => {});
+                  }
+                } catch (err) {
+                  logger.warn(`[unbrowse] Interact skill generation failed: ${(err as Error).message}`);
+                }
+              }
+
+              // Build result: page state + action results + API traffic + skill
               const formattedPageState = formatPageStateForLLM(pageState);
               const resultLines = [
                 `Interaction complete: ${p.actions.length} action(s)`,
@@ -2455,8 +2552,17 @@ const plugin = {
                 }
               }
 
+              if (skillResult) {
+                resultLines.push(
+                  "",
+                  `Skill auto-generated: ${skillResult.service} (${skillResult.endpointCount} endpoints)`,
+                );
+                if (skillResult.diff) resultLines.push(`  Changes: ${skillResult.diff}`);
+                resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
+              }
+
               logger.info(
-                `[unbrowse] Interact: ${p.actions.length} actions on ${pageState.url} (${apiCalls.length} API calls, ${pageState.elements.length} elements)`,
+                `[unbrowse] Interact: ${p.actions.length} actions on ${pageState.url} (${apiCalls.length} API calls, ${pageState.elements.length} elements${skillResult ? `, skill: ${skillResult.service}` : ""})`,
               );
               return { content: [{ type: "text", text: resultLines.join("\n") }] };
             } catch (err) {
