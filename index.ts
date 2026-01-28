@@ -575,7 +575,7 @@ const plugin = {
       page: any;
       service: string;
       lastUsed: Date;
-      method: "cdp-clawdbot" | "cdp-chrome" | "playwright";
+      method: "cdp-clawdbot" | "cdp-chrome";
     }
     const browserSessions = new Map<string, BrowserSession>();
     const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -583,7 +583,7 @@ const plugin = {
     // Shared browser instance - reused across all services
     let sharedBrowser: any = null;
     let sharedContext: any = null;
-    let sharedBrowserMethod: BrowserSession["method"] = "playwright";
+    let sharedBrowserMethod: BrowserSession["method"] = "cdp-chrome";
     let chromeWasRunning = false; // Track if Chrome was running (couldn't connect)
 
     /** Try to connect to a CDP endpoint. Returns browser or null. */
@@ -802,41 +802,26 @@ const plugin = {
           }
         }
 
-        // Strategy 6: Fall back to fresh Playwright Chromium (SINGLE instance)
+        // NO Playwright fallback - if we can't use Chrome, ask user to close it
         if (!sharedBrowser) {
-          sharedBrowser = await chromium.launch({
-            headless: false, // Show browser so user can see what's happening
-            args: [
-              "--disable-blink-features=AutomationControlled",
-              "--no-sandbox",
-              "--disable-dev-shm-usage",
-            ],
-          });
-          sharedBrowserMethod = "playwright";
-          logger.info(`[unbrowse] Launched single Playwright browser (will reuse for all services)`);
+          if (chromeWasRunning) {
+            throw new Error("CHROME_RUNNING");
+          } else {
+            throw new Error("NO_BROWSER");
+          }
         }
       }
 
-      // Get or create shared context
+      // Get or create shared context (using Chrome with user profile)
       let context = sharedContext;
       if (!context) {
         context = sharedBrowser.contexts()[0];
       }
-      if (!context || sharedBrowserMethod === "playwright") {
+      if (!context) {
         context = await sharedBrowser.newContext({
           userAgent:
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         });
-      }
-
-      // Note: Chrome 127+ uses App-Bound Encryption - cookies cannot be read from the database
-      // by third-party apps. The user needs to either:
-      // 1. Use unbrowse_login to create a fresh authenticated session
-      // 2. Log in manually in the automation browser that opens
-      // 3. Use the Clawdbot browser relay extension
-      if (sharedBrowserMethod === "playwright" && browserSessions.size === 0) {
-        // Only warn once (when first service connects)
-        logger.warn(`[unbrowse] Using Playwright browser - Chrome cookies cannot be imported (App-Bound Encryption). Use unbrowse_login to authenticate.`);
       }
 
       // Store context for reuse
@@ -2941,7 +2926,7 @@ const plugin = {
             // Get or reuse browser session — uses CDP cascade:
             // 1. Try clawdbot managed browser (port 18791) — has existing cookies/auth
             // 2. Try Chrome remote debugging (9222, 9229)
-            // 3. Fall back to fresh Playwright Chromium
+            // 3. Launch Chrome with user's profile (requires Chrome to be closed)
             let session: BrowserSession | null = null;
             let browser: any = null;
             let context: any = null;
@@ -2958,7 +2943,37 @@ const plugin = {
 
               // Only log "reusing" if the session was actually reused (not recreated after stale cleanup)
               isReusedSession = hadExistingSession && browserSessions.get(service) === session;
+            } catch (browserErr) {
+              const errMsg = (browserErr as Error).message;
+              if (errMsg === "CHROME_RUNNING") {
+                return {
+                  content: [{
+                    type: "text",
+                    text: `**Please close Chrome first.**\n\n` +
+                      `I need to use your Chrome profile (with all your saved logins), but Chrome is currently running.\n\n` +
+                      `**To continue:**\n` +
+                      `1. Close Chrome completely (Cmd+Q)\n` +
+                      `2. Run this command again\n\n` +
+                      `I'll launch Chrome with your profile so you have access to all your logged-in sessions.`,
+                  }],
+                };
+              } else if (errMsg === "NO_BROWSER") {
+                return {
+                  content: [{
+                    type: "text",
+                    text: `**Could not launch browser.**\n\n` +
+                      `Chrome profile not found or inaccessible.\n\n` +
+                      `**Options:**\n` +
+                      `1. Make sure Chrome is installed\n` +
+                      `2. Close Chrome if it's running, then try again\n` +
+                      `3. Start Chrome with remote debugging: \`/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222\``,
+                  }],
+                };
+              }
+              throw browserErr;
+            }
 
+            try {
               // If this is an existing session, we may need to navigate to a new page
               // Check if current URL matches target - if not, navigate
               const currentUrl = page.url();
