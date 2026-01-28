@@ -1383,6 +1383,7 @@ const plugin = {
                         })();
                       `,
                     });
+                    logger.info(`[unbrowse] Injecting ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
                   } catch { /* addInitScript may fail on reused contexts — non-critical */ }
                 }
 
@@ -2923,15 +2924,14 @@ const plugin = {
 
             try {
               // Check if we already have a session before creating one
-              isReusedSession = browserSessions.has(service);
+              const hadExistingSession = browserSessions.has(service);
               session = await getOrCreateBrowserSession(service, p.url, authCookies, authHeaders);
               browser = session.browser;
               context = session.context;
               page = session.page;
 
-              if (isReusedSession) {
-                logger.info(`[unbrowse] Reusing browser session for ${service} (${session.method})`);
-              }
+              // Only log "reusing" if the session was actually reused (not recreated after stale cleanup)
+              isReusedSession = hadExistingSession && browserSessions.get(service) === session;
 
               // If this is an existing session, we may need to navigate to a new page
               // Check if current URL matches target - if not, navigate

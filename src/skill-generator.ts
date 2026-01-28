@@ -299,10 +299,25 @@ testApi().then((ok) => process.exit(ok ? 0 : 1));
 }
 
 /**
+ * Parse existing SKILL.md to extract endpoint keys (METHOD /path).
+ */
+function parseExistingEndpoints(skillMd: string): Set<string> {
+  const endpoints = new Set<string>();
+  const regex = /^- `(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`/gm;
+  let match;
+  while ((match = regex.exec(skillMd)) !== null) {
+    endpoints.add(`${match[1]} ${match[2]}`);
+  }
+  return endpoints;
+}
+
+/**
  * Generate a complete skill package from parsed API data.
  *
  * Creates the skill directory with SKILL.md, auth.json, scripts/api.ts,
  * and test.ts. Credentials are also stored in the encrypted vault if available.
+ *
+ * IMPORTANT: Merges new endpoints with existing ones - never loses endpoints.
  */
 export async function generateSkill(
   data: ApiData,
@@ -325,28 +340,57 @@ export async function generateSkill(
 
   mkdirSync(scriptsDir, { recursive: true });
 
-  // Generate new content
+  // Load existing skill to merge endpoints (never lose previously discovered endpoints)
+  const skillMdPath = join(skillDir, "SKILL.md");
+  let existingEndpoints = new Set<string>();
+  let oldEndpointCount = 0;
+
+  if (existsSync(skillMdPath)) {
+    const oldSkillMd = readFileSync(skillMdPath, "utf-8");
+    existingEndpoints = parseExistingEndpoints(oldSkillMd);
+    oldEndpointCount = existingEndpoints.size;
+
+    // Merge: add existing endpoints that aren't in the new data
+    for (const epKey of existingEndpoints) {
+      const [method, ...pathParts] = epKey.split(" ");
+      const path = pathParts.join(" "); // Handle paths with spaces
+      if (!data.endpoints[epKey]) {
+        // Add back the existing endpoint that wasn't captured this session
+        data.endpoints[epKey] = [{
+          method,
+          path,
+          url: data.baseUrl + path,
+          domain: new URL(data.baseUrl).hostname,
+          status: 200, // Assume it worked before
+          fromSpec: false,
+          verified: undefined, // Mark as unverified since it's from history
+        }];
+      }
+    }
+  }
+
+  // Generate content with merged endpoints
   const authJson = generateAuthJson(service, data);
   const skillMd = generateSkillMd(service, data);
   const apiTs = generateApiTs(service, data);
   const testTs = generateTestTs(service, data);
 
-  // Diff: compare new SKILL.md against existing to detect changes
-  const skillMdPath = join(skillDir, "SKILL.md");
+  // Diff: count how many NEW endpoints were added
+  const newEndpointCount = Object.keys(data.endpoints).length;
   let changed = true;
   let diff: string | null = null;
 
-  if (existsSync(skillMdPath)) {
-    const oldSkillMd = readFileSync(skillMdPath, "utf-8");
-    if (oldSkillMd === skillMd) {
-      changed = false;
-    } else {
-      const oldEndpoints = (oldSkillMd.match(/^- `(GET|POST|PUT|DELETE|PATCH)\s/gm) || []).length;
-      const newEndpoints = (skillMd.match(/^- `(GET|POST|PUT|DELETE|PATCH)\s/gm) || []).length;
-      const added = newEndpoints - oldEndpoints;
-      diff = added > 0
-        ? `+${added} new endpoint(s) (${oldEndpoints} → ${newEndpoints})`
-        : `Updated (${oldEndpoints} → ${newEndpoints} endpoints)`;
+  if (oldEndpointCount > 0) {
+    if (newEndpointCount === oldEndpointCount) {
+      // Check if content actually changed
+      const oldSkillMd = readFileSync(skillMdPath, "utf-8");
+      changed = oldSkillMd !== skillMd;
+    }
+    const added = newEndpointCount - oldEndpointCount;
+    if (added > 0) {
+      diff = `+${added} new endpoint(s) (${oldEndpointCount} → ${newEndpointCount})`;
+    } else if (changed) {
+      diff = `Updated (${newEndpointCount} endpoints)`;
     }
   }
 
