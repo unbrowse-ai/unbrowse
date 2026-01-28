@@ -1310,23 +1310,30 @@ const plugin = {
                 }
 
                 chromePage = context.pages()[0] ?? await context.newPage();
-                await chromePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => { });
 
-                // Inject stored localStorage/sessionStorage into the page
-                // This restores SPA auth state (JWTs, access tokens) captured during login
+                // Inject localStorage/sessionStorage via addInitScript BEFORE navigation
+                // This ensures tokens are set before any page JS runs (critical for SPAs)
                 const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
                 if (hasStorage) {
                   try {
-                    await chromePage.evaluate(({ ls, ss }: { ls: Record<string, string>; ss: Record<string, string> }) => {
-                      for (const [k, v] of Object.entries(ls)) {
-                        try { window.localStorage.setItem(k, v); } catch { /* ignore */ }
-                      }
-                      for (const [k, v] of Object.entries(ss)) {
-                        try { window.sessionStorage.setItem(k, v); } catch { /* ignore */ }
-                      }
-                    }, { ls: storedLocalStorage, ss: storedSessionStorage });
-                  } catch { /* page may block storage access — non-critical */ }
+                    await context.addInitScript({
+                      script: `
+                        (function() {
+                          const ls = ${JSON.stringify(storedLocalStorage)};
+                          const ss = ${JSON.stringify(storedSessionStorage)};
+                          for (const [k, v] of Object.entries(ls)) {
+                            try { window.localStorage.setItem(k, v); } catch {}
+                          }
+                          for (const [k, v] of Object.entries(ss)) {
+                            try { window.sessionStorage.setItem(k, v); } catch {}
+                          }
+                        })();
+                      `,
+                    });
+                  } catch { /* addInitScript may fail on reused contexts — non-critical */ }
                 }
+
+                await chromePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => { });
 
                 return chromePage;
               } catch {
@@ -1474,16 +1481,28 @@ const plugin = {
 
                 stealthPage = context.pages()[0] ?? await context.newPage();
 
-                // Navigate to base URL first to establish session
-                await stealthPage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => { });
-
-                // Inject localStorage/sessionStorage
+                // Inject localStorage/sessionStorage via addInitScript BEFORE navigation
                 if (Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0) {
-                  await stealthPage.evaluate(({ ls, ss }: { ls: Record<string, string>; ss: Record<string, string> }) => {
-                    for (const [k, v] of Object.entries(ls)) { try { localStorage.setItem(k, v); } catch { } }
-                    for (const [k, v] of Object.entries(ss)) { try { sessionStorage.setItem(k, v); } catch { } }
-                  }, { ls: storedLocalStorage, ss: storedSessionStorage });
+                  try {
+                    await context.addInitScript({
+                      script: `
+                        (function() {
+                          const ls = ${JSON.stringify(storedLocalStorage)};
+                          const ss = ${JSON.stringify(storedSessionStorage)};
+                          for (const [k, v] of Object.entries(ls)) {
+                            try { window.localStorage.setItem(k, v); } catch {}
+                          }
+                          for (const [k, v] of Object.entries(ss)) {
+                            try { window.sessionStorage.setItem(k, v); } catch {}
+                          }
+                        })();
+                      `,
+                    });
+                  } catch { /* non-critical */ }
                 }
+
+                // Navigate to base URL to establish session
+                await stealthPage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => { });
 
                 return stealthPage;
               } catch (err) {
@@ -2919,35 +2938,51 @@ const plugin = {
                 });
               }
 
-              // Inject localStorage/sessionStorage BEFORE navigating to target URL
-              // Many SPAs check auth tokens on page load, so we need to inject first
+              // Inject localStorage/sessionStorage via addInitScript BEFORE page JS runs
+              // This is critical for SPAs that check auth on load - inject BEFORE navigation
               const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
               if (hasStorage) {
                 try {
-                  // Navigate to origin first to establish same-origin context for localStorage
-                  const origin = new URL(p.url).origin;
-                  await page.goto(origin, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
-
-                  // Inject storage tokens
-                  await page.evaluate(
-                    ({ ls, ss }: { ls: Record<string, string>; ss: Record<string, string> }) => {
-                      for (const [k, v] of Object.entries(ls)) {
-                        try { window.localStorage.setItem(k, v); } catch { /* ignore */ }
-                      }
-                      for (const [k, v] of Object.entries(ss)) {
-                        try { window.sessionStorage.setItem(k, v); } catch { /* ignore */ }
-                      }
-                    },
-                    { ls: storedLocalStorage, ss: storedSessionStorage },
-                  );
-                  logger.info(`[unbrowse] Injected ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
-                } catch { /* page may block storage access */ }
+                  // addInitScript runs before ANY page JavaScript - perfect for SPA auth
+                  await context.addInitScript({
+                    script: `
+                      (function() {
+                        const ls = ${JSON.stringify(storedLocalStorage)};
+                        const ss = ${JSON.stringify(storedSessionStorage)};
+                        for (const [k, v] of Object.entries(ls)) {
+                          try { window.localStorage.setItem(k, v); } catch {}
+                        }
+                        for (const [k, v] of Object.entries(ss)) {
+                          try { window.sessionStorage.setItem(k, v); } catch {}
+                        }
+                      })();
+                    `,
+                  });
+                  logger.info(`[unbrowse] Registered init script with ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
+                } catch (err) {
+                  // Fallback: try direct injection on current page
+                  logger.warn(`[unbrowse] addInitScript failed, using fallback: ${(err as Error).message}`);
+                  try {
+                    await page.evaluate(
+                      ({ ls, ss }: { ls: Record<string, string>; ss: Record<string, string> }) => {
+                        for (const [k, v] of Object.entries(ls)) {
+                          try { window.localStorage.setItem(k, v); } catch {}
+                        }
+                        for (const [k, v] of Object.entries(ss)) {
+                          try { window.sessionStorage.setItem(k, v); } catch {}
+                        }
+                      },
+                      { ls: storedLocalStorage, ss: storedSessionStorage },
+                    );
+                  } catch { /* page may block storage access */ }
+                }
               }
 
-              // Navigate to the target URL (with auth tokens already in place)
+              // Navigate to the target URL (init script will inject tokens before page JS runs)
               try {
                 await page.goto(p.url, { waitUntil: "networkidle", timeout: 30_000 });
               } catch {
+                // Navigation timeout - page may still be loading dynamic content
                 await page.waitForTimeout(3000);
               }
 
