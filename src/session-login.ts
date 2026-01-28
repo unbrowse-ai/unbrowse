@@ -176,22 +176,63 @@ export async function loginAndCapture(
   }
 
   // Fill form credentials
+  const failedFields: string[] = [];
   if (credentials.formFields && Object.keys(credentials.formFields).length > 0) {
     for (const [selector, value] of Object.entries(credentials.formFields)) {
-      try {
-        await page.waitForSelector(selector, { timeout: 10_000 });
-        await page.fill(selector, value);
-        // Small delay between fields to look more human
-        await page.waitForTimeout(200 + Math.random() * 300);
-      } catch {
-        // Try clicking + typing if fill doesn't work (some custom inputs)
+      let filled = false;
+
+      // Try waiting for selector with a retry for slow-loading forms
+      for (const timeout of [5_000, 3_000]) {
         try {
-          await page.click(selector);
-          await page.keyboard.type(value, { delay: 50 + Math.random() * 50 });
+          await page.waitForSelector(selector, { timeout });
+          await page.fill(selector, value);
+          filled = true;
+          break;
         } catch {
-          // Skip this field if we can't find it
+          // Try clicking + typing if fill doesn't work (some custom inputs)
+          try {
+            await page.click(selector, { timeout: 2_000 });
+            await page.keyboard.type(value, { delay: 50 + Math.random() * 50 });
+            filled = true;
+            break;
+          } catch {
+            // Retry with longer timeout
+          }
         }
       }
+
+      if (!filled) {
+        failedFields.push(selector);
+      } else {
+        // Small delay between fields to look more human
+        await page.waitForTimeout(200 + Math.random() * 300);
+      }
+    }
+
+    // If any fields failed, try to help diagnose by finding actual form fields
+    if (failedFields.length > 0) {
+      const actualFields = await page.evaluate(() => {
+        const fields: string[] = [];
+        document.querySelectorAll("input, select, textarea").forEach((el: any) => {
+          if (el.type === "hidden") return;
+          const id = el.id ? `#${el.id}` : "";
+          const name = el.name ? `[name="${el.name}"]` : "";
+          const type = el.type ? `[type="${el.type}"]` : "";
+          const placeholder = el.placeholder ? `[placeholder="${el.placeholder.slice(0, 30)}"]` : "";
+          const desc = id || name || `${el.tagName.toLowerCase()}${type}${placeholder}`;
+          if (desc) fields.push(desc);
+        });
+        return fields.slice(0, 10);
+      });
+
+      const fieldList = actualFields.length > 0
+        ? `Found: ${actualFields.join(", ")}`
+        : "No form fields detected on page";
+
+      throw new Error(
+        `Could not find form field(s): ${failedFields.join(", ")}. ${fieldList}. ` +
+        `Try unbrowse_interact to manually inspect the form, or adjust selectors.`
+      );
     }
 
     // Submit the form

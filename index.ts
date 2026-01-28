@@ -906,16 +906,35 @@ const plugin = {
 
               const shouldCrawl = p.crawl !== false;
               const shouldTest = p.testEndpoints !== false;
+              const maxPages = p.maxPages ?? 15;
+
+              // Progress feedback before starting
+              logger.info(`[unbrowse] Capture starting: ${p.urls.length} seed URL(s), crawl up to ${maxPages} pages (60s max)...`);
 
               const { har, cookies, requestCount, method, crawlResult } = await captureFromChromeProfile(p.urls, {
                 waitMs: p.waitMs,
                 browserPort,
                 crawl: shouldCrawl,
                 crawlOptions: {
-                  maxPages: p.maxPages ?? 15,
+                  maxPages,
                   discoverOpenApi: true,
                 },
               });
+
+              // Analyze HTTP status codes for rate limit/blocking detection
+              const entries = har.log?.entries ?? [];
+              let blocked403 = 0;
+              let rateLimited429 = 0;
+              let serverErrors5xx = 0;
+              for (const entry of entries) {
+                const status = entry.response?.status ?? 0;
+                if (status === 403) blocked403++;
+                else if (status === 429) rateLimited429++;
+                else if (status >= 500 && status < 600) serverErrors5xx++;
+              }
+              const totalRequests = entries.length;
+              const failedRequests = blocked403 + rateLimited429 + serverErrors5xx;
+              const failureRate = totalRequests > 0 ? failedRequests / totalRequests : 0;
 
               if (requestCount === 0) {
                 return { content: [{ type: "text", text: "No API requests captured. The pages may not make API calls, or try waiting longer (waitMs)." }] };
@@ -1005,6 +1024,21 @@ const plugin = {
               );
               if (publishedVersion) {
                 summaryLines.push(`Published: ${publishedVersion} (auto-synced to cloud index)`);
+              }
+
+              // Rate limit / bot detection warnings
+              if (failureRate > 0.1 && failedRequests > 2) {
+                const failureDetails: string[] = [];
+                if (blocked403 > 0) failureDetails.push(`${blocked403} blocked (403)`);
+                if (rateLimited429 > 0) failureDetails.push(`${rateLimited429} rate-limited (429)`);
+                if (serverErrors5xx > 0) failureDetails.push(`${serverErrors5xx} server errors (5xx)`);
+                summaryLines.push(
+                  "",
+                  `⚠️  High failure rate: ${failureDetails.join(", ")} out of ${totalRequests} requests`,
+                  `   The site may be blocking automated crawls. Skill may be incomplete.`,
+                  `   Try: unbrowse_replay with useStealth=true, or unbrowse_interact for manual exploration.`,
+                );
+                logger.warn(`[unbrowse] High failure rate (${Math.round(failureRate * 100)}%) — ${failureDetails.join(", ")}`);
               }
 
               logger.info(`[unbrowse] Capture → ${result.service} (${result.endpointCount} endpoints, ${crawlResult?.pagesCrawled ?? 0} crawled, via ${method})`);
