@@ -194,22 +194,152 @@ eatigo/
 
 ## Cloud Marketplace
 
+### Server
+
+The skill index server runs on Bun (port 4402) with SQLite storage and x402 Solana USDC payments.
+
+#### Routes
+
+| Route | Method | Auth | Description |
+|-------|--------|------|-------------|
+| `/health` | GET | None | Health check + x402 status |
+| `/skills/search` | GET | None | Full-text search (`?q=`, `?tags=`, `?limit=`, `?offset=`). Only shows approved skills. |
+| `/skills/:id/summary` | GET | None | Skill metadata + endpoint list |
+| `/skills/:id/download` | GET | x402 | Full skill package (SKILL.md + api.ts). Approved-only. |
+| `/skills/publish` | POST | None | Publish a skill (upserts — version auto-increments, triggers safety review) |
+
+#### Database Schema
+
+```sql
+-- Main skill storage
+skills (id, service, slug, version, base_url, auth_method_type,
+        endpoints_json, skill_md, api_template, creator_wallet,
+        download_count, tags, review_status, review_reason,
+        review_flags, review_score, reviewed_at, created_at, updated_at)
+
+-- Full-text search (FTS5)
+skills_fts (service, tags, base_url, skill_md)
+
+-- Payment tracking per download
+downloads (skill_id, payment_signature, payment_chain, payment_mint,
+           payer_wallet, amount_usd, fee_payer_amount, creator_amount,
+           treasury_amount)
+
+-- Aggregated creator earnings
+creator_earnings (creator_wallet, total_earned_usd, total_downloads,
+                  pending_usd, last_download_at)
+```
+
+### Web Frontend
+
+React 18 + Vite SPA served from the same Bun server. Skill browsing is free, downloads require Phantom wallet for x402 payment.
+
+- **Home** (`/`): Search bar, skill grid with service name, auth type, endpoint count, download count, tags
+- **Skill Detail** (`/skills/:id`): Full metadata, endpoint list with method badges, download button
+- **Wallet**: Phantom integration via `window.solana` — connect only required for downloads
+
 ### x402 Payment Protocol
 
-Downloads are gated by HTTP 402 using Solana USDC. Payment is split 4 ways:
+Downloads are gated by HTTP 402 using Solana USDC (SPL Token). The protocol uses a custom x402 smart contract for atomically verified payments.
 
-| Recipient | Share |
-|-----------|-------|
-| Fee Payer | 2% + gas |
-| Skill Creator | 3% |
-| FDRY Treasury | 30% |
-| Website Owner | 65% |
+#### Payment Flow
+
+```
+Client                              Server
+  |                                   |
+  |  GET /skills/:id/download         |
+  |---------------------------------->|
+  |                                   |
+  |  402 { x402Version: 1, accepts }  |
+  |<----------------------------------|
+  |                                   |
+  |  Build Solana tx:                 |
+  |    - verify_payment (opcode 0)    |
+  |    - SPL transfer(s)              |
+  |    - settle_payment (opcode 1)    |
+  |  Sign with wallet                 |
+  |                                   |
+  |  GET + X-Payment: <base64>        |
+  |---------------------------------->|
+  |                                   |
+  |  Server verifies:                 |
+  |    - Decode transaction           |
+  |    - Simulate on Solana           |
+  |    - Check x402 instructions      |
+  |    - Verify amount >= expected    |
+  |    - Submit + confirm             |
+  |                                   |
+  |  200 { skillMd, apiTemplate }     |
+  |<----------------------------------|
+```
+
+#### 4-Party Payment Split
+
+| Recipient | Share | Address |
+|-----------|-------|---------|
+| Fee Payer | 2% + gas (2000 USDC lamports) | `8XLmbY...` (fixed) |
+| Skill Creator | 3% | From `creator_wallet` on skill record |
+| FDRY Treasury | 30% | `FDRY_TREASURY_WALLET` env var |
+| Website Owner | 65% | Treasury (until domain verification) |
+
+Unclaimed shares (no creator wallet, no website owner) are consolidated into the FDRY Treasury.
+
+#### 402 Response Format
+
+```json
+{
+  "x402Version": 1,
+  "accepts": [{
+    "scheme": "exact",
+    "network": "solana-devnet",
+    "maxAmountRequired": "10000",
+    "resource": "https://skills.unbrowse.ai/skills/abc/download",
+    "description": "Download skill package abc",
+    "mimeType": "application/json",
+    "payTo": "<treasury-address>",
+    "maxTimeoutSeconds": 60,
+    "asset": "<USDC-mint-address>",
+    "extra": {
+      "feePayer": "<fee-payer-address>",
+      "costCents": 1,
+      "costUsd": 0.01,
+      "programId": "<x402-program-id>"
+    }
+  }]
+}
+```
+
+#### Transaction Structure
+
+The x402 Solana transaction contains three instructions:
+
+1. **verify_payment** (opcode 0): x402 program instruction encoding `amount` (u64 LE) and `nonce` (u64 LE) at byte offset 1
+2. **SPL Token transfer(s)**: USDC transfers to each recipient per the split
+3. **settle_payment** (opcode 1): x402 program instruction with matching `nonce` (u64 LE)
+
+Server verification:
+- Parse as legacy `Transaction` (fallback: `VersionedTransaction`)
+- Simulate via `connection.simulateTransaction()`
+- Decode x402 program instructions (opcode 0 = verify, opcode 1 = settle)
+- Check `verifyPaymentAmount >= sum(expectedRecipients)`
+- Submit and await confirmation
+
+#### Server Configuration
+
+| Env Variable | Default | Description |
+|---|---|---|
+| `SOLANA_RPC_URL` | `https://api.devnet.solana.com` | Solana RPC endpoint |
+| `USDC_MINT` | `4zMMC9...` (devnet) | USDC SPL token mint address |
+| `FDRY_TREASURY_WALLET` | _(none — disables x402)_ | Treasury wallet for receiving payments |
+| `DOWNLOAD_PRICE_CENTS` | `1.0` | Price per download in USD cents |
+| `PORT` | `4402` | Server listen port |
+| `DB_PATH` | `./skills.db` | SQLite database path |
 
 When `FDRY_TREASURY_WALLET` is not set, downloads are free (dev mode).
 
 ### Auto-Wallet Setup
 
-On first startup with no wallet, Unbrowse auto-generates a Solana keypair and saves it to config. Fund with USDC to start downloading skills.
+On first startup with no wallet configured, Unbrowse automatically generates a Solana keypair, saves the public key as `creatorWallet` (earning address) and the private key as `skillIndexSolanaPrivateKey` (paying key). Fund the address with USDC to start downloading and earning from skills.
 
 ## Configuration
 
