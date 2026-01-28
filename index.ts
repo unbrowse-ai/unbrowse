@@ -563,8 +563,8 @@ const plugin = {
     const stealthSessions = new Map<string, StealthSession>();
 
     // ── Browser Session Tracking ────────────────────────────────────────────
-    // Reuse browser sessions across unbrowse_interact calls instead of launching new browsers each time.
-    // Sessions are keyed by service name and expire after 5 minutes of inactivity.
+    // Use a SINGLE shared browser instance across all services (just different tabs).
+    // This prevents multiple Chrome windows from opening.
     interface BrowserSession {
       browser: any;
       context: any;
@@ -575,6 +575,11 @@ const plugin = {
     }
     const browserSessions = new Map<string, BrowserSession>();
     const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+    // Shared browser instance - reused across all services
+    let sharedBrowser: any = null;
+    let sharedContext: any = null;
+    let sharedBrowserMethod: BrowserSession["method"] = "playwright";
 
     /** Try to connect to a CDP endpoint. Returns browser or null. */
     async function tryCdpConnect(chromium: any, port: number): Promise<any | null> {
@@ -594,20 +599,23 @@ const plugin = {
       }
     }
 
-    /** Clean up stale browser sessions. */
+    /** Clean up stale browser sessions (just close pages, not the shared browser). */
     function cleanupStaleSessions() {
       const now = Date.now();
       for (const [key, session] of browserSessions) {
         if (now - session.lastUsed.getTime() > SESSION_TTL_MS) {
-          session.context?.close().catch(() => {});
-          session.browser?.close().catch(() => {});
+          // Only close the page (tab), not the shared browser/context
+          session.page?.close().catch(() => {});
           browserSessions.delete(key);
-          logger.info(`[unbrowse] Cleaned up stale browser session for ${key}`);
+          logger.info(`[unbrowse] Closed stale tab for ${key}`);
         }
       }
     }
 
-    /** Get or create a browser session for a service. Uses CDP cascade. */
+    /** Get or create a browser session for a service. Uses CDP cascade.
+     *  IMPORTANT: Reuses a SINGLE shared browser instance across all services.
+     *  Each service gets its own page (tab) in the shared browser.
+     */
     async function getOrCreateBrowserSession(
       service: string,
       url: string,
@@ -617,139 +625,148 @@ const plugin = {
       // Clean up stale sessions first
       cleanupStaleSessions();
 
-      // Check for existing session
+      // Check for existing session for this service
       const existing = browserSessions.get(service);
       if (existing) {
         existing.lastUsed = new Date();
-        // Verify the browser is still alive
+        // Verify the page is still alive
         try {
           await existing.page.evaluate(() => true);
           return existing;
         } catch {
-          // Browser died, clean up and create new
-          existing.context?.close().catch(() => {});
-          existing.browser?.close().catch(() => {});
+          // Page died, remove from sessions (but keep shared browser)
           browserSessions.delete(service);
         }
       }
 
       const { chromium } = await import("playwright");
 
-      // Strategy 1: Connect to Chrome extension relay (port 18792) — user's actual Chrome with auto-attach
-      let browser = await tryCdpConnect(chromium, 18792);
-      let method: BrowserSession["method"] = "cdp-chrome";
-
-      // Strategy 2: Connect to clawd managed browser (port 18800) — has persistent user-data
-      if (!browser) {
-        browser = await tryCdpConnect(chromium, 18800);
-        method = "cdp-clawdbot";
-      }
-
-      // Strategy 3: Connect to browser control server's default (port 18791 forwards to active profile)
-      if (!browser) {
-        browser = await tryCdpConnect(chromium, browserPort);
-        method = "cdp-clawdbot";
-      }
-
-      // Strategy 4: Connect to Chrome with other remote debugging ports
-      if (!browser) {
-        for (const port of [9222, 9229]) {
-          browser = await tryCdpConnect(chromium, port);
-          if (browser) {
-            method = "cdp-chrome";
-            break;
-          }
+      // Check if shared browser is still alive
+      if (sharedBrowser) {
+        try {
+          // Test if browser is responsive
+          const contexts = sharedBrowser.contexts();
+          if (contexts.length === 0) throw new Error("No contexts");
+        } catch {
+          // Browser died, reset
+          sharedBrowser = null;
+          sharedContext = null;
         }
       }
 
-      // Strategy 5: Launch Chrome with user's profile (has all their sessions)
-      // NOTE: This only works if Chrome is NOT running. If Chrome is running, skip to Playwright.
-      if (!browser) {
-        const chromeUserDataDir = join(homedir(), "Library/Application Support/Google/Chrome");
+      // Create shared browser if needed (only happens once)
+      if (!sharedBrowser) {
+        // Strategy 1: Connect to Chrome extension relay (port 18792) — user's actual Chrome with auto-attach
+        sharedBrowser = await tryCdpConnect(chromium, 18792);
+        sharedBrowserMethod = "cdp-chrome";
 
-        // Check if Chrome is running FIRST - if so, skip this strategy entirely
-        // (launchPersistentContext always times out when Chrome is running, wasting 30+ seconds)
-        let chromeIsRunning = false;
-        try {
-          const { spawnSync } = await import("node:child_process");
-          const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
-          chromeIsRunning = psResult.stdout.trim().length > 0;
-        } catch { /* assume not running */ }
+        // Strategy 2: Connect to clawd managed browser (port 18800) — has persistent user-data
+        if (!sharedBrowser) {
+          sharedBrowser = await tryCdpConnect(chromium, 18800);
+          sharedBrowserMethod = "cdp-clawdbot";
+        }
 
-        if (chromeIsRunning) {
-          logger.info(`[unbrowse] Chrome is running - skipping profile takeover (would timeout). Using Playwright instead.`);
-        } else if (existsSync(chromeUserDataDir)) {
-          // Detect most recently active profile by checking file modification times
-          let profileDir = "Default";
+        // Strategy 3: Connect to browser control server's default (port 18791 forwards to active profile)
+        if (!sharedBrowser) {
+          sharedBrowser = await tryCdpConnect(chromium, browserPort);
+          sharedBrowserMethod = "cdp-clawdbot";
+        }
+
+        // Strategy 4: Connect to Chrome with other remote debugging ports
+        if (!sharedBrowser) {
+          for (const port of [9222, 9229]) {
+            sharedBrowser = await tryCdpConnect(chromium, port);
+            if (sharedBrowser) {
+              sharedBrowserMethod = "cdp-chrome";
+              break;
+            }
+          }
+        }
+
+        // Strategy 5: Launch Chrome with user's profile (has all their sessions)
+        // NOTE: This only works if Chrome is NOT running. If Chrome is running, skip to Playwright.
+        if (!sharedBrowser) {
+          const chromeUserDataDir = join(homedir(), "Library/Application Support/Google/Chrome");
+
+          // Check if Chrome is running FIRST - if so, skip this strategy entirely
+          // (launchPersistentContext always times out when Chrome is running, wasting 30+ seconds)
+          let chromeIsRunning = false;
           try {
-            const { statSync } = await import("node:fs");
-            const profiles = readdirSync(chromeUserDataDir, { withFileTypes: true })
-              .filter(d => d.isDirectory() && (d.name === "Default" || d.name.startsWith("Profile ")))
-              .map(d => d.name);
+            const { spawnSync } = await import("node:child_process");
+            const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
+            chromeIsRunning = psResult.stdout.trim().length > 0;
+          } catch { /* assume not running */ }
 
-            let mostRecent = { profile: "Default", mtime: 0 };
-            for (const profile of profiles) {
-              const historyPath = join(chromeUserDataDir, profile, "History");
-              if (existsSync(historyPath)) {
-                const mtime = statSync(historyPath).mtimeMs;
-                if (mtime > mostRecent.mtime) {
-                  mostRecent = { profile, mtime };
+          if (chromeIsRunning) {
+            logger.info(`[unbrowse] Chrome is running - cannot take over profile. Will use single Playwright browser.`);
+          } else if (existsSync(chromeUserDataDir)) {
+            // Detect most recently active profile by checking file modification times
+            let profileDir = "Default";
+            try {
+              const { statSync } = await import("node:fs");
+              const profiles = readdirSync(chromeUserDataDir, { withFileTypes: true })
+                .filter(d => d.isDirectory() && (d.name === "Default" || d.name.startsWith("Profile ")))
+                .map(d => d.name);
+
+              let mostRecent = { profile: "Default", mtime: 0 };
+              for (const profile of profiles) {
+                const historyPath = join(chromeUserDataDir, profile, "History");
+                if (existsSync(historyPath)) {
+                  const mtime = statSync(historyPath).mtimeMs;
+                  if (mtime > mostRecent.mtime) {
+                    mostRecent = { profile, mtime };
+                  }
                 }
               }
+              profileDir = mostRecent.profile;
+              logger.info(`[unbrowse] Using Chrome profile: ${profileDir}`);
+            } catch { /* use Default */ }
+
+            try {
+              const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
+                channel: "chrome",
+                headless: false,
+                timeout: 15000, // 15s - if Chrome not running, this should be fast
+                args: [
+                  `--profile-directory=${profileDir}`,
+                  "--disable-blink-features=AutomationControlled",
+                  "--no-first-run",
+                  "--no-default-browser-check",
+                ],
+              });
+
+              sharedBrowser = persistentContext;
+              sharedContext = persistentContext;
+              sharedBrowserMethod = "cdp-chrome";
+              logger.info(`[unbrowse] Launched Chrome with user profile (single instance for all services)`);
+            } catch (err) {
+              logger.info(`[unbrowse] Chrome profile launch failed: ${(err as Error).message.split('\n')[0]}`);
             }
-            profileDir = mostRecent.profile;
-            logger.info(`[unbrowse] Using Chrome profile: ${profileDir}`);
-          } catch { /* use Default */ }
-
-          try {
-            const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
-              channel: "chrome",
-              headless: false,
-              timeout: 15000, // 15s - if Chrome not running, this should be fast
-              args: [
-                `--profile-directory=${profileDir}`,
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-              ],
-            });
-
-            const page = persistentContext.pages()[0] ?? await persistentContext.newPage();
-            const session: BrowserSession = {
-              browser: persistentContext,
-              context: persistentContext,
-              page,
-              service,
-              lastUsed: new Date(),
-              method: "cdp-chrome",
-            };
-            browserSessions.set(service, session);
-            logger.info(`[unbrowse] Launched Chrome with user profile for ${service}`);
-            return session;
-          } catch (err) {
-            logger.info(`[unbrowse] Chrome profile launch failed: ${(err as Error).message.split('\n')[0]}`);
           }
+        }
+
+        // Strategy 6: Fall back to fresh Playwright Chromium (SINGLE instance)
+        if (!sharedBrowser) {
+          sharedBrowser = await chromium.launch({
+            headless: false, // Show browser so user can see what's happening
+            args: [
+              "--disable-blink-features=AutomationControlled",
+              "--no-sandbox",
+              "--disable-dev-shm-usage",
+            ],
+          });
+          sharedBrowserMethod = "playwright";
+          logger.info(`[unbrowse] Launched single Playwright browser (will reuse for all services)`);
         }
       }
 
-      // Strategy 6: Fall back to fresh Playwright Chromium with Chrome cookies
-      if (!browser) {
-        browser = await chromium.launch({
-          headless: false, // Show browser so user can see what's happening
-          args: [
-            "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-          ],
-        });
-        method = "playwright";
-        logger.info(`[unbrowse] Falling back to Playwright with Chrome cookies`);
+      // Get or create shared context
+      let context = sharedContext;
+      if (!context) {
+        context = sharedBrowser.contexts()[0];
       }
-
-      // Get or create context
-      let context = browser.contexts()[0];
-      if (!context || method === "playwright") {
-        context = await browser.newContext({
+      if (!context || sharedBrowserMethod === "playwright") {
+        context = await sharedBrowser.newContext({
           userAgent:
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         });
@@ -760,9 +777,13 @@ const plugin = {
       // 1. Use unbrowse_login to create a fresh authenticated session
       // 2. Log in manually in the automation browser that opens
       // 3. Use the Clawdbot browser relay extension
-      if (method === "playwright") {
-        logger.warn(`[unbrowse] Using fresh browser - Chrome cookies cannot be imported (App-Bound Encryption). Use unbrowse_login to authenticate.`);
+      if (sharedBrowserMethod === "playwright" && browserSessions.size === 0) {
+        // Only warn once (when first service connects)
+        logger.warn(`[unbrowse] Using Playwright browser - Chrome cookies cannot be imported (App-Bound Encryption). Use unbrowse_login to authenticate.`);
       }
+
+      // Store context for reuse
+      sharedContext = context;
 
       // Inject cookies for the target domain from auth.json
       if (Object.keys(authCookies).length > 0) {
@@ -785,17 +806,18 @@ const plugin = {
         } catch { /* non-critical */ }
       }
 
+      // Create a new page (tab) for this service in the shared browser
       const page = await context.newPage();
       const session: BrowserSession = {
-        browser,
+        browser: sharedBrowser,
         context,
         page,
         service,
         lastUsed: new Date(),
-        method,
+        method: sharedBrowserMethod,
       };
       browserSessions.set(service, session);
-      logger.info(`[unbrowse] Created browser session for ${service} via ${method}`);
+      logger.info(`[unbrowse] Created tab for ${service} in shared browser (${sharedBrowserMethod})`);
       return session;
     }
 
