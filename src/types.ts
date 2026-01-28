@@ -27,6 +27,10 @@ export interface ParsedRequest {
   verified?: boolean;
   /** From OpenAPI spec rather than traffic capture */
   fromSpec?: boolean;
+  /** Resource type from Playwright/CDP capture (e.g., "xhr", "fetch", "document") */
+  resourceType?: string;
+  /** Response content-type header */
+  responseContentType?: string;
 }
 
 /** Auth credentials extracted from traffic. */

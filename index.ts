@@ -613,7 +613,7 @@ const plugin = {
                 return { content: [{ type: "text", text: "No API requests captured. The pages may not make API calls, or try waiting longer (waitMs)." }] };
               }
 
-              let apiData = parseHar(har);
+              let apiData = parseHar(har, p.urls[0]);
               for (const [name, value] of Object.entries(cookies)) {
                 if (!apiData.cookies[name]) apiData.cookies[name] = value;
               }
@@ -945,7 +945,7 @@ const plugin = {
               chromePage = null;
             }
 
-            async function execInChrome(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string } | null> {
+            async function execInChrome(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean } | null> {
               const page = await getChromePage();
               if (!page) return null;
 
@@ -982,7 +982,7 @@ const plugin = {
               "x-request-id", "x-session-id", "x-transaction-id",
             ]);
 
-            async function execViaFetch(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string }> {
+            async function execViaFetch(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean }> {
               const url = new URL(ep.path, baseUrl).toString();
               const reqHeaders: Record<string, string> = { ...authHeaders, "Content-Type": "application/json" };
               if (Object.keys(cookies).length > 0) {
@@ -1036,7 +1036,9 @@ const plugin = {
               }
 
               const text = await resp.text().catch(() => "");
-              return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000) };
+              const ct = resp.headers.get("content-type") ?? "";
+              const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
+              return { status: resp.status, ok: resp.ok && !isHtml, data: text.slice(0, 2000), isHtml };
             }
 
             // ── Credential refresh on 401/403 ──────────────────────────
@@ -1158,6 +1160,12 @@ const plugin = {
               // Try 2: Direct fetch with stored auth
               try {
                 result = await execViaFetch(ep, body);
+                if (result.isHtml) {
+                  // Got an HTML page instead of API data — this is a frontend route, not an API endpoint
+                  results.push(`  ${ep.method} ${ep.path} → ${result.status} (HTML page, not an API endpoint)`);
+                  failed++;
+                  continue;
+                }
                 if (result.ok) {
                   results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (direct)`);
                   if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
@@ -1353,13 +1361,96 @@ const plugin = {
                 }
 
                 try {
+                  // If a URL was provided, navigate via Playwright while capturing
+                  // traffic in real-time (captureFromStealth only gets future events).
+                  if (p.url) {
+                    try {
+                      const { chromium } = await import("playwright");
+                      const remoteBrowser = await chromium.connectOverCDP(cdpUrl, { timeout: 10_000 });
+                      const ctx = remoteBrowser.contexts()[0] ?? await remoteBrowser.newContext();
+
+                      // Set up capture listeners BEFORE navigation
+                      const captured: Array<{ method: string; url: string; headers: Record<string, string>; resourceType: string; status: number; responseHeaders: Record<string, string>; timestamp: number }> = [];
+                      const pending = new Map<string, any>();
+                      for (const pg of ctx.pages()) {
+                        pg.on("request", (req: any) => { pending.set(req.url() + req.method(), { method: req.method(), url: req.url(), headers: req.headers(), resourceType: req.resourceType(), timestamp: Date.now() }); });
+                        pg.on("response", (resp: any) => { const k = resp.request().url() + resp.request().method(); const e = pending.get(k); if (e) { e.status = resp.status(); e.responseHeaders = resp.headers(); captured.push(e); pending.delete(k); } });
+                      }
+                      ctx.on("page", (pg: any) => {
+                        pg.on("request", (req: any) => { pending.set(req.url() + req.method(), { method: req.method(), url: req.url(), headers: req.headers(), resourceType: req.resourceType(), timestamp: Date.now() }); });
+                        pg.on("response", (resp: any) => { const k = resp.request().url() + resp.request().method(); const e = pending.get(k); if (e) { e.status = resp.status(); e.responseHeaders = resp.headers(); captured.push(e); pending.delete(k); } });
+                      });
+
+                      const navPage = ctx.pages()[0] ?? await ctx.newPage();
+                      await navPage.goto(p.url, { waitUntil: "networkidle", timeout: 30_000 }).catch(() => {});
+                      await navPage.waitForTimeout(3000);
+
+                      // Extract cookies
+                      const browserCookies = await ctx.cookies().catch(() => []);
+                      const cookieMap: Record<string, string> = {};
+                      for (const c of browserCookies) cookieMap[c.name] = c.value;
+
+                      await remoteBrowser.close();
+
+                      if (captured.length > 0) {
+                        // Build HAR from Playwright-captured traffic
+                        const harEntries = captured
+                          .filter(e => e.resourceType === "xhr" || e.resourceType === "fetch" || e.method !== "GET")
+                          .map(e => ({
+                            request: {
+                              method: e.method,
+                              url: e.url,
+                              headers: Object.entries(e.headers).map(([name, value]) => ({ name, value })),
+                              cookies: Object.entries(cookieMap).map(([name, value]) => ({ name, value })),
+                            },
+                            response: {
+                              status: e.status ?? 0,
+                              headers: Object.entries(e.responseHeaders ?? {}).map(([name, value]) => ({ name, value })),
+                            },
+                            time: e.timestamp,
+                          }));
+
+                        const har = { log: { entries: harEntries } };
+                        const apiData = parseHar(har as any, p.url);
+                        for (const [name, value] of Object.entries(cookieMap)) {
+                          if (!apiData.cookies[name]) apiData.cookies[name] = value;
+                        }
+                        const result = await generateSkill(apiData, defaultOutputDir);
+                        discovery.markLearned(result.service);
+
+                        let publishedVersion: string | null = null;
+                        if (result.changed) {
+                          publishedVersion = await autoPublishSkill(result.service, result.skillDir);
+                        }
+
+                        const summaryLines = [
+                          `Stealth capture: ${captured.length} requests (${harEntries.length} API)`,
+                          `Skill: ${result.service}`,
+                          `Auth: ${result.authMethod}`,
+                          `Endpoints: ${result.endpointCount}`,
+                        ];
+                        if (result.diff) summaryLines.push(`Changes: ${result.diff}`);
+                        summaryLines.push(
+                          `Auth headers: ${result.authHeaderCount} | Cookies: ${result.cookieCount}`,
+                          `Installed: ${result.skillDir}`,
+                        );
+                        if (publishedVersion) summaryLines.push(`Published: ${publishedVersion}`);
+
+                        return { content: [{ type: "text", text: summaryLines.join("\n") }] };
+                      }
+                    } catch {
+                      // Playwright navigation failed — fall back to CDP capture
+                    }
+                  }
+
+                  // Fallback: CDP-only capture (only gets future traffic after Network.enable)
                   const { har, entries } = await captureFromStealth(cdpUrl);
 
                   if (entries.length === 0) {
-                    return { content: [{ type: "text", text: "No requests captured from stealth browser. Navigate to pages first." }] };
+                    return { content: [{ type: "text", text: "No requests captured from stealth browser. Navigate to pages first, or provide url param." }] };
                   }
 
-                  const apiData = parseHar(har);
+                  const apiData = parseHar(har, p.url);
                   const result = await generateSkill(apiData, defaultOutputDir);
                   discovery.markLearned(result.service);
 
@@ -1788,7 +1879,7 @@ const plugin = {
               let skillGenerated = false;
               if (result.requestCount > 5) {
                 try {
-                  const apiData = parseHar(result.har);
+                  const apiData = parseHar(result.har, p.loginUrl);
                   // Merge captured cookies into apiData
                   for (const [name, value] of Object.entries(result.cookies)) {
                     if (!apiData.cookies[name]) apiData.cookies[name] = value;
@@ -1813,15 +1904,18 @@ const plugin = {
               }
 
               const backend = browserUseApiKey ? "stealth cloud (BrowserBase)" : "local Playwright";
+              const cookieCount = Object.keys(result.cookies).length;
+              const authHeaderCount = Object.keys(result.authHeaders).length;
               const lsCount = Object.keys(result.localStorage).length;
               const ssCount = Object.keys(result.sessionStorage).length;
               const metaCount = Object.keys(result.metaTokens).length;
+              const hasAnyAuth = cookieCount > 0 || authHeaderCount > 0 || lsCount > 0 || ssCount > 0;
               const summary = [
                 `Session captured via ${backend}`,
                 `Service: ${service}`,
                 credentialUsed ? `Credentials: auto-filled from ${credentialUsed.source} (${credentialUsed.label})` : "",
-                `Cookies: ${Object.keys(result.cookies).length}`,
-                `Auth headers: ${Object.keys(result.authHeaders).length}`,
+                `Cookies: ${cookieCount}`,
+                `Auth headers: ${authHeaderCount}`,
                 lsCount > 0 ? `localStorage tokens: ${lsCount} (${Object.keys(result.localStorage).join(", ")})` : "",
                 ssCount > 0 ? `sessionStorage tokens: ${ssCount}` : "",
                 metaCount > 0 ? `Meta tokens: ${metaCount} (${Object.keys(result.metaTokens).join(", ")})` : "",
@@ -1829,8 +1923,11 @@ const plugin = {
                 `Base URL: ${result.baseUrl}`,
                 `Auth saved: ${join(skillDir, "auth.json")}`,
                 skillGenerated ? `Skill generated with ${result.requestCount} captured requests` : "",
+                !hasAnyAuth ? `WARNING: No auth state captured (0 cookies, 0 headers, 0 tokens). Login may have failed — check form selectors or try different selectors.` : "",
                 "",
-                `The session is ready. Use unbrowse_replay to execute API calls with these credentials.`,
+                hasAnyAuth
+                  ? `The session is ready. Use unbrowse_replay to execute API calls with these credentials.`
+                  : `No credentials captured. Try re-running with correct form field selectors, or use unbrowse_capture after manually logging in via the browser.`,
                 !skillGenerated && (p.captureUrls?.length ?? 0) === 0
                   ? `Tip: add captureUrls to visit authenticated pages and auto-generate a skill.`
                   : "",
@@ -2032,6 +2129,29 @@ const plugin = {
             };
 
             const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import("./src/dom-service.js");
+
+            // Normalize actions — LLMs sometimes send malformed action objects
+            // (e.g., { "fill": ... } instead of { "action": "fill", ... }).
+            // Also filter out entries with no action at all.
+            if (p.actions) {
+              p.actions = p.actions
+                .map((act) => {
+                  if (act.action) return act;
+                  // Try to infer action from other keys
+                  const keys = Object.keys(act);
+                  const actionKey = keys.find(k => ["click", "fill", "input", "select", "scroll", "wait", "extract", "navigate", "type"].includes(k));
+                  if (actionKey) {
+                    const mapped: Record<string, string> = {
+                      click: "click_element", fill: "input_text", input: "input_text",
+                      select: "select_option", scroll: "scroll", wait: "wait",
+                      extract: "extract_content", navigate: "go_to_url", type: "send_keys",
+                    };
+                    return { ...act, action: mapped[actionKey] ?? actionKey };
+                  }
+                  return act;
+                })
+                .filter((act) => act.action);
+            }
 
             // Derive service name from URL if not provided
             let service = p.service;
@@ -2501,7 +2621,7 @@ const plugin = {
               if (apiHarEntries.length >= 2) {
                 try {
                   const har = { log: { entries: apiHarEntries } };
-                  const apiData = parseHar(har as any);
+                  const apiData = parseHar(har as any, p.url);
                   // Merge cookies from auth
                   for (const [name, value] of Object.entries(authCookies)) {
                     if (!apiData.cookies[name]) apiData.cookies[name] = value;

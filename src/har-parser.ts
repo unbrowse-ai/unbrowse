@@ -39,6 +39,25 @@ const SKIP_DOMAINS = [
   "accounts.google.com", "play.google.com", "stack-auth.com", "api.stack-auth.com",
   // Cloudflare
   "cdn-cgi",
+  // TikTok analytics
+  "analytics.tiktok.com", "analytics-sg.tiktok.com", "mon.tiktokv.com",
+  "mcs.tiktokw.com", "lf16-tiktok-web.tiktokcdn-us.com",
+  // Google services (analytics, tag manager, fonts, maps, etc.)
+  "www.googletagmanager.com", "www.google.com", "google.com",
+  "fonts.googleapis.com", "fonts.gstatic.com", "maps.googleapis.com",
+  "www.gstatic.com", "apis.google.com", "ssl.gstatic.com",
+  "pagead2.googlesyndication.com", "adservice.google.com",
+  "analytics.tiktok.com", "analytics-sg.tiktok.com",
+  // Facebook/Meta
+  "graph.facebook.com", "www.facebook.com",
+  // Twitter
+  "platform.twitter.com", "syndication.twitter.com",
+  // Other common third-party
+  "newrelic.com", "nr-data.net", "bam.nr-data.net",
+  "fullstory.com", "rs.fullstory.com",
+  "launchdarkly.com", "app.launchdarkly.com",
+  "datadoghq.com", "browser-intake-datadoghq.com",
+  "bugsnag.com", "sessions.bugsnag.com",
 ];
 
 /** Auth header names to capture. */
@@ -109,13 +128,34 @@ function deriveServiceName(domain: string): string {
   return name || "unknown-api";
 }
 
+/** Content-type values that indicate HTML pages (not API JSON). */
+function isHtmlContentType(contentType: string): boolean {
+  const ct = contentType.toLowerCase();
+  return ct.includes("text/html") || ct.includes("application/xhtml");
+}
+
+/** Get the response content-type from a HAR entry. */
+function getResponseContentType(entry: HarEntry): string | undefined {
+  for (const header of entry.response?.headers ?? []) {
+    if (header.name.toLowerCase() === "content-type") {
+      return header.value;
+    }
+  }
+  return undefined;
+}
+
 /**
  * Parse a HAR file or HAR JSON object into structured API data.
  *
  * Filters out static assets and third-party domains, extracts auth
  * headers/cookies, groups endpoints, and determines the service name.
+ *
+ * @param seedUrl - The user-provided URL that initiated the capture. Used to
+ *                  derive the service name and baseUrl instead of guessing from
+ *                  the most-frequent request domain (which is often a third-party
+ *                  analytics domain like Google or TikTok).
  */
-export function parseHar(har: { log: { entries: HarEntry[] } }): ApiData {
+export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string): ApiData {
   const requests: ParsedRequest[] = [];
   const authHeaders: Record<string, string> = {};
   const cookies: Record<string, string> = {};
@@ -123,10 +163,22 @@ export function parseHar(har: { log: { entries: HarEntry[] } }): ApiData {
   const baseUrls = new Set<string>();
   const targetDomains = new Set<string>();
 
+  // If a seed URL is provided, extract its domain upfront for prioritization
+  let seedDomain: string | undefined;
+  let seedBaseUrl: string | undefined;
+  if (seedUrl) {
+    try {
+      const parsed = new URL(seedUrl);
+      seedDomain = parsed.host;
+      seedBaseUrl = `${parsed.protocol}//${parsed.host}`;
+    } catch { /* invalid seedUrl — ignore */ }
+  }
+
   for (const entry of har.log?.entries ?? []) {
     const url = entry.request.url;
     const method = entry.request.method;
     const responseStatus = entry.response?.status ?? 0;
+    const responseContentType = getResponseContentType(entry);
 
     // Skip static assets
     try {
@@ -146,6 +198,14 @@ export function parseHar(har: { log: { entries: HarEntry[] } }): ApiData {
 
     // Skip third-party
     if (isSkippedDomain(domain)) continue;
+
+    // Skip requests that returned full HTML pages — these are page navigations,
+    // not API calls. API endpoints return JSON, XML, or similar data formats.
+    // Only skip GET requests with HTML responses (POST to an HTML endpoint might
+    // be a form submission returning a redirect).
+    if (method === "GET" && responseContentType && isHtmlContentType(responseContentType)) {
+      continue;
+    }
 
     // Only keep API-like requests (or allow all if on a known target domain)
     if (!isApiLike(url, method, domain) && targetDomains.size > 0 && !targetDomains.has(domain)) {
@@ -179,16 +239,19 @@ export function parseHar(har: { log: { entries: HarEntry[] } }): ApiData {
     // Extract response set-cookie
     for (const header of entry.response?.headers ?? []) {
       if (header.name.toLowerCase() === "set-cookie") {
-        for (const part of header.value.split(",")) {
-          const eq = part.indexOf("=");
-          if (eq > 0) {
-            let cookieName = part.slice(0, eq).trim();
-            const semi = cookieName.indexOf(";");
-            if (semi > 0) cookieName = cookieName.slice(0, semi).trim();
-            if (cookieName) {
-              const cookieValue = part.slice(eq + 1, eq + 201);
-              authInfo[`response_setcookie_${cookieName}`] = cookieValue;
-            }
+        // Each Set-Cookie header should contain a single cookie.
+        // HAR files may concatenate multiple Set-Cookie headers with newlines
+        // or may have one header per cookie. Don't split on commas — dates
+        // like "Expires=Thu, 01 Jan 2026" contain commas.
+        const cookieStr = header.value;
+        const eq = cookieStr.indexOf("=");
+        if (eq > 0) {
+          const cookieName = cookieStr.slice(0, eq).trim();
+          const rest = cookieStr.slice(eq + 1);
+          const semi = rest.indexOf(";");
+          const cookieValue = semi > 0 ? rest.slice(0, semi).trim() : rest.trim();
+          if (cookieName && cookieValue) {
+            authInfo[`response_setcookie_${cookieName}`] = cookieValue;
           }
         }
       }
@@ -200,14 +263,20 @@ export function parseHar(har: { log: { entries: HarEntry[] } }): ApiData {
       path: parsed.pathname,
       domain,
       status: responseStatus,
+      responseContentType,
     });
   }
 
-  // Determine service name from most common target domain
+  // Determine service name and base URL.
+  // Priority: seed URL domain > most-common target domain > first baseUrl
   let service = "unknown-api";
   let baseUrl = "https://api.example.com";
 
-  if (targetDomains.size > 0) {
+  if (seedDomain) {
+    // Use the seed URL's domain — this is what the user actually asked to capture
+    service = deriveServiceName(seedDomain);
+    baseUrl = seedBaseUrl!;
+  } else if (targetDomains.size > 0) {
     const domainCounts: Record<string, number> = {};
     for (const req of requests) {
       domainCounts[req.domain] = (domainCounts[req.domain] ?? 0) + 1;
