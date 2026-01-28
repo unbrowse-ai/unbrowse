@@ -638,18 +638,27 @@ const plugin = {
       if (!browser) {
         const chromeUserDataDir = join(homedir(), "Library/Application Support/Google/Chrome");
 
-        // Detect last used profile from Chrome's Local State
+        // Detect most recently active profile by checking file modification times
+        // (more reliable than Local State's last_used which only updates on profile switch)
         let profileDir = "Default";
         try {
-          const localStatePath = join(chromeUserDataDir, "Local State");
-          if (existsSync(localStatePath)) {
-            const localState = JSON.parse(readFileSync(localStatePath, "utf-8"));
-            const lastUsed = localState?.profile?.last_used;
-            if (lastUsed && typeof lastUsed === "string") {
-              profileDir = lastUsed;
-              logger.info(`[unbrowse] Detected last used Chrome profile: ${profileDir}`);
+          const { statSync } = await import("node:fs");
+          const profiles = readdirSync(chromeUserDataDir, { withFileTypes: true })
+            .filter(d => d.isDirectory() && (d.name === "Default" || d.name.startsWith("Profile ")))
+            .map(d => d.name);
+
+          let mostRecent = { profile: "Default", mtime: 0 };
+          for (const profile of profiles) {
+            const historyPath = join(chromeUserDataDir, profile, "History");
+            if (existsSync(historyPath)) {
+              const mtime = statSync(historyPath).mtimeMs;
+              if (mtime > mostRecent.mtime) {
+                mostRecent = { profile, mtime };
+              }
             }
           }
+          profileDir = mostRecent.profile;
+          logger.info(`[unbrowse] Detected most active Chrome profile: ${profileDir} (by History mtime)`);
         } catch { /* use Default */ }
 
         if (existsSync(chromeUserDataDir)) {
