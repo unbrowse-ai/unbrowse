@@ -22,6 +22,12 @@ export interface RefreshConfig {
   expiresAt?: string; // ISO timestamp
   expiresInSeconds?: number;
   lastRefreshedAt?: string;
+  // OAuth-specific fields
+  clientId?: string;
+  clientSecret?: string;
+  provider?: "google" | "firebase" | "generic"; // Detected OAuth provider
+  idToken?: string; // Google/Firebase id_token
+  scope?: string;
 }
 
 export interface TokenInfo {
@@ -34,41 +40,68 @@ export interface TokenInfo {
 // Patterns that indicate a refresh token endpoint
 const REFRESH_URL_PATTERNS = [
   /\/oauth\/token/i,
+  /\/oauth2\/v\d+\/token/i,  // Google OAuth2
   /\/auth\/refresh/i,
   /\/token\/refresh/i,
   /\/refresh[-_]?token/i,
   /\/api\/.*\/refresh/i,
   /\/v\d+\/auth\/token/i,
+  /accounts\.google\.com.*\/token/i,  // Google accounts
+  /securetoken\.googleapis\.com/i,     // Firebase Auth
+  /identitytoolkit\.googleapis\.com/i, // Google Identity Toolkit
+  /\/token\?/i,  // Generic token endpoint with query params
 ];
 
 const REFRESH_BODY_PATTERNS = [
   /grant_type[=:].*refresh_token/i,
   /refresh_token[=:]/i,
+  /refreshToken[=:]/i,  // camelCase variant
+];
+
+// Google OAuth specific - detect initial token grants too (for capturing refresh_token)
+const OAUTH_GRANT_URL_PATTERNS = [
+  /\/oauth2?\/v?\d*\/token/i,
+  /accounts\.google\.com.*\/token/i,
+  /securetoken\.googleapis\.com/i,
+  /\/auth\/token/i,
+];
+
+const OAUTH_GRANT_BODY_PATTERNS = [
+  /grant_type[=:].*authorization_code/i,
+  /code[=:][^&]+/i,  // Authorization code exchange
 ];
 
 /**
  * Detect if a request/response pair looks like a token refresh endpoint.
+ * Also detects initial OAuth grants (authorization_code exchange) to capture refresh_token.
  */
 export function detectRefreshEndpoint(
   url: string,
   method: string,
   requestBody?: string,
   responseBody?: string,
-): { isRefresh: boolean; tokenInfo?: TokenInfo } {
-  // Check URL patterns
-  const urlMatch = REFRESH_URL_PATTERNS.some((p) => p.test(url));
-
-  // Check request body patterns
-  const bodyMatch = requestBody
-    ? REFRESH_BODY_PATTERNS.some((p) => p.test(requestBody))
-    : false;
-
-  // Must be POST/PUT and match URL or body pattern
+): { isRefresh: boolean; isInitialGrant?: boolean; tokenInfo?: TokenInfo } {
+  // Must be POST/PUT for token operations
   if (!["POST", "PUT"].includes(method.toUpperCase())) {
     return { isRefresh: false };
   }
 
-  if (!urlMatch && !bodyMatch) {
+  // Check if this is a refresh token request
+  const isRefreshUrl = REFRESH_URL_PATTERNS.some((p) => p.test(url));
+  const isRefreshBody = requestBody
+    ? REFRESH_BODY_PATTERNS.some((p) => p.test(requestBody))
+    : false;
+
+  // Check if this is an initial OAuth grant (authorization_code exchange)
+  const isGrantUrl = OAUTH_GRANT_URL_PATTERNS.some((p) => p.test(url));
+  const isGrantBody = requestBody
+    ? OAUTH_GRANT_BODY_PATTERNS.some((p) => p.test(requestBody))
+    : false;
+
+  const isRefresh = isRefreshUrl || isRefreshBody;
+  const isInitialGrant = isGrantUrl && isGrantBody && !isRefresh;
+
+  if (!isRefresh && !isInitialGrant) {
     return { isRefresh: false };
   }
 
@@ -77,31 +110,43 @@ export function detectRefreshEndpoint(
   if (responseBody) {
     try {
       const json = JSON.parse(responseBody);
-      if (json.access_token || json.accessToken || json.token) {
+      if (json.access_token || json.accessToken || json.token || json.idToken || json.id_token) {
         tokenInfo = {
           accessToken: json.access_token || json.accessToken || json.token,
           refreshToken: json.refresh_token || json.refreshToken,
-          expiresIn: json.expires_in || json.expiresIn || json.exp,
+          expiresIn: json.expires_in || json.expiresIn || json.exp || json.expiresIn,
           tokenType: json.token_type || json.tokenType || "Bearer",
         };
+        // Google/Firebase specific: also capture id_token
+        if (json.id_token || json.idToken) {
+          (tokenInfo as any).idToken = json.id_token || json.idToken;
+        }
+        // Firebase specific: localId is the user ID
+        if (json.localId) {
+          (tokenInfo as any).userId = json.localId;
+        }
       }
     } catch {
       // Not JSON, try regex extraction
       const accessMatch = responseBody.match(/"access_token"\s*:\s*"([^"]+)"/);
       const refreshMatch = responseBody.match(/"refresh_token"\s*:\s*"([^"]+)"/);
       const expiresMatch = responseBody.match(/"expires_in"\s*:\s*(\d+)/);
+      const idTokenMatch = responseBody.match(/"id_token"\s*:\s*"([^"]+)"/);
 
-      if (accessMatch) {
+      if (accessMatch || idTokenMatch) {
         tokenInfo = {
-          accessToken: accessMatch[1],
+          accessToken: accessMatch?.[1],
           refreshToken: refreshMatch?.[1],
           expiresIn: expiresMatch ? parseInt(expiresMatch[1]) : undefined,
         };
+        if (idTokenMatch) {
+          (tokenInfo as any).idToken = idTokenMatch[1];
+        }
       }
     }
   }
 
-  return { isRefresh: true, tokenInfo };
+  return { isRefresh: isRefresh || isInitialGrant, isInitialGrant, tokenInfo };
 }
 
 /**
@@ -173,13 +218,51 @@ export function extractRefreshConfig(entry: {
     }
   }
 
+  // Detect OAuth provider
+  let provider: "google" | "firebase" | "generic" = "generic";
+  if (/accounts\.google\.com|googleapis\.com\/oauth2/i.test(request.url)) {
+    provider = "google";
+  } else if (/securetoken\.googleapis\.com|identitytoolkit\.googleapis\.com/i.test(request.url)) {
+    provider = "firebase";
+  }
+
+  // Extract OAuth client credentials from body if present
+  let clientId: string | undefined;
+  let clientSecret: string | undefined;
+  let scope: string | undefined;
+
+  if (typeof body === "object") {
+    clientId = body.client_id || body.clientId;
+    clientSecret = body.client_secret || body.clientSecret;
+    scope = body.scope;
+  } else if (typeof body === "string") {
+    const clientIdMatch = body.match(/client_id[=:]([^&\s"]+)/);
+    const clientSecretMatch = body.match(/client_secret[=:]([^&\s"]+)/);
+    const scopeMatch = body.match(/scope[=:]([^&\s"]+)/);
+    if (clientIdMatch) clientId = decodeURIComponent(clientIdMatch[1]);
+    if (clientSecretMatch) clientSecret = decodeURIComponent(clientSecretMatch[1]);
+    if (scopeMatch) scope = decodeURIComponent(scopeMatch[1]);
+  }
+
+  // For Firebase, the refresh URL is different from the initial token URL
+  let refreshUrl = request.url;
+  if (provider === "firebase" && detection.isInitialGrant) {
+    // Firebase uses securetoken.googleapis.com for refresh
+    refreshUrl = "https://securetoken.googleapis.com/v1/token";
+  }
+
   const config: RefreshConfig = {
-    url: request.url,
+    url: refreshUrl,
     method: request.method,
     headers,
     body,
     refreshToken: detection.tokenInfo?.refreshToken,
     expiresInSeconds: detection.tokenInfo?.expiresIn,
+    provider,
+    clientId,
+    clientSecret,
+    scope,
+    idToken: (detection.tokenInfo as any)?.idToken,
   };
 
   if (detection.tokenInfo?.expiresIn) {
@@ -195,35 +278,67 @@ export function extractRefreshConfig(entry: {
  */
 export async function refreshToken(config: RefreshConfig): Promise<TokenInfo | null> {
   try {
-    const headers: Record<string, string> = {
-      ...config.headers,
-    };
-
+    let url = config.url;
+    let headers: Record<string, string> = { ...config.headers };
     let bodyStr: string | undefined;
-    if (config.body) {
-      if (typeof config.body === "string") {
-        bodyStr = config.body;
-      } else {
-        // Check content-type to determine encoding
-        const contentType = Object.entries(headers).find(
-          ([k]) => k.toLowerCase() === "content-type",
-        )?.[1];
 
-        if (contentType?.includes("json")) {
-          bodyStr = JSON.stringify(config.body);
+    // Handle provider-specific refresh flows
+    if (config.provider === "firebase") {
+      // Firebase refresh: POST to securetoken.googleapis.com with grant_type=refresh_token
+      url = config.url.includes("securetoken.googleapis.com")
+        ? config.url
+        : "https://securetoken.googleapis.com/v1/token";
+
+      // Firebase needs API key in URL
+      const apiKey = config.clientId || (typeof config.body === "object" ? config.body.key : undefined);
+      if (apiKey && !url.includes("key=")) {
+        url += (url.includes("?") ? "&" : "?") + `key=${apiKey}`;
+      }
+
+      bodyStr = `grant_type=refresh_token&refresh_token=${encodeURIComponent(config.refreshToken || "")}`;
+      headers["Content-Type"] = "application/x-www-form-urlencoded";
+    } else if (config.provider === "google") {
+      // Google OAuth refresh
+      const params = new URLSearchParams();
+      params.set("grant_type", "refresh_token");
+      params.set("refresh_token", config.refreshToken || "");
+      if (config.clientId) params.set("client_id", config.clientId);
+      if (config.clientSecret) params.set("client_secret", config.clientSecret);
+
+      bodyStr = params.toString();
+      headers["Content-Type"] = "application/x-www-form-urlencoded";
+    } else {
+      // Generic refresh - use stored body but ensure refresh_token is set
+      if (config.body) {
+        if (typeof config.body === "string") {
+          bodyStr = config.body;
         } else {
-          // URL-encoded
-          bodyStr = Object.entries(config.body)
-            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-            .join("&");
-          if (!contentType) {
-            headers["Content-Type"] = "application/x-www-form-urlencoded";
+          const contentType = Object.entries(headers).find(
+            ([k]) => k.toLowerCase() === "content-type",
+          )?.[1];
+
+          // Update refresh_token in body
+          const bodyObj = { ...config.body };
+          if (config.refreshToken) {
+            bodyObj.refresh_token = config.refreshToken;
+            bodyObj.grant_type = "refresh_token";
+          }
+
+          if (contentType?.includes("json")) {
+            bodyStr = JSON.stringify(bodyObj);
+          } else {
+            bodyStr = Object.entries(bodyObj)
+              .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+              .join("&");
+            if (!contentType) {
+              headers["Content-Type"] = "application/x-www-form-urlencoded";
+            }
           }
         }
       }
     }
 
-    const response = await fetch(config.url, {
+    const response = await fetch(url, {
       method: config.method,
       headers,
       body: bodyStr,
@@ -236,8 +351,8 @@ export async function refreshToken(config: RefreshConfig): Promise<TokenInfo | n
     const json = await response.json();
 
     return {
-      accessToken: json.access_token || json.accessToken || json.token,
-      refreshToken: json.refresh_token || json.refreshToken,
+      accessToken: json.access_token || json.accessToken || json.token || json.id_token,
+      refreshToken: json.refresh_token || json.refreshToken || config.refreshToken, // Firebase doesn't return new refresh_token
       expiresIn: json.expires_in || json.expiresIn,
       tokenType: json.token_type || json.tokenType || "Bearer",
     };
