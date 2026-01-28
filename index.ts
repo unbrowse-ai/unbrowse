@@ -727,6 +727,32 @@ const plugin = {
             chromeIsRunning = psResult.stdout.trim().length > 0;
           } catch { /* assume not running */ }
 
+          // Also check for stale SingletonLock file that blocks profile access
+          // Lock file format: hostname-pid — if pid isn't running, remove the lock
+          const lockPath = join(chromeUserDataDir, "SingletonLock");
+          if (!chromeIsRunning && existsSync(lockPath)) {
+            try {
+              const { readlinkSync, unlinkSync } = await import("node:fs");
+              const { spawnSync } = await import("node:child_process");
+              const lockTarget = readlinkSync(lockPath);
+              // Format: hostname-pid
+              const pidMatch = lockTarget.match(/-(\d+)$/);
+              if (pidMatch) {
+                const pid = pidMatch[1];
+                const psCheck = spawnSync("ps", ["-p", pid], { encoding: "utf-8" });
+                if (psCheck.status !== 0) {
+                  // Process not running - safe to remove stale lock
+                  unlinkSync(lockPath);
+                  logger.info(`[unbrowse] Removed stale Chrome lock file (pid ${pid} not running)`);
+                } else {
+                  // Process still running but pgrep missed it
+                  chromeIsRunning = true;
+                  logger.info(`[unbrowse] Chrome lock file exists and process ${pid} is running`);
+                }
+              }
+            } catch { /* ignore lock check errors */ }
+          }
+
           if (chromeIsRunning) {
             chromeWasRunning = true;
             logger.info(`[unbrowse] Chrome is running - cannot take over profile. Will use single Playwright browser.`);
