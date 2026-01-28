@@ -246,26 +246,48 @@ const INTERACT_SCHEMA = {
         properties: {
           action: {
             type: "string" as const,
-            description: 'Action type: "click", "fill", "select", "wait", "screenshot", "read", "scroll", "press"',
+            enum: [
+              "click_element", "input_text", "select_option", "get_dropdown_options",
+              "scroll", "send_keys", "wait", "extract_content",
+              "go_to_url", "go_back", "done",
+            ],
+            description:
+              "Action type. Use element indices from the page state (e.g. click_element index=3). " +
+              "Index-based actions: click_element, input_text, select_option, get_dropdown_options. " +
+              "Page actions: scroll, send_keys, wait, extract_content, go_to_url, go_back, done.",
+          },
+          index: {
+            type: "number" as const,
+            description: "Element index from page state (shown as [1], [2], etc.). Required for click_element, input_text, select_option, get_dropdown_options.",
+          },
+          text: {
+            type: "string" as const,
+            description: 'Text for input_text (value to type), select_option (option text to select), extract_content (query), send_keys (keys like "Enter", "Tab", "Control+a"), go_to_url (URL).',
+          },
+          clear: {
+            type: "boolean" as const,
+            description: "For input_text: clear existing text before typing (default: true).",
+          },
+          direction: {
+            type: "string" as const,
+            enum: ["down", "up"],
+            description: 'Scroll direction (default: "down").',
+          },
+          amount: {
+            type: "number" as const,
+            description: "Scroll amount in pages (default: 1). Use 0.5 for half page, 10 for bottom/top.",
           },
           selector: {
             type: "string" as const,
-            description: 'CSS selector for the target element (e.g. "button.book-now", "#time-select", "input[name=guests]")',
-          },
-          value: {
-            type: "string" as const,
-            description: 'Value for "fill" (text input), "select" (option value), or "press" (key name like "Enter")',
-          },
-          timeout: {
-            type: "number" as const,
-            description: "Wait timeout in ms (default: 10000). For 'wait' action, how long to wait.",
+            description: "CSS selector fallback — only use when element index is not available.",
           },
         },
         required: ["action"],
       },
       description:
-        "Sequence of browser actions to perform. Each action can click elements, fill inputs, select dropdowns, " +
-        "wait for elements/navigation, read page text, scroll, or press keys. API traffic is captured throughout.",
+        "Sequence of browser actions. After navigating, you receive a page state with indexed interactive elements " +
+        "(e.g. [1] <button> Submit, [2] <input type=\"text\" placeholder=\"Search\">). " +
+        "Reference elements by their index number in click_element, input_text, select_option actions.",
     },
     captureTraffic: {
       type: "boolean" as const,
@@ -1983,27 +2005,33 @@ const plugin = {
           },
         },
         // ── unbrowse_interact ──────────────────────────────────────────
+        // Browser-use-style interaction: index-based element targeting + page state
         {
           name: "unbrowse_interact",
           label: "Browser Interaction",
           description:
-            "Drive a browser to interact with web pages — click buttons, fill forms, select options, " +
-            "read page content, and capture API traffic throughout. Uses local Playwright (not stealth) " +
-            "with auth from a previously captured skill's auth.json. Use this for multi-step flows " +
-            "like booking, purchasing, or navigating authenticated dashboards.",
+            "Drive a browser to interact with web pages — like browser-use. After navigation, returns indexed " +
+            "interactive elements (e.g. [1] <button> Submit, [2] <input placeholder=\"Email\">). " +
+            "Use element indices for actions: click_element(index=3), input_text(index=5, text=\"hello\"). " +
+            "Captures API traffic throughout. Uses local Playwright with auth from skill's auth.json.",
           parameters: INTERACT_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as {
               url: string;
               service?: string;
               actions: Array<{
-                action: "click" | "fill" | "select" | "wait" | "screenshot" | "read" | "scroll" | "press";
+                action: string;
+                index?: number;
+                text?: string;
+                clear?: boolean;
+                direction?: "down" | "up";
+                amount?: number;
                 selector?: string;
-                value?: string;
-                timeout?: number;
               }>;
               captureTraffic?: boolean;
             };
+
+            const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import("./src/dom-service.js");
 
             // Derive service name from URL if not provided
             let service = p.service;
@@ -2084,7 +2112,7 @@ const plugin = {
 
               page = await context.newPage();
 
-              // Capture API traffic if requested
+              // Capture API traffic
               const shouldCapture = p.captureTraffic !== false;
               const capturedRequests: Array<{
                 method: string;
@@ -2122,7 +2150,6 @@ const plugin = {
               try {
                 await page.goto(p.url, { waitUntil: "networkidle", timeout: 30_000 });
               } catch {
-                // Wait a bit if networkidle doesn't resolve
                 await page.waitForTimeout(3000);
               }
 
@@ -2144,111 +2171,197 @@ const plugin = {
                 } catch { /* page may block storage access */ }
               }
 
-              // Execute actions
+              // Extract initial page state (indexed elements)
+              let pageState = await extractPageState(page);
+
+              // Execute actions (browser-use style — index-based)
               const actionResults: string[] = [];
 
               for (const act of p.actions) {
-                const timeout = act.timeout ?? 10_000;
-
                 try {
                   switch (act.action) {
-                    case "click": {
-                      if (!act.selector) {
-                        actionResults.push("click: missing selector");
+                    // ── Index-based element actions ─────────────────────────
+                    case "click_element": {
+                      if (act.index == null && !act.selector) {
+                        actionResults.push("click_element: missing index or selector");
                         break;
                       }
-                      await page.waitForSelector(act.selector, { timeout });
-                      await page.click(act.selector);
-                      // Wait for potential navigation/XHR
+                      if (act.index != null) {
+                        const el = await getElementByIndex(page, act.index);
+                        if (!el || (await el.evaluate((e: any) => !e))) {
+                          actionResults.push(`click_element: index ${act.index} not found — page may have changed`);
+                          break;
+                        }
+                        await el.click();
+                      } else if (act.selector) {
+                        await page.waitForSelector(act.selector, { timeout: 10_000 });
+                        await page.click(act.selector);
+                      }
                       await page.waitForTimeout(500);
-                      actionResults.push(`click: ${act.selector} ✓`);
+                      // Re-extract page state after click (page may have changed)
+                      pageState = await extractPageState(page);
+                      const desc = act.index != null
+                        ? `[${act.index}] ${pageState.elements.find(e => e.index === act.index)?.text?.slice(0, 50) ?? ""}`
+                        : act.selector;
+                      actionResults.push(`click_element: ${desc} done`);
                       break;
                     }
 
-                    case "fill": {
-                      if (!act.selector || act.value === undefined) {
-                        actionResults.push("fill: missing selector or value");
+                    case "input_text": {
+                      if (act.index == null && !act.selector) {
+                        actionResults.push("input_text: missing index or selector");
                         break;
                       }
-                      await page.waitForSelector(act.selector, { timeout });
-                      await page.fill(act.selector, act.value);
+                      const text = act.text ?? "";
+                      const clear = act.clear !== false;
+                      if (act.index != null) {
+                        const el = await getElementByIndex(page, act.index);
+                        if (!el || (await el.evaluate((e: any) => !e))) {
+                          actionResults.push(`input_text: index ${act.index} not found`);
+                          break;
+                        }
+                        if (clear) {
+                          await el.fill(text);
+                        } else {
+                          await el.type(text);
+                        }
+                      } else if (act.selector) {
+                        await page.waitForSelector(act.selector, { timeout: 10_000 });
+                        if (clear) {
+                          await page.fill(act.selector, text);
+                        } else {
+                          await page.type(act.selector, text);
+                        }
+                      }
                       await page.waitForTimeout(200);
-                      actionResults.push(`fill: ${act.selector} = "${act.value}" ✓`);
+                      actionResults.push(`input_text: [${act.index ?? act.selector}] = "${text.slice(0, 50)}" done`);
                       break;
                     }
 
-                    case "select": {
-                      if (!act.selector || !act.value) {
-                        actionResults.push("select: missing selector or value");
+                    case "select_option": {
+                      if (act.index == null && !act.selector) {
+                        actionResults.push("select_option: missing index or selector");
                         break;
                       }
-                      await page.waitForSelector(act.selector, { timeout });
-                      await page.selectOption(act.selector, act.value);
+                      const optText = act.text ?? "";
+                      if (act.index != null) {
+                        const el = await getElementByIndex(page, act.index);
+                        if (!el || (await el.evaluate((e: any) => !e))) {
+                          actionResults.push(`select_option: index ${act.index} not found`);
+                          break;
+                        }
+                        // Try selecting by label text first, then by value
+                        await el.selectOption({ label: optText }).catch(() =>
+                          el.selectOption(optText),
+                        );
+                      } else if (act.selector) {
+                        await page.waitForSelector(act.selector, { timeout: 10_000 });
+                        await page.selectOption(act.selector, { label: optText }).catch(() =>
+                          page.selectOption(act.selector!, optText),
+                        );
+                      }
                       await page.waitForTimeout(200);
-                      actionResults.push(`select: ${act.selector} = "${act.value}" ✓`);
+                      pageState = await extractPageState(page);
+                      actionResults.push(`select_option: [${act.index ?? act.selector}] = "${optText}" done`);
+                      break;
+                    }
+
+                    case "get_dropdown_options": {
+                      if (act.index == null) {
+                        actionResults.push("get_dropdown_options: missing index");
+                        break;
+                      }
+                      const el = pageState.elements.find(e => e.index === act.index);
+                      if (el?.options) {
+                        actionResults.push(`dropdown_options [${act.index}]: ${el.options.join(", ")}`);
+                      } else {
+                        // Try extracting from page
+                        const elHandle = await getElementByIndex(page, act.index);
+                        if (elHandle) {
+                          const opts = await elHandle.evaluate((e: any) => {
+                            if (e.tagName === "SELECT") {
+                              return Array.from(e.options).map((o: any) => o.text.trim()).slice(0, 20);
+                            }
+                            return [];
+                          });
+                          actionResults.push(`dropdown_options [${act.index}]: ${(opts as string[]).join(", ") || "no options found"}`);
+                        } else {
+                          actionResults.push(`get_dropdown_options: index ${act.index} not found`);
+                        }
+                      }
+                      break;
+                    }
+
+                    // ── Page-level actions ──────────────────────────────────
+                    case "scroll": {
+                      const down = (act.direction ?? "down") === "down";
+                      const pages = act.amount ?? 1;
+                      const pixels = Math.round(pages * (pageState.viewportHeight || 800));
+                      await page.evaluate(
+                        ({ px, d }: { px: number; d: boolean }) => window.scrollBy(0, d ? px : -px),
+                        { px: pixels, d: down },
+                      );
+                      await page.waitForTimeout(300);
+                      pageState = await extractPageState(page);
+                      actionResults.push(`scroll: ${down ? "down" : "up"} ${pages} page(s) done`);
+                      break;
+                    }
+
+                    case "send_keys": {
+                      const keys = act.text ?? "Enter";
+                      await page.keyboard.press(keys);
+                      await page.waitForTimeout(300);
+                      pageState = await extractPageState(page);
+                      actionResults.push(`send_keys: "${keys}" done`);
                       break;
                     }
 
                     case "wait": {
                       if (act.selector) {
-                        await page.waitForSelector(act.selector, { timeout });
-                        actionResults.push(`wait: ${act.selector} appeared ✓`);
+                        await page.waitForSelector(act.selector, { timeout: act.amount ?? 10_000 });
+                        actionResults.push(`wait: ${act.selector} appeared`);
                       } else {
-                        const ms = act.timeout ?? 2000;
+                        const ms = act.amount ?? 2000;
                         await page.waitForTimeout(ms);
-                        actionResults.push(`wait: ${ms}ms ✓`);
+                        actionResults.push(`wait: ${ms}ms done`);
                       }
+                      pageState = await extractPageState(page);
                       break;
                     }
 
-                    case "screenshot": {
-                      // Return a text description of what's visible
-                      const title = await page.title();
-                      const url = page.url();
-                      actionResults.push(`screenshot: "${title}" (${url})`);
+                    case "extract_content": {
+                      const bodyText = await page.evaluate(() =>
+                        document.body?.innerText?.slice(0, 5000) ?? "",
+                      );
+                      actionResults.push(`extract_content:\n${bodyText.slice(0, 3000)}`);
                       break;
                     }
 
-                    case "read": {
-                      if (act.selector) {
-                        await page.waitForSelector(act.selector, { timeout });
-                        const text = await page.textContent(act.selector);
-                        actionResults.push(`read [${act.selector}]: ${(text ?? "").slice(0, 1000)}`);
-                      } else {
-                        // Read visible page text
-                        const text = await page.evaluate(() => {
-                          return document.body?.innerText?.slice(0, 3000) ?? "";
-                        });
-                        actionResults.push(`read [body]: ${text.slice(0, 2000)}`);
+                    case "go_to_url": {
+                      const url = act.text;
+                      if (!url) {
+                        actionResults.push("go_to_url: missing URL in text field");
+                        break;
                       }
+                      try {
+                        await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+                      } catch {
+                        await page.waitForTimeout(3000);
+                      }
+                      pageState = await extractPageState(page);
+                      actionResults.push(`go_to_url: ${url} done`);
                       break;
                     }
 
-                    case "scroll": {
-                      if (act.selector) {
-                        await page.waitForSelector(act.selector, { timeout });
-                        await page.evaluate((sel: string) => {
-                          document.querySelector(sel)?.scrollIntoView({ behavior: "smooth" });
-                        }, act.selector);
-                        actionResults.push(`scroll: ${act.selector} into view ✓`);
-                      } else {
-                        const amount = parseInt(act.value ?? "500", 10);
-                        await page.evaluate((y: number) => window.scrollBy(0, y), amount);
-                        actionResults.push(`scroll: ${amount}px ✓`);
-                      }
-                      await page.waitForTimeout(300);
+                    case "go_back": {
+                      await page.goBack({ waitUntil: "networkidle", timeout: 15_000 }).catch(() => {});
+                      pageState = await extractPageState(page);
+                      actionResults.push("go_back: done");
                       break;
                     }
 
-                    case "press": {
-                      const key = act.value ?? "Enter";
-                      if (act.selector) {
-                        await page.waitForSelector(act.selector, { timeout });
-                        await page.focus(act.selector);
-                      }
-                      await page.keyboard.press(key);
-                      await page.waitForTimeout(300);
-                      actionResults.push(`press: ${key} ✓`);
+                    case "done": {
+                      actionResults.push(`done: ${act.text ?? "Task complete"}`);
                       break;
                     }
 
@@ -2257,15 +2370,10 @@ const plugin = {
                   }
                 } catch (err) {
                   actionResults.push(`${act.action}: FAILED — ${(err as Error).message}`);
+                  // Re-extract page state so agent can recover
+                  try { pageState = await extractPageState(page); } catch { /* ignore */ }
                 }
               }
-
-              // Read final page state
-              const finalTitle = await page.title().catch(() => "");
-              const finalUrl = page.url();
-              const finalText = await page
-                .evaluate(() => document.body?.innerText?.slice(0, 2000) ?? "")
-                .catch(() => "");
 
               // Capture updated cookies/storage for persistence
               const finalCookies = await context.cookies().catch(() => []);
@@ -2319,17 +2427,18 @@ const plugin = {
               await context?.close().catch(() => {});
               await browser?.close().catch(() => {});
 
-              // If we captured enough traffic, offer skill generation
               const apiCalls = capturedRequests.filter(
                 (r) => r.resourceType === "xhr" || r.resourceType === "fetch",
               );
 
-              // Build result summary
+              // Build result: page state + action results + API traffic
+              const formattedPageState = formatPageStateForLLM(pageState);
               const resultLines = [
                 `Interaction complete: ${p.actions.length} action(s)`,
-                `Page: "${finalTitle}" (${finalUrl})`,
                 "",
-                "Actions:",
+                formattedPageState,
+                "",
+                "Action results:",
                 ...actionResults.map((r) => `  ${r}`),
               ];
 
@@ -2338,7 +2447,7 @@ const plugin = {
                   "",
                   `API traffic captured: ${apiCalls.length} request(s)`,
                   ...apiCalls.slice(0, 20).map(
-                    (r) => `  ${r.method} ${r.url.slice(0, 100)} → ${r.status}`,
+                    (r) => `  ${r.method} ${r.url.slice(0, 100)} -> ${r.status}`,
                   ),
                 );
                 if (apiCalls.length > 20) {
@@ -2346,17 +2455,12 @@ const plugin = {
                 }
               }
 
-              if (finalText) {
-                resultLines.push("", "Page content (truncated):", finalText.slice(0, 1500));
-              }
-
               logger.info(
-                `[unbrowse] Interact: ${p.actions.length} actions on ${finalUrl} (${apiCalls.length} API calls)`,
+                `[unbrowse] Interact: ${p.actions.length} actions on ${pageState.url} (${apiCalls.length} API calls, ${pageState.elements.length} elements)`,
               );
               return { content: [{ type: "text", text: resultLines.join("\n") }] };
             } catch (err) {
               const msg = (err as Error).message;
-              // Clean up on error
               await context?.close().catch(() => {});
               await browser?.close().catch(() => {});
               if (msg.includes("playwright")) {
@@ -2428,7 +2532,7 @@ const plugin = {
         "- Use unbrowse_capture to visit URLs and capture API traffic automatically via Playwright",
         "- Use unbrowse_login to log into authenticated sites with credentials",
         "- Use unbrowse_replay to call APIs using captured auth (auto-refreshes on 401)",
-        "- Use unbrowse_interact to drive pages (click buttons, fill forms, select options, read content) — for multi-step flows like booking",
+        "- Use unbrowse_interact to drive pages — browser-use style. It returns indexed interactive elements [1] [2] [3]... Use click_element(index=N), input_text(index=N, text=...), select_option(index=N, text=...) to interact. For multi-step flows like booking.",
         "- Use unbrowse_search to find skills other agents have already discovered",
         "- Check unbrowse_skills first to see if you already have a skill for the service",
         "The browser launches automatically — no Chrome extension, no manual steps needed.",
