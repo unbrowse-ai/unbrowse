@@ -746,10 +746,10 @@ const plugin = {
         }
       }
 
-      // Strategy 6: Fall back to fresh Playwright Chromium
+      // Strategy 6: Fall back to fresh Playwright Chromium with Chrome cookies
       if (!browser) {
         browser = await chromium.launch({
-          headless: true,
+          headless: false, // Show browser so user can see what's happening
           args: [
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",
@@ -757,6 +757,7 @@ const plugin = {
           ],
         });
         method = "playwright";
+        logger.info(`[unbrowse] Falling back to Playwright with Chrome cookies`);
       }
 
       // Get or create context
@@ -768,7 +769,30 @@ const plugin = {
         });
       }
 
-      // Inject cookies for the target domain
+      // Try to read cookies directly from Chrome's encrypted cookie database
+      if (method === "playwright") {
+        try {
+          const { readChromeCookies, chromeCookiesAvailable } = await import("./src/chrome-cookies.js");
+          if (chromeCookiesAvailable()) {
+            const domain = new URL(url).hostname.replace(/^www\./, "");
+            const chromeCookies = readChromeCookies(domain);
+            if (Object.keys(chromeCookies).length > 0) {
+              const cookieObjects = Object.entries(chromeCookies).map(([name, value]) => ({
+                name,
+                value,
+                domain: `.${domain}`,
+                path: "/",
+              }));
+              await context.addCookies(cookieObjects);
+              logger.info(`[unbrowse] Injected ${cookieObjects.length} cookies from Chrome for ${domain}`);
+            }
+          }
+        } catch (err) {
+          logger.warn(`[unbrowse] Could not read Chrome cookies: ${(err as Error).message}`);
+        }
+      }
+
+      // Inject cookies for the target domain from auth.json
       if (Object.keys(authCookies).length > 0) {
         try {
           const domain = new URL(url).hostname;
