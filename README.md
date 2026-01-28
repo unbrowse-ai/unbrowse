@@ -51,6 +51,7 @@ unbrowse/
     site-crawler.ts        # Crawl site to discover more API endpoints
     profile-capture.ts     # Network capture via Playwright CDP
     vault.ts               # Encrypted credential storage (SQLite + AES-256-GCM)
+    credential-providers.ts # Opt-in login credential lookup (Keychain, 1Password, Vault)
     types.ts               # Shared type definitions
   server/
     src/
@@ -374,8 +375,33 @@ Configured via `clawdbot.plugin.json` schema, stored in `~/.clawdbot/clawdbot.js
 | `skillIndexUrl` | string | `https://skills.unbrowse.ai` | Cloud marketplace API URL |
 | `creatorWallet` | string | _(auto-generated)_ | Solana wallet for receiving download payments |
 | `skillIndexSolanaPrivateKey` | string | _(auto-generated)_ | Solana private key for paying x402 downloads |
+| `credentialSource` | string | `none` | Opt-in login credential lookup: `auto`, `keychain`, `1password`, `vault`, or `none` |
 
 **Wallet auto-setup:** If neither `creatorWallet` nor `skillIndexSolanaPrivateKey` is configured, a Solana keypair is automatically generated on first startup. The public key is saved as the creator wallet (earning address), and the private key is saved for paying marketplace downloads. Fund the wallet with USDC to start discovering skills.
+
+### Credential Auto-Login
+
+When `credentialSource` is set, `unbrowse_login` can auto-fill login forms by looking up stored passwords — no need to paste credentials into the tool call.
+
+| Source | Backend | Requirements |
+|--------|---------|--------------|
+| `auto` | Auto-detect | Tries keychain → 1password → vault in order, uses the first available. Recommended. |
+| `keychain` | macOS Keychain | macOS only. Reads passwords saved by Safari and system apps via `security` CLI. |
+| `1password` | 1Password CLI | `op` CLI installed and signed in (`op signin`). Searches Login items by URL. |
+| `vault` | Local encrypted vault | Uses the same AES-256-GCM encrypted SQLite vault as API auth. Stores username/password per domain. |
+
+**Security:** This is a config-only setting — it cannot be enabled by a tool call or by the agent. The user must explicitly opt in via plugin settings. This prevents the agent from autonomously accessing your password manager.
+
+**How it works:**
+
+1. Agent calls `unbrowse_login` with just a `loginUrl` (no `formFields`)
+2. Unbrowse extracts the domain from the URL
+3. Credential provider looks up matching login credentials
+4. If found, auto-builds form field selectors (email/username + password inputs)
+5. Playwright fills and submits the form automatically
+6. Session cookies and auth headers are captured as usual
+
+The agent never sees raw passwords in tool call parameters — they flow directly from the credential source into Playwright's form fill. Set `autoFillFromProvider: false` on a specific login call to skip auto-lookup.
 
 ## Setup
 

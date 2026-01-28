@@ -35,6 +35,10 @@
       "help": "Base58-encoded Solana private key for paying x402 USDC when downloading skills from the index",
       "sensitive": true,
       "placeholder": "base58..."
+    },
+    "credentialSource": {
+      "label": "Credential Source (Login Passwords)",
+      "help": "Opt-in: where to look up login passwords for auto-login. 'keychain' = macOS Keychain, '1password' = 1Password CLI, 'vault' = local encrypted vault, 'none' = disabled (default)"
     }
   },
   "configSchema": {
@@ -47,7 +51,8 @@
       "autoDiscover": { "type": "boolean", "default": true },
       "skillIndexUrl": { "type": "string", "default": "https://skills.unbrowse.ai" },
       "creatorWallet": { "type": "string" },
-      "skillIndexSolanaPrivateKey": { "type": "string" }
+      "skillIndexSolanaPrivateKey": { "type": "string" },
+      "credentialSource": { "type": "string", "enum": ["none", "auto", "keychain", "1password", "vault"], "default": "none" }
     }
   }
 }

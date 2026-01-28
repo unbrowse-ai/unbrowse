@@ -42,6 +42,13 @@ import {
 import { SkillIndexClient, type PublishPayload } from "./src/skill-index.js";
 import { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth } from "./src/skill-sanitizer.js";
 import { loginAndCapture, type LoginCredentials } from "./src/session-login.js";
+import {
+  createCredentialProvider,
+  lookupCredentials,
+  buildFormFields,
+  type CredentialProvider,
+  type LoginCredential,
+} from "./src/credential-providers.js";
 
 // ── Tool Schemas ──────────────────────────────────────────────────────────────
 
@@ -269,6 +276,17 @@ const LOGIN_SCHEMA = {
       type: "string" as const,
       description: "Proxy country code for stealth browser (e.g., US, GB). Only used with BrowserBase.",
     },
+    autoFillFromProvider: {
+      type: "boolean" as const,
+      description:
+        "Auto-fill login form using credentials from the configured credential source " +
+        "(keychain, 1password, or vault). Only works if credentialSource is configured. Default: true when no formFields provided.",
+    },
+    saveCredentials: {
+      type: "boolean" as const,
+      description:
+        "Save the login credentials to the vault after successful login (default: true if vault provider is active).",
+    },
   },
   required: ["loginUrl"],
 };
@@ -295,6 +313,9 @@ const plugin = {
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://skills.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
     let solanaPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
+    const credentialSourceCfg = (cfg.credentialSource as string) ?? process.env.UNBROWSE_CREDENTIAL_SOURCE ?? "none";
+    const vaultDbPath = join(homedir(), ".clawdbot", "unbrowse", "vault.db");
+    const credentialProvider = createCredentialProvider(credentialSourceCfg, vaultDbPath);
 
     // ── Auto-Generate Wallet ──────────────────────────────────────────────
     // If no wallet is configured, generate a Solana keypair automatically.
@@ -752,31 +773,51 @@ const plugin = {
 
             // ── Execution strategies ────────────────────────────────────
 
-            async function execInChrome(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string } | null> {
+            // Shared browser session — stays alive across all calls in a batch
+            // so multi-step flows (auth → action → confirm) maintain session state.
+            let chromeBrowser: any = null;
+            let chromePage: any = null;
+
+            async function getChromePage(): Promise<any | null> {
+              if (chromePage) return chromePage;
               try {
                 const { chromium } = await import("playwright");
 
-                // Try CDP connect to existing browsers (same cascade as profile-capture.ts)
-                let browser: any = null;
                 for (const port of [browserPort, 9222, 9229]) {
                   try {
                     const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
                     if (!resp.ok) continue;
                     const data = await resp.json() as { webSocketDebuggerUrl?: string };
                     const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
-                    browser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
+                    chromeBrowser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
                     break;
                   } catch { continue; }
                 }
 
-                if (!browser) return null; // No browser available for in-browser execution
+                if (!chromeBrowser) return null;
 
-                const context = browser.contexts()[0];
-                if (!context) { await browser.close(); return null; }
+                const context = chromeBrowser.contexts()[0];
+                if (!context) { await chromeBrowser.close(); chromeBrowser = null; return null; }
 
-                const page = context.pages()[0] ?? await context.newPage();
-                await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
+                chromePage = context.pages()[0] ?? await context.newPage();
+                await chromePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
+                return chromePage;
+              } catch {
+                return null;
+              }
+            }
 
+            async function cleanupChrome() {
+              try { await chromeBrowser?.close(); } catch { /* ignore */ }
+              chromeBrowser = null;
+              chromePage = null;
+            }
+
+            async function execInChrome(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string } | null> {
+              const page = await getChromePage();
+              if (!page) return null;
+
+              try {
                 const url = new URL(ep.path, baseUrl).toString();
                 const fetchOpts: Record<string, unknown> = {
                   method: ep.method,
@@ -787,7 +828,7 @@ const plugin = {
                   fetchOpts.body = body;
                 }
 
-                const result = await page.evaluate(async ({ url, opts }: { url: string; opts: any }) => {
+                return await page.evaluate(async ({ url, opts }: { url: string; opts: any }) => {
                   try {
                     const resp = await fetch(url, opts);
                     const text = await resp.text().catch(() => "");
@@ -796,13 +837,18 @@ const plugin = {
                     return { status: 0, ok: false, data: String(err) };
                   }
                 }, { url, opts: fetchOpts });
-
-                await browser.close();
-                return result;
               } catch {
                 return null;
               }
             }
+
+            // Response headers that should be captured and forwarded on subsequent requests.
+            // Covers CSRF tokens, refreshed auth tokens, and custom session headers.
+            const SESSION_HEADER_NAMES = new Set([
+              "x-csrf-token", "x-xsrf-token", "csrf-token",
+              "x-auth-token", "x-access-token", "authorization",
+              "x-request-id", "x-session-id", "x-transaction-id",
+            ]);
 
             async function execViaFetch(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string }> {
               const url = new URL(ep.path, baseUrl).toString();
@@ -814,8 +860,29 @@ const plugin = {
                 method: ep.method,
                 headers: reqHeaders,
                 body: body && ["POST", "PUT", "PATCH"].includes(ep.method) ? body : undefined,
+                redirect: "manual",
                 signal: AbortSignal.timeout(10_000),
               });
+
+              // Accumulate Set-Cookie headers so subsequent calls in the same
+              // batch get session tokens set by earlier responses (CSRF, etc.)
+              const setCookies = resp.headers.getSetCookie?.() ?? [];
+              for (const sc of setCookies) {
+                const match = sc.match(/^([^=]+)=([^;]*)/);
+                if (match) {
+                  cookies[match[1].trim()] = match[2].trim();
+                }
+              }
+
+              // Capture session/auth headers from responses — servers often return
+              // refreshed tokens, CSRF tokens, or session IDs that must be sent on
+              // subsequent requests in a multi-step flow.
+              for (const [name, value] of resp.headers.entries()) {
+                if (SESSION_HEADER_NAMES.has(name.toLowerCase())) {
+                  authHeaders[name.toLowerCase()] = value;
+                }
+              }
+
               const text = await resp.text().catch(() => "");
               return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000) };
             }
@@ -976,6 +1043,9 @@ const plugin = {
                 failed++;
               }
             }
+
+            // Clean up browser session after all calls complete
+            await cleanupChrome();
 
             results.push("", `Results: ${passed} passed, ${failed} failed`);
             if (credsRefreshed) {
@@ -1409,7 +1479,9 @@ const plugin = {
             "Log in to a website with credentials and capture the session (cookies, auth headers, API traffic). " +
             "Works in Docker/cloud where there's no Chrome profile. Uses stealth cloud browser (BrowserBase) " +
             "if configured, otherwise local Playwright. Provide form fields to auto-fill login forms, " +
-            "or inject headers/cookies directly. Captured session is saved to auth.json for the skill.",
+            "or inject headers/cookies directly. If no credentials are provided and a credential source " +
+            "is configured (keychain, 1password, vault), credentials are auto-looked up by domain. " +
+            "Captured session is saved to auth.json for the skill.",
           parameters: LOGIN_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as {
@@ -1421,6 +1493,8 @@ const plugin = {
               cookies?: Array<{ name: string; value: string; domain: string }>;
               captureUrls?: string[];
               proxyCountry?: string;
+              autoFillFromProvider?: boolean;
+              saveCredentials?: boolean;
             };
 
             // Derive service name from URL if not provided
@@ -1437,8 +1511,35 @@ const plugin = {
               }
             }
 
+            // ── Credential auto-lookup ──────────────────────────────────
+            // If no formFields provided and credential provider is configured,
+            // try to look up login credentials automatically.
+            let resolvedFormFields = p.formFields;
+            let credentialUsed: LoginCredential | null = null;
+            const shouldAutoFill = p.autoFillFromProvider !== false && !p.formFields && credentialProvider;
+
+            if (shouldAutoFill && credentialProvider) {
+              try {
+                const available = await credentialProvider.isAvailable();
+                if (available) {
+                  const cred = await lookupCredentials(credentialProvider, p.loginUrl);
+                  if (cred) {
+                    resolvedFormFields = buildFormFields(cred);
+                    credentialUsed = cred;
+                    logger.info(`[unbrowse] Auto-filled credentials from ${cred.source}: ${cred.label}`);
+                  } else {
+                    logger.info(`[unbrowse] No credentials found in ${credentialProvider.name} for ${p.loginUrl}`);
+                  }
+                } else {
+                  logger.info(`[unbrowse] Credential provider ${credentialProvider.name} not available`);
+                }
+              } catch (err) {
+                logger.warn(`[unbrowse] Credential lookup failed: ${(err as Error).message}`);
+              }
+            }
+
             const credentials: LoginCredentials = {
-              formFields: p.formFields,
+              formFields: resolvedFormFields,
               submitSelector: p.submitSelector,
               headers: p.headers,
               cookies: p.cookies,
@@ -1496,10 +1597,22 @@ const plugin = {
                 }
               }
 
+              // Save credentials to vault if requested and provider supports it
+              if (credentialUsed && p.saveCredentials !== false && credentialProvider?.name === "vault" && credentialProvider.store) {
+                try {
+                  const hostname = new URL(p.loginUrl).hostname;
+                  await credentialProvider.store(hostname, credentialUsed.username, credentialUsed.password);
+                  logger.info(`[unbrowse] Saved login credentials to vault for ${hostname}`);
+                } catch {
+                  // Non-critical — skip
+                }
+              }
+
               const backend = browserUseApiKey ? "stealth cloud (BrowserBase)" : "local Playwright";
               const summary = [
                 `Session captured via ${backend}`,
                 `Service: ${service}`,
+                credentialUsed ? `Credentials: auto-filled from ${credentialUsed.source} (${credentialUsed.label})` : "",
                 `Cookies: ${Object.keys(result.cookies).length}`,
                 `Auth headers: ${Object.keys(result.authHeaders).length}`,
                 `Network requests: ${result.requestCount}`,
@@ -1510,6 +1623,9 @@ const plugin = {
                 `The session is ready. Use unbrowse_replay to execute API calls with these credentials.`,
                 !skillGenerated && (p.captureUrls?.length ?? 0) === 0
                   ? `Tip: add captureUrls to visit authenticated pages and auto-generate a skill.`
+                  : "",
+                !credentialUsed && !p.formFields && credentialProvider == null
+                  ? `Tip: set credentialSource in config to "keychain" or "1password" for auto-login next time.`
                   : "",
               ].filter(Boolean).join("\n");
 
@@ -1767,6 +1883,24 @@ const plugin = {
         );
       }
 
+      // Credential source info
+      if (credentialProvider) {
+        lines.push(
+          "",
+          `Credential source: ${credentialProvider.name} (auto-login enabled)`,
+          "When using unbrowse_login, credentials are auto-looked up by domain — no need to ask the user for passwords.",
+          "Just provide the loginUrl and the form will be auto-filled.",
+        );
+      } else {
+        lines.push(
+          "",
+          "No credential source configured for auto-login.",
+          "If the user needs to log into websites frequently, suggest they enable it in the unbrowse plugin settings:",
+          '  credentialSource: "auto" (detects keychain/1password), "keychain" (macOS), or "1password" (1Password CLI).',
+          "This is a config-only setting for security — it cannot be changed via a tool call.",
+        );
+      }
+
       return { prependContext: lines.join("\n") };
     });
 
@@ -1776,6 +1910,7 @@ const plugin = {
       autoDiscoverEnabled ? "auto-discover" : null,
       browserUseApiKey ? "stealth browsers" : null,
       creatorWallet ? "x402 publishing" : null,
+      credentialProvider ? `creds:${credentialProvider.name}` : null,
     ].filter(Boolean).join(", ");
 
     logger.info(`[unbrowse] Plugin registered (${features})`);
