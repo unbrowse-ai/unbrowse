@@ -25,7 +25,7 @@
  */
 
 import type { ClawdbotPluginApi, ClawdbotPluginToolContext } from "clawdbot/plugin-sdk";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -50,6 +50,38 @@ import {
   type CredentialProvider,
   type LoginCredential,
 } from "./src/credential-providers.js";
+import {
+  TokenRefreshScheduler,
+  extractRefreshConfig,
+  type RefreshConfig,
+} from "./src/token-refresh.js";
+
+/** Scan HAR entries for refresh token endpoints and save config to auth.json */
+function detectAndSaveRefreshConfig(
+  harEntries: Array<{
+    request: { method: string; url: string; headers: Array<{ name: string; value: string }>; postData?: { text?: string } };
+    response: { status: number; content?: { text?: string } };
+  }>,
+  authPath: string,
+  logger: { info: (msg: string) => void },
+): void {
+  for (const entry of harEntries) {
+    const refreshConfig = extractRefreshConfig(entry);
+    if (refreshConfig) {
+      // Found a refresh endpoint — save to auth.json
+      try {
+        let auth: Record<string, any> = {};
+        if (existsSync(authPath)) {
+          auth = JSON.parse(readFileSync(authPath, "utf-8"));
+        }
+        auth.refreshConfig = refreshConfig;
+        writeFileSync(authPath, JSON.stringify(auth, null, 2), "utf-8");
+        logger.info(`[unbrowse] Detected refresh endpoint: ${refreshConfig.url}`);
+        break; // Only need one
+      } catch { /* skip */ }
+    }
+  }
+}
 
 // ── Tool Schemas ──────────────────────────────────────────────────────────────
 
@@ -790,6 +822,9 @@ const plugin = {
               const result = await generateSkill(apiData, p.outputDir ?? defaultOutputDir);
               discovery.markLearned(result.service);
 
+              // Detect and save refresh token config
+              detectAndSaveRefreshConfig((harData as any).log?.entries ?? [], join(result.skillDir, "auth.json"), logger);
+
               // Auto-publish if skill content changed
               let publishedVersion: string | null = null;
               if (result.changed) {
@@ -912,6 +947,9 @@ const plugin = {
                 pagesCrawled: crawlResult?.pagesCrawled,
               });
               discovery.markLearned(result.service);
+
+              // Detect and save refresh token config
+              detectAndSaveRefreshConfig(har.log?.entries ?? [], join(result.skillDir, "auth.json"), logger);
 
               // Auto-publish if skill content changed
               let publishedVersion: string | null = null;
@@ -1855,6 +1893,9 @@ const plugin = {
                         const result = await generateSkill(apiData, defaultOutputDir);
                         discovery.markLearned(result.service);
 
+                        // Detect and save refresh token config
+                        detectAndSaveRefreshConfig(harEntries, join(result.skillDir, "auth.json"), logger);
+
                         let publishedVersion: string | null = null;
                         if (result.changed) {
                           publishedVersion = await autoPublishSkill(result.service, result.skillDir);
@@ -1890,6 +1931,9 @@ const plugin = {
                   const apiData = parseHar(har, p.url);
                   const result = await generateSkill(apiData, defaultOutputDir);
                   discovery.markLearned(result.service);
+
+                  // Detect and save refresh token config
+                  detectAndSaveRefreshConfig(har.log?.entries ?? [], join(result.skillDir, "auth.json"), logger);
 
                   // Auto-publish if skill content changed
                   let publishedVersion: string | null = null;
@@ -2324,6 +2368,9 @@ const plugin = {
                   await generateSkill(apiData, defaultOutputDir);
                   discovery.markLearned(service);
                   skillGenerated = true;
+
+                  // Detect and save refresh token config
+                  detectAndSaveRefreshConfig(result.har.log?.entries ?? [], join(skillDir, "auth.json"), logger);
                 } catch {
                   // Skill generation is optional — session capture is the main goal
                 }
@@ -3128,6 +3175,9 @@ const plugin = {
                   discovery.markLearned(result.service);
                   skillResult = result;
 
+                  // Detect and save refresh token config
+                  detectAndSaveRefreshConfig(apiHarEntries, join(result.skillDir, "auth.json"), logger);
+
                   logger.info(
                     `[unbrowse] Interact → auto-skill "${result.service}" (${result.endpointCount} endpoints${result.diff ? `, ${result.diff}` : ""})`,
                   );
@@ -3220,6 +3270,17 @@ const plugin = {
     ];
 
     api.registerTool(tools, { names: toolNames });
+
+    // ── Token Refresh Scheduler ─────────────────────────────────────────────
+    // Automatically refresh OAuth/JWT tokens before they expire
+    const tokenRefreshScheduler = new TokenRefreshScheduler(defaultOutputDir, {
+      intervalMinutes: 1, // Check every minute
+      logger: {
+        info: (msg) => logger.info(msg),
+        warn: (msg) => logger.warn(msg),
+      },
+    });
+    tokenRefreshScheduler.start();
 
     // ── Auto-Discovery Hook ───────────────────────────────────────────────
     if (autoDiscoverEnabled) {
