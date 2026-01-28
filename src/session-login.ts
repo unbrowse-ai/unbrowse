@@ -221,12 +221,22 @@ export async function loginAndCapture(
       }
     }
 
-    // Wait for post-login navigation
+    // Wait for post-login navigation — SPAs may not trigger a traditional
+    // navigation, so we use multiple signals: navigation, URL change, or
+    // network settle after form submit.
     try {
-      await page.waitForNavigation({ waitUntil: "networkidle", timeout: 15_000 });
+      await Promise.race([
+        page.waitForNavigation({ waitUntil: "networkidle", timeout: 15_000 }),
+        page.waitForURL((url: URL) => url.pathname !== new URL(loginUrl).pathname, { timeout: 15_000 }),
+      ]);
     } catch {
+      // No navigation detected — SPA may handle login inline.
+      // Wait for network to settle.
       await page.waitForTimeout(waitMs);
     }
+
+    // Extra wait for SPA post-login API calls (token exchanges, user data, etc.)
+    await page.waitForTimeout(2000);
   }
 
   // Visit additional URLs to capture API traffic in the authenticated session
@@ -240,11 +250,38 @@ export async function loginAndCapture(
     await page.waitForTimeout(waitMs);
   }
 
-  // Extract cookies from the authenticated session
-  const browserCookies = await context.cookies();
+  // Derive base URL from the login URL (needed for cookie extraction and return value)
+  const parsedUrl = new URL(loginUrl);
+  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+
+  // Extract cookies from the authenticated session.
+  // Use the login URL's domain to also request domain-scoped cookies.
+  const browserCookies = await context.cookies([baseUrl]).catch(() => context.cookies());
   const cookies: Record<string, string> = {};
   for (const c of browserCookies) {
     cookies[c.name] = c.value;
+  }
+
+  // Also extract cookies from captured Set-Cookie response headers.
+  // Some stealth browsers don't expose cookies via context.cookies() but
+  // the Set-Cookie headers are visible in captured network responses.
+  for (const entry of captured) {
+    for (const [name, value] of Object.entries(entry.responseHeaders ?? {})) {
+      if (name.toLowerCase() === "set-cookie") {
+        // Each Set-Cookie header is one cookie. Don't split on commas
+        // because Expires dates contain commas (e.g., "Thu, 01 Jan 2026").
+        const eq = value.indexOf("=");
+        if (eq > 0) {
+          const cookieName = value.slice(0, eq).trim();
+          const rest = value.slice(eq + 1);
+          const semi = rest.indexOf(";");
+          const cookieValue = semi > 0 ? rest.slice(0, semi).trim() : rest.trim();
+          if (cookieName && cookieValue) {
+            cookies[cookieName] = cookieValue;
+          }
+        }
+      }
+    }
   }
 
   // Extract auth headers seen in captured requests
@@ -354,10 +391,6 @@ export async function loginAndCapture(
   } catch {
     // Page might be navigated away or context closed — non-critical
   }
-
-  // Derive base URL from the login URL
-  const parsedUrl = new URL(loginUrl);
-  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
 
   // Clean up
   if (usingStealth) {

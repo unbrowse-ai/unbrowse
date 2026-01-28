@@ -6,7 +6,7 @@
  */
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
 import type { ApiData, AuthInfo, SkillResult } from "./types.js";
 import { generateAuthInfo } from "./auth-extractor.js";
@@ -315,10 +315,12 @@ export async function generateSkill(
   },
 ): Promise<SkillResult> {
   const service = data.service;
-  const skillsDir = outputDir
-    ? resolve(outputDir)
-    : join(homedir(), ".clawdbot", "skills");
-  const skillDir = join(skillsDir, service);
+  const resolvedOutputDir = outputDir ? resolve(outputDir) : join(homedir(), ".clawdbot", "skills");
+
+  // Prevent nested directories like skills/bags-fm/bags-fm when outputDir
+  // already ends with the service name (e.g. user passed outputDir="/...skills/bags-fm")
+  const outputBasename = basename(resolvedOutputDir);
+  const skillDir = outputBasename === service ? resolvedOutputDir : join(resolvedOutputDir, service);
   const scriptsDir = join(skillDir, "scripts");
 
   mkdirSync(scriptsDir, { recursive: true });
@@ -339,8 +341,8 @@ export async function generateSkill(
     if (oldSkillMd === skillMd) {
       changed = false;
     } else {
-      const oldEndpoints = (oldSkillMd.match(/^### /gm) || []).length;
-      const newEndpoints = (skillMd.match(/^### /gm) || []).length;
+      const oldEndpoints = (oldSkillMd.match(/^- `(GET|POST|PUT|DELETE|PATCH)\s/gm) || []).length;
+      const newEndpoints = (skillMd.match(/^- `(GET|POST|PUT|DELETE|PATCH)\s/gm) || []).length;
       const added = newEndpoints - oldEndpoints;
       diff = added > 0
         ? `+${added} new endpoint(s) (${oldEndpoints} → ${newEndpoints})`
@@ -376,7 +378,7 @@ export async function generateSkill(
   }
 
   return {
-    skillFile: join(skillsDir, `${service}.skill`),
+    skillFile: join(skillDir, `${service}.skill`),
     skillDir,
     service,
     authMethod: data.authMethod,

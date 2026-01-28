@@ -62,7 +62,20 @@ function attachListeners(
 }
 
 function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>, method: string): CaptureResult {
-  const harEntries: HarEntry[] = captured.map((entry) => ({
+  // Filter to only XHR/Fetch requests — skip document, stylesheet, script, image, etc.
+  // These are the actual API calls, not page navigation or static resources.
+  const apiCaptured = captured.filter((entry) => {
+    const rt = entry.resourceType?.toLowerCase();
+    if (rt === "xhr" || rt === "fetch") return true;
+    // Also keep non-GET requests (POST/PUT/DELETE are always API calls)
+    if (entry.method !== "GET") return true;
+    // For GET requests without a resource type, check the response content-type
+    const ct = entry.responseHeaders?.["content-type"] ?? "";
+    if (ct.includes("application/json") || ct.includes("application/xml") || ct.includes("text/xml")) return true;
+    return false;
+  });
+
+  const harEntries: HarEntry[] = apiCaptured.map((entry) => ({
     request: {
       method: entry.method,
       url: entry.url,
@@ -79,8 +92,8 @@ function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>,
   return {
     har: { log: { entries: harEntries } },
     cookies,
-    requestCount: captured.length,
-    entries: captured,
+    requestCount: apiCaptured.length,
+    entries: apiCaptured,
     method,
   };
 }

@@ -86,9 +86,19 @@ export class SkillIndexClient {
     if (opts?.limit) url.searchParams.set("limit", String(opts.limit));
     if (opts?.offset) url.searchParams.set("offset", String(opts.offset));
 
-    const resp = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(15_000),
-    });
+    let resp: Response;
+    try {
+      resp = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      const name = (err as Error).name ?? "";
+      if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND") || name === "AbortError" || name === "TimeoutError" || msg.includes("timeout")) {
+        throw new Error(`Skill marketplace not reachable (${this.indexUrl}). The server may be offline or the URL misconfigured.`);
+      }
+      throw err;
+    }
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
