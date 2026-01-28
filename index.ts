@@ -666,6 +666,7 @@ const plugin = {
             const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
               channel: "chrome",
               headless: false,
+              timeout: 30000, // 30s instead of default 180s
               args: [
                 `--profile-directory=${profileDir}`,
                 "--disable-blink-features=AutomationControlled",
@@ -718,6 +719,7 @@ const plugin = {
                 const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
                   channel: "chrome",
                   headless: false,
+                  timeout: 30000, // 30s instead of default 180s
                   args: [
                     `--profile-directory=${profileDir}`,
                     "--disable-blink-features=AutomationControlled",
@@ -769,27 +771,13 @@ const plugin = {
         });
       }
 
-      // Try to read cookies directly from Chrome's encrypted cookie database
+      // Note: Chrome 127+ uses App-Bound Encryption - cookies cannot be read from the database
+      // by third-party apps. The user needs to either:
+      // 1. Use unbrowse_login to create a fresh authenticated session
+      // 2. Log in manually in the automation browser that opens
+      // 3. Use the Clawdbot browser relay extension
       if (method === "playwright") {
-        try {
-          const { readChromeCookies, chromeCookiesAvailable } = await import("./src/chrome-cookies.js");
-          if (chromeCookiesAvailable()) {
-            const domain = new URL(url).hostname.replace(/^www\./, "");
-            const chromeCookies = readChromeCookies(domain);
-            if (Object.keys(chromeCookies).length > 0) {
-              const cookieObjects = Object.entries(chromeCookies).map(([name, value]) => ({
-                name,
-                value,
-                domain: `.${domain}`,
-                path: "/",
-              }));
-              await context.addCookies(cookieObjects);
-              logger.info(`[unbrowse] Injected ${cookieObjects.length} cookies from Chrome for ${domain}`);
-            }
-          }
-        } catch (err) {
-          logger.warn(`[unbrowse] Could not read Chrome cookies: ${(err as Error).message}`);
-        }
+        logger.warn(`[unbrowse] Using fresh browser - Chrome cookies cannot be imported (App-Bound Encryption). Use unbrowse_login to authenticate.`);
       }
 
       // Inject cookies for the target domain from auth.json

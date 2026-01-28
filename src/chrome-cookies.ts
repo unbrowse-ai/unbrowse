@@ -63,18 +63,19 @@ function decryptCookie(encryptedValue: Buffer, key: Buffer): string {
   // Check for v10 prefix (used on macOS)
   const prefix = encryptedValue.subarray(0, 3).toString("utf-8");
   if (prefix !== "v10") {
-    // Not encrypted or different format
+    // Not encrypted or different format - try as plaintext
     return encryptedValue.toString("utf-8");
   }
 
+  // Chrome 80+ on macOS uses v10 + AES-128-GCM
+  // Format: "v10" (3 bytes) + nonce (12 bytes) + ciphertext + auth tag (16 bytes)
   try {
-    // v10 format: "v10" + 3-byte nonce + ciphertext
-    // Actually Chrome uses AES-128-CBC with IV of 16 spaces
-    const iv = Buffer.alloc(16, " ");
-    const ciphertext = encryptedValue.subarray(3);
+    const nonce = encryptedValue.subarray(3, 15); // 12-byte nonce
+    const tag = encryptedValue.subarray(encryptedValue.length - 16); // 16-byte auth tag
+    const ciphertext = encryptedValue.subarray(15, encryptedValue.length - 16);
 
-    const decipher = createDecipheriv("aes-128-cbc", key, iv);
-    decipher.setAutoPadding(true);
+    const decipher = createDecipheriv("aes-128-gcm", key, nonce);
+    decipher.setAuthTag(tag);
 
     const decrypted = Buffer.concat([
       decipher.update(ciphertext),
@@ -83,7 +84,23 @@ function decryptCookie(encryptedValue: Buffer, key: Buffer): string {
 
     return decrypted.toString("utf-8");
   } catch {
-    return "";
+    // Try legacy AES-128-CBC (older Chrome versions)
+    try {
+      const iv = Buffer.alloc(16, " ");
+      const ciphertext = encryptedValue.subarray(3);
+
+      const decipher = createDecipheriv("aes-128-cbc", key, iv);
+      decipher.setAutoPadding(true);
+
+      const decrypted = Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final(),
+      ]);
+
+      return decrypted.toString("utf-8");
+    } catch {
+      return "";
+    }
   }
 }
 
