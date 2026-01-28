@@ -2919,17 +2919,16 @@ const plugin = {
                 });
               }
 
-              // Navigate to the URL
-              try {
-                await page.goto(p.url, { waitUntil: "networkidle", timeout: 30_000 });
-              } catch {
-                await page.waitForTimeout(3000);
-              }
-
-              // Inject localStorage/sessionStorage after navigation
+              // Inject localStorage/sessionStorage BEFORE navigating to target URL
+              // Many SPAs check auth tokens on page load, so we need to inject first
               const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
               if (hasStorage) {
                 try {
+                  // Navigate to origin first to establish same-origin context for localStorage
+                  const origin = new URL(p.url).origin;
+                  await page.goto(origin, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
+
+                  // Inject storage tokens
                   await page.evaluate(
                     ({ ls, ss }: { ls: Record<string, string>; ss: Record<string, string> }) => {
                       for (const [k, v] of Object.entries(ls)) {
@@ -2941,7 +2940,15 @@ const plugin = {
                     },
                     { ls: storedLocalStorage, ss: storedSessionStorage },
                   );
+                  logger.info(`[unbrowse] Injected ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
                 } catch { /* page may block storage access */ }
+              }
+
+              // Navigate to the target URL (with auth tokens already in place)
+              try {
+                await page.goto(p.url, { waitUntil: "networkidle", timeout: 30_000 });
+              } catch {
+                await page.waitForTimeout(3000);
               }
 
               // Extract initial page state (indexed elements)

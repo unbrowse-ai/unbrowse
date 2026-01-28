@@ -328,10 +328,14 @@ export function detectLoginPage(state: PageState): { isLogin: boolean; hint?: st
     return { isLogin: false };
   }
 
+  // Extract the login URL for the hint
+  const loginUrl = state.url;
+
   return {
     isLogin: true,
-    hint: "This appears to be a login page. Use unbrowse_login to authenticate with stored credentials " +
-          "(auto-fills from keychain/1password if configured), or use input_text to fill the form manually.",
+    hint: `**Login required.** Run this to authenticate:\n\n` +
+          `unbrowse_login loginUrl="${loginUrl}"\n\n` +
+          `Or fill manually with input_text actions on the form fields above.`,
   };
 }
 
