@@ -275,16 +275,88 @@ export async function getElementByIndex(page: any, index: number): Promise<any |
 }
 
 /**
+ * Detect if the current page appears to be a login/authentication page.
+ * Returns hints for the agent if login is detected.
+ */
+export function detectLoginPage(state: PageState): { isLogin: boolean; hint?: string } {
+  // Check URL for login indicators
+  const loginUrlPatterns = /\/(login|signin|sign-in|auth|authenticate|sso|oauth|session)/i;
+  const urlIsLogin = loginUrlPatterns.test(state.url);
+
+  // Check title for login indicators
+  const loginTitlePatterns = /login|sign.?in|log.?in|authenticate|welcome.?back/i;
+  const titleIsLogin = loginTitlePatterns.test(state.title);
+
+  // Check elements for password fields, login buttons
+  let hasPasswordField = false;
+  let hasLoginButton = false;
+  let hasEmailOrUsernameField = false;
+
+  for (const el of state.elements) {
+    // Password input
+    if (el.tag === "input" && el.type === "password") {
+      hasPasswordField = true;
+    }
+
+    // Email/username input
+    if (el.tag === "input" && (
+      el.type === "email" ||
+      el.name?.toLowerCase().includes("email") ||
+      el.name?.toLowerCase().includes("user") ||
+      el.placeholder?.toLowerCase().includes("email") ||
+      el.placeholder?.toLowerCase().includes("user")
+    )) {
+      hasEmailOrUsernameField = true;
+    }
+
+    // Login/Sign in button
+    const buttonText = (el.text ?? "").toLowerCase();
+    const ariaLabel = (el.ariaLabel ?? "").toLowerCase();
+    if ((el.tag === "button" || el.role === "button" || (el.tag === "input" && el.type === "submit")) &&
+        (/log.?in|sign.?in|submit|continue/i.test(buttonText) || /log.?in|sign.?in/i.test(ariaLabel))) {
+      hasLoginButton = true;
+    }
+  }
+
+  // Determine if this is a login page
+  const isLogin = hasPasswordField ||
+    (hasEmailOrUsernameField && hasLoginButton) ||
+    (urlIsLogin && (hasEmailOrUsernameField || hasLoginButton)) ||
+    (titleIsLogin && hasEmailOrUsernameField);
+
+  if (!isLogin) {
+    return { isLogin: false };
+  }
+
+  return {
+    isLogin: true,
+    hint: "This appears to be a login page. Use unbrowse_login to authenticate with stored credentials " +
+          "(auto-fills from keychain/1password if configured), or use input_text to fill the form manually.",
+  };
+}
+
+/**
  * Format page state as a concise text block for LLM consumption.
  */
 export function formatPageStateForLLM(state: PageState): string {
+  const loginCheck = detectLoginPage(state);
+
   const lines = [
     `Page: "${state.title}"`,
     `URL: ${state.url}`,
     `Scroll: ${state.scrollPosition.y}/${state.scrollHeight - state.viewportHeight}px`,
+  ];
+
+  // Add login hint if detected
+  if (loginCheck.isLogin && loginCheck.hint) {
+    lines.push("", `**Login page detected**: ${loginCheck.hint}`);
+  }
+
+  lines.push(
     "",
     "Interactive elements:",
     state.elementTree || "(no interactive elements found)",
-  ];
+  );
+
   return lines.join("\n");
 }

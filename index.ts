@@ -486,9 +486,29 @@ const plugin = {
     ensureWallet().catch(() => { });
 
     // ── Auto-Publish Helper ────────────────────────────────────────────────
+    // Track server reachability to avoid repeated failed publish attempts
+    let serverReachable: boolean | null = null; // null = unknown, needs check
+    let lastReachabilityCheck = 0;
+    const REACHABILITY_CHECK_INTERVAL = 5 * 60 * 1000; // Re-check every 5 minutes
+
     /** Publish a skill to the cloud index if creatorWallet is configured. */
     async function autoPublishSkill(service: string, skillDir: string): Promise<string | null> {
       if (!creatorWallet) return null;
+
+      // Check server reachability (with caching to avoid hammering)
+      const now = Date.now();
+      if (serverReachable === null || (serverReachable === false && now - lastReachabilityCheck > REACHABILITY_CHECK_INTERVAL)) {
+        lastReachabilityCheck = now;
+        serverReachable = await indexClient.healthCheck();
+        if (!serverReachable) {
+          logger.info(`[unbrowse] Skill marketplace unreachable — auto-publish disabled until server is available.`);
+        }
+      }
+
+      if (!serverReachable) {
+        // Silently skip — already logged once when we detected it was down
+        return null;
+      }
 
       try {
         const skillMd = readFileSync(join(skillDir, "SKILL.md"), "utf-8");
@@ -514,7 +534,15 @@ const plugin = {
         logger.info(`[unbrowse] Auto-published: ${service} v${result.version}`);
         return `v${result.version}`;
       } catch (err) {
-        logger.warn(`[unbrowse] Auto-publish failed for ${service}: ${(err as Error).message}`);
+        const msg = (err as Error).message ?? "";
+        // If it's a connection error, mark server as unreachable
+        if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND") || msg.includes("timeout")) {
+          serverReachable = false;
+          lastReachabilityCheck = now;
+          logger.info(`[unbrowse] Skill marketplace unreachable — auto-publish disabled until server is available.`);
+        } else {
+          logger.warn(`[unbrowse] Auto-publish failed for ${service}: ${msg}`);
+        }
         return null;
       }
     }
@@ -635,38 +663,49 @@ const plugin = {
       }
 
       // Strategy 5: Launch Chrome with user's profile (has all their sessions)
+      // NOTE: This only works if Chrome is NOT running. If Chrome is running, skip to Playwright.
       if (!browser) {
         const chromeUserDataDir = join(homedir(), "Library/Application Support/Google/Chrome");
 
-        // Detect most recently active profile by checking file modification times
-        // (more reliable than Local State's last_used which only updates on profile switch)
-        let profileDir = "Default";
+        // Check if Chrome is running FIRST - if so, skip this strategy entirely
+        // (launchPersistentContext always times out when Chrome is running, wasting 30+ seconds)
+        let chromeIsRunning = false;
         try {
-          const { statSync } = await import("node:fs");
-          const profiles = readdirSync(chromeUserDataDir, { withFileTypes: true })
-            .filter(d => d.isDirectory() && (d.name === "Default" || d.name.startsWith("Profile ")))
-            .map(d => d.name);
+          const { spawnSync } = await import("node:child_process");
+          const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
+          chromeIsRunning = psResult.stdout.trim().length > 0;
+        } catch { /* assume not running */ }
 
-          let mostRecent = { profile: "Default", mtime: 0 };
-          for (const profile of profiles) {
-            const historyPath = join(chromeUserDataDir, profile, "History");
-            if (existsSync(historyPath)) {
-              const mtime = statSync(historyPath).mtimeMs;
-              if (mtime > mostRecent.mtime) {
-                mostRecent = { profile, mtime };
+        if (chromeIsRunning) {
+          logger.info(`[unbrowse] Chrome is running - skipping profile takeover (would timeout). Using Playwright instead.`);
+        } else if (existsSync(chromeUserDataDir)) {
+          // Detect most recently active profile by checking file modification times
+          let profileDir = "Default";
+          try {
+            const { statSync } = await import("node:fs");
+            const profiles = readdirSync(chromeUserDataDir, { withFileTypes: true })
+              .filter(d => d.isDirectory() && (d.name === "Default" || d.name.startsWith("Profile ")))
+              .map(d => d.name);
+
+            let mostRecent = { profile: "Default", mtime: 0 };
+            for (const profile of profiles) {
+              const historyPath = join(chromeUserDataDir, profile, "History");
+              if (existsSync(historyPath)) {
+                const mtime = statSync(historyPath).mtimeMs;
+                if (mtime > mostRecent.mtime) {
+                  mostRecent = { profile, mtime };
+                }
               }
             }
-          }
-          profileDir = mostRecent.profile;
-          logger.info(`[unbrowse] Detected most active Chrome profile: ${profileDir} (by History mtime)`);
-        } catch { /* use Default */ }
+            profileDir = mostRecent.profile;
+            logger.info(`[unbrowse] Using Chrome profile: ${profileDir}`);
+          } catch { /* use Default */ }
 
-        if (existsSync(chromeUserDataDir)) {
           try {
             const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
               channel: "chrome",
               headless: false,
-              timeout: 30000, // 30s instead of default 180s
+              timeout: 15000, // 15s - if Chrome not running, this should be fast
               args: [
                 `--profile-directory=${profileDir}`,
                 "--disable-blink-features=AutomationControlled",
@@ -688,62 +727,7 @@ const plugin = {
             logger.info(`[unbrowse] Launched Chrome with user profile for ${service}`);
             return session;
           } catch (err) {
-            // Profile likely locked - try quitting Chrome first
-            const errMsg = (err as Error).message;
-            logger.info(`[unbrowse] Chrome launch failed: ${errMsg}`);
-            if (errMsg.includes("lock") || errMsg.includes("already running") || errMsg.includes("SingletonLock") || errMsg.includes("user data directory")) {
-              logger.info(`[unbrowse] Chrome is running, attempting to quit it...`);
-              try {
-                const { execSync, spawnSync } = await import("node:child_process");
-                // Gracefully quit Chrome on macOS
-                execSync(`osascript -e 'tell application "Google Chrome" to quit' 2>/dev/null || true`, { timeout: 5000 });
-                // Wait for Chrome to fully close
-                await new Promise(r => setTimeout(r, 3000));
-
-                // Check if Chrome is still running, force kill if needed
-                const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
-                if (psResult.stdout.trim()) {
-                  logger.info(`[unbrowse] Chrome still running, force killing...`);
-                  execSync(`pkill -9 "Google Chrome" 2>/dev/null || true`, { timeout: 3000 });
-                  await new Promise(r => setTimeout(r, 2000));
-                }
-
-                // Remove SingletonLock file if it exists
-                const lockFile = join(chromeUserDataDir, "SingletonLock");
-                if (existsSync(lockFile)) {
-                  const { unlinkSync } = await import("node:fs");
-                  try { unlinkSync(lockFile); } catch { /* ignore */ }
-                }
-
-                // Try again
-                const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
-                  channel: "chrome",
-                  headless: false,
-                  timeout: 30000, // 30s instead of default 180s
-                  args: [
-                    `--profile-directory=${profileDir}`,
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                  ],
-                });
-
-                const page = persistentContext.pages()[0] ?? await persistentContext.newPage();
-                const session: BrowserSession = {
-                  browser: persistentContext,
-                  context: persistentContext,
-                  page,
-                  service,
-                  lastUsed: new Date(),
-                  method: "cdp-chrome",
-                };
-                browserSessions.set(service, session);
-                logger.info(`[unbrowse] Launched Chrome with user profile for ${service} (after quitting)`);
-                return session;
-              } catch (retryErr) {
-                logger.warn(`[unbrowse] Could not quit Chrome or relaunch with profile: ${(retryErr as Error).message}`);
-              }
-            }
+            logger.info(`[unbrowse] Chrome profile launch failed: ${(err as Error).message.split('\n')[0]}`);
           }
         }
       }
@@ -1689,7 +1673,7 @@ const plugin = {
                     results.push(`  ${ep.method} ${ep.path} → FAILED after refresh`);
                   }
                 } else {
-                  results.push(`  Credential refresh unavailable — no loginConfig in auth.json and no Chrome profile`);
+                  results.push(`  Credential refresh unavailable — use unbrowse_login to authenticate and store credentials for auto-refresh`);
                 }
               }
 

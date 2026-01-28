@@ -294,4 +294,19 @@ export class SkillIndexClient {
 
     return resp.json() as Promise<PublishResult>;
   }
+
+  /**
+   * Health check — verify the server is reachable (fast, no auth required).
+   * Returns true if reachable, false otherwise.
+   */
+  async healthCheck(): Promise<boolean> {
+    try {
+      const resp = await fetch(`${this.indexUrl}/health`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
 }

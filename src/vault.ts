@@ -1,7 +1,7 @@
 /**
  * Credential Vault — Encrypted local storage for API auth credentials.
  *
- * Uses SQLite + AES-256-GCM encryption with a key stored in macOS Keychain.
+ * Uses SQLite (via CLI) + AES-256-GCM encryption with a key stored in macOS Keychain.
  * Generated skills store auth in the vault instead of plain text auth.json.
  * The vault key never touches disk — it lives in the OS keychain.
  *
@@ -11,29 +11,42 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import Database from "bun:sqlite";
 
 const VAULT_DIR = join(homedir(), ".clawdbot", "unbrowse");
 const VAULT_DB = join(VAULT_DIR, "vault.db");
 const KEYCHAIN_SERVICE = "unbrowse-vault";
 const CIPHER = "aes-256-gcm";
 
-/** Retrieve the vault encryption key from macOS Keychain. */
+/** Retrieve the vault encryption key from macOS Keychain, or create one if missing. */
 function getVaultKey(): Buffer {
+  const user = process.env.USER || "unbrowse";
+
   try {
     const keyHex = execSync(
-      `security find-generic-password -s "${KEYCHAIN_SERVICE}" -a "${process.env.USER}" -w 2>/dev/null`,
+      `security find-generic-password -s "${KEYCHAIN_SERVICE}" -a "${user}" -w 2>/dev/null`,
       { encoding: "utf-8" },
     ).trim();
     return Buffer.from(keyHex, "hex");
   } catch {
-    throw new Error(
-      "Vault key not found in Keychain. Run install.sh first.",
-    );
+    // Key doesn't exist — create a new 256-bit key and store in Keychain
+    const newKey = randomBytes(32);
+    const keyHex = newKey.toString("hex");
+
+    try {
+      execSync(
+        `security add-generic-password -s "${KEYCHAIN_SERVICE}" -a "${user}" -w "${keyHex}" -U`,
+        { encoding: "utf-8" }
+      );
+      return newKey;
+    } catch (addErr) {
+      throw new Error(
+        `Could not create vault key in Keychain: ${addErr}`,
+      );
+    }
   }
 }
 
@@ -72,6 +85,38 @@ export interface VaultEntry {
   notes?: string;
 }
 
+/** Escape a string for safe use in SQLite queries (single quotes). */
+function sqlEscape(str: string): string {
+  return str.replace(/'/g, "''");
+}
+
+/** Escape a shell argument for safe use in shell commands. */
+function shellEscape(str: string): string {
+  // Use single quotes for shell safety and escape any internal single quotes
+  return `'${str.replace(/'/g, "'\\''")}'`;
+}
+
+/** Run a SQLite query and return parsed JSON rows. */
+function sqlQuery(dbPath: string, query: string): any[] {
+  try {
+    const result = execSync(
+      `sqlite3 -json "${dbPath}" ${shellEscape(query)}`,
+      { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+    ).trim();
+    if (!result) return [];
+    return JSON.parse(result);
+  } catch (err: any) {
+    // sqlite3 -json returns empty string for no results
+    if (err.stdout === "" || err.stdout?.trim() === "") return [];
+    throw err;
+  }
+}
+
+/** Run a SQLite statement (INSERT/UPDATE/DELETE). */
+function sqlRun(dbPath: string, statement: string): void {
+  execSync(`sqlite3 "${dbPath}" ${shellEscape(statement)}`, { encoding: "utf-8" });
+}
+
 /**
  * Credential Vault — encrypted local store for API auth.
  *
@@ -82,14 +127,34 @@ export interface VaultEntry {
  *   vault.list();
  */
 export class Vault {
-  private db: Database;
+  private dbPath: string;
   private key: Buffer;
 
   constructor(dbPath = VAULT_DB) {
-    if (!existsSync(dbPath)) {
-      throw new Error(`Vault DB not found: ${dbPath}. Run install.sh first.`);
+    this.dbPath = dbPath;
+
+    // Auto-create vault directory and database if missing
+    const vaultDir = join(homedir(), ".clawdbot", "unbrowse");
+    if (!existsSync(vaultDir)) {
+      mkdirSync(vaultDir, { recursive: true });
     }
-    this.db = new Database(dbPath);
+
+    if (!existsSync(dbPath)) {
+      // Create the database with schema
+      execSync(`sqlite3 "${dbPath}" "CREATE TABLE IF NOT EXISTS credentials (
+        service TEXT PRIMARY KEY,
+        base_url TEXT NOT NULL,
+        auth_method TEXT NOT NULL,
+        headers_enc TEXT,
+        cookies_enc TEXT,
+        extra_enc TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        expires_at TEXT,
+        notes TEXT
+      )"`, { encoding: "utf-8" });
+    }
+
     this.key = getVaultKey();
   }
 
@@ -106,13 +171,14 @@ export class Vault {
       notes?: string;
     },
   ): void {
-    const headersEnc = data.headers ? encrypt(JSON.stringify(data.headers), this.key) : null;
-    const cookiesEnc = data.cookies ? encrypt(JSON.stringify(data.cookies), this.key) : null;
-    const extraEnc = data.extra ? encrypt(JSON.stringify(data.extra), this.key) : null;
+    const headersEnc = data.headers ? encrypt(JSON.stringify(data.headers), this.key) : "";
+    const cookiesEnc = data.cookies ? encrypt(JSON.stringify(data.cookies), this.key) : "";
+    const extraEnc = data.extra ? encrypt(JSON.stringify(data.extra), this.key) : "";
+    const expiresAt = data.expiresAt || "";
+    const notes = data.notes || "";
 
-    this.db.run(
-      `INSERT INTO credentials (service, base_url, auth_method, headers_enc, cookies_enc, extra_enc, expires_at, notes, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    const stmt = `INSERT INTO credentials (service, base_url, auth_method, headers_enc, cookies_enc, extra_enc, expires_at, notes, updated_at)
+       VALUES ('${sqlEscape(service)}', '${sqlEscape(data.baseUrl)}', '${sqlEscape(data.authMethod)}', '${sqlEscape(headersEnc)}', '${sqlEscape(cookiesEnc)}', '${sqlEscape(extraEnc)}', '${sqlEscape(expiresAt)}', '${sqlEscape(notes)}', datetime('now'))
        ON CONFLICT(service) DO UPDATE SET
          base_url = excluded.base_url,
          auth_method = excluded.auth_method,
@@ -121,18 +187,17 @@ export class Vault {
          extra_enc = excluded.extra_enc,
          expires_at = excluded.expires_at,
          notes = excluded.notes,
-         updated_at = datetime('now')`,
-      [service, data.baseUrl, data.authMethod, headersEnc, cookiesEnc, extraEnc, data.expiresAt ?? null, data.notes ?? null],
-    );
+         updated_at = datetime('now')`;
+
+    sqlRun(this.dbPath, stmt);
   }
 
   /** Get credentials for a service. */
   get(service: string): VaultEntry | null {
-    const row = this.db.query(
-      `SELECT * FROM credentials WHERE service = ?`,
-    ).get(service) as any;
+    const rows = sqlQuery(this.dbPath, `SELECT * FROM credentials WHERE service = '${sqlEscape(service)}'`);
 
-    if (!row) return null;
+    if (!rows.length) return null;
+    const row = rows[0];
 
     return {
       service: row.service,
@@ -143,45 +208,45 @@ export class Vault {
       extra: row.extra_enc ? JSON.parse(decrypt(row.extra_enc, this.key)) : {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      expiresAt: row.expires_at ?? undefined,
-      notes: row.notes ?? undefined,
+      expiresAt: row.expires_at || undefined,
+      notes: row.notes || undefined,
     };
   }
 
   /** List all stored services (without decrypting credentials). */
   list(): { service: string; baseUrl: string; authMethod: string; updatedAt: string; expiresAt?: string }[] {
-    const rows = this.db.query(
-      `SELECT service, base_url, auth_method, updated_at, expires_at FROM credentials ORDER BY updated_at DESC`,
-    ).all() as any[];
+    const rows = sqlQuery(this.dbPath, `SELECT service, base_url, auth_method, updated_at, expires_at FROM credentials ORDER BY updated_at DESC`);
 
-    return rows.map((r) => ({
+    return rows.map((r: any) => ({
       service: r.service,
       baseUrl: r.base_url,
       authMethod: r.auth_method,
       updatedAt: r.updated_at,
-      expiresAt: r.expires_at ?? undefined,
+      expiresAt: r.expires_at || undefined,
     }));
   }
 
   /** Delete credentials for a service. */
   delete(service: string): boolean {
-    const result = this.db.run(`DELETE FROM credentials WHERE service = ?`, [service]);
-    return (result.changes ?? 0) > 0;
+    try {
+      sqlRun(this.dbPath, `DELETE FROM credentials WHERE service = '${sqlEscape(service)}'`);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Check if a service has stored credentials. */
   has(service: string): boolean {
-    const row = this.db.query(`SELECT 1 FROM credentials WHERE service = ?`).get(service);
-    return row != null;
+    const rows = sqlQuery(this.dbPath, `SELECT 1 FROM credentials WHERE service = '${sqlEscape(service)}'`);
+    return rows.length > 0;
   }
 
   /** Check if credentials are expired. */
   isExpired(service: string): boolean {
-    const row = this.db.query(
-      `SELECT expires_at FROM credentials WHERE service = ?`,
-    ).get(service) as any;
-    if (!row?.expires_at) return false;
-    return new Date(row.expires_at) < new Date();
+    const rows = sqlQuery(this.dbPath, `SELECT expires_at FROM credentials WHERE service = '${sqlEscape(service)}'`);
+    if (!rows.length || !rows[0].expires_at) return false;
+    return new Date(rows[0].expires_at) < new Date();
   }
 
   /** Export credentials as plain auth.json format (for generated skills). */
@@ -202,6 +267,6 @@ export class Vault {
   }
 
   close(): void {
-    this.db.close();
+    // No-op for CLI-based approach
   }
 }
