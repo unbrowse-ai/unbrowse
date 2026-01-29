@@ -15,6 +15,7 @@
 
 import type { Page, BrowserContext, Browser } from "playwright";
 import { chromium } from "playwright";
+import { createStealthSession, stopStealthSession } from "../stealth-browser.js";
 import type {
   AgentConfig,
   AgentHistory,
@@ -114,6 +115,7 @@ export class BrowserUseAgent {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
+  private cloudSessionId: string | null = null;
 
   private domService: DOMService | null = null;
   private actionExecutor: ActionExecutor | null = null;
@@ -502,49 +504,50 @@ export class BrowserUseAgent {
   }
 
   /**
+   * Check if we're in a headless environment (no display)
+   */
+  private isHeadlessEnvironment(): boolean {
+    // Check for common headless indicators
+    const noDisplay = !process.env.DISPLAY && process.platform === "linux";
+    const isDocker = process.env.DOCKER === "true" ||
+      require("fs").existsSync("/.dockerenv");
+    const isCI = !!process.env.CI;
+    return noDisplay || isDocker || isCI;
+  }
+
+  /**
    * Initialize browser and services
    */
   private async initialize() {
     const initSpanId = this.telemetry.startSpan("agent.initialize");
 
     // Launch or connect to browser
-    if (!this.browser) {
-      this.telemetry.info("Launching browser...");
+    if (!this.browser && !this.context) {
+      const useCloud = this.browserConfig.forceCloud ||
+        (this.isHeadlessEnvironment() && this.browserConfig.browserUseApiKey);
 
-      if (this.browserConfig.userDataDir) {
-        // Launch with persistent context (real Chrome profile)
-        this.context = await chromium.launchPersistentContext(
-          this.browserConfig.userDataDir,
-          {
-            headless: this.browserConfig.headless ?? false,
-            executablePath: this.browserConfig.executablePath,
-            viewport: this.browserConfig.viewport ?? { width: 1280, height: 800 },
-            args: [
-              "--disable-blink-features=AutomationControlled",
-              "--no-first-run",
-              "--no-default-browser-check",
-            ],
-          }
-        );
-        this.page = this.context.pages()[0] || await this.context.newPage();
+      if (useCloud && this.browserConfig.browserUseApiKey) {
+        // Use cloud stealth browser
+        await this.initializeCloudBrowser();
       } else {
-        // Launch regular browser
-        this.browser = await chromium.launch({
-          headless: this.browserConfig.headless ?? false,
-          args: [
-            "--disable-blink-features=AutomationControlled",
-            "--no-first-run",
-            "--no-default-browser-check",
-          ],
-        });
-        this.context = await this.browser.newContext({
-          viewport: this.browserConfig.viewport ?? { width: 1280, height: 800 },
-        });
-        this.page = await this.context.newPage();
+        // Try local browser, fallback to cloud if it fails
+        try {
+          await this.initializeLocalBrowser();
+        } catch (localError) {
+          this.telemetry.warn(`Local browser failed: ${localError}`);
+
+          // Fallback to cloud browser if API key available
+          if (this.browserConfig.browserUseApiKey) {
+            this.telemetry.info("Falling back to cloud browser...");
+            await this.initializeCloudBrowser();
+          } else {
+            throw localError;
+          }
+        }
       }
-    } else {
+    } else if (this.context && !this.page) {
       // Use injected browser
-      this.page = this.context!.pages()[0] || await this.context!.newPage();
+      this.page = this.context.pages()[0] || await this.context.newPage();
     }
 
     // Setup request capture for skill generation
@@ -576,6 +579,75 @@ export class BrowserUseAgent {
     }
 
     this.telemetry.endSpan(initSpanId, "ok");
+  }
+
+  /**
+   * Initialize local browser (Playwright)
+   */
+  private async initializeLocalBrowser() {
+    this.telemetry.info("Launching local browser...");
+
+    // Auto-detect headless mode for environments without display
+    const headless = this.browserConfig.headless ?? this.isHeadlessEnvironment();
+
+    if (this.browserConfig.userDataDir) {
+      // Launch with persistent context (real Chrome profile)
+      this.context = await chromium.launchPersistentContext(
+        this.browserConfig.userDataDir,
+        {
+          headless,
+          executablePath: this.browserConfig.executablePath,
+          viewport: this.browserConfig.viewport ?? { width: 1280, height: 800 },
+          args: [
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+          ],
+        }
+      );
+      this.page = this.context.pages()[0] || await this.context.newPage();
+    } else {
+      // Launch regular browser
+      this.browser = await chromium.launch({
+        headless,
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          "--no-first-run",
+          "--no-default-browser-check",
+        ],
+      });
+      this.context = await this.browser.newContext({
+        viewport: this.browserConfig.viewport ?? { width: 1280, height: 800 },
+      });
+      this.page = await this.context.newPage();
+    }
+  }
+
+  /**
+   * Initialize cloud browser via Browser-Use SDK (stealth browser)
+   */
+  private async initializeCloudBrowser() {
+    if (!this.browserConfig.browserUseApiKey) {
+      throw new Error("browserUseApiKey required for cloud browser");
+    }
+
+    this.telemetry.info("Creating cloud stealth browser session...");
+
+    const session = await createStealthSession(this.browserConfig.browserUseApiKey, {
+      timeout: 15,
+      proxyCountryCode: this.browserConfig.proxyCountry,
+    });
+
+    this.cloudSessionId = session.id;
+    this.telemetry.info(`Cloud session created: ${session.id}`);
+    this.telemetry.info(`Live view URL: ${session.liveUrl}`);
+
+    // Connect Playwright to the cloud browser via CDP
+    this.browser = await chromium.connectOverCDP(session.cdpUrl);
+    this.context = this.browser.contexts()[0] || await this.browser.newContext({
+      viewport: this.browserConfig.viewport ?? { width: 1280, height: 800 },
+    });
+    this.page = this.context.pages()[0] || await this.context.newPage();
   }
 
   /**
@@ -631,6 +703,14 @@ export class BrowserUseAgent {
         if (this.context) await this.context.close();
         if (this.browser) await this.browser.close();
       } catch { /* ignore cleanup errors */ }
+
+      // Stop cloud session if used
+      if (this.cloudSessionId && this.browserConfig.browserUseApiKey) {
+        try {
+          await stopStealthSession(this.browserConfig.browserUseApiKey, this.cloudSessionId);
+          this.telemetry.info(`Cloud session stopped: ${this.cloudSessionId}`);
+        } catch { /* ignore cleanup errors */ }
+      }
     }
 
     // Log final telemetry summary

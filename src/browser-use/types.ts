@@ -126,6 +126,12 @@ export interface BrowserConfig {
   userDataDir?: string;
   profileDirectory?: string;
   viewport?: { width: number; height: number };
+  /** Browser-Use API key for cloud browser fallback */
+  browserUseApiKey?: string;
+  /** Force cloud browser even if local is available */
+  forceCloud?: boolean;
+  /** Proxy country code for cloud browser (e.g., "US", "GB") */
+  proxyCountry?: string;
 }
 
 export interface CapturedRequest {

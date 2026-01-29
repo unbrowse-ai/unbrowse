@@ -78,6 +78,11 @@ export interface RunBrowserUseOptions {
 
   /** Lifecycle hooks for agent events */
   hooks?: AgentHooks;
+
+  /** Force cloud browser even if local is available */
+  forceCloud?: boolean;
+  /** Proxy country code for cloud browser (e.g., "US", "GB") */
+  proxyCountry?: string;
 }
 
 /**
@@ -168,7 +173,12 @@ export async function runBrowserUseAgent(options: RunBrowserUseOptions): Promise
   };
 
   // Build browser config
-  const browserConfig: BrowserConfig = {};
+  const browserConfig: BrowserConfig = {
+    // Cloud browser config (uses same API key for LLM and browser)
+    browserUseApiKey: options.llmApiKey,
+    forceCloud: options.forceCloud,
+    proxyCountry: options.proxyCountry,
+  };
 
   if (options.useChromeProfile) {
     // Use real Chrome profile
