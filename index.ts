@@ -289,12 +289,13 @@ const INTERACT_SCHEMA = {
             enum: [
               "click_element", "input_text", "select_option", "get_dropdown_options",
               "scroll", "send_keys", "wait", "extract_content",
-              "go_to_url", "go_back", "done",
+              "go_to_url", "go_back", "done", "wait_for_otp",
             ],
             description:
               "Action type. Use element indices from the page state (e.g. click_element index=3). " +
               "Index-based actions: click_element, input_text, select_option, get_dropdown_options. " +
-              "Page actions: scroll, send_keys, wait, extract_content, go_to_url, go_back, done.",
+              "Page actions: scroll, send_keys, wait, extract_content, go_to_url, go_back, done. " +
+              "Special: wait_for_otp (waits for OTP from SMS/notification, auto-fills into index).",
           },
           index: {
             type: "number" as const,
@@ -405,6 +406,50 @@ const LOGIN_SCHEMA = {
   required: ["loginUrl"],
 };
 
+const AGENT_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    task: {
+      type: "string" as const,
+      description:
+        "Natural language task to execute. The AI agent will browse the web autonomously to complete it. " +
+        'e.g. "Go to twitter.com and post \'Hello world\'" or "Search for flights to Paris on kayak.com"',
+    },
+    url: {
+      type: "string" as const,
+      description: "Starting URL (optional). If not provided, the agent will start from a search engine.",
+    },
+    maxSteps: {
+      type: "number" as const,
+      description: "Maximum number of browser actions the agent can take (default: 50).",
+    },
+    timeoutMinutes: {
+      type: "number" as const,
+      description: "Maximum time to run in minutes (default: 15, max: 60).",
+    },
+    profileId: {
+      type: "string" as const,
+      description: "Browser profile ID for authenticated sessions (create with action='create_profile').",
+    },
+    action: {
+      type: "string" as const,
+      enum: ["run", "status", "stop", "list_profiles", "create_profile"],
+      description:
+        "Action to perform. run: execute task (default), status: check task status, stop: cancel task, " +
+        "list_profiles: show saved browser profiles, create_profile: create a new profile for authenticated sessions.",
+    },
+    taskId: {
+      type: "string" as const,
+      description: "Task ID (required for status/stop actions).",
+    },
+    profileName: {
+      type: "string" as const,
+      description: "Name for new profile (required for create_profile action).",
+    },
+  },
+  required: [] as string[],
+};
+
 // ── Plugin ────────────────────────────────────────────────────────────────────
 
 const plugin = {
@@ -421,8 +466,67 @@ const plugin = {
     const cfg = api.pluginConfig ?? {};
     const logger = api.logger;
     const browserPort = (cfg.browserPort as number) ?? 18791;
+
+    // ── Persistent OTP Watcher ─────────────────────────────────────────────
+    // Keeps running across interact calls so OTP can be filled when it arrives
+    let persistentOtpWatcher: any = null;
+    let otpWatcherPage: any = null;  // The page to fill OTP into
+    let otpWatcherElementIndex: number | null = null;
+    let otpWatcherTimeout: NodeJS.Timeout | null = null;
+    const OTP_WATCHER_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+    async function startPersistentOtpWatcher(page: any, elementIndex: number) {
+      // Stop any existing watcher
+      stopPersistentOtpWatcher();
+
+      otpWatcherPage = page;
+      otpWatcherElementIndex = elementIndex;
+
+      const { startOTPWatcher } = await import("./src/otp-watcher.js");
+      const { getElementByIndex } = await import("./src/dom-service.js");
+
+      persistentOtpWatcher = startOTPWatcher(async (otp) => {
+        logger.info(`[unbrowse] Auto-OTP: Received "${otp.code}" from ${otp.source}`);
+        try {
+          if (otpWatcherPage && otpWatcherElementIndex != null) {
+            const el = await getElementByIndex(otpWatcherPage, otpWatcherElementIndex);
+            if (el) {
+              await el.click();
+              await el.fill(otp.code);
+              logger.info(`[unbrowse] Auto-OTP: Filled "${otp.code}" into element [${otpWatcherElementIndex}]`);
+              // Clear after successful fill
+              persistentOtpWatcher?.clear();
+            }
+          }
+        } catch (err) {
+          logger.warn(`[unbrowse] Auto-OTP fill failed: ${(err as Error).message}`);
+        }
+      });
+
+      // Auto-stop after TTL
+      otpWatcherTimeout = setTimeout(() => {
+        logger.info(`[unbrowse] Auto-OTP watcher TTL expired (${OTP_WATCHER_TTL_MS / 1000}s)`);
+        stopPersistentOtpWatcher();
+      }, OTP_WATCHER_TTL_MS);
+
+      logger.info(`[unbrowse] Persistent OTP watcher started for element [${elementIndex}] (TTL: ${OTP_WATCHER_TTL_MS / 1000}s)`);
+    }
+
+    function stopPersistentOtpWatcher() {
+      if (persistentOtpWatcher) {
+        persistentOtpWatcher.stop();
+        persistentOtpWatcher = null;
+      }
+      if (otpWatcherTimeout) {
+        clearTimeout(otpWatcherTimeout);
+        otpWatcherTimeout = null;
+      }
+      otpWatcherPage = null;
+      otpWatcherElementIndex = null;
+    }
     const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".clawdbot", "skills");
     const browserUseApiKey = cfg.browserUseApiKey as string | undefined;
+    const browserUseCloudApiKey = cfg.browserUseCloudApiKey as string | undefined;
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://skills.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
@@ -575,7 +679,7 @@ const plugin = {
       page: any;
       service: string;
       lastUsed: Date;
-      method: "cdp-clawdbot" | "cdp-chrome";
+      method: "cdp-clawdbot" | "cdp-chrome" | "playwright";
     }
     const browserSessions = new Map<string, BrowserSession>();
     const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -583,8 +687,7 @@ const plugin = {
     // Shared browser instance - reused across all services
     let sharedBrowser: any = null;
     let sharedContext: any = null;
-    let sharedBrowserMethod: BrowserSession["method"] = "cdp-chrome";
-    let chromeWasRunning = false; // Track if Chrome was running (couldn't connect)
+    let sharedBrowserMethod: BrowserSession["method"] = "playwright";
 
     /** Try to connect to a CDP endpoint. Returns browser or null. */
     async function tryCdpConnect(chromium: any, port: number): Promise<any | null> {
@@ -713,102 +816,28 @@ const plugin = {
           }
         }
 
-        // Strategy 5: Launch Chrome with user's profile (has all their sessions)
-        // NOTE: This only works if Chrome is NOT running. If Chrome is running, skip to Playwright.
+        // Strategy 5: Launch Playwright Chromium (fast, reliable, no Chrome dependency)
+        // This is the primary fallback when no CDP connection is available
         if (!sharedBrowser) {
-          const chromeUserDataDir = join(homedir(), "Library/Application Support/Google/Chrome");
-
-          // Check if Chrome is running FIRST - if so, skip this strategy entirely
-          // (launchPersistentContext always times out when Chrome is running, wasting 30+ seconds)
-          let chromeIsRunning = false;
+          logger.info(`[unbrowse] Launching Playwright Chromium...`);
           try {
-            const { spawnSync } = await import("node:child_process");
-            const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
-            chromeIsRunning = psResult.stdout.trim().length > 0;
-          } catch { /* assume not running */ }
-
-          // Also check for stale SingletonLock file that blocks profile access
-          // Lock file format: hostname-pid — if pid isn't running, remove the lock
-          const lockPath = join(chromeUserDataDir, "SingletonLock");
-          if (!chromeIsRunning && existsSync(lockPath)) {
-            try {
-              const { readlinkSync, unlinkSync } = await import("node:fs");
-              const { spawnSync } = await import("node:child_process");
-              const lockTarget = readlinkSync(lockPath);
-              // Format: hostname-pid
-              const pidMatch = lockTarget.match(/-(\d+)$/);
-              if (pidMatch) {
-                const pid = pidMatch[1];
-                const psCheck = spawnSync("ps", ["-p", pid], { encoding: "utf-8" });
-                if (psCheck.status !== 0) {
-                  // Process not running - safe to remove stale lock
-                  unlinkSync(lockPath);
-                  logger.info(`[unbrowse] Removed stale Chrome lock file (pid ${pid} not running)`);
-                } else {
-                  // Process still running but pgrep missed it
-                  chromeIsRunning = true;
-                  logger.info(`[unbrowse] Chrome lock file exists and process ${pid} is running`);
-                }
-              }
-            } catch { /* ignore lock check errors */ }
-          }
-
-          if (chromeIsRunning) {
-            chromeWasRunning = true;
-            logger.info(`[unbrowse] Chrome is running - cannot take over profile. Will use single Playwright browser.`);
-          } else if (existsSync(chromeUserDataDir)) {
-            // Detect most recently active profile by checking file modification times
-            let profileDir = "Default";
-            try {
-              const { statSync } = await import("node:fs");
-              const profiles = readdirSync(chromeUserDataDir, { withFileTypes: true })
-                .filter(d => d.isDirectory() && (d.name === "Default" || d.name.startsWith("Profile ")))
-                .map(d => d.name);
-
-              let mostRecent = { profile: "Default", mtime: 0 };
-              for (const profile of profiles) {
-                const historyPath = join(chromeUserDataDir, profile, "History");
-                if (existsSync(historyPath)) {
-                  const mtime = statSync(historyPath).mtimeMs;
-                  if (mtime > mostRecent.mtime) {
-                    mostRecent = { profile, mtime };
-                  }
-                }
-              }
-              profileDir = mostRecent.profile;
-              logger.info(`[unbrowse] Using Chrome profile: ${profileDir}`);
-            } catch { /* use Default */ }
-
-            try {
-              const persistentContext = await chromium.launchPersistentContext(chromeUserDataDir, {
-                channel: "chrome",
-                headless: false,
-                timeout: 15000, // 15s - if Chrome not running, this should be fast
-                args: [
-                  `--profile-directory=${profileDir}`,
-                  "--disable-blink-features=AutomationControlled",
-                  "--no-first-run",
-                  "--no-default-browser-check",
-                ],
-              });
-
-              sharedBrowser = persistentContext;
-              sharedContext = persistentContext;
-              sharedBrowserMethod = "cdp-chrome";
-              logger.info(`[unbrowse] Launched Chrome with user profile (single instance for all services)`);
-            } catch (err) {
-              logger.info(`[unbrowse] Chrome profile launch failed: ${(err as Error).message.split('\n')[0]}`);
-            }
+            sharedBrowser = await chromium.launch({
+              headless: false,
+              args: [
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+                "--no-default-browser-check",
+              ],
+            });
+            sharedBrowserMethod = "playwright";
+            logger.info(`[unbrowse] Launched Playwright Chromium browser`);
+          } catch (err) {
+            logger.info(`[unbrowse] Playwright launch failed: ${(err as Error).message.split('\n')[0]}`);
           }
         }
 
-        // NO Playwright fallback - if we can't use Chrome, ask user to close it
         if (!sharedBrowser) {
-          if (chromeWasRunning) {
-            throw new Error("CHROME_RUNNING");
-          } else {
-            throw new Error("NO_BROWSER");
-          }
+          throw new Error("NO_BROWSER");
         }
       }
 
@@ -1100,7 +1129,7 @@ const plugin = {
                   "",
                   `⚠️  High failure rate: ${failureDetails.join(", ")} out of ${totalRequests} requests`,
                   `   The site may be blocking automated crawls. Skill may be incomplete.`,
-                  `   Try: unbrowse_replay with useStealth=true, or unbrowse_interact for manual exploration.`,
+                  `   Try: unbrowse_replay with useStealth=true, or the browser tool for manual exploration.`,
                 );
                 logger.warn(`[unbrowse] High failure rate (${Math.round(failureRate * 100)}%) — ${failureDetails.join(", ")}`);
               }
@@ -1216,7 +1245,7 @@ const plugin = {
               captureUrls?: string[];
             } | null = null;
 
-            function loadAuth() {
+            async function loadAuth() {
               // Try auth.json first
               if (existsSync(authPath)) {
                 try {
@@ -1263,7 +1292,7 @@ const plugin = {
 
               // Fallback: try loading from vault
               try {
-                const { Vault } = require("./src/vault.js");
+                const { Vault } = await import("./src/vault.js");
                 const vault = new Vault(vaultDbPath);
                 const entry = vault.get(p.service);
                 vault.close();
@@ -1294,7 +1323,7 @@ const plugin = {
               // Fallback: try loading cookies from Chrome's cookie database
               if (Object.keys(cookies).length === 0) {
                 try {
-                  const { readChromeCookies, chromeCookiesAvailable } = require("./src/chrome-cookies.js");
+                  const { readChromeCookies, chromeCookiesAvailable } = await import("./src/chrome-cookies.js");
                   if (chromeCookiesAvailable()) {
                     const domain = new URL(baseUrl).hostname.replace(/^www\./, "");
                     const chromeCookies = readChromeCookies(domain);
@@ -1308,7 +1337,7 @@ const plugin = {
                 }
               }
             }
-            loadAuth();
+            await loadAuth();
 
             // Parse endpoints from SKILL.md
             let endpoints: { method: string; path: string }[] = [];
@@ -1380,8 +1409,7 @@ const plugin = {
                 const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
                 if (hasStorage) {
                   try {
-                    await context.addInitScript({
-                      script: `
+                    await context.addInitScript(`
                         (function() {
                           const ls = ${JSON.stringify(storedLocalStorage)};
                           const ss = ${JSON.stringify(storedSessionStorage)};
@@ -1392,8 +1420,7 @@ const plugin = {
                             try { window.sessionStorage.setItem(k, v); } catch {}
                           }
                         })();
-                      `,
-                    });
+                      `);
                     logger.info(`[unbrowse] Injecting ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
                   } catch { /* addInitScript may fail on reused contexts — non-critical */ }
                 }
@@ -1549,8 +1576,7 @@ const plugin = {
                 // Inject localStorage/sessionStorage via addInitScript BEFORE navigation
                 if (Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0) {
                   try {
-                    await context.addInitScript({
-                      script: `
+                    await context.addInitScript(`
                         (function() {
                           const ls = ${JSON.stringify(storedLocalStorage)};
                           const ss = ${JSON.stringify(storedSessionStorage)};
@@ -1561,8 +1587,7 @@ const plugin = {
                             try { window.sessionStorage.setItem(k, v); } catch {}
                           }
                         })();
-                      `,
-                    });
+                      `);
                   } catch { /* non-critical */ }
                 }
 
@@ -2750,16 +2775,16 @@ const plugin = {
             return { content: [{ type: "text", text: lines.join("\n") }] };
           },
         },
-        // ── unbrowse_interact ──────────────────────────────────────────
-        // Browser-use-style interaction: index-based element targeting + page state
+        // ── browser ──────────────────────────────────────────────────────
+        // Browser-use-style interaction: replaces built-in browser tool with Playwright
         {
-          name: "unbrowse_interact",
-          label: "Browser Interaction",
+          name: "browser",
+          label: "Browse Web",
           description:
-            "Drive a browser to interact with web pages — like browser-use. After navigation, returns indexed " +
+            "Browse and interact with web pages using Playwright (no extension needed). Returns indexed " +
             "interactive elements (e.g. [1] <button> Submit, [2] <input placeholder=\"Email\">). " +
             "Use element indices for actions: click_element(index=3), input_text(index=5, text=\"hello\"). " +
-            "Captures API traffic throughout. Uses local Playwright with auth from skill's auth.json.",
+            "Auto-captures API traffic and generates skills. Auto-fills OTP codes from SMS/clipboard.",
           parameters: INTERACT_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as {
@@ -2778,7 +2803,7 @@ const plugin = {
               closeChromeIfNeeded?: boolean;
             };
 
-            const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import("./src/dom-service.js");
+            const { extractPageState, getElementByIndex, formatPageStateForLLM, detectOTPField } = await import("./src/dom-service.js");
 
             // Check if Chrome is running and we need to handle it
             if (!sharedBrowser) {
@@ -2800,29 +2825,12 @@ const plugin = {
                 } catch { /* not available */ }
               }
 
-              if (chromeIsRunning && !cdpAvailable) {
-                if (p.closeChromeIfNeeded) {
-                  // User gave permission - close Chrome and continue
-                  logger.info(`[unbrowse] Closing Chrome to use your profile with all logins...`);
-                  await closeChrome();
-                  // Reset the flag so we don't warn later
-                  chromeWasRunning = false;
-                } else {
-                  // Chrome is running but we can't connect - ask for permission
-                  return {
-                    content: [{
-                      type: "text",
-                      text: `**Chrome is running** but I can't connect to it (no remote debugging).\n\n` +
-                        `To use your Chrome with all your saved logins, I need to close it and relaunch with your profile.\n\n` +
-                        `**Options:**\n` +
-                        `1. Run the same command with \`closeChromeIfNeeded=true\` to let me close Chrome (your tabs will be restored)\n` +
-                        `2. Close Chrome yourself and run again\n` +
-                        `3. Start Chrome with debugging: \`/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222\`\n\n` +
-                        `Or I can use a fresh Playwright browser (no saved logins) - just run the command again without closeChromeIfNeeded.`,
-                    }],
-                  };
-                }
+              if (chromeIsRunning && !cdpAvailable && p.closeChromeIfNeeded) {
+                // User gave permission - close Chrome and continue
+                logger.info(`[unbrowse] Closing Chrome to use your profile with all logins...`);
+                await closeChrome();
               }
+              // If Chrome is running but no CDP available and no permission, we'll fall back to Playwright
             }
 
             // Normalize actions — LLMs sometimes send malformed action objects
@@ -2887,7 +2895,7 @@ const plugin = {
             // Fallback: try loading from vault if auth.json is missing or empty
             if (Object.keys(authCookies).length === 0 && Object.keys(authHeaders).length === 0) {
               try {
-                const { Vault } = require("./src/vault.js");
+                const { Vault } = await import("./src/vault.js");
                 const vault = new Vault(vaultDbPath);
                 const entry = vault.get(service);
                 vault.close();
@@ -2908,7 +2916,7 @@ const plugin = {
             // Fallback: try loading cookies from Chrome's cookie database
             if (Object.keys(authCookies).length === 0) {
               try {
-                const { readChromeCookies, chromeCookiesAvailable } = require("./src/chrome-cookies.js");
+                const { readChromeCookies, chromeCookiesAvailable } = await import("./src/chrome-cookies.js");
                 if (chromeCookiesAvailable()) {
                   const domain = new URL(p.url).hostname.replace(/^www\./, "");
                   const chromeCookies = readChromeCookies(domain);
@@ -2945,33 +2953,23 @@ const plugin = {
               isReusedSession = hadExistingSession && browserSessions.get(service) === session;
             } catch (browserErr) {
               const errMsg = (browserErr as Error).message;
-              if (errMsg === "CHROME_RUNNING") {
-                return {
-                  content: [{
-                    type: "text",
-                    text: `**Please close Chrome first.**\n\n` +
-                      `I need to use your Chrome profile (with all your saved logins), but Chrome is currently running.\n\n` +
-                      `**To continue:**\n` +
-                      `1. Close Chrome completely (Cmd+Q)\n` +
-                      `2. Run this command again\n\n` +
-                      `I'll launch Chrome with your profile so you have access to all your logged-in sessions.`,
-                  }],
-                };
-              } else if (errMsg === "NO_BROWSER") {
+              if (errMsg === "NO_BROWSER") {
                 return {
                   content: [{
                     type: "text",
                     text: `**Could not launch browser.**\n\n` +
-                      `Chrome profile not found or inaccessible.\n\n` +
-                      `**Options:**\n` +
-                      `1. Make sure Chrome is installed\n` +
-                      `2. Close Chrome if it's running, then try again\n` +
-                      `3. Start Chrome with remote debugging: \`/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222\``,
+                      `Playwright Chromium failed to start.\n\n` +
+                      `**Try:**\n` +
+                      `1. Run: \`npx playwright install chromium\`\n` +
+                      `2. Then run this command again`,
                   }],
                 };
               }
               throw browserErr;
             }
+
+            // Track OTP field index for re-detection after clicks
+            let otpAutoFillIndex: number | null = null;
 
             try {
               // If this is an existing session, we may need to navigate to a new page
@@ -3084,8 +3082,7 @@ const plugin = {
               if (hasStorage) {
                 try {
                   // addInitScript runs before ANY page JavaScript - perfect for SPA auth
-                  await context.addInitScript({
-                    script: `
+                  await context.addInitScript(`
                       (function() {
                         const ls = ${JSON.stringify(storedLocalStorage)};
                         const ss = ${JSON.stringify(storedSessionStorage)};
@@ -3096,8 +3093,7 @@ const plugin = {
                           try { window.sessionStorage.setItem(k, v); } catch {}
                         }
                       })();
-                    `,
-                  });
+                    `);
                   logger.info(`[unbrowse] Registered init script with ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
                 } catch (err) {
                   // Fallback: try direct injection on current page
@@ -3129,6 +3125,15 @@ const plugin = {
               // Extract initial page state (indexed elements)
               let pageState = await extractPageState(page);
 
+              // Auto-OTP detection — use persistent watcher that survives interact completion
+              const otpDetection = detectOTPField(pageState);
+              otpAutoFillIndex = otpDetection.hasOTP ? (otpDetection.elementIndex ?? null) : null;
+
+              if (otpDetection.hasOTP && otpAutoFillIndex != null) {
+                // Start persistent watcher (runs in background, doesn't stop when interact ends)
+                await startPersistentOtpWatcher(page, otpAutoFillIndex);
+              }
+
               // Execute actions (browser-use style — index-based)
               const actionResults: string[] = [];
 
@@ -3155,6 +3160,17 @@ const plugin = {
                       await page.waitForTimeout(500);
                       // Re-extract page state after click (page may have changed)
                       pageState = await extractPageState(page);
+
+                      // Re-check for OTP fields after click (might have navigated to 2FA page)
+                      if (!persistentOtpWatcher) {
+                        const newOtpCheck = detectOTPField(pageState);
+                        if (newOtpCheck.hasOTP && newOtpCheck.elementIndex != null) {
+                          otpAutoFillIndex = newOtpCheck.elementIndex;
+                          await startPersistentOtpWatcher(page, otpAutoFillIndex);
+                          actionResults.push(`OTP field detected — auto-watching for SMS/notifications (5min TTL)`);
+                        }
+                      }
+
                       const desc = act.index != null
                         ? `[${act.index}] ${pageState.elements.find(e => e.index === act.index)?.text?.slice(0, 50) ?? ""}`
                         : act.selector;
@@ -3320,6 +3336,40 @@ const plugin = {
                       break;
                     }
 
+                    case "wait_for_otp": {
+                      // Wait for OTP from SMS/notification and auto-fill
+                      const { startOTPWatcher, stopOTPWatcher, getOTPWatcher } = await import("./src/otp-watcher.js");
+                      const watcher = startOTPWatcher((otp) => {
+                        logger.info(`[unbrowse] OTP detected: ${otp.code} from ${otp.source}`);
+                      });
+
+                      const timeoutMs = (act.amount ?? 60) * 1000;
+                      actionResults.push(`wait_for_otp: Waiting up to ${timeoutMs / 1000}s for OTP from SMS/clipboard...`);
+
+                      const otp = await watcher.waitForOTP(timeoutMs);
+
+                      if (otp) {
+                        actionResults.push(`wait_for_otp: Got OTP "${otp.code}" from ${otp.source}`);
+
+                        // Auto-fill if index is provided
+                        if (act.index != null) {
+                          const el = await getElementByIndex(page, act.index);
+                          if (el) {
+                            await el.click();
+                            await el.fill(otp.code);
+                            actionResults.push(`wait_for_otp: Filled OTP into element [${act.index}]`);
+                          }
+                        }
+
+                        watcher.clear(); // Clear so we don't reuse
+                      } else {
+                        actionResults.push(`wait_for_otp: No OTP received within ${timeoutMs / 1000}s`);
+                      }
+
+                      pageState = await extractPageState(page);
+                      break;
+                    }
+
                     default:
                       actionResults.push(`unknown action: ${act.action}`);
                   }
@@ -3465,6 +3515,9 @@ const plugin = {
                 resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
               }
 
+              // Note: Persistent OTP watcher intentionally NOT stopped here
+              // It continues running in background to fill OTP when it arrives
+
               logger.info(
                 `[unbrowse] Interact: ${p.actions.length} actions on ${pageState.url} (${apiCalls.length} API calls, ${pageState.elements.length} elements${skillResult ? `, skill: ${skillResult.service}` : ""})`,
               );
@@ -3487,6 +3540,170 @@ const plugin = {
             }
           },
         },
+
+        // ── unbrowse_agent ─────────────────────────────────────────────
+        {
+          name: "unbrowse_agent",
+          label: "AI Browser Agent",
+          description:
+            "Run an autonomous AI agent that browses the web to complete tasks. " +
+            "Powered by browser-use. Give it a natural language task and it will " +
+            "click, type, navigate, and extract data autonomously. Also captures " +
+            "API traffic for skill generation.",
+          parameters: AGENT_SCHEMA,
+          async execute(_toolCallId: string, params: unknown) {
+            const p = params as {
+              task?: string;
+              url?: string;
+              maxSteps?: number;
+              timeoutMinutes?: number;
+              action?: "run" | "status" | "stop" | "list_profiles" | "create_profile";
+              taskId?: string;
+              profileId?: string;
+              profileName?: string;
+              llmProvider?: "openai" | "anthropic" | "browser-use";
+              llmModel?: string;
+            };
+
+            const action = p.action ?? "run";
+
+            // For non-run actions, use browser-use Cloud API
+            if (action !== "run") {
+              if (!browserUseCloudApiKey) {
+                return {
+                  content: [{
+                    type: "text",
+                    text: `browser-use Cloud API not configured. Set browserUseCloudApiKey in unbrowse plugin config.\n\n` +
+                      `Get your API key at: https://cloud.browser-use.com/`,
+                  }],
+                };
+              }
+
+              const { createTask, getTask, stopTask, waitForTask, listProfiles, createProfile } =
+                await import("./src/browser-use-cloud.js");
+
+              try {
+                if (action === "status" && p.taskId) {
+                  const task = await getTask(browserUseCloudApiKey, p.taskId);
+                  return {
+                    content: [{
+                      type: "text",
+                      text: `Task ${task.id}:\n` +
+                        `  Status: ${task.status}\n` +
+                        `  Prompt: ${task.prompt}\n` +
+                        (task.result ? `  Result: ${task.result}\n` : "") +
+                        (task.error ? `  Error: ${task.error}\n` : ""),
+                    }],
+                  };
+                }
+
+                if (action === "stop" && p.taskId) {
+                  await stopTask(browserUseCloudApiKey, p.taskId);
+                  return { content: [{ type: "text", text: `Task ${p.taskId} stopped.` }] };
+                }
+
+                if (action === "list_profiles") {
+                  const profiles = await listProfiles(browserUseCloudApiKey);
+                  if (profiles.length === 0) {
+                    return { content: [{ type: "text", text: "No browser profiles found." }] };
+                  }
+                  const lines = profiles.map((p) => `  ${p.id}: ${p.name}`);
+                  return { content: [{ type: "text", text: `Browser profiles:\n${lines.join("\n")}` }] };
+                }
+
+                if (action === "create_profile" && p.profileName) {
+                  const profile = await createProfile(browserUseCloudApiKey, p.profileName);
+                  return {
+                    content: [{
+                      type: "text",
+                      text: `Created profile: ${profile.id} (${profile.name})\n\nUse profileId="${profile.id}" in future agent tasks.`,
+                    }],
+                  };
+                }
+
+                return { content: [{ type: "text", text: `Unknown action: ${action}` }] };
+              } catch (err) {
+                return { content: [{ type: "text", text: `browser-use API error: ${(err as Error).message}` }] };
+              }
+            }
+
+            // Run action - use local browser-use-typescript
+            if (!p.task) {
+              return { content: [{ type: "text", text: "Missing required parameter: task" }] };
+            }
+
+            try {
+              const { runBrowserAgent, createLLM } = await import("./src/browser-use-agent.js");
+
+              // Create LLM - prefer browser-use model if API key available, else use anthropic/openai
+              const llmProvider = p.llmProvider ?? (browserUseCloudApiKey ? "browser-use" : "anthropic");
+              const llm = await createLLM(llmProvider, {
+                apiKey: llmProvider === "browser-use" ? browserUseCloudApiKey : undefined,
+                model: p.llmModel,
+              });
+
+              logger.info(`[unbrowse] Agent starting: "${p.task.slice(0, 50)}..." (${llmProvider})`);
+
+              const result = await runBrowserAgent({
+                task: p.task,
+                llm,
+                startUrl: p.url,
+                maxSteps: p.maxSteps ?? 50,
+                useVision: true,
+                onStep: (step, action) => {
+                  logger.info(`[unbrowse] Agent step ${step}: ${action.slice(0, 100)}`);
+                },
+              });
+
+              // Generate skill from captured requests if any
+              let skillInfo = "";
+              if (result.capturedRequests.length >= 3) {
+                try {
+                  const domain = p.url ? new URL(p.url).hostname : result.capturedRequests[0]?.url
+                    ? new URL(result.capturedRequests[0].url).hostname
+                    : null;
+
+                  if (domain) {
+                    const service = domain
+                      .replace(/^(www|api|app)\./, "")
+                      .replace(/\.(com|io|org|net)$/, "")
+                      .replace(/\./g, "-");
+
+                    skillInfo = `\n\nCaptured ${result.capturedRequests.length} API calls. Use unbrowse_replay service="${service}" to call them directly.`;
+                  }
+                } catch { /* ignore */ }
+              }
+
+              const stepSummary = result.steps.slice(-5).map((s) => `  ${s.step}: ${s.action.slice(0, 80)}`).join("\n");
+
+              return {
+                content: [{
+                  type: "text",
+                  text: `Agent ${result.success ? "completed" : "finished"} (${result.steps.length} steps)\n\n` +
+                    (result.finalResult ? `Result: ${result.finalResult}\n\n` : "") +
+                    `Recent steps:\n${stepSummary}` +
+                    skillInfo,
+                }],
+              };
+            } catch (err) {
+              const msg = (err as Error).message;
+              logger.warn(`[unbrowse] Agent failed: ${msg}`);
+
+              if (msg.includes("langchain")) {
+                return {
+                  content: [{
+                    type: "text",
+                    text: `LLM dependency missing. Install with:\n\n` +
+                      `npm install @langchain/openai @langchain/anthropic\n\n` +
+                      `Then set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable.`,
+                  }],
+                };
+              }
+
+              return { content: [{ type: "text", text: `Agent failed: ${msg}` }] };
+            }
+          },
+        },
       ];
 
       return toolList;
@@ -3503,7 +3720,8 @@ const plugin = {
       "unbrowse_search",
       "unbrowse_login",
       "unbrowse_wallet",
-      "unbrowse_interact",
+      "browser",
+      "unbrowse_agent",
     ];
 
     api.registerTool(tools, { names: toolNames });
@@ -3554,15 +3772,13 @@ const plugin = {
 
       const lines: string[] = [
         "[Unbrowse] You have self-learning browser skills.",
-        "When the user asks you to interact with a website, use unbrowse tools — do NOT ask them to attach Chrome or use a browser extension.",
-        "- Use unbrowse_capture to visit URLs and capture API traffic automatically via Playwright",
-        "- Use unbrowse_login to log into authenticated sites with credentials",
-        "- Use unbrowse_replay to call APIs using captured auth (auto-refreshes on 401)",
-        "- Use unbrowse_interact to drive pages — browser-use style. It returns indexed interactive elements [1] [2] [3]... Use click_element(index=N), input_text(index=N, text=...), select_option(index=N, text=...) to interact. For multi-step flows like booking.",
+        "When the user asks you to browse or interact with a website, use the `browser` tool — do NOT ask them to attach Chrome or use an extension.",
+        "- Use `browser` tool to browse and interact with web pages. It returns indexed interactive elements [1] [2] [3]... Use click_element(index=N), input_text(index=N, text=...) to interact.",
+        "- Use unbrowse_replay to call APIs directly using captured auth (auto-refreshes on 401)",
         "- Use unbrowse_search to find skills other agents have already discovered",
         "- Check unbrowse_skills first to see if you already have a skill for the service",
-        "The browser launches automatically — no Chrome extension, no manual steps needed.",
-        "IMPORTANT: Do NOT ask the user to manually interact with a browser. Use unbrowse_interact to drive pages yourself.",
+        "The browser launches automatically via Playwright — no Chrome extension, no manual steps needed.",
+        "IMPORTANT: Do NOT ask the user to manually interact with a browser. Use the `browser` tool to drive pages yourself.",
         "",
       ];
 

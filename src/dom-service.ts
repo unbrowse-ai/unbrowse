@@ -340,10 +340,69 @@ export function detectLoginPage(state: PageState): { isLogin: boolean; hint?: st
 }
 
 /**
+ * Detect if the current page has an OTP/2FA input field.
+ * Returns the element index and hints for auto-fill.
+ */
+export function detectOTPField(state: PageState): { hasOTP: boolean; elementIndex?: number; hint?: string } {
+  const otpPatterns = /otp|2fa|verification|verify|code|pin|token|authenticator|mfa/i;
+
+  for (const el of state.elements) {
+    if (el.tag !== "input") continue;
+
+    const name = el.name?.toLowerCase() ?? "";
+    const placeholder = el.placeholder?.toLowerCase() ?? "";
+    const ariaLabel = el.ariaLabel?.toLowerCase() ?? "";
+    const type = el.type?.toLowerCase() ?? "";
+
+    // Check if it looks like an OTP field
+    const isOTPField =
+      otpPatterns.test(name) ||
+      otpPatterns.test(placeholder) ||
+      otpPatterns.test(ariaLabel) ||
+      type === "tel" && (placeholder.includes("code") || name.includes("code")) ||
+      // Single digit inputs (common for OTP)
+      (el.type === "text" && placeholder.match(/^\d$|digit|code/i));
+
+    if (isOTPField) {
+      return {
+        hasOTP: true,
+        elementIndex: el.index,
+        hint: `**OTP/2FA field detected** at element [${el.index}].\n\n` +
+          `Use \`wait_for_otp\` action to auto-fill from SMS/notification:\n` +
+          `{ "action": "wait_for_otp", "index": ${el.index} }`,
+      };
+    }
+  }
+
+  // Also check page content for OTP indicators
+  const urlHasOTP = /verify|otp|2fa|mfa|code|confirm/i.test(state.url);
+  const titleHasOTP = /verify|otp|2fa|code|confirm|authentication/i.test(state.title);
+
+  if (urlHasOTP || titleHasOTP) {
+    // Find any short text input that might be the OTP field
+    for (const el of state.elements) {
+      if (el.tag === "input" && (el.type === "text" || el.type === "tel" || el.type === "number")) {
+        return {
+          hasOTP: true,
+          elementIndex: el.index,
+          hint: `**OTP/verification page detected.**\n\n` +
+            `Likely OTP field at element [${el.index}].\n` +
+            `Use \`wait_for_otp\` action to auto-fill from SMS/notification:\n` +
+            `{ "action": "wait_for_otp", "index": ${el.index} }`,
+        };
+      }
+    }
+  }
+
+  return { hasOTP: false };
+}
+
+/**
  * Format page state as a concise text block for LLM consumption.
  */
 export function formatPageStateForLLM(state: PageState): string {
   const loginCheck = detectLoginPage(state);
+  const otpCheck = detectOTPField(state);
 
   const lines = [
     `Page: "${state.title}"`,
@@ -353,7 +412,12 @@ export function formatPageStateForLLM(state: PageState): string {
 
   // Add login hint if detected
   if (loginCheck.isLogin && loginCheck.hint) {
-    lines.push("", `**Login page detected**: ${loginCheck.hint}`);
+    lines.push("", loginCheck.hint);
+  }
+
+  // Add OTP hint if detected (separate from login)
+  if (otpCheck.hasOTP && otpCheck.hint && !loginCheck.isLogin) {
+    lines.push("", otpCheck.hint);
   }
 
   lines.push(
