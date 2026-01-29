@@ -2776,15 +2776,16 @@ const plugin = {
           },
         },
         // ── browser ──────────────────────────────────────────────────────
-        // Browser-use-style interaction: replaces built-in browser tool with Playwright
+        // Task-focused browsing: complete user's task, learn APIs as byproduct
         {
           name: "browser",
           label: "Browse Web",
           description:
-            "Browse and interact with web pages using Playwright (no extension needed). Returns indexed " +
-            "interactive elements (e.g. [1] <button> Submit, [2] <input placeholder=\"Email\">). " +
-            "Use element indices for actions: click_element(index=3), input_text(index=5, text=\"hello\"). " +
-            "Auto-captures API traffic and generates skills. Auto-fills OTP codes from SMS/clipboard.",
+            "Complete tasks on websites — login, fill forms, click buttons, submit orders, post content, etc. " +
+            "Use this to DO things for the user, not just explore. Returns indexed interactive elements " +
+            "(e.g. [1] <button> Submit, [2] <input placeholder=\"Email\">). Use indices for actions: " +
+            "click_element(index=3), input_text(index=5, text=\"hello\"). After task completion, the API " +
+            "traffic is captured so you can replay it directly next time without browsing.",
           parameters: INTERACT_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as {
@@ -3767,21 +3768,22 @@ const plugin = {
 
     // ── Agent Context Hook — Unbrowse Capabilities + Wallet Prompt ─────────
     // Inject unbrowse capabilities and wallet status so the agent:
-    // 1. Uses unbrowse tools (capture, replay, login) instead of asking user to attach Chrome
-    // 2. Proactively tells the user about their wallet and prompts them to fund it
+    // 1. Uses browser tool to COMPLETE TASKS (not just learn)
+    // 2. Falls back to unbrowse_replay for known services
     api.on("before_agent_start", async () => {
       // Wait for wallet generation to complete (may still be running)
       await ensureWallet().catch(() => { });
 
       const lines: string[] = [
-        "[Unbrowse] You have self-learning browser skills.",
-        "When the user asks you to browse or interact with a website, use the `browser` tool — do NOT ask them to attach Chrome or use an extension.",
-        "- Use `browser` tool to browse and interact with web pages. It returns indexed interactive elements [1] [2] [3]... Use click_element(index=N), input_text(index=N, text=...) to interact.",
-        "- Use unbrowse_replay to call APIs directly using captured auth (auto-refreshes on 401)",
-        "- Use unbrowse_search to find skills other agents have already discovered",
-        "- Check unbrowse_skills first to see if you already have a skill for the service",
-        "The browser launches automatically via Playwright — no Chrome extension, no manual steps needed.",
-        "IMPORTANT: Do NOT ask the user to manually interact with a browser. Use the `browser` tool to drive pages yourself.",
+        "[Browser] You can browse websites and complete tasks for the user.",
+        "",
+        "When the user asks you to DO something on a website (post, book, order, submit, login, etc.):",
+        "1. First check unbrowse_skills — if you already have a skill for that service, use unbrowse_replay to call APIs directly (faster)",
+        "2. If no skill exists, use the `browser` tool to complete the task by clicking/typing on the page",
+        "3. After completing the task, the APIs are automatically captured so next time you can replay directly",
+        "",
+        "The `browser` tool returns indexed elements like [1] <button> [2] <input>. Use click_element(index=N), input_text(index=N, text=...).",
+        "IMPORTANT: Actually COMPLETE the user's task. Don't just explore or capture — do what they asked, then the learning happens automatically.",
         "",
       ];
 
