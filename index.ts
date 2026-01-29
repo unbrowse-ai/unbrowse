@@ -336,7 +336,7 @@ const INTERACT_SCHEMA = {
     },
     closeChromeIfNeeded: {
       type: "boolean" as const,
-      description: "If Chrome is running and blocking profile access, close it gracefully and relaunch with your profile (preserves all your logins). Set to true after user confirms.",
+      description: "Only needed if Chrome is running WITHOUT remote debugging. If Chrome has CDP enabled (--remote-debugging-port), we connect directly without closing. Set true only if asked to close Chrome.",
     },
   },
   required: ["url", "actions"],
@@ -2825,12 +2825,15 @@ const plugin = {
                 } catch { /* not available */ }
               }
 
-              if (chromeIsRunning && !cdpAvailable && p.closeChromeIfNeeded) {
-                // User gave permission - close Chrome and continue
+              if (chromeIsRunning && cdpAvailable) {
+                // Chrome has CDP enabled - connect directly, no need to close
+                logger.info(`[unbrowse] Chrome has CDP enabled — connecting directly`);
+              } else if (chromeIsRunning && !cdpAvailable && p.closeChromeIfNeeded) {
+                // Chrome running without CDP and user gave permission - close and relaunch
                 logger.info(`[unbrowse] Closing Chrome to use your profile with all logins...`);
                 await closeChrome();
               }
-              // If Chrome is running but no CDP available and no permission, we'll fall back to Playwright
+              // If Chrome is running without CDP and no permission, fall back to Playwright
             }
 
             // Normalize actions — LLMs sometimes send malformed action objects
