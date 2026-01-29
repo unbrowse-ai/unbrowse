@@ -3782,8 +3782,11 @@ const plugin = {
         "2. If no skill exists, use the `browser` tool to complete the task by clicking/typing on the page",
         "3. After completing the task, the APIs are automatically captured so next time you can replay directly",
         "",
+        "When the user asks you to LEARN a website (explore, capture, learn the API, etc.):",
+        "- Use unbrowse_capture to crawl and capture API traffic without a specific task",
+        "- Use the `browser` tool to manually explore and interact — APIs are captured as you go",
+        "",
         "The `browser` tool returns indexed elements like [1] <button> [2] <input>. Use click_element(index=N), input_text(index=N, text=...).",
-        "IMPORTANT: Actually COMPLETE the user's task. Don't just explore or capture — do what they asked, then the learning happens automatically.",
         "",
       ];
 
