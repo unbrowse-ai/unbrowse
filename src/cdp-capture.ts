@@ -23,6 +23,13 @@ import type { HarEntry } from "./types.js";
 /** Default browser control port (gateway port + 2). */
 const DEFAULT_PORT = 18791;
 
+/** Cache of headers captured via CDP (url -> headers). */
+const headerCache = new Map<string, Record<string, string>>();
+const responseHeaderCache = new Map<string, Record<string, string>>();
+
+/** Whether CDP header listener is active. */
+let cdpListenerActive = false;
+
 /** Shape returned by clawdbot's GET /requests endpoint. */
 interface BrowserRequestEntry {
   id: string;
@@ -135,17 +142,33 @@ export async function fetchBrowserCookies(port = DEFAULT_PORT): Promise<Record<s
  *
  * After install.sh patches clawdbot, request and response headers are
  * included in the /requests endpoint. Without the patch, headers are empty
- * and auth is extracted from cookies instead.
+ * and we try to enrich from CDP header cache, falling back to cookies.
  */
 export function requestsToHar(entries: BrowserRequestEntry[]): { log: { entries: HarEntry[] } } {
   const harEntries: HarEntry[] = entries.map((entry) => {
     // Convert Record<string,string> headers to HAR name/value pairs
-    const reqHeaders = entry.headers
-      ? Object.entries(entry.headers).map(([name, value]) => ({ name, value }))
-      : [];
-    const respHeaders = entry.responseHeaders
-      ? Object.entries(entry.responseHeaders).map(([name, value]) => ({ name, value }))
-      : [];
+    // First try entry.headers, then fall back to CDP cache
+    let reqHeaders: Array<{ name: string; value: string }> = [];
+    if (entry.headers && Object.keys(entry.headers).length > 0) {
+      reqHeaders = Object.entries(entry.headers).map(([name, value]) => ({ name, value }));
+    } else {
+      // Try CDP header cache
+      const cached = headerCache.get(entry.url);
+      if (cached) {
+        reqHeaders = Object.entries(cached).map(([name, value]) => ({ name, value }));
+      }
+    }
+
+    let respHeaders: Array<{ name: string; value: string }> = [];
+    if (entry.responseHeaders && Object.keys(entry.responseHeaders).length > 0) {
+      respHeaders = Object.entries(entry.responseHeaders).map(([name, value]) => ({ name, value }));
+    } else {
+      // Try CDP response header cache
+      const cached = responseHeaderCache.get(entry.url);
+      if (cached) {
+        respHeaders = Object.entries(cached).map(([name, value]) => ({ name, value }));
+      }
+    }
 
     return {
       request: {
@@ -166,11 +189,104 @@ export function requestsToHar(entries: BrowserRequestEntry[]): { log: { entries:
 }
 
 /**
+ * Start CDP header listener to capture headers in real-time.
+ * Connects to Chrome's remote debugging port if available.
+ * Headers are cached and used to enrich /requests data.
+ */
+export async function startCdpHeaderListener(chromePort = 9222): Promise<boolean> {
+  if (cdpListenerActive) return true;
+
+  try {
+    // Check if Chrome has remote debugging enabled
+    const resp = await fetch(`http://127.0.0.1:${chromePort}/json/version`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!resp.ok) return false;
+
+    const data = await resp.json() as { webSocketDebuggerUrl?: string };
+    const wsUrl = data.webSocketDebuggerUrl;
+    if (!wsUrl) return false;
+
+    // Connect via WebSocket and listen for Network events
+    const WebSocket = (await import("ws")).default;
+    const ws = new WebSocket(wsUrl);
+
+    let msgId = 1;
+
+    ws.on("open", () => {
+      // Enable network domain
+      ws.send(JSON.stringify({ id: msgId++, method: "Network.enable" }));
+      cdpListenerActive = true;
+    });
+
+    ws.on("message", (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString());
+
+        // Cache request headers
+        if (msg.method === "Network.requestWillBeSent") {
+          const req = msg.params?.request;
+          if (req?.url && req?.headers) {
+            headerCache.set(req.url, req.headers);
+            // Keep cache bounded
+            if (headerCache.size > 1000) {
+              const firstKey = headerCache.keys().next().value;
+              if (firstKey) headerCache.delete(firstKey);
+            }
+          }
+        }
+
+        // Cache response headers
+        if (msg.method === "Network.responseReceived") {
+          const resp = msg.params?.response;
+          if (resp?.url && resp?.headers) {
+            responseHeaderCache.set(resp.url, resp.headers);
+            if (responseHeaderCache.size > 1000) {
+              const firstKey = responseHeaderCache.keys().next().value;
+              if (firstKey) responseHeaderCache.delete(firstKey);
+            }
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    });
+
+    ws.on("close", () => {
+      cdpListenerActive = false;
+    });
+
+    ws.on("error", () => {
+      cdpListenerActive = false;
+    });
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get cached headers for a URL (if CDP listener captured them).
+ */
+export function getCachedHeaders(url: string): Record<string, string> | undefined {
+  return headerCache.get(url);
+}
+
+/**
+ * Get cached response headers for a URL.
+ */
+export function getCachedResponseHeaders(url: string): Record<string, string> | undefined {
+  return responseHeaderCache.get(url);
+}
+
+/**
  * Capture network traffic + cookies from a running browser session
  * and convert to HAR format for the parser pipeline.
  *
  * Requires a browser session started via clawdbot's browser tool
  * (e.g., `browser action=start profile=clawd targetUrl=...`).
+ *
+ * If headers are missing from the /requests endpoint, tries to
+ * enrich them from the CDP header cache.
  */
 export async function captureFromBrowser(port = DEFAULT_PORT): Promise<{
   har: { log: { entries: HarEntry[] } };

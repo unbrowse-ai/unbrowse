@@ -440,31 +440,43 @@ export class VariableDetector {
 
   /**
    * Detect variables from localStorage/sessionStorage
+   * NOTE: Many sites (Grab, Foodpanda, etc.) block this as bot detection.
+   * Disabled by default in agent.ts. Fails silently if blocked.
    */
   private async detectFromStorage(pageUrl: string): Promise<DetectedVariable[]> {
     const detected: DetectedVariable[] = [];
 
-    const storageData = await this.page.evaluate(() => {
-      const data: Array<{ key: string; value: string; storage: "local" | "session" }> = [];
+    let storageData: Array<{ key: string; value: string; storage: "local" | "session" }> = [];
+    try {
+      storageData = await this.page.evaluate(() => {
+        const data: Array<{ key: string; value: string; storage: "local" | "session" }> = [];
 
-      // localStorage
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) {
-          data.push({ key, value: localStorage.getItem(key) || "", storage: "local" });
-        }
-      }
+        try {
+          // localStorage
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+              data.push({ key, value: localStorage.getItem(key) || "", storage: "local" });
+            }
+          }
+        } catch { /* blocked */ }
 
-      // sessionStorage
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key) {
-          data.push({ key, value: sessionStorage.getItem(key) || "", storage: "session" });
-        }
-      }
+        try {
+          // sessionStorage
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key) {
+              data.push({ key, value: sessionStorage.getItem(key) || "", storage: "session" });
+            }
+          }
+        } catch { /* blocked */ }
 
-      return data;
-    });
+        return data;
+      });
+    } catch {
+      // Storage access blocked by security policy - fail silently
+      return [];
+    }
 
     for (const item of storageData) {
       const keyLower = item.key.toLowerCase();

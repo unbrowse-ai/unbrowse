@@ -51,9 +51,13 @@ export interface RunBrowserUseOptions {
   maxSteps?: number;
   maxActionsPerStep?: number;
 
-  /** Browser-Use API key for their optimized model */
+  /** Browser-Use API key (for LLM and cloud browser sessions) */
   llmApiKey?: string;
-  /** Model to use (default: bu-2-0) */
+  /** LLM provider: "browser-use" (default), "openai", "anthropic", or "openrouter" */
+  llmProvider?: "browser-use" | "openai" | "anthropic" | "openrouter";
+  /** Separate API key for LLM if different from llmApiKey */
+  llmProviderApiKey?: string;
+  /** Model to use (default: bu-2-0 for browser-use, gpt-4o for openai) */
   llmModel?: string;
 
   /** Use real Chrome profile with all logins preserved */
@@ -91,7 +95,7 @@ export interface RunBrowserUseOptions {
 export function createBrowserUseLLM(apiKey: string, model = "bu-2-0"): LLMProvider {
   return {
     async chat(messages: Array<{ role: string; content: string }>): Promise<string> {
-      const response = await fetch("https://api.browser-use.com/v1/chat/completions", {
+      const response = await fetch("https://llm.api.browser-use.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -113,7 +117,8 @@ export function createBrowserUseLLM(apiKey: string, model = "bu-2-0"): LLMProvid
       }
 
       const data = await response.json() as any;
-      return data.choices?.[0]?.message?.content || "";
+      // Browser-Use API returns { completion: "..." } not OpenAI format
+      return data.completion || data.choices?.[0]?.message?.content || "";
     },
   };
 }
@@ -152,15 +157,73 @@ export function createOpenAILLM(apiKey: string, model = "gpt-4o", baseUrl = "htt
 }
 
 /**
+ * Create an LLM provider using Anthropic API
+ */
+export function createAnthropicLLM(apiKey: string, model = "claude-sonnet-4-20250514"): LLMProvider {
+  return {
+    async chat(messages: Array<{ role: string; content: string }>): Promise<string> {
+      // Convert messages to Anthropic format
+      const systemMessage = messages.find(m => m.role === "system")?.content || "";
+      const nonSystemMessages = messages.filter(m => m.role !== "system");
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 4096,
+          system: systemMessage,
+          messages: nonSystemMessages.map((m) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.content,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Anthropic API error: ${response.status} ${error}`);
+      }
+
+      const data = await response.json() as any;
+      return data.content?.[0]?.text || "";
+    },
+  };
+}
+
+/**
  * Run the browser-use agent with simplified options
  */
 export async function runBrowserUseAgent(options: RunBrowserUseOptions): Promise<AgentResult> {
-  // Create LLM provider
-  if (!options.llmApiKey) {
-    throw new Error("llmApiKey is required (Browser-Use API key)");
+  // Create LLM provider - use Browser-Use LLM by default, or specified provider
+  const llmProvider = options.llmProvider ?? "browser-use";
+  const llmApiKey = options.llmProviderApiKey ?? options.llmApiKey;
+
+  if (!llmApiKey) {
+    throw new Error("llmApiKey is required");
   }
 
-  const llm = createBrowserUseLLM(options.llmApiKey, options.llmModel);
+  // Create LLM provider based on selection
+  let llm: LLMProvider;
+  switch (llmProvider) {
+    case "anthropic":
+      llm = createAnthropicLLM(llmApiKey, options.llmModel ?? "claude-sonnet-4-20250514");
+      break;
+    case "openrouter":
+      llm = createOpenAILLM(llmApiKey, options.llmModel ?? "anthropic/claude-sonnet-4", "https://openrouter.ai/api/v1");
+      break;
+    case "openai":
+      llm = createOpenAILLM(llmApiKey, options.llmModel ?? "gpt-4o");
+      break;
+    case "browser-use":
+    default:
+      llm = createBrowserUseLLM(llmApiKey, options.llmModel ?? "bu-2-0");
+      break;
+  }
 
   // Build config
   const agentConfig: AgentConfig = {
@@ -174,7 +237,7 @@ export async function runBrowserUseAgent(options: RunBrowserUseOptions): Promise
 
   // Build browser config
   const browserConfig: BrowserConfig = {
-    // Cloud browser config (uses same API key for LLM and browser)
+    // Cloud browser config (Browser-Use API key for cloud browser sessions)
     browserUseApiKey: options.llmApiKey,
     forceCloud: options.forceCloud,
     proxyCountry: options.proxyCountry,

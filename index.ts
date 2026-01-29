@@ -11,7 +11,6 @@
  *   unbrowse_capture   — Provide URLs → auto-launches browser → captures all API traffic
  *   unbrowse_replay    — Execute API calls with stored credentials (auto-refresh on 401)
  *   unbrowse_login     — Log in with credentials via Playwright/stealth (for auth-required sites)
- *   unbrowse_interact  — Drive browser pages (click, fill, select, read) for multi-step flows
  *   unbrowse_learn     — Parse a HAR file → generate skill
  *   unbrowse_skills    — List all discovered skills
  *   unbrowse_stealth   — Launch stealth cloud browser (BrowserBase) — API execution only
@@ -31,7 +30,7 @@ import { homedir } from "node:os";
 
 import { parseHar } from "./src/har-parser.js";
 import { generateSkill } from "./src/skill-generator.js";
-import { fetchBrowserCookies, fetchCapturedRequests } from "./src/cdp-capture.js";
+import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener } from "./src/cdp-capture.js";
 import { AutoDiscovery } from "./src/auto-discover.js";
 import {
   createStealthSession,
@@ -409,60 +408,6 @@ const LOGIN_SCHEMA = {
   required: ["loginUrl"],
 };
 
-const AGENT_SCHEMA = {
-  type: "object" as const,
-  properties: {
-    task: {
-      type: "string" as const,
-      description:
-        "Natural language task to execute. The AI agent will browse the web autonomously to complete it. " +
-        'e.g. "Go to twitter.com and post \'Hello world\'" or "Search for flights to Paris on kayak.com"',
-    },
-    url: {
-      type: "string" as const,
-      description: "Starting URL (optional). If not provided, the agent will start from a search engine.",
-    },
-    maxSteps: {
-      type: "number" as const,
-      description: "Maximum number of browser actions the agent can take (default: 50).",
-    },
-    timeoutMinutes: {
-      type: "number" as const,
-      description: "Maximum time to run in minutes (default: 15, max: 60).",
-    },
-    profileId: {
-      type: "string" as const,
-      description: "Browser profile ID for authenticated sessions (create with action='create_profile').",
-    },
-    action: {
-      type: "string" as const,
-      enum: ["run", "status", "stop", "list_profiles", "create_profile"],
-      description:
-        "Action to perform. run: execute task (default), status: check task status, stop: cancel task, " +
-        "list_profiles: show saved browser profiles, create_profile: create a new profile for authenticated sessions.",
-    },
-    taskId: {
-      type: "string" as const,
-      description: "Task ID (required for status/stop actions).",
-    },
-    profileName: {
-      type: "string" as const,
-      description: "Name for new profile (required for create_profile action).",
-    },
-    useChromeProfile: {
-      type: "boolean" as const,
-      description:
-        "Use real Chrome browser with your profile (preserves all logins, cookies, extensions). " +
-        "Requires Chrome to be fully closed before running. Default: false.",
-    },
-    llmModel: {
-      type: "string" as const,
-      description: "LLM model to use. Default: bu-2-0 (browser-use optimized). Options: bu-2-0, bu-1-0, bu-latest.",
-    },
-  },
-  required: [] as string[],
-};
-
 // ── Plugin ────────────────────────────────────────────────────────────────────
 
 const plugin = {
@@ -541,6 +486,10 @@ const plugin = {
     const browserUseApiKey = cfg.browserUseApiKey as string | undefined;
     // browserUseCloudApiKey and browserUseApiKey are the same - support both config names
     const browserUseCloudApiKey = (cfg.browserUseCloudApiKey as string | undefined) ?? browserUseApiKey;
+    // LLM configuration - defaults to Browser-Use LLM (bu-2-0)
+    const llmProvider = (cfg.llmProvider as string | undefined) ?? "browser-use";
+    const llmApiKey = (cfg.llmApiKey as string | undefined);
+    const llmModel = (cfg.llmModel as string | undefined) ?? "bu-2-0";
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://skills.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
@@ -759,7 +708,7 @@ const plugin = {
       }
     }
 
-    /** Ensure shared browser and context exist for use by unbrowse_agent.
+    /** Ensure shared browser and context exist for browser-based tools.
      *  Returns the shared browser and context, creating them if needed.
      */
     async function ensureSharedBrowser(): Promise<{ browser: any; context: any }> {
@@ -3639,216 +3588,6 @@ const plugin = {
           },
         },
 
-        // ── unbrowse_agent ─────────────────────────────────────────────
-        {
-          name: "unbrowse_agent",
-          label: "AI Browser Agent",
-          description:
-            "Run an autonomous AI agent that browses the web to complete tasks. " +
-            "Powered by browser-use. Give it a natural language task and it will " +
-            "click, type, navigate, and extract data autonomously. Also captures " +
-            "API traffic for skill generation.",
-          parameters: AGENT_SCHEMA,
-          async execute(_toolCallId: string, params: unknown) {
-            const p = params as {
-              task?: string;
-              url?: string;
-              maxSteps?: number;
-              timeoutMinutes?: number;
-              action?: "run" | "status" | "stop" | "list_profiles" | "create_profile";
-              taskId?: string;
-              profileId?: string;
-              profileName?: string;
-              llmModel?: string;
-              useChromeProfile?: boolean;
-            };
-
-            const action = p.action ?? "run";
-
-            // For non-run actions, use browser-use Cloud API
-            if (action !== "run") {
-              if (!browserUseCloudApiKey) {
-                return {
-                  content: [{
-                    type: "text",
-                    text: `browser-use Cloud API not configured. Set browserUseCloudApiKey in unbrowse plugin config.\n\n` +
-                      `Get your API key at: https://cloud.browser-use.com/`,
-                  }],
-                };
-              }
-
-              const { createTask, getTask, stopTask, waitForTask, listProfiles, createProfile } =
-                await import("./src/browser-use-cloud.js");
-
-              try {
-                if (action === "status" && p.taskId) {
-                  const task = await getTask(browserUseCloudApiKey, p.taskId);
-                  return {
-                    content: [{
-                      type: "text",
-                      text: `Task ${task.id}:\n` +
-                        `  Status: ${task.status}\n` +
-                        `  Prompt: ${task.prompt}\n` +
-                        (task.result ? `  Result: ${task.result}\n` : "") +
-                        (task.error ? `  Error: ${task.error}\n` : ""),
-                    }],
-                  };
-                }
-
-                if (action === "stop" && p.taskId) {
-                  await stopTask(browserUseCloudApiKey, p.taskId);
-                  return { content: [{ type: "text", text: `Task ${p.taskId} stopped.` }] };
-                }
-
-                if (action === "list_profiles") {
-                  const profiles = await listProfiles(browserUseCloudApiKey);
-                  if (profiles.length === 0) {
-                    return { content: [{ type: "text", text: "No browser profiles found." }] };
-                  }
-                  const lines = profiles.map((p) => `  ${p.id}: ${p.name}`);
-                  return { content: [{ type: "text", text: `Browser profiles:\n${lines.join("\n")}` }] };
-                }
-
-                if (action === "create_profile" && p.profileName) {
-                  const profile = await createProfile(browserUseCloudApiKey, p.profileName);
-                  return {
-                    content: [{
-                      type: "text",
-                      text: `Created profile: ${profile.id} (${profile.name})\n\nUse profileId="${profile.id}" in future agent tasks.`,
-                    }],
-                  };
-                }
-
-                return { content: [{ type: "text", text: `Unknown action: ${action}` }] };
-              } catch (err) {
-                return { content: [{ type: "text", text: `browser-use API error: ${(err as Error).message}` }] };
-              }
-            }
-
-            // Run action - use local browser-use-typescript
-            if (!p.task) {
-              return { content: [{ type: "text", text: "Missing required parameter: task" }] };
-            }
-
-            try {
-              const { runBrowserAgent } = await import("./src/browser-use-agent.js");
-
-              // Require browser-use API key
-              if (!browserUseCloudApiKey) {
-                return {
-                  content: [{
-                    type: "text",
-                    text: `Browser-Use API key required. Set browserUseApiKey in unbrowse plugin config.\n\nGet your API key at: https://cloud.browser-use.com/`,
-                  }],
-                };
-              }
-
-              // Get shared browser for network capture (enables skill generation)
-              let existingBrowser: any;
-              let existingContext: any;
-              try {
-                const shared = await ensureSharedBrowser();
-                existingBrowser = shared.browser;
-                existingContext = shared.context;
-              } catch (err) {
-                logger.warn(`[unbrowse] Could not get shared browser: ${(err as Error).message}`);
-                // Continue without shared browser - agent will create its own
-              }
-
-              const useChromeProfile = p.useChromeProfile ?? false;
-              logger.info(`[unbrowse] Agent starting: "${p.task.slice(0, 50)}..." (bu-2-0, chromeProfile=${useChromeProfile}, shared=${!!existingBrowser})`);
-
-              const result = await runBrowserAgent({
-                task: p.task,
-                startUrl: p.url,
-                maxSteps: p.maxSteps ?? 50,
-                llmApiKey: browserUseCloudApiKey,
-                llmModel: p.llmModel ?? "bu-2-0",
-                useChromeProfile,
-                existingBrowser,
-                existingContext,
-                onStep: (step, action) => {
-                  logger.info(`[unbrowse] Agent step ${step}: ${action.slice(0, 100)}`);
-                },
-              });
-
-              // Generate skill from captured requests if any
-              let skillInfo = "";
-              if (result.capturedRequests.length >= 3) {
-                try {
-                  // Convert capturedRequests to HAR format for the skill generator
-                  const harEntries = result.capturedRequests.map((req) => ({
-                    request: {
-                      method: req.method,
-                      url: req.url,
-                      headers: req.headers
-                        ? Object.entries(req.headers).map(([name, value]) => ({ name, value }))
-                        : [],
-                      cookies: [],
-                      postData: req.postData ? { text: req.postData, mimeType: "application/json" } : undefined,
-                    },
-                    response: {
-                      status: req.status,
-                      headers: req.responseHeaders
-                        ? Object.entries(req.responseHeaders).map(([name, value]) => ({ name, value }))
-                        : [],
-                    },
-                  }));
-
-                  const har = { log: { entries: harEntries } };
-                  const apiData = parseHar(har, p.url);
-
-                  // Generate the skill
-                  const skillResult = await generateSkill(apiData, defaultOutputDir);
-                  discovery.markLearned(skillResult.service);
-
-                  skillInfo = `\n\nGenerated skill "${skillResult.service}" with ${skillResult.endpointCount} endpoints. Use unbrowse_replay service="${skillResult.service}" to call APIs directly.`;
-                  logger.info(`[unbrowse] Agent generated skill: ${skillResult.service} (${skillResult.endpointCount} endpoints)`);
-                } catch (skillErr) {
-                  // Skill generation failed - still report captured requests
-                  const domain = p.url ? new URL(p.url).hostname : result.capturedRequests[0]?.url
-                    ? new URL(result.capturedRequests[0].url).hostname
-                    : null;
-                  if (domain) {
-                    const service = domain
-                      .replace(/^(www|api|app)\./, "")
-                      .replace(/\.(com|io|org|net)$/, "")
-                      .replace(/\./g, "-");
-                    skillInfo = `\n\nCaptured ${result.capturedRequests.length} API calls (skill generation failed: ${(skillErr as Error).message.slice(0, 50)}).`;
-                  }
-                }
-              }
-
-              const stepSummary = result.steps.slice(-5).map((s) => `  ${s.step}: ${s.action.slice(0, 80)}`).join("\n");
-
-              return {
-                content: [{
-                  type: "text",
-                  text: `Agent ${result.success ? "completed" : "finished"} (${result.steps.length} steps)\n\n` +
-                    (result.finalResult ? `Result: ${result.finalResult}\n\n` : "") +
-                    `Recent steps:\n${stepSummary}` +
-                    skillInfo,
-                }],
-              };
-            } catch (err) {
-              const msg = (err as Error).message;
-              logger.warn(`[unbrowse] Agent failed: ${msg}`);
-
-              if (msg.includes("langchain")) {
-                return {
-                  content: [{
-                    type: "text",
-                    text: `LLM dependency missing. Install with:\n\n` +
-                      `npm install @langchain/openai @langchain/anthropic\n\n` +
-                      `Then set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable.`,
-                  }],
-                };
-              }
-
-              return { content: [{ type: "text", text: `Agent failed: ${msg}` }] };
-            }
-          },
-        },
       ];
 
       // ── Meta-Tool: unbrowse_do ────────────────────────────────────────────
@@ -3921,7 +3660,7 @@ const plugin = {
               output += `Use \`unbrowse_desktop\` with app="${resolution.app}" to control the desktop app.\n`;
               break;
             case "browser_agent":
-              output += `Use \`unbrowse_agent\` or the \`browse\` tool to navigate and interact with the website.\n`;
+              output += `Use the \`browse\` tool to navigate and interact with the website.\n`;
               break;
           }
 
@@ -4121,7 +3860,6 @@ const plugin = {
       "unbrowse_login",
       "unbrowse_wallet",
       "browser",
-      "unbrowse_agent",
       "unbrowse_do",
       "unbrowse_desktop",
     ];
@@ -4163,10 +3901,10 @@ const plugin = {
         }
       }
 
-      // Auto-discovery: trigger on browse or unbrowse_agent tool calls
+      // Auto-discovery: trigger on browse tool calls
       if (!autoDiscoverEnabled) return;
       if (typeof toolName !== "string") return;
-      if (toolName !== "browse" && toolName !== "unbrowse_agent") return;
+      if (toolName !== "browse") return;
 
       try {
         const generated = await discovery.onBrowserToolCall();
@@ -4195,17 +3933,15 @@ const plugin = {
       const lines: string[] = [
         "[Browser] You can browse websites and complete tasks for the user.",
         "",
-        "IMPORTANT: Do NOT use the `browser` tool — it requires Chrome extension setup.",
-        "",
         "When the user asks you to DO something on a website (post, book, order, submit, login, etc.):",
-        "1. First check unbrowse_skills — if you already have a skill for that service, use unbrowse_replay to call APIs directly (faster)",
-        "2. If no skill exists, use `unbrowse_agent` to complete the task autonomously",
-        "3. After completing the task, the APIs are automatically captured so next time you can replay directly",
+        "1. Check unbrowse_skills first — if a skill exists WITH VALID AUTH, use unbrowse_replay to call APIs directly",
+        "2. If no skill exists, use the `browser` tool to browse and complete the task manually",
+        "3. While browsing, APIs are auto-captured — next time you can use unbrowse_replay",
         "",
-        "`unbrowse_agent` is an autonomous AI browser agent powered by browser-use.",
-        "Give it a natural language task and optional starting URL:",
-        "  unbrowse_agent({task: \"Book a hotel at Agoda for tonight\", url: \"https://agoda.com\"})",
-        "It will click, type, and navigate automatically to complete the task.",
+        "unbrowse_replay is for calling APIs from previously captured sessions.",
+        "- Skills are auto-generated when you browse with the `browser` tool",
+        "- Use unbrowse_login to capture auth for sites that need login",
+        "- Check unbrowse_skills to see available skills and their endpoints",
         "",
       ];
 
@@ -4254,6 +3990,51 @@ const plugin = {
       return { prependContext: lines.join("\n") };
     });
 
+    // ── Cleanup on shutdown ─────────────────────────────────────────────────
+    // Close all stealth sessions and shared browser when gateway shuts down
+    const cleanupAllSessions = async () => {
+      // Close stealth sessions
+      if (stealthSessions.size > 0 && browserUseApiKey) {
+        logger.info(`[unbrowse] Cleaning up ${stealthSessions.size} stealth session(s)...`);
+        for (const [id] of stealthSessions) {
+          try {
+            await stopStealthSession(browserUseApiKey, id);
+            logger.info(`[unbrowse] Stopped stealth session: ${id}`);
+          } catch { /* ignore */ }
+        }
+        stealthSessions.clear();
+      }
+
+      // Close shared browser
+      if (sharedBrowser) {
+        try {
+          if (sharedContext) await sharedContext.close();
+          await sharedBrowser.close();
+          logger.info("[unbrowse] Closed shared browser");
+        } catch { /* ignore */ }
+        sharedBrowser = null;
+        sharedContext = null;
+      }
+
+      // Close any remaining browser sessions
+      for (const [service, session] of browserSessions) {
+        try {
+          if (session.context) await session.context.close();
+          if (session.browser) await session.browser.close();
+          logger.info(`[unbrowse] Closed browser session: ${service}`);
+        } catch { /* ignore */ }
+      }
+      browserSessions.clear();
+    };
+
+    // Register cleanup on process exit signals
+    const handleExit = () => {
+      cleanupAllSessions().catch(() => {});
+    };
+    process.on("beforeExit", handleExit);
+    process.on("SIGINT", handleExit);
+    process.on("SIGTERM", handleExit);
+
     const toolCount = toolNames.length;
     const features = [
       `${toolCount} tools`,
@@ -4264,6 +4045,14 @@ const plugin = {
     ].filter(Boolean).join(", ");
 
     logger.info(`[unbrowse] Plugin registered (${features})`);
+
+    // Try to start CDP header listener for Chrome remote debugging
+    // This captures headers in real-time to enrich /requests data from extension
+    startCdpHeaderListener(9222).then((started) => {
+      if (started) {
+        logger.info("[unbrowse] CDP header listener active (Chrome port 9222)");
+      }
+    }).catch(() => { /* Chrome remote debugging not available */ });
   },
 };
 

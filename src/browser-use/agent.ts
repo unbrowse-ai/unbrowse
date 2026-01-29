@@ -559,7 +559,7 @@ export class BrowserUseAgent {
     this.variableDetector = new VariableDetector(this.page!, {
       detectForms: true,
       detectCookies: true,
-      detectStorage: true,
+      detectStorage: false, // Disabled - triggers bot detection on delivery apps (Grab, Foodpanda, etc.)
       detectUrlParams: true,
       maskSensitive: true,
     });
