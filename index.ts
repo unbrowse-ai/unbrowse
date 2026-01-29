@@ -55,6 +55,9 @@ import {
   extractRefreshConfig,
   type RefreshConfig,
 } from "./src/token-refresh.js";
+import { TaskWatcher, type TaskIntent, type FailureInfo } from "./src/task-watcher.js";
+import { CapabilityResolver, type Resolution } from "./src/capability-resolver.js";
+import { DesktopAutomation } from "./src/desktop-automation.js";
 
 /** Scan HAR entries for refresh token endpoints and save config to auth.json */
 function detectAndSaveRefreshConfig(
@@ -3710,6 +3713,260 @@ const plugin = {
         },
       ];
 
+      // ── Meta-Tool: unbrowse_do ────────────────────────────────────────────
+      // "Do whatever it takes" orchestrator
+      const taskWatcher = new TaskWatcher();
+      const capabilityResolver = new CapabilityResolver(defaultOutputDir);
+      const desktopAuto = new DesktopAutomation(logger);
+
+      toolList.push({
+        name: "unbrowse_do",
+        label: "Do Task",
+        description:
+          "Meta-tool: figure out how to accomplish a task. Analyzes intent, checks for existing skills, " +
+          "suggests the best approach (API replay, browser agent, desktop automation, or API capture).",
+        parameters: {
+          type: "object" as const,
+          properties: {
+            task: {
+              type: "string" as const,
+              description: "What you want to accomplish (e.g., 'post a tweet', 'create a Linear ticket')",
+            },
+            domain: {
+              type: "string" as const,
+              description: "The service/website this relates to (e.g., 'twitter', 'linear', 'notion')",
+            },
+          },
+          required: ["task"],
+        },
+        async execute(_toolCallId: string, params: unknown) {
+          const p = params as { task: string; domain?: string };
+          const intent = taskWatcher.parseIntent(p.task);
+          if (p.domain) intent.domain = p.domain;
+
+          const resolution = await capabilityResolver.resolve(intent);
+          const recommendation = capabilityResolver.getRecommendation(resolution);
+
+          let output = `## Task Analysis\n\n`;
+          output += `**Task**: ${p.task}\n`;
+          output += `**Domain**: ${intent.domain || "unknown"}\n`;
+          output += `**Action**: ${intent.action || "unknown"}\n`;
+          output += `**Confidence**: ${Math.round(intent.confidence * 100)}%\n\n`;
+
+          output += `## Recommended Approach: ${resolution.strategy}\n\n`;
+          output += recommendation + "\n\n";
+
+          // Include skill details if available
+          if (resolution.skill) {
+            output += `### Available Skill: ${resolution.skill.name}\n`;
+            output += `- **Path**: ${resolution.skill.path}\n`;
+            output += `- **Auth**: ${resolution.skill.hasAuth ? "stored" : "none"}\n`;
+            output += `- **Endpoints**:\n`;
+            for (const ep of resolution.skill.endpoints.slice(0, 5)) {
+              output += `  - ${ep}\n`;
+            }
+            if (resolution.skill.endpoints.length > 5) {
+              output += `  - ...and ${resolution.skill.endpoints.length - 5} more\n`;
+            }
+          }
+
+          // Provide next step instructions
+          output += `\n## Next Step\n\n`;
+          switch (resolution.strategy) {
+            case "skill":
+              output += `Use \`unbrowse_replay\` with skillName="${resolution.skill!.name}" to call the API.\n`;
+              break;
+            case "capture":
+              output += `Use \`unbrowse_capture\` with seedUrl for ${resolution.domain} to capture the API first.\n`;
+              break;
+            case "desktop":
+              output += `Use \`unbrowse_desktop\` with app="${resolution.app}" to control the desktop app.\n`;
+              break;
+            case "browser_agent":
+              output += `Use \`unbrowse_agent\` or the \`browse\` tool to navigate and interact with the website.\n`;
+              break;
+          }
+
+          return { content: [{ type: "text", text: output }] };
+        },
+      });
+
+      // ── Desktop Automation Tool ───────────────────────────────────────────
+      toolList.push({
+        name: "unbrowse_desktop",
+        label: "Desktop Automation",
+        description:
+          "Control macOS desktop apps via AppleScript. Use when browser/API won't work, or for native apps " +
+          "like Notes, Reminders, Calendar, Finder, Messages, etc.",
+        parameters: {
+          type: "object" as const,
+          properties: {
+            action: {
+              type: "string" as const,
+              enum: [
+                "open_app", "quit_app", "list_apps",
+                "type", "press_key", "click",
+                "clipboard_get", "clipboard_set",
+                "notify", "alert",
+                "notes_create", "reminders_create", "calendar_event",
+                "finder_open", "finder_selection",
+                "safari_url", "safari_open", "chrome_url", "chrome_open",
+                "terminal_run", "imessage_send",
+                "menu_click", "window_list", "window_focus",
+                "applescript",
+              ],
+              description: "The action to perform",
+            },
+            app: {
+              type: "string" as const,
+              description: "App name (for open_app, quit_app, menu_click, window actions)",
+            },
+            text: {
+              type: "string" as const,
+              description: "Text for type, clipboard_set, notes_create, notify, alert, imessage_send, applescript",
+            },
+            key: {
+              type: "string" as const,
+              description: "Key name for press_key (return, tab, escape, f1, etc.)",
+            },
+            modifiers: {
+              type: "array" as const,
+              items: { type: "string" as const },
+              description: "Modifier keys for press_key (command, option, control, shift)",
+            },
+            x: { type: "number" as const, description: "X coordinate for click" },
+            y: { type: "number" as const, description: "Y coordinate for click" },
+            path: { type: "string" as const, description: "File/folder path for finder_open" },
+            url: { type: "string" as const, description: "URL for safari_open, chrome_open" },
+            command: { type: "string" as const, description: "Command for terminal_run" },
+            to: { type: "string" as const, description: "Recipient for imessage_send" },
+            title: { type: "string" as const, description: "Title for notify, alert, reminders_create, calendar_event" },
+            message: { type: "string" as const, description: "Message for notify, alert" },
+            menuPath: {
+              type: "array" as const,
+              items: { type: "string" as const },
+              description: "Menu path for menu_click (e.g., ['File', 'New'])",
+            },
+            window: { type: "string" as const, description: "Window name for window_focus" },
+            folder: { type: "string" as const, description: "Folder for notes_create" },
+            list: { type: "string" as const, description: "List for reminders_create" },
+            dueDate: { type: "string" as const, description: "ISO date for reminders_create" },
+            startDate: { type: "string" as const, description: "ISO date for calendar_event" },
+            endDate: { type: "string" as const, description: "ISO date for calendar_event" },
+            calendar: { type: "string" as const, description: "Calendar name for calendar_event" },
+          },
+          required: ["action"],
+        },
+        async execute(params: any) {
+          const { action, ...rest } = params;
+
+          try {
+            let result;
+
+            switch (action) {
+              case "open_app":
+                result = await desktopAuto.openApp(rest.app);
+                break;
+              case "quit_app":
+                result = await desktopAuto.quitApp(rest.app);
+                break;
+              case "list_apps":
+                const apps = await desktopAuto.listRunningApps();
+                return { content: [{ type: "text", text: `Running apps:\n${apps.join("\n")}` }] };
+
+              case "type":
+                result = await desktopAuto.typeText(rest.text);
+                break;
+              case "press_key":
+                result = await desktopAuto.pressKey(rest.key, rest.modifiers || []);
+                break;
+              case "click":
+                result = await desktopAuto.click(rest.x, rest.y);
+                break;
+
+              case "clipboard_get":
+                const clip = await desktopAuto.getClipboard();
+                return { content: [{ type: "text", text: `Clipboard: ${clip}` }] };
+              case "clipboard_set":
+                result = await desktopAuto.setClipboard(rest.text);
+                break;
+
+              case "notify":
+                result = await desktopAuto.notify(rest.title, rest.message || rest.text);
+                break;
+              case "alert":
+                result = await desktopAuto.alert(rest.title, rest.message || rest.text);
+                break;
+
+              case "notes_create":
+                result = await desktopAuto.notesCreate(rest.text, rest.folder);
+                break;
+              case "reminders_create":
+                const dueDate = rest.dueDate ? new Date(rest.dueDate) : undefined;
+                result = await desktopAuto.remindersCreate(rest.title || rest.text, dueDate, rest.list);
+                break;
+              case "calendar_event":
+                const start = new Date(rest.startDate);
+                const end = rest.endDate ? new Date(rest.endDate) : new Date(start.getTime() + 3600000);
+                result = await desktopAuto.calendarCreateEvent(rest.title, start, end, rest.calendar);
+                break;
+
+              case "finder_open":
+                result = await desktopAuto.finderOpen(rest.path);
+                break;
+              case "finder_selection":
+                const selection = await desktopAuto.finderGetSelection();
+                return { content: [{ type: "text", text: `Selected files:\n${selection.join("\n") || "(none)"}` }] };
+
+              case "safari_url":
+                const safariUrl = await desktopAuto.safariGetUrl();
+                return { content: [{ type: "text", text: `Safari URL: ${safariUrl}` }] };
+              case "safari_open":
+                result = await desktopAuto.safariOpen(rest.url);
+                break;
+              case "chrome_url":
+                const chromeUrl = await desktopAuto.chromeGetUrl();
+                return { content: [{ type: "text", text: `Chrome URL: ${chromeUrl}` }] };
+              case "chrome_open":
+                result = await desktopAuto.chromeOpen(rest.url);
+                break;
+
+              case "terminal_run":
+                result = await desktopAuto.terminalRun(rest.command);
+                break;
+              case "imessage_send":
+                result = await desktopAuto.messagesImessage(rest.to, rest.text || rest.message);
+                break;
+
+              case "menu_click":
+                result = await desktopAuto.clickMenuItem(rest.app, rest.menuPath);
+                break;
+              case "window_list":
+                const windows = await desktopAuto.getWindows(rest.app);
+                return { content: [{ type: "text", text: `Windows:\n${windows.join("\n") || "(none)"}` }] };
+              case "window_focus":
+                result = await desktopAuto.focusWindow(rest.app, rest.window);
+                break;
+
+              case "applescript":
+                result = await desktopAuto.runAppleScript(rest.text);
+                break;
+
+              default:
+                return { content: [{ type: "text", text: `Unknown action: ${action}` }] };
+            }
+
+            if (result.success) {
+              return { content: [{ type: "text", text: result.output || "Success" }] };
+            } else {
+              return { content: [{ type: "text", text: `Failed: ${result.error}` }] };
+            }
+          } catch (err) {
+            return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }] };
+          }
+        },
+      });
+
       return toolList;
     };
 
@@ -3726,6 +3983,8 @@ const plugin = {
       "unbrowse_wallet",
       "browser",
       "unbrowse_agent",
+      "unbrowse_do",
+      "unbrowse_desktop",
     ];
 
     api.registerTool(tools, { names: toolNames });
@@ -3741,28 +4000,48 @@ const plugin = {
     });
     tokenRefreshScheduler.start();
 
-    // ── Auto-Discovery Hook ───────────────────────────────────────────────
-    if (autoDiscoverEnabled) {
-      api.on("after_tool_call", async (event: any) => {
-        // Only trigger on browse tool calls
-        const toolName = event?.toolName ?? event?.tool ?? "";
-        if (typeof toolName !== "string" || toolName !== "browse") return;
+    // ── Failure Detection + Auto-Discovery Hook ────────────────────────────
+    // Detects failures and suggests fixes, plus auto-discovers skills from browse activity
+    const failureWatcher = new TaskWatcher();
+    const failureResolver = new CapabilityResolver(defaultOutputDir);
 
-        // Don't trigger on our own tools
-        if (toolName.startsWith("unbrowse")) return;
+    api.on("after_tool_call", async (event: any) => {
+      const toolName = event?.toolName ?? event?.tool ?? "";
+      const result = event?.result;
+      const error = event?.error;
 
-        try {
-          const generated = await discovery.onBrowserToolCall();
-          if (generated.length > 0) {
-            logger.info(
-              `[unbrowse] Auto-discovered ${generated.length} skill(s): ${generated.join(", ")}`,
-            );
-          }
-        } catch {
-          // Silently ignore — auto-discovery is best-effort
+      // Check for failures that unbrowse can help with
+      if (error || (result && typeof result === "object")) {
+        const failure = failureWatcher.detectFailure(toolName, result, error);
+
+        if (failure && failure.canResolve) {
+          logger.info(
+            `[unbrowse] Detected ${failure.errorType} failure in ${toolName}: ${failure.suggestedAction}`,
+          );
+
+          // Could add auto-remediation here in the future
+          // For now, just log — the agent can use unbrowse_do to get suggestions
         }
-      });
+      }
 
+      // Auto-discovery: only trigger on browse tool calls
+      if (!autoDiscoverEnabled) return;
+      if (typeof toolName !== "string" || toolName !== "browse") return;
+      if (toolName.startsWith("unbrowse")) return;
+
+      try {
+        const generated = await discovery.onBrowserToolCall();
+        if (generated.length > 0) {
+          logger.info(
+            `[unbrowse] Auto-discovered ${generated.length} skill(s): ${generated.join(", ")}`,
+          );
+        }
+      } catch {
+        // Silently ignore — auto-discovery is best-effort
+      }
+    });
+
+    if (autoDiscoverEnabled) {
       logger.info("[unbrowse] Auto-discovery hook active");
     }
 
@@ -3777,16 +4056,20 @@ const plugin = {
       const lines: string[] = [
         "[Browser] You can browse websites and complete tasks for the user.",
         "",
+        "CRITICAL: Do NOT use the `browser` tool — it requires manual Chrome extension setup and will fail.",
+        "ALWAYS use the `browse` tool instead — it works automatically via Playwright.",
+        "",
         "When the user asks you to DO something on a website (post, book, order, submit, login, etc.):",
         "1. First check unbrowse_skills — if you already have a skill for that service, use unbrowse_replay to call APIs directly (faster)",
-        "2. If no skill exists, use the `browse` tool to complete the task by clicking/typing on the page",
+        "2. If no skill exists, use `browse` to complete the task by clicking/typing on the page",
         "3. After completing the task, the APIs are automatically captured so next time you can replay directly",
         "",
         "When the user asks you to LEARN a website (explore, capture, learn the API, etc.):",
         "- Use unbrowse_capture to crawl and capture API traffic without a specific task",
-        "- Use the `browse` tool to manually explore and interact — APIs are captured as you go",
+        "- Use `browse` to manually explore and interact — APIs are captured as you go",
         "",
-        "The `browse` tool returns indexed elements like [1] <button> [2] <input>. Use click_element(index=N), input_text(index=N, text=...).",
+        "`browse` tool syntax: browse({url: \"...\", actions: [{action: \"click_element\", index: N}, {action: \"input_text\", index: N, text: \"...\"}]})",
+        "Returns indexed elements like [1] <button> [2] <input>. Reference elements by their index number.",
         "",
       ];
 
