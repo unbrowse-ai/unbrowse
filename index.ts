@@ -21,7 +21,7 @@
  *   unbrowse_wallet    — Manage Solana wallet (auto-generate, set address, check status)
  *
  * Hooks:
- *   after_tool_call    — Auto-discovers skills when agent uses browser tool
+ *   after_tool_call    — Auto-discovers skills when agent uses browse tool
  */
 
 import type { ClawdbotPluginApi, ClawdbotPluginToolContext } from "clawdbot/plugin-sdk";
@@ -1129,7 +1129,7 @@ const plugin = {
                   "",
                   `⚠️  High failure rate: ${failureDetails.join(", ")} out of ${totalRequests} requests`,
                   `   The site may be blocking automated crawls. Skill may be incomplete.`,
-                  `   Try: unbrowse_replay with useStealth=true, or the browser tool for manual exploration.`,
+                  `   Try: unbrowse_replay with useStealth=true, or the browse tool for manual exploration.`,
                 );
                 logger.warn(`[unbrowse] High failure rate (${Math.round(failureRate * 100)}%) — ${failureDetails.join(", ")}`);
               }
@@ -2775,10 +2775,10 @@ const plugin = {
             return { content: [{ type: "text", text: lines.join("\n") }] };
           },
         },
-        // ── browser ──────────────────────────────────────────────────────
+        // ── browse ───────────────────────────────────────────────────────
         // Task-focused browsing: complete user's task, learn APIs as byproduct
         {
-          name: "browser",
+          name: "browse",
           label: "Browse Web",
           description:
             "Complete tasks on websites — login, fill forms, click buttons, submit orders, post content, etc. " +
@@ -3744,9 +3744,9 @@ const plugin = {
     // ── Auto-Discovery Hook ───────────────────────────────────────────────
     if (autoDiscoverEnabled) {
       api.on("after_tool_call", async (event: any) => {
-        // Only trigger on browser tool calls
+        // Only trigger on browse tool calls
         const toolName = event?.toolName ?? event?.tool ?? "";
-        if (typeof toolName !== "string" || !toolName.startsWith("browser")) return;
+        if (typeof toolName !== "string" || toolName !== "browse") return;
 
         // Don't trigger on our own tools
         if (toolName.startsWith("unbrowse")) return;
@@ -3768,7 +3768,7 @@ const plugin = {
 
     // ── Agent Context Hook — Unbrowse Capabilities + Wallet Prompt ─────────
     // Inject unbrowse capabilities and wallet status so the agent:
-    // 1. Uses browser tool to COMPLETE TASKS (not just learn)
+    // 1. Uses browse tool to COMPLETE TASKS (not just learn)
     // 2. Falls back to unbrowse_replay for known services
     api.on("before_agent_start", async () => {
       // Wait for wallet generation to complete (may still be running)
@@ -3779,14 +3779,14 @@ const plugin = {
         "",
         "When the user asks you to DO something on a website (post, book, order, submit, login, etc.):",
         "1. First check unbrowse_skills — if you already have a skill for that service, use unbrowse_replay to call APIs directly (faster)",
-        "2. If no skill exists, use the `browser` tool to complete the task by clicking/typing on the page",
+        "2. If no skill exists, use the `browse` tool to complete the task by clicking/typing on the page",
         "3. After completing the task, the APIs are automatically captured so next time you can replay directly",
         "",
         "When the user asks you to LEARN a website (explore, capture, learn the API, etc.):",
         "- Use unbrowse_capture to crawl and capture API traffic without a specific task",
-        "- Use the `browser` tool to manually explore and interact — APIs are captured as you go",
+        "- Use the `browse` tool to manually explore and interact — APIs are captured as you go",
         "",
-        "The `browser` tool returns indexed elements like [1] <button> [2] <input>. Use click_element(index=N), input_text(index=N, text=...).",
+        "The `browse` tool returns indexed elements like [1] <button> [2] <input>. Use click_element(index=N), input_text(index=N, text=...).",
         "",
       ];
 
