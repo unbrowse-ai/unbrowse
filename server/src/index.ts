@@ -16,7 +16,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { initDb, getDb } from "./db.js";
-import { searchSkills } from "./routes/search.js";
+import { searchSkills, getLeaderboard } from "./routes/search.js";
 import { getSkillSummary } from "./routes/summary.js";
 import { downloadSkill } from "./routes/download.js";
 import { publishSkill } from "./routes/publish.js";
@@ -73,6 +73,10 @@ const server = Bun.serve({
       // Search
       else if (path === "/skills/search" && method === "GET") {
         response = searchSkills(req);
+      }
+      // Leaderboard — top abilities by unique payers
+      else if (path === "/abilities/leaderboard" && method === "GET") {
+        response = getLeaderboard(req);
       }
       // Summary (free)
       else if (path.match(/^\/skills\/([^/]+)\/summary$/) && method === "GET") {

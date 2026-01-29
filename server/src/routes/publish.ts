@@ -53,18 +53,46 @@ function deriveTags(service: string, endpoints: { path: string }[]): string[] {
   return [...tags];
 }
 
+// Ability type pricing (in cents)
+const ABILITY_PRICES: Record<string, number> = {
+  skill: 1,       // API skills
+  pattern: 0,     // Failure resolution patterns (free for now to encourage sharing)
+  technique: 2,   // Reusable code snippets
+  extension: 5,   // Full clawdbot plugins
+  insight: 1,     // Successful approaches
+  agent: 10,      // High-fitness agent designs
+};
+
 export async function publishSkill(req: Request): Promise<Response> {
-  let body: PublishBody;
+  let body: PublishBody & { abilityType?: string; content?: any; priceCents?: number };
   try {
-    body = await req.json() as PublishBody;
+    body = await req.json() as any;
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const abilityType = body.abilityType ?? "skill";
+  const validTypes = Object.keys(ABILITY_PRICES);
+  if (!validTypes.includes(abilityType)) {
+    return Response.json(
+      { error: `Invalid ability type. Must be one of: ${validTypes.join(", ")}` },
+      { status: 400 },
+    );
+  }
+
+  // Non-skill abilities use content + service (name)
+  const isSkill = abilityType === "skill";
+
   // Validate required fields
-  if (!body.service || !body.baseUrl || !body.creatorWallet) {
+  if (isSkill && (!body.service || !body.baseUrl || !body.creatorWallet)) {
     return Response.json(
       { error: "Missing required fields: service, baseUrl, creatorWallet" },
+      { status: 400 },
+    );
+  }
+  if (!isSkill && (!body.service || !body.creatorWallet || !body.content)) {
+    return Response.json(
+      { error: "Missing required fields for ability: service (name), content, creatorWallet" },
       { status: 400 },
     );
   }
@@ -96,15 +124,20 @@ export async function publishSkill(req: Request): Promise<Response> {
   }
 
   const db = getDb();
-  const id = makeSkillId(body.service, body.baseUrl);
+  const id = isSkill
+    ? makeSkillId(body.service, body.baseUrl)
+    : makeSkillId(body.service, abilityType); // Non-skills use type as part of ID
   const slug = makeSlug(body.service);
-  const tags = deriveTags(body.service, body.endpoints ?? []);
+  const tags = isSkill ? deriveTags(body.service, body.endpoints ?? []) : [abilityType];
+  const priceCents = body.priceCents ?? ABILITY_PRICES[abilityType];
   const searchText = [
     body.service,
-    body.baseUrl,
-    body.authMethodType,
+    body.baseUrl ?? "",
+    body.authMethodType ?? "",
     ...(body.endpoints ?? []).map((e) => `${e.method} ${e.path}`),
     ...tags,
+    // For non-skills, index content fields for search
+    ...(body.content ? Object.values(body.content).filter(v => typeof v === "string") as string[] : []),
   ].join(" ");
 
   // Check if skill exists
@@ -154,14 +187,15 @@ export async function publishSkill(req: Request): Promise<Response> {
     return Response.json({ id, slug, version: newVersion, reviewStatus: "pending" });
   }
 
-  // Insert new skill
+  // Insert new skill/ability
   db.run(`
     INSERT INTO skills (id, service, slug, version, base_url, auth_method_type,
                         endpoints_json, skill_md, api_template, creator_wallet,
-                        endpoint_count, tags_json, search_text)
-    VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        endpoint_count, tags_json, search_text,
+                        ability_type, price_cents, content_json)
+    VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    id, body.service, slug, body.baseUrl, body.authMethodType,
+    id, body.service, slug, body.baseUrl ?? "", body.authMethodType ?? "",
     JSON.stringify(body.endpoints ?? []),
     body.skillMd ?? "",
     body.apiTemplate ?? "",
@@ -169,6 +203,9 @@ export async function publishSkill(req: Request): Promise<Response> {
     (body.endpoints ?? []).length,
     JSON.stringify(tags),
     searchText,
+    abilityType,
+    priceCents,
+    body.content ? JSON.stringify(body.content) : null,
   ]);
 
   // Kick off async LLM review — skill is pending until approved

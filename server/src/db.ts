@@ -44,5 +44,19 @@ export function initDb(dbPath?: string): Database {
     }
   }
 
+  // Brain marketplace migrations — add ability columns
+  const abilityColumns = [
+    "ability_type TEXT DEFAULT 'skill'",  // skill | pattern | extension | technique | insight | agent
+    "price_cents INTEGER DEFAULT 1",       // Variable pricing (default 1 cent)
+    "content_json TEXT",                   // Type-specific payload for non-skill abilities
+  ];
+  for (const col of abilityColumns) {
+    try {
+      db.exec(`ALTER TABLE skills ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists — expected on subsequent runs
+    }
+  }
+
   return db;
 }

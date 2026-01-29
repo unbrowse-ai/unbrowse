@@ -83,3 +83,30 @@ CREATE TABLE IF NOT EXISTS creator_earnings (
   last_payout_at TEXT,
   pending_usd REAL DEFAULT 0
 );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Brain Marketplace Extension — Unified abilities (skills, patterns, extensions)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Track unique payers per ability (for ranking algorithm)
+CREATE TABLE IF NOT EXISTS ability_payers (
+  ability_id TEXT NOT NULL,
+  payer_wallet TEXT NOT NULL,
+  first_paid_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (ability_id, payer_wallet)
+);
+
+-- Leaderboard view: rank abilities by unique payers + downloads + review score
+CREATE VIEW IF NOT EXISTS ability_leaderboard AS
+SELECT
+  s.*,
+  COALESCE(ap.unique_payers, 0) as unique_payers,
+  (COALESCE(ap.unique_payers, 0) * 100 + s.download_count * 10 + COALESCE(s.review_score, 0) * 5) as rank_score
+FROM skills s
+LEFT JOIN (
+  SELECT ability_id, COUNT(*) as unique_payers
+  FROM ability_payers
+  GROUP BY ability_id
+) ap ON s.id = ap.ability_id
+WHERE s.review_status = 'approved'
+ORDER BY rank_score DESC;

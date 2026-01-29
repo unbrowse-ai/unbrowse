@@ -24,7 +24,7 @@ export function downloadSkill(
   const row = db.query(`
     SELECT id, service, base_url, auth_method_type,
            endpoints_json, skill_md, api_template, creator_wallet,
-           review_status, review_reason
+           review_status, review_reason, ability_type, price_cents, content_json
     FROM skills WHERE id = ?
   `).get(id) as any;
 
@@ -57,7 +57,17 @@ export function downloadSkill(
   // Increment download count
   db.run(`UPDATE skills SET download_count = download_count + 1 WHERE id = ?`, [id]);
 
-  const priceUsd = getDownloadPriceUsd();
+  // Use per-ability price if set, otherwise global default
+  const abilityPriceCents = row.price_cents ?? 1;
+  const priceUsd = abilityPriceCents / 100;
+
+  // Track unique payers for brain marketplace ranking
+  if (paymentInfo?.payerWallet) {
+    db.run(
+      `INSERT OR IGNORE INTO ability_payers (ability_id, payer_wallet) VALUES (?, ?)`,
+      [id, paymentInfo.payerWallet],
+    );
+  }
 
   // Track download with payment details (matches reference recordX402Payment pattern)
   if (paymentInfo?.signature) {
@@ -95,6 +105,20 @@ export function downloadSkill(
       pending_usd = pending_usd + ?
   `, [row.creator_wallet, priceUsd, priceUsd, priceUsd, priceUsd]);
 
+  // For non-skill abilities (patterns, extensions, etc.), return content_json
+  const abilityType = row.ability_type ?? "skill";
+  if (abilityType !== "skill" && row.content_json) {
+    const ability = {
+      id: row.id,
+      type: abilityType,
+      service: row.service,
+      content: JSON.parse(row.content_json),
+      creatorWallet: row.creator_wallet,
+    };
+    return Response.json(ability);
+  }
+
+  // Standard skill package
   const pkg: SkillPackage = {
     id: row.id,
     service: row.service,
