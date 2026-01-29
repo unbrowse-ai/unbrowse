@@ -449,6 +449,16 @@ const AGENT_SCHEMA = {
       type: "string" as const,
       description: "Name for new profile (required for create_profile action).",
     },
+    useChromeProfile: {
+      type: "boolean" as const,
+      description:
+        "Use real Chrome browser with your profile (preserves all logins, cookies, extensions). " +
+        "Requires Chrome to be fully closed before running. Default: false.",
+    },
+    llmModel: {
+      type: "string" as const,
+      description: "LLM model to use. Default: bu-2-0 (browser-use optimized). Options: bu-2-0, bu-1-0, bu-latest.",
+    },
   },
   required: [] as string[],
 };
@@ -529,7 +539,8 @@ const plugin = {
     }
     const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".clawdbot", "skills");
     const browserUseApiKey = cfg.browserUseApiKey as string | undefined;
-    const browserUseCloudApiKey = cfg.browserUseCloudApiKey as string | undefined;
+    // browserUseCloudApiKey and browserUseApiKey are the same - support both config names
+    const browserUseCloudApiKey = (cfg.browserUseCloudApiKey as string | undefined) ?? browserUseApiKey;
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://skills.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
@@ -746,6 +757,86 @@ const plugin = {
           logger.info(`[unbrowse] Closed stale tab for ${key}`);
         }
       }
+    }
+
+    /** Ensure shared browser and context exist for use by unbrowse_agent.
+     *  Returns the shared browser and context, creating them if needed.
+     */
+    async function ensureSharedBrowser(): Promise<{ browser: any; context: any }> {
+      const { chromium } = await import("playwright");
+
+      // Check if shared browser is still alive
+      if (sharedBrowser) {
+        try {
+          const contexts = sharedBrowser.contexts();
+          if (contexts.length === 0) throw new Error("No contexts");
+        } catch {
+          sharedBrowser = null;
+          sharedContext = null;
+        }
+      }
+
+      // Create shared browser if needed using CDP cascade
+      if (!sharedBrowser) {
+        // Strategy 1: Connect to Chrome extension relay (port 18792)
+        sharedBrowser = await tryCdpConnect(chromium, 18792);
+        sharedBrowserMethod = "cdp-chrome";
+
+        // Strategy 2: Connect to clawd managed browser (port 18800)
+        if (!sharedBrowser) {
+          sharedBrowser = await tryCdpConnect(chromium, 18800);
+          sharedBrowserMethod = "cdp-clawdbot";
+        }
+
+        // Strategy 3: Connect to browser control server's default
+        if (!sharedBrowser) {
+          sharedBrowser = await tryCdpConnect(chromium, browserPort);
+          sharedBrowserMethod = "cdp-clawdbot";
+        }
+
+        // Strategy 4: Connect to Chrome with other remote debugging ports
+        if (!sharedBrowser) {
+          for (const port of [9222, 9229]) {
+            sharedBrowser = await tryCdpConnect(chromium, port);
+            if (sharedBrowser) {
+              sharedBrowserMethod = "cdp-chrome";
+              break;
+            }
+          }
+        }
+
+        // Strategy 5: Launch Playwright Chromium
+        if (!sharedBrowser) {
+          logger.info(`[unbrowse] Launching Playwright Chromium for agent...`);
+          sharedBrowser = await chromium.launch({
+            headless: false,
+            args: [
+              "--disable-blink-features=AutomationControlled",
+              "--no-first-run",
+              "--no-default-browser-check",
+            ],
+          });
+          sharedBrowserMethod = "playwright";
+        }
+
+        if (!sharedBrowser) {
+          throw new Error("Could not connect to or launch any browser");
+        }
+      }
+
+      // Get or create shared context
+      if (!sharedContext) {
+        sharedContext = sharedBrowser.contexts()[0];
+      }
+      if (!sharedContext) {
+        sharedContext = await sharedBrowser.newContext({
+          userAgent:
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        });
+      }
+
+      logger.info(`[unbrowse] Shared browser ready (${sharedBrowserMethod})`);
+      return { browser: sharedBrowser, context: sharedContext };
     }
 
     /** Get or create a browser session for a service. Uses CDP cascade.
@@ -3568,8 +3659,8 @@ const plugin = {
               taskId?: string;
               profileId?: string;
               profileName?: string;
-              llmProvider?: "openai" | "anthropic" | "browser-use";
               llmModel?: string;
+              useChromeProfile?: boolean;
             };
 
             const action = p.action ?? "run";
@@ -3640,23 +3731,42 @@ const plugin = {
             }
 
             try {
-              const { runBrowserAgent, createLLM } = await import("./src/browser-use-agent.js");
+              const { runBrowserAgent } = await import("./src/browser-use-agent.js");
 
-              // Create LLM - prefer browser-use model if API key available, else use anthropic/openai
-              const llmProvider = p.llmProvider ?? (browserUseCloudApiKey ? "browser-use" : "anthropic");
-              const llm = await createLLM(llmProvider, {
-                apiKey: llmProvider === "browser-use" ? browserUseCloudApiKey : undefined,
-                model: p.llmModel,
-              });
+              // Require browser-use API key
+              if (!browserUseCloudApiKey) {
+                return {
+                  content: [{
+                    type: "text",
+                    text: `Browser-Use API key required. Set browserUseApiKey in unbrowse plugin config.\n\nGet your API key at: https://cloud.browser-use.com/`,
+                  }],
+                };
+              }
 
-              logger.info(`[unbrowse] Agent starting: "${p.task.slice(0, 50)}..." (${llmProvider})`);
+              // Get shared browser for network capture (enables skill generation)
+              let existingBrowser: any;
+              let existingContext: any;
+              try {
+                const shared = await ensureSharedBrowser();
+                existingBrowser = shared.browser;
+                existingContext = shared.context;
+              } catch (err) {
+                logger.warn(`[unbrowse] Could not get shared browser: ${(err as Error).message}`);
+                // Continue without shared browser - agent will create its own
+              }
+
+              const useChromeProfile = p.useChromeProfile ?? false;
+              logger.info(`[unbrowse] Agent starting: "${p.task.slice(0, 50)}..." (bu-2-0, chromeProfile=${useChromeProfile}, shared=${!!existingBrowser})`);
 
               const result = await runBrowserAgent({
                 task: p.task,
-                llm,
                 startUrl: p.url,
                 maxSteps: p.maxSteps ?? 50,
-                useVision: true,
+                llmApiKey: browserUseCloudApiKey,
+                llmModel: p.llmModel ?? "bu-2-0",
+                useChromeProfile,
+                existingBrowser,
+                existingContext,
                 onStep: (step, action) => {
                   logger.info(`[unbrowse] Agent step ${step}: ${action.slice(0, 100)}`);
                 },
@@ -3666,19 +3776,47 @@ const plugin = {
               let skillInfo = "";
               if (result.capturedRequests.length >= 3) {
                 try {
+                  // Convert capturedRequests to HAR format for the skill generator
+                  const harEntries = result.capturedRequests.map((req) => ({
+                    request: {
+                      method: req.method,
+                      url: req.url,
+                      headers: req.headers
+                        ? Object.entries(req.headers).map(([name, value]) => ({ name, value }))
+                        : [],
+                      cookies: [],
+                      postData: req.postData ? { text: req.postData, mimeType: "application/json" } : undefined,
+                    },
+                    response: {
+                      status: req.status,
+                      headers: req.responseHeaders
+                        ? Object.entries(req.responseHeaders).map(([name, value]) => ({ name, value }))
+                        : [],
+                    },
+                  }));
+
+                  const har = { log: { entries: harEntries } };
+                  const apiData = parseHar(har, p.url);
+
+                  // Generate the skill
+                  const skillResult = await generateSkill(apiData, defaultOutputDir);
+                  discovery.markLearned(skillResult.service);
+
+                  skillInfo = `\n\nGenerated skill "${skillResult.service}" with ${skillResult.endpointCount} endpoints. Use unbrowse_replay service="${skillResult.service}" to call APIs directly.`;
+                  logger.info(`[unbrowse] Agent generated skill: ${skillResult.service} (${skillResult.endpointCount} endpoints)`);
+                } catch (skillErr) {
+                  // Skill generation failed - still report captured requests
                   const domain = p.url ? new URL(p.url).hostname : result.capturedRequests[0]?.url
                     ? new URL(result.capturedRequests[0].url).hostname
                     : null;
-
                   if (domain) {
                     const service = domain
                       .replace(/^(www|api|app)\./, "")
                       .replace(/\.(com|io|org|net)$/, "")
                       .replace(/\./g, "-");
-
-                    skillInfo = `\n\nCaptured ${result.capturedRequests.length} API calls. Use unbrowse_replay service="${service}" to call them directly.`;
+                    skillInfo = `\n\nCaptured ${result.capturedRequests.length} API calls (skill generation failed: ${(skillErr as Error).message.slice(0, 50)}).`;
                   }
-                } catch { /* ignore */ }
+                }
               }
 
               const stepSummary = result.steps.slice(-5).map((s) => `  ${s.step}: ${s.action.slice(0, 80)}`).join("\n");
@@ -3968,6 +4106,179 @@ const plugin = {
         },
       } as any);
 
+      // ── Brain Marketplace Tool ─────────────────────────────────────────────
+      // Search and install abilities (skills, patterns, extensions, techniques)
+      toolList.push({
+        name: "unbrowse_brain",
+        label: "Brain Marketplace",
+        description:
+          "Search and install abilities from the crowdsourced brain marketplace. " +
+          "Abilities include skills (APIs), patterns (failure resolutions), extensions (plugins), " +
+          "techniques (code snippets), insights (approaches), and agent designs. " +
+          "Use action='search' with query, action='leaderboard' to see top abilities, " +
+          "or action='install' with id to download (costs vary by type).",
+        parameters: {
+          type: "object" as const,
+          properties: {
+            action: {
+              type: "string" as const,
+              enum: ["search", "leaderboard", "install"],
+              description: "Action to perform",
+            },
+            query: {
+              type: "string" as const,
+              description: "Search query (for action='search')",
+            },
+            type: {
+              type: "string" as const,
+              enum: ["skill", "pattern", "extension", "technique", "insight", "agent"],
+              description: "Filter by ability type",
+            },
+            id: {
+              type: "string" as const,
+              description: "Ability ID to install (for action='install')",
+            },
+            limit: {
+              type: "number" as const,
+              description: "Number of results (default: 10)",
+            },
+          },
+          required: ["action"],
+        },
+        async execute(_toolCallId: string, params: unknown) {
+          const p = params as { action: string; query?: string; type?: string; id?: string; limit?: number };
+
+          // Lazy-load brain client
+          const { BrainIndexClient } = await import("./src/brain-index.js");
+          const brainClient = new BrainIndexClient(indexOpts);
+
+          try {
+            if (p.action === "leaderboard") {
+              const result = await brainClient.getLeaderboard({
+                type: p.type as any,
+                limit: p.limit ?? 20,
+              });
+
+              if (result.abilities.length === 0) {
+                return { content: [{ type: "text", text: "No abilities on the leaderboard yet." }] };
+              }
+
+              const lines = [
+                `Brain Marketplace Leaderboard (${result.total} abilities):`,
+                "",
+              ];
+
+              for (const ability of result.abilities) {
+                const price = ability.priceCents === 0 ? "FREE" : `$${(ability.priceCents / 100).toFixed(2)}`;
+                lines.push(
+                  `  ${ability.service} (${ability.abilityType})`,
+                  `    ID: ${ability.id} | Score: ${ability.rankScore} | Buyers: ${ability.uniquePayers} | Price: ${price}`,
+                );
+              }
+
+              return { content: [{ type: "text", text: lines.join("\n") }] };
+            }
+
+            if (p.action === "install" && p.id) {
+              const pkg = await brainClient.downloadAbility(p.id);
+
+              // Handle based on type
+              const abilityType = (pkg as any).type ?? "skill";
+
+              if (abilityType === "skill") {
+                // Standard skill installation
+                const skillPkg = pkg as any;
+                const skillDir = join(defaultOutputDir, skillPkg.service);
+                const scriptsDir = join(skillDir, "scripts");
+                const { mkdirSync, writeFileSync } = await import("node:fs");
+                mkdirSync(scriptsDir, { recursive: true });
+
+                writeFileSync(join(skillDir, "SKILL.md"), skillPkg.skillMd, "utf-8");
+                writeFileSync(join(scriptsDir, "api.ts"), skillPkg.apiTemplate, "utf-8");
+                writeFileSync(join(skillDir, "auth.json"), JSON.stringify({
+                  service: skillPkg.service,
+                  baseUrl: skillPkg.baseUrl,
+                  authMethod: skillPkg.authMethodType,
+                  timestamp: new Date().toISOString(),
+                  notes: ["Downloaded from brain marketplace — add your own auth credentials"],
+                  headers: {},
+                  cookies: {},
+                }, null, 2), "utf-8");
+
+                discovery.markLearned(skillPkg.service);
+                return { content: [{ type: "text", text: `Installed skill: ${skillPkg.service}\nLocation: ${skillDir}` }] };
+              }
+
+              // Non-skill abilities
+              const ability = pkg as any;
+              const content = ability.content;
+
+              if (abilityType === "pattern") {
+                // Save pattern to unlearn learnings
+                return { content: [{ type: "text", text: `Pattern installed:\n\nError: ${content.errorPattern}\nResolution: ${content.resolution}\n\nUse this pattern when encountering similar errors.` }] };
+              }
+
+              if (abilityType === "extension") {
+                // Save extension code
+                const extDir = join(homedir(), ".clawdbot", "extensions", content.name);
+                const { mkdirSync, writeFileSync } = await import("node:fs");
+                mkdirSync(extDir, { recursive: true });
+                writeFileSync(join(extDir, "index.ts"), content.code, "utf-8");
+                writeFileSync(join(extDir, "clawdbot.plugin.json"), JSON.stringify({
+                  id: content.name,
+                  name: content.name,
+                  description: content.description,
+                  version: "0.1.0",
+                  configSchema: { type: "object", properties: {}, additionalProperties: false },
+                }, null, 2), "utf-8");
+                return { content: [{ type: "text", text: `Extension installed: ${content.name}\nLocation: ${extDir}\n\nRestart gateway to load.` }] };
+              }
+
+              if (abilityType === "technique") {
+                return { content: [{ type: "text", text: `Technique: ${content.name}\n\nDescription: ${content.description}\nLanguage: ${content.language}\n\nCode:\n\`\`\`${content.language}\n${content.code}\n\`\`\`` }] };
+              }
+
+              return { content: [{ type: "text", text: `Installed ${abilityType}: ${ability.service}\n\nContent: ${JSON.stringify(content, null, 2)}` }] };
+            }
+
+            if (p.action === "search") {
+              if (!p.query) {
+                return { content: [{ type: "text", text: "Provide a query to search." }] };
+              }
+
+              const result = await brainClient.searchAbilities(p.query, {
+                type: p.type as any,
+                limit: p.limit ?? 10,
+              });
+
+              if (result.skills.length === 0) {
+                return { content: [{ type: "text", text: `No abilities found for "${p.query}".` }] };
+              }
+
+              const lines = [
+                `Brain Marketplace (${result.total} results for "${p.query}"):`,
+                "",
+              ];
+
+              for (const ability of result.skills) {
+                const price = ability.priceCents === 0 ? "FREE" : `$${(ability.priceCents / 100).toFixed(2)}`;
+                lines.push(
+                  `  ${ability.service} (${ability.abilityType})`,
+                  `    ID: ${ability.id} | Downloads: ${ability.downloadCount} | Price: ${price}`,
+                );
+              }
+
+              lines.push("", `Use unbrowse_brain with action="install" and id="<id>" to download.`);
+              return { content: [{ type: "text", text: lines.join("\n") }] };
+            }
+
+            return { content: [{ type: "text", text: `Unknown action: ${p.action}. Use search, leaderboard, or install.` }] };
+          } catch (err) {
+            return { content: [{ type: "text", text: `Brain marketplace error: ${(err as Error).message}` }] };
+          }
+        },
+      } as any);
+
       return toolList;
     };
 
@@ -3986,6 +4297,7 @@ const plugin = {
       "unbrowse_agent",
       "unbrowse_do",
       "unbrowse_desktop",
+      "unbrowse_brain",
     ];
 
     api.registerTool(tools, { names: toolNames });
