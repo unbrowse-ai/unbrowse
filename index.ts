@@ -3789,7 +3789,7 @@ const plugin = {
 
           return { content: [{ type: "text", text: output }] };
         },
-      });
+      } as any);
 
       // ── Desktop Automation Tool ───────────────────────────────────────────
       toolList.push({
@@ -3857,8 +3857,9 @@ const plugin = {
           },
           required: ["action"],
         },
-        async execute(params: any) {
-          const { action, ...rest } = params;
+        async execute(_toolCallId: string, params: unknown) {
+          const p = params as any;
+          const { action, ...rest } = p;
 
           try {
             let result;
@@ -3965,7 +3966,7 @@ const plugin = {
             return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }] };
           }
         },
-      });
+      } as any);
 
       return toolList;
     };
@@ -4024,10 +4025,10 @@ const plugin = {
         }
       }
 
-      // Auto-discovery: only trigger on browse tool calls
+      // Auto-discovery: trigger on browse or unbrowse_agent tool calls
       if (!autoDiscoverEnabled) return;
-      if (typeof toolName !== "string" || toolName !== "browse") return;
-      if (toolName.startsWith("unbrowse")) return;
+      if (typeof toolName !== "string") return;
+      if (toolName !== "browse" && toolName !== "unbrowse_agent") return;
 
       try {
         const generated = await discovery.onBrowserToolCall();
@@ -4056,20 +4057,17 @@ const plugin = {
       const lines: string[] = [
         "[Browser] You can browse websites and complete tasks for the user.",
         "",
-        "CRITICAL: Do NOT use the `browser` tool — it requires manual Chrome extension setup and will fail.",
-        "ALWAYS use the `browse` tool instead — it works automatically via Playwright.",
+        "IMPORTANT: Do NOT use the `browser` tool — it requires Chrome extension setup.",
         "",
         "When the user asks you to DO something on a website (post, book, order, submit, login, etc.):",
         "1. First check unbrowse_skills — if you already have a skill for that service, use unbrowse_replay to call APIs directly (faster)",
-        "2. If no skill exists, use `browse` to complete the task by clicking/typing on the page",
+        "2. If no skill exists, use `unbrowse_agent` to complete the task autonomously",
         "3. After completing the task, the APIs are automatically captured so next time you can replay directly",
         "",
-        "When the user asks you to LEARN a website (explore, capture, learn the API, etc.):",
-        "- Use unbrowse_capture to crawl and capture API traffic without a specific task",
-        "- Use `browse` to manually explore and interact — APIs are captured as you go",
-        "",
-        "`browse` tool syntax: browse({url: \"...\", actions: [{action: \"click_element\", index: N}, {action: \"input_text\", index: N, text: \"...\"}]})",
-        "Returns indexed elements like [1] <button> [2] <input>. Reference elements by their index number.",
+        "`unbrowse_agent` is an autonomous AI browser agent powered by browser-use.",
+        "Give it a natural language task and optional starting URL:",
+        "  unbrowse_agent({task: \"Book a hotel at Agoda for tonight\", url: \"https://agoda.com\"})",
+        "It will click, type, and navigate automatically to complete the task.",
         "",
       ];
 
