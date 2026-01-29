@@ -457,7 +457,7 @@ const AGENT_SCHEMA = {
     },
     llmModel: {
       type: "string" as const,
-      description: "LLM model to use. Default: bu-2-0 (browser-use optimized). Options: bu-2-0, bu-1-0, bu-latest.",
+      description: "LLM model to use. Default depends on provider: gpt-4o (openai), claude-sonnet-4-20250514 (anthropic).",
     },
   },
   required: [] as string[],
@@ -541,6 +541,10 @@ const plugin = {
     const browserUseApiKey = cfg.browserUseApiKey as string | undefined;
     // browserUseCloudApiKey and browserUseApiKey are the same - support both config names
     const browserUseCloudApiKey = (cfg.browserUseCloudApiKey as string | undefined) ?? browserUseApiKey;
+    // LLM configuration - separate from Browser-Use cloud browser API key
+    const llmProvider = (cfg.llmProvider as string | undefined) ?? "openai";
+    const llmApiKey = (cfg.llmApiKey as string | undefined) ?? process.env.OPENAI_API_KEY ?? process.env.ANTHROPIC_API_KEY;
+    const llmModel = cfg.llmModel as string | undefined;
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://skills.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
@@ -3756,14 +3760,18 @@ const plugin = {
               }
 
               const useChromeProfile = p.useChromeProfile ?? false;
-              logger.info(`[unbrowse] Agent starting: "${p.task.slice(0, 50)}..." (bu-2-0, chromeProfile=${useChromeProfile}, shared=${!!existingBrowser})`);
+              const effectiveLlmProvider = llmProvider as "openai" | "anthropic" | "openrouter";
+              const effectiveLlmModel = p.llmModel ?? llmModel ?? (effectiveLlmProvider === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-4o");
+              logger.info(`[unbrowse] Agent starting: "${p.task.slice(0, 50)}..." (${effectiveLlmProvider}/${effectiveLlmModel}, chromeProfile=${useChromeProfile}, shared=${!!existingBrowser})`);
 
               const result = await runBrowserAgent({
                 task: p.task,
                 startUrl: p.url,
                 maxSteps: p.maxSteps ?? 50,
-                llmApiKey: browserUseCloudApiKey,
-                llmModel: p.llmModel ?? "bu-2-0",
+                llmApiKey: browserUseCloudApiKey, // For cloud browser sessions
+                llmProvider: effectiveLlmProvider,
+                llmProviderApiKey: llmApiKey, // For LLM calls
+                llmModel: effectiveLlmModel,
                 useChromeProfile,
                 existingBrowser,
                 existingContext,
