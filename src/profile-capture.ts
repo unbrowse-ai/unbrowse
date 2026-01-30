@@ -205,7 +205,7 @@ function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>,
 
 /**
  * Capture network traffic using OpenClaw's browser API.
- * Falls back to fresh Playwright if OpenClaw browser is unavailable.
+ * Requires OpenClaw browser to be running (no local Playwright fallback).
  */
 export async function captureFromChromeProfile(
   urls: string[],
@@ -287,89 +287,10 @@ export async function captureFromChromeProfile(
     return result;
   }
 
-  // Fallback: Launch fresh Playwright Chromium
-  const { chromium } = await import("playwright");
-
-  const browser = await chromium.launch({
-    headless: opts.headless ?? true,
-    timeout: 15_000,
-    args: [
-      "--disable-blink-features=AutomationControlled",
-      "--no-sandbox",
-    ],
-  });
-
-  const context = await browser.newContext({
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  });
-
-  const captured: CapturedEntry[] = [];
-  const pendingRequests = new Map<string, Partial<CapturedEntry>>();
-
-  const page = await context.newPage();
-
-  // Attach request/response listeners
-  page.on("request", (req: any) => {
-    pendingRequests.set(req.url() + req.method(), {
-      method: req.method(),
-      url: req.url(),
-      headers: req.headers(),
-      resourceType: req.resourceType(),
-      timestamp: Date.now(),
-    });
-  });
-
-  page.on("response", (resp: any) => {
-    const req = resp.request();
-    const key = req.url() + req.method();
-    const entry = pendingRequests.get(key);
-    if (entry) {
-      entry.status = resp.status();
-      entry.responseHeaders = resp.headers();
-      captured.push(entry as CapturedEntry);
-      pendingRequests.delete(key);
-    }
-  });
-
-  for (const url of urls) {
-    try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
-    } catch {
-      await page.waitForTimeout(waitMs);
-    }
-    await page.waitForTimeout(waitMs);
-  }
-
-  // Optional crawl
-  let crawlResult: CrawlResult | undefined;
-  if (shouldCrawl && urls[0]) {
-    const { crawlSite } = await import("./site-crawler.js");
-    crawlResult = await crawlSite(page, context, urls[0], {
-      maxPages: opts.crawlOptions?.maxPages ?? 15,
-      maxTimeMs: opts.crawlOptions?.maxTimeMs ?? 60_000,
-      maxDepth: opts.crawlOptions?.maxDepth ?? 2,
-      discoverOpenApi: opts.crawlOptions?.discoverOpenApi ?? true,
-    });
-  }
-
-  const browserCookies = await context.cookies();
-  const cookies: Record<string, string> = {};
-  for (const c of browserCookies) cookies[c.name] = c.value;
-
-  await browser.close();
-
-  const apiCaptured = captured.filter((entry) => {
-    const rt = entry.resourceType?.toLowerCase();
-    if (rt === "xhr" || rt === "fetch") return true;
-    if (entry.method !== "GET") return true;
-    const ct = entry.responseHeaders?.["content-type"] ?? "";
-    if (ct.includes("application/json") || ct.includes("application/xml") || ct.includes("text/xml")) return true;
-    return false;
-  });
-
-  const result = toHarResult(apiCaptured, cookies, "playwright");
-  result.crawlResult = crawlResult;
-  return result;
+  // No fallback - require OpenClaw browser
+  throw new Error(
+    "OpenClaw browser not available. Start it with: openclaw browser start"
+  );
 }
 
 /**

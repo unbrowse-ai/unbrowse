@@ -4,7 +4,7 @@
     "skillsOutputDir": {
       "label": "Skills Output Directory",
       "help": "Where generated skills are saved",
-      "placeholder": "~/.clawdbot/skills"
+      "placeholder": "~/.openclaw/skills"
     },
     "browserPort": {
       "label": "Browser Control Port",

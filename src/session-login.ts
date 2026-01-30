@@ -15,7 +15,7 @@
  *   GET  /storage/local     — localStorage
  *   GET  /storage/session   — sessionStorage
  *
- * Fallback: If OpenClaw browser is unavailable, uses stealth browser or Playwright.
+ * Requires OpenClaw browser to be running (no local Playwright fallback).
  */
 
 import type { HarEntry } from "./types.js";
@@ -260,10 +260,8 @@ export async function loginAndCapture(
   loginUrl: string,
   credentials: LoginCredentials,
   opts: {
-    browserUseApiKey?: string;
     captureUrls?: string[];
     waitMs?: number;
-    proxyCountry?: string;
     browserPort?: number;
   } = {},
 ): Promise<LoginResult> {
@@ -349,8 +347,10 @@ export async function loginAndCapture(
     };
   }
 
-  // Fallback: Use Playwright directly (existing implementation)
-  return loginViaPlaywright(loginUrl, credentials, opts);
+  // No fallback - require OpenClaw browser
+  throw new Error(
+    "OpenClaw browser not available. Start it with: openclaw browser start"
+  );
 }
 
 /** Extract auth-related headers from captured requests. */
@@ -417,176 +417,3 @@ function toHar(captured: CapturedEntry[], cookies: Record<string, string>): { lo
   return { log: { entries } };
 }
 
-/**
- * Fallback: Log in via Playwright when OpenClaw browser is unavailable.
- */
-async function loginViaPlaywright(
-  loginUrl: string,
-  credentials: LoginCredentials,
-  opts: {
-    browserUseApiKey?: string;
-    captureUrls?: string[];
-    waitMs?: number;
-    proxyCountry?: string;
-  } = {},
-): Promise<LoginResult> {
-  const { chromium } = await import("playwright");
-  const waitMs = opts.waitMs ?? 5000;
-  const captured: CapturedEntry[] = [];
-  const pendingRequests = new Map<string, Partial<CapturedEntry>>();
-
-  let browser: any;
-  let context: any;
-  let usingStealth = false;
-
-  // Use stealth browser if API key provided
-  if (opts.browserUseApiKey) {
-    const { createStealthSession } = await import("./stealth-browser.js");
-    const session = await createStealthSession(opts.browserUseApiKey, {
-      timeout: 15,
-      proxyCountryCode: opts.proxyCountry,
-    });
-    browser = await chromium.connectOverCDP(session.cdpUrl);
-    context = browser.contexts()[0] ?? await browser.newContext();
-    usingStealth = true;
-  } else {
-    browser = await chromium.launch({
-      headless: true,
-      args: ["--disable-blink-features=AutomationControlled", "--no-sandbox"],
-    });
-    context = await browser.newContext({
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    });
-  }
-
-  // Attach network listeners
-  const attachListeners = (page: any) => {
-    page.on("request", (req: any) => {
-      pendingRequests.set(req.url() + req.method(), {
-        method: req.method(),
-        url: req.url(),
-        headers: req.headers(),
-        resourceType: req.resourceType(),
-        timestamp: Date.now(),
-      });
-    });
-    page.on("response", (resp: any) => {
-      const req = resp.request();
-      const key = req.url() + req.method();
-      const entry = pendingRequests.get(key);
-      if (entry) {
-        entry.status = resp.status();
-        entry.responseHeaders = resp.headers();
-        captured.push(entry as CapturedEntry);
-        pendingRequests.delete(key);
-      }
-    });
-  };
-
-  for (const page of context.pages()) attachListeners(page);
-  context.on("page", attachListeners);
-
-  const page = context.pages()[0] ?? await context.newPage();
-  attachListeners(page);
-
-  // Inject cookies/headers
-  if (credentials.cookies?.length) await context.addCookies(credentials.cookies);
-  if (credentials.headers) await context.setExtraHTTPHeaders(credentials.headers);
-
-  // Navigate and fill form
-  try {
-    await page.goto(loginUrl, { waitUntil: "networkidle", timeout: 30000 });
-  } catch {
-    await page.waitForTimeout(waitMs);
-  }
-
-  if (credentials.formFields) {
-    for (const [selector, value] of Object.entries(credentials.formFields)) {
-      try {
-        await page.waitForSelector(selector, { timeout: 5000 });
-        await page.fill(selector, value);
-        await page.waitForTimeout(200);
-      } catch {
-        // Field not found
-      }
-    }
-
-    // Submit
-    if (credentials.submitSelector) {
-      await page.click(credentials.submitSelector).catch(() => page.keyboard.press("Enter"));
-    } else {
-      await page.evaluate(() => {
-        const btn = document.querySelector('button[type="submit"]') ??
-                    document.querySelector('input[type="submit"]');
-        if (btn instanceof HTMLElement) btn.click();
-      });
-    }
-
-    try {
-      await page.waitForNavigation({ waitUntil: "networkidle", timeout: 15000 });
-    } catch {
-      await page.waitForTimeout(waitMs);
-    }
-  }
-
-  // Visit capture URLs
-  for (const url of opts.captureUrls ?? []) {
-    try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-    } catch {
-      await page.waitForTimeout(waitMs);
-    }
-  }
-
-  // Extract cookies and storage
-  const browserCookies = await context.cookies();
-  const cookies: Record<string, string> = {};
-  for (const c of browserCookies) cookies[c.name] = c.value;
-
-  let localStorage: Record<string, string> = {};
-  let sessionStorage: Record<string, string> = {};
-
-  try {
-    const clientState = await page.evaluate(() => {
-      const authKeywords = /token|auth|session|jwt|access|refresh|csrf|xsrf|key|cred|user|login|bearer/i;
-      const ls: Record<string, string> = {};
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        if (key && authKeywords.test(key)) {
-          const val = window.localStorage.getItem(key);
-          if (val) ls[key] = val;
-        }
-      }
-      const ss: Record<string, string> = {};
-      for (let i = 0; i < window.sessionStorage.length; i++) {
-        const key = window.sessionStorage.key(i);
-        if (key && authKeywords.test(key)) {
-          const val = window.sessionStorage.getItem(key);
-          if (val) ss[key] = val;
-        }
-      }
-      return { localStorage: ls, sessionStorage: ss };
-    });
-    localStorage = clientState.localStorage;
-    sessionStorage = clientState.sessionStorage;
-  } catch { }
-
-  // Cleanup
-  await context?.close().catch(() => {});
-  await browser?.close().catch(() => {});
-
-  const parsedUrl = new URL(loginUrl);
-  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
-  const authHeaders = extractAuthHeaders(captured, localStorage, sessionStorage);
-
-  return {
-    cookies,
-    authHeaders,
-    baseUrl,
-    requestCount: captured.length,
-    har: toHar(captured, cookies),
-    localStorage,
-    sessionStorage,
-    metaTokens: {},
-  };
-}

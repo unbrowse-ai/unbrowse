@@ -10,10 +10,9 @@
  * Tools:
  *   unbrowse_capture   — Provide URLs → auto-launches browser → captures all API traffic
  *   unbrowse_replay    — Execute API calls with stored credentials (auto-refresh on 401)
- *   unbrowse_login     — Log in with credentials via Playwright/stealth (for auth-required sites)
+ *   unbrowse_login     — Log in with credentials via Playwright (for auth-required sites)
  *   unbrowse_learn     — Parse a HAR file → generate skill
  *   unbrowse_skills    — List all discovered skills
- *   unbrowse_stealth   — Launch stealth cloud browser (BrowserBase) — API execution only
  *   unbrowse_auth      — Extract auth from a running browser via CDP (low-level)
  *   unbrowse_publish   — Publish skill to cloud index (earn USDC via x402)
  *   unbrowse_search    — Search & install skills from the cloud index
@@ -32,13 +31,6 @@ import { parseHar } from "./src/har-parser.js";
 import { generateSkill } from "./src/skill-generator.js";
 import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener } from "./src/cdp-capture.js";
 import { AutoDiscovery } from "./src/auto-discover.js";
-import {
-  createStealthSession,
-  stopStealthSession,
-  getStealthSession,
-  captureFromStealth,
-  type StealthSession,
-} from "./src/stealth-browser.js";
 import { SkillIndexClient, type PublishPayload } from "./src/skill-index.js";
 import { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth } from "./src/skill-sanitizer.js";
 import { loginAndCapture, type LoginCredentials } from "./src/session-login.js";
@@ -168,45 +160,8 @@ const REPLAY_SCHEMA = {
       type: "string" as const,
       description: "Skills directory (default: ~/.openclaw/skills)",
     },
-    useStealth: {
-      type: "boolean" as const,
-      description: "Use stealth cloud browser with anti-detection to bypass blocks. Costs ~$0.01/call. Auto-enabled on 403/blocked responses.",
-    },
-    proxyCountry: {
-      type: "string" as const,
-      description: "Proxy country code when using stealth (e.g., 'us', 'gb', 'de'). Default: 'us'.",
-    },
   },
   required: ["service"],
-};
-
-const STEALTH_SCHEMA = {
-  type: "object" as const,
-  properties: {
-    action: {
-      type: "string" as const,
-      enum: ["start", "stop", "capture", "status"],
-      description:
-        "start: launch cloud browser, stop: end session, capture: grab network traffic + generate skill, status: check session",
-    },
-    url: {
-      type: "string" as const,
-      description: "URL to navigate to after starting (optional)",
-    },
-    timeout: {
-      type: "number" as const,
-      description: "Session timeout in minutes (default: 15, max: 240)",
-    },
-    proxyCountry: {
-      type: "string" as const,
-      description: "Proxy country code (e.g., US, GB, SG) for geo-restricted sites",
-    },
-    sessionId: {
-      type: "string" as const,
-      description: "Session ID (required for stop/capture/status actions)",
-    },
-  },
-  required: ["action"],
 };
 
 const SKILLS_SCHEMA = {
@@ -389,10 +344,6 @@ const LOGIN_SCHEMA = {
       items: { type: "string" as const },
       description: "Additional URLs to visit after login to capture API traffic for skill generation",
     },
-    proxyCountry: {
-      type: "string" as const,
-      description: "Proxy country code for stealth browser (e.g., US, GB). Only used with BrowserBase.",
-    },
     autoFillFromProvider: {
       type: "boolean" as const,
       description:
@@ -483,13 +434,6 @@ const plugin = {
       otpWatcherElementIndex = null;
     }
     const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
-    const browserUseApiKey = cfg.browserUseApiKey as string | undefined;
-    // browserUseCloudApiKey and browserUseApiKey are the same - support both config names
-    const browserUseCloudApiKey = (cfg.browserUseCloudApiKey as string | undefined) ?? browserUseApiKey;
-    // LLM configuration - defaults to Browser-Use LLM (bu-2-0)
-    const llmProvider = (cfg.llmProvider as string | undefined) ?? "browser-use";
-    const llmApiKey = (cfg.llmApiKey as string | undefined);
-    const llmModel = (cfg.llmModel as string | undefined) ?? "bu-2-0";
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://skills.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
@@ -630,9 +574,6 @@ const plugin = {
       },
     });
 
-    // Track active stealth sessions
-    const stealthSessions = new Map<string, StealthSession>();
-
     // ── Browser Session Tracking ────────────────────────────────────────────
     // Use a SINGLE shared browser instance across all services (just different tabs).
     // This prevents multiple Chrome windows from opening.
@@ -754,22 +695,10 @@ const plugin = {
           }
         }
 
-        // Strategy 5: Launch Playwright Chromium
         if (!sharedBrowser) {
-          logger.info(`[unbrowse] Launching Playwright Chromium for agent...`);
-          sharedBrowser = await chromium.launch({
-            headless: false,
-            args: [
-              "--disable-blink-features=AutomationControlled",
-              "--no-first-run",
-              "--no-default-browser-check",
-            ],
-          });
-          sharedBrowserMethod = "playwright";
-        }
-
-        if (!sharedBrowser) {
-          throw new Error("Could not connect to or launch any browser");
+          throw new Error(
+            "No browser available. Start OpenClaw browser with: openclaw browser start"
+          );
         }
       }
 
@@ -856,26 +785,6 @@ const plugin = {
               sharedBrowserMethod = "cdp-chrome";
               break;
             }
-          }
-        }
-
-        // Strategy 5: Launch Playwright Chromium (fast, reliable, no Chrome dependency)
-        // This is the primary fallback when no CDP connection is available
-        if (!sharedBrowser) {
-          logger.info(`[unbrowse] Launching Playwright Chromium...`);
-          try {
-            sharedBrowser = await chromium.launch({
-              headless: false,
-              args: [
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-              ],
-            });
-            sharedBrowserMethod = "playwright";
-            logger.info(`[unbrowse] Launched Playwright Chromium browser`);
-          } catch (err) {
-            logger.info(`[unbrowse] Playwright launch failed: ${(err as Error).message.split('\n')[0]}`);
           }
         }
 
@@ -1257,10 +1166,9 @@ const plugin = {
           name: "unbrowse_replay",
           label: "Execute API",
           description:
-            "Execute API calls using a skill's stored credentials. Uses stealth cloud browser " +
-            "with proxy support (useStealth=true) to bypass anti-bot protection. Falls back to " +
-            "direct fetch with auth headers/cookies. Auto-refreshes credentials on 401/403. " +
-            "Auto-uses stealth fallback when requests are blocked (403/429).",
+            "Execute API calls using a skill's stored credentials. Tries Chrome profile first, " +
+            "then falls back to direct fetch with stored auth headers/cookies. " +
+            "Auto-refreshes credentials on 401/403.",
           parameters: REPLAY_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as { service: string; endpoint?: string; body?: string; skillsDir?: string; useStealth?: boolean; proxyCountry?: string };
@@ -1578,117 +1486,6 @@ const plugin = {
               return { status: resp.status, ok: resp.ok && !isHtml, data: text.slice(0, 2000), isHtml };
             }
 
-            // ── Stealth browser execution (cloud browser with proxy) ───────
-            // Shared stealth session — created once, reused for all calls in batch
-            let stealthSession: StealthSession | null = null;
-            let stealthBrowser: any = null;
-            let stealthPage: any = null;
-
-            async function getStealthPage(): Promise<any | null> {
-              if (stealthPage) return stealthPage;
-              if (!browserUseApiKey) return null;
-
-              try {
-                // Create stealth session if not exists
-                if (!stealthSession) {
-                  stealthSession = await createStealthSession(browserUseApiKey, {
-                    timeout: 15, // 15 min for multi-call sessions
-                    proxyCountryCode: p.proxyCountry ?? "us",
-                  });
-                  logger.info(`[unbrowse] Stealth session started: ${stealthSession.id} (proxy: ${p.proxyCountry ?? "us"})`);
-                }
-
-                // Connect browser if not connected
-                if (!stealthBrowser) {
-                  const { chromium } = await import("playwright");
-                  stealthBrowser = await chromium.connectOverCDP(stealthSession.cdpUrl, { timeout: 15_000 });
-                }
-
-                const context = stealthBrowser.contexts()[0] ?? await stealthBrowser.newContext();
-
-                // Inject cookies
-                if (Object.keys(cookies).length > 0) {
-                  const domain = new URL(baseUrl).hostname;
-                  await context.addCookies(
-                    Object.entries(cookies).map(([name, value]) => ({ name, value, domain, path: "/" }))
-                  );
-                }
-
-                stealthPage = context.pages()[0] ?? await context.newPage();
-
-                // Inject localStorage/sessionStorage via addInitScript BEFORE navigation
-                if (Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0) {
-                  try {
-                    await context.addInitScript(`
-                        (function() {
-                          const ls = ${JSON.stringify(storedLocalStorage)};
-                          const ss = ${JSON.stringify(storedSessionStorage)};
-                          for (const [k, v] of Object.entries(ls)) {
-                            try { window.localStorage.setItem(k, v); } catch {}
-                          }
-                          for (const [k, v] of Object.entries(ss)) {
-                            try { window.sessionStorage.setItem(k, v); } catch {}
-                          }
-                        })();
-                      `);
-                  } catch { /* non-critical */ }
-                }
-
-                // Navigate to base URL to establish session
-                await stealthPage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => { });
-
-                return stealthPage;
-              } catch (err) {
-                logger.warn(`[unbrowse] Failed to get stealth page: ${(err as Error).message}`);
-                return null;
-              }
-            }
-
-            async function cleanupStealth() {
-              try { await stealthBrowser?.close(); } catch { }
-              if (stealthSession && browserUseApiKey) {
-                try { await stopStealthSession(browserUseApiKey, stealthSession.id); } catch { }
-                logger.info(`[unbrowse] Stealth session stopped: ${stealthSession.id}`);
-              }
-              stealthBrowser = null;
-              stealthPage = null;
-              stealthSession = null;
-            }
-
-            async function execViaStealth(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean } | null> {
-              const page = await getStealthPage();
-              if (!page) return null;
-
-              try {
-                const url = new URL(ep.path, baseUrl).toString();
-                const result = await page.evaluate(async ({ url, method, headers, body }: { url: string; method: string; headers: Record<string, string>; body?: string }) => {
-                  try {
-                    const resp = await fetch(url, {
-                      method,
-                      headers: { "Content-Type": "application/json", ...headers },
-                      body: body && ["POST", "PUT", "PATCH"].includes(method) ? body : undefined,
-                      credentials: "include",
-                    });
-                    const text = await resp.text().catch(() => "");
-                    const ct = resp.headers.get("content-type") ?? "";
-                    return {
-                      status: resp.status,
-                      ok: resp.ok,
-                      data: text.slice(0, 2000),
-                      isHtml: ct.includes("text/html"),
-                    };
-                  } catch (err) {
-                    return { status: 0, ok: false, data: String(err), isHtml: false };
-                  }
-                }, { url, method: ep.method, headers: authHeaders, body });
-
-                return result;
-              } catch (err) {
-                logger.warn(`[unbrowse] Stealth execution failed: ${(err as Error).message}`);
-                return null;
-              }
-            }
-
             // ── Credential refresh on 401/403 ──────────────────────────
 
             let credsRefreshed = false;
@@ -1706,7 +1503,6 @@ const plugin = {
                     headers: loginConfig.headers,
                     cookies: loginConfig.cookies,
                   }, {
-                    browserUseApiKey,
                     captureUrls: loginConfig.captureUrls,
                   });
 
@@ -1793,52 +1589,34 @@ const plugin = {
             const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
             results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
 
-            let usedStealth = false;
-
             for (const ep of toTest) {
               const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
               let result: { status: number; ok: boolean; data?: string; isHtml?: boolean } | null = null;
 
-              // If useStealth is explicitly requested, try stealth first
-              if (p.useStealth) {
-                result = await execViaStealth(ep, body);
-                if (result && result.ok) {
-                  results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (stealth${p.proxyCountry ? ` via ${p.proxyCountry}` : ""})`);
-                  if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
-                  passed++;
-                  usedStealth = true;
-                  continue;
-                }
-              }
-
               // Try 1: Chrome profile (live cookies)
-              if (!p.useStealth) {
-                result = await execInChrome(ep, body);
-                if (result && result.ok) {
-                  results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Chrome)`);
-                  if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
-                  passed++;
-                  continue;
-                }
+              result = await execInChrome(ep, body);
+              if (result && result.ok) {
+                results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Chrome)`);
+                if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+                passed++;
+                continue;
               }
 
               // Try 2: Direct fetch with stored auth
-              if (!p.useStealth) {
-                try {
-                  result = await execViaFetch(ep, body);
-                  if (result.isHtml) {
-                    results.push(`  ${ep.method} ${ep.path} → ${result.status} (HTML page, not an API endpoint)`);
-                    failed++;
-                    continue;
-                  }
-                  if (result.ok) {
-                    results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (direct)`);
-                    if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
-                    passed++;
-                    continue;
-                  }
-                } catch { /* fall through */ }
-              }
+              try {
+                result = await execViaFetch(ep, body);
+                if (result.isHtml) {
+                  results.push(`  ${ep.method} ${ep.path} → ${result.status} (HTML page, not an API endpoint)`);
+                  failed++;
+                  continue;
+                }
+                if (result.ok) {
+                  results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (direct)`);
+                  if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+                  passed++;
+                  continue;
+                }
+              } catch { /* fall through */ }
 
               // Try 3: If 401/403, refresh creds and retry
               const status = result?.status ?? 0;
@@ -1860,20 +1638,6 @@ const plugin = {
                   }
                 } else {
                   results.push(`  Credential refresh unavailable — use unbrowse_login to authenticate and store credentials for auto-refresh`);
-                }
-              }
-
-              // Try 4: Stealth fallback for blocked requests (403, 429, connection errors)
-              const blockedStatus = status === 403 || status === 429 || status === 0;
-              if (blockedStatus && !p.useStealth && browserUseApiKey) {
-                results.push(`  ${ep.method} ${ep.path} → ${status || "blocked"} — trying stealth browser...`);
-                const stealthResult = await execViaStealth(ep, body);
-                if (stealthResult && stealthResult.ok) {
-                  results.push(`  ${ep.method} ${ep.path} → ${stealthResult.status} OK (stealth fallback)`);
-                  if (p.endpoint && stealthResult.data) results.push(`  Response: ${stealthResult.data.slice(0, 500)}`);
-                  passed++;
-                  usedStealth = true;
-                  continue;
                 }
               }
 
@@ -1912,7 +1676,6 @@ const plugin = {
 
             // Clean up browser sessions after capturing state
             await cleanupChrome();
-            await cleanupStealth();
 
             // Persist accumulated cookies + headers + storage back to auth.json so the
             // next unbrowse_replay call (or credential refresh) picks them up.
@@ -1935,262 +1698,13 @@ const plugin = {
             }
 
             results.push("", `Results: ${passed} passed, ${failed} failed`);
-            if (usedStealth) {
-              results.push(`Used stealth cloud browser${p.proxyCountry ? ` (proxy: ${p.proxyCountry})` : ""}`);
-            }
             if (credsRefreshed) {
               results.push(`Credentials were refreshed and saved to auth.json`);
             }
-            if (failed > 0 && !credsRefreshed && !loginConfig && !usedStealth) {
-              results.push(`Tip: use useStealth=true to bypass anti-bot protection, or unbrowse_login to store credentials`);
+            if (failed > 0 && !credsRefreshed && !loginConfig) {
+              results.push(`Tip: use unbrowse_login to store credentials for auto-refresh`);
             }
             return { content: [{ type: "text", text: results.join("\n") }] };
-          },
-        },
-
-        // ── unbrowse_stealth ────────────────────────────────────────
-        {
-          name: "unbrowse_stealth",
-          label: "Stealth Browser",
-          description:
-            "Launch a stealth cloud browser that bypasses anti-bot detection, CAPTCHAs, " +
-            "and geo-restrictions. Returns a CDP URL for automation and a live viewing URL. " +
-            "Use action=start to launch, action=capture to grab traffic and generate a skill, " +
-            "action=stop to end the session. Costs $0.06/hour.",
-          parameters: STEALTH_SCHEMA,
-          async execute(_toolCallId: string, params: unknown) {
-            const p = params as {
-              action: "start" | "stop" | "capture" | "status";
-              url?: string;
-              timeout?: number;
-              proxyCountry?: string;
-              sessionId?: string;
-            };
-
-            if (!browserUseApiKey) {
-              return { content: [{ type: "text", text: "Stealth browser not configured. Set browserUseApiKey in unbrowse plugin config." }] };
-            }
-
-            switch (p.action) {
-              case "start": {
-                try {
-                  const session = await createStealthSession(browserUseApiKey, {
-                    timeout: p.timeout ?? 15,
-                    proxyCountryCode: p.proxyCountry,
-                  });
-
-                  stealthSessions.set(session.id, session);
-
-                  const lines = [
-                    `Stealth browser launched`,
-                    `Session: ${session.id}`,
-                    `CDP URL: ${session.cdpUrl}`,
-                    `Live view: ${session.liveUrl}`,
-                    `Timeout: ${p.timeout ?? 15} minutes`,
-                    "",
-                    `Connect via Playwright:`,
-                    `  const browser = await chromium.connectOverCDP("${session.cdpUrl}");`,
-                    "",
-                    `Use action=capture with sessionId=${session.id} to grab traffic.`,
-                    `Use action=stop with sessionId=${session.id} to end session.`,
-                  ];
-
-                  if (p.proxyCountry) lines.splice(4, 0, `Proxy: ${p.proxyCountry}`);
-
-                  logger.info(`[unbrowse] Stealth session started: ${session.id}`);
-                  return { content: [{ type: "text", text: lines.join("\n") }] };
-                } catch (err) {
-                  return { content: [{ type: "text", text: `Failed to start stealth browser: ${(err as Error).message}` }] };
-                }
-              }
-
-              case "stop": {
-                if (!p.sessionId) {
-                  return { content: [{ type: "text", text: "Provide sessionId to stop." }] };
-                }
-                try {
-                  await stopStealthSession(browserUseApiKey, p.sessionId);
-                  stealthSessions.delete(p.sessionId);
-                  logger.info(`[unbrowse] Stealth session stopped: ${p.sessionId}`);
-                  return { content: [{ type: "text", text: `Session ${p.sessionId} stopped.` }] };
-                } catch (err) {
-                  return { content: [{ type: "text", text: `Failed to stop: ${(err as Error).message}` }] };
-                }
-              }
-
-              case "capture": {
-                if (!p.sessionId) {
-                  return { content: [{ type: "text", text: "Provide sessionId to capture from." }] };
-                }
-
-                const session = stealthSessions.get(p.sessionId);
-                if (!session) {
-                  // Try to fetch it
-                  try {
-                    const s = await getStealthSession(browserUseApiKey, p.sessionId);
-                    if (s.status !== "active") {
-                      return { content: [{ type: "text", text: `Session ${p.sessionId} is ${s.status}.` }] };
-                    }
-                    stealthSessions.set(s.id, s);
-                  } catch {
-                    return { content: [{ type: "text", text: `Session ${p.sessionId} not found.` }] };
-                  }
-                }
-
-                const cdpUrl = (stealthSessions.get(p.sessionId))?.cdpUrl;
-                if (!cdpUrl) {
-                  return { content: [{ type: "text", text: "No CDP URL for this session." }] };
-                }
-
-                try {
-                  // If a URL was provided, navigate via Playwright while capturing
-                  // traffic in real-time (captureFromStealth only gets future events).
-                  if (p.url) {
-                    try {
-                      const { chromium } = await import("playwright");
-                      const remoteBrowser = await chromium.connectOverCDP(cdpUrl, { timeout: 10_000 });
-                      const ctx = remoteBrowser.contexts()[0] ?? await remoteBrowser.newContext();
-
-                      // Set up capture listeners BEFORE navigation
-                      const captured: Array<{ method: string; url: string; headers: Record<string, string>; resourceType: string; status: number; responseHeaders: Record<string, string>; timestamp: number }> = [];
-                      const pending = new Map<string, any>();
-                      for (const pg of ctx.pages()) {
-                        pg.on("request", (req: any) => { pending.set(req.url() + req.method(), { method: req.method(), url: req.url(), headers: req.headers(), resourceType: req.resourceType(), timestamp: Date.now() }); });
-                        pg.on("response", (resp: any) => { const k = resp.request().url() + resp.request().method(); const e = pending.get(k); if (e) { e.status = resp.status(); e.responseHeaders = resp.headers(); captured.push(e); pending.delete(k); } });
-                      }
-                      ctx.on("page", (pg: any) => {
-                        pg.on("request", (req: any) => { pending.set(req.url() + req.method(), { method: req.method(), url: req.url(), headers: req.headers(), resourceType: req.resourceType(), timestamp: Date.now() }); });
-                        pg.on("response", (resp: any) => { const k = resp.request().url() + resp.request().method(); const e = pending.get(k); if (e) { e.status = resp.status(); e.responseHeaders = resp.headers(); captured.push(e); pending.delete(k); } });
-                      });
-
-                      const navPage = ctx.pages()[0] ?? await ctx.newPage();
-                      await navPage.goto(p.url, { waitUntil: "networkidle", timeout: 30_000 }).catch(() => { });
-                      await navPage.waitForTimeout(3000);
-
-                      // Extract cookies
-                      const browserCookies = await ctx.cookies().catch(() => []);
-                      const cookieMap: Record<string, string> = {};
-                      for (const c of browserCookies) cookieMap[c.name] = c.value;
-
-                      await remoteBrowser.close();
-
-                      if (captured.length > 0) {
-                        // Build HAR from Playwright-captured traffic
-                        const harEntries = captured
-                          .filter(e => e.resourceType === "xhr" || e.resourceType === "fetch" || e.method !== "GET")
-                          .map(e => ({
-                            request: {
-                              method: e.method,
-                              url: e.url,
-                              headers: Object.entries(e.headers).map(([name, value]) => ({ name, value })),
-                              cookies: Object.entries(cookieMap).map(([name, value]) => ({ name, value })),
-                            },
-                            response: {
-                              status: e.status ?? 0,
-                              headers: Object.entries(e.responseHeaders ?? {}).map(([name, value]) => ({ name, value })),
-                            },
-                            time: e.timestamp,
-                          }));
-
-                        const har = { log: { entries: harEntries } };
-                        const apiData = parseHar(har as any, p.url);
-                        for (const [name, value] of Object.entries(cookieMap)) {
-                          if (!apiData.cookies[name]) apiData.cookies[name] = value;
-                        }
-                        const result = await generateSkill(apiData, defaultOutputDir);
-                        discovery.markLearned(result.service);
-
-                        // Detect and save refresh token config
-                        detectAndSaveRefreshConfig(harEntries, join(result.skillDir, "auth.json"), logger);
-
-                        let publishedVersion: string | null = null;
-                        if (result.changed) {
-                          publishedVersion = await autoPublishSkill(result.service, result.skillDir);
-                        }
-
-                        const summaryLines = [
-                          `Stealth capture: ${captured.length} requests (${harEntries.length} API)`,
-                          `Skill: ${result.service}`,
-                          `Auth: ${result.authMethod}`,
-                          `Endpoints: ${result.endpointCount}`,
-                        ];
-                        if (result.diff) summaryLines.push(`Changes: ${result.diff}`);
-                        summaryLines.push(
-                          `Auth headers: ${result.authHeaderCount} | Cookies: ${result.cookieCount}`,
-                          `Installed: ${result.skillDir}`,
-                        );
-                        if (publishedVersion) summaryLines.push(`Published: ${publishedVersion}`);
-
-                        return { content: [{ type: "text", text: summaryLines.join("\n") }] };
-                      }
-                    } catch {
-                      // Playwright navigation failed — fall back to CDP capture
-                    }
-                  }
-
-                  // Fallback: CDP-only capture (only gets future traffic after Network.enable)
-                  const { har, entries } = await captureFromStealth(cdpUrl);
-
-                  if (entries.length === 0) {
-                    return { content: [{ type: "text", text: "No requests captured from stealth browser. Navigate to pages first, or provide url param." }] };
-                  }
-
-                  const apiData = parseHar(har, p.url);
-                  const result = await generateSkill(apiData, defaultOutputDir);
-                  discovery.markLearned(result.service);
-
-                  // Detect and save refresh token config
-                  detectAndSaveRefreshConfig(har.log?.entries ?? [], join(result.skillDir, "auth.json"), logger);
-
-                  // Auto-publish if skill content changed
-                  let publishedVersion: string | null = null;
-                  if (result.changed) {
-                    publishedVersion = await autoPublishSkill(result.service, result.skillDir);
-                  }
-
-                  const summaryLines = [
-                    `Stealth capture: ${entries.length} requests`,
-                    `Skill: ${result.service}`,
-                    `Auth: ${result.authMethod}`,
-                    `Endpoints: ${result.endpointCount}`,
-                  ];
-                  if (result.diff) {
-                    summaryLines.push(`Changes: ${result.diff}`);
-                  }
-                  summaryLines.push(`Installed: ${result.skillDir}`);
-                  if (publishedVersion) {
-                    summaryLines.push(`Published: ${publishedVersion} (auto-synced to cloud index)`);
-                  }
-                  const summary = summaryLines.join("\n");
-
-                  logger.info(`[unbrowse] Stealth capture → ${result.service}`);
-                  return { content: [{ type: "text", text: summary }] };
-                } catch (err) {
-                  return { content: [{ type: "text", text: `Stealth capture failed: ${(err as Error).message}` }] };
-                }
-              }
-
-              case "status": {
-                if (p.sessionId) {
-                  try {
-                    const s = await getStealthSession(browserUseApiKey, p.sessionId);
-                    return { content: [{ type: "text", text: `Session ${s.id}: ${s.status}\nCDP: ${s.cdpUrl}\nLive: ${s.liveUrl}` }] };
-                  } catch (err) {
-                    return { content: [{ type: "text", text: `Status failed: ${(err as Error).message}` }] };
-                  }
-                }
-
-                // List all active sessions
-                const lines = [`Active stealth sessions: ${stealthSessions.size}`];
-                for (const [id, s] of stealthSessions) {
-                  lines.push(`  ${id}: ${s.status} — ${s.liveUrl}`);
-                }
-                return { content: [{ type: "text", text: lines.join("\n") }] };
-              }
-
-              default:
-                return { content: [{ type: "text", text: `Unknown action: ${p.action}. Use start, stop, capture, or status.` }] };
-            }
           },
         },
 
@@ -2456,10 +1970,9 @@ const plugin = {
           label: "Login & Capture Session",
           description:
             "Log in to a website with credentials and capture the session (cookies, auth headers, API traffic). " +
-            "Works in Docker/cloud where there's no Chrome profile. Uses stealth cloud browser (BrowserBase) " +
-            "if configured, otherwise local Playwright. Provide form fields to auto-fill login forms, " +
-            "or inject headers/cookies directly. If no credentials are provided and a credential source " +
-            "is configured (keychain, 1password, vault), credentials are auto-looked up by domain. " +
+            "Works via OpenClaw's browser API or falls back to local Playwright. Provide form fields to auto-fill " +
+            "login forms, or inject headers/cookies directly. If no credentials are provided and a credential " +
+            "source is configured (keychain, 1password, vault), credentials are auto-looked up by domain. " +
             "Captured session is saved to auth.json for the skill.",
           parameters: LOGIN_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
@@ -2471,7 +1984,6 @@ const plugin = {
               headers?: Record<string, string>;
               cookies?: Array<{ name: string; value: string; domain: string }>;
               captureUrls?: string[];
-              proxyCountry?: string;
               autoFillFromProvider?: boolean;
               saveCredentials?: boolean;
             };
@@ -2526,10 +2038,8 @@ const plugin = {
 
             try {
               const result = await loginAndCapture(p.loginUrl, credentials, {
-                browserUseApiKey,
                 captureUrls: p.captureUrls,
                 waitMs: 5000,
-                proxyCountry: p.proxyCountry,
               });
 
               // Save auth.json
@@ -2594,7 +2104,7 @@ const plugin = {
                 }
               }
 
-              const backend = browserUseApiKey ? "stealth cloud (BrowserBase)" : "local Playwright";
+              const backend = "OpenClaw browser";
               const cookieCount = Object.keys(result.cookies).length;
               const authHeaderCount = Object.keys(result.authHeaders).length;
               const lsCount = Object.keys(result.localStorage).length;
@@ -2659,9 +2169,6 @@ const plugin = {
               const msg = (err as Error).message;
               if (msg.includes("playwright")) {
                 return { content: [{ type: "text", text: `Playwright not available: ${msg}. Install with: bun add playwright` }] };
-              }
-              if (msg.includes("Browser Use")) {
-                return { content: [{ type: "text", text: `Stealth browser failed: ${msg}. Check browserUseApiKey config or try without it.` }] };
               }
               return { content: [{ type: "text", text: `Login capture failed: ${msg}` }] };
             }
@@ -3853,7 +3360,6 @@ const plugin = {
       "unbrowse_capture",
       "unbrowse_auth",
       "unbrowse_replay",
-      "unbrowse_stealth",
       "unbrowse_skills",
       "unbrowse_publish",
       "unbrowse_search",
@@ -3991,20 +3497,8 @@ const plugin = {
     });
 
     // ── Cleanup on shutdown ─────────────────────────────────────────────────
-    // Close all stealth sessions and shared browser when gateway shuts down
+    // Close shared browser and sessions when gateway shuts down
     const cleanupAllSessions = async () => {
-      // Close stealth sessions
-      if (stealthSessions.size > 0 && browserUseApiKey) {
-        logger.info(`[unbrowse] Cleaning up ${stealthSessions.size} stealth session(s)...`);
-        for (const [id] of stealthSessions) {
-          try {
-            await stopStealthSession(browserUseApiKey, id);
-            logger.info(`[unbrowse] Stopped stealth session: ${id}`);
-          } catch { /* ignore */ }
-        }
-        stealthSessions.clear();
-      }
-
       // Close shared browser
       if (sharedBrowser) {
         try {
@@ -4039,7 +3533,6 @@ const plugin = {
     const features = [
       `${toolCount} tools`,
       autoDiscoverEnabled ? "auto-discover" : null,
-      browserUseApiKey ? "stealth browsers" : null,
       creatorWallet ? "x402 publishing" : null,
       credentialProvider ? `creds:${credentialProvider.name}` : null,
     ].filter(Boolean).join(", ");

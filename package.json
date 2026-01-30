@@ -14,7 +14,6 @@
   "dependencies": {
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.95.0",
-    "browser-use-sdk": "^2.0.13",
     "bs58": "^5.0.0",
     "playwright": "^1.58.0"
   },
