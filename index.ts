@@ -126,6 +126,10 @@ const CAPTURE_SCHEMA = {
       type: "boolean" as const,
       description: "Auto-test discovered GET endpoints with captured auth to verify they work (default: true).",
     },
+    headless: {
+      type: "boolean" as const,
+      description: "Run browser in headless mode (default: false — browser is visible so you can interact if needed).",
+    },
   },
   required: ["urls"],
 };
@@ -210,12 +214,12 @@ const WALLET_SCHEMA = {
     action: {
       type: "string" as const,
       description:
-        'Action: "status" (show wallet config + balances), "setup" (auto-generate keypair if not configured), ' +
-        '"set_creator" (set earning wallet address), "set_payer" (set private key for paying downloads)',
+        'Action: "status" (show wallet config + balances), "create" (generate a new Solana keypair), ' +
+        '"set_creator" (use an existing wallet address for earnings), "set_payer" (set private key for paying downloads)',
     },
     wallet: {
       type: "string" as const,
-      description: "Solana wallet address (for set_creator action)",
+      description: "Solana wallet address (for set_creator action - your existing wallet)",
     },
     privateKey: {
       type: "string" as const,
@@ -442,50 +446,54 @@ const plugin = {
     const vaultDbPath = join(homedir(), ".openclaw", "unbrowse", "vault.db");
     const credentialProvider = createCredentialProvider(credentialSourceCfg, vaultDbPath);
 
-    // ── Auto-Generate Wallet ──────────────────────────────────────────────
-    // If no wallet is configured, generate a Solana keypair automatically.
-    // This lets the agent discover and pay for skills out of the box.
+    // ── Wallet Setup Helpers ──────────────────────────────────────────────
+    // Generates a new Solana keypair and saves it to config.
+    // Only called when user explicitly chooses to create a new wallet.
+    async function generateNewWallet(): Promise<{ publicKey: string; privateKey: string }> {
+      const { Keypair } = await import("@solana/web3.js");
+      const bs58 = await import("bs58");
+      const keypair = Keypair.generate();
+      const publicKey = keypair.publicKey.toBase58();
+      const privateKeyB58 = bs58.default.encode(keypair.secretKey);
+
+      // Save to plugin config via runtime
+      const currentConfig = await api.runtime.config.loadConfig();
+      const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
+      const unbrowseEntry = pluginEntries.unbrowse ?? {};
+      const unbrowseConfig = unbrowseEntry.config ?? {};
+
+      unbrowseConfig.creatorWallet = publicKey;
+      unbrowseConfig.skillIndexSolanaPrivateKey = privateKeyB58;
+      creatorWallet = publicKey;
+      solanaPrivateKey = privateKeyB58;
+      indexOpts.creatorWallet = publicKey;
+      indexOpts.solanaPrivateKey = privateKeyB58;
+
+      unbrowseEntry.config = unbrowseConfig;
+      pluginEntries.unbrowse = unbrowseEntry;
+      (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
+
+      await api.runtime.config.writeConfigFile(currentConfig);
+
+      logger.info(
+        `[unbrowse] Solana wallet created: ${publicKey}` +
+        ` — send USDC (Solana SPL) to this address to discover skills from the marketplace ($0.01/skill).` +
+        ` You also earn USDC when others download your published skills.`,
+      );
+
+      return { publicKey, privateKey: privateKeyB58 };
+    }
+
+    // Check if wallet is configured
+    function isWalletConfigured(): boolean {
+      return !!(creatorWallet && solanaPrivateKey);
+    }
+
+    // Legacy ensureWallet for backward compatibility with existing code
+    // Now only generates if both are missing (does not auto-generate on startup)
     async function ensureWallet(): Promise<void> {
       if (creatorWallet && solanaPrivateKey) return; // Already configured
-
-      try {
-        const { Keypair } = await import("@solana/web3.js");
-        const bs58 = await import("bs58");
-        const keypair = Keypair.generate();
-        const publicKey = keypair.publicKey.toBase58();
-        const privateKeyB58 = bs58.default.encode(keypair.secretKey);
-
-        // Save to plugin config via runtime
-        const currentConfig = await api.runtime.config.loadConfig();
-        const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
-        const unbrowseEntry = pluginEntries.unbrowse ?? {};
-        const unbrowseConfig = unbrowseEntry.config ?? {};
-
-        if (!creatorWallet) {
-          unbrowseConfig.creatorWallet = publicKey;
-          creatorWallet = publicKey;
-          indexOpts.creatorWallet = publicKey;
-        }
-        if (!solanaPrivateKey) {
-          unbrowseConfig.skillIndexSolanaPrivateKey = privateKeyB58;
-          solanaPrivateKey = privateKeyB58;
-          indexOpts.solanaPrivateKey = privateKeyB58;
-        }
-
-        unbrowseEntry.config = unbrowseConfig;
-        pluginEntries.unbrowse = unbrowseEntry;
-        (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
-
-        await api.runtime.config.writeConfigFile(currentConfig);
-
-        logger.info(
-          `[unbrowse] Solana wallet auto-generated: ${publicKey}` +
-          ` — send USDC (Solana SPL) to this address to discover skills from the marketplace ($0.01/skill).` +
-          ` You also earn USDC when others download your published skills.`,
-        );
-      } catch (err) {
-        logger.error(`[unbrowse] Failed to auto-generate wallet: ${(err as Error).message}`);
-      }
+      await generateNewWallet();
     }
 
     // ── Skill Index Client ─────────────────────────────────────────────────
@@ -497,8 +505,8 @@ const plugin = {
     };
     const indexClient = new SkillIndexClient(indexOpts);
 
-    // Fire-and-forget wallet setup (don't block plugin registration)
-    ensureWallet().catch(() => { });
+    // NOTE: Wallet is no longer auto-generated on startup.
+    // User must explicitly set up wallet via unbrowse_wallet tool.
 
     // ── Auto-Publish Helper ────────────────────────────────────────────────
     // Track server reachability to avoid repeated failed publish attempts
@@ -940,6 +948,7 @@ const plugin = {
               crawl?: boolean;
               maxPages?: number;
               testEndpoints?: boolean;
+              headless?: boolean;
             };
 
             if (!p.urls || p.urls.length === 0) {
@@ -947,7 +956,7 @@ const plugin = {
             }
 
             try {
-              const { captureFromChromeProfile } = await import("./src/profile-capture.js");
+              const { captureWithHar } = await import("./src/har-capture.js");
 
               const shouldCrawl = p.crawl !== false;
               const shouldTest = p.testEndpoints !== false;
@@ -956,9 +965,9 @@ const plugin = {
               // Progress feedback before starting
               logger.info(`[unbrowse] Capture starting: ${p.urls.length} seed URL(s), crawl up to ${maxPages} pages (60s max)...`);
 
-              const { har, cookies, requestCount, method, crawlResult } = await captureFromChromeProfile(p.urls, {
+              const { har, cookies, requestCount, method, crawlResult } = await captureWithHar(p.urls, {
                 waitMs: p.waitMs,
-                browserPort,
+                headless: p.headless ?? false, // Default visible so user can interact if needed
                 crawl: shouldCrawl,
                 crawlOptions: {
                   maxPages,
@@ -2181,7 +2190,7 @@ const plugin = {
           label: "Wallet Setup",
           description:
             "Manage your Solana wallet for skill marketplace payments. " +
-            "Check status, auto-generate a keypair, or set wallet addresses. " +
+            "Check status, create a new keypair, or use an existing wallet. " +
             "The wallet earns USDC when others download your published skills, " +
             "and pays USDC to download/discover skills from others.",
           parameters: WALLET_SCHEMA,
@@ -2189,6 +2198,40 @@ const plugin = {
             const p = params as { action?: string; wallet?: string; privateKey?: string };
             const action = p.action ?? "status";
 
+            // "create" - generate a new wallet keypair
+            if (action === "create") {
+              if (creatorWallet && solanaPrivateKey) {
+                return {
+                  content: [{
+                    type: "text",
+                    text: `Wallet already configured.\nCreator (earning): ${creatorWallet}\nPayer (spending): configured\n\nUse action="status" to check balances, or use action="set_creator" to switch to a different wallet.`,
+                  }],
+                };
+              }
+
+              try {
+                const { publicKey } = await generateNewWallet();
+                return {
+                  content: [{
+                    type: "text",
+                    text: [
+                      "New Solana wallet created and saved to config.",
+                      `Address: ${publicKey}`,
+                      "",
+                      "Fund this address with USDC to:",
+                      "  - Download and discover skills from the marketplace ($0.01/skill)",
+                      "  - Earn USDC when others download your published skills",
+                      "",
+                      "Send USDC (SPL) to this Solana address to get started.",
+                    ].join("\n"),
+                  }],
+                };
+              } catch (err) {
+                return { content: [{ type: "text", text: `Wallet creation failed: ${(err as Error).message}` }] };
+              }
+            }
+
+            // "setup" - legacy alias for "create" (backward compatibility)
             if (action === "setup") {
               if (creatorWallet && solanaPrivateKey) {
                 return {
@@ -2200,13 +2243,13 @@ const plugin = {
               }
 
               try {
-                await ensureWallet();
+                const { publicKey } = await generateNewWallet();
                 return {
                   content: [{
                     type: "text",
                     text: [
                       "Solana wallet generated and saved to config.",
-                      `Address: ${creatorWallet}`,
+                      `Address: ${publicKey}`,
                       "",
                       "Fund this address with USDC to:",
                       "  - Download and discover skills from the marketplace ($0.01/skill)",
@@ -2302,17 +2345,32 @@ const plugin = {
 
             if (!creatorWallet && !solanaPrivateKey) {
               lines.push(
-                'No wallet configured. Use action="setup" to auto-generate a Solana keypair.',
+                "No wallet configured. Choose one of the following options:",
+                "",
+                '  1. CREATE NEW WALLET: Use action="create" to generate a new Solana keypair',
+                '     - This will create a brand new wallet just for you',
+                "",
+                '  2. USE EXISTING WALLET: Use action="set_creator" with wallet="YOUR_ADDRESS"',
+                '     - Then use action="set_payer" with privateKey="YOUR_PRIVATE_KEY"',
+                '     - Use this if you already have a Solana wallet with USDC',
+                "",
                 "The wallet is used to earn and pay USDC for skill marketplace access.",
               );
             } else if (!solanaPrivateKey) {
               lines.push(
-                'No payer key configured. Use action="setup" to generate, or action="set_payer" to import.',
+                'No payer key configured.',
+                "",
+                '  Option 1: Use action="create" to generate a new keypair',
+                '  Option 2: Use action="set_payer" with privateKey="YOUR_PRIVATE_KEY" to import existing',
+                "",
                 "A payer key is needed to download skills from the marketplace.",
               );
             } else if (!creatorWallet) {
               lines.push(
-                'No creator wallet. Use action="set_creator" to set your earning address.',
+                'No creator wallet configured.',
+                "",
+                '  Use action="set_creator" with wallet="YOUR_ADDRESS" to set your earning address.',
+                "",
                 "A creator wallet lets you earn USDC when others download your skills.",
               );
             } else {
