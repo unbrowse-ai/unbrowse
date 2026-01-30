@@ -1,0 +1,58 @@
+{
+  "id": "unbrowse",
+  "uiHints": {
+    "skillsOutputDir": {
+      "label": "Skills Output Directory",
+      "help": "Where generated skills are saved",
+      "placeholder": "~/.openclaw/skills"
+    },
+    "browserPort": {
+      "label": "Browser Control Port",
+      "help": "Port for browser CDP control API (default: 18791)"
+    },
+    "browserUseApiKey": {
+      "label": "Browser Use API Key",
+      "help": "API key for stealth cloud browsers (browser-use.com). Enables unbrowse_stealth tool.",
+      "sensitive": true,
+      "placeholder": "bu_..."
+    },
+    "autoDiscover": {
+      "label": "Auto-Discover Skills",
+      "help": "Automatically generate skills when the agent browses APIs (default: true)"
+    },
+    "skillIndexUrl": {
+      "label": "Skill Index URL",
+      "help": "Cloud skill marketplace API URL",
+      "placeholder": "https://skills.unbrowse.ai"
+    },
+    "creatorWallet": {
+      "label": "Creator Wallet (Solana)",
+      "help": "Your Solana wallet address for receiving USDC when others download your skills",
+      "placeholder": "ABC123..."
+    },
+    "skillIndexSolanaPrivateKey": {
+      "label": "Payment Private Key (Solana)",
+      "help": "Base58-encoded Solana private key for paying x402 USDC when downloading skills from the index",
+      "sensitive": true,
+      "placeholder": "base58..."
+    },
+    "credentialSource": {
+      "label": "Credential Source (Login Passwords)",
+      "help": "Opt-in: where to look up login passwords for auto-login. 'keychain' = macOS Keychain, '1password' = 1Password CLI, 'vault' = local encrypted vault, 'none' = disabled (default)"
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "skillsOutputDir": { "type": "string" },
+      "browserPort": { "type": "number", "default": 18791 },
+      "browserUseApiKey": { "type": "string" },
+      "autoDiscover": { "type": "boolean", "default": true },
+      "skillIndexUrl": { "type": "string", "default": "https://skills.unbrowse.ai" },
+      "creatorWallet": { "type": "string" },
+      "skillIndexSolanaPrivateKey": { "type": "string" },
+      "credentialSource": { "type": "string", "enum": ["none", "auto", "keychain", "1password", "vault"], "default": "none" }
+    }
+  }
+}
