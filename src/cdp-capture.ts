@@ -1,5 +1,5 @@
 /**
- * CDP Capture — Live network capture via clawdbot's browser control API.
+ * CDP Capture — Live network capture via OpenClaw's browser control API.
  *
  * Uses the browser control HTTP server (port 18791) which wraps Playwright's
  * network capture. Works with both `clawd` (managed Playwright) and `chrome`
@@ -30,7 +30,7 @@ const responseHeaderCache = new Map<string, Record<string, string>>();
 /** Whether CDP header listener is active. */
 let cdpListenerActive = false;
 
-/** Shape returned by clawdbot's GET /requests endpoint. */
+/** Shape returned by OpenClaw's GET /requests endpoint. */
 interface BrowserRequestEntry {
   id: string;
   timestamp: string;
@@ -40,8 +40,8 @@ interface BrowserRequestEntry {
   status?: number;
   ok?: boolean;
   failureText?: string;
-  headers?: Record<string, string>;         // Available after install.sh patches clawdbot
-  responseHeaders?: Record<string, string>;  // Available after install.sh patches clawdbot
+  headers?: Record<string, string>;         // Available after install.sh patches openclaw
+  responseHeaders?: Record<string, string>;  // Available after install.sh patches openclaw
 }
 
 /** Response from GET /requests. */
@@ -60,7 +60,7 @@ interface CookiesResponse {
 }
 
 /**
- * Fetch all captured network requests from clawdbot's browser control API.
+ * Fetch all captured network requests from OpenClaw's browser control API.
  *
  * @param filter - Optional URL substring filter (e.g., "api" to only get API calls)
  * @param clear - Clear the request buffer after reading
@@ -138,9 +138,9 @@ export async function fetchBrowserCookies(port = DEFAULT_PORT): Promise<Record<s
 }
 
 /**
- * Convert clawdbot browser request entries to HAR format for pipeline reuse.
+ * Convert OpenClaw browser request entries to HAR format for pipeline reuse.
  *
- * After install.sh patches clawdbot, request and response headers are
+ * After install.sh patches openclaw, request and response headers are
  * included in the /requests endpoint. Without the patch, headers are empty
  * and we try to enrich from CDP header cache, falling back to cookies.
  */
@@ -282,7 +282,7 @@ export function getCachedResponseHeaders(url: string): Record<string, string> | 
  * Capture network traffic + cookies from a running browser session
  * and convert to HAR format for the parser pipeline.
  *
- * Requires a browser session started via clawdbot's browser tool
+ * Requires a browser session started via OpenClaw's browser tool
  * (e.g., `browser action=start profile=clawd targetUrl=...`).
  *
  * If headers are missing from the /requests endpoint, tries to

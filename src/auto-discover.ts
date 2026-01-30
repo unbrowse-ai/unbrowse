@@ -7,7 +7,7 @@
  * the agent having to explicitly call unbrowse_learn.
  *
  * This is the "self-figuring-out" layer — the agent browses, and skills
- * materialize automatically in ~/.clawdbot/skills/.
+ * materialize automatically in ~/.openclaw/skills/.
  */
 
 import { existsSync, readdirSync } from "node:fs";
@@ -62,7 +62,7 @@ export class AutoDiscovery {
     logger: { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
     onSkillGenerated?: (service: string, result: SkillResult) => Promise<void>;
   }) {
-    this.outputDir = opts.outputDir ?? join(homedir(), ".clawdbot", "skills");
+    this.outputDir = opts.outputDir ?? join(homedir(), ".openclaw", "skills");
     this.port = opts.port ?? 18791;
     this.logger = opts.logger;
     this.onSkillGenerated = opts.onSkillGenerated;

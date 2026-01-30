@@ -1,17 +1,25 @@
 /**
- * Profile Capture — Network capture using Playwright.
+ * Profile Capture — Network capture using OpenClaw's browser control API.
  *
- * Smart connection cascade:
- *   1. CDP connect to clawdbot's managed browser (port 18791) — already has cookies
- *   2. CDP connect to Chrome with --remote-debugging-port (if user started it that way)
- *   3. Launch fresh Chromium via Playwright — works for public pages or with unbrowse_login auth
+ * Uses the browser control HTTP server (port 18791) which wraps Playwright's
+ * network capture. Works with both `openclaw` (managed browser) and `chrome`
+ * (extension relay) profiles.
  *
- * Note: Chrome's real profile + --remote-debugging-port don't work together
- * (Chrome blocks it). For authenticated sessions, use unbrowse_login instead.
+ * Browser control API (port 18791):
+ *   POST /tabs/open         — open URL in new tab
+ *   POST /navigate          — navigate current tab to URL
+ *   GET  /requests          — captured network requests (includes headers)
+ *   GET  /requests?clear=true — clear buffer after reading
+ *   GET  /cookies           — all cookies from the browser
+ *   POST /start             — start browser if not running
+ *
+ * Fallback: If OpenClaw browser is unavailable, launches fresh Playwright.
  */
 
 import type { HarEntry } from "./types.js";
-import type { CrawlResult, OpenApiSpec } from "./site-crawler.js";
+import type { CrawlResult } from "./site-crawler.js";
+
+const DEFAULT_PORT = 18791;
 
 /** Captured request with full headers. */
 interface CapturedEntry {
@@ -33,11 +41,274 @@ type CaptureResult = {
   crawlResult?: CrawlResult;
 };
 
-function attachListeners(
-  page: any,
-  captured: CapturedEntry[],
-  pendingRequests: Map<string, Partial<CapturedEntry>>,
-) {
+/** Shape returned by OpenClaw's GET /requests endpoint. */
+interface BrowserRequestEntry {
+  id: string;
+  timestamp: string;
+  method: string;
+  url: string;
+  resourceType: string;
+  status?: number;
+  headers?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
+}
+
+/** Check if OpenClaw browser is available and start it if needed. */
+async function ensureBrowserRunning(port: number): Promise<boolean> {
+  try {
+    const statusResp = await fetch(`http://127.0.0.1:${port}/`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!statusResp.ok) return false;
+    const status = await statusResp.json() as { running?: boolean };
+
+    if (!status.running) {
+      const startResp = await fetch(`http://127.0.0.1:${port}/start`, {
+        method: "POST",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!startResp.ok) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Open a URL in a new tab via OpenClaw browser API. */
+async function openTab(url: string, port: number): Promise<string | null> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/tabs/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json() as { targetId?: string };
+    return data.targetId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Navigate existing tab to URL. */
+async function navigate(url: string, port: number): Promise<boolean> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/navigate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(30000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Fetch captured requests from OpenClaw browser. */
+async function fetchRequests(port: number, clear = false): Promise<BrowserRequestEntry[]> {
+  try {
+    const url = new URL(`http://127.0.0.1:${port}/requests`);
+    if (clear) url.searchParams.set("clear", "true");
+
+    const resp = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) return [];
+
+    const data = await resp.json() as { requests?: BrowserRequestEntry[] };
+    return data.requests ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Fetch cookies from OpenClaw browser. */
+async function fetchCookies(port: number): Promise<Record<string, string>> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/cookies`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) return {};
+
+    const data = await resp.json() as { cookies?: Array<{ name: string; value: string }> };
+    const cookies: Record<string, string> = {};
+    for (const c of data.cookies ?? []) {
+      cookies[c.name] = c.value;
+    }
+    return cookies;
+  } catch {
+    return {};
+  }
+}
+
+/** Close a tab by targetId. */
+async function closeTab(targetId: string, port: number): Promise<void> {
+  try {
+    await fetch(`http://127.0.0.1:${port}/tabs/${targetId}`, {
+      method: "DELETE",
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    // Ignore close errors
+  }
+}
+
+/** Filter requests to API calls only. */
+function filterApiRequests(entries: BrowserRequestEntry[]): CapturedEntry[] {
+  return entries
+    .filter((entry) => {
+      const rt = entry.resourceType?.toLowerCase();
+      if (rt === "xhr" || rt === "fetch") return true;
+      if (entry.method !== "GET") return true;
+      const ct = entry.responseHeaders?.["content-type"] ?? "";
+      if (ct.includes("application/json") || ct.includes("application/xml") || ct.includes("text/xml")) return true;
+      return false;
+    })
+    .map((entry) => ({
+      method: entry.method,
+      url: entry.url,
+      headers: entry.headers ?? {},
+      resourceType: entry.resourceType,
+      status: entry.status ?? 0,
+      responseHeaders: entry.responseHeaders ?? {},
+      timestamp: entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now(),
+    }));
+}
+
+/** Convert captured entries to HAR format. */
+function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>, method: string): CaptureResult {
+  const harEntries: HarEntry[] = captured.map((entry) => ({
+    request: {
+      method: entry.method,
+      url: entry.url,
+      headers: Object.entries(entry.headers).map(([name, value]) => ({ name, value })),
+      cookies: Object.entries(cookies).map(([name, value]) => ({ name, value })),
+    },
+    response: {
+      status: entry.status,
+      headers: Object.entries(entry.responseHeaders).map(([name, value]) => ({ name, value })),
+    },
+    time: entry.timestamp,
+  }));
+
+  return {
+    har: { log: { entries: harEntries } },
+    cookies,
+    requestCount: captured.length,
+    entries: captured,
+    method,
+  };
+}
+
+/**
+ * Capture network traffic using OpenClaw's browser API.
+ * Falls back to fresh Playwright if OpenClaw browser is unavailable.
+ */
+export async function captureFromChromeProfile(
+  urls: string[],
+  opts: {
+    profilePath?: string;
+    waitMs?: number;
+    headless?: boolean;
+    browserPort?: number;
+    crawl?: boolean;
+    crawlOptions?: {
+      maxPages?: number;
+      maxTimeMs?: number;
+      maxDepth?: number;
+      discoverOpenApi?: boolean;
+    };
+  } = {},
+): Promise<CaptureResult> {
+  const waitMs = opts.waitMs ?? 5000;
+  const browserPort = opts.browserPort ?? DEFAULT_PORT;
+  const shouldCrawl = opts.crawl !== false;
+
+  // Try OpenClaw browser first
+  if (await ensureBrowserRunning(browserPort)) {
+    // Clear any existing captured requests
+    await fetchRequests(browserPort, true);
+
+    const openedTabs: string[] = [];
+
+    // Open each URL in a new tab
+    for (const url of urls) {
+      const targetId = await openTab(url, browserPort);
+      if (targetId) {
+        openedTabs.push(targetId);
+        // Wait for page to load and make API calls
+        await new Promise(r => setTimeout(r, waitMs));
+      }
+    }
+
+    // Optional crawl using Playwright CDP connection
+    let crawlResult: CrawlResult | undefined;
+    if (shouldCrawl && urls[0]) {
+      try {
+        const { chromium } = await import("playwright");
+        // Connect to OpenClaw's CDP
+        const browser = await chromium.connectOverCDP(`http://127.0.0.1:${browserPort}`, { timeout: 5000 });
+        const context = browser.contexts()[0];
+        if (context) {
+          const page = context.pages()[0];
+          if (page) {
+            const { crawlSite } = await import("./site-crawler.js");
+            crawlResult = await crawlSite(page, context, urls[0], {
+              maxPages: opts.crawlOptions?.maxPages ?? 15,
+              maxTimeMs: opts.crawlOptions?.maxTimeMs ?? 60_000,
+              maxDepth: opts.crawlOptions?.maxDepth ?? 2,
+              discoverOpenApi: opts.crawlOptions?.discoverOpenApi ?? true,
+            });
+          }
+        }
+        await browser.close();
+      } catch {
+        // Crawl is optional, continue without it
+      }
+    }
+
+    // Fetch captured requests and cookies
+    const [rawRequests, cookies] = await Promise.all([
+      fetchRequests(browserPort),
+      fetchCookies(browserPort),
+    ]);
+
+    // Close opened tabs
+    for (const targetId of openedTabs) {
+      await closeTab(targetId, browserPort);
+    }
+
+    const captured = filterApiRequests(rawRequests);
+    const result = toHarResult(captured, cookies, "openclaw-api");
+    result.crawlResult = crawlResult;
+    return result;
+  }
+
+  // Fallback: Launch fresh Playwright Chromium
+  const { chromium } = await import("playwright");
+
+  const browser = await chromium.launch({
+    headless: opts.headless ?? true,
+    timeout: 15_000,
+    args: [
+      "--disable-blink-features=AutomationControlled",
+      "--no-sandbox",
+    ],
+  });
+
+  const context = await browser.newContext({
+    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  });
+
+  const captured: CapturedEntry[] = [];
+  const pendingRequests = new Map<string, Partial<CapturedEntry>>();
+
+  const page = await context.newPage();
+
+  // Attach request/response listeners
   page.on("request", (req: any) => {
     pendingRequests.set(req.url() + req.method(), {
       method: req.method(),
@@ -59,188 +330,6 @@ function attachListeners(
       pendingRequests.delete(key);
     }
   });
-}
-
-function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>, method: string): CaptureResult {
-  // Filter to only XHR/Fetch requests — skip document, stylesheet, script, image, etc.
-  // These are the actual API calls, not page navigation or static resources.
-  const apiCaptured = captured.filter((entry) => {
-    const rt = entry.resourceType?.toLowerCase();
-    if (rt === "xhr" || rt === "fetch") return true;
-    // Also keep non-GET requests (POST/PUT/DELETE are always API calls)
-    if (entry.method !== "GET") return true;
-    // For GET requests without a resource type, check the response content-type
-    const ct = entry.responseHeaders?.["content-type"] ?? "";
-    if (ct.includes("application/json") || ct.includes("application/xml") || ct.includes("text/xml")) return true;
-    return false;
-  });
-
-  const harEntries: HarEntry[] = apiCaptured.map((entry) => ({
-    request: {
-      method: entry.method,
-      url: entry.url,
-      headers: Object.entries(entry.headers).map(([name, value]) => ({ name, value })),
-      cookies: Object.entries(cookies).map(([name, value]) => ({ name, value })),
-    },
-    response: {
-      status: entry.status,
-      headers: Object.entries(entry.responseHeaders ?? {}).map(([name, value]) => ({ name, value })),
-    },
-    time: entry.timestamp,
-  }));
-
-  return {
-    har: { log: { entries: harEntries } },
-    cookies,
-    requestCount: apiCaptured.length,
-    entries: apiCaptured,
-    method,
-  };
-}
-
-/** Try to connect to a CDP endpoint. Returns null if unavailable. */
-async function tryCdpConnect(chromium: any, port: number): Promise<any | null> {
-  try {
-    const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json() as { webSocketDebuggerUrl?: string };
-    const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
-    const browser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
-    return browser;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Capture network traffic — smart cascade.
- *
- * 1. Try clawdbot managed browser (CDP port 18791)
- * 2. Try Chrome with remote debugging (CDP port 9222)
- * 3. Launch fresh Playwright Chromium (no profile — works for public pages)
- */
-export async function captureFromChromeProfile(
-  urls: string[],
-  opts: {
-    profilePath?: string;
-    waitMs?: number;
-    headless?: boolean;
-    browserPort?: number;
-    crawl?: boolean;
-    crawlOptions?: {
-      maxPages?: number;
-      maxTimeMs?: number;
-      maxDepth?: number;
-      discoverOpenApi?: boolean;
-    };
-  } = {},
-): Promise<CaptureResult> {
-  const { chromium } = await import("playwright");
-  const waitMs = opts.waitMs ?? 5000;
-  const browserPort = opts.browserPort ?? 18791;
-  const shouldCrawl = opts.crawl !== false;
-
-  const captured: CapturedEntry[] = [];
-  const pendingRequests = new Map<string, Partial<CapturedEntry>>();
-
-  // Helper: crawl after visiting seed URLs (reuses the page with listeners already attached)
-  async function maybeCrawl(page: any, context: any): Promise<CrawlResult | undefined> {
-    if (!shouldCrawl || !urls[0]) return undefined;
-    const { crawlSite } = await import("./site-crawler.js");
-    return crawlSite(page, context, urls[0], {
-      maxPages: opts.crawlOptions?.maxPages ?? 15,
-      maxTimeMs: opts.crawlOptions?.maxTimeMs ?? 60_000,
-      maxDepth: opts.crawlOptions?.maxDepth ?? 2,
-      discoverOpenApi: opts.crawlOptions?.discoverOpenApi ?? true,
-    });
-  }
-
-  // ── Strategy 1: Connect to clawdbot's managed browser ──
-  let browser = await tryCdpConnect(chromium, browserPort);
-  if (browser) {
-    const context = browser.contexts()[0];
-    if (context) {
-      for (const page of context.pages()) attachListeners(page, captured, pendingRequests);
-      context.on("page", (page: any) => attachListeners(page, captured, pendingRequests));
-
-      let lastPage: any;
-      for (const url of urls) {
-        lastPage = await context.newPage();
-        attachListeners(lastPage, captured, pendingRequests);
-        try {
-          await lastPage.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
-        } catch {
-          await lastPage.waitForTimeout(waitMs);
-        }
-        await lastPage.waitForTimeout(waitMs);
-      }
-
-      const crawlResult = lastPage ? await maybeCrawl(lastPage, context) : undefined;
-
-      const browserCookies = await context.cookies();
-      const cookies: Record<string, string> = {};
-      for (const c of browserCookies) cookies[c.name] = c.value;
-
-      await browser.close();
-      const result = toHarResult(captured, cookies, "clawdbot-browser");
-      result.crawlResult = crawlResult;
-      return result;
-    }
-  }
-
-  // ── Strategy 2: Connect to Chrome with remote debug port ──
-  for (const port of [9222, 9229]) {
-    browser = await tryCdpConnect(chromium, port);
-    if (browser) {
-      const context = browser.contexts()[0];
-      if (context) {
-        for (const page of context.pages()) attachListeners(page, captured, pendingRequests);
-        context.on("page", (page: any) => attachListeners(page, captured, pendingRequests));
-
-        let lastPage: any;
-        for (const url of urls) {
-          lastPage = await context.newPage();
-          attachListeners(lastPage, captured, pendingRequests);
-          try {
-            await lastPage.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
-          } catch {
-            await lastPage.waitForTimeout(waitMs);
-          }
-          await lastPage.waitForTimeout(waitMs);
-        }
-
-        const crawlResult = lastPage ? await maybeCrawl(lastPage, context) : undefined;
-
-        const browserCookies = await context.cookies();
-        const cookies: Record<string, string> = {};
-        for (const c of browserCookies) cookies[c.name] = c.value;
-
-        await browser.close();
-        const result = toHarResult(captured, cookies, "chrome-cdp");
-        result.crawlResult = crawlResult;
-        return result;
-      }
-    }
-  }
-
-  // ── Strategy 3: Launch fresh Playwright Chromium ──
-  browser = await chromium.launch({
-    headless: opts.headless ?? true,
-    timeout: 15_000,
-    args: [
-      "--disable-blink-features=AutomationControlled",
-      "--no-sandbox",
-    ],
-  });
-
-  const context = await browser.newContext({
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  });
-
-  const page = await context.newPage();
-  attachListeners(page, captured, pendingRequests);
 
   for (const url of urls) {
     try {
@@ -251,20 +340,41 @@ export async function captureFromChromeProfile(
     await page.waitForTimeout(waitMs);
   }
 
-  const crawlResult = await maybeCrawl(page, context);
+  // Optional crawl
+  let crawlResult: CrawlResult | undefined;
+  if (shouldCrawl && urls[0]) {
+    const { crawlSite } = await import("./site-crawler.js");
+    crawlResult = await crawlSite(page, context, urls[0], {
+      maxPages: opts.crawlOptions?.maxPages ?? 15,
+      maxTimeMs: opts.crawlOptions?.maxTimeMs ?? 60_000,
+      maxDepth: opts.crawlOptions?.maxDepth ?? 2,
+      discoverOpenApi: opts.crawlOptions?.discoverOpenApi ?? true,
+    });
+  }
 
   const browserCookies = await context.cookies();
   const cookies: Record<string, string> = {};
   for (const c of browserCookies) cookies[c.name] = c.value;
 
   await browser.close();
-  const result = toHarResult(captured, cookies, "playwright");
+
+  const apiCaptured = captured.filter((entry) => {
+    const rt = entry.resourceType?.toLowerCase();
+    if (rt === "xhr" || rt === "fetch") return true;
+    if (entry.method !== "GET") return true;
+    const ct = entry.responseHeaders?.["content-type"] ?? "";
+    if (ct.includes("application/json") || ct.includes("application/xml") || ct.includes("text/xml")) return true;
+    return false;
+  });
+
+  const result = toHarResult(apiCaptured, cookies, "playwright");
   result.crawlResult = crawlResult;
   return result;
 }
 
 /**
  * Capture by connecting to an already-running Chrome via CDP.
+ * @deprecated Use captureFromChromeProfile which handles this automatically
  */
 export async function captureFromChromeDebug(
   urls: string[],
@@ -286,8 +396,31 @@ export async function captureFromChromeDebug(
     throw new Error("No browser context found. Is Chrome running with --remote-debugging-port?");
   }
 
-  for (const page of context.pages()) attachListeners(page, captured, pendingRequests);
-  context.on("page", (page: any) => attachListeners(page, captured, pendingRequests));
+  const attachListeners = (page: any) => {
+    page.on("request", (req: any) => {
+      pendingRequests.set(req.url() + req.method(), {
+        method: req.method(),
+        url: req.url(),
+        headers: req.headers(),
+        resourceType: req.resourceType(),
+        timestamp: Date.now(),
+      });
+    });
+    page.on("response", (resp: any) => {
+      const req = resp.request();
+      const key = req.url() + req.method();
+      const entry = pendingRequests.get(key);
+      if (entry) {
+        entry.status = resp.status();
+        entry.responseHeaders = resp.headers();
+        captured.push(entry as CapturedEntry);
+        pendingRequests.delete(key);
+      }
+    });
+  };
+
+  for (const page of context.pages()) attachListeners(page);
+  context.on("page", attachListeners);
 
   for (const url of urls) {
     const page = context.pages()[0] ?? await context.newPage();
@@ -304,5 +437,15 @@ export async function captureFromChromeDebug(
   for (const c of browserCookies) cookies[c.name] = c.value;
 
   await browser.close();
-  return toHarResult(captured, cookies, "chrome-cdp-direct");
+
+  const apiCaptured = captured.filter((entry) => {
+    const rt = entry.resourceType?.toLowerCase();
+    if (rt === "xhr" || rt === "fetch") return true;
+    if (entry.method !== "GET") return true;
+    const ct = entry.responseHeaders?.["content-type"] ?? "";
+    if (ct.includes("application/json") || ct.includes("application/xml") || ct.includes("text/xml")) return true;
+    return false;
+  });
+
+  return toHarResult(apiCaptured, cookies, "chrome-cdp-direct");
 }

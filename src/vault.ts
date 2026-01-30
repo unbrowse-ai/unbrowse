@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-const VAULT_DIR = join(homedir(), ".clawdbot", "unbrowse");
+const VAULT_DIR = join(homedir(), ".openclaw", "unbrowse");
 const VAULT_DB = join(VAULT_DIR, "vault.db");
 const KEYCHAIN_SERVICE = "unbrowse-vault";
 const CIPHER = "aes-256-gcm";
@@ -134,7 +134,7 @@ export class Vault {
     this.dbPath = dbPath;
 
     // Auto-create vault directory and database if missing
-    const vaultDir = join(homedir(), ".clawdbot", "unbrowse");
+    const vaultDir = join(homedir(), ".openclaw", "unbrowse");
     if (!existsSync(vaultDir)) {
       mkdirSync(vaultDir, { recursive: true });
     }

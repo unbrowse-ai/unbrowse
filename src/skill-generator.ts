@@ -52,9 +52,17 @@ function generateSkillMd(service: string, data: ApiData): string {
     ? `\n**Cookies:** ${Object.keys(data.cookies).length} cookies found in auth.json`
     : "";
 
+  // OpenClaw-compatible YAML frontmatter with proper metadata
   return `---
 name: ${service}
-description: ${service} API integration generated from HAR capture with extracted auth.
+description: ${title} API - ${Object.keys(data.endpoints).length} endpoints with ${data.authMethod} authentication
+user-invocable: true
+metadata:
+  openclaw:
+    generator: unbrowse
+    baseUrl: "${data.baseUrl}"
+    authMethod: "${data.authMethod}"
+    endpointCount: ${Object.keys(data.endpoints).length}
 ---
 
 # ${title} API
@@ -330,7 +338,7 @@ export async function generateSkill(
   },
 ): Promise<SkillResult> {
   const service = data.service;
-  const resolvedOutputDir = outputDir ? resolve(outputDir) : join(homedir(), ".clawdbot", "skills");
+  const resolvedOutputDir = outputDir ? resolve(outputDir) : join(homedir(), ".openclaw", "skills");
 
   // Prevent nested directories like skills/bags-fm/bags-fm when outputDir
   // already ends with the service name (e.g. user passed outputDir="/...skills/bags-fm")

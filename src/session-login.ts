@@ -1,16 +1,26 @@
 /**
- * Session Login — Credential-based browser session for Docker/cloud environments.
+ * Session Login — Credential-based browser session using OpenClaw's browser API.
  *
  * When there's no Chrome profile available (Docker, CI, cloud), users can provide
- * credentials and the system will log in via a stealth browser, capturing the
- * resulting cookies/headers for future API calls.
+ * credentials and the system will log in via OpenClaw's managed browser, capturing
+ * the resulting cookies/headers for future API calls.
  *
- * Two browser backends:
- *   1. BrowserBase (stealth cloud) — anti-detection, proxy, no local Chrome needed
- *   2. Local Playwright — fallback, launches bundled Chromium with stealth flags
+ * Browser control API (port 18791):
+ *   POST /start             — start browser if not running
+ *   POST /navigate          — navigate to URL
+ *   GET  /snapshot          — get page state with element refs
+ *   POST /act               — click, type, etc.
+ *   GET  /requests          — captured network requests
+ *   GET  /cookies           — all cookies
+ *   GET  /storage/local     — localStorage
+ *   GET  /storage/session   — sessionStorage
+ *
+ * Fallback: If OpenClaw browser is unavailable, uses stealth browser or Playwright.
  */
 
 import type { HarEntry } from "./types.js";
+
+const DEFAULT_PORT = 18791;
 
 export interface LoginCredentials {
   /** Form field selectors → values to fill. e.g. { "#email": "me@x.com", "#password": "..." } */
@@ -58,29 +68,365 @@ const AUTH_HEADER_NAMES = new Set([
   "token", "x-token", "x-csrf-token", "x-xsrf-token",
 ]);
 
+/** Check if OpenClaw browser is available and start it if needed. */
+async function ensureBrowserRunning(port: number): Promise<boolean> {
+  try {
+    const statusResp = await fetch(`http://127.0.0.1:${port}/`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!statusResp.ok) return false;
+    const status = await statusResp.json() as { running?: boolean };
+
+    if (!status.running) {
+      const startResp = await fetch(`http://127.0.0.1:${port}/start`, {
+        method: "POST",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!startResp.ok) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Navigate to URL via OpenClaw browser API. */
+async function navigateTo(url: string, port: number): Promise<boolean> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/navigate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(30000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Get snapshot with element refs. */
+async function getSnapshot(port: number): Promise<{ elements?: Array<{ ref: string; role?: string; name?: string; tag?: string }> }> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/snapshot?interactive=true`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) return {};
+    return await resp.json();
+  } catch {
+    return {};
+  }
+}
+
+/** Execute browser action (click, type, etc.). */
+async function act(port: number, action: { kind: string; ref?: string; selector?: string; text?: string }): Promise<boolean> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/act`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(action),
+      signal: AbortSignal.timeout(15000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Wait for a condition via OpenClaw API. */
+async function waitFor(port: number, opts: { url?: string; load?: string; timeoutMs?: number }): Promise<boolean> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/wait`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(opts),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 15000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Set cookies via OpenClaw browser API. */
+async function setCookies(port: number, cookies: Array<{ name: string; value: string; domain: string }>): Promise<boolean> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/cookies/set`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cookies }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Set extra HTTP headers via OpenClaw browser API. */
+async function setHeaders(port: number, headers: Record<string, string>): Promise<boolean> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/set/headers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ headers }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Fetch captured requests from OpenClaw browser. */
+async function fetchRequests(port: number, clear = false): Promise<CapturedEntry[]> {
+  try {
+    const url = new URL(`http://127.0.0.1:${port}/requests`);
+    if (clear) url.searchParams.set("clear", "true");
+
+    const resp = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) return [];
+
+    const data = await resp.json() as { requests?: Array<{
+      id: string;
+      timestamp: string;
+      method: string;
+      url: string;
+      resourceType: string;
+      status?: number;
+      headers?: Record<string, string>;
+      responseHeaders?: Record<string, string>;
+    }> };
+
+    return (data.requests ?? []).map((r) => ({
+      method: r.method,
+      url: r.url,
+      headers: r.headers ?? {},
+      resourceType: r.resourceType,
+      status: r.status ?? 0,
+      responseHeaders: r.responseHeaders ?? {},
+      timestamp: r.timestamp ? new Date(r.timestamp).getTime() : Date.now(),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Fetch cookies from OpenClaw browser. */
+async function fetchCookies(port: number): Promise<Record<string, string>> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/cookies`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) return {};
+
+    const data = await resp.json() as { cookies?: Array<{ name: string; value: string }> };
+    const cookies: Record<string, string> = {};
+    for (const c of data.cookies ?? []) {
+      cookies[c.name] = c.value;
+    }
+    return cookies;
+  } catch {
+    return {};
+  }
+}
+
+/** Fetch localStorage from OpenClaw browser. */
+async function fetchStorage(port: number, kind: "local" | "session"): Promise<Record<string, string>> {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/storage/${kind}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return {};
+    const data = await resp.json() as { storage?: Record<string, string> };
+    return data.storage ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** Find element ref by CSS selector using snapshot. */
+async function findRefBySelector(port: number, selector: string): Promise<string | null> {
+  // For now, use the selector directly with act() - OpenClaw supports CSS selectors
+  return null;
+}
+
 /**
- * Log in via a stealth cloud browser (BrowserBase) or local Playwright.
- *
- * Flow:
- *   1. Launch browser (stealth cloud if API key provided, otherwise local)
- *   2. Inject any pre-set cookies/headers
- *   3. Navigate to login URL
- *   4. Fill form credentials and submit
- *   5. Wait for post-login navigation
- *   6. Visit additional URLs to capture API traffic
- *   7. Extract cookies + auth headers from the authenticated session
+ * Log in via OpenClaw's browser API or fall back to Playwright.
  */
 export async function loginAndCapture(
   loginUrl: string,
   credentials: LoginCredentials,
   opts: {
-    /** BrowserBase API key — if set, uses stealth cloud browser */
     browserUseApiKey?: string;
-    /** Additional URLs to visit after login to capture API traffic */
     captureUrls?: string[];
-    /** Wait time per page in ms (default: 5000) */
     waitMs?: number;
-    /** Proxy country for BrowserBase */
+    proxyCountry?: string;
+    browserPort?: number;
+  } = {},
+): Promise<LoginResult> {
+  const waitMs = opts.waitMs ?? 5000;
+  const browserPort = opts.browserPort ?? DEFAULT_PORT;
+
+  // Derive base URL
+  const parsedUrl = new URL(loginUrl);
+  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+
+  // Try OpenClaw browser first
+  if (await ensureBrowserRunning(browserPort)) {
+    // Clear existing requests
+    await fetchRequests(browserPort, true);
+
+    // Inject pre-set cookies
+    if (credentials.cookies && credentials.cookies.length > 0) {
+      await setCookies(browserPort, credentials.cookies);
+    }
+
+    // Inject custom headers
+    if (credentials.headers && Object.keys(credentials.headers).length > 0) {
+      await setHeaders(browserPort, credentials.headers);
+    }
+
+    // Navigate to login page
+    await navigateTo(loginUrl, browserPort);
+    await new Promise(r => setTimeout(r, 3000)); // Wait for page load
+
+    // Fill form credentials using act() with selectors
+    if (credentials.formFields && Object.keys(credentials.formFields).length > 0) {
+      for (const [selector, value] of Object.entries(credentials.formFields)) {
+        // Type into the field using CSS selector
+        await act(browserPort, { kind: "type", selector, text: value });
+        await new Promise(r => setTimeout(r, 300)); // Small delay between fields
+      }
+
+      // Submit the form
+      if (credentials.submitSelector) {
+        await act(browserPort, { kind: "click", selector: credentials.submitSelector });
+      } else {
+        // Try common submit selectors
+        const submitted = await act(browserPort, { kind: "click", selector: 'button[type="submit"]' }) ||
+                          await act(browserPort, { kind: "click", selector: 'input[type="submit"]' }) ||
+                          await act(browserPort, { kind: "press", text: "Enter" });
+      }
+
+      // Wait for navigation/network settle
+      await waitFor(browserPort, { load: "networkidle", timeoutMs: 15000 });
+      await new Promise(r => setTimeout(r, 2000)); // Extra wait for SPA
+    }
+
+    // Visit additional URLs to capture API traffic
+    const captureUrls = opts.captureUrls ?? [];
+    for (const url of captureUrls) {
+      await navigateTo(url, browserPort);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+
+    // Fetch captured data
+    const [captured, cookies, localStorage, sessionStorage] = await Promise.all([
+      fetchRequests(browserPort),
+      fetchCookies(browserPort),
+      fetchStorage(browserPort, "local"),
+      fetchStorage(browserPort, "session"),
+    ]);
+
+    // Extract auth headers from captured requests
+    const authHeaders = extractAuthHeaders(captured, localStorage, sessionStorage);
+
+    // Convert to HAR
+    const har = toHar(captured, cookies);
+
+    return {
+      cookies,
+      authHeaders,
+      baseUrl,
+      requestCount: captured.length,
+      har,
+      localStorage: filterAuthStorage(localStorage),
+      sessionStorage: filterAuthStorage(sessionStorage),
+      metaTokens: {}, // TODO: Could add /evaluate endpoint call
+    };
+  }
+
+  // Fallback: Use Playwright directly (existing implementation)
+  return loginViaPlaywright(loginUrl, credentials, opts);
+}
+
+/** Extract auth-related headers from captured requests. */
+function extractAuthHeaders(
+  captured: CapturedEntry[],
+  localStorage: Record<string, string>,
+  sessionStorage: Record<string, string>
+): Record<string, string> {
+  const authHeaders: Record<string, string> = {};
+
+  // From captured requests
+  for (const entry of captured) {
+    for (const [name, value] of Object.entries(entry.headers)) {
+      if (AUTH_HEADER_NAMES.has(name.toLowerCase())) {
+        authHeaders[name.toLowerCase()] = value;
+      }
+    }
+  }
+
+  // Promote JWT tokens from storage
+  for (const [key, value] of [...Object.entries(localStorage), ...Object.entries(sessionStorage)]) {
+    const lk = key.toLowerCase();
+    if (value.startsWith("eyJ") || /^Bearer\s/i.test(value)) {
+      const tokenValue = value.startsWith("eyJ") ? `Bearer ${value}` : value;
+      if (lk.includes("access") || lk.includes("auth") || lk.includes("token")) {
+        authHeaders["authorization"] = tokenValue;
+      }
+    }
+    if (lk.includes("csrf") || lk.includes("xsrf")) {
+      authHeaders["x-csrf-token"] = value;
+    }
+  }
+
+  return authHeaders;
+}
+
+/** Filter storage to auth-related keys only. */
+function filterAuthStorage(storage: Record<string, string>): Record<string, string> {
+  const authKeywords = /token|auth|session|jwt|access|refresh|csrf|xsrf|key|cred|user|login|bearer/i;
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(storage)) {
+    if (authKeywords.test(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+/** Convert captured entries to HAR format. */
+function toHar(captured: CapturedEntry[], cookies: Record<string, string>): { log: { entries: HarEntry[] } } {
+  const entries: HarEntry[] = captured.map((entry) => ({
+    request: {
+      method: entry.method,
+      url: entry.url,
+      headers: Object.entries(entry.headers).map(([name, value]) => ({ name, value })),
+      cookies: Object.entries(cookies).map(([name, value]) => ({ name, value })),
+    },
+    response: {
+      status: entry.status,
+      headers: Object.entries(entry.responseHeaders).map(([name, value]) => ({ name, value })),
+    },
+    time: entry.timestamp,
+  }));
+  return { log: { entries } };
+}
+
+/**
+ * Fallback: Log in via Playwright when OpenClaw browser is unavailable.
+ */
+async function loginViaPlaywright(
+  loginUrl: string,
+  credentials: LoginCredentials,
+  opts: {
+    browserUseApiKey?: string;
+    captureUrls?: string[];
+    waitMs?: number;
     proxyCountry?: string;
   } = {},
 ): Promise<LoginResult> {
@@ -89,44 +435,32 @@ export async function loginAndCapture(
   const captured: CapturedEntry[] = [];
   const pendingRequests = new Map<string, Partial<CapturedEntry>>();
 
-  // Decide browser backend
   let browser: any;
   let context: any;
   let usingStealth = false;
 
+  // Use stealth browser if API key provided
   if (opts.browserUseApiKey) {
-    // Use BrowserBase stealth cloud browser
     const { createStealthSession } = await import("./stealth-browser.js");
     const session = await createStealthSession(opts.browserUseApiKey, {
       timeout: 15,
       proxyCountryCode: opts.proxyCountry,
     });
-
     browser = await chromium.connectOverCDP(session.cdpUrl);
-    context = browser.contexts()[0];
-    if (!context) {
-      context = await browser.newContext();
-    }
+    context = browser.contexts()[0] ?? await browser.newContext();
     usingStealth = true;
   } else {
-    // Local Playwright with stealth flags
-    context = await chromium.launch({
+    browser = await chromium.launch({
       headless: true,
-      args: [
-        "--disable-blink-features=AutomationControlled",
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-      ],
-    }).then(async (b) => {
-      browser = b;
-      return b.newContext({
-        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      });
+      args: ["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+    });
+    context = await browser.newContext({
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     });
   }
 
-  // Attach network capture listeners
-  function attachListeners(page: any) {
+  // Attach network listeners
+  const attachListeners = (page: any) => {
     page.on("request", (req: any) => {
       pendingRequests.set(req.url() + req.method(), {
         method: req.method(),
@@ -136,7 +470,6 @@ export async function loginAndCapture(
         timestamp: Date.now(),
       });
     });
-
     page.on("response", (resp: any) => {
       const req = resp.request();
       const key = req.url() + req.method();
@@ -148,207 +481,74 @@ export async function loginAndCapture(
         pendingRequests.delete(key);
       }
     });
-  }
+  };
 
-  for (const page of context.pages()) {
-    attachListeners(page);
-  }
-  context.on("page", (page: any) => attachListeners(page));
+  for (const page of context.pages()) attachListeners(page);
+  context.on("page", attachListeners);
 
   const page = context.pages()[0] ?? await context.newPage();
   attachListeners(page);
 
-  // Inject pre-set cookies before navigating
-  if (credentials.cookies && credentials.cookies.length > 0) {
-    await context.addCookies(credentials.cookies);
-  }
+  // Inject cookies/headers
+  if (credentials.cookies?.length) await context.addCookies(credentials.cookies);
+  if (credentials.headers) await context.setExtraHTTPHeaders(credentials.headers);
 
-  // Inject custom headers on all requests
-  if (credentials.headers && Object.keys(credentials.headers).length > 0) {
-    await context.setExtraHTTPHeaders(credentials.headers);
-  }
-
-  // Navigate to login page
+  // Navigate and fill form
   try {
-    await page.goto(loginUrl, { waitUntil: "networkidle", timeout: 30_000 });
+    await page.goto(loginUrl, { waitUntil: "networkidle", timeout: 30000 });
   } catch {
     await page.waitForTimeout(waitMs);
   }
 
-  // Fill form credentials
-  const failedFields: string[] = [];
-  if (credentials.formFields && Object.keys(credentials.formFields).length > 0) {
+  if (credentials.formFields) {
     for (const [selector, value] of Object.entries(credentials.formFields)) {
-      let filled = false;
-
-      // Try waiting for selector with a retry for slow-loading forms
-      for (const timeout of [5_000, 3_000]) {
-        try {
-          await page.waitForSelector(selector, { timeout });
-          await page.fill(selector, value);
-          filled = true;
-          break;
-        } catch {
-          // Try clicking + typing if fill doesn't work (some custom inputs)
-          try {
-            await page.click(selector, { timeout: 2_000 });
-            await page.keyboard.type(value, { delay: 50 + Math.random() * 50 });
-            filled = true;
-            break;
-          } catch {
-            // Retry with longer timeout
-          }
-        }
-      }
-
-      if (!filled) {
-        failedFields.push(selector);
-      } else {
-        // Small delay between fields to look more human
-        await page.waitForTimeout(200 + Math.random() * 300);
-      }
-    }
-
-    // If any fields failed, try to help diagnose by finding actual form fields
-    if (failedFields.length > 0) {
-      const actualFields = await page.evaluate(() => {
-        const fields: string[] = [];
-        document.querySelectorAll("input, select, textarea").forEach((el: any) => {
-          if (el.type === "hidden") return;
-          const id = el.id ? `#${el.id}` : "";
-          const name = el.name ? `[name="${el.name}"]` : "";
-          const type = el.type ? `[type="${el.type}"]` : "";
-          const placeholder = el.placeholder ? `[placeholder="${el.placeholder.slice(0, 30)}"]` : "";
-          const desc = id || name || `${el.tagName.toLowerCase()}${type}${placeholder}`;
-          if (desc) fields.push(desc);
-        });
-        return fields.slice(0, 10);
-      });
-
-      const fieldList = actualFields.length > 0
-        ? `Found: ${actualFields.join(", ")}`
-        : "No form fields detected on page";
-
-      throw new Error(
-        `Could not find form field(s): ${failedFields.join(", ")}. ${fieldList}. ` +
-        `Try unbrowse_interact to manually inspect the form, or adjust selectors.`
-      );
-    }
-
-    // Submit the form
-    if (credentials.submitSelector) {
       try {
-        await page.click(credentials.submitSelector);
+        await page.waitForSelector(selector, { timeout: 5000 });
+        await page.fill(selector, value);
+        await page.waitForTimeout(200);
       } catch {
-        // Try pressing Enter as fallback
-        await page.keyboard.press("Enter");
+        // Field not found
       }
+    }
+
+    // Submit
+    if (credentials.submitSelector) {
+      await page.click(credentials.submitSelector).catch(() => page.keyboard.press("Enter"));
     } else {
-      // Auto-detect: try common submit buttons, then Enter
-      const submitted = await page.evaluate(() => {
-        const btn =
-          document.querySelector('button[type="submit"]') ??
-          document.querySelector('input[type="submit"]') ??
-          document.querySelector('button:not([type])');
-        if (btn instanceof HTMLElement) {
-          btn.click();
-          return true;
-        }
-        return false;
+      await page.evaluate(() => {
+        const btn = document.querySelector('button[type="submit"]') ??
+                    document.querySelector('input[type="submit"]');
+        if (btn instanceof HTMLElement) btn.click();
       });
-
-      if (!submitted) {
-        await page.keyboard.press("Enter");
-      }
     }
 
-    // Wait for post-login navigation — SPAs may not trigger a traditional
-    // navigation, so we use multiple signals: navigation, URL change, or
-    // network settle after form submit.
     try {
-      await Promise.race([
-        page.waitForNavigation({ waitUntil: "networkidle", timeout: 15_000 }),
-        page.waitForURL((url: URL) => url.pathname !== new URL(loginUrl).pathname, { timeout: 15_000 }),
-      ]);
-    } catch {
-      // No navigation detected — SPA may handle login inline.
-      // Wait for network to settle.
-      await page.waitForTimeout(waitMs);
-    }
-
-    // Extra wait for SPA post-login API calls (token exchanges, user data, etc.)
-    await page.waitForTimeout(2000);
-  }
-
-  // Visit additional URLs to capture API traffic in the authenticated session
-  const captureUrls = opts.captureUrls ?? [];
-  for (const url of captureUrls) {
-    try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+      await page.waitForNavigation({ waitUntil: "networkidle", timeout: 15000 });
     } catch {
       await page.waitForTimeout(waitMs);
     }
-    await page.waitForTimeout(waitMs);
   }
 
-  // Derive base URL from the login URL (needed for cookie extraction and return value)
-  const parsedUrl = new URL(loginUrl);
-  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+  // Visit capture URLs
+  for (const url of opts.captureUrls ?? []) {
+    try {
+      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    } catch {
+      await page.waitForTimeout(waitMs);
+    }
+  }
 
-  // Extract cookies from the authenticated session.
-  // Use the login URL's domain to also request domain-scoped cookies.
-  const browserCookies = await context.cookies([baseUrl]).catch(() => context.cookies());
+  // Extract cookies and storage
+  const browserCookies = await context.cookies();
   const cookies: Record<string, string> = {};
-  for (const c of browserCookies) {
-    cookies[c.name] = c.value;
-  }
-
-  // Also extract cookies from captured Set-Cookie response headers.
-  // Some stealth browsers don't expose cookies via context.cookies() but
-  // the Set-Cookie headers are visible in captured network responses.
-  for (const entry of captured) {
-    for (const [name, value] of Object.entries(entry.responseHeaders ?? {})) {
-      if (name.toLowerCase() === "set-cookie") {
-        // Each Set-Cookie header is one cookie. Don't split on commas
-        // because Expires dates contain commas (e.g., "Thu, 01 Jan 2026").
-        const eq = value.indexOf("=");
-        if (eq > 0) {
-          const cookieName = value.slice(0, eq).trim();
-          const rest = value.slice(eq + 1);
-          const semi = rest.indexOf(";");
-          const cookieValue = semi > 0 ? rest.slice(0, semi).trim() : rest.trim();
-          if (cookieName && cookieValue) {
-            cookies[cookieName] = cookieValue;
-          }
-        }
-      }
-    }
-  }
-
-  // Extract auth headers seen in captured requests
-  const authHeaders: Record<string, string> = {};
-  for (const entry of captured) {
-    for (const [name, value] of Object.entries(entry.headers)) {
-      if (AUTH_HEADER_NAMES.has(name.toLowerCase())) {
-        authHeaders[name.toLowerCase()] = value;
-      }
-    }
-  }
-
-  // ── Extract client-side auth state ────────────────────────────────
-  // Modern SPAs store auth in localStorage/sessionStorage (JWTs, access tokens)
-  // and embed CSRF tokens in meta tags. These are invisible to cookie/header capture.
+  for (const c of browserCookies) cookies[c.name] = c.value;
 
   let localStorage: Record<string, string> = {};
   let sessionStorage: Record<string, string> = {};
-  let metaTokens: Record<string, string> = {};
 
   try {
     const clientState = await page.evaluate(() => {
-      // Keywords that indicate auth-related storage entries
       const authKeywords = /token|auth|session|jwt|access|refresh|csrf|xsrf|key|cred|user|login|bearer/i;
-
-      // Grab localStorage entries matching auth keywords
       const ls: Record<string, string> = {};
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
@@ -357,8 +557,6 @@ export async function loginAndCapture(
           if (val) ls[key] = val;
         }
       }
-
-      // Grab sessionStorage entries matching auth keywords
       const ss: Record<string, string> = {};
       for (let i = 0; i < window.sessionStorage.length; i++) {
         const key = window.sessionStorage.key(i);
@@ -367,103 +565,28 @@ export async function loginAndCapture(
           if (val) ss[key] = val;
         }
       }
-
-      // Extract meta tag tokens (CSRF, API keys, etc.)
-      const meta: Record<string, string> = {};
-      const metaKeywords = /csrf|xsrf|token|nonce|api[-_]?key|auth/i;
-      document.querySelectorAll("meta[name], meta[property], meta[http-equiv]").forEach((el) => {
-        const name = el.getAttribute("name") || el.getAttribute("property") || el.getAttribute("http-equiv") || "";
-        const content = el.getAttribute("content") || "";
-        if (name && content && metaKeywords.test(name)) {
-          meta[name] = content;
-        }
-      });
-
-      // Also check common JS globals that SPAs use for auth
-      const win = window as any;
-      const globalKeys = [
-        "__NEXT_DATA__", "__NUXT__", "__INITIAL_STATE__",
-        "_csrf", "csrfToken", "CSRF_TOKEN",
-      ];
-      for (const gk of globalKeys) {
-        if (win[gk]) {
-          try {
-            const val = typeof win[gk] === "string" ? win[gk] : JSON.stringify(win[gk]);
-            // Only store if it looks like it contains auth data
-            if (val && authKeywords.test(val) && val.length < 10000) {
-              ls[`__global:${gk}`] = val;
-            }
-          } catch { /* skip non-serializable */ }
-        }
-      }
-
-      return { localStorage: ls, sessionStorage: ss, metaTokens: meta };
+      return { localStorage: ls, sessionStorage: ss };
     });
-
     localStorage = clientState.localStorage;
     sessionStorage = clientState.sessionStorage;
-    metaTokens = clientState.metaTokens;
+  } catch { }
 
-    // Promote any JWT/bearer tokens found in storage to authHeaders
-    // so they're automatically used in unbrowse_replay fetch calls
-    for (const [key, value] of [...Object.entries(localStorage), ...Object.entries(sessionStorage)]) {
-      const lk = key.toLowerCase();
-      // JWT detection: starts with eyJ (base64 {"alg":...)
-      if (value.startsWith("eyJ") || /^Bearer\s/i.test(value)) {
-        const tokenValue = value.startsWith("eyJ") ? `Bearer ${value}` : value;
-        // Use the most specific key name we can find
-        if (lk.includes("access") || lk.includes("auth") || lk.includes("token")) {
-          authHeaders["authorization"] = tokenValue;
-        }
-      }
-      // Also grab explicit CSRF tokens for the header
-      if (lk.includes("csrf") || lk.includes("xsrf")) {
-        authHeaders["x-csrf-token"] = value;
-      }
-    }
+  // Cleanup
+  await context?.close().catch(() => {});
+  await browser?.close().catch(() => {});
 
-    // Same for meta tokens
-    for (const [name, value] of Object.entries(metaTokens)) {
-      const ln = name.toLowerCase();
-      if (ln.includes("csrf") || ln.includes("xsrf")) {
-        authHeaders["x-csrf-token"] = value;
-      }
-    }
-  } catch {
-    // Page might be navigated away or context closed — non-critical
-  }
-
-  // Clean up
-  if (usingStealth) {
-    await browser?.close().catch(() => {});
-  } else {
-    await context?.close().catch(() => {});
-    await browser?.close().catch(() => {});
-  }
-
-  // Convert to HAR format
-  const harEntries: HarEntry[] = captured.map((entry) => ({
-    request: {
-      method: entry.method,
-      url: entry.url,
-      headers: Object.entries(entry.headers).map(([name, value]) => ({ name, value })),
-      cookies: Object.entries(cookies).map(([name, value]) => ({ name, value })),
-    },
-    response: {
-      status: entry.status,
-      headers: Object.entries(entry.responseHeaders ?? {}).map(([name, value]) => ({ name, value })),
-    },
-    time: entry.timestamp,
-  }));
+  const parsedUrl = new URL(loginUrl);
+  const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+  const authHeaders = extractAuthHeaders(captured, localStorage, sessionStorage);
 
   return {
     cookies,
     authHeaders,
     baseUrl,
     requestCount: captured.length,
-    har: { log: { entries: harEntries } },
+    har: toHar(captured, cookies),
     localStorage,
     sessionStorage,
-    metaTokens,
+    metaTokens: {},
   };
 }

@@ -13,7 +13,7 @@ build/
 !src/**/*.d.ts
 
 # Keep these declaration files
-!clawdbot.d.ts
+!openclaw.d.ts
 
 # Lockfiles (let users generate their own)
 package-lock.json

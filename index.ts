@@ -23,7 +23,7 @@
  *   after_tool_call    — Auto-discovers skills when agent uses browse tool
  */
 
-import type { ClawdbotPluginApi, ClawdbotPluginToolContext } from "clawdbot/plugin-sdk";
+import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
@@ -100,7 +100,7 @@ const LEARN_SCHEMA = {
     },
     outputDir: {
       type: "string" as const,
-      description: "Directory to save generated skill (default: ~/.clawdbot/skills)",
+      description: "Directory to save generated skill (default: ~/.openclaw/skills)",
     },
   },
   required: [] as string[],
@@ -116,7 +116,7 @@ const CAPTURE_SCHEMA = {
     },
     outputDir: {
       type: "string" as const,
-      description: "Directory to save generated skill (default: ~/.clawdbot/skills)",
+      description: "Directory to save generated skill (default: ~/.openclaw/skills)",
     },
     waitMs: {
       type: "number" as const,
@@ -166,7 +166,7 @@ const REPLAY_SCHEMA = {
     },
     skillsDir: {
       type: "string" as const,
-      description: "Skills directory (default: ~/.clawdbot/skills)",
+      description: "Skills directory (default: ~/.openclaw/skills)",
     },
     useStealth: {
       type: "boolean" as const,
@@ -224,7 +224,7 @@ const PUBLISH_SCHEMA = {
     },
     skillsDir: {
       type: "string" as const,
-      description: "Skills directory (default: ~/.clawdbot/skills)",
+      description: "Skills directory (default: ~/.openclaw/skills)",
     },
   },
   required: ["service"],
@@ -420,7 +420,7 @@ const plugin = {
     "Generates complete skill packages (SKILL.md, auth.json, TypeScript client) and publishes " +
     "to a cloud marketplace where agents can discover, buy, and sell skills with USDC.",
 
-  register(api: ClawdbotPluginApi) {
+  register(api: OpenClawPluginApi) {
     const cfg = api.pluginConfig ?? {};
     const logger = api.logger;
     const browserPort = (cfg.browserPort as number) ?? 18791;
@@ -482,7 +482,7 @@ const plugin = {
       otpWatcherPage = null;
       otpWatcherElementIndex = null;
     }
-    const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".clawdbot", "skills");
+    const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
     const browserUseApiKey = cfg.browserUseApiKey as string | undefined;
     // browserUseCloudApiKey and browserUseApiKey are the same - support both config names
     const browserUseCloudApiKey = (cfg.browserUseCloudApiKey as string | undefined) ?? browserUseApiKey;
@@ -495,7 +495,7 @@ const plugin = {
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
     let solanaPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
     const credentialSourceCfg = (cfg.credentialSource as string) ?? process.env.UNBROWSE_CREDENTIAL_SOURCE ?? "none";
-    const vaultDbPath = join(homedir(), ".clawdbot", "unbrowse", "vault.db");
+    const vaultDbPath = join(homedir(), ".openclaw", "unbrowse", "vault.db");
     const credentialProvider = createCredentialProvider(credentialSourceCfg, vaultDbPath);
 
     // ── Auto-Generate Wallet ──────────────────────────────────────────────
@@ -642,7 +642,7 @@ const plugin = {
       page: any;
       service: string;
       lastUsed: Date;
-      method: "cdp-clawdbot" | "cdp-chrome" | "playwright";
+      method: "cdp-openclaw" | "cdp-chrome" | "playwright";
     }
     const browserSessions = new Map<string, BrowserSession>();
     const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -734,13 +734,13 @@ const plugin = {
         // Strategy 2: Connect to clawd managed browser (port 18800)
         if (!sharedBrowser) {
           sharedBrowser = await tryCdpConnect(chromium, 18800);
-          sharedBrowserMethod = "cdp-clawdbot";
+          sharedBrowserMethod = "cdp-openclaw";
         }
 
         // Strategy 3: Connect to browser control server's default
         if (!sharedBrowser) {
           sharedBrowser = await tryCdpConnect(chromium, browserPort);
-          sharedBrowserMethod = "cdp-clawdbot";
+          sharedBrowserMethod = "cdp-openclaw";
         }
 
         // Strategy 4: Connect to Chrome with other remote debugging ports
@@ -839,13 +839,13 @@ const plugin = {
         // Strategy 2: Connect to clawd managed browser (port 18800) — has persistent user-data
         if (!sharedBrowser) {
           sharedBrowser = await tryCdpConnect(chromium, 18800);
-          sharedBrowserMethod = "cdp-clawdbot";
+          sharedBrowserMethod = "cdp-openclaw";
         }
 
         // Strategy 3: Connect to browser control server's default (port 18791 forwards to active profile)
         if (!sharedBrowser) {
           sharedBrowser = await tryCdpConnect(chromium, browserPort);
-          sharedBrowserMethod = "cdp-clawdbot";
+          sharedBrowserMethod = "cdp-openclaw";
         }
 
         // Strategy 4: Connect to Chrome with other remote debugging ports
@@ -937,7 +937,7 @@ const plugin = {
 
     // ── Tools ─────────────────────────────────────────────────────────────
 
-    const tools = (_ctx: ClawdbotPluginToolContext) => {
+    const tools = (_ctx: OpenClawPluginToolContext) => {
       const toolList = [
         // ── unbrowse_learn ──────────────────────────────────────────
         {
@@ -945,8 +945,8 @@ const plugin = {
           label: "Learn API from HAR",
           description:
             "Parse a HAR file to discover API endpoints, extract authentication, " +
-            "and generate a complete clawdbot skill package (SKILL.md, auth.json, " +
-            "TypeScript API client). The skill is installed to ~/.clawdbot/skills/ " +
+            "and generate a complete openclaw skill package (SKILL.md, auth.json, " +
+            "TypeScript API client). The skill is installed to ~/.openclaw/skills/" +
             "for immediate use.",
           parameters: LEARN_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
@@ -2855,7 +2855,7 @@ const plugin = {
               const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
               const chromeIsRunning = psResult.stdout.trim().length > 0;
 
-              // Check if any CDP port is available (Chrome with debugging OR clawdbot browser)
+              // Check if any CDP port is available (Chrome with debugging OR openclaw browser)
               let cdpAvailable = false;
               for (const port of [18792, 18800, browserPort, 9222, 9229]) {
                 try {
@@ -2979,7 +2979,7 @@ const plugin = {
             }
 
             // Get or reuse browser session — uses CDP cascade:
-            // 1. Try clawdbot managed browser (port 18791) — has existing cookies/auth
+            // 1. Try openclaw managed browser (port 18791) — has existing cookies/auth
             // 2. Try Chrome remote debugging (9222, 9229)
             // 3. Launch Chrome with user's profile (requires Chrome to be closed)
             let session: BrowserSession | null = null;

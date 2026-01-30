@@ -66,7 +66,7 @@ export class CapabilityResolver {
   private skillsDir: string;
 
   constructor(skillsDir?: string) {
-    this.skillsDir = skillsDir || join(homedir(), ".clawdbot", "skills");
+    this.skillsDir = skillsDir || join(homedir(), ".openclaw", "skills");
   }
 
   /**
