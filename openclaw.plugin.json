@@ -33,6 +33,12 @@
     "credentialSource": {
       "label": "Credential Source (Login Passwords)",
       "help": "Opt-in: where to look up login passwords for auto-login. 'keychain' = macOS Keychain, '1password' = 1Password CLI, 'vault' = local encrypted vault, 'none' = disabled (default)"
+    },
+    "browserUseApiKey": {
+      "label": "Browser Use API Key",
+      "help": "API key for stealth cloud browsers (browser-use.com). Enables unbrowse_stealth tool.",
+      "sensitive": true,
+      "placeholder": "bu_..."
     }
   },
   "configSchema": {
@@ -41,6 +47,7 @@
     "properties": {
       "skillsOutputDir": { "type": "string" },
       "browserPort": { "type": "number", "default": 18791 },
+      "browserUseApiKey": { "type": "string" },
       "autoDiscover": { "type": "boolean", "default": true },
       "skillIndexUrl": { "type": "string", "default": "https://skills.unbrowse.ai" },
       "creatorWallet": { "type": "string" },
