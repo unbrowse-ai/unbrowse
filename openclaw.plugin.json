@@ -3,7 +3,7 @@
   "name": "Unbrowse",
   "description": "Reverse engineer any API and turn it into a monetizable skill for AI agents. Capture traffic, auto-generate skills, publish to marketplace, earn USDC.",
   "version": "0.2.0",
-  "repository": "github:lekt9/unbrowse",
+  "repository": "github:lekt9/unbrowse-openclaw",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

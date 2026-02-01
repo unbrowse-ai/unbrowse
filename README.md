@@ -56,7 +56,7 @@ openclaw gateway restart
     "entries": {
       "unbrowse": {
         "enabled": true,
-        "source": "github:lekt9/unbrowse"
+        "source": "github:lekt9/unbrowse-openclaw"
       }
     }
   }
@@ -66,7 +66,7 @@ openclaw gateway restart
 ### Option D: Manual Clone
 
 ```bash
-git clone https://github.com/lekt9/unbrowse ~/.openclaw/extensions/unbrowse
+git clone https://github.com/lekt9/unbrowse-openclaw ~/.openclaw/extensions/unbrowse
 cd ~/.openclaw/extensions/unbrowse && npm install
 openclaw gateway restart
 ```
