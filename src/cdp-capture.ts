@@ -144,18 +144,32 @@ export async function fetchBrowserCookies(port = DEFAULT_PORT): Promise<Record<s
  * included in the /requests endpoint. Without the patch, headers are empty
  * and we try to enrich from CDP header cache, falling back to cookies.
  */
+/** Filter out HTTP/2 pseudo-headers that break when replayed as regular headers. */
+function filterPseudoHeaders(headers: Record<string, string>): Record<string, string> {
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    // Skip HTTP/2 pseudo-headers (start with :)
+    if (key.startsWith(":")) continue;
+    filtered[key] = value;
+  }
+  return filtered;
+}
+
 export function requestsToHar(entries: BrowserRequestEntry[]): { log: { entries: HarEntry[] } } {
   const harEntries: HarEntry[] = entries.map((entry) => {
     // Convert Record<string,string> headers to HAR name/value pairs
-    // First try entry.headers, then fall back to CDP cache
+    // Filter out HTTP/2 pseudo-headers (:authority, :method, :path, :scheme)
+    // These break when replayed as regular headers
     let reqHeaders: Array<{ name: string; value: string }> = [];
     if (entry.headers && Object.keys(entry.headers).length > 0) {
-      reqHeaders = Object.entries(entry.headers).map(([name, value]) => ({ name, value }));
+      const filtered = filterPseudoHeaders(entry.headers);
+      reqHeaders = Object.entries(filtered).map(([name, value]) => ({ name, value }));
     } else {
       // Try CDP header cache
       const cached = headerCache.get(entry.url);
       if (cached) {
-        reqHeaders = Object.entries(cached).map(([name, value]) => ({ name, value }));
+        const filtered = filterPseudoHeaders(cached);
+        reqHeaders = Object.entries(filtered).map(([name, value]) => ({ name, value }));
       }
     }
 
