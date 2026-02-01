@@ -48,6 +48,8 @@ export interface PublishPayload {
   serviceName?: string;
   domain?: string;
   creatorWallet?: string;
+  /** Price in USDC (e.g., "1.00" for $1.00). Min: $0.10, Max: $100.00. Default: $1.00 */
+  priceUsdc?: string;
 }
 
 export interface PublishResult {
@@ -120,8 +122,8 @@ export class SkillIndexClient {
     };
   }
 
-  /** Get skill details (free). */
-  async getSkill(id: string): Promise<SkillPackage> {
+  /** Get skill summary (free - metadata only, no content). */
+  async getSkillSummary(id: string): Promise<SkillSummary> {
     const resp = await fetch(`${this.indexUrl}/marketplace/skills/${encodeURIComponent(id)}`, {
       signal: AbortSignal.timeout(15_000),
     });
@@ -136,11 +138,61 @@ export class SkillIndexClient {
   }
 
   /**
-   * Download a skill package.
-   * Currently free - x402 payment will be added later.
+   * Download a skill package with full content.
+   * Requires x402 payment ($1.00 USDC).
    */
   async download(id: string): Promise<SkillPackage> {
-    return this.getSkill(id);
+    if (!this.solanaPrivateKey) {
+      throw new Error(
+        "No Solana private key configured. Required for x402 skill downloads. " +
+        "Set skillIndexSolanaPrivateKey in unbrowse config or use unbrowse_wallet to create one.",
+      );
+    }
+
+    const downloadUrl = `${this.indexUrl}/marketplace/skills/${encodeURIComponent(id)}/download`;
+
+    // First request to get 402 response with payment requirements
+    const initialResp = await fetch(downloadUrl, {
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (initialResp.status === 402) {
+      // Parse x402 payment requirements
+      const x402Response = await initialResp.json();
+      const accepts = x402Response.accepts?.[0];
+
+      if (!accepts) {
+        throw new Error("Invalid x402 response - no payment requirements");
+      }
+
+      // Build and sign payment transaction
+      const paymentHeader = await this.buildAndSignPayment(accepts);
+
+      // Retry with payment
+      const paidResp = await fetch(downloadUrl, {
+        headers: {
+          "X-Payment": paymentHeader,
+        },
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (!paidResp.ok) {
+        const text = await paidResp.text().catch(() => "");
+        throw new Error(`Skill download failed after payment (${paidResp.status}): ${text}`);
+      }
+
+      const data = await paidResp.json();
+      return data.skill;
+    }
+
+    if (!initialResp.ok) {
+      const text = await initialResp.text().catch(() => "");
+      throw new Error(`Skill download failed (${initialResp.status}): ${text}`);
+    }
+
+    // Unexpected success without payment (shouldn't happen with gated content)
+    const data = await initialResp.json();
+    return data.skill;
   }
 
   /**
