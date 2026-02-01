@@ -1,25 +1,25 @@
 /**
- * Unbrowse — Self-learning skill generator.
+ * Unbrowse — Reverse-engineer internal APIs from any website.
  *
- * Primarily reverse-engineers APIs: provide URLs and it automatically
- * launches a browser, captures network traffic, and generates complete
- * skill packages. Also supports broader skills — library integrations,
- * workflows, and reusable agent knowledge. Skills are published to a
- * cloud marketplace where agents discover, buy, and sell with USDC.
+ * Captures the hidden API traffic that powers web apps — the undocumented
+ * endpoints websites use internally but never publish. Log into any site,
+ * use it normally, and unbrowse extracts the internal API structure,
+ * authentication tokens, and session cookies. These become reusable skills
+ * that let agents interact with sites programmatically without official API access.
  *
  * Tools:
- *   unbrowse_capture   — Provide URLs → auto-launches browser → captures all API traffic
- *   unbrowse_replay    — Execute API calls with stored credentials (auto-refresh on 401)
- *   unbrowse_login     — Log in with credentials via Playwright (for auth-required sites)
- *   unbrowse_learn     — Parse a HAR file → generate skill
- *   unbrowse_skills    — List all discovered skills
- *   unbrowse_auth      — Extract auth from a running browser via CDP (low-level)
- *   unbrowse_publish   — Publish skill to cloud index (earn USDC via x402)
- *   unbrowse_search    — Search & install skills from the cloud index
- *   unbrowse_wallet    — Manage Solana wallet (auto-generate, set address, check status)
+ *   unbrowse_capture   — Visit URLs → captures internal API traffic → extracts auth tokens
+ *   unbrowse_replay    — Call internal APIs with captured auth (auto-refresh on 401)
+ *   unbrowse_login     — Login to capture session cookies/tokens for authenticated sites
+ *   unbrowse_learn     — Parse HAR file → generate internal API skill
+ *   unbrowse_skills    — List captured internal API skills and their endpoints
+ *   unbrowse_auth      — Extract auth from running browser (session cookies, tokens)
+ *   unbrowse_publish   — Share internal API skill to marketplace
+ *   unbrowse_search    — Find internal API skills others have captured
+ *   unbrowse_wallet    — Manage wallet for marketplace transactions
  *
  * Hooks:
- *   after_tool_call    — Auto-discovers skills when agent uses browse tool
+ *   after_tool_call    — Auto-captures internal APIs when browsing
  */
 
 import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
@@ -965,12 +965,12 @@ const plugin = {
         // ── unbrowse_learn ──────────────────────────────────────────
         {
           name: "unbrowse_learn",
-          label: "Learn API from HAR",
+          label: "Parse HAR for Internal APIs",
           description:
-            "Parse a HAR file to discover API endpoints, extract authentication, " +
-            "and generate a complete openclaw skill package (SKILL.md, auth.json, " +
-            "TypeScript API client). The skill is installed to ~/.openclaw/skills/" +
-            "for immediate use.",
+            "Parse a HAR file to extract internal API endpoints and authentication. " +
+            "Filters out analytics/third-party noise and identifies the site's real " +
+            "internal endpoints. Extracts all auth (cookies, tokens, custom headers) " +
+            "and generates a callable skill package.",
           parameters: LEARN_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as { harPath?: string; harJson?: string; outputDir?: string };
@@ -1039,12 +1039,12 @@ const plugin = {
         // ── unbrowse_capture ────────────────────────────────────────
         {
           name: "unbrowse_capture",
-          label: "Capture APIs",
+          label: "Capture Internal APIs",
           description:
-            "Capture API traffic from any website. Just provide URLs — the tool automatically " +
-            "launches a browser, visits each page, crawls same-domain links to discover more endpoints, " +
-            "checks for OpenAPI/Swagger specs, and auto-tests all GET endpoints. No extension needed. " +
-            "For sites that require login, use unbrowse_login first to establish a session.",
+            "Reverse-engineer internal APIs from any website. Provide URLs and the tool captures " +
+            "all hidden API traffic the site uses internally — the undocumented endpoints, auth tokens, " +
+            "session cookies, and custom headers. Crawls same-domain links to discover more endpoints. " +
+            "For authenticated sites, use unbrowse_login first to capture session auth.",
           parameters: CAPTURE_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as {
@@ -1219,11 +1219,11 @@ const plugin = {
         // ── unbrowse_auth ───────────────────────────────────────────
         {
           name: "unbrowse_auth",
-          label: "Extract Auth",
+          label: "Extract Session Auth",
           description:
-            "Extract auth credentials (cookies, headers, tokens) from a running browser via CDP. " +
-            "For most use cases, prefer unbrowse_capture (just provide URLs) or " +
-            "unbrowse_login (credential-based login). This is a low-level tool.",
+            "Extract auth from a running browser session — session cookies, auth tokens, API keys, " +
+            "CSRF tokens, and custom headers. Low-level tool; prefer unbrowse_capture or unbrowse_login " +
+            "which automatically extract auth while capturing internal APIs.",
           parameters: AUTH_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as { domain?: string };
@@ -1279,11 +1279,11 @@ const plugin = {
         // ── unbrowse_replay ─────────────────────────────────────────
         {
           name: "unbrowse_replay",
-          label: "Execute API",
+          label: "Call Internal API",
           description:
-            "Execute API calls using a skill's stored credentials. Tries Chrome profile first, " +
-            "then falls back to direct fetch with stored auth headers/cookies. " +
-            "Auto-refreshes credentials on 401/403.",
+            "Call internal API endpoints using captured auth. Executes requests THROUGH THE BROWSER " +
+            "(via page.evaluate) for authentic TLS/HTTP2 fingerprints that bypass bot detection. " +
+            "Uses session cookies, tokens, and headers from capture. Auto-refreshes auth on 401/403.",
           parameters: REPLAY_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as { service: string; endpoint?: string; body?: string; skillsDir?: string; useStealth?: boolean; proxyCountry?: string };
@@ -1430,73 +1430,121 @@ const plugin = {
             }
 
             // ── Execution strategies ────────────────────────────────────
+            //
+            // IMPORTANT: Always prefer browser-based fetch over Node.js fetch.
+            // Browser fetch has authentic TLS fingerprint (JA3/JA4), HTTP/2 settings,
+            // header ordering, and Sec-CH-UA headers. Node.js fetch is easily detected.
+            //
+            // Priority:
+            // 1. OpenClaw browser API (port 18791) - managed browser with request capture
+            // 2. CDP connection (ports 9222, 9229) - direct Chrome DevTools Protocol
+            // 3. Node.js fetch - ONLY if no browser available (will likely be blocked)
 
-            // Shared browser session — stays alive across all calls in a batch
-            // so multi-step flows (auth → action → confirm) maintain session state.
             let chromeBrowser: any = null;
             let chromePage: any = null;
+            let chromeContext: any = null;
+            let browserSource: "openclaw" | "cdp" | "none" = "none";
 
             async function getChromePage(): Promise<any | null> {
               if (chromePage) return chromePage;
-              try {
-                const { chromium } = await import("playwright");
 
-                for (const port of [browserPort, 9222, 9229]) {
+              const { chromium } = await import("playwright");
+
+              // Strategy 1: Try OpenClaw browser API first (has better request capture)
+              try {
+                const statusResp = await fetch(`http://127.0.0.1:${browserPort}/`, {
+                  signal: AbortSignal.timeout(2000),
+                });
+                if (statusResp.ok) {
+                  const status = await statusResp.json() as { running?: boolean; wsUrl?: string };
+                  if (status.running && status.wsUrl) {
+                    chromeBrowser = await chromium.connectOverCDP(status.wsUrl, { timeout: 5000 });
+                    browserSource = "openclaw";
+                    logger.info(`[unbrowse] Connected to OpenClaw browser`);
+                  } else if (!status.running) {
+                    // Try to start the browser
+                    const startResp = await fetch(`http://127.0.0.1:${browserPort}/start`, {
+                      method: "POST",
+                      signal: AbortSignal.timeout(10000),
+                    });
+                    if (startResp.ok) {
+                      const startData = await startResp.json() as { wsUrl?: string };
+                      if (startData.wsUrl) {
+                        chromeBrowser = await chromium.connectOverCDP(startData.wsUrl, { timeout: 5000 });
+                        browserSource = "openclaw";
+                        logger.info(`[unbrowse] Started and connected to OpenClaw browser`);
+                      }
+                    }
+                  }
+                }
+              } catch { /* OpenClaw not available */ }
+
+              // Strategy 2: Try CDP ports directly
+              if (!chromeBrowser) {
+                for (const port of [9222, 9229]) {
                   try {
                     const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
                     if (!resp.ok) continue;
                     const data = await resp.json() as { webSocketDebuggerUrl?: string };
                     const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
                     chromeBrowser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
+                    browserSource = "cdp";
+                    logger.info(`[unbrowse] Connected to Chrome via CDP port ${port}`);
                     break;
                   } catch { continue; }
                 }
+              }
 
-                if (!chromeBrowser) return null;
-
-                const context = chromeBrowser.contexts()[0];
-                if (!context) { await chromeBrowser.close(); chromeBrowser = null; return null; }
-
-                // Inject stored cookies into the browser context
-                if (Object.keys(cookies).length > 0) {
-                  try {
-                    const domain = new URL(baseUrl).hostname;
-                    const cookieObjects = Object.entries(cookies).map(([name, value]) => ({
-                      name, value, domain, path: "/",
-                    }));
-                    await context.addCookies(cookieObjects);
-                  } catch { /* non-critical */ }
-                }
-
-                chromePage = context.pages()[0] ?? await context.newPage();
-
-                // Inject localStorage/sessionStorage via addInitScript BEFORE navigation
-                // This ensures tokens are set before any page JS runs (critical for SPAs)
-                const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
-                if (hasStorage) {
-                  try {
-                    await context.addInitScript(`
-                        (function() {
-                          const ls = ${JSON.stringify(storedLocalStorage)};
-                          const ss = ${JSON.stringify(storedSessionStorage)};
-                          for (const [k, v] of Object.entries(ls)) {
-                            try { window.localStorage.setItem(k, v); } catch {}
-                          }
-                          for (const [k, v] of Object.entries(ss)) {
-                            try { window.sessionStorage.setItem(k, v); } catch {}
-                          }
-                        })();
-                      `);
-                    logger.info(`[unbrowse] Injecting ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
-                  } catch { /* addInitScript may fail on reused contexts — non-critical */ }
-                }
-
-                await chromePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => { });
-
-                return chromePage;
-              } catch {
+              if (!chromeBrowser) {
+                browserSource = "none";
                 return null;
               }
+
+              chromeContext = chromeBrowser.contexts()[0];
+              if (!chromeContext) {
+                await chromeBrowser.close();
+                chromeBrowser = null;
+                browserSource = "none";
+                return null;
+              }
+
+              // Inject stored cookies into the browser context
+              if (Object.keys(cookies).length > 0) {
+                try {
+                  const domain = new URL(baseUrl).hostname;
+                  const cookieObjects = Object.entries(cookies).map(([name, value]) => ({
+                    name, value, domain, path: "/",
+                  }));
+                  await chromeContext.addCookies(cookieObjects);
+                } catch { /* non-critical */ }
+              }
+
+              chromePage = chromeContext.pages()[0] ?? await chromeContext.newPage();
+
+              // Inject localStorage/sessionStorage via addInitScript BEFORE navigation
+              const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
+              if (hasStorage) {
+                try {
+                  await chromeContext.addInitScript(`
+                      (function() {
+                        const ls = ${JSON.stringify(storedLocalStorage)};
+                        const ss = ${JSON.stringify(storedSessionStorage)};
+                        for (const [k, v] of Object.entries(ls)) {
+                          try { window.localStorage.setItem(k, v); } catch {}
+                        }
+                        for (const [k, v] of Object.entries(ss)) {
+                          try { window.sessionStorage.setItem(k, v); } catch {}
+                        }
+                      })();
+                    `);
+                  logger.info(`[unbrowse] Injecting ${Object.keys(storedLocalStorage).length} localStorage + ${Object.keys(storedSessionStorage).length} sessionStorage tokens`);
+                } catch { /* addInitScript may fail on reused contexts */ }
+              }
+
+              // Navigate to establish origin context
+              await chromePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => { });
+
+              return chromePage;
             }
 
             async function cleanupChrome() {
@@ -1704,61 +1752,105 @@ const plugin = {
             const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
             results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
 
+            // Check if browser is available upfront
+            const browserPage = await getChromePage();
+            const hasBrowser = browserPage !== null;
+
+            if (hasBrowser) {
+              results.push(`Using browser (${browserSource}) for authentic TLS/HTTP2 fingerprint`);
+            } else {
+              results.push(`⚠️  No browser available — using Node.js fetch (may be blocked by bot detection)`);
+            }
+            results.push("");
+
             for (const ep of toTest) {
               const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
               let result: { status: number; ok: boolean; data?: string; isHtml?: boolean } | null = null;
 
-              // Try 1: Chrome profile (live cookies)
-              result = await execInChrome(ep, body);
-              if (result && result.ok) {
-                results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Chrome)`);
-                if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
-                passed++;
-                continue;
-              }
-
-              // Try 2: Direct fetch with stored auth
-              try {
-                result = await execViaFetch(ep, body);
-                if (result.isHtml) {
-                  results.push(`  ${ep.method} ${ep.path} → ${result.status} (HTML page, not an API endpoint)`);
-                  failed++;
-                  continue;
-                }
-                if (result.ok) {
-                  results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (direct)`);
+              // Strategy: Always use browser if available (authentic fingerprint)
+              // Only fall back to Node.js fetch if no browser at all
+              if (hasBrowser) {
+                result = await execInChrome(ep, body);
+                if (result && result.ok) {
+                  results.push(`  ${ep.method} ${ep.path} → ${result.status} OK`);
                   if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
                   passed++;
                   continue;
                 }
-              } catch { /* fall through */ }
 
-              // Try 3: If 401/403, refresh creds and retry
-              const status = result?.status ?? 0;
-              if ((status === 401 || status === 403) && !credsRefreshed) {
-                results.push(`  ${ep.method} ${ep.path} → ${status} — refreshing credentials...`);
-                const refreshed = await refreshCreds();
-                if (refreshed) {
-                  try {
-                    result = await execViaFetch(ep, body);
-                    if (result.ok) {
+                // Browser request failed - check if auth issue
+                const status = result?.status ?? 0;
+                if ((status === 401 || status === 403) && !credsRefreshed) {
+                  results.push(`  ${ep.method} ${ep.path} → ${status} — refreshing credentials...`);
+                  const refreshed = await refreshCreds();
+                  if (refreshed) {
+                    // Re-inject fresh cookies into browser context
+                    if (chromeContext && Object.keys(cookies).length > 0) {
+                      try {
+                        const domain = new URL(baseUrl).hostname;
+                        const cookieObjects = Object.entries(cookies).map(([name, value]) => ({
+                          name, value, domain, path: "/",
+                        }));
+                        await chromeContext.addCookies(cookieObjects);
+                      } catch { /* non-critical */ }
+                    }
+                    // Retry via browser (not Node.js fetch!)
+                    result = await execInChrome(ep, body);
+                    if (result && result.ok) {
                       results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (refreshed)`);
                       if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
                       passed++;
                       continue;
                     }
-                    results.push(`  ${ep.method} ${ep.path} → ${result.status} (still failed after refresh)`);
-                  } catch {
-                    results.push(`  ${ep.method} ${ep.path} → FAILED after refresh`);
+                    results.push(`  ${ep.method} ${ep.path} → ${result?.status ?? "FAILED"} (still failed after refresh)`);
+                  } else {
+                    results.push(`  Credential refresh unavailable — use unbrowse_login to authenticate`);
                   }
-                } else {
-                  results.push(`  Credential refresh unavailable — use unbrowse_login to authenticate and store credentials for auto-refresh`);
+                }
+
+                // Browser request failed (not auth issue or refresh didn't help)
+                results.push(`  ${ep.method} ${ep.path} → ${status || "FAILED"}`);
+                failed++;
+              } else {
+                // No browser available - fall back to Node.js fetch
+                // This will likely be blocked by sophisticated bot detection
+                try {
+                  result = await execViaFetch(ep, body);
+                  if (result.isHtml) {
+                    results.push(`  ${ep.method} ${ep.path} → ${result.status} (HTML page, not API)`);
+                    failed++;
+                    continue;
+                  }
+                  if (result.ok) {
+                    results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Node.js)`);
+                    if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+                    passed++;
+                    continue;
+                  }
+
+                  // Check for auth failure
+                  const status = result?.status ?? 0;
+                  if ((status === 401 || status === 403) && !credsRefreshed) {
+                    results.push(`  ${ep.method} ${ep.path} → ${status} — refreshing credentials...`);
+                    const refreshed = await refreshCreds();
+                    if (refreshed) {
+                      result = await execViaFetch(ep, body);
+                      if (result.ok) {
+                        results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (refreshed)`);
+                        if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+                        passed++;
+                        continue;
+                      }
+                    }
+                  }
+
+                  results.push(`  ${ep.method} ${ep.path} → ${result.status || "FAILED"}`);
+                  failed++;
+                } catch (err) {
+                  results.push(`  ${ep.method} ${ep.path} → ERROR: ${String(err).slice(0, 100)}`);
+                  failed++;
                 }
               }
-
-              // All strategies failed
-              results.push(`  ${ep.method} ${ep.path} → ${status || "FAILED"}`);
-              failed++;
             }
 
             // Capture updated client-side state from the browser before cleanup
@@ -1826,10 +1918,10 @@ const plugin = {
         // ── unbrowse_skills ─────────────────────────────────────────
         {
           name: "unbrowse_skills",
-          label: "List Skills",
+          label: "List Internal APIs",
           description:
-            "List all discovered and generated skills (API integrations, workflows, libraries). " +
-            "Shows service name, endpoint count, and auth method for each.",
+            "List all captured internal API skills. Shows the site name, number of reverse-engineered " +
+            "endpoints, and auth method (session cookies, tokens, etc.) for each.",
           parameters: SKILLS_SCHEMA,
           async execute() {
             const skills: string[] = [];
@@ -1890,12 +1982,11 @@ const plugin = {
         // ── unbrowse_publish ───────────────────────────────────────────
         {
           name: "unbrowse_publish",
-          label: "Publish Skill",
+          label: "Share Internal API",
           description:
-            "Publish a skill to the cloud marketplace. " +
-            "Publishes the skill definition (endpoints, auth method, base URL, docs). " +
-            "Credentials stay local. Your wallet address is embedded for x402 profit sharing. " +
-            "Works for API skills, library integrations, workflows, or any reusable agent knowledge.",
+            "Share a captured internal API skill to the marketplace. Publishes the endpoint structure, " +
+            "auth method, and documentation — credentials stay local (others need their own login). " +
+            "Useful when you've reverse-engineered an internal API that others might want to use.",
           parameters: PUBLISH_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as { service: string; skillsDir?: string };
@@ -2014,12 +2105,12 @@ const plugin = {
         // ── unbrowse_search ────────────────────────────────────────────
         {
           name: "unbrowse_search",
-          label: "Search & Install Skills",
+          label: "Find Internal APIs",
           description:
-            "Search the cloud skill marketplace for skills discovered by other agents. " +
-            "Covers API integrations, library wrappers, workflows, and agent knowledge. " +
-            "Searching is free. Installing costs $0.01 USDC via x402. " +
-            "Use query to search, install to download and install a specific skill by ID.",
+            "Search for internal API skills that others have reverse-engineered. " +
+            "Find endpoints for sites you need to access without doing the capture yourself. " +
+            "Searching is free. Installing costs $0.01 USDC. You'll still need your own " +
+            "login credentials — the skill just tells you which endpoints exist.",
           parameters: SEARCH_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as { query?: string; install?: string };
@@ -2165,13 +2256,12 @@ const plugin = {
         // ── unbrowse_login ─────────────────────────────────────────────
         {
           name: "unbrowse_login",
-          label: "Login & Capture Session",
+          label: "Login & Capture Auth",
           description:
-            "Log in to a website with credentials and capture the session (cookies, auth headers, API traffic). " +
-            "Works via OpenClaw's browser API or falls back to local Playwright. Provide form fields to auto-fill " +
-            "login forms, or inject headers/cookies directly. If no credentials are provided and a credential " +
-            "source is configured (keychain, 1password, vault), credentials are auto-looked up by domain. " +
-            "Captured session is saved to auth.json for the skill.",
+            "Log in to a website and capture session auth for calling internal APIs. Extracts session cookies, " +
+            "auth tokens, CSRF tokens, and any custom headers used for authentication. Essential for sites that " +
+            "require login before their internal APIs are accessible. If a credential source is configured " +
+            "(keychain, 1password), credentials are auto-looked up. Captured auth is saved to auth.json.",
           parameters: LOGIN_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as {
@@ -4344,26 +4434,29 @@ const plugin = {
       logger.info("[unbrowse] Auto-discovery hook active");
     }
 
-    // ── Agent Context Hook — Unbrowse Capabilities + Wallet Prompt ─────────
-    // Inject unbrowse capabilities and wallet status so the agent:
-    // 1. Uses browse tool to COMPLETE TASKS (not just learn)
-    // 2. Falls back to unbrowse_replay for known services
+    // ── Agent Context Hook — Internal API Reverse Engineering ─────────────
+    // Guide the agent to reverse-engineer internal/unofficial APIs from websites
     api.on("before_agent_start", async () => {
       // Wait for wallet generation to complete (may still be running)
       await ensureWallet().catch(() => { });
 
       const lines: string[] = [
-        "[Browser] You can browse websites and complete tasks for the user.",
+        "[Internal API Access] Reverse-engineer and call internal APIs from any website.",
         "",
-        "When the user asks you to DO something on a website (post, book, order, submit, login, etc.):",
-        "1. Check unbrowse_skills first — if a skill exists WITH VALID AUTH, use unbrowse_replay to call APIs directly",
-        "2. If no skill exists, use the `browser` tool to browse and complete the task manually",
-        "3. While browsing, APIs are auto-captured — next time you can use unbrowse_replay",
+        "Most websites don't have public APIs, but they have INTERNAL APIs — the hidden endpoints their frontend uses.",
+        "Unbrowse captures these unofficial APIs so you can call them directly without browser automation.",
         "",
-        "unbrowse_replay is for calling APIs from previously captured sessions.",
-        "- Skills are auto-generated when you browse with the `browser` tool",
-        "- Use unbrowse_login to capture auth for sites that need login",
-        "- Check unbrowse_skills to see available skills and their endpoints",
+        "Workflow for accessing any site programmatically:",
+        "1. Check unbrowse_skills — if a skill exists with valid auth, use unbrowse_replay to call internal APIs directly",
+        "2. If no skill exists, use unbrowse_capture with target URLs to reverse-engineer the internal API",
+        "3. For sites requiring login, use unbrowse_login first to capture session auth (cookies, tokens)",
+        "4. Once captured, use unbrowse_replay to call internal endpoints (much faster than browser automation)",
+        "",
+        "Internal APIs are the unofficial endpoints websites use internally:",
+        "- Social feeds, posting, likes, follows (internal mobile/web API)",
+        "- E-commerce carts, checkout, orders (internal checkout API)",
+        "- Dashboard data, exports, actions (internal admin API)",
+        "- Auth captured includes: session cookies, bearer tokens, API keys, CSRF tokens, custom headers",
         "",
       ];
 
