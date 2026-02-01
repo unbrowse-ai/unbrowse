@@ -15,6 +15,10 @@ build/
 # Keep these declaration files
 !openclaw.d.ts
 
+# Keep frontend files
+!server/web/**/*.js
+!server/web/pnpm-lock.yaml
+
 # Lockfiles (let users generate their own)
 package-lock.json
 bun.lock
