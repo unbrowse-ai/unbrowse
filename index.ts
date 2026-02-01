@@ -359,6 +359,90 @@ const LOGIN_SCHEMA = {
   required: ["loginUrl"],
 };
 
+// ── Workflow Schemas ──────────────────────────────────────────────────────────
+
+const WORKFLOW_RECORD_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    action: {
+      type: "string" as const,
+      enum: ["start", "stop", "status", "annotate", "list"],
+      description:
+        'Recording action: "start" (begin recording), "stop" (finalize session), ' +
+        '"status" (check if recording), "annotate" (add note to current step), "list" (show past recordings)',
+    },
+    intent: {
+      type: "string" as const,
+      description: "Description of what you're trying to accomplish (for start action)",
+    },
+    note: {
+      type: "string" as const,
+      description: "Annotation note (for annotate action)",
+    },
+    noteType: {
+      type: "string" as const,
+      enum: ["intent", "decision", "important", "skip"],
+      description: 'Annotation type: "intent" (goal), "decision" (conditional), "important" (key step), "skip" (can omit)',
+    },
+  },
+  required: ["action"],
+};
+
+const WORKFLOW_LEARN_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    sessionId: {
+      type: "string" as const,
+      description: "Session ID to analyze and generate skill from",
+    },
+    outputDir: {
+      type: "string" as const,
+      description: "Directory to save generated skill (default: ~/.openclaw/skills)",
+    },
+  },
+  required: ["sessionId"],
+};
+
+const WORKFLOW_EXECUTE_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    skillName: {
+      type: "string" as const,
+      description: "Name of the workflow or api-package skill to execute",
+    },
+    inputs: {
+      type: "object" as const,
+      description: "Input parameters for the workflow (key-value pairs)",
+      additionalProperties: true,
+    },
+    endpoint: {
+      type: "string" as const,
+      description: "For api-package skills: specific endpoint to call (e.g., 'GET /users')",
+    },
+    body: {
+      type: "string" as const,
+      description: "For api-package skills: JSON body for POST/PUT requests",
+    },
+  },
+  required: ["skillName"],
+};
+
+const WORKFLOW_STATS_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    skillName: {
+      type: "string" as const,
+      description: "Skill name to get stats for (omit for leaderboard)",
+    },
+    category: {
+      type: "string" as const,
+      enum: ["api-package", "workflow"],
+      description: "Filter leaderboard by category",
+    },
+  },
+  required: [] as string[],
+};
+
 // ── Plugin ────────────────────────────────────────────────────────────────────
 
 const plugin = {
@@ -3803,6 +3887,383 @@ const plugin = {
         },
       } as any);
 
+      // ── Workflow Tools ────────────────────────────────────────────────────
+
+      // unbrowse_workflow_record — Record multi-site browsing sessions
+      toolList.push({
+        name: "unbrowse_workflow_record",
+        label: "Record Workflow",
+        description:
+          "Record multi-site browsing sessions to learn cross-site workflows. Start recording, " +
+          "browse websites, add annotations at decision points, then stop to finalize. The recorded " +
+          "session can be analyzed to generate either an api-package (single-site) or workflow (multi-site) skill.",
+        parameters: WORKFLOW_RECORD_SCHEMA,
+        async execute(_toolCallId: string, params: unknown) {
+          const p = params as {
+            action: "start" | "stop" | "status" | "annotate" | "list";
+            intent?: string;
+            note?: string;
+            noteType?: "intent" | "decision" | "important" | "skip";
+          };
+
+          const { getWorkflowRecorder } = await import("./src/workflow-recorder.js");
+          const recorder = getWorkflowRecorder();
+
+          switch (p.action) {
+            case "start": {
+              const sessionId = recorder.startSession(p.intent);
+              return {
+                content: [{
+                  type: "text",
+                  text: `Recording started: ${sessionId}\n` +
+                    `Intent: ${p.intent || "(not specified)"}\n\n` +
+                    "Browse websites normally. Use 'annotate' to mark important steps or decision points.\n" +
+                    "When finished, use action='stop' to finalize the recording.",
+                }],
+              };
+            }
+
+            case "stop": {
+              const session = recorder.stopSession();
+              if (!session) {
+                return { content: [{ type: "text", text: "No active recording to stop." }] };
+              }
+              const domainList = session.domains.join(", ") || "(none)";
+              const category = session.domains.length > 1 ? "workflow" : "api-package";
+              return {
+                content: [{
+                  type: "text",
+                  text: `Recording stopped: ${session.sessionId}\n` +
+                    `Duration: ${new Date(session.endTime!).getTime() - new Date(session.startTime).getTime()}ms\n` +
+                    `Entries: ${session.entries.length}\n` +
+                    `Domains: ${domainList}\n` +
+                    `Suggested category: ${category}\n\n` +
+                    `Run unbrowse_workflow_learn with sessionId="${session.sessionId}" to generate a skill.`,
+                }],
+              };
+            }
+
+            case "status": {
+              const info = recorder.getSessionInfo();
+              if (!info) {
+                return { content: [{ type: "text", text: "Not recording. Use action='start' to begin." }] };
+              }
+              return {
+                content: [{
+                  type: "text",
+                  text: `Recording active: ${info.sessionId}\n` +
+                    `Entries: ${info.entryCount}\n` +
+                    `Domains: ${info.domains.join(", ") || "(none yet)"}`,
+                }],
+              };
+            }
+
+            case "annotate": {
+              if (!p.note) {
+                return { content: [{ type: "text", text: "Provide a note for the annotation." }] };
+              }
+              recorder.addAnnotation(p.note, p.noteType || "important");
+              return { content: [{ type: "text", text: `Annotation added: [${p.noteType || "important"}] ${p.note}` }] };
+            }
+
+            case "list": {
+              const sessions = recorder.listSessions();
+              if (sessions.length === 0) {
+                return { content: [{ type: "text", text: "No recorded sessions found." }] };
+              }
+              const lines = sessions.slice(0, 20).map(
+                (s) => `${s.sessionId} | ${s.startTime} | ${s.domains.join(", ") || "(no domains)"}`
+              );
+              return { content: [{ type: "text", text: `Recent recordings:\n${lines.join("\n")}` }] };
+            }
+
+            default:
+              return { content: [{ type: "text", text: `Unknown action: ${p.action}` }] };
+          }
+        },
+      } as any);
+
+      // unbrowse_workflow_learn — Analyze recorded session and generate skill
+      toolList.push({
+        name: "unbrowse_workflow_learn",
+        label: "Learn Workflow",
+        description:
+          "Analyze a recorded session and generate a skill. Automatically categorizes as either " +
+          "'api-package' (single-site API collection) or 'workflow' (multi-site orchestration) " +
+          "based on the recorded patterns. Detects decision points, variable extraction, and data flow.",
+        parameters: WORKFLOW_LEARN_SCHEMA,
+        async execute(_toolCallId: string, params: unknown) {
+          const p = params as { sessionId: string; outputDir?: string };
+
+          const { getWorkflowRecorder } = await import("./src/workflow-recorder.js");
+          const { getWorkflowLearner } = await import("./src/workflow-learner.js");
+
+          const recorder = getWorkflowRecorder();
+          const learner = getWorkflowLearner(p.outputDir ?? defaultOutputDir);
+
+          const session = recorder.loadSession(p.sessionId);
+          if (!session) {
+            return { content: [{ type: "text", text: `Session not found: ${p.sessionId}` }] };
+          }
+
+          try {
+            const result = learner.learnFromSession(session);
+            const skillDir = learner.saveSkill(result);
+
+            const lines = [
+              `Skill generated: ${result.skill.name}`,
+              `Category: ${result.category}`,
+              `Confidence: ${Math.round(result.confidence * 100)}%`,
+              `Installed: ${skillDir}`,
+            ];
+
+            if (result.category === "workflow") {
+              const wf = result.skill as any;
+              lines.push(`Domains: ${wf.domains.join(", ")}`);
+              lines.push(`Steps: ${wf.steps.length}`);
+              lines.push(`Inputs: ${wf.inputs.length}`);
+              lines.push(`Outputs: ${wf.outputs.length}`);
+            } else {
+              const api = result.skill as any;
+              lines.push(`Domain: ${api.domain}`);
+              lines.push(`Endpoints: ${api.endpoints.length}`);
+              lines.push(`Auth: ${api.auth.authType}`);
+            }
+
+            if (result.suggestions.length > 0) {
+              lines.push("", "Suggestions:");
+              for (const s of result.suggestions) {
+                lines.push(`  - ${s}`);
+              }
+            }
+
+            logger.info(`[unbrowse] Workflow learned: ${result.skill.name} (${result.category})`);
+            return { content: [{ type: "text", text: lines.join("\n") }] };
+          } catch (err) {
+            return { content: [{ type: "text", text: `Learning failed: ${(err as Error).message}` }] };
+          }
+        },
+      } as any);
+
+      // unbrowse_workflow_execute — Execute a workflow or api-package skill
+      toolList.push({
+        name: "unbrowse_workflow_execute",
+        label: "Execute Workflow",
+        description:
+          "Execute a workflow or api-package skill. For workflows, runs the multi-step sequence " +
+          "with variable substitution and tracks success/failure. For api-packages, makes the API call. " +
+          "Success tracking enables earnings for skill creators (paid per successful execution).",
+        parameters: WORKFLOW_EXECUTE_SCHEMA,
+        async execute(_toolCallId: string, params: unknown) {
+          const p = params as {
+            skillName: string;
+            inputs?: Record<string, any>;
+            endpoint?: string;
+            body?: string;
+          };
+
+          const { getWorkflowExecutor } = await import("./src/workflow-executor.js");
+          const { getSuccessTracker } = await import("./src/success-tracker.js");
+          const { isWorkflowSkill } = await import("./src/workflow-types.js");
+
+          const skillDir = join(defaultOutputDir, p.skillName);
+          const skillJsonPath = join(skillDir, "skill.json");
+
+          if (!existsSync(skillJsonPath)) {
+            return { content: [{ type: "text", text: `Skill not found: ${p.skillName}` }] };
+          }
+
+          try {
+            const skill = JSON.parse(readFileSync(skillJsonPath, "utf-8"));
+            const executor = getWorkflowExecutor(defaultOutputDir);
+            const tracker = getSuccessTracker();
+
+            let result: any;
+
+            if (isWorkflowSkill(skill)) {
+              // Execute workflow
+              const authTokens = new Map<string, Record<string, string>>();
+              const cookies = new Map<string, Record<string, string>>();
+
+              // Load auth for each domain
+              for (const domain of skill.domains) {
+                const authPath = join(skillDir, "auth.json");
+                if (existsSync(authPath)) {
+                  try {
+                    const auth = JSON.parse(readFileSync(authPath, "utf-8"));
+                    if (auth.headers) authTokens.set(domain, auth.headers);
+                    if (auth.cookies) cookies.set(domain, auth.cookies);
+                  } catch { /* skip */ }
+                }
+              }
+
+              result = await executor.executeWorkflow(
+                skill,
+                p.inputs || {},
+                authTokens,
+                cookies
+              );
+            } else {
+              // Execute API call
+              if (!p.endpoint) {
+                return { content: [{ type: "text", text: "For api-package skills, provide an endpoint (e.g., 'GET /users')" }] };
+              }
+
+              const [method, path] = p.endpoint.split(" ");
+              const authPath = join(skillDir, "auth.json");
+              let authHeaders: Record<string, string> = {};
+              let authCookies: Record<string, string> = {};
+
+              if (existsSync(authPath)) {
+                try {
+                  const auth = JSON.parse(readFileSync(authPath, "utf-8"));
+                  authHeaders = auth.headers || {};
+                  authCookies = auth.cookies || {};
+                } catch { /* skip */ }
+              }
+
+              result = await executor.executeApiCall(
+                skill,
+                method,
+                path,
+                p.body ? JSON.parse(p.body) : undefined,
+                authHeaders,
+                authCookies
+              );
+            }
+
+            // Track success/failure for quality metrics (earnings come from sales)
+            const metrics = tracker.recordExecution(
+              p.skillName,
+              skill.category,
+              result.success,
+              result.duration,
+              0, // priceUsdc
+              undefined, // creatorWallet
+              result.error,
+              result.failedStep
+            );
+
+            const lines = [
+              `Execution ${result.success ? "succeeded" : "failed"}: ${p.skillName}`,
+              `Duration: ${result.duration}ms`,
+              `Success rate: ${Math.round(metrics.newSuccessRate * 100)}% [${metrics.qualityTier}]`,
+            ];
+
+            if (result.error) {
+              lines.push(`Error: ${result.error}`);
+              if (result.failedStep) {
+                lines.push(`Failed step: ${result.failedStep}`);
+              }
+            }
+
+            if (Object.keys(result.outputs).length > 0) {
+              lines.push("", "Outputs:");
+              for (const [k, v] of Object.entries(result.outputs)) {
+                const val = typeof v === "object" ? JSON.stringify(v).slice(0, 100) : String(v);
+                lines.push(`  ${k}: ${val}`);
+              }
+            }
+
+            return { content: [{ type: "text", text: lines.join("\n") }] };
+          } catch (err) {
+            return { content: [{ type: "text", text: `Execution failed: ${(err as Error).message}` }] };
+          }
+        },
+      } as any);
+
+      // unbrowse_workflow_stats — View success rates and earnings
+      toolList.push({
+        name: "unbrowse_workflow_stats",
+        label: "Workflow Stats",
+        description:
+          "View success rates, earnings, and failure analysis for skills. Shows leaderboard of " +
+          "best-performing skills or detailed stats for a specific skill. Skills with higher success " +
+          "rates earn more (creators paid per successful execution, not per download).",
+        parameters: WORKFLOW_STATS_SCHEMA,
+        async execute(_toolCallId: string, params: unknown) {
+          const p = params as { skillName?: string; category?: "api-package" | "workflow" };
+
+          const { getSuccessTracker } = await import("./src/success-tracker.js");
+          const tracker = getSuccessTracker();
+
+          if (p.skillName) {
+            // Show detailed stats for specific skill
+            const stats = tracker.getStats(p.skillName);
+            if (!stats) {
+              return { content: [{ type: "text", text: `No stats found for: ${p.skillName}` }] };
+            }
+
+            const tier = tracker.getQualityTier(stats.successRate);
+            const analysis = tracker.getFailureAnalysis(p.skillName);
+
+            const lines = [
+              `Stats: ${stats.skillName}`,
+              `Category: ${stats.category}`,
+              `Quality tier: ${tier.label} (${tier.earningsMultiplier}x earnings)`,
+              "",
+              `Total executions: ${stats.totalExecutions}`,
+              `Successful: ${stats.successfulExecutions}`,
+              `Failed: ${stats.failedExecutions}`,
+              `Success rate: ${Math.round(stats.successRate * 100)}%`,
+              "",
+              `Avg duration: ${Math.round(stats.avgDuration)}ms`,
+              `Fastest: ${stats.fastestExecution === Infinity ? "N/A" : stats.fastestExecution + "ms"}`,
+              `Slowest: ${stats.slowestExecution}ms`,
+              "",
+              `Total earnings: $${stats.totalEarningsUsdc.toFixed(2)} USDC`,
+              `Pending payout: $${stats.pendingPayoutUsdc.toFixed(2)} USDC`,
+            ];
+
+            if (analysis.topFailureSteps.length > 0) {
+              lines.push("", "Top failure points:");
+              for (const fp of analysis.topFailureSteps.slice(0, 3)) {
+                lines.push(`  ${fp.step}: ${fp.count} failures`);
+              }
+            }
+
+            if (analysis.recommendations.length > 0) {
+              lines.push("", "Recommendations:");
+              for (const rec of analysis.recommendations) {
+                lines.push(`  - ${rec}`);
+              }
+            }
+
+            return { content: [{ type: "text", text: lines.join("\n") }] };
+          } else {
+            // Show leaderboard
+            const leaderboard = tracker.getLeaderboard(p.category);
+            if (leaderboard.length === 0) {
+              return { content: [{ type: "text", text: "No skills with enough executions for ranking yet." }] };
+            }
+
+            const lines = [
+              `Skill Leaderboard${p.category ? ` (${p.category})` : ""}`,
+              "─".repeat(50),
+            ];
+
+            for (let i = 0; i < Math.min(leaderboard.length, 10); i++) {
+              const s = leaderboard[i];
+              const tier = tracker.getQualityTier(s.successRate);
+              lines.push(
+                `${i + 1}. ${s.skillName} [${tier.label}]`,
+                `   ${Math.round(s.successRate * 100)}% success | ${s.totalExecutions} runs | $${s.totalEarningsUsdc.toFixed(2)} earned`
+              );
+            }
+
+            const pending = tracker.getPendingPayouts();
+            if (pending.length > 0) {
+              lines.push("", "Pending payouts:");
+              for (const p of pending.slice(0, 5)) {
+                lines.push(`  ${p.skillName}: $${p.amount.toFixed(2)} USDC → ${p.wallet.slice(0, 8)}...`);
+              }
+            }
+
+            return { content: [{ type: "text", text: lines.join("\n") }] };
+          }
+        },
+      } as any);
+
       return toolList;
     };
 
@@ -3819,6 +4280,10 @@ const plugin = {
       "browser",
       "unbrowse_do",
       "unbrowse_desktop",
+      "unbrowse_workflow_record",
+      "unbrowse_workflow_learn",
+      "unbrowse_workflow_execute",
+      "unbrowse_workflow_stats",
     ];
 
     api.registerTool(tools, { names: toolNames });

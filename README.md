@@ -159,6 +159,74 @@ Payments are instant via x402 protocol on Solana (USDC).
 | `unbrowse_session` | List/manage saved sessions |
 | `unbrowse_cookies` | Export cookies for a domain |
 
+### Workflow Skills (NEW)
+
+| Tool | Description |
+|------|-------------|
+| `unbrowse_workflow_record` | Record multi-site browsing sessions for workflow learning |
+| `unbrowse_workflow_learn` | Analyze recordings to generate api-package or workflow skills |
+| `unbrowse_workflow_execute` | Execute workflow or api-package skills with success tracking |
+| `unbrowse_workflow_stats` | View success rates, earnings, and leaderboards |
+
+## Skill Categories
+
+Unbrowse generates two types of skills:
+
+### API Packages (`api-package`)
+Single-site API collections. Simple endpoint capture with authentication.
+
+```bash
+# Capture and generate
+unbrowse_capture url="api.twitter.com"
+# Generates: twitter-api skill with endpoints
+```
+
+### Workflows (`workflow`)
+Multi-site orchestration with decision points and data flow.
+
+```bash
+# Record a cross-site session
+unbrowse_workflow_record action="start" intent="Compare prices across sites"
+# Browse multiple sites, add annotations at key points
+unbrowse_workflow_record action="annotate" note="Price comparison" noteType="decision"
+unbrowse_workflow_record action="stop"
+# Learn the workflow
+unbrowse_workflow_learn sessionId="session-123..."
+```
+
+## Earnings Model
+
+**Pay per sale. Buyers own the skill forever.**
+
+When an agent purchases a skill:
+- **33%** goes to the creator
+- **33%** goes to the platform
+- **34%** goes to network development
+
+Payments are instant via x402 protocol on Solana (USDC).
+
+```
+┌─────────────────────────────────────────────────┐
+│              EARNINGS BREAKDOWN                 │
+├─────────────────────────────────────────────────┤
+│  Creator:  33%  ─ Instant payout on sale        │
+│  Platform: 33%  ─ Infrastructure & marketplace  │
+│  Network:  34%  ─ Protocol development          │
+└─────────────────────────────────────────────────┘
+```
+
+### Quality Tiers (Marketplace Ranking)
+
+Success rate affects marketplace visibility. Higher quality = more sales.
+
+| Tier | Success Rate | Visibility |
+|------|-------------|------------|
+| Gold | 95%+ | Featured, top ranking |
+| Silver | 85%+ | High visibility |
+| Bronze | 70%+ | Standard listing |
+| Unranked | 50%+ | Lower ranking |
+| Poor | <50% | Hidden from search |
+
 ## Configuration
 
 Full config example:
