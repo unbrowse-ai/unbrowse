@@ -1296,6 +1296,21 @@ const plugin = {
               return { content: [{ type: "text", text: `Skill not found: ${skillDir}` }] };
             }
 
+            // Filter out HTTP/2 pseudo-headers that break fetch()
+            // These are protocol-level headers (e.g., :authority, :method, :path, :scheme)
+            // that get captured from CDP but cause "invalid header" errors when replayed
+            function filterPseudoHeaders(headers: Record<string, string>): Record<string, string> {
+              const filtered: Record<string, string> = {};
+              for (const [key, value] of Object.entries(headers)) {
+                // Skip HTTP/2 pseudo-headers (start with :)
+                if (key.startsWith(":")) continue;
+                // Skip other protocol-level headers
+                if (["host", "connection", "content-length", "transfer-encoding"].includes(key.toLowerCase())) continue;
+                filtered[key] = value;
+              }
+              return filtered;
+            }
+
             // Load auth state (mutable — refreshed on 401/403)
             let authHeaders: Record<string, string> = {};
             let cookies: Record<string, string> = {};
@@ -1559,9 +1574,11 @@ const plugin = {
 
               try {
                 const url = new URL(ep.path, baseUrl).toString();
+                // Filter out HTTP/2 pseudo-headers before sending
+                const cleanHeaders = filterPseudoHeaders(authHeaders);
                 const fetchOpts: Record<string, unknown> = {
                   method: ep.method,
-                  headers: { "Content-Type": "application/json", ...authHeaders },
+                  headers: { "Content-Type": "application/json", ...cleanHeaders },
                   credentials: "include",
                 };
                 if (body && ["POST", "PUT", "PATCH"].includes(ep.method)) {
@@ -1592,7 +1609,9 @@ const plugin = {
 
             async function execViaFetch(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean }> {
               const url = new URL(ep.path, baseUrl).toString();
-              const reqHeaders: Record<string, string> = { ...authHeaders, "Content-Type": "application/json" };
+              // Filter out HTTP/2 pseudo-headers before sending
+              const cleanHeaders = filterPseudoHeaders(authHeaders);
+              const reqHeaders: Record<string, string> = { ...cleanHeaders, "Content-Type": "application/json" };
               if (Object.keys(cookies).length > 0) {
                 reqHeaders["Cookie"] = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; ");
               }

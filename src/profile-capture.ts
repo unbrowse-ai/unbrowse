@@ -178,18 +178,29 @@ function filterApiRequests(entries: BrowserRequestEntry[]): CapturedEntry[] {
     }));
 }
 
+/** Filter out HTTP/2 pseudo-headers that break when replayed as regular headers. */
+function filterPseudoHeaders(headers: Record<string, string>): Record<string, string> {
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.startsWith(":")) continue; // Skip :authority, :method, :path, :scheme
+    filtered[key] = value;
+  }
+  return filtered;
+}
+
 /** Convert captured entries to HAR format. */
 function toHarResult(captured: CapturedEntry[], cookies: Record<string, string>, method: string): CaptureResult {
   const harEntries: HarEntry[] = captured.map((entry) => ({
     request: {
       method: entry.method,
       url: entry.url,
-      headers: Object.entries(entry.headers).map(([name, value]) => ({ name, value })),
+      // Filter out HTTP/2 pseudo-headers before storing
+      headers: Object.entries(filterPseudoHeaders(entry.headers)).map(([name, value]) => ({ name, value })),
       cookies: Object.entries(cookies).map(([name, value]) => ({ name, value })),
     },
     response: {
       status: entry.status,
-      headers: Object.entries(entry.responseHeaders).map(([name, value]) => ({ name, value })),
+      headers: Object.entries(filterPseudoHeaders(entry.responseHeaders)).map(([name, value]) => ({ name, value })),
     },
     time: entry.timestamp,
   }));
