@@ -11,10 +11,11 @@ export default function Skills() {
   const [hasSearched, setHasSearched] = useState(!!searchParams.get('q'));
   const [activeFilter, setActiveFilter] = useState('all');
   const [stats, setStats] = useState({ total: 0, free: 0 });
+  const [popularSkills, setPopularSkills] = useState([]);
   const searchInputRef = useRef(null);
 
   useEffect(() => {
-    // Load initial stats
+    // Load initial stats and popular skills
     loadStats();
     // If there's a query param, search immediately
     if (searchParams.get('q')) {
@@ -30,6 +31,12 @@ export default function Skills() {
         const skillsList = data.skills || [];
         const freeCount = skillsList.filter(s => parseFloat(s.priceUsdc || '0') === 0).length;
         setStats({ total: skillsList.length, free: freeCount });
+
+        // Get top 8 skills by downloads for popular section
+        const popular = [...skillsList]
+          .sort((a, b) => (b.downloadCount || 0) - (a.downloadCount || 0))
+          .slice(0, 8);
+        setPopularSkills(popular);
       }
     } catch (err) {
       console.error('Failed to load stats:', err);
@@ -65,6 +72,14 @@ export default function Skills() {
   };
 
   const handleRandomSkill = async () => {
+    // If we already have popular skills loaded, use those
+    if (popularSkills.length > 0) {
+      const randomSkill = popularSkills[Math.floor(Math.random() * popularSkills.length)];
+      window.location.href = `/skill/${randomSkill.skillId}`;
+      return;
+    }
+
+    // Otherwise fetch
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/marketplace/skills?limit=100`);
@@ -123,6 +138,9 @@ export default function Skills() {
             <span className="ub-logo-e">e</span>
           </h1>
 
+          {/* Tagline */}
+          <p className="ub-tagline">Search engine for AI agent skills</p>
+
           {/* Search bar */}
           <form onSubmit={handleSearch} className="ub-search-box">
             <div className="ub-search-wrapper">
@@ -161,20 +179,71 @@ export default function Skills() {
 
           {/* Stats */}
           <p className="ub-home-stats">
-            Discover <strong>{stats.total}</strong> skills for OpenClaw
-            {stats.free > 0 && <> &middot; <strong>{stats.free}</strong> free to use</>}
+            <strong>{stats.total}</strong> skills indexed
+            {stats.free > 0 && <> · <strong>{stats.free}</strong> free</>}
           </p>
 
-          {/* Install command */}
-          <div className="ub-install-hint">
-            <code>openclaw plugins install @getfoundry/unbrowse-openclaw</code>
+          {/* What is this */}
+          <div className="ub-home-about">
+            <p>
+              Unbrowse captures internal APIs from any website and turns them into
+              reusable skills for <a href="https://github.com/openclaw" target="_blank" rel="noopener">OpenClaw</a> agents.
+              Browse once, automate forever.
+            </p>
           </div>
+
+          {/* Install command */}
+          <div className="ub-install-box">
+            <span className="ub-install-label">Install for OpenClaw</span>
+            <div className="ub-install-cmd">
+              <code>openclaw plugins install @getfoundry/unbrowse-openclaw</code>
+              <button
+                className="ub-install-copy"
+                onClick={() => {
+                  navigator.clipboard.writeText('openclaw plugins install @getfoundry/unbrowse-openclaw');
+                }}
+                title="Copy to clipboard"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Popular Skills */}
+          {popularSkills.length > 0 && (
+            <div className="ub-popular">
+              <h3 className="ub-popular-title">Popular Skills</h3>
+              <div className="ub-popular-grid">
+                {popularSkills.map(skill => {
+                  const isFree = parseFloat(skill.priceUsdc || '0') === 0;
+                  return (
+                    <Link
+                      key={skill.skillId}
+                      to={`/skill/${skill.skillId}`}
+                      className="ub-popular-card"
+                    >
+                      <div className="ub-popular-name">
+                        {skill.name}
+                        {isFree && <span className="ub-popular-free">FREE</span>}
+                      </div>
+                      <div className="ub-popular-desc">
+                        {skill.serviceName || skill.domain || 'API Skill'}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </main>
 
         {/* Footer */}
         <footer className="ub-home-footer">
           <div className="ub-footer-section">
-            <span className="ub-footer-location">Skill Marketplace</span>
+            <span className="ub-footer-location">Skill Marketplace for AI Agents</span>
           </div>
           <div className="ub-footer-divider" />
           <div className="ub-footer-links">
