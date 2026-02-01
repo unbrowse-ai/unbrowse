@@ -120,6 +120,19 @@ function isStandardHeader(name: string): boolean {
   return STANDARD_HEADERS.has(name.toLowerCase());
 }
 
+/** HTTP/2 pseudo-headers that must be filtered out before replay.
+ * These are protocol-level headers handled by the HTTP library, not application headers.
+ * Sending them as regular headers causes "invalid header" errors. */
+const HTTP2_PSEUDO_HEADERS = new Set([
+  ":authority", ":method", ":path", ":scheme", ":status",
+  ":protocol", // WebSocket over HTTP/2
+]);
+
+/** Check if a header is an HTTP/2 pseudo-header (starts with :). */
+function isHttp2PseudoHeader(name: string): boolean {
+  return name.startsWith(":") || HTTP2_PSEUDO_HEADERS.has(name.toLowerCase());
+}
+
 /** Context header names to capture (IDs, tenant info). */
 const CONTEXT_HEADER_NAMES = new Set([
   "outletid", "userid", "supplierid", "companyid",
@@ -305,6 +318,12 @@ export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string
     for (const header of entry.request.headers ?? []) {
       const name = header.name.toLowerCase();
       const value = header.value;
+
+      // Skip HTTP/2 pseudo-headers (e.g., :authority, :method, :path, :scheme)
+      // These are protocol-level headers that break when replayed as regular headers
+      if (isHttp2PseudoHeader(name)) {
+        continue;
+      }
 
       // Check if this looks like an auth header (exact match or pattern match)
       if (isAuthLikeHeader(name)) {
