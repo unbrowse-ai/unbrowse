@@ -1,12 +1,13 @@
 # Unbrowse
 
-**Reverse engineer any API. Turn it into a monetizable skill for AI agents.**
+**Open source API reverse engineering for OpenClaw.**
 
-Unbrowse is an [OpenClaw](https://github.com/lekt9/openclaw) / [Clawdbot](https://github.com/lekt9/clawdbot) extension that captures API traffic from any website, auto-generates reusable skills, and lets you publish them to a marketplace where you earn USDC on every download.
+Unbrowse is an [OpenClaw](https://github.com/lekt9/openclaw) extension that captures API traffic from any website and turns it into monetizable skills for AI agents. Browse a site, capture the API calls, generate skills, and publish them to the marketplace to earn USDC on every download.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        UNBROWSE                             │
+│          Open Source API Reverse Engineering                │
 │                                                             │
 │   Capture ──► Generate ──► Publish ──► Earn                │
 │       │          │           │          │                   │
