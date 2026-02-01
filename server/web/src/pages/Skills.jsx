@@ -3,6 +3,67 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 const API_BASE = 'https://index.unbrowse.ai';
 
+// Animated terminal typing effect
+function TerminalDemo() {
+  const [step, setStep] = useState(0);
+  const lines = [
+    { type: 'cmd', text: 'unbrowse_capture url="api.twitter.com"' },
+    { type: 'out', text: '[OK] Intercepted 47 API endpoints' },
+    { type: 'out', text: '[OK] Generated skill: twitter-timeline' },
+    { type: 'out', text: '[OK] Generated skill: twitter-post-tweet' },
+    { type: 'cmd', text: 'unbrowse_publish name="twitter-timeline" price="2.50"' },
+    { type: 'final', text: '[$$] Published. Earning $0.83/download' },
+  ];
+
+  useEffect(() => {
+    if (step < lines.length) {
+      const timer = setTimeout(() => setStep(s => s + 1), 800);
+      return () => clearTimeout(timer);
+    }
+    // Reset after showing all
+    const resetTimer = setTimeout(() => setStep(0), 3000);
+    return () => clearTimeout(resetTimer);
+  }, [step]);
+
+  return (
+    <div className="ub-terminal">
+      <div className="ub-terminal-header">
+        <div className="ub-terminal-dots">
+          <span></span><span></span><span></span>
+        </div>
+        <span className="ub-terminal-title">unbrowse — zsh</span>
+      </div>
+      <div className="ub-terminal-body">
+        {lines.slice(0, step).map((line, i) => (
+          <div key={i} className={`ub-term-line ${line.type === 'out' || line.type === 'final' ? 'ub-term-output' : ''} ${line.type === 'final' ? 'ub-term-final' : ''}`}>
+            {line.type === 'cmd' && <span className="ub-term-prompt">~</span>}
+            {line.type === 'cmd' ? (
+              <span className="ub-term-cmd">{line.text}</span>
+            ) : line.type === 'final' ? (
+              <>
+                <span className="ub-term-accent">[$$]</span>
+                <span> Published. Earning </span>
+                <span className="ub-term-money">$0.83</span>
+                <span>/download</span>
+              </>
+            ) : (
+              <>
+                <span className="ub-term-success">[OK]</span>
+                <span>{line.text.replace('[OK]', '')}</span>
+              </>
+            )}
+          </div>
+        ))}
+        {step < lines.length && (
+          <div className="ub-term-line">
+            <span className="ub-term-cursor">▌</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Skills() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [skills, setSkills] = useState([]);
@@ -10,7 +71,7 @@ export default function Skills() {
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [hasSearched, setHasSearched] = useState(!!searchParams.get('q'));
   const [activeFilter, setActiveFilter] = useState('all');
-  const [stats, setStats] = useState({ total: 0, free: 0 });
+  const [stats, setStats] = useState({ total: 0, free: 0, downloads: 0 });
   const [popularSkills, setPopularSkills] = useState([]);
   const searchInputRef = useRef(null);
 
@@ -30,7 +91,8 @@ export default function Skills() {
         const data = await res.json();
         const skillsList = data.skills || [];
         const freeCount = skillsList.filter(s => parseFloat(s.priceUsdc || '0') === 0).length;
-        setStats({ total: skillsList.length, free: freeCount });
+        const totalDownloads = skillsList.reduce((sum, s) => sum + (s.downloadCount || 0), 0);
+        setStats({ total: skillsList.length, free: freeCount, downloads: totalDownloads });
 
         // Get top 8 skills by downloads for popular section
         const popular = [...skillsList]
@@ -183,13 +245,41 @@ export default function Skills() {
             {stats.free > 0 && <> · <strong>{stats.free}</strong> free</>}
           </p>
 
-          {/* What is this */}
-          <div className="ub-home-about">
-            <p>
-              Unbrowse captures internal APIs from any website and turns them into
-              reusable skills for <a href="https://github.com/openclaw" target="_blank" rel="noopener">OpenClaw</a> agents.
-              Browse once, automate forever.
-            </p>
+          {/* Terminal Demo */}
+          <TerminalDemo />
+
+          {/* How it works */}
+          <div className="ub-value-grid">
+            <div className="ub-value-card">
+              <div className="ub-value-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                </svg>
+              </div>
+              <h3>Capture</h3>
+              <p>Browse any website. Unbrowse intercepts all API traffic — endpoints, auth headers, payloads.</p>
+            </div>
+
+            <div className="ub-value-card">
+              <div className="ub-value-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                </svg>
+              </div>
+              <h3>Generate</h3>
+              <p>AI transforms raw traffic into production-ready skills with schemas, auth handling, and docs.</p>
+            </div>
+
+            <div className="ub-value-card">
+              <div className="ub-value-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              </div>
+              <h3>Monetize</h3>
+              <p>Publish to marketplace. Earn 33% of every download in USDC. Skills work while you sleep.</p>
+            </div>
           </div>
 
           {/* Install command */}

@@ -115,9 +115,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0 24px;
-  margin-top: -80px; /* Visual centering adjustment */
+  padding: 60px 24px 40px;
 }
 
 /* Logo - Google style multicolor */
@@ -318,6 +316,178 @@ button {
 .ub-install-copy svg {
   width: 16px;
   height: 16px;
+}
+
+/* Terminal Demo */
+.ub-terminal {
+  width: 100%;
+  max-width: 540px;
+  margin: 32px auto;
+  background: #0d1117;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.ub-terminal-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #161b22;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ub-terminal-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.ub-terminal-dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.ub-terminal-dots span:nth-child(1) { background: #ff5f57; }
+.ub-terminal-dots span:nth-child(2) { background: #febc2e; }
+.ub-terminal-dots span:nth-child(3) { background: #28c840; }
+
+.ub-terminal-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.ub-terminal-body {
+  padding: 16px;
+  min-height: 160px;
+}
+
+.ub-term-line {
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ub-term-prompt {
+  color: var(--google-blue);
+  font-weight: 500;
+}
+
+.ub-term-cmd {
+  color: var(--text-primary);
+}
+
+.ub-term-output {
+  color: var(--text-secondary);
+  padding-left: 20px;
+}
+
+.ub-term-success {
+  color: var(--free-green);
+}
+
+.ub-term-accent {
+  color: var(--google-yellow);
+}
+
+.ub-term-money {
+  color: var(--free-green);
+  font-weight: 600;
+}
+
+.ub-term-final {
+  margin-top: 8px;
+}
+
+.ub-term-cursor {
+  color: var(--text-primary);
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Value Grid (How it works) */
+.ub-value-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+  max-width: 700px;
+  margin: 32px auto;
+}
+
+.ub-value-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.ub-value-card:hover {
+  border-color: var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.ub-value-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ub-value-icon svg {
+  width: 24px;
+  height: 24px;
+  color: var(--google-blue);
+}
+
+.ub-value-card:nth-child(2) .ub-value-icon svg {
+  color: var(--google-yellow);
+}
+
+.ub-value-card:nth-child(3) .ub-value-icon svg {
+  color: var(--free-green);
+}
+
+.ub-value-card h3 {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.ub-value-card p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .ub-value-grid {
+    grid-template-columns: 1fr;
+    max-width: 320px;
+  }
+
+  .ub-terminal {
+    max-width: 100%;
+  }
 }
 
 /* Popular Skills */

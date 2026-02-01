@@ -31,5 +31,10 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
-  }
+  },
+  preview: {
+    port: 3000
+  },
+  // Ensure SPA routing works - fallback to index.html for unknown routes
+  appType: 'spa'
 });
