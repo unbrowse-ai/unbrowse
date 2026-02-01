@@ -149,7 +149,7 @@ export class SkillIndexClient {
       );
     }
 
-    const downloadUrl = `${this.indexUrl}/marketplace/skills/${encodeURIComponent(id)}/download`;
+    const downloadUrl = `${this.indexUrl}/marketplace/skill-downloads/${encodeURIComponent(id)}`;
 
     // First request to get 402 response with payment requirements
     const initialResp = await fetch(downloadUrl, {

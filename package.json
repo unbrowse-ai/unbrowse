@@ -1,25 +1,55 @@
 {
-  "name": "unbrowse",
-  "version": "0.1.0",
+  "name": "@getfoundry/unbrowse-openclaw",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Unbrowse — learn APIs from HAR files or live browser sessions, generate skills automatically",
+  "main": "index.ts",
+  "description": "Reverse engineer any API and turn it into a monetizable skill for AI agents",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lekt9/unbrowse"
+  },
+  "keywords": [
+    "openclaw",
+    "clawdbot",
+    "ai-agent",
+    "api-reverse-engineering",
+    "browser-automation",
+    "skill-marketplace",
+    "x402",
+    "solana",
+    "usdc"
+  ],
   "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ],
-    "hooks": [
-      "./hooks/auto-discover"
-    ]
+    "extensions": ["./index.ts"],
+    "hooks": ["./hooks/auto-discover"]
+  },
+  "clawdbot": {
+    "extensions": ["./index.ts"],
+    "hooks": ["./hooks/auto-discover"]
+  },
+  "moltbot": {
+    "extensions": ["./index.ts"],
+    "hooks": ["./hooks/auto-discover"]
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.95.0",
     "bs58": "^5.0.0",
-    "playwright": "^1.58.0"
+    "playwright": "^1.58.0",
+    "tweetnacl": "^1.0.3"
+  },
+  "peerDependencies": {
+    "openclaw": "*",
+    "clawdbot": "*",
+    "moltbot": "*"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": { "optional": true },
+    "clawdbot": { "optional": true },
+    "moltbot": { "optional": true }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "openclaw": "*",
     "typescript": "^5.7.0"
   }
 }

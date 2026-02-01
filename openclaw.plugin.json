@@ -1,9 +1,76 @@
 {
   "id": "unbrowse",
+  "name": "Unbrowse",
+  "description": "Reverse engineer any API and turn it into a monetizable skill for AI agents. Capture traffic, auto-generate skills, publish to marketplace, earn USDC.",
+  "version": "0.2.0",
+  "repository": "github:lekt9/unbrowse",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "skillsOutputDir": {
+        "type": "string",
+        "description": "Directory where generated skills are saved"
+      },
+      "browserPort": {
+        "type": "number",
+        "default": 18791,
+        "description": "Port for browser CDP control API"
+      },
+      "autoDiscover": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically generate skills when the agent browses APIs"
+      },
+      "skillIndexUrl": {
+        "type": "string",
+        "default": "https://index.unbrowse.ai",
+        "description": "Cloud skill marketplace API URL"
+      },
+      "marketplace": {
+        "type": "object",
+        "properties": {
+          "creatorWallet": {
+            "type": "string",
+            "description": "Solana wallet address for receiving USDC payments"
+          },
+          "solanaPrivateKey": {
+            "type": "string",
+            "description": "Base58-encoded Solana private key for x402 payments"
+          },
+          "defaultPrice": {
+            "type": "string",
+            "default": "0",
+            "description": "Default price for published skills (0 = free, or $0.10-$100 USDC)"
+          }
+        }
+      },
+      "browser": {
+        "type": "object",
+        "properties": {
+          "useApiKey": {
+            "type": "string",
+            "description": "Browser Use API key for stealth cloud browsers"
+          },
+          "proxyCountry": {
+            "type": "string",
+            "default": "us",
+            "description": "Default proxy country for stealth browser (us, gb, de, etc.)"
+          }
+        }
+      },
+      "credentialSource": {
+        "type": "string",
+        "enum": ["none", "auto", "keychain", "1password", "vault"],
+        "default": "none",
+        "description": "Where to look up login passwords for auto-login"
+      }
+    }
+  },
   "uiHints": {
     "skillsOutputDir": {
       "label": "Skills Output Directory",
-      "help": "Where generated skills are saved",
+      "help": "Where generated skills are saved locally",
       "placeholder": "~/.openclaw/skills"
     },
     "browserPort": {
@@ -12,47 +79,41 @@
     },
     "autoDiscover": {
       "label": "Auto-Discover Skills",
-      "help": "Automatically generate skills when the agent browses APIs (default: true)"
+      "help": "Automatically generate skills when browsing APIs"
     },
     "skillIndexUrl": {
-      "label": "Skill Index URL",
-      "help": "Cloud skill marketplace API URL",
-      "placeholder": "https://skills.unbrowse.ai"
+      "label": "Skill Marketplace URL",
+      "help": "Cloud skill marketplace API endpoint"
     },
-    "creatorWallet": {
+    "marketplace.creatorWallet": {
       "label": "Creator Wallet (Solana)",
       "help": "Your Solana wallet address for receiving USDC when others download your skills",
       "placeholder": "ABC123..."
     },
-    "skillIndexSolanaPrivateKey": {
-      "label": "Payment Private Key (Solana)",
-      "help": "Base58-encoded Solana private key for paying x402 USDC when downloading skills from the index",
-      "sensitive": true,
-      "placeholder": "base58..."
+    "marketplace.solanaPrivateKey": {
+      "label": "Payment Private Key",
+      "help": "Base58-encoded Solana private key for paying x402 USDC when downloading paid skills",
+      "sensitive": true
     },
-    "credentialSource": {
-      "label": "Credential Source (Login Passwords)",
-      "help": "Opt-in: where to look up login passwords for auto-login. 'keychain' = macOS Keychain, '1password' = 1Password CLI, 'vault' = local encrypted vault, 'none' = disabled (default)"
+    "marketplace.defaultPrice": {
+      "label": "Default Skill Price",
+      "help": "Default price when publishing skills (0 = free)",
+      "placeholder": "0"
     },
-    "browserUseApiKey": {
+    "browser.useApiKey": {
       "label": "Browser Use API Key",
-      "help": "API key for stealth cloud browsers (browser-use.com). Enables unbrowse_stealth tool.",
+      "help": "API key for stealth cloud browsers (browser-use.com)",
       "sensitive": true,
       "placeholder": "bu_..."
-    }
-  },
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "skillsOutputDir": { "type": "string" },
-      "browserPort": { "type": "number", "default": 18791 },
-      "browserUseApiKey": { "type": "string" },
-      "autoDiscover": { "type": "boolean", "default": true },
-      "skillIndexUrl": { "type": "string", "default": "https://skills.unbrowse.ai" },
-      "creatorWallet": { "type": "string" },
-      "skillIndexSolanaPrivateKey": { "type": "string" },
-      "credentialSource": { "type": "string", "enum": ["none", "auto", "keychain", "1password", "vault"], "default": "none" }
+    },
+    "browser.proxyCountry": {
+      "label": "Proxy Country",
+      "help": "Default proxy location for stealth browser",
+      "placeholder": "us"
+    },
+    "credentialSource": {
+      "label": "Credential Source",
+      "help": "Where to look up login passwords. 'keychain' = macOS Keychain, '1password' = 1Password CLI"
     }
   }
 }
