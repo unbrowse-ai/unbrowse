@@ -8,38 +8,97 @@ import type { ApiData, AuthInfo } from "./types.js";
 
 /**
  * Determine the auth method from extracted headers and cookies.
+ * Analyzes all captured auth-related headers to identify the primary auth mechanism.
  */
 export function guessAuthMethod(
   authHeaders: Record<string, string>,
   cookies: Record<string, string>,
 ): string {
-  // Mudra token (Zeemart-specific)
-  if ("mudra" in authHeaders) return "mudra token";
+  const headerNames = Object.keys(authHeaders).map(h => h.toLowerCase());
+  const headerValues = Object.values(authHeaders);
 
-  // Bearer token
-  for (const value of Object.values(authHeaders)) {
+  // Check for Bearer token (most common)
+  for (const value of headerValues) {
     if (value.toLowerCase().startsWith("bearer ")) return "Bearer Token";
   }
 
-  // API key in headers
-  if (Object.keys(authHeaders).length > 0) {
-    return `API Key (${Object.keys(authHeaders)[0]})`;
+  // Check for specific auth header patterns (in priority order)
+
+  // API Key variants
+  const apiKeyHeaders = headerNames.filter(h =>
+    h.includes("api-key") || h.includes("apikey") || h === "x-api-key" || h === "x-key"
+  );
+  if (apiKeyHeaders.length > 0) {
+    return `API Key (${apiKeyHeaders[0]})`;
   }
 
-  // Cookie-based auth
-  const authCookieNames = ["session", "sessionid", "token", "authtoken", "jwt", "auth"];
+  // JWT variants
+  const jwtHeaders = headerNames.filter(h =>
+    h.includes("jwt") || h.includes("id-token") || h.includes("id_token")
+  );
+  if (jwtHeaders.length > 0) {
+    return `JWT (${jwtHeaders[0]})`;
+  }
+
+  // Standard Authorization header (but not Bearer)
+  if (headerNames.includes("authorization")) {
+    const authValue = authHeaders["authorization"] || authHeaders["Authorization"];
+    if (authValue?.toLowerCase().startsWith("basic ")) return "Basic Auth";
+    if (authValue?.toLowerCase().startsWith("digest ")) return "Digest Auth";
+    return "Authorization Header";
+  }
+
+  // Session/CSRF tokens
+  const sessionHeaders = headerNames.filter(h =>
+    h.includes("session") || h.includes("csrf") || h.includes("xsrf")
+  );
+  if (sessionHeaders.length > 0) {
+    return `Session Token (${sessionHeaders[0]})`;
+  }
+
+  // AWS specific
+  if (headerNames.some(h => h.includes("amz"))) return "AWS Signature";
+
+  // Mudra token (Zeemart-specific)
+  if ("mudra" in authHeaders) return "Mudra Token";
+
+  // OAuth tokens
+  const oauthHeaders = headerNames.filter(h => h.includes("oauth"));
+  if (oauthHeaders.length > 0) return `OAuth (${oauthHeaders[0]})`;
+
+  // Generic auth/token headers
+  const authTokenHeaders = headerNames.filter(h =>
+    h.includes("auth") || h.includes("token")
+  );
+  if (authTokenHeaders.length > 0) {
+    return `Custom Token (${authTokenHeaders[0]})`;
+  }
+
+  // Any x-* custom header that was captured (likely auth-related)
+  const customHeaders = headerNames.filter(h => h.startsWith("x-"));
+  if (customHeaders.length > 0) {
+    return `Custom Header (${customHeaders[0]})`;
+  }
+
+  // Cookie-based auth (fallback)
+  const authCookieNames = [
+    "session", "sessionid", "token", "authtoken", "jwt", "auth",
+    "access_token", "accesstoken", "id_token", "refresh_token"
+  ];
   for (const name of authCookieNames) {
     if (Object.keys(cookies).some((c) => c.toLowerCase() === name.toLowerCase())) {
       return `Cookie-based (${name})`;
     }
   }
 
-  // Custom auth from any remaining headers/cookies
-  const allNames = [...Object.keys(authHeaders), ...Object.keys(cookies)];
-  for (const name of allNames) {
-    if (name.toLowerCase().includes("auth") || name.toLowerCase().includes("token")) {
-      return `Custom (${name})`;
-    }
+  // Any cookie that looks auth-related
+  const authCookies = Object.keys(cookies).filter(c =>
+    c.toLowerCase().includes("auth") ||
+    c.toLowerCase().includes("token") ||
+    c.toLowerCase().includes("session")
+  );
+  if (authCookies.length > 0) {
+    return `Cookie-based (${authCookies[0]})`;
   }
 
   return "Unknown (may need login)";
@@ -47,6 +106,7 @@ export function guessAuthMethod(
 
 /**
  * Generate auth.json data from parsed API data.
+ * Captures all discovered auth headers, cookies, and metadata.
  */
 export function generateAuthInfo(service: string, data: ApiData): AuthInfo {
   const auth: AuthInfo = {
@@ -57,10 +117,44 @@ export function generateAuthInfo(service: string, data: ApiData): AuthInfo {
     notes: [],
   };
 
-  // Headers
+  // Categorize headers by type for clarity
+  const apiKeyHeaders: Record<string, string> = {};
+  const authTokenHeaders: Record<string, string> = {};
+  const sessionHeaders: Record<string, string> = {};
+  const customHeaders: Record<string, string> = {};
+
+  for (const [name, value] of Object.entries(data.authHeaders)) {
+    const lower = name.toLowerCase();
+    if (lower.includes("api-key") || lower.includes("apikey") || lower === "x-key") {
+      apiKeyHeaders[name] = value;
+    } else if (lower.includes("token") || lower.includes("jwt") || lower === "authorization") {
+      authTokenHeaders[name] = value;
+    } else if (lower.includes("session") || lower.includes("csrf")) {
+      sessionHeaders[name] = value;
+    } else {
+      customHeaders[name] = value;
+    }
+  }
+
+  // Store all headers
   if (Object.keys(data.authHeaders).length > 0) {
     auth.headers = { ...data.authHeaders };
-    auth.notes.push(`Found ${Object.keys(data.authHeaders).length} auth header(s)`);
+
+    // Add detailed notes about what was found
+    const notes: string[] = [];
+    if (Object.keys(apiKeyHeaders).length > 0) {
+      notes.push(`API keys: ${Object.keys(apiKeyHeaders).join(", ")}`);
+    }
+    if (Object.keys(authTokenHeaders).length > 0) {
+      notes.push(`Auth tokens: ${Object.keys(authTokenHeaders).join(", ")}`);
+    }
+    if (Object.keys(sessionHeaders).length > 0) {
+      notes.push(`Session headers: ${Object.keys(sessionHeaders).join(", ")}`);
+    }
+    if (Object.keys(customHeaders).length > 0) {
+      notes.push(`Custom headers: ${Object.keys(customHeaders).join(", ")}`);
+    }
+    auth.notes.push(`Found ${Object.keys(data.authHeaders).length} auth header(s): ${notes.join("; ")}`);
   }
 
   // Mudra token special handling
@@ -81,15 +175,27 @@ export function generateAuthInfo(service: string, data: ApiData): AuthInfo {
     auth.notes.push(`Found ${auth.outletIds.length} outlet ID(s)`);
   }
 
-  // Cookies
+  // Cookies - categorize auth-related vs general
   if (Object.keys(data.cookies).length > 0) {
     auth.cookies = { ...data.cookies };
-    auth.notes.push(`Found ${Object.keys(data.cookies).length} cookie(s)`);
+
+    const authCookies = Object.keys(data.cookies).filter(c => {
+      const lower = c.toLowerCase();
+      return lower.includes("auth") || lower.includes("token") ||
+             lower.includes("session") || lower.includes("jwt") ||
+             lower.includes("access") || lower.includes("id_token");
+    });
+
+    if (authCookies.length > 0) {
+      auth.notes.push(`Found ${authCookies.length} auth cookie(s): ${authCookies.join(", ")}`);
+    }
+    auth.notes.push(`Found ${Object.keys(data.cookies).length} total cookie(s)`);
   }
 
-  // Full auth info (limit to 20 entries)
+  // Full auth info - capture all custom x-* headers and auth-related data
+  // Expand limit from 20 to 50 to capture more potential auth data
   if (Object.keys(data.authInfo).length > 0) {
-    auth.authInfo = Object.fromEntries(Object.entries(data.authInfo).slice(0, 20));
+    auth.authInfo = Object.fromEntries(Object.entries(data.authInfo).slice(0, 50));
   }
 
   return auth;

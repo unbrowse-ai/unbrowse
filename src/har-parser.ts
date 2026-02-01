@@ -60,12 +60,65 @@ const SKIP_DOMAINS = [
   "bugsnag.com", "sessions.bugsnag.com",
 ];
 
-/** Auth header names to capture. */
+/** Auth header names to capture (exact matches, lowercase). */
 const AUTH_HEADER_NAMES = new Set([
+  // Standard auth headers
   "authorization", "x-api-key", "api-key", "apikey",
   "x-auth-token", "access-token", "x-access-token",
   "token", "x-token", "authtype", "mudra",
+  // Bearer/JWT variants
+  "bearer", "jwt", "x-jwt", "x-jwt-token", "id-token", "id_token",
+  "x-id-token", "refresh-token", "x-refresh-token",
+  // API key variants
+  "x-apikey", "x-key", "key", "secret", "x-secret",
+  "api-secret", "x-api-secret", "client-secret", "x-client-secret",
+  // Session tokens
+  "session", "session-id", "sessionid", "x-session", "x-session-id",
+  "x-session-token", "session-token", "csrf", "x-csrf", "x-csrf-token",
+  "csrf-token", "x-xsrf-token", "xsrf-token",
+  // OAuth
+  "x-oauth-token", "oauth-token", "x-oauth", "oauth",
+  // Custom auth patterns used by various APIs
+  "x-amz-security-token", "x-amz-access-token", // AWS
+  "x-goog-api-key", // Google
+  "x-rapidapi-key", // RapidAPI
+  "ocp-apim-subscription-key", // Azure
+  "x-functions-key", // Azure Functions
+  "x-auth", "x-authentication", "x-authorization",
+  "x-user-token", "x-app-token", "x-client-token",
+  "x-access-key", "x-secret-key", "x-signature",
+  "x-request-signature", "signature",
 ]);
+
+/** Patterns that indicate an auth-related header (substring match). */
+const AUTH_HEADER_PATTERNS = [
+  "auth", "token", "key", "secret", "bearer", "jwt",
+  "session", "credential", "password", "signature", "sign",
+  "api-", "apikey", "access", "oauth", "csrf", "xsrf",
+];
+
+/** Check if a header name looks like it could be auth-related. */
+function isAuthLikeHeader(name: string): boolean {
+  const lower = name.toLowerCase();
+  // Exact match
+  if (AUTH_HEADER_NAMES.has(lower)) return true;
+  // Pattern match
+  return AUTH_HEADER_PATTERNS.some(p => lower.includes(p));
+}
+
+/** Standard browser headers that are NOT custom API auth. */
+const STANDARD_HEADERS = new Set([
+  "x-requested-with", "x-forwarded-for", "x-forwarded-host",
+  "x-forwarded-proto", "x-real-ip", "x-frame-options",
+  "x-content-type-options", "x-xss-protection", "x-ua-compatible",
+  "x-dns-prefetch-control", "x-download-options", "x-permitted-cross-domain-policies",
+  "x-powered-by", "x-request-id", "x-correlation-id", "x-trace-id",
+]);
+
+/** Check if a header is a standard (non-auth) header. */
+function isStandardHeader(name: string): boolean {
+  return STANDARD_HEADERS.has(name.toLowerCase());
+}
 
 /** Context header names to capture (IDs, tenant info). */
 const CONTEXT_HEADER_NAMES = new Set([
@@ -92,7 +145,12 @@ function isSkippedDomain(domain: string): boolean {
 }
 
 /** Check if a URL looks like an API call. */
-function isApiLike(url: string, method: string, domain: string): boolean {
+function isApiLike(url: string, method: string, domain: string, contentType?: string): boolean {
+  // JSON responses are API calls regardless of URL pattern
+  if (contentType && (contentType.includes("application/json") || contentType.includes("text/json"))) {
+    return true;
+  }
+  
   return (
     url.includes("/api/") ||
     url.includes("/services/") ||
@@ -100,11 +158,35 @@ function isApiLike(url: string, method: string, domain: string): boolean {
     url.includes("/v2/") ||
     url.includes("/v3/") ||
     url.includes("/graphql") ||
+    url.includes("/order") ||    // trading APIs
+    url.includes("/quote") ||    // trading APIs
+    url.includes("/swap") ||     // trading APIs
+    url.includes("/tokens") ||   // token APIs
+    url.includes("/markets") ||  // market APIs
+    url.includes("/user") ||     // user APIs
+    url.includes("/auth") ||     // auth APIs
     ["POST", "PUT", "DELETE", "PATCH"].includes(method) ||
     // Allow any non-static on target domains that passed third-party filter
     domain.includes("api.") ||
-    domain.includes("service")
+    domain.includes("service") ||
+    domain.includes("quote") ||  // quote-api.dflow.net etc
+    domain.startsWith("dev-")    // dev-quote-api.dflow.net etc
   );
+}
+
+/** Extract root domain from a hostname (e.g., "api.dflow.net" -> "dflow.net") */
+function getRootDomain(domain: string): string {
+  const parts = domain.split(".");
+  // Handle cases like "co.uk", "com.sg" etc.
+  if (parts.length >= 2) {
+    return parts.slice(-2).join(".");
+  }
+  return domain;
+}
+
+/** Check if two domains share the same root (e.g., "api.dflow.net" and "pond.dflow.net") */
+function isSameRootDomain(domain1: string, domain2: string): boolean {
+  return getRootDomain(domain1) === getRootDomain(domain2);
 }
 
 /** Group requests by domain:path. */
@@ -207,26 +289,39 @@ export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string
       continue;
     }
 
-    // Only keep API-like requests (or allow all if on a known target domain)
-    if (!isApiLike(url, method, domain) && targetDomains.size > 0 && !targetDomains.has(domain)) {
+    // Check if this domain is related to the seed domain (same root, e.g., api.dflow.net for dflow.net)
+    const isSeedRelated = seedDomain && isSameRootDomain(domain, seedDomain);
+
+    // Only keep API-like requests (or allow all if on a known target domain or seed-related)
+    const isTargetDomain = targetDomains.has(domain) || isSeedRelated;
+    if (!isApiLike(url, method, domain, responseContentType) && targetDomains.size > 0 && !isTargetDomain) {
       continue;
     }
 
     targetDomains.add(domain);
     baseUrls.add(`${parsed.protocol}//${parsed.host}`);
 
-    // Extract auth headers
+    // Extract auth headers - use heuristic matching to catch custom auth headers
     for (const header of entry.request.headers ?? []) {
       const name = header.name.toLowerCase();
       const value = header.value;
 
-      if (AUTH_HEADER_NAMES.has(name)) {
+      // Check if this looks like an auth header (exact match or pattern match)
+      if (isAuthLikeHeader(name)) {
         authHeaders[name] = value;
         authInfo[`request_header_${name}`] = value;
       }
 
       if (CONTEXT_HEADER_NAMES.has(name)) {
         authInfo[`request_header_${name}`] = value;
+      }
+
+      // Also capture any custom x-* headers that aren't standard browser headers
+      // These often contain API-specific auth or context
+      if (name.startsWith("x-") && !isStandardHeader(name) && value) {
+        if (!authInfo[`request_header_${name}`]) {
+          authInfo[`request_header_${name}`] = value;
+        }
       }
     }
 
@@ -268,11 +363,35 @@ export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string
   }
 
   // Determine service name and base URL.
-  // Priority: seed URL domain > most-common target domain > first baseUrl
+  // Priority: API subdomain (like quote-api.x.com) > seed URL domain > most-common domain
   let service = "unknown-api";
   let baseUrl = "https://api.example.com";
 
-  if (seedDomain) {
+  // Find the best API domain - prefer api/quote/service subdomains over the main site
+  const findBestApiDomain = (): string | undefined => {
+    const apiDomains = [...targetDomains].filter(d => 
+      d.includes("api.") || d.includes("quote") || d.includes("service") || d.startsWith("dev-")
+    );
+    if (apiDomains.length > 0) {
+      // Prefer domains with most requests
+      const domainCounts: Record<string, number> = {};
+      for (const req of requests) {
+        if (apiDomains.includes(req.domain)) {
+          domainCounts[req.domain] = (domainCounts[req.domain] ?? 0) + 1;
+        }
+      }
+      return Object.entries(domainCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    }
+    return undefined;
+  };
+
+  const bestApiDomain = findBestApiDomain();
+  
+  if (bestApiDomain && seedDomain && isSameRootDomain(bestApiDomain, seedDomain)) {
+    // Found an API subdomain of the seed domain - use it as the base URL
+    service = deriveServiceName(seedDomain);
+    baseUrl = `https://${bestApiDomain}`;
+  } else if (seedDomain) {
     // Use the seed URL's domain — this is what the user actually asked to capture
     service = deriveServiceName(seedDomain);
     baseUrl = seedBaseUrl!;

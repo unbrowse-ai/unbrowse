@@ -49,77 +49,95 @@ function generateSkillMd(service: string, data: ApiData): string {
     endpointLines.push(`- \`${req.method} ${req.path}\` — ${desc}${badge}`);
   }
 
-  const cookieNote = Object.keys(data.cookies).length > 0
-    ? `\n**Cookies:** ${Object.keys(data.cookies).length} cookies found in auth.json`
-    : "";
+  // Auth summary
+  const authParts: string[] = [];
+  if (Object.keys(data.authHeaders).length > 0) {
+    authParts.push(`${Object.keys(data.authHeaders).length} auth headers`);
+  }
+  if (Object.keys(data.cookies).length > 0) {
+    authParts.push(`${Object.keys(data.cookies).length} session cookies`);
+  }
+  const authSummary = authParts.length > 0 ? authParts.join(", ") : "none captured";
 
   // Extract domain for description
   const domain = new URL(data.baseUrl).hostname;
 
   // agentskills.io compliant YAML frontmatter
-  // - name: required, lowercase with hyphens, matches directory
-  // - description: required, what it does + when to use it (max 1024 chars)
-  // - metadata: optional, for additional info
   return `---
 name: ${service}
 description: >-
-  ${title} API client with ${endpointCount} endpoints. Use this skill when working with
-  ${domain} APIs, making authenticated requests to ${title}, or when the user mentions
-  ${title.toLowerCase()}, ${domain}, or related functionality. Auth method: ${data.authMethod}.
+  Internal API for ${domain} with ${endpointCount} reverse-engineered endpoints.
+  Use this skill to interact with ${title} programmatically without official API access.
+  Captured auth: ${authSummary}. Auth method: ${data.authMethod}.
 metadata:
   author: unbrowse
   version: "1.0"
   baseUrl: "${data.baseUrl}"
   authMethod: "${data.authMethod}"
   endpointCount: ${endpointCount}
+  apiType: "internal"
 ---
 
-# ${title} API
+# ${title} Internal API
 
+**Type:** Reverse-engineered internal API (unofficial)
 **Auth:** ${data.authMethod}
-**Base URL:** \`${data.baseUrl}\`${cookieNote}
+**Base URL:** \`${data.baseUrl}\`
+**Captured Auth:** ${authSummary}
+
+## About This Skill
+
+This skill provides access to ${title}'s internal API — the hidden endpoints that power their web/mobile app.
+These are NOT official public APIs. They were captured by observing network traffic while using the site.
+
+**Important:**
+- Auth tokens in \`auth.json\` may expire — re-capture if you get 401 errors
+- Internal APIs can change without notice — endpoints may break
+- Rate limits are unknown — be conservative with request frequency
 
 ## When to Use This Skill
 
 Use this skill when you need to:
-- Make authenticated API calls to ${domain}
-- Interact with ${title} services
-- Access ${title} data or functionality
+- Access ${title} data without official API access
+- Automate actions on ${domain} (faster than browser automation)
+- Call the same endpoints the ${title} frontend uses
 
 ## Quick Start
 
 \`\`\`typescript
 import { ${className}Client } from "./scripts/api.ts";
 
-// Load auth from auth.json
+// Load captured auth from auth.json
 const client = await ${className}Client.fromAuthFile("auth.json");
 
-// Or provide directly
-const client = new ${className}Client({ authToken: "your-token" });
-
-// Make requests
+// Make requests to internal endpoints
 const result = await client.get("/endpoint");
 \`\`\`
 
-## Authentication
+## Captured Authentication
 
-The \`auth.json\` file contains credentials extracted from HAR traffic:
-- Header-based auth tokens (${Object.keys(data.authHeaders).length} headers)
-- Cookies for session auth (${Object.keys(data.cookies).length} cookies)
+The \`auth.json\` file contains credentials extracted from browser traffic:
+- **Auth headers:** ${Object.keys(data.authHeaders).length} (${Object.keys(data.authHeaders).join(", ") || "none"})
+- **Session cookies:** ${Object.keys(data.cookies).length}
 
-## Available Endpoints (${endpointCount})
+If auth expires, re-run \`unbrowse_login\` or \`unbrowse_capture\` to refresh tokens.
+
+## Internal Endpoints (${endpointCount})
 
 ${endpointLines.join("\n")}
 
 ## Error Handling
 
-All client methods throw on non-2xx responses. Wrap calls in try/catch:
-
 \`\`\`typescript
 try {
   const data = await client.get("/resource");
 } catch (err) {
-  console.error("API error:", err.message);
+  if (err.message.includes("401")) {
+    // Auth expired — need to re-capture
+    console.error("Auth expired, re-run unbrowse_login");
+  } else {
+    console.error("API error:", err.message);
+  }
 }
 \`\`\`
 `;
