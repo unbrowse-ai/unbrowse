@@ -194,15 +194,11 @@ const SEARCH_SCHEMA = {
   properties: {
     query: {
       type: "string" as const,
-      description: "Search query — service name, API type, or description",
-    },
-    tags: {
-      type: "string" as const,
-      description: "Comma-separated tags to filter by (e.g., rest,finance)",
+      description: "Search query — skill name, service, domain, or description",
     },
     install: {
       type: "string" as const,
-      description: "Skill ID to download and install locally (requires x402 USDC payment)",
+      description: "Skill ID to download and install locally",
     },
   },
   required: [] as string[],
@@ -439,7 +435,7 @@ const plugin = {
     }
     const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
-    const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://skills.unbrowse.ai";
+    const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
     let solanaPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
     const credentialSourceCfg = (cfg.credentialSource as string) ?? process.env.UNBROWSE_CREDENTIAL_SOURCE ?? "none";
@@ -536,6 +532,7 @@ const plugin = {
       try {
         const skillMd = readFileSync(join(skillDir, "SKILL.md"), "utf-8");
         const endpoints = extractEndpoints(skillMd);
+
         let baseUrl = "";
         let authMethodType = "Unknown";
         const authJsonPath = join(skillDir, "auth.json");
@@ -544,18 +541,43 @@ const plugin = {
           baseUrl = pub.baseUrl;
           authMethodType = pub.authMethodType;
         }
-        let apiTemplate = "";
+
+        // Collect scripts
+        const scripts: Record<string, string> = {};
         const apiTsPath = join(skillDir, "scripts", "api.ts");
         if (existsSync(apiTsPath)) {
-          apiTemplate = sanitizeApiTemplate(readFileSync(apiTsPath, "utf-8"));
+          scripts["api.ts"] = sanitizeApiTemplate(readFileSync(apiTsPath, "utf-8"));
+        }
+
+        // Extract description from SKILL.md frontmatter
+        let description = "";
+        const descMatch = skillMd.match(/^description:\s*>-?\s*\n([\s\S]*?)(?=\n\w|---)/m);
+        if (descMatch) {
+          description = descMatch[1].replace(/\n\s+/g, " ").trim();
+        } else {
+          description = `${service} API skill with ${endpoints.length} endpoints. Auth: ${authMethodType}.`;
+        }
+
+        // Extract domain from baseUrl
+        let domain = "";
+        if (baseUrl) {
+          try {
+            domain = new URL(baseUrl).hostname;
+          } catch { /* skip */ }
         }
 
         const result = await indexClient.publish({
-          service, baseUrl, authMethodType, endpoints,
-          skillMd, apiTemplate, creatorWallet,
+          name: service,
+          description,
+          skillMd,
+          authType: authMethodType !== "Unknown" ? authMethodType : undefined,
+          scripts: Object.keys(scripts).length > 0 ? scripts : undefined,
+          serviceName: service,
+          domain: domain || undefined,
+          creatorWallet,
         });
-        logger.info(`[unbrowse] Auto-published: ${service} v${result.version}`);
-        return `v${result.version}`;
+        logger.info(`[unbrowse] Auto-published: ${service} (${result.skill.skillId})`);
+        return result.skill.skillId;
       } catch (err) {
         const msg = (err as Error).message ?? "";
         // If it's a connection error, mark server as unreachable
@@ -1798,7 +1820,17 @@ const plugin = {
               return {
                 content: [{
                   type: "text",
-                  text: "No creator wallet configured. Set creatorWallet in unbrowse plugin config or UNBROWSE_CREATOR_WALLET env var (Solana address).",
+                  text: [
+                    "No wallet configured for publishing skills.",
+                    "",
+                    "To publish skills and earn USDC when others download them, you need a Solana wallet.",
+                    "",
+                    "Options:",
+                    '  1. Create a new wallet: unbrowse_wallet action="create"',
+                    '  2. Use existing wallet: unbrowse_wallet action="set_creator" wallet="<your-solana-address>"',
+                    "",
+                    "Once configured, try publishing again.",
+                  ].join("\n"),
                 }],
               };
             }
@@ -1827,29 +1859,59 @@ const plugin = {
                 authMethodType = pub.authMethodType;
               }
 
-              let apiTemplate = "";
+              // Collect scripts (api.ts and any other .ts files in scripts/)
+              const scripts: Record<string, string> = {};
               if (existsSync(apiTsPath)) {
-                apiTemplate = sanitizeApiTemplate(readFileSync(apiTsPath, "utf-8"));
+                scripts["api.ts"] = sanitizeApiTemplate(readFileSync(apiTsPath, "utf-8"));
               }
 
+              // Collect references (any .md files in references/)
+              const references: Record<string, string> = {};
+              const referencesDir = join(skillDir, "references");
+              if (existsSync(referencesDir)) {
+                for (const file of readdirSync(referencesDir)) {
+                  if (file.endsWith(".md")) {
+                    references[file] = readFileSync(join(referencesDir, file), "utf-8");
+                  }
+                }
+              }
+
+              // Extract description from SKILL.md frontmatter or generate one
+              let description = "";
+              const descMatch = skillMd.match(/^description:\s*>-?\s*\n([\s\S]*?)(?=\n\w|---)/m);
+              if (descMatch) {
+                description = descMatch[1].replace(/\n\s+/g, " ").trim();
+              } else {
+                description = `${p.service} API skill with ${endpoints.length} endpoints. Auth: ${authMethodType}.`;
+              }
+
+              // Extract domain from baseUrl
+              let domain = "";
+              if (baseUrl) {
+                try {
+                  domain = new URL(baseUrl).hostname;
+                } catch { /* skip */ }
+              }
+
+              // Build payload following agentskills.io format
               const payload: PublishPayload = {
-                service: p.service,
-                baseUrl,
-                authMethodType,
-                endpoints,
+                name: p.service,
+                description,
                 skillMd,
-                apiTemplate,
+                authType: authMethodType !== "Unknown" ? authMethodType : undefined,
+                scripts: Object.keys(scripts).length > 0 ? scripts : undefined,
+                references: Object.keys(references).length > 0 ? references : undefined,
+                serviceName: p.service,
+                domain: domain || undefined,
                 creatorWallet,
               };
 
               const result = await indexClient.publish(payload);
 
               const summary = [
-                `Skill published to cloud index`,
-                `Service: ${p.service}`,
-                `ID: ${result.id}`,
-                `Slug: ${result.slug}`,
-                `Version: ${result.version}`,
+                `Skill published to cloud marketplace`,
+                `Name: ${p.service}`,
+                `ID: ${result.skill.skillId}`,
                 `Endpoints: ${endpoints.length}`,
                 `Creator wallet: ${creatorWallet}`,
                 ``,
@@ -1857,7 +1919,7 @@ const plugin = {
                 `You earn USDC for each download via x402.`,
               ].join("\n");
 
-              logger.info(`[unbrowse] Published: ${p.service} → ${result.id}`);
+              logger.info(`[unbrowse] Published: ${p.service} → ${result.skill.skillId}`);
               return { content: [{ type: "text", text: summary }] };
             } catch (err) {
               return { content: [{ type: "text", text: `Publish failed: ${(err as Error).message}` }] };
@@ -1876,55 +1938,95 @@ const plugin = {
             "Use query to search, install to download and install a specific skill by ID.",
           parameters: SEARCH_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
-            const p = params as { query?: string; tags?: string; install?: string };
+            const p = params as { query?: string; install?: string };
 
             // ── Install mode ──
             if (p.install) {
               try {
                 const pkg = await indexClient.download(p.install);
 
-                // Save locally
-                const skillDir = join(defaultOutputDir, pkg.service);
+                // Save locally using agentskills.io directory structure
+                const skillDir = join(defaultOutputDir, pkg.name);
                 const scriptsDir = join(skillDir, "scripts");
+                const referencesDir = join(skillDir, "references");
                 const { mkdirSync, writeFileSync } = await import("node:fs");
                 mkdirSync(scriptsDir, { recursive: true });
+                mkdirSync(referencesDir, { recursive: true });
 
+                // Write SKILL.md
                 writeFileSync(join(skillDir, "SKILL.md"), pkg.skillMd, "utf-8");
-                writeFileSync(join(scriptsDir, "api.ts"), pkg.apiTemplate, "utf-8");
+
+                // Write scripts (api.ts and others)
+                if (pkg.scripts) {
+                  for (const [filename, content] of Object.entries(pkg.scripts)) {
+                    writeFileSync(join(scriptsDir, filename), content, "utf-8");
+                  }
+                }
+
+                // Write references
+                if (pkg.references) {
+                  for (const [filename, content] of Object.entries(pkg.references)) {
+                    writeFileSync(join(referencesDir, filename), content, "utf-8");
+                  }
+                }
 
                 // Create placeholder auth.json — user adds their own credentials
                 writeFileSync(join(skillDir, "auth.json"), JSON.stringify({
-                  service: pkg.service,
-                  baseUrl: pkg.baseUrl,
-                  authMethod: pkg.authMethodType,
+                  service: pkg.name,
+                  baseUrl: pkg.domain ? `https://${pkg.domain}` : "",
+                  authMethod: pkg.authType || "Unknown",
                   timestamp: new Date().toISOString(),
-                  notes: ["Downloaded from skill index — add your own auth credentials"],
+                  notes: ["Downloaded from skill marketplace — add your own auth credentials"],
                   headers: {},
                   cookies: {},
                 }, null, 2), "utf-8");
 
-                discovery.markLearned(pkg.service);
+                discovery.markLearned(pkg.name);
+
+                // Count endpoints from SKILL.md
+                const endpointCount = extractEndpoints(pkg.skillMd).length;
 
                 const summary = [
-                  `Skill installed: ${pkg.service}`,
+                  `Skill installed: ${pkg.name}`,
                   `Location: ${skillDir}`,
-                  `Endpoints: ${pkg.endpoints.length}`,
-                  `Auth: ${pkg.authMethodType}`,
-                  `Payment: $0.01 USDC on Base via x402`,
+                  `Endpoints: ${endpointCount}`,
+                  `Auth: ${pkg.authType || "Unknown"}`,
+                  pkg.category ? `Category: ${pkg.category}` : null,
                   ``,
                   `Add your auth credentials to auth.json or use unbrowse_auth to extract from browser.`,
-                ].join("\n");
+                ].filter(Boolean).join("\n");
 
-                logger.info(`[unbrowse] Installed from index: ${pkg.service}`);
+                logger.info(`[unbrowse] Installed from marketplace: ${pkg.name}`);
                 return { content: [{ type: "text", text: summary }] };
               } catch (err) {
                 const msg = (err as Error).message;
                 // If payment failed due to missing key or insufficient funds, prompt to fund wallet
                 if (msg.includes("private key") || msg.includes("x402") || msg.includes("payment")) {
-                  const fundingHint = creatorWallet
-                    ? `\n\nYour wallet: ${creatorWallet}\nSend USDC (Solana SPL) to this address to fund skill downloads ($0.01/skill).`
-                    : '\n\nNo wallet configured. Use unbrowse_wallet with action="setup" to generate one.';
-                  return { content: [{ type: "text", text: `Install failed: ${msg}${fundingHint}` }] };
+                  let walletHint: string;
+                  if (creatorWallet && solanaPrivateKey) {
+                    walletHint = [
+                      "",
+                      `Your wallet: ${creatorWallet}`,
+                      "Send USDC (Solana SPL) to this address to fund skill downloads.",
+                    ].join("\n");
+                  } else if (creatorWallet) {
+                    walletHint = [
+                      "",
+                      `Your wallet: ${creatorWallet}`,
+                      "No spending key configured. Options:",
+                      '  1. Generate a new keypair: unbrowse_wallet action="create"',
+                      '  2. Import existing key: unbrowse_wallet action="set_payer" privateKey="<base58-key>"',
+                    ].join("\n");
+                  } else {
+                    walletHint = [
+                      "",
+                      "No wallet configured. Options:",
+                      '  1. Create a new wallet: unbrowse_wallet action="create"',
+                      '  2. Use existing wallet: unbrowse_wallet action="set_creator" wallet="<address>"',
+                      '                          unbrowse_wallet action="set_payer" privateKey="<key>"',
+                    ].join("\n");
+                  }
+                  return { content: [{ type: "text", text: `Install failed: ${msg}${walletHint}` }] };
                 }
                 return { content: [{ type: "text", text: `Install failed: ${msg}` }] };
               }
@@ -1936,29 +2038,32 @@ const plugin = {
             }
 
             try {
-              const results = await indexClient.search(p.query, {
-                tags: p.tags,
-                limit: 10,
-              });
+              const results = await indexClient.search(p.query, { limit: 10 });
 
               if (results.skills.length === 0) {
                 return { content: [{ type: "text", text: `No skills found for "${p.query}". Try different keywords.` }] };
               }
 
               const lines = [
-                `Cloud Skills (${results.total} results for "${p.query}"):`,
+                `Skill Marketplace (${results.total} results for "${p.query}"):`,
                 "",
               ];
 
               for (const skill of results.skills) {
-                const tags = skill.tags.length > 0 ? ` | Tags: ${skill.tags.join(", ")}` : "";
+                const meta: string[] = [];
+                if (skill.category) meta.push(skill.category);
+                if (skill.authType) meta.push(skill.authType);
+                if (skill.domain) meta.push(skill.domain);
+                const metaStr = meta.length > 0 ? ` [${meta.join(", ")}]` : "";
+
                 lines.push(
-                  `  ${skill.service} — ${skill.endpointCount} endpoints, ${skill.authMethodType} (${skill.baseUrl})`,
-                  `    ID: ${skill.id} | Downloads: ${skill.downloadCount}${tags}`,
+                  `  ${skill.name}${metaStr}`,
+                  `    ${skill.description?.slice(0, 100) || "No description"}`,
+                  `    ID: ${skill.skillId} | Downloads: ${skill.downloadCount}`,
                 );
               }
 
-              lines.push("", `Use unbrowse_search with install="<id>" to download and install ($0.01 USDC).`);
+              lines.push("", `Use unbrowse_search with install="<skillId>" to download and install.`);
 
               if (creatorWallet) {
                 lines.push(`\nYour wallet: ${creatorWallet}`);
@@ -2386,14 +2491,14 @@ const plugin = {
         // ── browse ───────────────────────────────────────────────────────
         // Task-focused browsing: complete user's task, learn APIs as byproduct
         {
-          name: "browse",
-          label: "Browse Web",
+          name: "unbrowse_browse",
+          label: "Unbrowse Browser",
           description:
-            "Complete tasks on websites — login, fill forms, click buttons, submit orders, post content, etc. " +
-            "Use this to DO things for the user, not just explore. Returns indexed interactive elements " +
-            "(e.g. [1] <button> Submit, [2] <input placeholder=\"Email\">). Use indices for actions: " +
-            "click_element(index=3), input_text(index=5, text=\"hello\"). After task completion, the API " +
-            "traffic is captured so you can replay it directly next time without browsing.",
+            "Complete tasks on websites using OpenClaw's native browser — login, fill forms, click buttons, " +
+            "submit orders, post content, etc. Uses your existing Chrome profile with all logins preserved. " +
+            "Returns indexed interactive elements (e.g. [1] <button> Submit, [2] <input placeholder=\"Email\">). " +
+            "Use indices for actions: click_element(index=3), input_text(index=5, text=\"hello\"). " +
+            "After task completion, API traffic is captured so you can replay it directly next time.",
           parameters: INTERACT_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as {
@@ -2413,6 +2518,294 @@ const plugin = {
             };
 
             const { extractPageState, getElementByIndex, formatPageStateForLLM, detectOTPField } = await import("./src/dom-service.js");
+
+            // ══════════════════════════════════════════════════════════════════
+            // OPENCLAW BROWSER API (preferred) — uses native browser control
+            // ══════════════════════════════════════════════════════════════════
+            const { OpenClawBrowser, getOpenClawBrowser } = await import("./src/openclaw-browser.js");
+            const openclawBrowser = getOpenClawBrowser(browserPort);
+            const openclawAvailable = await openclawBrowser.isAvailable();
+
+            if (openclawAvailable) {
+              logger.info(`[unbrowse] Using native OpenClaw browser API on port ${browserPort}`);
+
+              // Derive service name from URL if not provided
+              let service = p.service;
+              if (!service) {
+                try {
+                  const host = new URL(p.url).hostname;
+                  service = host
+                    .replace(/^(www|api|app|auth|login)\./, "")
+                    .replace(/\.(com|io|org|net|dev|co|ai)$/, "")
+                    .replace(/\./g, "-");
+                } catch {
+                  return { content: [{ type: "text", text: "Invalid URL." }] };
+                }
+              }
+
+              // Ensure browser is running
+              const browserStarted = await openclawBrowser.ensureRunning();
+              if (!browserStarted) {
+                logger.warn(`[unbrowse] OpenClaw browser failed to start, falling back to Playwright`);
+              } else {
+                // Navigate to URL
+                const navigated = await openclawBrowser.navigate(p.url);
+                if (!navigated) {
+                  return { content: [{ type: "text", text: `Failed to navigate to ${p.url}` }] };
+                }
+
+                // Wait for page to settle
+                await openclawBrowser.wait({ load: "networkidle", timeoutMs: 10000 });
+
+                // Get initial snapshot with interactive elements
+                let snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true });
+                if (!snapshot) {
+                  return { content: [{ type: "text", text: "Failed to get page snapshot" }] };
+                }
+
+                // Build index-to-ref mapping (refs are like "e1", "e2", etc.)
+                const buildRefMap = (elements: typeof snapshot.elements) => {
+                  const map = new Map<number, string>();
+                  (elements ?? []).forEach((el, i) => {
+                    map.set(i + 1, el.ref); // 1-indexed
+                  });
+                  return map;
+                };
+
+                let refMap = buildRefMap(snapshot.elements);
+
+                // Execute actions
+                const actionResults: string[] = [];
+
+                for (const act of p.actions) {
+                  try {
+                    switch (act.action) {
+                      case "click_element": {
+                        if (act.index == null && !act.selector) {
+                          actionResults.push("click_element: missing index or selector");
+                          break;
+                        }
+                        const ref = act.index != null ? refMap.get(act.index) : undefined;
+                        if (act.index != null && !ref) {
+                          actionResults.push(`click_element: index ${act.index} not found (max: ${refMap.size})`);
+                          break;
+                        }
+                        const result = await openclawBrowser.act({
+                          kind: "click",
+                          ref: ref,
+                          selector: act.selector,
+                        });
+                        if (!result.ok) {
+                          actionResults.push(`click_element: failed — ${result.error}`);
+                          break;
+                        }
+                        // Re-snapshot after click
+                        await new Promise(r => setTimeout(r, 500));
+                        snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true }) ?? snapshot;
+                        refMap = buildRefMap(snapshot.elements);
+                        actionResults.push(`click_element: [${act.index ?? act.selector}] done`);
+                        break;
+                      }
+
+                      case "input_text": {
+                        if (act.index == null && !act.selector) {
+                          actionResults.push("input_text: missing index or selector");
+                          break;
+                        }
+                        const ref = act.index != null ? refMap.get(act.index) : undefined;
+                        if (act.index != null && !ref) {
+                          actionResults.push(`input_text: index ${act.index} not found`);
+                          break;
+                        }
+                        // Clear first if needed (default true)
+                        if (act.clear !== false && ref) {
+                          await openclawBrowser.act({ kind: "click", ref });
+                          await openclawBrowser.act({ kind: "press", text: "Control+a" });
+                        }
+                        const result = await openclawBrowser.act({
+                          kind: "type",
+                          ref: ref,
+                          selector: act.selector,
+                          text: act.text ?? "",
+                        });
+                        if (!result.ok) {
+                          actionResults.push(`input_text: failed — ${result.error}`);
+                          break;
+                        }
+                        actionResults.push(`input_text: [${act.index ?? act.selector}] = "${(act.text ?? "").slice(0, 50)}" done`);
+                        break;
+                      }
+
+                      case "select_option": {
+                        if (act.index == null && !act.selector) {
+                          actionResults.push("select_option: missing index or selector");
+                          break;
+                        }
+                        const ref = act.index != null ? refMap.get(act.index) : undefined;
+                        if (act.index != null && !ref) {
+                          actionResults.push(`select_option: index ${act.index} not found`);
+                          break;
+                        }
+                        const result = await openclawBrowser.act({
+                          kind: "select",
+                          ref: ref,
+                          selector: act.selector,
+                          text: act.text ?? "",
+                        });
+                        if (!result.ok) {
+                          actionResults.push(`select_option: failed — ${result.error}`);
+                          break;
+                        }
+                        snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true }) ?? snapshot;
+                        refMap = buildRefMap(snapshot.elements);
+                        actionResults.push(`select_option: [${act.index ?? act.selector}] = "${act.text}" done`);
+                        break;
+                      }
+
+                      case "scroll": {
+                        const result = await openclawBrowser.act({
+                          kind: "scroll",
+                          direction: act.direction ?? "down",
+                        });
+                        if (!result.ok) {
+                          actionResults.push(`scroll: failed — ${result.error}`);
+                          break;
+                        }
+                        await new Promise(r => setTimeout(r, 300));
+                        snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true }) ?? snapshot;
+                        refMap = buildRefMap(snapshot.elements);
+                        actionResults.push(`scroll: ${act.direction ?? "down"} done`);
+                        break;
+                      }
+
+                      case "send_keys": {
+                        const result = await openclawBrowser.act({
+                          kind: "press",
+                          text: act.text ?? "Enter",
+                        });
+                        if (!result.ok) {
+                          actionResults.push(`send_keys: failed — ${result.error}`);
+                          break;
+                        }
+                        await new Promise(r => setTimeout(r, 300));
+                        snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true }) ?? snapshot;
+                        refMap = buildRefMap(snapshot.elements);
+                        actionResults.push(`send_keys: "${act.text ?? "Enter"}" done`);
+                        break;
+                      }
+
+                      case "wait": {
+                        const ms = act.amount ?? 2000;
+                        if (act.selector) {
+                          await openclawBrowser.wait({ selector: act.selector, timeoutMs: ms });
+                          actionResults.push(`wait: ${act.selector} appeared`);
+                        } else {
+                          await new Promise(r => setTimeout(r, ms));
+                          actionResults.push(`wait: ${ms}ms done`);
+                        }
+                        snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true }) ?? snapshot;
+                        refMap = buildRefMap(snapshot.elements);
+                        break;
+                      }
+
+                      case "go_to_url": {
+                        const url = act.text;
+                        if (!url) {
+                          actionResults.push("go_to_url: missing URL in text field");
+                          break;
+                        }
+                        await openclawBrowser.navigate(url);
+                        await openclawBrowser.wait({ load: "networkidle", timeoutMs: 10000 });
+                        snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true }) ?? snapshot;
+                        refMap = buildRefMap(snapshot.elements);
+                        actionResults.push(`go_to_url: ${url} done`);
+                        break;
+                      }
+
+                      case "extract_content": {
+                        const text = snapshot.snapshot?.slice(0, 3000) ?? "";
+                        actionResults.push(`extract_content:\n${text}`);
+                        break;
+                      }
+
+                      case "done": {
+                        actionResults.push(`done: ${act.text ?? "Task complete"}`);
+                        break;
+                      }
+
+                      default:
+                        actionResults.push(`unknown action: ${act.action}`);
+                    }
+                  } catch (err) {
+                    actionResults.push(`${act.action}: FAILED — ${(err as Error).message}`);
+                    // Re-snapshot so agent can recover
+                    try {
+                      snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true }) ?? snapshot;
+                      refMap = buildRefMap(snapshot.elements);
+                    } catch { /* ignore */ }
+                  }
+                }
+
+                // Get captured API traffic
+                const capturedRequests = await openclawBrowser.requests();
+                const apiCalls = capturedRequests.filter(
+                  (r) => r.resourceType === "xhr" || r.resourceType === "fetch",
+                );
+
+                // Format page state for LLM (index-based display)
+                const formatOpenClawSnapshot = (snap: typeof snapshot) => {
+                  const lines: string[] = [
+                    `URL: ${snap.url}`,
+                    `Title: ${snap.title}`,
+                    "",
+                    "Interactive elements:",
+                  ];
+                  (snap.elements ?? []).forEach((el, i) => {
+                    const idx = i + 1;
+                    const tag = el.tag ?? el.role ?? "element";
+                    const label = el.name ?? el.text ?? el.value ?? "";
+                    lines.push(`  [${idx}] <${tag}> ${label.slice(0, 60)}`);
+                  });
+                  if ((snap.elements ?? []).length === 0) {
+                    lines.push("  (no interactive elements)");
+                  }
+                  return lines.join("\n");
+                };
+
+                const resultLines = [
+                  `Interaction complete: ${p.actions.length} action(s)`,
+                  `Browser: OpenClaw native API`,
+                  "",
+                  formatOpenClawSnapshot(snapshot),
+                  "",
+                  "Action results:",
+                  ...actionResults.map((r) => `  ${r}`),
+                ];
+
+                if (apiCalls.length > 0) {
+                  resultLines.push(
+                    "",
+                    `API traffic captured: ${apiCalls.length} request(s)`,
+                    ...apiCalls.slice(0, 20).map(
+                      (r) => `  ${r.method} ${r.url.slice(0, 100)} -> ${r.status ?? "?"}`,
+                    ),
+                  );
+                  if (apiCalls.length > 20) {
+                    resultLines.push(`  ... and ${apiCalls.length - 20} more`);
+                  }
+                }
+
+                logger.info(
+                  `[unbrowse] OpenClaw browse: ${p.actions.length} actions on ${snapshot.url} (${apiCalls.length} API calls, ${(snapshot.elements ?? []).length} elements)`,
+                );
+                return { content: [{ type: "text", text: resultLines.join("\n") }] };
+              }
+            }
+
+            // ══════════════════════════════════════════════════════════════════
+            // PLAYWRIGHT FALLBACK — when OpenClaw browser is not available
+            // ══════════════════════════════════════════════════════════════════
+            logger.info(`[unbrowse] OpenClaw browser not available, using Playwright fallback`);
 
             // Check if Chrome is running and we need to handle it
             if (!sharedBrowser) {
