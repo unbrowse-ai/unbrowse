@@ -9,43 +9,53 @@
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface SkillSummary {
-  id: string;
-  service: string;
-  slug: string;
-  baseUrl: string;
-  authMethodType: string;
-  endpointCount: number;
+  skillId: string;
+  name: string;
+  description: string;
+  category: string | null;
+  authType: string | null;
+  serviceName: string | null;
+  domain: string | null;
   downloadCount: number;
-  tags: string[];
-  creatorWallet: string;
-  creatorAlias?: string;
+  creatorWallet: string | null;
+  priceUsdc: string;
+  isPublished: boolean;
+  createdAt: string;
   updatedAt: string;
 }
 
 export interface SkillPackage {
-  id: string;
-  service: string;
-  baseUrl: string;
-  authMethodType: string;
-  endpoints: { method: string; path: string; description?: string }[];
+  skillId: string;
+  name: string;
+  description: string;
   skillMd: string;
-  apiTemplate: string;
+  scripts?: Record<string, string>;
+  references?: Record<string, string>;
+  category: string | null;
+  authType: string | null;
+  serviceName: string | null;
+  domain: string | null;
 }
 
 export interface PublishPayload {
-  service: string;
-  baseUrl: string;
-  authMethodType: string;
-  endpoints: { method: string; path: string; description?: string }[];
+  name: string;
+  description: string;
   skillMd: string;
-  apiTemplate: string;
-  creatorWallet: string;
+  category?: string;
+  authType?: string;
+  scripts?: Record<string, string>;
+  references?: Record<string, string>;
+  serviceName?: string;
+  domain?: string;
+  creatorWallet?: string;
 }
 
 export interface PublishResult {
-  id: string;
-  slug: string;
-  version: number;
+  success: boolean;
+  skill: {
+    skillId: string;
+    name: string;
+  };
 }
 
 export interface SearchResult {
@@ -75,16 +85,14 @@ export class SkillIndexClient {
     this.opts = opts;
   }
 
-  /** Search the skill index (free). */
+  /** Search the skill marketplace (free). */
   async search(
     query: string,
-    opts?: { tags?: string; limit?: number; offset?: number },
+    opts?: { limit?: number },
   ): Promise<SearchResult> {
-    const url = new URL(`${this.indexUrl}/skills/search`);
-    url.searchParams.set("q", query);
-    if (opts?.tags) url.searchParams.set("tags", opts.tags);
+    const url = new URL(`${this.indexUrl}/marketplace/skills`);
+    if (query) url.searchParams.set("q", query);
     if (opts?.limit) url.searchParams.set("limit", String(opts.limit));
-    if (opts?.offset) url.searchParams.set("offset", String(opts.offset));
 
     let resp: Response;
     try {
@@ -105,74 +113,34 @@ export class SkillIndexClient {
       throw new Error(`Search failed (${resp.status}): ${text}`);
     }
 
-    return resp.json() as Promise<SearchResult>;
+    const data = await resp.json();
+    return {
+      skills: data.skills || [],
+      total: data.count || 0,
+    };
   }
 
-  /** Get skill summary with endpoint list (free). */
-  async getSummary(id: string): Promise<SkillSummary & { endpoints: { method: string; path: string }[] }> {
-    const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}/summary`, {
+  /** Get skill details (free). */
+  async getSkill(id: string): Promise<SkillPackage> {
+    const resp = await fetch(`${this.indexUrl}/marketplace/skills/${encodeURIComponent(id)}`, {
       signal: AbortSignal.timeout(15_000),
     });
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
-      throw new Error(`Summary failed (${resp.status}): ${text}`);
+      throw new Error(`Get skill failed (${resp.status}): ${text}`);
     }
 
-    return resp.json() as any;
+    const data = await resp.json();
+    return data.skill;
   }
 
   /**
-   * Download a skill package (x402 payment required).
-   *
-   * Handles the 402 → sign → retry flow using a Solana keypair.
-   * Falls back to free download if the server has no x402 gate (dev mode).
+   * Download a skill package.
+   * Currently free - x402 payment will be added later.
    */
   async download(id: string): Promise<SkillPackage> {
-    // Step 1: Initial request — may return 200 (free) or 402
-    const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}/download`, {
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (resp.ok) {
-      // Free mode — no payment required
-      return resp.json() as Promise<SkillPackage>;
-    }
-
-    if (resp.status !== 402) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Download failed (${resp.status}): ${text}`);
-    }
-
-    // Step 2: We got a 402 — need to pay
-    if (!this.solanaPrivateKey) {
-      throw new Error(
-        "No Solana private key configured for x402 payments. " +
-        "Set skillIndexSolanaPrivateKey in unbrowse config or UNBROWSE_SOLANA_PRIVATE_KEY env var.",
-      );
-    }
-
-    const paymentReq = await resp.json();
-    const accepts = paymentReq?.accepts?.[0];
-    if (!accepts) {
-      throw new Error("Invalid 402 response: no payment requirements");
-    }
-
-    // Step 3: Build and sign the Solana x402 transaction
-    const paymentData = await this.buildAndSignPayment(accepts);
-
-    // Step 4: Retry with X-Payment header
-    const retryResp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}/download`, {
-      headers: { "X-Payment": paymentData },
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!retryResp.ok) {
-      const text = await retryResp.text().catch(() => "");
-      throw new Error(`Download failed after payment (${retryResp.status}): ${text}`);
-    }
-
-    return retryResp.json() as Promise<SkillPackage>;
+    return this.getSkill(id);
   }
 
   /**
@@ -278,9 +246,9 @@ export class SkillIndexClient {
     return Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
   }
 
-  /** Publish a skill to the index (free). */
+  /** Publish a skill to the marketplace (free). */
   async publish(payload: PublishPayload): Promise<PublishResult> {
-    const resp = await fetch(`${this.indexUrl}/skills/publish`, {
+    const resp = await fetch(`${this.indexUrl}/marketplace/skills`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -308,5 +276,97 @@ export class SkillIndexClient {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Update a skill (creator wallet signature required).
+   * Only the wallet that published the skill can update it.
+   */
+  async update(id: string, payload: Partial<PublishPayload>): Promise<PublishResult> {
+    if (!this.solanaPrivateKey) {
+      throw new Error(
+        "No Solana private key configured. Required to sign update requests. " +
+        "Set skillIndexSolanaPrivateKey in unbrowse config.",
+      );
+    }
+
+    const timestamp = Date.now().toString();
+    const message = `unbrowse:edit:${id}:${timestamp}`;
+    const signature = await this.signMessage(message);
+
+    const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Signature": signature,
+        "X-Timestamp": timestamp,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Update failed (${resp.status}): ${text}`);
+    }
+
+    return resp.json() as Promise<PublishResult>;
+  }
+
+  /**
+   * Delete a skill (creator wallet signature required).
+   * Only the wallet that published the skill can delete it.
+   */
+  async delete(id: string): Promise<{ deleted: boolean; id: string }> {
+    if (!this.solanaPrivateKey) {
+      throw new Error(
+        "No Solana private key configured. Required to sign delete requests. " +
+        "Set skillIndexSolanaPrivateKey in unbrowse config.",
+      );
+    }
+
+    const timestamp = Date.now().toString();
+    const message = `unbrowse:edit:${id}:${timestamp}`;
+    const signature = await this.signMessage(message);
+
+    const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: {
+        "X-Signature": signature,
+        "X-Timestamp": timestamp,
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Delete failed (${resp.status}): ${text}`);
+    }
+
+    return resp.json() as Promise<{ deleted: boolean; id: string }>;
+  }
+
+  /**
+   * Sign a message with the Solana keypair.
+   * Returns base58-encoded Ed25519 signature.
+   */
+  private async signMessage(message: string): Promise<string> {
+    const { Keypair } = await import("@solana/web3.js");
+    const bs58 = await import("bs58");
+    const nacl = await import("tweetnacl");
+
+    // Decode private key
+    let keypair: InstanceType<typeof Keypair>;
+    try {
+      keypair = Keypair.fromSecretKey(bs58.default.decode(this.solanaPrivateKey!));
+    } catch {
+      throw new Error("Invalid Solana private key. Must be base58-encoded.");
+    }
+
+    // Sign message
+    const messageBytes = new TextEncoder().encode(message);
+    const signature = nacl.sign.detached(messageBytes, keypair.secretKey);
+
+    return bs58.default.encode(signature);
   }
 }
