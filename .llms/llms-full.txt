@@ -1,0 +1,51 @@
+# Unbrowse - Complete Documentation
+
+## Project Overview
+Unbrowse is an OpenClaw extension that captures API traffic from any website and turns it into monetizable skills for AI agents. By utilizing Unbrowse, developers can enhance their AI systems with web scraping capabilities in a straightforward and integrated manner.
+
+## Installation & Setup
+### One-liner (Recommended)
+```bash
+openclaw plugins install @getfoundry/unbrowse-openclaw
+```
+### Alternative: Manual Config
+1. Add to `~/.openclaw/openclaw.json`:
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse": { "enabled": true }
+    }
+  }
+}
+```
+2. Restart the OpenClaw gateway:
+```bash
+openclaw gateway restart
+```
+
+## Architecture & Design
+Unbrowse's architecture allows capturing API calls, generating skills, and publishing them. It efficiently connects to various platforms leveraging the OpenClaw ecosystem, built with TypeScript and JavaScript.
+
+## API Reference
+For API endpoints, please refer to the detailed [API Documentation](./docs/ARCHITECTURE.md) embedded within the repository.
+
+## Source Code Analysis
+### Main Modules
+- **Auth Extractor** (auth-extractor.ts): Handles various authentication methods from captured traffic.
+- **Skill Generator** (skill-generator.ts): Creates necessary skill files and clients interacting with the captured APIs.
+
+## Configuration
+Comprehensive configuration options for Unbrowse can be found in the [README](./README.md) and the [Quickstart Guide](./docs/QUICKSTART.md) which includes parameters for deployed environments and plugin settings.
+
+## Examples & Usage
+- [Quickstart Guide](./docs/QUICKSTART.md) showcases basic usage patterns for API capturing and skill creation.
+
+## Testing
+The project includes an extensive testing suite located in the `tests` directory for ensuring API accuracy and reliability.
+
+## Dependencies
+Further details on dependencies utilized within the project are provided in `package.json`.
+
+## Development Guide
+For contributing to this project, refer to `CONTRIBUTING.md` for guidelines and setup instructions.

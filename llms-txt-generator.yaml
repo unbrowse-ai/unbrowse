@@ -1,0 +1,32 @@
+# llms-txt-generator configuration
+# https://github.com/llms-txt/llms-txt-generator
+
+title: "Unbrowse - Open Source API Reverse Engineering"
+description: >
+  Unbrowse is an OpenClaw/Clawdbot extension for API reverse engineering and skill monetization.
+  Captures API traffic from any website, auto-generates reusable skills, publishes to marketplace,
+  and earns USDC on every download.
+
+# Files to include in documentation
+include:
+  - README.md
+  - CLAUDE.md
+  - src/**/*.ts
+  - index.ts
+
+# Files to exclude
+exclude:
+  - node_modules/**
+  - dist/**
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+
+# Output configuration
+output:
+  dir: server/web/public
+  llms_txt: llms.txt
+  llms_full_txt: llms-full.txt
+
+# LLM provider
+provider: openai
+model: gpt-4o-mini

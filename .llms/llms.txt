@@ -1,0 +1,18 @@
+# Unbrowse
+
+> Open source API reverse engineering for OpenClaw, enabling the capture of API traffic and generating skills for AI agents.
+
+## Core Documentation
+- [README](./README.md): Project overview and installation instructions.
+- [Quickstart Guide](./docs/QUICKSTART.md): Step-by-step guide to get started quickly.
+- [API Reference](./docs/ARCHITECTURE.md): Detailed documentation of the API endpoints.
+
+## Key Source Files
+- [Main Entry Point](./src/index.ts): The main entry script for the application.
+- [Auth Extractor](./src/auth-extractor.ts): Handles authentication methods and extracts credentials.
+- [Skill Generator](./src/skill-generator.ts): Generates API client and skill documentation.
+
+## Additional Resources
+- [Example Workflows](./docs/QUICKSTART.md#example-workflows): Sample usage scenarios.
+- [Tests](./tests/): Testing framework and coverage information.
+- [Package Info](./package.json): Project dependencies and scripts.
