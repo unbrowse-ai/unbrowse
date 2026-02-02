@@ -283,22 +283,22 @@ export default function Skills() {
             </div>
             <div className="ub-chat-body">
               <div className="ub-chat-msg ub-chat-user">
-                <span className="ub-msg-text">Book me a table at Noma for 2 people this Friday at 7pm</span>
+                <span className="ub-msg-text">What are the current odds on the 2024 election on Polymarket?</span>
               </div>
               <div className="ub-chat-msg ub-chat-agent">
-                <span className="ub-msg-text">I don't have access to OpenTable. Let me capture it — I'll open a browser, you log in once.</span>
-                <span className="ub-msg-tool">unbrowse_login url="opentable.com"</span>
+                <span className="ub-msg-text">I don't have access to Polymarket. Let me capture it — log in once and I'll have it forever.</span>
+                <span className="ub-msg-tool">unbrowse_login url="polymarket.com"</span>
               </div>
               <div className="ub-chat-msg ub-chat-system">
-                <span className="ub-msg-browser">🌐 Browser opened → Log in to OpenTable</span>
+                <span className="ub-msg-browser">🌐 Browser opened → Log in to Polymarket</span>
               </div>
               <div className="ub-chat-msg ub-chat-agent">
-                <span className="ub-msg-text">Got it. I captured OpenTable's booking API. <strong>Browser closed.</strong> I'll never need it again for OpenTable.</span>
-                <span className="ub-msg-status">✓ opentable skill saved</span>
+                <span className="ub-msg-text">Done. Captured Polymarket's API. <strong>Browser closed forever.</strong></span>
+                <span className="ub-msg-status">✓ polymarket skill saved</span>
               </div>
               <div className="ub-chat-msg ub-chat-agent">
-                <span className="ub-msg-text">Booked! Noma, Friday 7pm, party of 2. Confirmation #8847.</span>
-                <span className="ub-msg-status">✓ 230ms — no browser</span>
+                <span className="ub-msg-text">Current odds: Trump 54¢, Harris 46¢. Volume: $2.1B. Want me to place a bet?</span>
+                <span className="ub-msg-status">✓ 89ms — direct API call</span>
               </div>
             </div>
             <div className="ub-chat-input">
@@ -318,30 +318,33 @@ export default function Skills() {
               <span className="ub-terminal-title">under the hood</span>
             </div>
             <div className="ub-terminal-body">
-              <div className="ub-term-line ub-term-comment"># First time: browser opens once</div>
+              <div className="ub-term-line ub-term-comment"># First time only: browser login</div>
               <div className="ub-term-line">
                 <span className="ub-term-prompt">→</span>
-                <span className="ub-term-cmd">unbrowse_login <span className="ub-term-arg">"opentable.com"</span></span>
+                <span className="ub-term-cmd">unbrowse_login <span className="ub-term-arg">"polymarket.com"</span></span>
               </div>
               <div className="ub-term-line ub-term-output">
-                <span className="ub-term-success">[BROWSER]</span> User logged in
+                <span className="ub-term-success">[COOKIES]</span> 8 auth cookies captured
               </div>
               <div className="ub-term-line ub-term-output">
-                <span className="ub-term-success">[CAPTURE]</span> 12 API endpoints saved
+                <span className="ub-term-success">[HEADERS]</span> Bearer token saved
               </div>
               <div className="ub-term-line ub-term-output">
-                <span className="ub-term-dim">[BROWSER]</span> Closed. Never needed again.
+                <span className="ub-term-success">[API]</span> 23 endpoints mapped
               </div>
-              <div className="ub-term-line ub-term-comment"># Every time after: direct API</div>
+              <div className="ub-term-line ub-term-output">
+                <span className="ub-term-dim">[BROWSER]</span> Closed permanently
+              </div>
+              <div className="ub-term-line ub-term-comment"># Every request after: direct HTTP</div>
               <div className="ub-term-line">
                 <span className="ub-term-prompt">→</span>
-                <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">"book_table"</span></span>
+                <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">"get_market"</span></span>
               </div>
               <div className="ub-term-line ub-term-output">
-                <span className="ub-term-success">[API]</span> POST /booking → 200 <span className="ub-term-dim">(230ms)</span>
+                <span className="ub-term-success">[API]</span> GET /markets/election <span className="ub-term-dim">(89ms)</span>
               </div>
               <div className="ub-term-line ub-term-output ub-term-final">
-                <span className="ub-term-accent">[OK]</span> Confirmation #8847
+                <span className="ub-term-money">Trump: 54¢ | Harris: 46¢</span>
               </div>
             </div>
           </div>
@@ -351,7 +354,7 @@ export default function Skills() {
         <div className="ub-demo-insight">
           <span className="ub-insight-icon">💡</span>
           <span className="ub-insight-text">
-            <strong>One login. Forever API access.</strong> The browser opens once to capture auth. After that, your agent calls APIs directly — 100x faster, no Puppeteer, no flaky selectors.
+            <strong>One login. Forever API access.</strong> We capture cookies, tokens, and headers from your browser session. After that, your agent calls APIs directly — 100x faster than browser automation.
           </span>
         </div>
       </section>
@@ -368,7 +371,7 @@ export default function Skills() {
               </svg>
             </div>
             <h3>CAPTURE ONCE</h3>
-            <p>Browse the site one time. We capture every API call — endpoints, auth, payloads. That's it. Browser closed.</p>
+            <p>Log in once. We grab cookies, session tokens, and auth headers from your browser. That's it. Browser closes forever.</p>
           </div>
 
           <div className="ub-value-card">
