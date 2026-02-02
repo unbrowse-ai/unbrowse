@@ -62,13 +62,29 @@ function generateSkillMd(service: string, data: ApiData): string {
   // Extract domain for description
   const domain = new URL(data.baseUrl).hostname;
 
+  // Build a useful description from actual endpoints
+  const endpointSummaries: string[] = [];
+  for (const [, reqs] of Object.entries(data.endpoints).slice(0, 5)) {
+    const req = reqs[0];
+    // Extract last meaningful path segment as action name
+    const segments = req.path.split("/").filter(Boolean);
+    const lastSegment = segments[segments.length - 1]?.replace(/[{}:]/g, "") || "resource";
+    const action = req.method === "GET" ? `get ${lastSegment}` :
+                   req.method === "POST" ? `create ${lastSegment}` :
+                   req.method === "PUT" || req.method === "PATCH" ? `update ${lastSegment}` :
+                   req.method === "DELETE" ? `delete ${lastSegment}` : lastSegment;
+    endpointSummaries.push(action);
+  }
+  const capabilitiesText = endpointSummaries.length > 0
+    ? `Capabilities: ${endpointSummaries.join(", ")}.`
+    : "";
+
   // agentskills.io compliant YAML frontmatter
   return `---
 name: ${service}
 description: >-
-  Internal API for ${domain} with ${endpointCount} reverse-engineered endpoints.
-  Use this skill to interact with ${title} programmatically without official API access.
-  Captured auth: ${authSummary}. Auth method: ${data.authMethod}.
+  ${title} API skill for OpenClaw. ${capabilitiesText}
+  Service: ${domain}. Auth: ${data.authMethod || "Unknown"}.
 metadata:
   author: unbrowse
   version: "1.0"
