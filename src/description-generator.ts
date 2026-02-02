@@ -3,6 +3,11 @@
  *
  * Uses Claude to generate human-readable skill descriptions
  * from captured API endpoint data.
+ *
+ * API key resolution order:
+ * 1. ANTHROPIC_API_KEY environment variable (set by OpenClaw when gateway runs)
+ * 2. Explicit apiKey passed via options
+ * 3. Falls back to heuristic-based description
  */
 
 import type { ApiData } from "./types.js";
@@ -12,6 +17,11 @@ interface DescriptionResult {
   usedLlm: boolean;
 }
 
+interface DescriptionOptions {
+  /** Explicit Anthropic API key (optional, falls back to env var) */
+  apiKey?: string;
+}
+
 /**
  * Generate a human-readable description for a skill using an LLM.
  * Falls back to template-based description if LLM is unavailable.
@@ -19,6 +29,7 @@ interface DescriptionResult {
 export async function generateSkillDescription(
   service: string,
   data: ApiData,
+  options?: DescriptionOptions,
 ): Promise<DescriptionResult> {
   const domain = new URL(data.baseUrl).hostname;
   const title = service.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -31,8 +42,8 @@ export async function generateSkillDescription(
     endpoints.push({ method: req.method, path: req.path });
   }
 
-  // Try to use Anthropic API
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Try to use Anthropic API (OpenClaw sets ANTHROPIC_API_KEY when gateway runs)
+  const apiKey = options?.apiKey || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       description: generateFallbackDescription(title, domain, endpointCount, endpoints, data.authMethod),
