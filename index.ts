@@ -639,7 +639,10 @@ const plugin = {
         if (descMatch) {
           description = descMatch[1].replace(/\n\s+/g, " ").trim();
         } else {
-          description = `${service} API skill with ${endpoints.length} endpoints. Auth: ${authMethodType}.`;
+          // Build a meaningful fallback description
+          const endpointNames = endpoints.slice(0, 3).map((e: { method: string; path: string }) => e.path);
+          const capText = endpointNames.length > 0 ? ` Endpoints: ${endpointNames.join(", ")}.` : "";
+          description = `${service} skill for OpenClaw.${capText}`;
         }
 
         // Extract domain from baseUrl
@@ -2076,7 +2079,10 @@ const plugin = {
               if (descMatch) {
                 description = descMatch[1].replace(/\n\s+/g, " ").trim();
               } else {
-                description = `${p.service} API skill with ${endpoints.length} endpoints. Auth: ${authMethodType}.`;
+                // Build a meaningful fallback description
+                const endpointNames = endpoints.slice(0, 3).map((e: { method: string; path: string }) => e.path);
+                const capText = endpointNames.length > 0 ? ` Endpoints: ${endpointNames.join(", ")}.` : "";
+                description = `${p.service} skill for OpenClaw.${capText}`;
               }
 
               // Extract domain from baseUrl
