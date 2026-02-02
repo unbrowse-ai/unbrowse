@@ -185,6 +185,10 @@ const PUBLISH_SCHEMA = {
       type: "string" as const,
       description: "Skills directory (default: ~/.openclaw/skills)",
     },
+    price: {
+      type: "string" as const,
+      description: "Price in USDC (e.g. '0' for free, '1.50' for $1.50). Default is free.",
+    },
   },
   required: ["service"],
 };
@@ -662,6 +666,7 @@ const plugin = {
           serviceName: service,
           domain: domain || undefined,
           creatorWallet,
+          priceUsdc: "0", // Auto-published skills are free by default
         });
         logger.info(`[unbrowse] Auto-published: ${service} (${result.skill.skillId})`);
         return result.skill.skillId;
@@ -2008,7 +2013,8 @@ const plugin = {
           description:
             "Share a captured internal API skill to the marketplace. Publishes the endpoint structure, " +
             "auth method, and documentation — credentials stay local (others need their own login). " +
-            "Useful when you've reverse-engineered an internal API that others might want to use.",
+            "Useful when you've reverse-engineered an internal API that others might want to use. " +
+            "Set price='0' for free or price='1.50' for $1.50 USDC (you earn 70%).",
           parameters: PUBLISH_SCHEMA,
           async execute(_toolCallId: string, params: unknown) {
             const p = params as { service: string; skillsDir?: string };
@@ -2104,20 +2110,25 @@ const plugin = {
                 serviceName: p.service,
                 domain: domain || undefined,
                 creatorWallet,
+                priceUsdc: (p as any).price ?? "0", // Default to free
               };
 
               const result = await indexClient.publish(payload);
 
+              const priceDisplay = (p as any).price && parseFloat((p as any).price) > 0
+                ? `$${parseFloat((p as any).price).toFixed(2)} USDC`
+                : "Free";
               const summary = [
                 `Skill published to cloud marketplace`,
                 `Name: ${p.service}`,
                 `ID: ${result.skill.skillId}`,
+                `Price: ${priceDisplay}`,
                 `Endpoints: ${endpoints.length}`,
                 `Creator wallet: ${creatorWallet}`,
                 ``,
                 `Others can find and download this skill via unbrowse_search.`,
-                `You earn USDC for each download via x402.`,
-              ].join("\n");
+                priceDisplay !== "Free" ? `You earn 70% ($${(parseFloat((p as any).price) * 0.7).toFixed(2)}) for each download.` : "",
+              ].filter(Boolean).join("\n");
 
               logger.info(`[unbrowse] Published: ${p.service} → ${result.skill.skillId}`);
               return { content: [{ type: "text", text: summary }] };

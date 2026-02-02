@@ -48,6 +48,7 @@ export interface PublishPayload {
   serviceName?: string;
   domain?: string;
   creatorWallet?: string;
+  priceUsdc?: string; // "0" for free, or "$0.10" - "$100.00" for paid
   /** Price in USDC (e.g., "1.00" for $1.00). Min: $0.10, Max: $100.00. Default: $1.00 */
   priceUsdc?: string;
 }
