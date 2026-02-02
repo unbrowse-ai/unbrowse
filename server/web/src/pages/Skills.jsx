@@ -593,8 +593,8 @@ export default function Skills() {
             </button>
           </div>
           <div className="ub-install-links">
-            <a href="https://github.com/lekt9/unbrowse-openclaw" target="_blank" rel="noopener" className="ub-btn ub-btn-primary">
-              GitHub
+            <a href="https://www.npmjs.com/package/@getfoundry/unbrowse-openclaw" target="_blank" rel="noopener" className="ub-btn ub-btn-primary">
+              npm
             </a>
             <Link to="/docs" className="ub-btn ub-btn-ghost">
               Documentation
@@ -624,7 +624,7 @@ export default function Skills() {
             <span className="ub-footer-tagline">API reverse engineering for AI agents</span>
           </div>
           <nav className="ub-footer-nav">
-            <a href="https://github.com/lekt9/unbrowse-openclaw" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://www.npmjs.com/package/@getfoundry/unbrowse-openclaw" target="_blank" rel="noopener">npm</a>
             <Link to="/docs">Docs</Link>
             <a href="https://agentskills.io" target="_blank" rel="noopener">Agent Skills Spec</a>
           </nav>
