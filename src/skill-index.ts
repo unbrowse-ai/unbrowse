@@ -140,24 +140,31 @@ export class SkillIndexClient {
 
   /**
    * Download a skill package with full content.
-   * Requires x402 payment ($1.00 USDC).
+   * Free skills download directly; paid skills require x402 payment.
    */
   async download(id: string): Promise<SkillPackage> {
-    if (!this.solanaPrivateKey) {
-      throw new Error(
-        "No Solana private key configured. Required for x402 skill downloads. " +
-        "Set skillIndexSolanaPrivateKey in unbrowse config or use unbrowse_wallet to create one.",
-      );
-    }
-
     const downloadUrl = `${this.indexUrl}/marketplace/skill-downloads/${encodeURIComponent(id)}`;
 
-    // First request to get 402 response with payment requirements
+    // First request - may succeed directly (free) or return 402 (paid)
     const initialResp = await fetch(downloadUrl, {
       signal: AbortSignal.timeout(15_000),
     });
 
+    // Free skill - returns content directly
+    if (initialResp.ok) {
+      const data = await initialResp.json();
+      return data.skill;
+    }
+
+    // Paid skill - requires x402 payment
     if (initialResp.status === 402) {
+      if (!this.solanaPrivateKey) {
+        throw new Error(
+          "This skill requires payment but no Solana wallet is configured. " +
+          "Set up a wallet with unbrowse_wallet to download paid skills.",
+        );
+      }
+
       // Parse x402 payment requirements
       const x402Response = await initialResp.json();
       const accepts = x402Response.accepts?.[0];
@@ -186,14 +193,9 @@ export class SkillIndexClient {
       return data.skill;
     }
 
-    if (!initialResp.ok) {
-      const text = await initialResp.text().catch(() => "");
-      throw new Error(`Skill download failed (${initialResp.status}): ${text}`);
-    }
-
-    // Unexpected success without payment (shouldn't happen with gated content)
-    const data = await initialResp.json();
-    return data.skill;
+    // Other error
+    const text = await initialResp.text().catch(() => "");
+    throw new Error(`Skill download failed (${initialResp.status}): ${text}`);
   }
 
   /**
