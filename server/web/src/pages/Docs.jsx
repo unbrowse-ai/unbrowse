@@ -213,7 +213,7 @@ const result = await skill.run({
             <p>
               Skills are <strong>free by default</strong> for maximum adoption. If you want to
               monetize, set a price ($0.10 - $100 USDC) and your Solana wallet. You'll earn
-              33% of every download automatically via x402.
+              70% of every download automatically via x402.
             </p>
           </div>
 
@@ -304,11 +304,10 @@ X-Payment-Recipients: creator,platform,network`}</pre>
           </div>
 
           <h3>Revenue Split (Paid Skills)</h3>
-          <p>When a paid skill is downloaded, the payment is split 3 ways:</p>
+          <p>When a paid skill is downloaded, the payment is split:</p>
           <ul className="docs-list">
-            <li><strong>33% → Creator:</strong> The wallet that published the skill</li>
-            <li><strong>33% → Platform:</strong> Marketplace infrastructure</li>
-            <li><strong>34% → Network:</strong> Ecosystem development</li>
+            <li><strong>70% → Creator:</strong> The wallet that published the skill</li>
+            <li><strong>30% → Platform:</strong> Marketplace infrastructure</li>
           </ul>
 
           <h3>Pricing Guidelines</h3>
@@ -338,7 +337,7 @@ await fetch('https://index.unbrowse.ai/marketplace/skills', {
     name: 'my-premium-skill',
     description: '...',
     skillMd: '...',
-    priceUsdc: '1.00',  // Creator earns $0.33 per download
+    priceUsdc: '1.00',  // Creator earns $0.70 per download
     creatorWallet: 'YOUR_SOLANA_WALLET'
   })
 });`}</pre>

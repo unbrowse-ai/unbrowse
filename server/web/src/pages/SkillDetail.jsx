@@ -186,7 +186,7 @@ export default function SkillDetail() {
               Purchase Skill
             </button>
             <div className="paywall-split">
-              Revenue split: Creator 33% • Platform 33% • Network 34%
+              Revenue split: Creator 70% • Platform 30%
             </div>
           </div>
         </section>
@@ -350,7 +350,7 @@ export default function SkillDetail() {
               <span className="creator-name">
                 {`${skill.creatorWallet.slice(0, 6)}...${skill.creatorWallet.slice(-4)}`}
               </span>
-              <span className="creator-note">Earns 33% of each purchase in USDC</span>
+              <span className="creator-note">Earns 70% of each purchase in USDC</span>
             </div>
           </div>
         </section>

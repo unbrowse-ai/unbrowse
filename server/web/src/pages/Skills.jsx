@@ -3,60 +3,53 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 const API_BASE = 'https://index.unbrowse.ai';
 
-// Animated terminal typing effect
-function TerminalDemo() {
+// Chat-style demo showing the workflow
+function ChatDemo() {
   const [step, setStep] = useState(0);
-  const lines = [
-    { type: 'cmd', text: 'unbrowse_capture url="api.twitter.com"' },
-    { type: 'out', text: '[OK] Intercepted 47 API endpoints' },
-    { type: 'out', text: '[OK] Generated skill: twitter-timeline' },
-    { type: 'out', text: '[OK] Generated skill: twitter-post-tweet' },
-    { type: 'cmd', text: 'unbrowse_publish name="twitter-timeline" price="2.50"' },
-    { type: 'final', text: '[$$] Published. Earning $0.83/download' },
+  const messages = [
+    { type: 'user', text: 'can you learn meteora.ag?' },
+    { type: 'assistant', text: 'I\'ll capture the Meteora API. Opening browser...' },
+    { type: 'assistant', text: 'Intercepted 23 endpoints from app.meteora.ag' },
+    { type: 'assistant', text: 'Generated skill: meteora-pools with getLbPairs, getPositions, swap' },
+    { type: 'status', text: 'Skill learned: meteora-pools' },
+    { type: 'user', text: 'publish it for 1 USDC' },
+    { type: 'assistant', text: 'Published to marketplace. You\'ll earn $0.70 per download.' },
   ];
 
   useEffect(() => {
-    if (step < lines.length) {
-      const timer = setTimeout(() => setStep(s => s + 1), 800);
+    if (step < messages.length) {
+      const delay = messages[step]?.type === 'user' ? 1200 : 900;
+      const timer = setTimeout(() => setStep(s => s + 1), delay);
       return () => clearTimeout(timer);
     }
-    // Reset after showing all
-    const resetTimer = setTimeout(() => setStep(0), 3000);
+    const resetTimer = setTimeout(() => setStep(0), 4000);
     return () => clearTimeout(resetTimer);
   }, [step]);
 
   return (
-    <div className="ub-terminal">
-      <div className="ub-terminal-header">
-        <div className="ub-terminal-dots">
-          <span></span><span></span><span></span>
+    <div className="ub-chat">
+      <div className="ub-chat-header">
+        <div className="ub-chat-avatar">🤖</div>
+        <div className="ub-chat-info">
+          <span className="ub-chat-name">OpenClaw</span>
+          <span className="ub-chat-status">with unbrowse</span>
         </div>
-        <span className="ub-terminal-title">unbrowse — zsh</span>
       </div>
-      <div className="ub-terminal-body">
-        {lines.slice(0, step).map((line, i) => (
-          <div key={i} className={`ub-term-line ${line.type === 'out' || line.type === 'final' ? 'ub-term-output' : ''} ${line.type === 'final' ? 'ub-term-final' : ''}`}>
-            {line.type === 'cmd' && <span className="ub-term-prompt">~</span>}
-            {line.type === 'cmd' ? (
-              <span className="ub-term-cmd">{line.text}</span>
-            ) : line.type === 'final' ? (
-              <>
-                <span className="ub-term-accent">[$$]</span>
-                <span> Published. Earning </span>
-                <span className="ub-term-money">$0.83</span>
-                <span>/download</span>
-              </>
+      <div className="ub-chat-body">
+        {messages.slice(0, step).map((msg, i) => (
+          <div key={i} className={`ub-chat-msg ub-chat-${msg.type}`}>
+            {msg.type === 'status' ? (
+              <div className="ub-chat-status-badge">{msg.text}</div>
             ) : (
-              <>
-                <span className="ub-term-success">[OK]</span>
-                <span>{line.text.replace('[OK]', '')}</span>
-              </>
+              <div className="ub-chat-bubble">{msg.text}</div>
             )}
           </div>
         ))}
-        {step < lines.length && (
-          <div className="ub-term-line">
-            <span className="ub-term-cursor">▌</span>
+        {step < messages.length && step > 0 && (
+          <div className="ub-chat-msg ub-chat-assistant">
+            <div className="ub-chat-typing">
+              <span></span><span></span><span></span>
+            </div>
           </div>
         )}
       </div>
@@ -73,6 +66,9 @@ export default function Skills() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [stats, setStats] = useState({ total: 0, free: 0, downloads: 0 });
   const [popularSkills, setPopularSkills] = useState([]);
+  const [allSkills, setAllSkills] = useState([]);
+  const [services, setServices] = useState([]);
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const searchInputRef = useRef(null);
 
   useEffect(() => {
@@ -90,6 +86,8 @@ export default function Skills() {
       if (res.ok) {
         const data = await res.json();
         const skillsList = data.skills || [];
+        setAllSkills(skillsList);
+
         const freeCount = skillsList.filter(s => parseFloat(s.priceUsdc || '0') === 0).length;
         const totalDownloads = skillsList.reduce((sum, s) => sum + (s.downloadCount || 0), 0);
         setStats({ total: skillsList.length, free: freeCount, downloads: totalDownloads });
@@ -99,6 +97,21 @@ export default function Skills() {
           .sort((a, b) => (b.downloadCount || 0) - (a.downloadCount || 0))
           .slice(0, 8);
         setPopularSkills(popular);
+
+        // Extract unique services for browsing
+        const serviceMap = new Map();
+        skillsList.forEach(s => {
+          const name = s.serviceName || s.domain;
+          if (name && !serviceMap.has(name)) {
+            serviceMap.set(name, { name, count: 1 });
+          } else if (name) {
+            serviceMap.get(name).count++;
+          }
+        });
+        const topServices = [...serviceMap.values()]
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 8);
+        setServices(topServices);
       }
     } catch (err) {
       console.error('Failed to load stats:', err);
@@ -168,10 +181,33 @@ export default function Skills() {
     searchInputRef.current?.focus();
   };
 
+  const browseAll = () => {
+    setSkills(allSkills);
+    setHasSearched(true);
+    setQuery('');
+    setSearchParams({});
+  };
+
+  const browseService = (serviceName) => {
+    const filtered = allSkills.filter(s =>
+      s.serviceName === serviceName || s.domain === serviceName
+    );
+    setSkills(filtered);
+    setHasSearched(true);
+    setQuery(serviceName);
+    setSearchParams({ q: serviceName });
+  };
+
   const filteredSkills = skills.filter(skill => {
-    if (activeFilter === 'free') return parseFloat(skill.priceUsdc || '0') === 0;
-    if (activeFilter === 'paid') return parseFloat(skill.priceUsdc || '0') > 0;
-    return true;
+    const priceOk = activeFilter === 'all' ? true :
+      activeFilter === 'free' ? parseFloat(skill.priceUsdc || '0') === 0 :
+      parseFloat(skill.priceUsdc || '0') > 0;
+
+    const categoryOk = categoryFilter === 'all' ? true :
+      categoryFilter === 'api' ? skill.category !== 'workflow' :
+      skill.category === 'workflow';
+
+    return priceOk && categoryOk;
   });
 
   // Homepage view (Google-style)
@@ -201,7 +237,7 @@ export default function Skills() {
           </h1>
 
           {/* Tagline */}
-          <p className="ub-tagline">Search engine for AI agent skills</p>
+          <p className="ub-tagline">One agent learns. All agents know.</p>
 
           {/* Search bar */}
           <form onSubmit={handleSearch} className="ub-search-box">
@@ -231,13 +267,28 @@ export default function Skills() {
 
           {/* Action buttons */}
           <div className="ub-home-actions">
-            <button onClick={handleSearch} className="ub-home-btn">
-              Search Skills
+            <button onClick={browseAll} className="ub-home-btn ub-home-btn-primary">
+              Explore Skills
             </button>
-            <button onClick={handleRandomSkill} className="ub-home-btn">
-              I'm Feeling Lucky
-            </button>
+            <a href="https://github.com/lekt9/unbrowse-openclaw" target="_blank" rel="noopener" className="ub-home-btn">
+              Start Learning
+            </a>
           </div>
+
+          {/* Service chips for quick browsing */}
+          {services.length > 0 && (
+            <div className="ub-service-chips">
+              {services.map(svc => (
+                <button
+                  key={svc.name}
+                  className="ub-service-chip"
+                  onClick={() => browseService(svc.name)}
+                >
+                  {svc.name}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Stats */}
           <p className="ub-home-stats">
@@ -245,30 +296,31 @@ export default function Skills() {
             {stats.free > 0 && <> · <strong>{stats.free}</strong> free</>}
           </p>
 
-          {/* Terminal Demo */}
-          <TerminalDemo />
+          {/* Chat Demo */}
+          <ChatDemo />
 
-          {/* How it works */}
+          {/* Why Unbrowse */}
           <div className="ub-value-grid">
             <div className="ub-value-card">
               <div className="ub-value-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  <path d="M2 12h20"/>
                 </svg>
               </div>
-              <h3>Capture</h3>
-              <p>Browse any website. Unbrowse intercepts all API traffic — endpoints, auth headers, payloads.</p>
+              <h3>Collective Memory</h3>
+              <p>What one agent learns, all agents know. Skills compound across the network.</p>
             </div>
 
             <div className="ub-value-card">
               <div className="ub-value-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
               </div>
-              <h3>Generate</h3>
-              <p>AI transforms raw traffic into production-ready skills with schemas, auth handling, and docs.</p>
+              <h3>200x Faster</h3>
+              <p>API calls in 50ms vs 10+ seconds for GUI automation. No more waiting.</p>
             </div>
 
             <div className="ub-value-card">
@@ -277,8 +329,8 @@ export default function Skills() {
                   <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                 </svg>
               </div>
-              <h3>Monetize</h3>
-              <p>Publish to marketplace. Earn 33% of every download in USDC. Skills work while you sleep.</p>
+              <h3>Earn USDC</h3>
+              <p>Publish skills to marketplace. Earn 70% of every download. Skills work while you sleep.</p>
             </div>
           </div>
 
@@ -333,7 +385,7 @@ export default function Skills() {
         {/* Footer */}
         <footer className="ub-home-footer">
           <div className="ub-footer-section">
-            <span className="ub-footer-location">Skill Marketplace for AI Agents</span>
+            <span className="ub-footer-location">Google for OpenClaw — The Skill Layer for AI Agents</span>
           </div>
           <div className="ub-footer-divider" />
           <div className="ub-footer-links">
@@ -399,13 +451,29 @@ export default function Skills() {
       {/* Filter tabs */}
       <div className="ub-results-tabs">
         <div className="ub-tabs-inner">
+          {/* Category filters */}
           {[
             { key: 'all', label: 'All' },
+            { key: 'api', label: 'APIs' },
+            { key: 'workflow', label: 'Workflows' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              className={`ub-tab ${categoryFilter === tab.key ? 'active' : ''}`}
+              onClick={() => setCategoryFilter(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+          <span className="ub-tab-divider">|</span>
+          {/* Price filters */}
+          {[
+            { key: 'all', label: 'Any Price' },
             { key: 'free', label: 'Free' },
             { key: 'paid', label: 'Paid' },
           ].map(tab => (
             <button
-              key={tab.key}
+              key={`price-${tab.key}`}
               className={`ub-tab ${activeFilter === tab.key ? 'active' : ''}`}
               onClick={() => setActiveFilter(tab.key)}
             >

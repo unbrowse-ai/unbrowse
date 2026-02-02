@@ -13,7 +13,7 @@ Unbrowse is an [OpenClaw](https://github.com/lekt9/openclaw) extension that capt
 │       │          │           │          │                   │
 │       ▼          ▼           ▼          ▼                   │
 │   API traffic  skills    marketplace   USDC                │
-│   auth headers schemas   x402 payments 33% revenue         │
+│   auth headers schemas   x402 payments 70% revenue         │
 │   payloads     docs      Solana        per download        │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -118,9 +118,8 @@ unbrowse_publish name="twitter-timeline" price="2.50"
 ### 4. Earn
 
 When other agents download your skill:
-- **33%** goes to you (the creator)
-- **33%** goes to the platform
-- **34%** goes to network development
+- **70%** goes to you (the creator)
+- **30%** goes to the platform
 
 Payments are instant via x402 protocol on Solana (USDC).
 
@@ -199,9 +198,8 @@ unbrowse_workflow_learn sessionId="session-123..."
 **Pay per sale. Buyers own the skill forever.**
 
 When an agent purchases a skill:
-- **33%** goes to the creator
-- **33%** goes to the platform
-- **34%** goes to network development
+- **70%** goes to the creator
+- **30%** goes to the platform
 
 Payments are instant via x402 protocol on Solana (USDC).
 
@@ -209,9 +207,8 @@ Payments are instant via x402 protocol on Solana (USDC).
 ┌─────────────────────────────────────────────────┐
 │              EARNINGS BREAKDOWN                 │
 ├─────────────────────────────────────────────────┤
-│  Creator:  33%  ─ Instant payout on sale        │
-│  Platform: 33%  ─ Infrastructure & marketplace  │
-│  Network:  34%  ─ Protocol development          │
+│  Creator:  70%  ─ Instant payout on sale        │
+│  Platform: 30%  ─ Infrastructure & marketplace  │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -291,7 +288,7 @@ No intermediaries. Direct creator payment. Instant settlement.
 | Type | Price | Description |
 |------|-------|-------------|
 | Free | $0.00 | Default — maximum adoption |
-| Paid | $0.10 - $100 | Creator sets price, earns 33% |
+| Paid | $0.10 - $100 | Creator sets price, earns 70% |
 
 ## Platform Support
 

@@ -75,9 +75,8 @@ export class SuccessTracker {
   private payoutsFile: string;
 
   // Revenue share percentages (applied at time of SALE, not execution)
-  private readonly CREATOR_SHARE = 0.33;
-  private readonly PLATFORM_SHARE = 0.33;
-  private readonly NETWORK_SHARE = 0.34;
+  private readonly CREATOR_SHARE = 0.70;
+  private readonly PLATFORM_SHARE = 0.30;
 
   // Minimum success rate for marketplace visibility boost
   private readonly HIGH_QUALITY_THRESHOLD = 0.85;
@@ -263,14 +262,12 @@ export class SuccessTracker {
   calculatePotentialEarnings(priceUsdc: number, successfulExecutions: number): {
     creatorEarnings: number;
     platformShare: number;
-    networkShare: number;
     total: number;
   } {
     const total = priceUsdc * successfulExecutions;
     return {
       creatorEarnings: total * this.CREATOR_SHARE,
       platformShare: total * this.PLATFORM_SHARE,
-      networkShare: total * this.NETWORK_SHARE,
       total,
     };
   }

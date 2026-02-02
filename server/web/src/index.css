@@ -318,83 +318,168 @@ button {
   height: 16px;
 }
 
-/* Terminal Demo */
-.ub-terminal {
-  width: 100%;
-  max-width: 540px;
-  margin: 32px auto;
-  background: #0d1117;
-  border-radius: 8px;
-  border: 1px solid var(--border-light);
-  overflow: hidden;
-  font-family: var(--font-mono);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+/* Service Chips */
+.ub-service-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  max-width: 600px;
 }
 
-.ub-terminal-header {
+.ub-service-chip {
+  padding: 6px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ub-service-chip:hover {
+  background: var(--bg-elevated);
+  border-color: var(--link-color);
+  color: var(--link-color);
+}
+
+/* Primary button variant */
+.ub-home-btn-primary {
+  background: var(--google-blue);
+  border-color: var(--google-blue);
+  color: white;
+}
+
+.ub-home-btn-primary:hover {
+  background: #5a9bff;
+  border-color: #5a9bff;
+}
+
+/* Tab divider */
+.ub-tab-divider {
+  color: var(--border-color);
+  padding: 0 8px;
+  user-select: none;
+}
+
+/* Chat Demo */
+.ub-chat {
+  width: 100%;
+  max-width: 400px;
+  margin: 32px auto;
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+.ub-chat-header {
   display: flex;
   align-items: center;
+  gap: 12px;
   padding: 12px 16px;
-  background: #161b22;
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border-light);
 }
 
-.ub-terminal-dots {
-  display: flex;
-  gap: 8px;
-}
-
-.ub-terminal-dots span {
-  width: 12px;
-  height: 12px;
+.ub-chat-avatar {
+  width: 36px;
+  height: 36px;
+  background: var(--google-blue);
   border-radius: 50%;
-}
-
-.ub-terminal-dots span:nth-child(1) { background: #ff5f57; }
-.ub-terminal-dots span:nth-child(2) { background: #febc2e; }
-.ub-terminal-dots span:nth-child(3) { background: #28c840; }
-
-.ub-terminal-title {
-  flex: 1;
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.ub-terminal-body {
-  padding: 16px;
-  min-height: 160px;
-}
-
-.ub-term-line {
-  font-size: 13px;
-  line-height: 1.6;
-  margin-bottom: 4px;
   display: flex;
-  gap: 8px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
 }
 
-.ub-term-prompt {
-  color: var(--google-blue);
+.ub-chat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.ub-chat-name {
+  font-size: 14px;
   font-weight: 500;
-}
-
-.ub-term-cmd {
   color: var(--text-primary);
 }
 
-.ub-term-output {
-  color: var(--text-secondary);
-  padding-left: 20px;
+.ub-chat-status {
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
-.ub-term-success {
+.ub-chat-body {
+  padding: 16px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ub-chat-msg {
+  display: flex;
+}
+
+.ub-chat-user {
+  justify-content: flex-end;
+}
+
+.ub-chat-user .ub-chat-bubble {
+  background: var(--google-blue);
+  color: white;
+  border-radius: 16px 16px 4px 16px;
+}
+
+.ub-chat-assistant .ub-chat-bubble {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-radius: 16px 16px 16px 4px;
+}
+
+.ub-chat-bubble {
+  padding: 10px 14px;
+  font-size: 13px;
+  max-width: 85%;
+  line-height: 1.4;
+}
+
+.ub-chat-status .ub-chat-status-badge {
+  width: 100%;
+  text-align: center;
+  padding: 8px 16px;
+  background: rgba(52, 168, 83, 0.15);
   color: var(--free-green);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.ub-term-accent {
-  color: var(--google-yellow);
+.ub-chat-typing {
+  display: flex;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border-radius: 16px;
+}
+
+.ub-chat-typing span {
+  width: 6px;
+  height: 6px;
+  background: var(--text-tertiary);
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.ub-chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+.ub-chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
 }
 
 .ub-term-money {
