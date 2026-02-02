@@ -1,0 +1,11 @@
+# Build artifacts
+target/
+*.node
+npm/
+
+# Dependencies
+node_modules/
+
+# Generated files (but keep in git for reference)
+# index.js
+# index.d.ts

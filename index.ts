@@ -27,7 +27,8 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 
-import { parseHar } from "./src/har-parser.js";
+// Use native Rust module for HAR parsing (closed-source, compiled binary)
+import { parseHar } from "./src/har-parser-native.js";
 import { generateSkill } from "./src/skill-generator.js";
 import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener } from "./src/cdp-capture.js";
 import { AutoDiscovery } from "./src/auto-discover.js";

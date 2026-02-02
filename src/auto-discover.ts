@@ -14,7 +14,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-import { parseHar } from "./har-parser.js";
+import { parseHar } from "./har-parser-native.js";
 import { generateSkill } from "./skill-generator.js";
 import { captureFromBrowser } from "./cdp-capture.js";
 import type { ParsedRequest, SkillResult } from "./types.js";
