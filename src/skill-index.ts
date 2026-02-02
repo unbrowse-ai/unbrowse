@@ -22,6 +22,44 @@ export interface SkillSummary {
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
+  // Version info
+  latestVersionHash?: string;
+  totalVersions?: number;
+  // Badge info
+  badge?: "official" | "highlighted" | "deprecated" | "verified";
+  badgeReason?: string;
+  // Trending info
+  velocity?: number;
+  downloads24h?: number;
+}
+
+export interface VersionInfo {
+  versionId: string;
+  versionHash: string;
+  versionNumber: string;
+  changelog: string | null;
+  isLatest: boolean;
+  createdAt: string;
+}
+
+export interface TrendingSkill extends SkillSummary {
+  velocity: number;
+  downloads24h: number;
+  downloads7d: number;
+  executions24h: number;
+  successRate: number | null;
+}
+
+export interface SkillStats {
+  skillId: string;
+  period: string;
+  installations: number;
+  executions: {
+    total: number;
+    successful: number;
+    successRate: number;
+    avgExecutionTimeMs: number | null;
+  };
 }
 
 export interface SkillPackage {
@@ -432,5 +470,226 @@ export class SkillIndexClient {
     const signature = nacl.sign.detached(messageBytes, keypair.secretKey);
 
     return bs58.default.encode(signature);
+  }
+
+  // ============================================================================
+  // VERSION MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Get all versions for a skill.
+   */
+  async getVersions(skillId: string): Promise<VersionInfo[]> {
+    const resp = await fetch(
+      `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/versions`,
+      {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Get versions failed (${resp.status}): ${text}`);
+    }
+
+    const data = await resp.json();
+    return data.versions || [];
+  }
+
+  /**
+   * Create a new version for a skill.
+   * Returns null if version already exists (no changes).
+   */
+  async createVersion(
+    skillId: string,
+    payload: {
+      skillMd: string;
+      scripts?: Record<string, string>;
+      references?: Record<string, string>;
+      changelog?: string;
+      versionNumber?: string;
+    },
+  ): Promise<VersionInfo | null> {
+    const resp = await fetch(
+      `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/versions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+
+    if (resp.status === 409) {
+      // Version already exists (no changes)
+      return null;
+    }
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Create version failed (${resp.status}): ${text}`);
+    }
+
+    const data = await resp.json();
+    return data.version;
+  }
+
+  /**
+   * Download a specific version of a skill by version hash.
+   */
+  async downloadVersion(skillId: string, versionHash: string): Promise<SkillPackage> {
+    const resp = await fetch(
+      `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/versions/${encodeURIComponent(versionHash)}`,
+      {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Download version failed (${resp.status}): ${text}`);
+    }
+
+    const data = await resp.json();
+    return data.skill;
+  }
+
+  // ============================================================================
+  // INSTALLATION & EXECUTION TRACKING
+  // ============================================================================
+
+  /**
+   * Report a skill installation (called after successful download).
+   */
+  async reportInstallation(input: {
+    skillId: string;
+    versionHash?: string;
+    installedBy?: string;
+    platform?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{ installationId: string }> {
+    try {
+      const resp = await fetch(`${this.indexUrl}/marketplace/installations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillId: input.skillId,
+          versionHash: input.versionHash,
+          installedBy: input.installedBy || this.creatorWallet,
+          platform: input.platform || process.platform,
+          metadata: input.metadata,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!resp.ok) {
+        console.warn(`[SkillIndexClient] Installation tracking failed: ${resp.status}`);
+        return { installationId: "" };
+      }
+
+      const data = await resp.json();
+      return { installationId: data.installation?.installationId || "" };
+    } catch (err) {
+      // Installation tracking is best-effort, don't fail the operation
+      console.warn(`[SkillIndexClient] Installation tracking failed: ${err}`);
+      return { installationId: "" };
+    }
+  }
+
+  /**
+   * Report a skill execution (called after each replay).
+   */
+  async reportExecution(input: {
+    skillId: string;
+    installationId?: string;
+    success: boolean;
+    executionTimeMs?: number;
+    errorMessage?: string;
+    endpoint?: string;
+  }): Promise<void> {
+    try {
+      await fetch(`${this.indexUrl}/marketplace/executions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(5_000),
+      });
+    } catch {
+      // Execution tracking is best-effort, don't fail the operation
+    }
+  }
+
+  /**
+   * Get stats for a skill.
+   */
+  async getSkillStats(
+    skillId: string,
+    period: "24h" | "7d" | "30d" | "all" = "24h",
+  ): Promise<SkillStats> {
+    const resp = await fetch(
+      `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/stats?period=${period}`,
+      {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Get stats failed (${resp.status}): ${text}`);
+    }
+
+    return resp.json();
+  }
+
+  // ============================================================================
+  // TRENDING
+  // ============================================================================
+
+  /**
+   * Get trending skills.
+   */
+  async getTrending(
+    opts?: { period?: "24h" | "7d" | "30d"; limit?: number },
+  ): Promise<TrendingSkill[]> {
+    const url = new URL(`${this.indexUrl}/marketplace/trending`);
+    if (opts?.period) url.searchParams.set("period", opts.period);
+    if (opts?.limit) url.searchParams.set("limit", String(opts.limit));
+
+    const resp = await fetch(url.toString(), {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Get trending failed (${resp.status}): ${text}`);
+    }
+
+    const data = await resp.json();
+    return data.skills || [];
+  }
+
+  /**
+   * Get featured/badged skills.
+   */
+  async getFeatured(limit: number = 50): Promise<SkillSummary[]> {
+    const resp = await fetch(
+      `${this.indexUrl}/marketplace/featured?limit=${limit}`,
+      {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Get featured failed (${resp.status}): ${text}`);
+    }
+
+    const data = await resp.json();
+    return data.skills || [];
   }
 }

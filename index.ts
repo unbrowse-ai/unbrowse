@@ -2099,6 +2099,10 @@ const plugin = {
                 } catch { /* skip */ }
               }
 
+              // Extract version hash from SKILL.md frontmatter
+              const versionHashMatch = skillMd.match(/versionHash:\s*"?([a-f0-9]+)"?/i);
+              const versionHash = versionHashMatch?.[1];
+
               // Build payload following agentskills.io format
               const payload: PublishPayload = {
                 name: p.service,
@@ -2122,6 +2126,7 @@ const plugin = {
                 `Skill published to cloud marketplace`,
                 `Name: ${p.service}`,
                 `ID: ${result.skill.skillId}`,
+                versionHash ? `Version: ${versionHash}` : null,
                 `Price: ${priceDisplay}`,
                 `Endpoints: ${endpoints.length}`,
                 `Creator wallet: ${creatorWallet}`,
@@ -2194,6 +2199,16 @@ const plugin = {
 
                 discovery.markLearned(pkg.name);
 
+                // Track installation (best-effort, non-blocking)
+                const versionMatch = pkg.skillMd.match(/versionHash:\s*"?([a-f0-9]+)"?/i);
+                const versionHash = versionMatch?.[1];
+                indexClient.reportInstallation({
+                  skillId: p.install,
+                  versionHash,
+                  platform: process.platform,
+                  metadata: { source: "cli", category: pkg.category },
+                }).catch(() => { /* tracking is best-effort */ });
+
                 // Count endpoints from SKILL.md
                 const endpointCount = extractEndpoints(pkg.skillMd).length;
 
@@ -2203,6 +2218,7 @@ const plugin = {
                   `Endpoints: ${endpointCount}`,
                   `Auth: ${pkg.authType || "Unknown"}`,
                   pkg.category ? `Category: ${pkg.category}` : null,
+                  versionHash ? `Version: ${versionHash}` : null,
                   ``,
                   `Add your auth credentials to auth.json or use unbrowse_auth to extract from browser.`,
                 ].filter(Boolean).join("\n");

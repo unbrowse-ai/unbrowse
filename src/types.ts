@@ -79,6 +79,8 @@ export interface SkillResult {
   changed: boolean;
   /** Human-readable diff summary (e.g. "+3 new endpoint(s)"). */
   diff?: string | null;
+  /** SHA-256 hash (first 8 chars) of skill content for version tracking. */
+  versionHash?: string;
 }
 
 /** CDP network request from browser control API. */

@@ -8,8 +8,34 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
+import { createHash } from "node:crypto";
 import type { ApiData, AuthInfo, SkillResult } from "./types.js";
 import { generateAuthInfo } from "./auth-extractor.js";
+
+/**
+ * Generate SHA-256 hash for version fingerprinting.
+ * Returns first 8 characters of the hash.
+ */
+export function generateVersionHash(
+  skillMd: string,
+  scripts: Record<string, string>,
+  references: Record<string, string>,
+): string {
+  const content = JSON.stringify({ skillMd, scripts, references }, Object.keys, 2);
+  return createHash("sha256").update(content).digest("hex").slice(0, 8);
+}
+
+/**
+ * Extract version info from SKILL.md frontmatter.
+ */
+export function extractVersionInfo(skillMd: string): { version?: string; versionHash?: string } {
+  const versionMatch = skillMd.match(/^\s*version:\s*"?([^"\n]+)"?/m);
+  const hashMatch = skillMd.match(/^\s*versionHash:\s*"?([^"\n]+)"?/m);
+  return {
+    version: versionMatch?.[1]?.trim(),
+    versionHash: hashMatch?.[1]?.trim(),
+  };
+}
 
 /** PascalCase from kebab-case. */
 function toPascalCase(s: string): string {
@@ -80,6 +106,7 @@ function generateSkillMd(service: string, data: ApiData): string {
     : "";
 
   // agentskills.io compliant YAML frontmatter
+  // Note: versionHash will be computed after all content is generated
   return `---
 name: ${service}
 description: >-
@@ -88,6 +115,7 @@ description: >-
 metadata:
   author: unbrowse
   version: "1.0"
+  versionHash: "PLACEHOLDER"
   baseUrl: "${data.baseUrl}"
   authMethod: "${data.authMethod}"
   endpointCount: ${endpointCount}
@@ -485,10 +513,18 @@ export async function generateSkill(
 
   // Generate content with merged endpoints
   const authJson = generateAuthJson(service, data);
-  const skillMd = generateSkillMd(service, data);
+  let skillMd = generateSkillMd(service, data);
   const apiTs = generateApiTs(service, data);
   const testTs = generateTestTs(service, data);
   const referenceMd = generateReferenceMd(service, data);
+
+  // Compute version hash from content (excluding the placeholder hash itself)
+  const scripts = { "api.ts": apiTs };
+  const references = { "REFERENCE.md": referenceMd };
+  const versionHash = generateVersionHash(skillMd.replace(/versionHash: "PLACEHOLDER"/, ""), scripts, references);
+
+  // Replace placeholder with actual hash
+  skillMd = skillMd.replace(/versionHash: "PLACEHOLDER"/, `versionHash: "${versionHash}"`);
 
   // Diff: count how many NEW endpoints were added
   const newEndpointCount = Object.keys(data.endpoints).length;
@@ -551,5 +587,6 @@ export async function generateSkill(
     pagesCrawled: meta?.pagesCrawled,
     changed,
     diff,
+    versionHash,
   };
 }
