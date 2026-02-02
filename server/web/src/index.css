@@ -4313,12 +4313,225 @@ a {
   background: var(--neon-dim) !important;
 }
 
-/* How It Works - Mini */
+/* How It Works - With Demo */
 .ub-how-it-works {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 60px 24px;
+  padding: 80px 24px;
   border-bottom: 1px solid var(--border-default);
+}
+
+.ub-how-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.ub-how-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.ub-how-header p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+/* Demo Split */
+.ub-demo-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* Chat */
+.ub-chat {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ub-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.ub-chat-avatar {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--neon) 0%, var(--accent-secondary) 100%);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.ub-chat-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ub-chat-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 280px;
+}
+
+.ub-chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 90%;
+}
+
+.ub-chat-user {
+  align-self: flex-end;
+}
+
+.ub-chat-user .ub-msg-text {
+  background: var(--neon);
+  color: var(--bg-base);
+  padding: 10px 14px;
+  border-radius: 14px 14px 4px 14px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.ub-chat-agent {
+  align-self: flex-start;
+}
+
+.ub-chat-agent .ub-msg-text {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 10px 14px;
+  border-radius: 14px 14px 14px 4px;
+  border: 1px solid var(--border-default);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.ub-chat-system {
+  align-self: center;
+}
+
+.ub-msg-browser {
+  display: inline-block;
+  padding: 8px 14px;
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px dashed rgba(255, 170, 0, 0.4);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #ffaa00;
+}
+
+.ub-msg-status {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--neon);
+  padding-left: 4px;
+}
+
+/* Terminal */
+.ub-terminal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+}
+
+.ub-terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.ub-terminal-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.ub-terminal-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-muted);
+}
+
+.ub-terminal-dots span:first-child { background: #ff5f57; }
+.ub-terminal-dots span:nth-child(2) { background: #ffbd2e; }
+.ub-terminal-dots span:nth-child(3) { background: #28c840; }
+
+.ub-terminal-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.ub-terminal-body {
+  padding: 18px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.8;
+}
+
+.ub-term-line {
+  display: flex;
+  gap: 8px;
+}
+
+.ub-term-comment {
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 12px;
+}
+
+.ub-term-comment:first-child {
+  margin-top: 0;
+}
+
+.ub-term-prompt {
+  color: var(--neon);
+}
+
+.ub-term-cmd {
+  color: var(--text-primary);
+}
+
+.ub-term-arg {
+  color: var(--accent-secondary);
+}
+
+.ub-term-output {
+  padding-left: 16px;
+  color: var(--text-secondary);
+}
+
+.ub-term-success {
+  color: var(--neon);
+}
+
+.ub-term-dim {
+  color: var(--text-muted);
+}
+
+.ub-term-final {
+  margin-top: 4px;
 }
 
 .ub-how-grid {
@@ -4738,5 +4951,20 @@ a {
   .ub-creator-content {
     flex-direction: column;
     text-align: center;
+  }
+
+  .ub-demo-split {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .ub-chat-body {
+    min-height: 220px;
+    padding: 14px;
+  }
+
+  .ub-terminal-body {
+    padding: 14px;
+    font-size: 0.75rem;
   }
 }

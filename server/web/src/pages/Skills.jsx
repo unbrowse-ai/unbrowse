@@ -247,30 +247,73 @@ export default function Skills() {
         </div>
       </section>
 
-      {/* How It Works - Mini */}
+      {/* How It Works - With Demo */}
       <section className="ub-how-it-works">
-        <div className="ub-how-grid">
-          <div className="ub-how-step">
-            <div className="ub-how-num">1</div>
-            <div className="ub-how-content">
-              <h3>Login Once</h3>
-              <p>Browser opens, you authenticate. We capture cookies & tokens.</p>
+        <div className="ub-how-header">
+          <h2>How It Works</h2>
+          <p>One login. Forever API access.</p>
+        </div>
+
+        {/* Demo: Chat + Terminal */}
+        <div className="ub-demo-split">
+          {/* Chat Interface */}
+          <div className="ub-chat">
+            <div className="ub-chat-header">
+              <div className="ub-chat-avatar">⚡</div>
+              <span className="ub-chat-title">Claude</span>
+            </div>
+            <div className="ub-chat-body">
+              <div className="ub-chat-msg ub-chat-user">
+                <span className="ub-msg-text">What are the odds on the election on Polymarket?</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-agent">
+                <span className="ub-msg-text">I need access to Polymarket. Let me capture it — log in once.</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-system">
+                <span className="ub-msg-browser">🌐 Browser opened → Log in to Polymarket</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-agent">
+                <span className="ub-msg-text">Got it. <strong>Browser closed forever.</strong></span>
+                <span className="ub-msg-status">✓ polymarket skill saved</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-agent">
+                <span className="ub-msg-text">Trump 54¢, Harris 46¢. Want to place a bet?</span>
+                <span className="ub-msg-status">✓ 89ms — direct API</span>
+              </div>
             </div>
           </div>
-          <div className="ub-how-arrow">→</div>
-          <div className="ub-how-step">
-            <div className="ub-how-num">2</div>
-            <div className="ub-how-content">
-              <h3>Browser Closes</h3>
-              <p>That's it. Never opened again for this service.</p>
+
+          {/* Terminal */}
+          <div className="ub-terminal">
+            <div className="ub-terminal-header">
+              <div className="ub-terminal-dots">
+                <span /><span /><span />
+              </div>
+              <span className="ub-terminal-title">under the hood</span>
             </div>
-          </div>
-          <div className="ub-how-arrow">→</div>
-          <div className="ub-how-step">
-            <div className="ub-how-num">3</div>
-            <div className="ub-how-content">
-              <h3>Direct API Calls</h3>
-              <p>Agent calls HTTP APIs directly. 100x faster.</p>
+            <div className="ub-terminal-body">
+              <div className="ub-term-line ub-term-comment"># First time: browser login</div>
+              <div className="ub-term-line">
+                <span className="ub-term-prompt">→</span>
+                <span className="ub-term-cmd">unbrowse_login <span className="ub-term-arg">"polymarket.com"</span></span>
+              </div>
+              <div className="ub-term-line ub-term-output">
+                <span className="ub-term-success">[COOKIES]</span> 8 captured
+              </div>
+              <div className="ub-term-line ub-term-output">
+                <span className="ub-term-success">[HEADERS]</span> Bearer token saved
+              </div>
+              <div className="ub-term-line ub-term-output">
+                <span className="ub-term-dim">[BROWSER]</span> Closed permanently
+              </div>
+              <div className="ub-term-line ub-term-comment"># Every time after: direct API</div>
+              <div className="ub-term-line">
+                <span className="ub-term-prompt">→</span>
+                <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">"get_market"</span></span>
+              </div>
+              <div className="ub-term-line ub-term-output ub-term-final">
+                <span className="ub-term-success">[API]</span> 200 OK <span className="ub-term-dim">(89ms)</span>
+              </div>
             </div>
           </div>
         </div>
