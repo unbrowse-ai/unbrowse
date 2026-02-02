@@ -1,13 +1,17 @@
 {
-  "name": "@getfoundry/unbrowse-core",
+  "name": "@getfoundry/unbrowse-native",
   "version": "0.1.0",
-  "description": "Native core for Unbrowse - HAR parsing and auth extraction",
+  "description": "Native Rust addon for Unbrowse - closed-source HAR parsing and auth extraction",
   "main": "index.js",
   "types": "index.d.ts",
-  "private": true,
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lekt9/unbrowse-openclaw",
+    "directory": "native"
+  },
   "napi": {
-    "name": "unbrowse-core",
+    "name": "unbrowse-native",
     "triples": {
       "defaults": false,
       "additional": [
@@ -35,10 +39,10 @@
     "*.node"
   ],
   "optionalDependencies": {
-    "@getfoundry/unbrowse-core-darwin-x64": "0.1.0",
-    "@getfoundry/unbrowse-core-darwin-arm64": "0.1.0",
-    "@getfoundry/unbrowse-core-linux-x64-gnu": "0.1.0",
-    "@getfoundry/unbrowse-core-win32-x64-msvc": "0.1.0",
-    "@getfoundry/unbrowse-core-linux-arm64-gnu": "0.1.0"
+    "@getfoundry/unbrowse-native-darwin-x64": "0.1.0",
+    "@getfoundry/unbrowse-native-darwin-arm64": "0.1.0",
+    "@getfoundry/unbrowse-native-linux-x64-gnu": "0.1.0",
+    "@getfoundry/unbrowse-native-win32-x64-msvc": "0.1.0",
+    "@getfoundry/unbrowse-native-linux-arm64-gnu": "0.1.0"
   }
 }
