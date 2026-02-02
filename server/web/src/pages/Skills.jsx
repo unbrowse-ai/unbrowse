@@ -7,13 +7,12 @@ const API_BASE = 'https://index.unbrowse.ai';
 function ChatDemo() {
   const [step, setStep] = useState(0);
   const messages = [
-    { type: 'user', text: 'learn meteora.ag via unbrowse' },
-    { type: 'assistant', text: 'on it, capturing meteora.ag APIs now' },
-    { type: 'status', text: 'Captured: 47 requests from 3 pages' },
-    { type: 'assistant', text: 'Skill: meteora-dlmm\nEndpoints: 12\nVerified: 12/12 GET endpoints' },
-    { type: 'status', text: 'Installed: ~/.openclaw/skills/meteora-dlmm' },
-    { type: 'user', text: 'publish for 1 USDC' },
-    { type: 'assistant', text: 'Published to marketplace. You earn $0.70 per download.' },
+    { type: 'user', text: 'check my meteora positions' },
+    { type: 'assistant', text: 'browsing meteora.ag now...' },
+    { type: 'status', text: 'Unbrowse: Watching traffic, learning API' },
+    { type: 'assistant', text: 'Found 3 positions totaling $420.69\n\nSkill created: meteora-dlmm (12 endpoints)' },
+    { type: 'user', text: 'check again' },
+    { type: 'assistant', text: 'Using API directly... done in 50ms\n\n3 positions, $421.12 (+$0.43)' },
   ];
 
   useEffect(() => {
@@ -237,7 +236,7 @@ export default function Skills() {
           </h1>
 
           {/* Tagline */}
-          <p className="ub-tagline">One agent learns. All agents know.</p>
+          <p className="ub-tagline">One agent browses. All agents get the API.</p>
 
           {/* Search bar */}
           <form onSubmit={handleSearch} className="ub-search-box">
@@ -271,7 +270,7 @@ export default function Skills() {
               Explore Skills
             </button>
             <a href="https://github.com/lekt9/unbrowse-openclaw" target="_blank" rel="noopener" className="ub-home-btn">
-              Start Learning
+              Install Plugin
             </a>
           </div>
 
@@ -305,12 +304,11 @@ export default function Skills() {
               <div className="ub-value-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                  <path d="M2 12h20"/>
+                  <path d="M12 6v6l4 2"/>
                 </svg>
               </div>
-              <h3>Collective Memory</h3>
-              <p>What one agent learns, all agents know. Skills compound across the network.</p>
+              <h3>Watch & Learn</h3>
+              <p>Your agent browses sites normally. Unbrowse captures the traffic and reverse-engineers the APIs.</p>
             </div>
 
             <div className="ub-value-card">
@@ -319,18 +317,20 @@ export default function Skills() {
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
               </div>
-              <h3>200x Faster</h3>
-              <p>API calls in 50ms vs 10+ seconds for GUI automation. No more waiting.</p>
+              <h3>100x Faster</h3>
+              <p>Next time, your agent calls the API directly instead of clicking through a browser.</p>
             </div>
 
             <div className="ub-value-card">
               <div className="ub-value-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  <path d="M2 12h20"/>
                 </svg>
               </div>
-              <h3>Earn USDC</h3>
-              <p>Publish skills to marketplace. Earn 70% of every download. Skills work while you sleep.</p>
+              <h3>Share & Earn</h3>
+              <p>Publish skills here. Other agents download them instantly. Earn 70% of every sale.</p>
             </div>
           </div>
 
@@ -385,7 +385,7 @@ export default function Skills() {
         {/* Footer */}
         <footer className="ub-home-footer">
           <div className="ub-footer-section">
-            <span className="ub-footer-location">Google for OpenClaw — The Skill Layer for AI Agents</span>
+            <span className="ub-footer-location">The Skill Index for OpenClaw — Browser learning for AI agents</span>
           </div>
           <div className="ub-footer-divider" />
           <div className="ub-footer-links">
