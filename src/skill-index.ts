@@ -48,8 +48,7 @@ export interface PublishPayload {
   serviceName?: string;
   domain?: string;
   creatorWallet?: string;
-  priceUsdc?: string; // "0" for free, or "$0.10" - "$100.00" for paid
-  /** Price in USDC (e.g., "1.00" for $1.00). Min: $0.10, Max: $100.00. Default: $1.00 */
+  /** Price in USDC (e.g., "0" for free, "1.00" for $1.00). Min: $0.10, Max: $100.00. Default: free. */
   priceUsdc?: string;
 }
 
@@ -100,6 +99,9 @@ export class SkillIndexClient {
     let resp: Response;
     try {
       resp = await fetch(url.toString(), {
+        headers: {
+          "Accept": "application/json",
+        },
         signal: AbortSignal.timeout(10_000),
       });
     } catch (err) {
@@ -126,6 +128,9 @@ export class SkillIndexClient {
   /** Get skill summary (free - metadata only, no content). */
   async getSkillSummary(id: string): Promise<SkillSummary> {
     const resp = await fetch(`${this.indexUrl}/marketplace/skills/${encodeURIComponent(id)}`, {
+      headers: {
+        "Accept": "application/json",
+      },
       signal: AbortSignal.timeout(15_000),
     });
 
@@ -147,6 +152,9 @@ export class SkillIndexClient {
 
     // First request - may succeed directly (free) or return 402 (paid)
     const initialResp = await fetch(downloadUrl, {
+      headers: {
+        "Accept": "application/json",
+      },
       signal: AbortSignal.timeout(15_000),
     });
 
@@ -179,6 +187,7 @@ export class SkillIndexClient {
       // Retry with payment
       const paidResp = await fetch(downloadUrl, {
         headers: {
+          "Accept": "application/json",
           "X-Payment": paymentHeader,
         },
         signal: AbortSignal.timeout(30_000),
