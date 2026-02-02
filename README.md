@@ -269,6 +269,12 @@ Full config example:
 | `browser.proxyCountry` | `"us"` | Proxy location for stealth browser |
 | `credentialSource` | `"none"` | Password lookup: none/keychain/1password |
 
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Enables AI-generated skill descriptions. When set, uses Claude to write meaningful descriptions based on captured endpoints. Falls back to template-based descriptions if not set. |
+
 ## x402 Payment Protocol
 
 Unbrowse uses the x402 protocol for machine-to-machine payments:

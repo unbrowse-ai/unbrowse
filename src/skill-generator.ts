@@ -10,6 +10,7 @@ import { join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
 import type { ApiData, AuthInfo, SkillResult } from "./types.js";
 import { generateAuthInfo } from "./auth-extractor.js";
+import { generateSkillDescription } from "./description-generator.js";
 
 /** PascalCase from kebab-case. */
 function toPascalCase(s: string): string {
@@ -34,7 +35,7 @@ function generateAuthJson(service: string, data: ApiData): string {
 }
 
 /** Generate SKILL.md content following agentskills.io specification. */
-function generateSkillMd(service: string, data: ApiData): string {
+async function generateSkillMd(service: string, data: ApiData): Promise<string> {
   const className = toPascalCase(service);
   const title = service.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const endpointCount = Object.keys(data.endpoints).length;
@@ -62,29 +63,14 @@ function generateSkillMd(service: string, data: ApiData): string {
   // Extract domain for description
   const domain = new URL(data.baseUrl).hostname;
 
-  // Build a useful description from actual endpoints
-  const endpointSummaries: string[] = [];
-  for (const [, reqs] of Object.entries(data.endpoints).slice(0, 5)) {
-    const req = reqs[0];
-    // Extract last meaningful path segment as action name
-    const segments = req.path.split("/").filter(Boolean);
-    const lastSegment = segments[segments.length - 1]?.replace(/[{}:]/g, "") || "resource";
-    const action = req.method === "GET" ? `get ${lastSegment}` :
-                   req.method === "POST" ? `create ${lastSegment}` :
-                   req.method === "PUT" || req.method === "PATCH" ? `update ${lastSegment}` :
-                   req.method === "DELETE" ? `delete ${lastSegment}` : lastSegment;
-    endpointSummaries.push(action);
-  }
-  const capabilitiesText = endpointSummaries.length > 0
-    ? `Capabilities: ${endpointSummaries.join(", ")}.`
-    : "";
+  // Generate description using LLM (falls back to template if unavailable)
+  const { description } = await generateSkillDescription(service, data);
 
   // agentskills.io compliant YAML frontmatter
   return `---
 name: ${service}
 description: >-
-  ${title} API skill for OpenClaw. ${capabilitiesText}
-  Service: ${domain}. Auth: ${data.authMethod || "Unknown"}.
+  ${description}
 metadata:
   author: unbrowse
   version: "1.0"
@@ -485,7 +471,7 @@ export async function generateSkill(
 
   // Generate content with merged endpoints
   const authJson = generateAuthJson(service, data);
-  const skillMd = generateSkillMd(service, data);
+  const skillMd = await generateSkillMd(service, data);
   const apiTs = generateApiTs(service, data);
   const testTs = generateTestTs(service, data);
   const referenceMd = generateReferenceMd(service, data);
