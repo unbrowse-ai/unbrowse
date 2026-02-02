@@ -5,10 +5,10 @@
  */
 
 // @ts-nocheck - Native module types handled separately
-import * as native from "./native/index.js";
+import * as native from "../native/index.js";
 
 // Re-export native module
-export * from "./native/index.js";
+export * from "../native/index.js";
 
 export default function unbrowsePlugin(api: any) {
   // =========================================================================
