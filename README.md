@@ -1,13 +1,13 @@
 # Unbrowse
 
-**Open source API reverse engineering for OpenClaw.**
+**API reverse engineering for OpenClaw.**
 
-Unbrowse is an [OpenClaw](https://github.com/lekt9/openclaw) extension that captures API traffic from any website and turns it into monetizable skills for AI agents. Browse a site, capture the API calls, generate skills, and publish them to the marketplace to earn USDC on every download.
+Unbrowse is an [OpenClaw](https://openclaw.ai) extension that captures API traffic from any website and turns it into monetizable skills for AI agents. Browse a site, capture the API calls, generate skills, and publish them to the marketplace to earn USDC on every download.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        UNBROWSE                             │
-│          Open Source API Reverse Engineering                │
+│              API Reverse Engineering                        │
 │                                                             │
 │   Capture ──► Generate ──► Publish ──► Earn                │
 │       │          │           │          │                   │
@@ -20,57 +20,11 @@ Unbrowse is an [OpenClaw](https://github.com/lekt9/openclaw) extension that capt
 
 ## Installation
 
-### One-liner (Recommended)
-
 ```bash
 openclaw plugins install @getfoundry/unbrowse-openclaw
 ```
 
 That's it. Downloads, extracts, enables, and loads automatically.
-
----
-
-### Alternative: Manual Config
-
-Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`):
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "unbrowse": { "enabled": true }
-    }
-  }
-}
-```
-
-Then restart:
-```bash
-openclaw gateway restart
-```
-
-### Option C: GitHub Source
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "unbrowse": {
-        "enabled": true,
-        "source": "github:lekt9/unbrowse-openclaw"
-      }
-    }
-  }
-}
-```
-
-### Option D: Manual Clone
-
-```bash
-git clone https://github.com/lekt9/unbrowse-openclaw ~/.openclaw/extensions/unbrowse
-cd ~/.openclaw/extensions/unbrowse && npm install
-openclaw gateway restart
-```
 
 ## How It Works
 
@@ -158,7 +112,7 @@ Payments are instant via x402 protocol on Solana (USDC).
 | `unbrowse_session` | List/manage saved sessions |
 | `unbrowse_cookies` | Export cookies for a domain |
 
-### Workflow Skills (NEW)
+### Workflow Skills
 
 | Tool | Description |
 |------|-------------|
@@ -294,41 +248,11 @@ No intermediaries. Direct creator payment. Instant settlement.
 
 Unbrowse works on all OpenClaw-compatible platforms:
 
-| Platform | Config File | Install Command |
-|----------|-------------|-----------------|
-| OpenClaw | `~/.openclaw/openclaw.json` | `openclaw plugins install @getfoundry/unbrowse-openclaw` |
-| Clawdbot | `~/.clawdbot/clawdbot.json` | `clawdbot plugins install @getfoundry/unbrowse-openclaw` |
-| Moltbot | `~/.moltbot/moltbot.json` | `moltbot plugins install @getfoundry/unbrowse-openclaw` |
-
-## Cloud Deployment
-
-For self-hosting the marketplace server, see `server/` directory:
-
-```bash
-cd server
-docker compose up -d
-```
-
-Default port: 4111
-
-## Development
-
-```bash
-# Type check
-npx tsc --noEmit
-
-# Test locally
-openclaw gateway restart
-tail -f ~/.openclaw/logs/gateway.log | grep unbrowse
-```
-
-### Key Directories
-
-```
-~/.openclaw/skills/           — Generated skills
-~/.openclaw/extensions/       — Extension code
-~/.openclaw/logs/             — Gateway logs
-```
+| Platform | Install Command |
+|----------|-----------------|
+| OpenClaw | `openclaw plugins install @getfoundry/unbrowse-openclaw` |
+| Clawdbot | `clawdbot plugins install @getfoundry/unbrowse-openclaw` |
+| Moltbot | `moltbot plugins install @getfoundry/unbrowse-openclaw` |
 
 ## Skill Format
 
@@ -342,10 +266,6 @@ my-skill/
 └── references/       # Supporting documentation
     └── api.md        # API reference
 ```
-
-## License
-
-MIT
 
 ---
 
