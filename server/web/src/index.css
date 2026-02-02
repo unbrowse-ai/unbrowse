@@ -2640,6 +2640,99 @@ a {
   height: 18px;
 }
 
+/* Hero Search Bar */
+.ub-hero-search {
+  width: 100%;
+  max-width: 700px;
+  margin: 40px auto 32px;
+}
+
+.ub-hero-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-accent);
+  border-radius: 4px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.ub-hero-search-wrapper:focus-within {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 2px var(--neon-glow), 0 0 30px var(--neon-glow);
+}
+
+.ub-hero-search-icon {
+  position: absolute;
+  left: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.ub-hero-search-input {
+  flex: 1;
+  padding: 18px 20px 18px 56px;
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.ub-hero-search-input::placeholder {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.ub-hero-search-btn {
+  padding: 18px 28px;
+  background: var(--neon);
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--bg-base);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ub-hero-search-btn:hover {
+  background: var(--neon-dim);
+}
+
+/* Quick filter tags */
+.ub-hero-tags {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.ub-hero-tag {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ub-hero-tag:hover {
+  border-color: var(--neon);
+  color: var(--neon);
+  background: rgba(0, 255, 136, 0.05);
+}
+
 .ub-hero-actions {
   display: flex;
   justify-content: center;
@@ -3525,6 +3618,33 @@ a {
   .ub-hero {
     padding: 100px 16px 60px;
     min-height: auto;
+  }
+
+  .ub-hero-search {
+    margin: 32px auto 24px;
+  }
+
+  .ub-hero-search-wrapper {
+    flex-direction: column;
+  }
+
+  .ub-hero-search-input {
+    padding: 16px 16px 16px 48px;
+    font-size: 0.9rem;
+  }
+
+  .ub-hero-search-btn {
+    width: 100%;
+    padding: 14px 20px;
+  }
+
+  .ub-hero-tags {
+    gap: 8px;
+  }
+
+  .ub-hero-tag {
+    padding: 6px 12px;
+    font-size: 0.7rem;
   }
 
   .ub-install-cmd {
