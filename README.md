@@ -1,22 +1,38 @@
 # Unbrowse
 
-**API reverse engineering for OpenClaw.**
+**100x faster web access for AI agents.**
 
-Unbrowse is an [OpenClaw](https://openclaw.ai) extension that captures API traffic from any website and turns it into monetizable skills for AI agents. Browse a site, capture the API calls, generate skills, and publish them to the marketplace to earn USDC on every download.
+Skip browser automation. Unbrowse captures the internal APIs that power any website and lets your agent call them directly. What takes Playwright 30 seconds takes Unbrowse 300ms.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        UNBROWSE                             │
-│              API Reverse Engineering                        │
-│                                                             │
-│   Capture ──► Generate ──► Publish ──► Earn                │
-│       │          │           │          │                   │
-│       ▼          ▼           ▼          ▼                   │
-│   API traffic  skills    marketplace   USDC                │
-│   auth headers schemas   x402 payments 70% revenue         │
-│   payloads     docs      Solana        per download        │
-└─────────────────────────────────────────────────────────────┘
+Browser Automation          Unbrowse
+─────────────────          ─────────
+Launch browser             Direct API call
+Wait for page load         ↓
+Find element               Response
+Click
+Wait for navigation
+Parse DOM
+Extract data
+
+~30 seconds                ~300ms
 ```
+
+## Why Unbrowse?
+
+Every website has internal APIs — the XHR/fetch calls their frontend makes. These are undocumented, fast, and return clean JSON. Unbrowse captures them once, then your agent calls them forever.
+
+| Approach | Speed | Reliability | Auth |
+|----------|-------|-------------|------|
+| Browser automation | Slow (30s+) | Fragile (DOM changes) | Complex |
+| Unbrowse | Fast (300ms) | Stable (APIs rarely change) | Built-in |
+
+**No more:**
+- Waiting for pages to load
+- Fragile CSS selectors
+- Headless browser overhead
+- CAPTCHA battles
+- Rate limit detection
 
 ## Installation
 
@@ -24,183 +40,112 @@ Unbrowse is an [OpenClaw](https://openclaw.ai) extension that captures API traff
 openclaw plugins install @getfoundry/unbrowse-openclaw
 ```
 
-That's it. Downloads, extracts, enables, and loads automatically.
+## Quick Start
 
-## How It Works
-
-### 1. Capture
-
-Browse any website normally. Unbrowse intercepts all API traffic:
-- Endpoint URLs and methods
-- Request/response payloads
-- Authentication headers
-- Cookies and tokens
+### 1. Capture APIs from any site
 
 ```bash
-# Using the agent
+# Browse normally — Unbrowse captures all API traffic
 "Browse twitter.com and capture the API"
-
-# Or directly
-unbrowse_capture url="twitter.com"
 ```
 
-### 2. Generate
+Unbrowse intercepts:
+- Endpoint URLs and methods
+- Request/response payloads
+- Auth headers and cookies
+- Rate limit patterns
 
-AI analyzes captured traffic and generates production-ready skills:
-- OpenAPI-style schemas
-- Auth handling (Bearer, cookies, etc.)
-- Documentation and examples
-- TypeScript wrapper code
+### 2. Generate a skill
 
 ```bash
-# Auto-generated from captured traffic
 unbrowse_generate_skill domain="twitter.com"
 ```
 
-### 3. Publish
+Creates a callable skill with:
+- All discovered endpoints
+- Auth handling (Bearer, cookies, sessions)
+- TypeScript wrapper code
 
-Push skills to the marketplace with optional pricing:
+### 3. Use it — 100x faster
 
 ```bash
-# Free skill (default)
-unbrowse_publish name="twitter-timeline"
-
-# Paid skill ($2.50 USDC)
-unbrowse_publish name="twitter-timeline" price="2.50"
+# Instead of browser automation:
+unbrowse_replay skill="twitter" action="get_timeline"
+# Returns JSON in ~300ms
 ```
 
-### 4. Earn
+Your agent now has direct API access. No browser. No waiting. No fragility.
 
-When other agents download your skill:
-- **70%** goes to you (the creator)
-- **30%** goes to the platform
+## How It Works
 
-Payments are instant via x402 protocol on Solana (USDC).
+```
+┌──────────────────────────────────────────────────────────┐
+│  YOU                    UNBROWSE                 AGENT   │
+│                                                          │
+│  Browse site  ──►  Capture traffic  ──►  Direct API     │
+│  Login once        Extract auth          calls forever  │
+│  Use normally       Generate skill        100x faster    │
+└──────────────────────────────────────────────────────────┘
+```
+
+1. **Capture** — Browse any site. Unbrowse records all API calls.
+2. **Extract** — Auth tokens, cookies, headers automatically saved.
+3. **Generate** — AI creates a typed skill from captured traffic.
+4. **Replay** — Agent calls APIs directly. No browser needed.
 
 ## Tools
 
-### Capture & Browse
+### Core
 
 | Tool | Description |
 |------|-------------|
-| `unbrowse_browse` | Open URL in browser with traffic capture |
-| `unbrowse_capture` | Capture API traffic from a domain |
-| `unbrowse_profile` | Record a browsing session with login |
-| `unbrowse_act` | Execute browser actions (click, type, scroll) |
-
-### Skill Generation
-
-| Tool | Description |
-|------|-------------|
+| `unbrowse_browse` | Open URL with traffic capture |
+| `unbrowse_capture` | Capture API traffic from domain |
 | `unbrowse_generate_skill` | Generate skill from captured endpoints |
-| `unbrowse_install` | Install a skill from the marketplace |
-| `unbrowse_replay` | Execute API calls using installed skills |
+| `unbrowse_replay` | Execute API calls using skills |
+
+### Auth & Sessions
+
+| Tool | Description |
+|------|-------------|
+| `unbrowse_login` | Login and save session |
+| `unbrowse_session` | Manage saved sessions |
+| `unbrowse_cookies` | Export cookies for a domain |
 
 ### Marketplace
 
 | Tool | Description |
 |------|-------------|
-| `unbrowse_search` | Search the skill marketplace |
-| `unbrowse_publish` | Publish a skill (free or paid) |
-| `unbrowse_wallet` | Manage your Solana wallet for payments |
+| `unbrowse_search` | Find skills others have created |
+| `unbrowse_install` | Install a skill |
+| `unbrowse_publish` | Share your skills (free or paid) |
 
-### Session Management
+## Skill Marketplace
 
-| Tool | Description |
-|------|-------------|
-| `unbrowse_login` | Login to a service and save session |
-| `unbrowse_session` | List/manage saved sessions |
-| `unbrowse_cookies` | Export cookies for a domain |
-
-### Workflow Skills
-
-| Tool | Description |
-|------|-------------|
-| `unbrowse_workflow_record` | Record multi-site browsing sessions for workflow learning |
-| `unbrowse_workflow_learn` | Analyze recordings to generate api-package or workflow skills |
-| `unbrowse_workflow_execute` | Execute workflow or api-package skills with success tracking |
-| `unbrowse_workflow_stats` | View success rates, earnings, and leaderboards |
-
-## Skill Categories
-
-Unbrowse generates two types of skills:
-
-### API Packages (`api-package`)
-Single-site API collections. Simple endpoint capture with authentication.
+Share captured APIs with other agents. Earn USDC when they download.
 
 ```bash
-# Capture and generate
-unbrowse_capture url="api.twitter.com"
-# Generates: twitter-api skill with endpoints
+# Publish free
+unbrowse_publish name="twitter-timeline"
+
+# Publish paid ($2.50)
+unbrowse_publish name="twitter-timeline" price="2.50"
 ```
 
-### Workflows (`workflow`)
-Multi-site orchestration with decision points and data flow.
-
-```bash
-# Record a cross-site session
-unbrowse_workflow_record action="start" intent="Compare prices across sites"
-# Browse multiple sites, add annotations at key points
-unbrowse_workflow_record action="annotate" note="Price comparison" noteType="decision"
-unbrowse_workflow_record action="stop"
-# Learn the workflow
-unbrowse_workflow_learn sessionId="session-123..."
-```
-
-## Earnings Model
-
-**Pay per sale. Buyers own the skill forever.**
-
-When an agent purchases a skill:
-- **70%** goes to the creator
-- **30%** goes to the platform
-
-Payments are instant via x402 protocol on Solana (USDC).
-
-```
-┌─────────────────────────────────────────────────┐
-│              EARNINGS BREAKDOWN                 │
-├─────────────────────────────────────────────────┤
-│  Creator:  70%  ─ Instant payout on sale        │
-│  Platform: 30%  ─ Infrastructure & marketplace  │
-└─────────────────────────────────────────────────┘
-```
-
-### Quality Tiers (Marketplace Ranking)
-
-Success rate affects marketplace visibility. Higher quality = more sales.
-
-| Tier | Success Rate | Visibility |
-|------|-------------|------------|
-| Gold | 95%+ | Featured, top ranking |
-| Silver | 85%+ | High visibility |
-| Bronze | 70%+ | Standard listing |
-| Unranked | 50%+ | Lower ranking |
-| Poor | <50% | Hidden from search |
+**Earnings:** 70% to creator, 30% platform. Instant payout via x402 on Solana.
 
 ## Configuration
-
-Full config example:
 
 ```json
 {
   "plugins": {
     "entries": {
-      "unbrowse": {
+      "unbrowse-openclaw": {
         "enabled": true,
         "config": {
           "skillsOutputDir": "~/.openclaw/skills",
           "autoDiscover": true,
-          "skillIndexUrl": "https://index.unbrowse.ai",
-          "marketplace": {
-            "creatorWallet": "YOUR_SOLANA_WALLET_ADDRESS",
-            "solanaPrivateKey": "YOUR_BASE58_PRIVATE_KEY",
-            "defaultPrice": "0"
-          },
-          "browser": {
-            "useApiKey": "bu_...",
-            "proxyCountry": "us"
-          },
+          "creatorWallet": "YOUR_SOLANA_ADDRESS",
           "credentialSource": "none"
         }
       }
@@ -209,64 +154,25 @@ Full config example:
 }
 ```
 
-### Config Options
-
 | Option | Default | Description |
 |--------|---------|-------------|
-| `skillsOutputDir` | `~/.openclaw/skills` | Where generated skills are saved |
-| `autoDiscover` | `true` | Auto-generate skills when browsing APIs |
-| `skillIndexUrl` | `https://index.unbrowse.ai` | Marketplace API URL |
-| `marketplace.creatorWallet` | - | Solana address to receive USDC |
-| `marketplace.solanaPrivateKey` | - | Private key for x402 payments |
-| `marketplace.defaultPrice` | `"0"` | Default price for new skills |
-| `browser.useApiKey` | - | Browser Use API key for stealth |
-| `browser.proxyCountry` | `"us"` | Proxy location for stealth browser |
-| `credentialSource` | `"none"` | Password lookup: none/keychain/1password |
-
-## x402 Payment Protocol
-
-Unbrowse uses the x402 protocol for machine-to-machine payments:
-
-```
-1. Agent requests skill download
-2. Server returns HTTP 402 with payment requirements
-3. Agent signs USDC transaction on Solana
-4. Agent retries with signed transaction in X-Payment header
-5. Server verifies on-chain, returns skill content
-```
-
-No intermediaries. Direct creator payment. Instant settlement.
-
-### Pricing
-
-| Type | Price | Description |
-|------|-------|-------------|
-| Free | $0.00 | Default — maximum adoption |
-| Paid | $0.10 - $100 | Creator sets price, earns 70% |
+| `skillsOutputDir` | `~/.openclaw/skills` | Where skills are saved |
+| `autoDiscover` | `true` | Auto-generate skills while browsing |
+| `creatorWallet` | - | Solana address for earnings |
+| `credentialSource` | `none` | Password lookup: none/keychain/1password |
 
 ## Platform Support
 
-Unbrowse works on all OpenClaw-compatible platforms:
+Works on all OpenClaw-compatible platforms:
 
-| Platform | Install Command |
-|----------|-----------------|
-| OpenClaw | `openclaw plugins install @getfoundry/unbrowse-openclaw` |
-| Clawdbot | `clawdbot plugins install @getfoundry/unbrowse-openclaw` |
-| Moltbot | `moltbot plugins install @getfoundry/unbrowse-openclaw` |
-
-## Skill Format
-
-Generated skills follow the [Agent Skills](https://agentskills.io) open standard:
-
-```
-my-skill/
-├── SKILL.md          # Skill definition and metadata
-├── scripts/          # Executable scripts
-│   └── run.ts        # Main execution script
-└── references/       # Supporting documentation
-    └── api.md        # API reference
+```bash
+openclaw plugins install @getfoundry/unbrowse-openclaw
+clawdbot plugins install @getfoundry/unbrowse-openclaw
+moltbot plugins install @getfoundry/unbrowse-openclaw
 ```
 
 ---
+
+**100x faster. Zero browser overhead. Direct API access.**
 
 *Built for OpenClaw. Powered by x402.*
