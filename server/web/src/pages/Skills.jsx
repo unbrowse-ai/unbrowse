@@ -183,8 +183,8 @@ export default function Skills() {
           </h1>
 
           <p className="ub-tagline">
-            Capture APIs. Record cross-site workflows. Share what works.
-            <strong> Earn USDC on every successful execution.</strong>
+            Browse once. Capture the API. Never touch the browser again.
+            <strong> Your agent calls APIs directly.</strong>
           </p>
 
           {/* Install Command */}
@@ -216,7 +216,7 @@ export default function Skills() {
               </svg>
               <input
                 type="text"
-                placeholder="Search APIs, workflows, services..."
+                placeholder="polymarket, openai, stripe..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="ub-hero-search-input"
@@ -225,9 +225,9 @@ export default function Skills() {
                 SEARCH
               </button>
             </div>
-            {/* Quick filter tags */}
+            {/* Quick filter tags - dynamically generated from top services */}
             <div className="ub-hero-tags">
-              {['Twitter', 'LinkedIn', 'Discord', 'Notion', 'Shopify', 'Stripe'].map(tag => (
+              {Array.from(new Set(skills.map(s => s.serviceName).filter(Boolean))).slice(0, 6).map(tag => (
                 <button
                   key={tag}
                   type="button"
@@ -276,25 +276,29 @@ export default function Skills() {
             <span className="ub-terminal-title">unbrowse — zsh</span>
           </div>
           <div className="ub-terminal-body">
+            <div className="ub-term-line ub-term-comment"># One-time browser capture</div>
             <div className="ub-term-line">
               <span className="ub-term-prompt">~</span>
-              <span className="ub-term-cmd">unbrowse_capture <span className="ub-term-arg">url="api.twitter.com"</span></span>
+              <span className="ub-term-cmd">unbrowse_capture <span className="ub-term-arg">url="twitter.com"</span></span>
             </div>
             <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> Intercepted 47 API endpoints
+              <span className="ub-term-success">[OK]</span> Captured 47 endpoints → skill: <span className="ub-term-highlight">twitter-api</span>
             </div>
-            <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> Generated skill: <span className="ub-term-highlight">twitter-timeline</span>
-            </div>
-            <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> Generated skill: <span className="ub-term-highlight">twitter-post-tweet</span>
-            </div>
+            <div className="ub-term-line ub-term-comment"># Forever after: direct API calls, no browser</div>
             <div className="ub-term-line">
               <span className="ub-term-prompt">~</span>
-              <span className="ub-term-cmd">unbrowse_publish <span className="ub-term-arg">name="twitter-timeline" price="2.50"</span></span>
+              <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">skill="twitter-api" action="post_tweet"</span></span>
+            </div>
+            <div className="ub-term-line ub-term-output">
+              <span className="ub-term-success">[OK]</span> POST api.twitter.com/2/tweets → 200 <span className="ub-term-dim">(47ms)</span>
+            </div>
+            <div className="ub-term-line ub-term-comment"># Publish and earn on every download</div>
+            <div className="ub-term-line">
+              <span className="ub-term-prompt">~</span>
+              <span className="ub-term-cmd">unbrowse_publish <span className="ub-term-arg">skill="twitter-api" price="2.50"</span></span>
             </div>
             <div className="ub-term-line ub-term-output ub-term-final">
-              <span className="ub-term-accent">[$$]</span> Published. Earning <span className="ub-term-money">$0.83</span>/download
+              <span className="ub-term-accent">[$$]</span> Published → you earn <span className="ub-term-money">$1.75</span>/download
             </div>
           </div>
         </div>
@@ -311,8 +315,8 @@ export default function Skills() {
                 <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
               </svg>
             </div>
-            <h3>CAPTURE</h3>
-            <p>Browse any website. We intercept all API traffic — endpoints, auth headers, payloads. Everything.</p>
+            <h3>CAPTURE ONCE</h3>
+            <p>Browse the site one time. We capture every API call — endpoints, auth, payloads. That's it. Browser closed.</p>
           </div>
 
           <div className="ub-value-card">
@@ -322,8 +326,8 @@ export default function Skills() {
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
               </svg>
             </div>
-            <h3>GENERATE</h3>
-            <p>AI transforms raw traffic into production-ready skills with schemas, auth handling, and docs.</p>
+            <h3>REPLAY FOREVER</h3>
+            <p>Agent calls APIs directly. No browser, no Puppeteer, no Playwright. Just HTTP requests at 100x speed.</p>
           </div>
 
           <div className="ub-value-card ub-value-featured">
@@ -334,7 +338,7 @@ export default function Skills() {
               </svg>
             </div>
             <h3>MONETIZE</h3>
-            <p>Publish to marketplace. Earn 70% of every download in USDC. Your skills work while you sleep.</p>
+            <p>Set your price. Get paid 70% on every download via x402 protocol. USDC direct to your wallet.</p>
             <div className="ub-value-stat">
               <span className="ub-stat-value">{stats.downloads.toLocaleString()}</span>
               <span className="ub-stat-label">TOTAL DOWNLOADS</span>
@@ -376,8 +380,8 @@ export default function Skills() {
               </svg>
               TRENDING NOW
             </div>
-            <h2>Hot Skills</h2>
-            <p>Skills gaining momentum in the last 24 hours</p>
+            <h2>MOST DOWNLOADED</h2>
+            <p>Skills with the highest download velocity this week</p>
           </div>
           <div className="ub-trending-grid">
             {trendingSkills.map((skill) => {
@@ -403,14 +407,12 @@ export default function Skills() {
                     <span className={`ub-price ${isFree ? 'free' : ''}`}>
                       {isFree ? 'FREE' : `$${parseFloat(skill.priceUsdc).toFixed(2)}`}
                     </span>
-                    {skill.downloadCount > 0 && (
-                      <span className="ub-downloads">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                        </svg>
-                        {skill.downloadCount.toLocaleString()}
-                      </span>
-                    )}
+                    <span className="ub-downloads">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                      </svg>
+                      {(skill.downloadCount || 0).toLocaleString()}
+                    </span>
                   </div>
                 </Link>
               );
@@ -485,7 +487,7 @@ export default function Skills() {
                 </button>
               ))}
             </div>
-            <div className="ub-filter-tabs" style={{ marginLeft: '1rem' }}>
+            <div className="ub-filter-tabs">
               {['all', 'free', 'paid'].map(f => (
                 <button
                   key={f}
@@ -496,20 +498,14 @@ export default function Skills() {
                 </button>
               ))}
             </div>
-
-            <form onSubmit={handleSearch} className="ub-search-form">
-              <svg className="ub-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search APIs, services..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="ub-search-input"
-              />
-            </form>
+            {search && (
+              <div className="ub-active-search">
+                <span>Searching: "{search}"</span>
+                <button onClick={() => { setSearch(''); loadMarketplaceSkills(''); }} className="ub-clear-search">
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -587,8 +583,8 @@ export default function Skills() {
       <section className="ub-cta">
         <div className="ub-cta-bg" />
         <div className="ub-cta-content">
-          <h2>EVERY API YOU'VE EVER WORKED WITH<br/>IS AN OPPORTUNITY.</h2>
-          <p>Capture it once. Earn forever.</p>
+          <h2>EVERY API YOU'VE REVERSE-ENGINEERED<br/>IS PASSIVE INCOME.</h2>
+          <p>Capture once. Earn on every download. Forever.</p>
           <div className="ub-cta-buttons">
             <a
               href="https://github.com/lekt9/unbrowse-openclaw"
@@ -597,7 +593,7 @@ export default function Skills() {
               className="ub-btn ub-btn-primary"
             >
               <span className="ub-btn-glow" />
-              START EARNING
+              START PUBLISHING
             </a>
             <Link to="/docs" className="ub-btn ub-btn-ghost">
               READ DOCS

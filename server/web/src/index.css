@@ -2885,6 +2885,17 @@ a {
   padding-left: 24px;
 }
 
+.ub-term-comment {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85em;
+  margin-top: 12px;
+}
+
+.ub-term-dim {
+  color: var(--text-muted);
+}
+
 .ub-term-success {
   color: var(--neon);
   margin-right: 8px;
@@ -3218,6 +3229,39 @@ a {
 .ub-filter-tabs {
   display: flex;
   border: 1px solid var(--border-default);
+}
+
+.ub-filter-tabs + .ub-filter-tabs {
+  margin-left: 1rem;
+}
+
+/* Active search indicator */
+.ub-active-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding: 8px 14px;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid var(--border-accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--neon);
+}
+
+.ub-clear-search {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.ub-clear-search:hover {
+  color: var(--neon);
 }
 
 .ub-filter-tab {
