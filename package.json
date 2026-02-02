@@ -27,7 +27,6 @@
     "native/unbrowse-native.darwin-arm64.node",
     "native/unbrowse-native.darwin-x64.node",
     "native/unbrowse-native.linux-x64-gnu.node",
-    "native/unbrowse-native.linux-arm64-gnu.node",
     "native/unbrowse-native.win32-x64-msvc.node",
     "hooks/",
     "openclaw.plugin.json",
