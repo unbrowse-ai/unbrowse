@@ -248,13 +248,22 @@ export class SkillIndexClient {
   /**
    * Build and sign a Solana x402 payment transaction.
    * Returns base64-encoded X-Payment header value.
+   *
+   * Uses infraboi's x402 split facilitator program which handles:
+   * - Payment verification via PDA
+   * - 4-way split to wallet1 (fixed), wallet2 (indexer), wallet3 (treasury), wallet4 (creator)
    */
   private async buildAndSignPayment(accepts: {
     maxAmountRequired: string;
     payTo: string;
     asset: string;
     network: string;
-    extra?: { feePayer?: string; programId?: string };
+    extra?: {
+      feePayer?: string;
+      programId?: string;
+      wallet1Fixed?: string;
+      splits?: Array<{ label: string; percentage: number; wallet: string }>;
+    };
   }): Promise<string> {
     const {
       Connection,
@@ -263,8 +272,9 @@ export class SkillIndexClient {
       TransactionInstruction,
       Keypair,
       SystemProgram,
+      SYSVAR_RENT_PUBKEY,
     } = await import("@solana/web3.js");
-    const { getAssociatedTokenAddress, createTransferInstruction } =
+    const { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } =
       await import("@solana/spl-token");
 
     // Decode private key
@@ -282,19 +292,48 @@ export class SkillIndexClient {
 
     const amount = BigInt(accepts.maxAmountRequired);
     const usdcMint = new PublicKey(accepts.asset);
-    const recipient = new PublicKey(accepts.payTo);
     const programId = new PublicKey(
       accepts.extra?.programId ?? "5g8XvMcpWEgHitW7abiYTr1u8sDasePLQnrebQyCLPvY",
     );
 
-    // Get token accounts
-    const payerTokenAccount = await getAssociatedTokenAddress(usdcMint, keypair.publicKey);
-    const recipientTokenAccount = await getAssociatedTokenAddress(usdcMint, recipient);
+    // Fixed wallet 1 (fee payer) - always this address per x402 protocol
+    const wallet1Fixed = new PublicKey(
+      accepts.extra?.wallet1Fixed ?? "8XLmbY1XRiPzeVNRDe9FZWHeCYKZAzvgc1c4EhyKsvEy",
+    );
+
+    // Get wallet addresses from splits (or use payTo as fallback for all)
+    const splits = accepts.extra?.splits ?? [];
+    const creatorSplit = splits.find(s => s.label === "Creator");
+    const platformSplit = splits.find(s => s.label === "Platform");
+    const networkSplit = splits.find(s => s.label === "Network");
+
+    // Wallet 2 = Creator (or payTo fallback)
+    const wallet2 = new PublicKey(creatorSplit?.wallet ?? accepts.payTo);
+    // Wallet 3 = Platform/Treasury (or payTo fallback)
+    const wallet3 = new PublicKey(platformSplit?.wallet ?? accepts.payTo);
+    // Wallet 4 = Network (or payTo fallback) - recipient in verify_payment
+    const wallet4 = new PublicKey(networkSplit?.wallet ?? accepts.payTo);
 
     // Build nonce
     const nonce = BigInt(Date.now());
 
+    // Derive payment record PDA: seeds = ["payment", payer, nonce]
+    const nonceBuffer = Buffer.alloc(8);
+    nonceBuffer.writeBigUInt64LE(nonce);
+    const [paymentRecordPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("payment"), keypair.publicKey.toBuffer(), nonceBuffer],
+      programId,
+    );
+
+    // Get token accounts
+    const payerTokenAccount = await getAssociatedTokenAddress(usdcMint, keypair.publicKey);
+    const wallet1TokenAccount = await getAssociatedTokenAddress(usdcMint, wallet1Fixed);
+    const wallet2TokenAccount = await getAssociatedTokenAddress(usdcMint, wallet2);
+    const wallet3TokenAccount = await getAssociatedTokenAddress(usdcMint, wallet3);
+    const wallet4TokenAccount = await getAssociatedTokenAddress(usdcMint, wallet4);
+
     // Build verify_payment instruction: [0x00, amount(u64 LE), nonce(u64 LE)]
+    // Accounts: [payer (signer), paymentRecord (writable), recipient, tokenMint, payerTokenAccount, systemProgram, sysvarRent]
     const verifyData = Buffer.alloc(17);
     verifyData[0] = 0;
     verifyData.writeBigUInt64LE(amount, 1);
@@ -303,20 +342,20 @@ export class SkillIndexClient {
     const verifyInstruction = new TransactionInstruction({
       programId,
       keys: [
-        { pubkey: keypair.publicKey, isSigner: true, isWritable: false },
+        { pubkey: keypair.publicKey, isSigner: true, isWritable: true },
+        { pubkey: paymentRecordPDA, isSigner: false, isWritable: true },
+        { pubkey: wallet4, isSigner: false, isWritable: false }, // recipient
+        { pubkey: usdcMint, isSigner: false, isWritable: false },
+        { pubkey: payerTokenAccount, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
       ],
       data: verifyData,
     });
 
-    // SPL token transfer
-    const transferInstruction = createTransferInstruction(
-      payerTokenAccount,
-      recipientTokenAccount,
-      keypair.publicKey,
-      Number(amount),
-    );
-
     // Build settle_payment instruction: [0x01, nonce(u64 LE)]
+    // Accounts: [payer (signer), paymentRecord (writable), payerTokenAccount (writable),
+    //            wallet1TokenAccount, wallet2TokenAccount, wallet3TokenAccount, wallet4TokenAccount, tokenProgram]
     const settleData = Buffer.alloc(9);
     settleData[0] = 1;
     settleData.writeBigUInt64LE(nonce, 1);
@@ -324,15 +363,21 @@ export class SkillIndexClient {
     const settleInstruction = new TransactionInstruction({
       programId,
       keys: [
-        { pubkey: keypair.publicKey, isSigner: true, isWritable: false },
+        { pubkey: keypair.publicKey, isSigner: true, isWritable: true },
+        { pubkey: paymentRecordPDA, isSigner: false, isWritable: true },
+        { pubkey: payerTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: wallet1TokenAccount, isSigner: false, isWritable: true },
+        { pubkey: wallet2TokenAccount, isSigner: false, isWritable: true },
+        { pubkey: wallet3TokenAccount, isSigner: false, isWritable: true },
+        { pubkey: wallet4TokenAccount, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       ],
       data: settleData,
     });
 
-    // Build transaction
+    // Build transaction with verify + settle (program handles the SPL transfer internally)
     const tx = new Transaction();
     tx.add(verifyInstruction);
-    tx.add(transferInstruction);
     tx.add(settleInstruction);
 
     const latestBlockhash = await connection.getLatestBlockhash();
