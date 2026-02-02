@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,16 +38,28 @@
     "prepublishOnly": "npm run build"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"],
-    "hooks": ["./hooks/auto-discover"]
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "hooks": [
+      "./hooks/auto-discover"
+    ]
   },
   "clawdbot": {
-    "extensions": ["./dist/index.js"],
-    "hooks": ["./hooks/auto-discover"]
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "hooks": [
+      "./hooks/auto-discover"
+    ]
   },
   "moltbot": {
-    "extensions": ["./dist/index.js"],
-    "hooks": ["./hooks/auto-discover"]
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "hooks": [
+      "./hooks/auto-discover"
+    ]
   },
   "dependencies": {},
   "peerDependencies": {
@@ -56,9 +68,15 @@
     "moltbot": "*"
   },
   "peerDependenciesMeta": {
-    "openclaw": { "optional": true },
-    "clawdbot": { "optional": true },
-    "moltbot": { "optional": true }
+    "openclaw": {
+      "optional": true
+    },
+    "clawdbot": {
+      "optional": true
+    },
+    "moltbot": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
