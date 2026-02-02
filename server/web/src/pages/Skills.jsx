@@ -9,10 +9,12 @@ function ChatDemo() {
   const messages = [
     { type: 'user', text: 'check my meteora positions' },
     { type: 'assistant', text: 'browsing meteora.ag now...' },
-    { type: 'status', text: 'Unbrowse: Watching traffic, learning API' },
-    { type: 'assistant', text: 'Found 3 positions totaling $420.69\n\nSkill created: meteora-dlmm (12 endpoints)' },
+    { type: 'status', text: 'Unbrowse: Learning API from browser traffic' },
+    { type: 'assistant', text: 'Found 3 positions ($420.69)\n\nSkill learned: meteora-dlmm' },
     { type: 'user', text: 'check again' },
-    { type: 'assistant', text: 'Using API directly... done in 50ms\n\n3 positions, $421.12 (+$0.43)' },
+    { type: 'assistant', text: 'Using API directly... 50ms\n\n3 positions, $421.12' },
+    { type: 'user', text: 'publish the skill for $1' },
+    { type: 'assistant', text: 'Published to marketplace. You earn $0.70 per download.' },
   ];
 
   useEffect(() => {
