@@ -1,9 +1,11 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
-  "main": "index.ts",
-  "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "description": "API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
+  "license": "UNLICENSED",
   "repository": {
     "type": "git",
     "url": "https://github.com/lekt9/unbrowse-openclaw"
@@ -16,19 +18,35 @@
     "browser-automation",
     "skill-marketplace",
     "x402",
-    "solana",
-    "usdc"
+    "solana"
   ],
+  "files": [
+    "dist/",
+    "native/index.js",
+    "native/index.d.ts",
+    "native/unbrowse-native.darwin-arm64.node",
+    "native/unbrowse-native.darwin-x64.node",
+    "native/unbrowse-native.linux-x64-gnu.node",
+    "native/unbrowse-native.linux-arm64-gnu.node",
+    "native/unbrowse-native.win32-x64-msvc.node",
+    "hooks/",
+    "openclaw.plugin.json",
+    "clawdbot.plugin.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
   "openclaw": {
-    "extensions": ["./index.ts"],
+    "extensions": ["./dist/index.js"],
     "hooks": ["./hooks/auto-discover"]
   },
   "clawdbot": {
-    "extensions": ["./index.ts"],
+    "extensions": ["./dist/index.js"],
     "hooks": ["./hooks/auto-discover"]
   },
   "moltbot": {
-    "extensions": ["./index.ts"],
+    "extensions": ["./dist/index.js"],
     "hooks": ["./hooks/auto-discover"]
   },
   "dependencies": {
@@ -37,6 +55,9 @@
     "bs58": "^5.0.0",
     "playwright": "^1.58.0",
     "tweetnacl": "^1.0.3"
+  },
+  "optionalDependencies": {
+    "@getfoundry/unbrowse-native": "^0.1.0"
   },
   "peerDependencies": {
     "openclaw": "*",

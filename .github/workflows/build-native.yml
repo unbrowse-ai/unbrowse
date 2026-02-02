@@ -129,10 +129,5 @@ jobs:
           cd native
           ls -la npm/
 
-      - name: Publish
-        run: |
-          cd native
-          npm run prepublishOnly
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Native addon is published as part of the main extension
+      # See .github/workflows/publish.yml for full publish workflow

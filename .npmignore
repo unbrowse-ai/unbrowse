@@ -1,0 +1,30 @@
+# Source files - don't publish
+src/
+*.ts
+!*.d.ts
+tsconfig.json
+tsconfig.tsbuildinfo
+
+# Development
+.git/
+.github/
+test-*.mjs
+*.log
+
+# Native source (only publish compiled .node and JS loader)
+native/src/
+native/target/
+native/Cargo.toml
+native/Cargo.lock
+native/build.rs
+native/node_modules/
+native/package.json
+native/package-lock.json
+
+# Docs
+CLAUDE.md
+*.md
+!README.md
+
+# Server (if any)
+server/
