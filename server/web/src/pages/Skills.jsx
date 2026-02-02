@@ -176,7 +176,7 @@ export default function Skills() {
 
           <p className="ub-tagline">
             Log in once. We capture cookies, tokens, and headers.
-            <strong> Your agent calls APIs directly — no browser needed.</strong>
+            <strong> Your agent calls APIs directly — 50-100x faster than Puppeteer.</strong>
           </p>
 
           {/* Primary Search */}
@@ -251,7 +251,7 @@ export default function Skills() {
       <section className="ub-how-it-works">
         <div className="ub-how-header">
           <h2>How It Works</h2>
-          <p>One login. Forever API access.</p>
+          <p>One login. Forever API access. <strong>50-100x faster than browser automation.</strong></p>
         </div>
 
         {/* Demo: Chat + Terminal */}
@@ -278,7 +278,7 @@ export default function Skills() {
               </div>
               <div className="ub-chat-msg ub-chat-agent">
                 <span className="ub-msg-text">Trump 54¢, Harris 46¢. Want to place a bet?</span>
-                <span className="ub-msg-status">✓ 89ms — direct API</span>
+                <span className="ub-msg-status">✓ 89ms vs ~8sec with Puppeteer</span>
               </div>
             </div>
           </div>
@@ -312,7 +312,7 @@ export default function Skills() {
                 <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">"get_market"</span></span>
               </div>
               <div className="ub-term-line ub-term-output ub-term-final">
-                <span className="ub-term-success">[API]</span> 200 OK <span className="ub-term-dim">(89ms)</span>
+                <span className="ub-term-success">[API]</span> 200 OK <span className="ub-term-money">89ms</span> <span className="ub-term-dim">vs 8s browser</span>
               </div>
             </div>
           </div>
