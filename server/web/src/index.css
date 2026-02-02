@@ -2799,12 +2799,169 @@ a {
   border-color: var(--neon);
 }
 
+/* Demo Split Layout */
+.ub-demo-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  width: 100%;
+  max-width: 1100px;
+  margin-top: 64px;
+}
+
+/* Chat Interface */
+.ub-chat {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 0 0 1px rgba(0, 212, 255, 0.1),
+    0 30px 80px -20px rgba(0, 0, 0, 0.8);
+}
+
+.ub-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.ub-chat-avatar {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--neon) 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ub-chat-avatar svg {
+  width: 18px;
+  height: 18px;
+  color: var(--bg-base);
+}
+
+.ub-chat-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.ub-chat-status {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--neon);
+}
+
+.ub-chat-body {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 280px;
+}
+
+.ub-chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 85%;
+}
+
+.ub-chat-user {
+  align-self: flex-end;
+}
+
+.ub-chat-user .ub-msg-text {
+  background: var(--neon);
+  color: var(--bg-base);
+  padding: 10px 14px;
+  border-radius: 16px 16px 4px 16px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.ub-chat-agent {
+  align-self: flex-start;
+}
+
+.ub-chat-agent .ub-msg-text {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 10px 14px;
+  border-radius: 16px 16px 16px 4px;
+  border: 1px solid var(--border-default);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.ub-msg-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--accent-secondary);
+  width: fit-content;
+}
+
+.ub-msg-tool::before {
+  content: '⚡';
+  font-size: 0.65rem;
+}
+
+.ub-msg-status {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--neon);
+  padding-left: 4px;
+}
+
+.ub-chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-default);
+}
+
+.ub-chat-input input {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+}
+
+.ub-chat-input button {
+  padding: 10px 16px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-tertiary);
+  font-size: 1rem;
+  cursor: not-allowed;
+}
+
 /* Terminal */
 .ub-terminal {
   position: relative;
   width: 100%;
-  max-width: 680px;
-  margin-top: 64px;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   overflow: hidden;
@@ -3703,8 +3860,23 @@ a {
     text-align: center;
   }
 
-  .ub-terminal {
+  .ub-demo-split {
+    grid-template-columns: 1fr;
+    gap: 20px;
     margin-top: 40px;
+  }
+
+  .ub-chat-body {
+    min-height: 200px;
+    padding: 16px;
+  }
+
+  .ub-chat-msg {
+    max-width: 90%;
+  }
+
+  .ub-terminal {
+    margin-top: 0;
   }
 
   .ub-terminal-body {

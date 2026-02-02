@@ -265,40 +265,83 @@ export default function Skills() {
           </div>
         </div>
 
-        {/* Terminal Demo */}
-        <div className="ub-terminal">
-          <div className="ub-terminal-header">
-            <div className="ub-terminal-dots">
-              <span />
-              <span />
-              <span />
+        {/* Demo: Chat + Terminal side by side */}
+        <div className="ub-demo-split">
+          {/* Chat Interface */}
+          <div className="ub-chat">
+            <div className="ub-chat-header">
+              <div className="ub-chat-avatar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 8V4H8"/>
+                  <rect x="4" y="4" width="16" height="16" rx="2"/>
+                  <path d="M8 12h8"/>
+                  <path d="M8 16h5"/>
+                </svg>
+              </div>
+              <span className="ub-chat-title">Claude + Unbrowse</span>
+              <span className="ub-chat-status">● Online</span>
             </div>
-            <span className="ub-terminal-title">unbrowse — zsh</span>
+            <div className="ub-chat-body">
+              <div className="ub-chat-msg ub-chat-user">
+                <span className="ub-msg-text">I need to post tweets from my agent. Can you set that up?</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-agent">
+                <span className="ub-msg-text">I'll capture Twitter's API. Opening browser — log in when ready.</span>
+                <span className="ub-msg-tool">unbrowse_capture</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-agent">
+                <span className="ub-msg-text">Done. Captured 47 endpoints. Browser closed — I'll use the API directly from now on.</span>
+                <span className="ub-msg-status">✓ twitter-api skill created</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-user">
+                <span className="ub-msg-text">Post "Hello from my AI agent!"</span>
+              </div>
+              <div className="ub-chat-msg ub-chat-agent">
+                <span className="ub-msg-text">Posted successfully. No browser needed — direct API call in 47ms.</span>
+                <span className="ub-msg-status">✓ Tweet posted</span>
+              </div>
+            </div>
+            <div className="ub-chat-input">
+              <input type="text" placeholder="Message Claude..." disabled />
+              <button disabled>→</button>
+            </div>
           </div>
-          <div className="ub-terminal-body">
-            <div className="ub-term-line ub-term-comment"># One-time browser capture</div>
-            <div className="ub-term-line">
-              <span className="ub-term-prompt">~</span>
-              <span className="ub-term-cmd">unbrowse_capture <span className="ub-term-arg">url="twitter.com"</span></span>
+
+          {/* Terminal */}
+          <div className="ub-terminal">
+            <div className="ub-terminal-header">
+              <div className="ub-terminal-dots">
+                <span />
+                <span />
+                <span />
+              </div>
+              <span className="ub-terminal-title">what's happening</span>
             </div>
-            <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> Captured 47 endpoints → skill: <span className="ub-term-highlight">twitter-api</span>
-            </div>
-            <div className="ub-term-line ub-term-comment"># Forever after: direct API calls, no browser</div>
-            <div className="ub-term-line">
-              <span className="ub-term-prompt">~</span>
-              <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">skill="twitter-api" action="post_tweet"</span></span>
-            </div>
-            <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> POST api.twitter.com/2/tweets → 200 <span className="ub-term-dim">(47ms)</span>
-            </div>
-            <div className="ub-term-line ub-term-comment"># Publish and earn on every download</div>
-            <div className="ub-term-line">
-              <span className="ub-term-prompt">~</span>
-              <span className="ub-term-cmd">unbrowse_publish <span className="ub-term-arg">skill="twitter-api" price="2.50"</span></span>
-            </div>
-            <div className="ub-term-line ub-term-output ub-term-final">
-              <span className="ub-term-accent">[$$]</span> Published → you earn <span className="ub-term-money">$1.75</span>/download
+            <div className="ub-terminal-body">
+              <div className="ub-term-line ub-term-comment"># One-time browser capture</div>
+              <div className="ub-term-line">
+                <span className="ub-term-prompt">→</span>
+                <span className="ub-term-cmd">unbrowse_capture <span className="ub-term-arg">url="twitter.com"</span></span>
+              </div>
+              <div className="ub-term-line ub-term-output">
+                <span className="ub-term-success">[OK]</span> 47 endpoints captured
+              </div>
+              <div className="ub-term-line ub-term-comment"># No browser from here on</div>
+              <div className="ub-term-line">
+                <span className="ub-term-prompt">→</span>
+                <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">action="post_tweet"</span></span>
+              </div>
+              <div className="ub-term-line ub-term-output">
+                <span className="ub-term-success">[OK]</span> POST /2/tweets → 200 <span className="ub-term-dim">(47ms)</span>
+              </div>
+              <div className="ub-term-line ub-term-comment"># Publish to marketplace</div>
+              <div className="ub-term-line">
+                <span className="ub-term-prompt">→</span>
+                <span className="ub-term-cmd">unbrowse_publish <span className="ub-term-arg">price="2.50"</span></span>
+              </div>
+              <div className="ub-term-line ub-term-output ub-term-final">
+                <span className="ub-term-accent">[$$]</span> Earn <span className="ub-term-money">$1.75</span>/download
+              </div>
             </div>
           </div>
         </div>
