@@ -12,6 +12,10 @@ build/
 *.d.ts
 !src/**/*.d.ts
 
+# Keep native module loader and types
+!native/index.js
+!native/index.d.ts
+
 # Keep these declaration files
 !openclaw.d.ts
 
