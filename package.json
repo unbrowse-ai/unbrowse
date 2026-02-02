@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,7 +21,8 @@
     "solana"
   ],
   "files": [
-    "dist/",
+    "dist/index.js",
+    "dist/index.d.ts",
     "native/index.js",
     "native/index.d.ts",
     "native/unbrowse-native.darwin-arm64.node",
@@ -48,16 +49,7 @@
     "extensions": ["./dist/index.js"],
     "hooks": ["./hooks/auto-discover"]
   },
-  "dependencies": {
-    "@solana/spl-token": "^0.4.0",
-    "@solana/web3.js": "^1.95.0",
-    "bs58": "^5.0.0",
-    "playwright": "^1.58.0",
-    "tweetnacl": "^1.0.3"
-  },
-  "optionalDependencies": {
-    "@getfoundry/unbrowse-native": "^0.1.0"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "openclaw": "*",
     "clawdbot": "*",
