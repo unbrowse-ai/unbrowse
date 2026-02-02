@@ -4238,3 +4238,505 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* =============================================================================
+   REDESIGNED COMPONENTS - Cleaner UX
+   ============================================================================= */
+
+/* Compact Hero */
+.ub-hero.ub-hero-compact {
+  min-height: auto;
+  padding: 120px 24px 60px;
+}
+
+.ub-hero.ub-hero-compact .ub-hero-content {
+  max-width: 800px;
+}
+
+.ub-hero.ub-hero-compact .ub-headline {
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  margin-bottom: 20px;
+}
+
+.ub-hero.ub-hero-compact .ub-tagline {
+  font-size: 1.1rem;
+  margin-bottom: 32px;
+}
+
+/* Hero Stats Inline */
+.ub-hero-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-default);
+}
+
+.ub-hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ub-hero-stat-num {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--neon);
+}
+
+.ub-hero-stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+.ub-hero-stat-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--border-default);
+}
+
+/* Browse All Tag */
+.ub-hero-tag-browse {
+  background: var(--neon) !important;
+  color: var(--bg-base) !important;
+  border-color: var(--neon) !important;
+}
+
+.ub-hero-tag-browse:hover {
+  background: var(--neon-dim) !important;
+}
+
+/* How It Works - Mini */
+.ub-how-it-works {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 60px 24px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.ub-how-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.ub-how-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 280px;
+}
+
+.ub-how-num {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--neon);
+  color: var(--bg-base);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.ub-how-content h3 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.ub-how-content p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.ub-how-arrow {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+}
+
+/* Marketplace Header Redesign */
+.ub-marketplace-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.ub-marketplace-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.ub-marketplace-count {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+.ub-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ub-filter-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.ub-clear-search {
+  padding: 8px 16px;
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  color: #ff6666;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ub-clear-search:hover {
+  background: rgba(255, 68, 68, 0.2);
+}
+
+/* Skill Cards - Richer */
+.ub-skill-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  padding: 24px;
+  transition: all 0.25s;
+  text-decoration: none;
+  min-height: 200px;
+}
+
+.ub-skill-card:hover {
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.ub-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.ub-card-service {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ub-service-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--neon) 0%, var(--accent-secondary) 100%);
+  color: var(--bg-base);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.9rem;
+  border-radius: 6px;
+}
+
+.ub-service-name {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: lowercase;
+}
+
+.ub-card-price {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+}
+
+.ub-card-price.free {
+  background: rgba(0, 255, 136, 0.1);
+  border-color: var(--border-accent);
+  color: var(--neon);
+}
+
+.ub-card-name {
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.ub-card-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ub-card-meta {
+  margin-bottom: 16px;
+}
+
+.ub-card-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ub-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-default);
+  margin-top: auto;
+}
+
+.ub-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ub-card-downloads {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+.ub-card-downloads svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ub-card-endpoints {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.ub-card-action {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--neon);
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all 0.2s;
+}
+
+.ub-skill-card:hover .ub-card-action {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Install Section */
+.ub-install-section {
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  padding: 60px 24px;
+}
+
+.ub-install-content {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.ub-install-content h2 {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.ub-install-content > p {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.ub-install-section .ub-install-cmd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  margin-bottom: 24px;
+}
+
+.ub-install-section .ub-install-cmd code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--neon);
+}
+
+.ub-install-section .ub-copy-cmd {
+  padding: 8px 16px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ub-install-section .ub-copy-cmd:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.ub-install-links {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* Creator CTA */
+.ub-creator-cta {
+  padding: 60px 24px;
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.05) 0%, rgba(0, 212, 255, 0.05) 100%);
+}
+
+.ub-creator-content {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.ub-creator-text h2 {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.ub-creator-text p {
+  color: var(--text-secondary);
+}
+
+.ub-creator-text strong {
+  color: var(--neon);
+}
+
+.ub-btn-accent {
+  padding: 14px 28px;
+  background: var(--neon);
+  color: var(--bg-base);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ub-btn-accent:hover {
+  background: var(--neon-dim);
+}
+
+/* Empty state button */
+.ub-empty .ub-btn {
+  margin-top: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ub-hero.ub-hero-compact {
+    padding: 100px 16px 40px;
+  }
+
+  .ub-hero-stats {
+    gap: 20px;
+  }
+
+  .ub-hero-stat-num {
+    font-size: 1.2rem;
+  }
+
+  .ub-how-grid {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .ub-how-arrow {
+    transform: rotate(90deg);
+  }
+
+  .ub-how-step {
+    max-width: 100%;
+  }
+
+  .ub-marketplace-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ub-marketplace-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .ub-filter-group {
+    width: 100%;
+  }
+
+  .ub-filter-tabs {
+    flex: 1;
+  }
+
+  .ub-skills-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ub-creator-content {
+    flex-direction: column;
+    text-align: center;
+  }
+}
