@@ -5,6 +5,8 @@
   "outputDirectory": "dist",
   "installCommand": "pnpm install",
   "rewrites": [
+    { "source": "/health", "destination": "http://159.54.190.177:4111/health" },
+    { "source": "/marketplace/:path*", "destination": "http://159.54.190.177:4111/marketplace/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
