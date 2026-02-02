@@ -129,11 +129,10 @@ jobs:
           cd native
           ls -la npm/
 
-      # Uncomment when ready to publish:
-      # - name: Publish
-      #   run: |
-      #     cd native
-      #     npm run prepublishOnly
-      #     npm publish --access public
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish
+        run: |
+          cd native
+          npm run prepublishOnly
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
