@@ -1,99 +1,144 @@
 # Unbrowse
 
-**100x faster web access for OpenClaw agents.**
+**Your AI agent is useless on the web. We fix that.**
+
+No API? No MCP? Your agent opens a browser and waits 45 seconds to do what you could've done in 5.
+
+Unbrowse captures the internal APIs that every website already has — and turns them into skills your agent can call in 200ms.
+
+**[unbrowse.ai](https://unbrowse.ai)**
 
 ## The Problem
 
-AI agents like OpenClaw need to interact with websites. Today, they have two options:
+Your AI agent can only use websites that want to be used.
 
-1. **Official APIs** — Fast and reliable, but only ~1% of websites have them
-2. **Browser automation** — Universal but painfully slow (5-60 seconds per action)
+| Situation | What Happens |
+|-----------|--------------|
+| Official API exists | Works great |
+| MCP server exists | Works great |
+| Neither exists (99% of sites) | Browser automation. Pain. |
 
-Browser automation means launching headless Chrome, waiting for pages to load, finding elements with fragile CSS selectors, clicking buttons, waiting for navigation, parsing DOM... all to get data that's already available as clean JSON in the network layer.
+MCPs are great — when they exist. But someone has to build each one manually. There are millions of websites. There are dozens of MCPs.
 
-```
-Browser Automation Reality
-──────────────────────────
-Launch browser         3-5s
-Navigate to page       2-10s
-Wait for load          1-5s
-Find element           0.5-2s
-Click/interact         0.5-1s
-Wait for response      2-10s
-Parse DOM              1-3s
-──────────────────────────
-Total: 10-40 seconds per action
-Success rate: 70-85%
-```
+**Your agent is waiting for permission that's never coming.**
 
-## The Solution
+## What Happens Without Unbrowse
 
-Every website has internal APIs — the XHR/fetch calls their frontend makes to load data. These endpoints are undocumented but return clean JSON, handle auth properly, and are 50-100x faster than browser automation.
-
-**Unbrowse captures these internal APIs and turns them into skills your agent can call directly.**
+You ask your agent to check Polymarket odds.
 
 ```
-Unbrowse
-────────
-Direct API call    →    JSON response
-────────
-Total: 200-500ms
-Success rate: 95%+
+Agent launches Chrome          5s
+Loads the page                 3s
+Waits for JavaScript           2s
+Finds the element              1s
+Reads the text                 1s
+────────────────────────────────
+Total                         12s
 ```
+
+Meanwhile, when that page loaded, it called `GET /api/markets/election` — a 200ms request that returned all the data as clean JSON.
+
+Your agent just didn't know about it.
+
+## What Happens With Unbrowse
+
+```
+Agent calls internal API     200ms
+Gets JSON response          done
+```
+
+**100x faster.** Your agent is finally faster than you.
 
 ## How It Works
 
-### 1. You browse normally
+### 1. Capture
 
-Login to Twitter, scroll your feed, like a post. Unbrowse captures every API call the frontend makes:
+Log in to any site. Browse normally. Unbrowse records every internal API call:
 
-- `GET /2/timeline/home.json` — fetches your feed
-- `POST /2/timeline/like.json` — likes a tweet
-- Auth headers, cookies, rate limits — all recorded
+- Endpoints and parameters
+- Auth headers, cookies, tokens
+- Request/response formats
 
-### 2. Unbrowse generates a skill
+### 2. Generate
 
-From captured traffic, Unbrowse creates a callable skill:
+Unbrowse creates a "skill" — a map of everything the site can do:
 
 ```typescript
 // Generated automatically
-twitter.getTimeline()     // 200ms, returns JSON
-twitter.likeTweet(id)     // 150ms, returns status
-twitter.postTweet(text)   // 180ms, returns tweet
+polymarket.getMarkets()        // 200ms
+polymarket.getOdds(marketId)   // 150ms
+polymarket.placeBet(...)       // 180ms
 ```
 
-### 3. Your agent uses it forever
+### 3. Use
 
-No browser. No waiting. No fragile selectors. Just direct API calls at network speed.
+Your agent calls the API directly. No browser. No waiting. No fragile selectors.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     BEFORE UNBROWSE                         │
 │                                                             │
-│  Agent → Launch browser → Load page → Find element →       │
-│          Click → Wait → Parse DOM → Extract data           │
+│  Agent → Launch browser → Load page → Find element →        │
+│          Click → Wait → Parse DOM → Extract data            │
 │                                                             │
-│  Time: 30 seconds          Success: 75%                    │
+│  Time: 45 seconds          Success: 75%                     │
 ├─────────────────────────────────────────────────────────────┤
 │                     WITH UNBROWSE                           │
 │                                                             │
-│  Agent → API call → JSON response                          │
+│  Agent → API call → JSON response                           │
 │                                                             │
-│  Time: 300ms               Success: 95%+                   │
+│  Time: 200ms               Success: 95%+                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## What is OpenClaw?
+## The Marketplace: Google for Agents
 
-[OpenClaw](https://openclaw.ai) is an open-source AI assistant that runs locally on your devices. It connects to your messaging apps (WhatsApp, Telegram, Slack, Discord, iMessage) and acts as a proactive digital assistant — managing emails, updating calendars, running commands, and taking autonomous actions across your online life.
+Humans have Google. Agents have nothing.
 
-Unlike cloud-based assistants, OpenClaw:
-- Runs on your hardware (your data stays local)
-- Has persistent memory across sessions
-- Can execute shell commands and scripts
-- Extends via community-built skills and plugins
+No way to search "how do I use Polymarket?" No index of capabilities. Just trial and error on every site.
 
-**Unbrowse is an OpenClaw extension that gives your agent fast, reliable web access without browser automation overhead.**
+**Unbrowse Marketplace is Google for agents.**
+
+Your agent searches → finds a skill → downloads it → knows every endpoint instantly.
+
+```bash
+# Search for existing skills
+unbrowse_search query="polymarket"
+
+# Install (you own it forever)
+unbrowse_install skill="polymarket-trading"
+```
+
+No figuring it out. No browser. Just API calls.
+
+## x402: Agents Pay for Themselves
+
+Some skills are free. Some are paid.
+
+Paid skills use [x402](https://x402.org) — machine-to-machine payments on Solana:
+
+1. Agent requests skill
+2. Gets HTTP 402 with price
+3. Signs USDC transaction
+4. Receives skill
+
+No human approval needed. Agents buying their own capabilities.
+
+### Publish Your Skills
+
+Captured an API? Publish it.
+
+```bash
+# Free
+unbrowse_publish name="polymarket-odds"
+
+# Paid ($2.50 USDC)
+unbrowse_publish name="polymarket-trading" price="2.50"
+```
+
+**Creator gets 70%. Instant payout in USDC.**
+
+Your reverse engineering skills are now income.
 
 ## Installation
 
@@ -113,23 +158,23 @@ moltbot plugins install @getfoundry/unbrowse-openclaw
 
 ```bash
 # Tell your agent to browse a site
-"Browse twitter.com and capture the API"
+"Browse polymarket.com and capture the API"
 
 # Or use the tool directly
-unbrowse_capture url="twitter.com"
+unbrowse_capture url="polymarket.com"
 ```
 
-### Generate a skill
+### Generate a Skill
 
 ```bash
-unbrowse_generate_skill domain="twitter.com"
+unbrowse_generate_skill domain="polymarket.com"
 ```
 
-### Use it
+### Use It
 
 ```bash
-# Your agent can now call Twitter's internal API directly
-unbrowse_replay skill="twitter" action="get_timeline"
+# Your agent calls the internal API directly
+unbrowse_replay skill="polymarket" action="get_markets"
 ```
 
 ## Tools
@@ -159,33 +204,27 @@ unbrowse_replay skill="twitter" action="get_timeline"
 | `unbrowse_install` | Install a skill (own it forever) |
 | `unbrowse_publish` | Share your skills |
 
-## Skill Marketplace
+## Why Not Browser Automation?
 
-Don't want to capture APIs yourself? Browse skills others have already created.
+| | Browser | Unbrowse |
+|---|---|---|
+| **Speed** | 10-45 seconds | 200ms |
+| **Reliability** | 70-85% | 95%+ |
+| **Resources** | Headless Chrome | HTTP calls |
+| **Auth** | Complex | Built-in |
+| **Data** | Parse DOM | Clean JSON |
 
-```bash
-# Search for Twitter skills
-unbrowse_search query="twitter"
+The browser is a 45-second tax on every web action. Skip it.
 
-# Install one (you own it forever)
-unbrowse_install skill="twitter-timeline"
-```
+## Why Not Wait for APIs/MCPs?
 
-### Publish Your Own
+| | Official APIs | MCPs | Unbrowse |
+|---|---|---|---|
+| **Coverage** | ~1% of sites | ~0.01% of sites | Any site |
+| **Wait time** | Never coming | Years | Minutes |
+| **Your control** | None | None | Full |
 
-Share captured APIs with other agents:
-
-```bash
-# Free
-unbrowse_publish name="twitter-timeline"
-
-# Paid ($2.50 USDC)
-unbrowse_publish name="twitter-timeline" price="2.50"
-```
-
-**Earnings:** 70% to creator, 30% platform. Instant payout via x402 protocol on Solana.
-
-**Ownership model:** Buyers own skills forever. One purchase, unlimited use. No per-execution fees.
+99% of websites will never have an API. Your agent needs to work anyway.
 
 ## Configuration
 
@@ -211,33 +250,9 @@ unbrowse_publish name="twitter-timeline" price="2.50"
 | `skillsOutputDir` | `~/.openclaw/skills` | Where skills are saved |
 | `autoDiscover` | `true` | Auto-generate skills while browsing |
 | `creatorWallet` | - | Solana address for marketplace earnings |
-| `credentialSource` | `none` | Password lookup: none/keychain/1password |
-
-## Why Not Just Use Browser Automation?
-
-| | Browser Automation | Unbrowse |
-|---|---|---|
-| **Speed** | 10-40 seconds | 200-500ms |
-| **Reliability** | 70-85% (DOM changes break selectors) | 95%+ (APIs rarely change) |
-| **Resource usage** | High (headless browser) | Minimal (HTTP calls) |
-| **Auth handling** | Complex (cookies, sessions, CAPTCHAs) | Built-in (captured with traffic) |
-| **Data format** | Parse from DOM | Clean JSON |
-
-Browser automation has its place — when you need to interact with sites that truly require JavaScript rendering. But most "automation" is just fetching data that's already available via internal APIs.
-
-## x402 Payments
-
-Skill purchases use the [x402 protocol](https://x402.org) for machine-to-machine payments:
-
-1. Agent requests skill download
-2. Server returns HTTP 402 with payment requirements
-3. Agent signs USDC transaction on Solana
-4. Server verifies, returns skill
-
-No intermediaries. Direct creator payment. Instant settlement.
 
 ---
 
-**Skip the browser. Call the API.**
+**Every website now has an API. Your agent just didn't know about it.**
 
-*Built for [OpenClaw](https://openclaw.ai). Powered by [x402](https://x402.org).*
+[unbrowse.ai](https://unbrowse.ai) · [x402 Protocol](https://x402.org)

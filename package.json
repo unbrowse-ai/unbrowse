@@ -1,10 +1,11 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "description": "API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
+  "description": "Your agent is useless without an API. Unbrowse fixes that. Capture internal APIs from any website and skip the slow browser. 100x faster web access for AI agents.",
+  "homepage": "https://unbrowse.ai",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
