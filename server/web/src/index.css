@@ -2737,6 +2737,8 @@ a {
 .ub-hero-search-icon {
   position: absolute;
   left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 20px;
   height: 20px;
   color: var(--text-tertiary);
@@ -3962,6 +3964,11 @@ a {
     flex-direction: column;
   }
 
+  .ub-hero-search-icon {
+    left: 16px;
+    top: 25px;
+  }
+
   .ub-hero-search-input {
     padding: 16px 16px 16px 48px;
     font-size: 0.9rem;
@@ -4356,9 +4363,10 @@ a {
 /* Hero Headline Row with Mascot */
 .ub-hero-headline-row {
   display: flex;
+  flex-direction: column-reverse;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 16px;
 }
 
 .ub-mascot {
@@ -4378,11 +4386,6 @@ a {
 }
 
 @media (max-width: 768px) {
-  .ub-hero-headline-row {
-    flex-direction: column-reverse;
-    gap: 16px;
-  }
-
   .ub-mascot {
     width: 100px;
   }
