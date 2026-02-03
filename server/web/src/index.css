@@ -2737,6 +2737,8 @@ a {
 .ub-hero-search-icon {
   position: absolute;
   left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 20px;
   height: 20px;
   color: var(--text-tertiary);
@@ -3960,6 +3962,11 @@ a {
 
   .ub-hero-search-wrapper {
     flex-direction: column;
+  }
+
+  .ub-hero-search-icon {
+    left: 16px;
+    top: 25px;
   }
 
   .ub-hero-search-input {
