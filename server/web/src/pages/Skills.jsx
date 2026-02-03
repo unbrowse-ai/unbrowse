@@ -214,12 +214,15 @@ export default function Skills() {
             <span>EVERY WEBSITE HAS A HIDDEN API. WE CAPTURE IT.</span>
           </div>
 
-          <h1 className="ub-headline">
-            <span className="ub-headline-top">INTERNAL APIs</span>
-            <span className="ub-headline-main">
-              <span className="ub-glitch" data-text="FOR OPENCLAW.">FOR OPENCLAW.</span>
-            </span>
-          </h1>
+          <div className="ub-hero-headline-row">
+            <h1 className="ub-headline">
+              <span className="ub-headline-top">INTERNAL APIs</span>
+              <span className="ub-headline-main">
+                <span className="ub-glitch" data-text="FOR OPENCLAW.">FOR OPENCLAW.</span>
+              </span>
+            </h1>
+            <img src="/mascot.png" alt="Unbrowse mascot" className="ub-mascot" />
+          </div>
 
           <p className="ub-tagline">
             When you click a button, your browser calls an internal API. We capture those endpoints —

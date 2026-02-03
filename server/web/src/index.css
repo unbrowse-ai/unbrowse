@@ -4334,6 +4334,41 @@ a {
   margin-bottom: 32px;
 }
 
+/* Hero Headline Row with Mascot */
+.ub-hero-headline-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.ub-mascot {
+  width: 140px;
+  height: auto;
+  animation: ub-mascot-bounce 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.3));
+}
+
+@keyframes ub-mascot-bounce {
+  0%, 100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(5deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .ub-hero-headline-row {
+    flex-direction: column-reverse;
+    gap: 16px;
+  }
+
+  .ub-mascot {
+    width: 100px;
+  }
+}
+
 /* Hero Stats Inline */
 .ub-hero-stats {
   display: flex;
