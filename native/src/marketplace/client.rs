@@ -4,7 +4,7 @@ use crate::types::*;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-const DEFAULT_INDEX_URL: &str = "https://unbrowse.getfoundry.sh";
+const DEFAULT_INDEX_URL: &str = "https://index.unbrowse.ai";
 
 /// Marketplace client
 pub struct MarketplaceClient {
