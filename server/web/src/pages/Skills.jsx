@@ -75,6 +75,7 @@ export default function Skills() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [badgeFilter, setBadgeFilter] = useState('all');
+  const [showMarketplace, setShowMarketplace] = useState(false);
   const marketplaceRef = useRef(null);
 
   useEffect(() => {
@@ -210,19 +211,19 @@ export default function Skills() {
         <div className="ub-hero-content">
           <div className="ub-hero-badge">
             <span className="ub-pulse" />
-            <span>API REVERSE ENGINEERING FOR AI AGENTS</span>
+            <span>EVERY WEBSITE HAS A HIDDEN API. WE CAPTURE IT.</span>
           </div>
 
           <h1 className="ub-headline">
-            <span className="ub-headline-top">BROWSE ONCE.</span>
+            <span className="ub-headline-top">INTERNAL APIs</span>
             <span className="ub-headline-main">
-              <span className="ub-glitch" data-text="API FOREVER.">API FOREVER.</span>
+              <span className="ub-glitch" data-text="FOR AGENTS.">FOR AGENTS.</span>
             </span>
           </h1>
 
           <p className="ub-tagline">
-            Log in once. We capture cookies, tokens, and headers.
-            <strong> Your agent calls APIs directly — 50-100x faster than Puppeteer.</strong>
+            When you click a button, your browser calls an internal API. We capture those endpoints —
+            <strong> your agent skips the browser and calls APIs directly. 100x faster.</strong>
           </p>
 
           {/* Primary Search */}
@@ -277,18 +278,171 @@ export default function Skills() {
           <div className="ub-hero-stats">
             <div className="ub-hero-stat">
               <span className="ub-hero-stat-num">{stats.total}</span>
-              <span className="ub-hero-stat-label">Skills</span>
+              <span className="ub-hero-stat-label">Internal APIs Captured</span>
             </div>
             <div className="ub-hero-stat-divider" />
             <div className="ub-hero-stat">
               <span className="ub-hero-stat-num">{stats.services}</span>
-              <span className="ub-hero-stat-label">APIs</span>
+              <span className="ub-hero-stat-label">Websites</span>
             </div>
             <div className="ub-hero-stat-divider" />
             <div className="ub-hero-stat">
               <span className="ub-hero-stat-num">{stats.downloads.toLocaleString()}</span>
-              <span className="ub-hero-stat-label">Downloads</span>
+              <span className="ub-hero-stat-label">Agent Downloads</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* What is an Internal API? - Educational Section */}
+      <section className="ub-internal-api-explainer">
+        <div className="ub-explainer-header">
+          <span className="ub-explainer-label">// THE HIDDEN LAYER</span>
+          <h2>What is an Internal API?</h2>
+          <p>Every website you use is powered by hidden API calls. Unbrowse makes them visible to your agent.</p>
+        </div>
+
+        <div className="ub-explainer-demo">
+          {/* Website UI Mock */}
+          <div className="ub-website-mock">
+            <div className="ub-mock-header">
+              <div className="ub-mock-dots"><span /><span /><span /></div>
+              <div className="ub-mock-url">polymarket.com</div>
+            </div>
+            <div className="ub-mock-content">
+              <div className="ub-mock-card">
+                <div className="ub-mock-title">2024 Election</div>
+                <div className="ub-mock-odds">
+                  <span className="ub-mock-candidate">Trump <strong>54¢</strong></span>
+                  <span className="ub-mock-candidate">Harris <strong>46¢</strong></span>
+                </div>
+                <button className="ub-mock-btn">Buy Shares</button>
+              </div>
+            </div>
+            <div className="ub-mock-caption">What you see</div>
+          </div>
+
+          {/* Arrow */}
+          <div className="ub-explainer-arrow">
+            <div className="ub-arrow-line" />
+            <div className="ub-arrow-label">
+              <span>When you click</span>
+              <span>"Buy Shares"</span>
+              <span>the browser sends:</span>
+            </div>
+          </div>
+
+          {/* Internal API Request */}
+          <div className="ub-api-reveal">
+            <div className="ub-api-header">
+              <span className="ub-api-method ub-method-post">POST</span>
+              <span className="ub-api-endpoint">/api/v1/orders</span>
+            </div>
+            <div className="ub-api-body">
+              <pre>{`{
+  "market_id": "election-2024",
+  "outcome": "trump",
+  "shares": 100,
+  "price": 0.54
+}`}</pre>
+            </div>
+            <div className="ub-api-response">
+              <span className="ub-response-status">200 OK</span>
+              <span className="ub-response-time">89ms</span>
+            </div>
+            <div className="ub-mock-caption">The internal API call</div>
+          </div>
+        </div>
+
+        <div className="ub-explainer-insight">
+          <div className="ub-insight-icon">💡</div>
+          <div className="ub-insight-text">
+            <strong>This is the internal API.</strong> Every button, every page load, every action on a website triggers API calls.
+            Unbrowse captures these endpoints so your agent can call them directly — no browser needed.
+          </div>
+        </div>
+      </section>
+
+      {/* Speed Comparison */}
+      <section className="ub-comparison-section">
+        <div className="ub-comparison-header">
+          <h2>Browser Automation vs Internal APIs</h2>
+          <p>Why wait 45 seconds when the data is one API call away?</p>
+        </div>
+
+        <div className="ub-comparison-grid">
+          {/* Without Unbrowse */}
+          <div className="ub-comparison-card ub-comparison-slow">
+            <div className="ub-comparison-label">
+              <span className="ub-label-icon">🐌</span>
+              WITHOUT UNBROWSE
+            </div>
+            <div className="ub-comparison-flow">
+              <div className="ub-flow-step">
+                <span className="ub-step-icon">🌐</span>
+                <span className="ub-step-text">Launch browser</span>
+                <span className="ub-step-time">5s</span>
+              </div>
+              <div className="ub-flow-step">
+                <span className="ub-step-icon">📄</span>
+                <span className="ub-step-text">Load page</span>
+                <span className="ub-step-time">3s</span>
+              </div>
+              <div className="ub-flow-step">
+                <span className="ub-step-icon">⏳</span>
+                <span className="ub-step-text">Wait for JavaScript</span>
+                <span className="ub-step-time">2s</span>
+              </div>
+              <div className="ub-flow-step">
+                <span className="ub-step-icon">🔍</span>
+                <span className="ub-step-text">Find element</span>
+                <span className="ub-step-time">1s</span>
+              </div>
+              <div className="ub-flow-step">
+                <span className="ub-step-icon">🖱️</span>
+                <span className="ub-step-text">Click & extract</span>
+                <span className="ub-step-time">1s</span>
+              </div>
+            </div>
+            <div className="ub-comparison-total">
+              <span className="ub-total-label">Total time</span>
+              <span className="ub-total-value ub-total-slow">~12 seconds</span>
+            </div>
+            <div className="ub-comparison-issues">
+              <span>❌ Fragile selectors</span>
+              <span>❌ JS rendering delays</span>
+              <span>❌ Heavy memory usage</span>
+            </div>
+          </div>
+
+          {/* With Unbrowse */}
+          <div className="ub-comparison-card ub-comparison-fast">
+            <div className="ub-comparison-label">
+              <span className="ub-label-icon">⚡</span>
+              WITH UNBROWSE
+            </div>
+            <div className="ub-comparison-flow ub-flow-simple">
+              <div className="ub-flow-step ub-step-highlight">
+                <span className="ub-step-icon">📡</span>
+                <span className="ub-step-text">Call internal API</span>
+                <span className="ub-step-time ub-time-fast">200ms</span>
+              </div>
+              <div className="ub-flow-step ub-step-highlight">
+                <span className="ub-step-icon">📦</span>
+                <span className="ub-step-text">Get JSON response</span>
+                <span className="ub-step-time ub-time-fast">done</span>
+              </div>
+            </div>
+            <div className="ub-comparison-total">
+              <span className="ub-total-label">Total time</span>
+              <span className="ub-total-value ub-total-fast">~200ms</span>
+            </div>
+            <div className="ub-comparison-benefits">
+              <span>✓ Clean JSON data</span>
+              <span>✓ 100x faster</span>
+              <span>✓ Reliable & stable</span>
+            </div>
+            <div className="ub-speed-badge">60x FASTER</div>
           </div>
         </div>
       </section>
@@ -296,8 +450,47 @@ export default function Skills() {
       {/* How It Works - With Demo */}
       <section className="ub-how-it-works">
         <div className="ub-how-header">
-          <h2>How It Works</h2>
-          <p>One login. Forever API access. <strong>50-100x faster than browser automation.</strong></p>
+          <h2>Capture Any Website's Internal API</h2>
+          <p>Log in once. We discover every endpoint. <strong>Your agent calls APIs directly — forever.</strong></p>
+        </div>
+
+        {/* 3-Step Flow */}
+        <div className="ub-capture-flow">
+          <div className="ub-capture-step">
+            <div className="ub-step-number">1</div>
+            <div className="ub-step-content">
+              <h3>Browse & Capture</h3>
+              <p>Navigate the site normally. Unbrowse intercepts every internal API call the browser makes.</p>
+              <div className="ub-step-visual">
+                <code>GET /api/markets → captured</code>
+                <code>POST /api/orders → captured</code>
+                <code>Auth headers → captured</code>
+              </div>
+            </div>
+          </div>
+          <div className="ub-capture-step">
+            <div className="ub-step-number">2</div>
+            <div className="ub-step-content">
+              <h3>Generate Skill</h3>
+              <p>We analyze the captured traffic and create a reusable "skill" — a complete map of the site's internal API.</p>
+              <div className="ub-step-visual">
+                <code>polymarket.getMarkets()</code>
+                <code>polymarket.placeOrder()</code>
+                <code>polymarket.getPortfolio()</code>
+              </div>
+            </div>
+          </div>
+          <div className="ub-capture-step">
+            <div className="ub-step-number">3</div>
+            <div className="ub-step-content">
+              <h3>Call APIs Directly</h3>
+              <p>Your agent calls the internal API. No browser, no waiting, no fragile selectors.</p>
+              <div className="ub-step-visual ub-step-result">
+                <span className="ub-result-time">200ms</span>
+                <span className="ub-result-label">Clean JSON response</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Demo: Chat + Terminal */}
@@ -306,25 +499,25 @@ export default function Skills() {
           <div className="ub-chat">
             <div className="ub-chat-header">
               <div className="ub-chat-avatar">⚡</div>
-              <span className="ub-chat-title">Claude</span>
+              <span className="ub-chat-title">Agent Demo</span>
             </div>
             <div className="ub-chat-body">
               <div className="ub-chat-msg ub-chat-user">
                 <span className="ub-msg-text">What are the odds on the election on Polymarket?</span>
               </div>
               <div className="ub-chat-msg ub-chat-agent">
-                <span className="ub-msg-text">I need access to Polymarket. Let me capture it — log in once.</span>
+                <span className="ub-msg-text">I'll capture Polymarket's internal API. Log in once:</span>
               </div>
               <div className="ub-chat-msg ub-chat-system">
                 <span className="ub-msg-browser">🌐 Browser opened → Log in to Polymarket</span>
               </div>
               <div className="ub-chat-msg ub-chat-agent">
-                <span className="ub-msg-text">Got it. <strong>Browser closed forever.</strong></span>
+                <span className="ub-msg-text"><strong>12 internal API endpoints discovered.</strong> Browser closed forever.</span>
                 <span className="ub-msg-status">✓ polymarket skill saved</span>
               </div>
               <div className="ub-chat-msg ub-chat-agent">
                 <span className="ub-msg-text">Trump 54¢, Harris 46¢. Want to place a bet?</span>
-                <span className="ub-msg-status">✓ 89ms vs ~8sec with Puppeteer</span>
+                <span className="ub-msg-status">✓ Called GET /api/markets in 89ms</span>
               </div>
             </div>
           </div>
@@ -335,30 +528,30 @@ export default function Skills() {
               <div className="ub-terminal-dots">
                 <span /><span /><span />
               </div>
-              <span className="ub-terminal-title">under the hood</span>
+              <span className="ub-terminal-title">internal API discovery</span>
             </div>
             <div className="ub-terminal-body">
-              <div className="ub-term-line ub-term-comment"># First time: browser login</div>
+              <div className="ub-term-line ub-term-comment"># One-time: capture internal APIs</div>
               <div className="ub-term-line">
                 <span className="ub-term-prompt">→</span>
-                <span className="ub-term-cmd">unbrowse_login <span className="ub-term-arg">"polymarket.com"</span></span>
+                <span className="ub-term-cmd">unbrowse_capture <span className="ub-term-arg">"polymarket.com"</span></span>
               </div>
               <div className="ub-term-line ub-term-output">
-                <span className="ub-term-success">[COOKIES]</span> 8 captured
+                <span className="ub-term-success">[DISCOVERED]</span> GET /api/markets
               </div>
               <div className="ub-term-line ub-term-output">
-                <span className="ub-term-success">[HEADERS]</span> Bearer token saved
+                <span className="ub-term-success">[DISCOVERED]</span> POST /api/orders
               </div>
               <div className="ub-term-line ub-term-output">
-                <span className="ub-term-dim">[BROWSER]</span> Closed permanently
+                <span className="ub-term-success">[AUTH]</span> Bearer token + 8 cookies
               </div>
-              <div className="ub-term-line ub-term-comment"># Every time after: direct API</div>
+              <div className="ub-term-line ub-term-comment"># Forever after: direct API calls</div>
               <div className="ub-term-line">
                 <span className="ub-term-prompt">→</span>
-                <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">"get_market"</span></span>
+                <span className="ub-term-cmd">unbrowse_replay <span className="ub-term-arg">"get_markets"</span></span>
               </div>
               <div className="ub-term-line ub-term-output ub-term-final">
-                <span className="ub-term-success">[API]</span> 200 OK <span className="ub-term-money">89ms</span> <span className="ub-term-dim">vs 8s browser</span>
+                <span className="ub-term-success">[INTERNAL API]</span> 200 OK <span className="ub-term-money">89ms</span>
               </div>
             </div>
           </div>
