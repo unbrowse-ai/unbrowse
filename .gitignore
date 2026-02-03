@@ -95,6 +95,9 @@ temp/
 .tmp/
 *.tmp
 
+# Private server/web (not open source)
+server/
+
 # Remotion/trailer (marketing video generation)
 trailer/
 
