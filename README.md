@@ -1,12 +1,33 @@
 # Unbrowse
 
-**Your AI agent is useless on the web. We fix that.**
+[![npm version](https://img.shields.io/npm/v/@getfoundry/unbrowse-openclaw.svg)](https://www.npmjs.com/package/@getfoundry/unbrowse-openclaw)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/lekt9/unbrowse-openclaw.svg)](https://github.com/lekt9/unbrowse-openclaw)
 
-No API? No MCP? Your agent opens a browser and waits 45 seconds to do what you could've done in 5.
+> Turn any website's internal APIs into agent-callable skills
 
-Unbrowse captures the internal APIs that every website already has — and turns them into skills your agent can call in 200ms.
+```
+Before:  Browser automation → 45 seconds → 75% success
+After:   Direct API calls    → 200ms    → 95%+ success
+```
 
-**[unbrowse.ai](https://unbrowse.ai)**
+<!-- Demo placeholder - add GIF/video here -->
+<!-- ![Demo](docs/demo.gif) -->
+
+## Quick Start
+
+```bash
+openclaw plugins install @getfoundry/unbrowse-openclaw
+```
+
+Then capture any website:
+```bash
+# Browse a site and capture its internal APIs
+unbrowse_capture url="polymarket.com"
+
+# Use the generated skill directly
+unbrowse_replay skill="polymarket" method="GET" path="/api/markets"
+```
 
 ## The Problem
 
@@ -49,132 +70,42 @@ Gets JSON response          done
 
 **100x faster.** Your agent is finally faster than you.
 
-## How It Works
+## How It Works (Technically)
 
-### 1. Capture
+Unbrowse operates in three stages:
 
-Log in to any site. Browse normally. Unbrowse records every internal API call:
+### 1. Capture (HAR recording)
+When you browse a site with Unbrowse active, it intercepts all network traffic using Chrome DevTools Protocol (CDP). We capture:
+- XHR/Fetch requests and responses
+- WebSocket traffic
+- Authentication headers, cookies, tokens
+- Request/response body and headers
 
-- Endpoints and parameters
-- Auth headers, cookies, tokens
-- Request/response formats
+This produces a HAR (HTTP Archive) or live traffic stream.
 
-### 2. Generate
+### 2. Extraction (HAR → API endpoints)
+The HAR parser analyzes captured traffic to:
+- Identify actual API endpoints (JSON/XML responses, not static assets)
+- Cluster similar requests and infer parameters
+- Detect authentication method (Bearer token, cookie session, API key)
+- Extract the base URL and service name
+- Clean sensitive data (tokens are stored separately in the vault)
 
-Unbrowse creates a "skill" — a map of everything the site can do:
+### 3. Generation (Endpoints → Skill)
+From the extracted data, we generate:
+- `SKILL.md` — Human-readable API documentation
+- `scripts/api.ts` — TypeScript client with typed methods
+- `auth.json` — Auth configuration (encrypted in vault)
+- `references/REFERENCE.md` — Detailed endpoint reference
 
-```typescript
-// Generated automatically
-polymarket.getMarkets()        // 200ms
-polymarket.getOdds(marketId)   // 150ms
-polymarket.placeBet(...)       // 180ms
+The skill is now usable by your agent via direct HTTP calls.
+
 ```
-
-### 3. Use
-
-Your agent calls the API directly. No browser. No waiting. No fragile selectors.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     BEFORE UNBROWSE                         │
-│                                                             │
-│  Agent → Launch browser → Load page → Find element →        │
-│          Click → Wait → Parse DOM → Extract data            │
-│                                                             │
-│  Time: 45 seconds          Success: 75%                     │
-├─────────────────────────────────────────────────────────────┤
-│                     WITH UNBROWSE                           │
-│                                                             │
-│  Agent → API call → JSON response                           │
-│                                                             │
-│  Time: 200ms               Success: 95%+                    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## The Marketplace: Google for Agents
-
-Humans have Google. Agents have nothing.
-
-No way to search "how do I use Polymarket?" No index of capabilities. Just trial and error on every site.
-
-**Unbrowse Marketplace is Google for agents.**
-
-Your agent searches → finds a skill → downloads it → knows every endpoint instantly.
-
-```bash
-# Search for existing skills
-unbrowse_search query="polymarket"
-
-# Install (you own it forever)
-unbrowse_install skill="polymarket-trading"
-```
-
-No figuring it out. No browser. Just API calls.
-
-## x402: Agents Pay for Themselves
-
-Some skills are free. Some are paid.
-
-Paid skills use [x402](https://x402.org) — machine-to-machine payments on Solana:
-
-1. Agent requests skill
-2. Gets HTTP 402 with price
-3. Signs USDC transaction
-4. Receives skill
-
-No human approval needed. Agents buying their own capabilities.
-
-### Publish Your Skills
-
-Captured an API? Publish it.
-
-```bash
-# Free
-unbrowse_publish name="polymarket-odds"
-
-# Paid ($2.50 USDC)
-unbrowse_publish name="polymarket-trading" price="2.50"
-```
-
-**Creator gets 70%. Instant payout in USDC.**
-
-Your reverse engineering skills are now income.
-
-## Installation
-
-```bash
-openclaw plugins install @getfoundry/unbrowse-openclaw
-```
-
-Also works on Clawdbot and Moltbot:
-```bash
-clawdbot plugins install @getfoundry/unbrowse-openclaw
-moltbot plugins install @getfoundry/unbrowse-openclaw
-```
-
-## Quick Start
-
-### Capture APIs
-
-```bash
-# Tell your agent to browse a site
-"Browse polymarket.com and capture the API"
-
-# Or use the tool directly
-unbrowse_capture url="polymarket.com"
-```
-
-### Generate a Skill
-
-```bash
-unbrowse_generate_skill domain="polymarket.com"
-```
-
-### Use It
-
-```bash
-# Your agent calls the internal API directly
-unbrowse_replay skill="polymarket" action="get_markets"
+Browser Traffic → HAR Capture → API Extraction → Skill Generation → Agent Usage
+        │                │               │                  │              │
+        └─ CDP hook ─────┘    └─ Pattern ───┘    ├─ SKILL.md     └─ unbrowse_replay
+                                                    ├─ api.ts
+                                                    └─ auth.json
 ```
 
 ## Tools
@@ -183,26 +114,27 @@ unbrowse_replay skill="polymarket" action="get_markets"
 
 | Tool | Description |
 |------|-------------|
-| `unbrowse_browse` | Open URL with traffic capture |
-| `unbrowse_capture` | Capture API traffic from domain |
-| `unbrowse_generate_skill` | Generate skill from captured endpoints |
+| `unbrowse_capture` | Capture API traffic from URLs |
+| `unbrowse_learn` | Parse HAR file into skill |
+| `unbrowse_login` | Login and capture session |
 | `unbrowse_replay` | Execute API calls using skills |
 
 ### Auth & Sessions
 
 | Tool | Description |
 |------|-------------|
-| `unbrowse_login` | Login and save session |
-| `unbrowse_session` | Manage saved sessions |
-| `unbrowse_cookies` | Export cookies for a domain |
+| `unbrowse_auth` | Extract auth from browser session |
+| `unbrowse_skills` | List captured skills |
+| `unbrowse_wallet` | Manage Solana wallet for marketplace |
 
 ### Marketplace
 
 | Tool | Description |
 |------|-------------|
 | `unbrowse_search` | Find skills others have created |
-| `unbrowse_install` | Install a skill (own it forever) |
-| `unbrowse_publish` | Share your skills |
+| `unbrowse_download` | Install a skill (free or paid via x402) |
+| `unbrowse_publish` | Share your skills (free or paid) |
+| `unbrowse_record` | Record multi-step workflows |
 
 ## Why Not Browser Automation?
 
@@ -225,6 +157,51 @@ The browser is a 45-second tax on every web action. Skip it.
 | **Your control** | None | None | Full |
 
 99% of websites will never have an API. Your agent needs to work anyway.
+
+## Marketplace: Google for Agents
+
+Humans have Google. Agents have nothing.
+
+No way to search "how do I use Polymarket?" No index of capabilities. Just trial and error on every site.
+
+**Unbrowse Marketplace is Google for agents.**
+
+```bash
+# Search for existing skills
+unbrowse_search query="polymarket"
+
+# Install (you own it forever)
+unbrowse_download skill_id="polymarket-trading"
+```
+
+No figuring it out. No browser. Just API calls.
+
+### x402: Agents Pay for Themselves
+
+Some skills are free. Some are paid.
+
+Paid skills use [x402](https://x402.org) — machine-to-machine payments on Solana:
+
+1. Agent requests skill
+2. Gets HTTP 402 with price
+3. Signs USDC transaction
+4. Receives skill
+
+No human approval needed. Agents buying their own capabilities.
+
+### Publish Your Skills
+
+Captured an API? Publish it.
+
+```bash
+# Free
+unbrowse_publish service="polymarket-odds"
+
+# Paid ($2.50 USDC)
+unbrowse_publish service="polymarket-trading" price_usdc=2.50
+```
+
+**Creator gets 70%. Instant payout in USDC.**
 
 ## Configuration
 
@@ -250,6 +227,18 @@ The browser is a 45-second tax on every web action. Skip it.
 | `skillsOutputDir` | `~/.openclaw/skills` | Where skills are saved |
 | `autoDiscover` | `true` | Auto-generate skills while browsing |
 | `creatorWallet` | - | Solana address for marketplace earnings |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup
+- Running tests
+- Code style guide
+- Submitting PRs
+
+## License
+
+MIT — see [LICENSE](LICENSE)
 
 ---
 
