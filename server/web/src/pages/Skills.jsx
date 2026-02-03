@@ -211,22 +211,21 @@ export default function Skills() {
         <div className="ub-hero-content">
           <div className="ub-hero-badge">
             <span className="ub-pulse" />
-            <span>THE SPEED LAYER FOR OPENCLAW</span>
+            <span>GOOGLE FOR OPENCLAW</span>
           </div>
 
           <div className="ub-hero-headline-row">
             <h1 className="ub-headline">
-              <span className="ub-headline-top">STOP WAITING.</span>
+              <span className="ub-headline-top">ONE AGENT LEARNS.</span>
               <span className="ub-headline-main">
-                <span className="ub-glitch" data-text="START SHIPPING.">START SHIPPING.</span>
+                <span className="ub-glitch" data-text="ALL AGENTS KNOW.">ALL AGENTS KNOW.</span>
               </span>
             </h1>
             <img src="/mascot.png" alt="Unbrowse mascot" className="ub-mascot" />
           </div>
 
           <p className="ub-tagline">
-            Puppeteer takes 45 seconds. We take 200ms.
-            <strong> Unbrowse captures internal APIs so your OpenClaw agent never touches a browser again.</strong>
+            Search for skills. Download. Your agent calls internal APIs in 200ms instead of browser automation in 45 seconds.
           </p>
 
           {/* Primary Search */}
