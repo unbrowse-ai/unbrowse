@@ -217,7 +217,7 @@ export default function Skills() {
           <h1 className="ub-headline">
             <span className="ub-headline-top">INTERNAL APIs</span>
             <span className="ub-headline-main">
-              <span className="ub-glitch" data-text="FOR AGENTS.">FOR AGENTS.</span>
+              <span className="ub-glitch" data-text="FOR OPENCLAW.">FOR OPENCLAW.</span>
             </span>
           </h1>
 
