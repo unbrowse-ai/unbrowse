@@ -758,6 +758,30 @@ a {
   color: var(--text-muted);
 }
 
+/* Infinite Scroll Loader */
+.ub-infinite-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+}
+
+.ub-infinite-loader .ub-loader.small {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.ub-end-message {
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
 /* Skills Grid */
 .ub-skills-grid {
   display: grid;
@@ -1358,6 +1382,204 @@ a {
   font-size: 0.75rem;
   color: var(--text-faint);
   margin-top: 12px;
+}
+
+/* Free skill badge */
+.detail-free-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: var(--emerald-dim);
+  border: 1px solid var(--emerald);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--emerald);
+  margin-left: 12px;
+}
+
+/* SKILL.md Content Section */
+.skill-content-section {
+  background: var(--depth-deep);
+  border: 1px solid var(--border-subtle);
+}
+
+.skill-content-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skill-content-section h2 svg {
+  color: var(--gold);
+}
+
+.content-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  padding: 20px 0;
+}
+
+.loading-spinner.small {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
+.skill-md-content {
+  background: var(--depth-abyss);
+  border: 1px solid var(--border-faint);
+  padding: 24px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.skill-md-content pre {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+.skill-md-content .no-content {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Endpoints List */
+.endpoints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.endpoint-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--depth-abyss);
+  border: 1px solid var(--border-faint);
+}
+
+.endpoint-method {
+  display: inline-flex;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 2px;
+}
+
+.endpoint-method.method-get {
+  background: rgba(34, 211, 238, 0.15);
+  color: var(--cyan);
+}
+
+.endpoint-method.method-post {
+  background: var(--emerald-dim);
+  color: var(--emerald);
+}
+
+.endpoint-method.method-put {
+  background: var(--gold-dim);
+  color: var(--gold);
+}
+
+.endpoint-method.method-patch {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+}
+
+.endpoint-method.method-delete {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.endpoint-path {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-bright);
+  flex: 1;
+}
+
+.endpoint-desc {
+  width: 100%;
+  margin: 8px 0 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Free Download Section */
+.free-download-section {
+  background: linear-gradient(135deg, var(--emerald-dim) 0%, var(--depth-deep) 100%);
+  border: 1px solid var(--emerald);
+}
+
+.free-download-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.free-icon {
+  width: 56px;
+  height: 56px;
+  background: var(--depth-surface);
+  border: 1px solid var(--emerald);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--emerald);
+}
+
+.free-text h3 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  margin: 0 0 6px;
+  color: var(--text-bright);
+}
+
+.free-text p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.free-command {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--depth-abyss);
+  border: 1px solid var(--border-faint);
+  padding: 14px 18px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.free-command code {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.free-command .copy-btn {
+  flex-shrink: 0;
 }
 
 /* Quick start steps */

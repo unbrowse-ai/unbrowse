@@ -97,30 +97,68 @@ function Constellation() {
 export default function Skills() {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState('');
   const [stats, setStats] = useState({ total: 0, services: 0, downloads: 0 });
   const [activeFilter, setActiveFilter] = useState('all');
+  const [hasMore, setHasMore] = useState(true);
+  const [offset, setOffset] = useState(0);
+  const loaderRef = useRef(null);
+  const LIMIT = 50;
 
   useEffect(() => {
     loadMarketplaceSkills();
   }, []);
 
-  const loadMarketplaceSkills = async (query = '') => {
-    setLoading(true);
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMoreSkills();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    if (loaderRef.current) {
+      observer.observe(loaderRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, offset, search]);
+
+  const loadMarketplaceSkills = async (query = '', reset = true) => {
+    if (reset) {
+      setLoading(true);
+      setOffset(0);
+      setHasMore(true);
+    }
     try {
       const url = query.trim()
-        ? `${API_BASE}/marketplace/skills?q=${encodeURIComponent(query)}&limit=100`
-        : `${API_BASE}/marketplace/skills?limit=100`;
+        ? `${API_BASE}/marketplace/skills?q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=0`
+        : `${API_BASE}/marketplace/skills?limit=${LIMIT}&offset=0`;
 
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         const skillsList = data.skills || [];
         setSkills(skillsList);
+        setOffset(LIMIT);
+        setHasMore(skillsList.length === LIMIT);
 
-        const services = new Set(skillsList.map(s => s.serviceName).filter(Boolean)).size;
-        const totalDownloads = skillsList.reduce((sum, s) => sum + (s.downloadCount || 0), 0);
-        setStats({ total: skillsList.length, services, downloads: totalDownloads });
+        // Update stats from API response if available, otherwise compute locally
+        if (data.total !== undefined) {
+          setStats({
+            total: data.total,
+            services: data.services || new Set(skillsList.map(s => s.serviceName).filter(Boolean)).size,
+            downloads: data.downloads || skillsList.reduce((sum, s) => sum + (s.downloadCount || 0), 0)
+          });
+        } else {
+          const services = new Set(skillsList.map(s => s.serviceName).filter(Boolean)).size;
+          const totalDownloads = skillsList.reduce((sum, s) => sum + (s.downloadCount || 0), 0);
+          setStats({ total: skillsList.length, services, downloads: totalDownloads });
+        }
       }
     } catch (err) {
       console.error('Failed to load skills:', err);
@@ -129,9 +167,37 @@ export default function Skills() {
     }
   };
 
+  const loadMoreSkills = async () => {
+    if (loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const url = search.trim()
+        ? `${API_BASE}/marketplace/skills?q=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}`
+        : `${API_BASE}/marketplace/skills?limit=${LIMIT}&offset=${offset}`;
+
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const newSkills = data.skills || [];
+
+        if (newSkills.length > 0) {
+          setSkills(prev => [...prev, ...newSkills]);
+          setOffset(prev => prev + LIMIT);
+        }
+
+        setHasMore(newSkills.length === LIMIT);
+      }
+    } catch (err) {
+      console.error('Failed to load more skills:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const handleSearch = async (e) => {
     e.preventDefault();
-    loadMarketplaceSkills(search);
+    loadMarketplaceSkills(search, true);
   };
 
   const filteredSkills = skills.filter(skill => {
@@ -354,61 +420,76 @@ export default function Skills() {
             <p>No skills match your query</p>
           </div>
         ) : (
-          <div className="ub-skills-grid">
-            {sortedSkills.map((skill) => {
-              const price = parseFloat(skill.priceUsdc || '0');
-              const isFree = price === 0;
+          <>
+            <div className="ub-skills-grid">
+              {sortedSkills.map((skill) => {
+                const price = parseFloat(skill.priceUsdc || '0');
+                const isFree = price === 0;
 
-              return (
-                <Link
-                  key={skill.skillId}
-                  to={`/skill/${skill.skillId}`}
-                  className="ub-skill-card"
-                >
-                  <div className="ub-card-stripe" />
+                return (
+                  <Link
+                    key={skill.skillId}
+                    to={`/skill/${skill.skillId}`}
+                    className="ub-skill-card"
+                  >
+                    <div className="ub-card-stripe" />
 
-                  <div className="ub-card-header">
-                    <div className="ub-card-tags">
-                      {skill.category && (
-                        <span className="ub-tag ub-tag-cat">{skill.category}</span>
-                      )}
-                      {skill.authType && skill.authType !== 'none' && (
-                        <span className="ub-tag ub-tag-auth">{skill.authType}</span>
-                      )}
+                    <div className="ub-card-header">
+                      <div className="ub-card-tags">
+                        {skill.category && (
+                          <span className="ub-tag ub-tag-cat">{skill.category}</span>
+                        )}
+                        {skill.authType && skill.authType !== 'none' && (
+                          <span className="ub-tag ub-tag-auth">{skill.authType}</span>
+                        )}
+                      </div>
+                      <div className={`ub-card-price ${isFree ? 'free' : ''}`}>
+                        {isFree ? 'FREE' : `$${price.toFixed(2)}`}
+                      </div>
                     </div>
-                    <div className={`ub-card-price ${isFree ? 'free' : ''}`}>
-                      {isFree ? 'FREE' : `$${price.toFixed(2)}`}
+
+                    <h3 className="ub-card-name">{skill.name}</h3>
+
+                    <p className="ub-card-desc">
+                      {skill.description || 'No description available'}
+                    </p>
+
+                    <div className="ub-card-footer">
+                      <span className="ub-card-domain">
+                        {skill.domain || skill.serviceName || 'API'}
+                      </span>
+                      <div className="ub-card-stats">
+                        {skill.downloadCount > 0 && (
+                          <span className="ub-card-downloads">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                            </svg>
+                            {skill.downloadCount.toLocaleString()}
+                          </span>
+                        )}
+                        {skill.qualityScore >= 80 && (
+                          <span className="ub-quality">VERIFIED</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </Link>
+                );
+              })}
+            </div>
 
-                  <h3 className="ub-card-name">{skill.name}</h3>
-
-                  <p className="ub-card-desc">
-                    {skill.description || 'No description available'}
-                  </p>
-
-                  <div className="ub-card-footer">
-                    <span className="ub-card-domain">
-                      {skill.domain || skill.serviceName || 'API'}
-                    </span>
-                    <div className="ub-card-stats">
-                      {skill.downloadCount > 0 && (
-                        <span className="ub-card-downloads">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                          </svg>
-                          {skill.downloadCount.toLocaleString()}
-                        </span>
-                      )}
-                      {skill.qualityScore >= 80 && (
-                        <span className="ub-quality">VERIFIED</span>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+            {/* Infinite scroll loader */}
+            <div ref={loaderRef} className="ub-infinite-loader">
+              {loadingMore && (
+                <>
+                  <div className="ub-loader small" />
+                  <span>Loading more skills...</span>
+                </>
+              )}
+              {!hasMore && skills.length > 0 && (
+                <span className="ub-end-message">All {skills.length} skills loaded</span>
+              )}
+            </div>
+          </>
         )}
       </section>
 
