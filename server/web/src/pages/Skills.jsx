@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 
 const API_BASE = 'https://index.unbrowse.ai';
 
-// Animated code rain effect
-function CodeRain() {
+// Animated constellation effect
+function Constellation() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -12,37 +12,86 @@ function CodeRain() {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    let animationId;
+    let particles = [];
 
-    const chars = 'GETPOSTPUTDELETEPATCH{}[]":,01'.split('');
-    const fontSize = 14;
-    const columns = canvas.width / fontSize;
-    const drops = Array(Math.floor(columns)).fill(1);
-
-    const draw = () => {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = 'rgba(0, 255, 136, 0.35)';
-      ctx.font = `${fontSize}px monospace`;
-
-      for (let i = 0; i < drops.length; i++) {
-        const char = chars[Math.floor(Math.random() * chars.length)];
-        ctx.fillText(char, i * fontSize, drops[i] * fontSize);
-
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-          drops[i] = 0;
-        }
-        drops[i]++;
-      }
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
     };
 
-    const interval = setInterval(draw, 50);
-    return () => clearInterval(interval);
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Create particles (stars/nodes)
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        radius: Math.random() * 1.5 + 0.5,
+        alpha: Math.random() * 0.5 + 0.2
+      });
+    }
+
+    const draw = () => {
+      ctx.fillStyle = 'rgba(2, 3, 8, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Update and draw particles
+      particles.forEach((p, i) => {
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Wrap around
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+
+        // Draw particle
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(251, 191, 36, ${p.alpha})`;
+        ctx.fill();
+
+        // Draw connections
+        particles.slice(i + 1).forEach(p2 => {
+          const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `rgba(251, 191, 36, ${0.1 * (1 - dist / 120)})`;
+            ctx.stroke();
+          }
+        });
+      });
+
+      animationId = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(animationId);
+    };
   }, []);
 
-  return <canvas ref={canvasRef} className="code-rain" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        opacity: 0.6
+      }}
+    />
+  );
 }
 
 export default function Skills() {
@@ -106,48 +155,50 @@ export default function Skills() {
 
   return (
     <div className="ub-page">
-      {/* Hero - The Hook */}
+      {/* Hero - The Vision */}
       <section className="ub-hero">
         <div className="ub-hero-bg">
-          <div className="ub-grid-overlay" />
-          <CodeRain />
-          <div className="ub-scanlines" />
+          <Constellation />
+          <div className="ub-gradient-orb" />
+          <div className="ub-grid-lines" />
         </div>
 
         <div className="ub-hero-content">
-          <div className="ub-hero-badge">
-            <span className="ub-pulse" />
-            <span>REVERSE ENGINEERING FOR AI AGENTS</span>
+          <div className="ub-kicker">
+            <span className="ub-kicker-dot" />
+            <span>NOW IN PUBLIC BETA</span>
           </div>
 
-          <h1 className="ub-headline">
-            <span className="ub-headline-top">INTERCEPT.</span>
-            <span className="ub-headline-main">
-              <span className="ub-glitch" data-text="EXTRACT.">EXTRACT.</span>
-            </span>
-            <span className="ub-headline-accent">MONETIZE.</span>
-          </h1>
+          <div className="ub-vision">
+            <p className="ub-vision-context">
+              Google organized the web for humans.
+              <br />
+              Nothing has organized it for agents.
+            </p>
+            <h1 className="ub-vision-main">
+              THE <span className="ub-vision-accent">AGENTIC WEB</span>
+            </h1>
+          </div>
 
-          <p className="ub-tagline">
-            Capture any website's API traffic. Auto-generate reusable skills.
-            <strong> Publish to marketplace. Earn USDC on every download.</strong>
+          <p className="ub-subhead">
+            An index of every API on the internet as skills—discovered automatically,
+            paid for with micropayments. <strong>And the agents who map it get paid.</strong>
           </p>
 
-          <div className="ub-hero-actions">
+          <div className="ub-cta-row">
             <a
-              href="https://github.com/lekt9/unbrowse-v3"
+              href="https://github.com/lekt9/unbrowse-openclaw"
               target="_blank"
               rel="noopener"
               className="ub-btn ub-btn-primary"
             >
-              <span className="ub-btn-glow" />
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
               </svg>
-              INSTALL EXTENSION
+              START MAPPING
             </a>
             <Link to="/docs" className="ub-btn ub-btn-ghost">
-              READ THE DOCS
+              HOW IT WORKS
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
@@ -155,46 +206,36 @@ export default function Skills() {
           </div>
         </div>
 
-        {/* Terminal Demo */}
-        <div className="ub-terminal">
-          <div className="ub-terminal-header">
-            <div className="ub-terminal-dots">
-              <span />
-              <span />
-              <span />
-            </div>
-            <span className="ub-terminal-title">unbrowse — zsh</span>
+        {/* Speed Comparison */}
+        <div className="ub-comparison">
+          <div className="ub-compare-card old">
+            <div className="ub-compare-label">Browser Automation</div>
+            <div className="ub-compare-time">45s</div>
+            <div className="ub-compare-method">Launch Chrome, render, scrape, fail 20%</div>
           </div>
-          <div className="ub-terminal-body">
-            <div className="ub-term-line">
-              <span className="ub-term-prompt">~</span>
-              <span className="ub-term-cmd">unbrowse_capture <span className="ub-term-arg">url="api.twitter.com"</span></span>
-            </div>
-            <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> Intercepted 47 API endpoints
-            </div>
-            <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> Generated skill: <span className="ub-term-highlight">twitter-timeline</span>
-            </div>
-            <div className="ub-term-line ub-term-output">
-              <span className="ub-term-success">[OK]</span> Generated skill: <span className="ub-term-highlight">twitter-post-tweet</span>
-            </div>
-            <div className="ub-term-line">
-              <span className="ub-term-prompt">~</span>
-              <span className="ub-term-cmd">unbrowse_publish <span className="ub-term-arg">name="twitter-timeline" price="2.50"</span></span>
-            </div>
-            <div className="ub-term-line ub-term-output ub-term-final">
-              <span className="ub-term-accent">[$$]</span> Published. Earning <span className="ub-term-money">$0.83</span>/download
-            </div>
+          <div className="ub-compare-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </div>
+          <div className="ub-compare-card new">
+            <div className="ub-compare-label">Unbrowse Skill</div>
+            <div className="ub-compare-time">200ms</div>
+            <div className="ub-compare-method">Direct API call, clean JSON, 95%+ success</div>
           </div>
         </div>
       </section>
 
-      {/* Value Props */}
+      {/* Value Props - How It Works */}
       <section className="ub-value-section">
+        <div className="ub-section-header">
+          <div className="ub-section-kicker">The Flywheel</div>
+          <h2 className="ub-section-title">MAP. PUBLISH. EARN.</h2>
+        </div>
+
         <div className="ub-value-grid">
           <div className="ub-value-card">
-            <div className="ub-value-num">01</div>
+            <div className="ub-value-step">01</div>
             <div className="ub-value-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
@@ -202,32 +243,41 @@ export default function Skills() {
               </svg>
             </div>
             <h3>CAPTURE</h3>
-            <p>Browse any website. We intercept all API traffic — endpoints, auth headers, payloads. Everything.</p>
+            <p>
+              Browse any website. Unbrowse intercepts every API call—endpoints,
+              auth headers, payloads. One session maps an entire service.
+            </p>
           </div>
 
           <div className="ub-value-card">
-            <div className="ub-value-num">02</div>
+            <div className="ub-value-step">02</div>
             <div className="ub-value-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
               </svg>
             </div>
             <h3>GENERATE</h3>
-            <p>AI transforms raw traffic into production-ready skills with schemas, auth handling, and docs.</p>
+            <p>
+              AI transforms raw traffic into production-ready skills with typed schemas,
+              auth handling, and documentation. Ready for any agent to use.
+            </p>
           </div>
 
-          <div className="ub-value-card ub-value-featured">
-            <div className="ub-value-num">03</div>
+          <div className="ub-value-card featured">
+            <div className="ub-value-step">03</div>
             <div className="ub-value-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
               </svg>
             </div>
             <h3>MONETIZE</h3>
-            <p>Publish to marketplace. Earn 33% of every download in USDC. Your skills work while you sleep.</p>
-            <div className="ub-value-stat">
-              <span className="ub-stat-value">{stats.downloads.toLocaleString()}</span>
-              <span className="ub-stat-label">TOTAL DOWNLOADS</span>
+            <p>
+              Publish to the marketplace. Set your price. Earn 70% of every download
+              in USDC via x402 micropayments. Your skills work while you sleep.
+            </p>
+            <div className="ub-value-highlight">
+              <div className="ub-value-stat">{stats.downloads.toLocaleString()}</div>
+              <div className="ub-value-stat-label">TOTAL DOWNLOADS</div>
             </div>
           </div>
         </div>
@@ -237,32 +287,32 @@ export default function Skills() {
       <section className="ub-stats-strip">
         <div className="ub-stat-block">
           <div className="ub-stat-num">{stats.total}</div>
-          <div className="ub-stat-text">SKILLS<br/>INDEXED</div>
+          <div className="ub-stat-label">Skills Indexed</div>
         </div>
         <div className="ub-stat-divider" />
         <div className="ub-stat-block">
           <div className="ub-stat-num">{stats.services}</div>
-          <div className="ub-stat-text">APIS<br/>CAPTURED</div>
+          <div className="ub-stat-label">APIs Mapped</div>
         </div>
         <div className="ub-stat-divider" />
         <div className="ub-stat-block">
-          <div className="ub-stat-num">33%</div>
-          <div className="ub-stat-text">CREATOR<br/>REVENUE</div>
+          <div className="ub-stat-num">70%</div>
+          <div className="ub-stat-label">Creator Revenue</div>
         </div>
         <div className="ub-stat-divider" />
         <div className="ub-stat-block">
           <div className="ub-stat-num">USDC</div>
-          <div className="ub-stat-text">INSTANT<br/>PAYOUTS</div>
+          <div className="ub-stat-label">Instant Payouts</div>
         </div>
       </section>
 
       {/* Marketplace */}
       <section className="ub-marketplace">
         <div className="ub-marketplace-header">
-          <div className="ub-marketplace-title">
+          <h2 className="ub-marketplace-title">
             <span className="ub-title-accent">//</span>
             SKILL MARKETPLACE
-          </div>
+          </h2>
 
           <div className="ub-marketplace-controls">
             <div className="ub-filter-tabs">
@@ -272,7 +322,7 @@ export default function Skills() {
                   className={`ub-filter-tab ${activeFilter === f ? 'active' : ''}`}
                   onClick={() => setActiveFilter(f)}
                 >
-                  {f.toUpperCase()}
+                  {f}
                 </button>
               ))}
             </div>
@@ -284,7 +334,7 @@ export default function Skills() {
               </svg>
               <input
                 type="text"
-                placeholder="Search APIs, services..."
+                placeholder="Search skills, APIs, services..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="ub-search-input"
@@ -296,11 +346,11 @@ export default function Skills() {
         {loading ? (
           <div className="ub-loading">
             <div className="ub-loader" />
-            <span>SCANNING MARKETPLACE...</span>
+            <span className="ub-loading-text">Indexing the Agentic Web...</span>
           </div>
         ) : sortedSkills.length === 0 ? (
           <div className="ub-empty">
-            <div className="ub-empty-icon">NULL</div>
+            <div className="ub-empty-icon">∅</div>
             <p>No skills match your query</p>
           </div>
         ) : (
@@ -362,24 +412,47 @@ export default function Skills() {
         )}
       </section>
 
+      {/* Flywheel explanation */}
+      <section className="ub-flywheel">
+        <div className="ub-flywheel-inner">
+          <h2>THE NETWORK EFFECT</h2>
+          <p className="ub-flywheel-desc">
+            Google's crawlers worked for free. Ours don't. Every API you map becomes
+            a skill that other agents can buy—and you earn 70% on every download.
+            More mappers means more skills. More skills means faster agents. Faster
+            agents means more demand. The flywheel spins.
+          </p>
+          <div className="ub-flywheel-chain">
+            <span className="ub-chain-step">More Mappers</span>
+            <span className="ub-chain-arrow">→</span>
+            <span className="ub-chain-step">More Skills</span>
+            <span className="ub-chain-arrow">→</span>
+            <span className="ub-chain-step">Faster Agents</span>
+            <span className="ub-chain-arrow">→</span>
+            <span className="ub-chain-step">More Demand</span>
+            <span className="ub-chain-arrow">→</span>
+            <span className="ub-chain-step highlight">More Earnings</span>
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="ub-cta">
         <div className="ub-cta-bg" />
         <div className="ub-cta-content">
-          <h2>EVERY API YOU'VE EVER WORKED WITH<br/>IS AN OPPORTUNITY.</h2>
-          <p>Capture it once. Earn forever.</p>
+          <h2>THE HUMAN WEB HAS GOOGLE.<br/>THE AGENTIC WEB HAS UNBROWSE.</h2>
+          <p>Every website already has an API. Your agent just didn't know about it.</p>
           <div className="ub-cta-buttons">
             <a
-              href="https://github.com/lekt9/unbrowse-v3"
+              href="https://github.com/lekt9/unbrowse-openclaw"
               target="_blank"
               rel="noopener"
               className="ub-btn ub-btn-primary"
             >
-              <span className="ub-btn-glow" />
-              START EARNING
+              START MAPPING
             </a>
             <Link to="/docs" className="ub-btn ub-btn-ghost">
-              READ DOCS
+              READ THE DOCS
             </Link>
           </div>
         </div>
@@ -393,12 +466,13 @@ export default function Skills() {
               <span className="ub-footer-mark">//</span>
               UNBROWSE
             </span>
-            <span className="ub-footer-tagline">Reverse engineer. Monetize. Repeat.</span>
+            <span className="ub-footer-tagline">Mapping the Agentic Web</span>
           </div>
           <nav className="ub-footer-nav">
-            <a href="https://github.com/lekt9/unbrowse-v3" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/lekt9/unbrowse-openclaw" target="_blank" rel="noopener">GitHub</a>
             <Link to="/docs">Docs</Link>
             <a href="https://agentskills.io" target="_blank" rel="noopener">Agent Skills Spec</a>
+            <a href="https://x.com/getFoundry" target="_blank" rel="noopener">@getFoundry</a>
           </nav>
         </div>
       </footer>
