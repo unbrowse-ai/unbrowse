@@ -7,7 +7,6 @@ Thanks for your interest in contributing! Unbrowse helps AI agents work with any
 ### Prerequisites
 
 - **Node.js** 18+ or Bun
-- **Rust** (for building the native module)
 - **Playwright** (`npx playwright install chromium`)
 - **SQLite3** (usually pre-installed on macOS/Linux)
 
@@ -20,9 +19,6 @@ cd unbrowse-openclaw
 
 # Install dependencies
 npm install
-
-# Build the native Rust module
-cd native && cargo build --release && cd ..
 
 # Build TypeScript
 npm run build
@@ -54,12 +50,8 @@ unbrowse-openclaw/
 │   ├── cdp-capture.ts        # Live CDP network capture
 │   ├── skill-index.ts        # Cloud marketplace client (x402 payments)
 │   ├── vault.ts              # Encrypted credential storage
+│   ├── wallet.ts             # Ed25519 wallet for marketplace signing
 │   └── ...
-├── native/                   # Rust native module
-│   └── src/
-│       ├── lib.rs            # Main native exports
-│       ├── har.rs            # HAR parsing
-│       └── ...
 └── hooks/                    # Auto-discovery hooks
 ```
 
@@ -91,19 +83,6 @@ export async function generateSkill(
 export type Config = { name: string };
 export function makeSkill(data: any) {
   // implicit return type
-}
-```
-
-### Rust (Native Module)
-
-- Follow standard Rust naming: `snake_case` for functions, `CamelCase` for types
-- Use `anyhow` for error handling
-- Add doc comments for all public items
-
-```rust
-/// Parse HAR content and extract API endpoints.
-pub fn parse_har(har_json: &str, seed_url: Option<&str>) -> Result<ApiData> {
-    // ...
 }
 ```
 
