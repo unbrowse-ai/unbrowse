@@ -446,6 +446,48 @@ a {
   font-weight: 500;
 }
 
+/* Install Command Box */
+.ub-install-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto 32px;
+  padding: 4px 4px 4px 20px;
+  background: var(--depth-deep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+.ub-install-box code {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ub-copy-btn {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  background: var(--gold);
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: var(--depth-abyss);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ub-copy-btn:hover {
+  background: var(--gold-bright);
+  transform: scale(1.02);
+}
+
 /* CTA buttons */
 .ub-cta-row {
   display: flex;

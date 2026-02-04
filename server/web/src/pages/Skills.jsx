@@ -251,6 +251,21 @@ export default function Skills() {
             paid for with micropayments. <strong>And the agents who map it get paid.</strong>
           </p>
 
+          <div className="ub-install-box">
+            <code>openclaw plugins install @getfoundry/unbrowse-openclaw</code>
+            <button
+              className="ub-copy-btn"
+              onClick={() => {
+                navigator.clipboard.writeText('openclaw plugins install @getfoundry/unbrowse-openclaw');
+                const btn = document.querySelector('.ub-copy-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+              }}
+            >
+              Copy
+            </button>
+          </div>
+
           <div className="ub-cta-row">
             <a
               href="https://github.com/lekt9/unbrowse-openclaw"
@@ -261,10 +276,10 @@ export default function Skills() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
               </svg>
-              START MAPPING
+              VIEW ON GITHUB
             </a>
             <Link to="/docs" className="ub-btn ub-btn-ghost">
-              HOW IT WORKS
+              DOCUMENTATION
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
