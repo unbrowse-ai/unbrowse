@@ -158,7 +158,6 @@ async function closeTab(targetId: string, port: number): Promise<void> {
 
 /** Filter requests to API calls only. */
 function filterApiRequests(entries: BrowserRequestEntry[]): CapturedEntry[] {
-  if (!entries || !Array.isArray(entries)) return [];
   return entries
     .filter((entry) => {
       const rt = entry.resourceType?.toLowerCase();
@@ -316,15 +315,7 @@ export async function captureFromChromeDebug(
     waitMs?: number;
   } = {},
 ): Promise<CaptureResult> {
-  let chromium: any;
-  try {
-    const pw = await import("playwright");
-    chromium = pw.chromium;
-  } catch {
-    throw new Error(
-      "Playwright is not installed. Install it with: npm install playwright"
-    );
-  }
+  const { chromium } = await import("playwright");
   const cdpUrl = opts.cdpUrl ?? "http://127.0.0.1:9222";
   const waitMs = opts.waitMs ?? 5000;
 

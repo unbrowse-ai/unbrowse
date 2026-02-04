@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "description": "Your agent is useless without an API. Unbrowse fixes that. Capture internal APIs from any website and skip the slow browser. 100x faster web access for AI agents.",
   "homepage": "https://unbrowse.ai",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "repository": {
     "type": "git",
     "url": "https://github.com/lekt9/unbrowse-openclaw"
@@ -22,8 +22,14 @@
     "solana"
   ],
   "files": [
-    "dist/",
-    "src/",
+    "dist/index.js",
+    "dist/index.d.ts",
+    "native/index.js",
+    "native/index.d.ts",
+    "native/unbrowse-native.darwin-arm64.node",
+    "native/unbrowse-native.darwin-x64.node",
+    "native/unbrowse-native.linux-x64-gnu.node",
+    "native/unbrowse-native.win32-x64-msvc.node",
     "hooks/",
     "openclaw.plugin.json",
     "clawdbot.plugin.json"
@@ -60,8 +66,7 @@
   "peerDependencies": {
     "openclaw": "*",
     "clawdbot": "*",
-    "moltbot": "*",
-    "playwright": "^1.40.0"
+    "moltbot": "*"
   },
   "peerDependenciesMeta": {
     "openclaw": {
@@ -71,9 +76,6 @@
       "optional": true
     },
     "moltbot": {
-      "optional": true
-    },
-    "playwright": {
       "optional": true
     }
   },
