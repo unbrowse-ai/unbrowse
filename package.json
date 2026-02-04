@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -60,7 +60,8 @@
   "peerDependencies": {
     "openclaw": "*",
     "clawdbot": "*",
-    "moltbot": "*"
+    "moltbot": "*",
+    "playwright": "^1.40.0"
   },
   "peerDependenciesMeta": {
     "openclaw": {
@@ -70,6 +71,9 @@
       "optional": true
     },
     "moltbot": {
+      "optional": true
+    },
+    "playwright": {
       "optional": true
     }
   },

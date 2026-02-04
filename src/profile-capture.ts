@@ -316,7 +316,15 @@ export async function captureFromChromeDebug(
     waitMs?: number;
   } = {},
 ): Promise<CaptureResult> {
-  const { chromium } = await import("playwright");
+  let chromium: any;
+  try {
+    const pw = await import("playwright");
+    chromium = pw.chromium;
+  } catch {
+    throw new Error(
+      "Playwright is not installed. Install it with: npm install playwright"
+    );
+  }
   const cdpUrl = opts.cdpUrl ?? "http://127.0.0.1:9222";
   const waitMs = opts.waitMs ?? 5000;
 
