@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.2.0",
+  "version": "0.5.1",
   "type": "module",
   "main": "index.ts",
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
@@ -20,16 +20,28 @@
     "usdc"
   ],
   "openclaw": {
-    "extensions": ["./index.ts"],
-    "hooks": ["./hooks/auto-discover"]
+    "extensions": [
+      "./index.ts"
+    ],
+    "hooks": [
+      "./hooks/auto-discover"
+    ]
   },
   "clawdbot": {
-    "extensions": ["./index.ts"],
-    "hooks": ["./hooks/auto-discover"]
+    "extensions": [
+      "./index.ts"
+    ],
+    "hooks": [
+      "./hooks/auto-discover"
+    ]
   },
   "moltbot": {
-    "extensions": ["./index.ts"],
-    "hooks": ["./hooks/auto-discover"]
+    "extensions": [
+      "./index.ts"
+    ],
+    "hooks": [
+      "./hooks/auto-discover"
+    ]
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.0",
@@ -44,9 +56,15 @@
     "moltbot": "*"
   },
   "peerDependenciesMeta": {
-    "openclaw": { "optional": true },
-    "clawdbot": { "optional": true },
-    "moltbot": { "optional": true }
+    "openclaw": {
+      "optional": true
+    },
+    "clawdbot": {
+      "optional": true
+    },
+    "moltbot": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
