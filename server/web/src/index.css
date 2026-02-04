@@ -79,72 +79,209 @@ a {
   min-height: 100vh;
 }
 
-.navbar {
+/* New Navigation */
+.ub-nav {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
-  background: rgba(2, 3, 8, 0.85);
-  backdrop-filter: blur(20px);
+  z-index: 1000;
+  padding: 16px 0;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ub-nav.scrolled {
+  padding: 8px 0;
+  background: rgba(2, 3, 8, 0.92);
+  backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border-faint);
 }
 
-.navbar-inner {
+.ub-nav-inner {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0 24px;
-  height: 72px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: 56px;
 }
 
-.logo {
+/* Brand / Logo */
+.ub-nav-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  letter-spacing: 0.08em;
-  color: var(--text-bright);
+  gap: 14px;
+  text-decoration: none;
 }
 
-.logo-icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
-  border-radius: 8px;
+.ub-nav-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.25);
+  transition: all 0.3s ease;
 }
 
-.logo-icon svg {
-  width: 20px;
-  height: 20px;
-  color: var(--depth-abyss);
+.ub-nav-brand:hover .ub-nav-logo {
+  transform: scale(1.05);
+  box-shadow: 0 6px 28px rgba(249, 115, 22, 0.35);
 }
 
-.nav-links {
+.ub-nav-logo img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.ub-nav-wordmark {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.nav-links a {
-  padding: 10px 18px;
+.ub-nav-mark {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f97316;
+  opacity: 0.9;
+}
+
+.ub-nav-name {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  letter-spacing: 0.12em;
+  color: var(--text-bright);
+}
+
+/* Center Nav Links */
+.ub-nav-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+}
+
+.ub-nav-link {
+  position: relative;
+  padding: 10px 24px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-decoration: none;
   border-radius: 8px;
-  font-size: 0.875rem;
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+
+.ub-nav-link-text {
+  position: relative;
+  z-index: 1;
+}
+
+.ub-nav-link-indicator {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  border-radius: 8px;
+  transition: all 0.25s ease;
+}
+
+.ub-nav-link:hover {
+  color: var(--text-primary);
+}
+
+.ub-nav-link:hover .ub-nav-link-indicator {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ub-nav-link.active {
+  color: var(--text-bright);
+}
+
+.ub-nav-link.active .ub-nav-link-indicator {
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+}
+
+/* GitHub CTA */
+.ub-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ub-nav-github {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: all 0.2s;
+  text-decoration: none;
+  transition: all 0.3s ease;
 }
 
-.nav-links a:hover,
-.nav-links a.active {
+.ub-nav-github svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+}
+
+.ub-nav-github:hover {
   color: var(--text-bright);
-  background: var(--depth-shallow);
+  border-color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ub-nav-github:hover svg {
+  transform: scale(1.1);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .ub-nav-inner {
+    padding: 0 16px;
+  }
+
+  .ub-nav-wordmark {
+    display: none;
+  }
+
+  .ub-nav-center {
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .ub-nav-link {
+    padding: 8px 14px;
+    font-size: 0.8rem;
+  }
+
+  .ub-nav-github span {
+    display: none;
+  }
+
+  .ub-nav-github {
+    padding: 10px;
+    border-radius: 10px;
+  }
 }
 
 /* ============================================
@@ -993,55 +1130,6 @@ a {
 .ub-chain-arrow {
   color: var(--gold);
   font-size: 1.25rem;
-}
-
-/* ============================================
-   STAR HISTORY SECTION
-   ============================================ */
-
-.ub-star-history {
-  padding: 80px 24px;
-  background: var(--depth-deep);
-  border-top: 1px solid var(--border-faint);
-  border-bottom: 1px solid var(--border-faint);
-}
-
-.ub-star-history-inner {
-  max-width: 800px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.ub-star-history h2 {
-  font-family: var(--font-display);
-  font-size: clamp(1.5rem, 4vw, 2rem);
-  letter-spacing: 0.1em;
-  color: var(--text-bright);
-  margin-bottom: 16px;
-}
-
-.ub-star-history-desc {
-  color: var(--text-secondary);
-  font-size: 1rem;
-  margin-bottom: 32px;
-}
-
-.ub-star-chart-link {
-  display: block;
-  transition: transform 0.3s ease;
-}
-
-.ub-star-chart-link:hover {
-  transform: scale(1.02);
-}
-
-.ub-star-chart {
-  width: 100%;
-  max-width: 700px;
-  height: auto;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  background: #fff;
 }
 
 /* ============================================

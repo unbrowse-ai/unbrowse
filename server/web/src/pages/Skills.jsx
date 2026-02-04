@@ -517,28 +517,6 @@ export default function Skills() {
         </div>
       </section>
 
-      {/* Star History */}
-      <section className="ub-star-history">
-        <div className="ub-star-history-inner">
-          <h2>JOIN THE MOVEMENT</h2>
-          <p className="ub-star-history-desc">
-            The agentic web is growing. Star us on GitHub to follow the journey.
-          </p>
-          <a
-            href="https://www.star-history.com/#lekt9/unbrowse-openclaw&type=date&legend=top-left"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ub-star-chart-link"
-          >
-            <img
-              src="https://api.star-history.com/svg?repos=lekt9/unbrowse-openclaw&type=Date"
-              alt="Star History Chart"
-              className="ub-star-chart"
-            />
-          </a>
-        </div>
-      </section>
-
       {/* Final CTA */}
       <section className="ub-cta">
         <div className="ub-cta-bg" />

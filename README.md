@@ -343,6 +343,10 @@ my-skill/
     └── api.md        # API reference
 ```
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=lekt9/unbrowse-openclaw&type=Date)](https://star-history.com/#lekt9/unbrowse-openclaw&Date)
+
 ## License
 
 MIT
