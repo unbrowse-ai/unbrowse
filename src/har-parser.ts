@@ -251,20 +251,6 @@ function getResponseContentType(entry: HarEntry): string | undefined {
  *                  analytics domain like Google or TikTok).
  */
 export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string): ApiData {
-  // Guard against null/undefined input
-  if (!har || !har.log) {
-    return {
-      service: "unknown-api",
-      baseUrls: [],
-      baseUrl: "https://api.example.com",
-      authHeaders: {},
-      authMethod: "Unknown",
-      cookies: {},
-      authInfo: {},
-      requests: [],
-      endpoints: {},
-    };
-  }
   const requests: ParsedRequest[] = [];
   const authHeaders: Record<string, string> = {};
   const cookies: Record<string, string> = {};

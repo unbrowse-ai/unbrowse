@@ -1,184 +1,98 @@
 # Contributing to Unbrowse
 
-Thanks for your interest in contributing! Unbrowse helps AI agents work with any website by capturing and reverse-engineering internal APIs.
+Self-learning browser agent extension for Clawdbot. Captures API traffic from websites, generates reusable skills, and replays them with stored auth.
 
 ## Development Setup
 
 ### Prerequisites
+- Node.js 18+ or Bun
+- Playwright (`npx playwright install chromium`)
 
-- **Node.js** 18+ or Bun
-- **Playwright** (`npx playwright install chromium`)
-- **SQLite3** (usually pre-installed on macOS/Linux)
-
-### Quick Setup
-
+### Install
 ```bash
-# Clone the repo
-git clone https://github.com/lekt9/unbrowse-openclaw.git
-cd unbrowse-openclaw
-
-# Install dependencies
 npm install
-
-# Build TypeScript
-npm run build
+# or
+bun install
 ```
 
-### Running with OpenClaw
-
+### Build
 ```bash
-# Start the gateway
-openclaw gateway restart
-
-# Check status
-openclaw gateway status
-
-# View logs
-tail -f ~/.openclaw/logs/gateway.log
+npx tsc          # compile TypeScript
+npx tsc --noEmit # type-check only
 ```
 
-## Project Structure
-
-```
-unbrowse-openclaw/
-├── index.ts                  # Plugin entry point (11 tools)
-├── src/
-│   ├── har-parser.ts         # HAR → API endpoints
-│   ├── skill-generator.ts    # Endpoints → SKILL.md + auth.json + api.ts
-│   ├── profile-capture.ts    # Playwright-based network capture
-│   ├── session-login.ts      # Credential login + session capture
-│   ├── cdp-capture.ts        # Live CDP network capture
-│   ├── skill-index.ts        # Cloud marketplace client (x402 payments)
-│   ├── vault.ts              # Encrypted credential storage
-│   ├── wallet.ts             # Ed25519 wallet for marketplace signing
-│   └── ...
-└── hooks/                    # Auto-discovery hooks
+### Run with Clawdbot Gateway
+```bash
+clawdbot gateway restart  # picks up extension changes
+clawdbot gateway status   # check if running
 ```
 
-## Code Style Guide
+Gateway logs: `~/.clawdbot/logs/gateway.log`
 
-### TypeScript
+## Architecture
 
-- Use **strict TypeScript** — enable all strict flags
-- Prefer `interface` over `type` for object shapes
-- Use explicit return types on exported functions
-- Document public APIs with JSDoc comments
-
-```typescript
-// Good
-export interface SkillConfig {
-  name: string;
-  timeout?: number;
-}
-
-/** Generate a skill from captured API data. */
-export async function generateSkill(
-  data: ApiData,
-  outputDir?: string
-): Promise<SkillResult> {
-  // ...
-}
-
-// Avoid
-export type Config = { name: string };
-export function makeSkill(data: any) {
-  // implicit return type
-}
+```
+index.ts                    # Plugin entry point (11 tools, hooks)
+src/
+├── har-parser.ts           # HAR → API endpoints
+├── skill-generator.ts      # Endpoints → SKILL.md + auth.json + api.ts
+├── profile-capture.ts      # Playwright-based network capture
+├── session-login.ts        # Credential login + session capture
+├── cdp-capture.ts          # Live CDP network capture
+├── stealth-browser.ts      # Cloud browser via BrowserBase
+├── auto-discover.ts        # Background skill generation hook
+├── skill-index.ts          # Cloud marketplace client
+├── vault.ts                # Encrypted credential storage
+├── token-refresh.ts        # OAuth/JWT token refresh detection
+├── dom-service.ts          # Browser-use style element indexing
+└── site-crawler.ts         # Link discovery and crawling
+server/                     # Skill marketplace server (x402 payments)
 ```
 
-### Error Handling
+## Key Concepts
 
-- Use descriptive error messages
-- Include context for failures
-- Never expose internal details in production errors
+### Skills
+A "skill" is a learned API integration:
+- `SKILL.md` — Human-readable endpoint documentation
+- `auth.json` — Stored credentials (headers, cookies, tokens)
+- `scripts/api.ts` — Generated TypeScript client
 
-```typescript
-// Good
-if (!resp.ok) {
-  const text = await resp.text().catch(() => "");
-  throw new Error(`Skill download failed (${resp.status}): ${text}`);
-}
+### Browser Connection Cascade
+1. CDP connect to Clawdbot managed browser (port 18791)
+2. CDP connect to Chrome remote debugging (port 9222)
+3. Launch fresh Playwright Chromium
 
-// Avoid
-if (!resp.ok) throw new Error("Failed");
-```
+### Auth Methods
+- Cookie-based (session cookies from browser)
+- Header-based (Bearer tokens, API keys)
+- OAuth/JWT with automatic refresh detection
+
+## Important Notes
+
+- `parseHar(har, seedUrl)` — Always pass seedUrl to get correct service name
+- Profile capture filters to XHR/Fetch only — GET text/html are page navs
+- Set-Cookie headers must NOT be split on commas (dates contain commas)
+- Gateway loads `.ts` source directly — `dist/` alone is not enough
 
 ## Testing
 
-### Type Checking
-
 ```bash
-npm run build       # Full build
-npx tsc --noEmit    # Type check only
+# Type check
+npx tsc --noEmit
+
+# Manual testing via Clawdbot
+clawdbot gateway restart
+# Then use unbrowse_* tools in a Clawdbot session
 ```
 
-### Manual Testing
+## Pull Requests
 
-Since this is a browser automation tool, most testing is manual:
+1. Fork the repo
+2. Create a feature branch
+3. Make your changes
+4. Run `npx tsc --noEmit` to verify types
+5. Submit a PR with a clear description
 
-1. Start the gateway: `openclaw gateway restart`
-2. Use the tools in an OpenClaw session
-3. Verify HAR capture, skill generation, and replay work
+## License
 
-### Test Sites
-
-Good sites to test with:
-- `https://httpbin.org` — Simple API responses
-- `https://jsonplaceholder.typicode.com` — Mock REST API
-
-## Submitting PRs
-
-1. **Fork** the repository
-2. **Create a feature branch**: `git checkout -b feature/your-feature`
-3. **Make your changes** following the style guide
-4. **Test thoroughly**:
-   - Run `npm run build` to verify TypeScript compiles
-   - Test your changes with the actual gateway
-5. **Commit** with clear messages:
-   ```
-   feat: add workflow recording support
-   fix: handle missing auth headers gracefully
-   docs: update API reference
-   ```
-6. **Push** to your fork: `git push origin feature/your-feature`
-7. **Open a Pull Request** with:
-   - Clear description of what changed and why
-   - Any breaking changes
-   - Screenshots/GIFs if UI-related
-
-## PR Review Process
-
-- All PRs require at least one review
-- CI must pass (type check, build)
-- Address review feedback promptly
-- Squash commits before merge if requested
-
-## Areas That Need Help
-
-- **More auth methods** — OAuth2 flows, JWT refresh
-- **Better parameter inference** — Detect path/body/query params from examples
-- **Workflow learning** — Improve pattern detection in recordings
-- **Documentation** — More examples, tutorials
-- **Tests** — Unit tests for pure functions
-
-## Security
-
-- Never commit real credentials
-- Use the vault for all auth storage
-- Sanitize sensitive data before logging
-- Report security issues privately to: security@unbrowse.ai
-
-## Code of Conduct
-
-- Be respectful and constructive
-- Focus on the code, not the person
-- Help newcomers learn
-- Assume good intent
-
-## Questions?
-
-- Open a [Discussion](https://github.com/lekt9/unbrowse-openclaw/discussions) for questions
-- Open an [Issue](https://github.com/lekt9/unbrowse-openclaw/issues) for bugs
-- Join our [Discord](https://discord.gg/unbrowse) for real-time chat
-
-Thanks for contributing! 🚀
+MIT
