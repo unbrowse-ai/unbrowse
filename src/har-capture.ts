@@ -11,24 +11,13 @@
  * - All auto-added headers (User-Agent, Origin, etc.)
  */
 
-import type { Browser, BrowserContext, Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { HarEntry } from "./types.js";
 import type { CrawlResult } from "./site-crawler.js";
-
-async function getChromium() {
-  try {
-    const pw = await import("playwright");
-    return pw.chromium;
-  } catch {
-    throw new Error(
-      "Playwright is not installed. Install it with: npm install playwright"
-    );
-  }
-}
 
 export interface HarCaptureResult {
   har: { log: { entries: HarEntry[] } };
@@ -75,7 +64,6 @@ export async function captureWithHar(
   // Temp file for HAR output
   const harPath = join(tmpdir(), `unbrowse-${randomUUID()}.har`);
 
-  const chromium = await getChromium();
   let browser: Browser;
   let context: BrowserContext;
 
