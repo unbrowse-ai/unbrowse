@@ -12,5 +12,5 @@
     "composite": true,
     "noImplicitAny": false
   },
-  "include": ["index.ts", "src/**/*.ts", "openclaw.d.ts"]
+  "include": ["index.ts", "openclaw.d.ts"]
 }
