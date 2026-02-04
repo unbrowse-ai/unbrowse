@@ -996,6 +996,55 @@ a {
 }
 
 /* ============================================
+   STAR HISTORY SECTION
+   ============================================ */
+
+.ub-star-history {
+  padding: 80px 24px;
+  background: var(--depth-deep);
+  border-top: 1px solid var(--border-faint);
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.ub-star-history-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.ub-star-history h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  letter-spacing: 0.1em;
+  color: var(--text-bright);
+  margin-bottom: 16px;
+}
+
+.ub-star-history-desc {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin-bottom: 32px;
+}
+
+.ub-star-chart-link {
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.ub-star-chart-link:hover {
+  transform: scale(1.02);
+}
+
+.ub-star-chart {
+  width: 100%;
+  max-width: 700px;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: #fff;
+}
+
+/* ============================================
    CTA SECTION
    ============================================ */
 
