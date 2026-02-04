@@ -4,6 +4,13 @@
   "type": "module",
   "main": "index.ts",
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
+  "files": [
+    "index.ts",
+    "src/",
+    "hooks/",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/lekt9/unbrowse-openclaw"
