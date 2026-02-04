@@ -79,7 +79,7 @@ export class WorkflowLearner {
     }
 
     // Has decision annotations = workflow
-    const hasDecisions = session.annotations.some((a) => a.type === "decision");
+    const hasDecisions = (session.annotations ?? []).some((a) => a.type === "decision");
     if (hasDecisions) {
       return "workflow";
     }
@@ -119,7 +119,7 @@ export class WorkflowLearner {
       return this.learnWorkflow(session);
     }
 
-    const domain = session.domains[0] || new URL(apiCalls[0].url).hostname;
+    const domain = (session.domains ?? [])[0] || new URL(apiCalls[0].url).hostname;
     const baseUrl = this.detectBaseUrl(apiCalls);
     const auth = this.detectAuth(apiCalls, domain);
     const endpoints = this.extractEndpoints(apiCalls, baseUrl);
@@ -425,7 +425,7 @@ export class WorkflowLearner {
     const steps: WorkflowStep[] = [];
     let stepId = 1;
 
-    for (const entry of session.entries) {
+    for (const entry of session.entries ?? []) {
       const step = this.entryToStep(entry, `step-${stepId}`);
       if (step) {
         steps.push(step);
@@ -437,7 +437,7 @@ export class WorkflowLearner {
     this.detectDependencies(steps);
 
     // Identify decision points from annotations
-    for (const annotation of session.annotations) {
+    for (const annotation of session.annotations ?? []) {
       if (annotation.type === "decision" && steps[annotation.stepIndex]) {
         const step = steps[annotation.stepIndex];
         step.type = "decision";
@@ -618,14 +618,14 @@ export class WorkflowLearner {
     }
 
     // Generate from domains
-    for (const domain of session.domains) {
+    for (const domain of session.domains ?? []) {
       const cleanDomain = domain.replace(/^(www|api|app)\./, "").split(".")[0];
       triggers.push(`use ${cleanDomain}`);
       triggers.push(`interact with ${cleanDomain}`);
     }
 
     // Generate from intent annotations
-    for (const annotation of session.annotations) {
+    for (const annotation of session.annotations ?? []) {
       if (annotation.type === "intent") {
         triggers.push(annotation.note.toLowerCase());
       }
