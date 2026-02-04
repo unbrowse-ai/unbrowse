@@ -303,7 +303,7 @@ export default function Skills() {
               {/* Install */}
               <div className="ub-msg ub-msg-user">
                 <div className="ub-msg-bubble">
-                  Install the unbrowse extension
+                  Install the @getfoundry/unbrowse-openclaw extension
                 </div>
                 <span className="ub-msg-time">2:41 PM</span>
               </div>
