@@ -172,6 +172,8 @@ export class OnePasswordProvider implements CredentialProvider {
         urls?: Array<{ href: string; primary?: boolean }>;
       }>;
 
+      if (!Array.isArray(items)) return results;
+
       // Filter items that match the domain
       const matchingItems = items.filter((item) => {
         if (!item.urls) return false;

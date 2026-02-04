@@ -158,6 +158,7 @@ async function closeTab(targetId: string, port: number): Promise<void> {
 
 /** Filter requests to API calls only. */
 function filterApiRequests(entries: BrowserRequestEntry[]): CapturedEntry[] {
+  if (!entries || !Array.isArray(entries)) return [];
   return entries
     .filter((entry) => {
       const rt = entry.resourceType?.toLowerCase();

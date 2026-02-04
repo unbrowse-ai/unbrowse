@@ -57,10 +57,11 @@ export class WorkflowLearner {
 
   /** Categorize session as api-package or workflow */
   private categorize(session: RecordedSession): SkillCategory {
-    const domains = new Set(session.entries.map((e) => e.domain));
-    const apiCalls = session.entries.filter((e) => e.type === "api-call");
-    const navigations = session.entries.filter((e) => e.type === "navigation" || e.type === "page-load");
-    const actions = session.entries.filter((e) => e.type === "action");
+    const entries = session.entries ?? [];
+    const domains = new Set(entries.map((e) => e.domain));
+    const apiCalls = entries.filter((e) => e.type === "api-call");
+    const navigations = entries.filter((e) => e.type === "navigation" || e.type === "page-load");
+    const actions = entries.filter((e) => e.type === "action");
 
     // Single domain with mostly API calls = api-package
     if (domains.size === 1 && apiCalls.length > navigations.length * 2) {
@@ -112,7 +113,7 @@ export class WorkflowLearner {
 
   /** Learn an API package from a single-site session */
   private learnApiPackage(session: RecordedSession): LearningResult {
-    const apiCalls = session.entries.filter((e) => e.type === "api-call");
+    const apiCalls = (session.entries ?? []).filter((e) => e.type === "api-call");
     if (apiCalls.length === 0) {
       // Fallback: treat as minimal workflow
       return this.learnWorkflow(session);
@@ -154,8 +155,9 @@ export class WorkflowLearner {
 
   /** Learn a workflow from a multi-site or complex session */
   private learnWorkflow(session: RecordedSession): LearningResult {
-    const domains = Array.from(new Set(session.entries.map((e) => e.domain)));
-    const auth = domains.map((d) => this.detectAuthForDomain(session.entries, d));
+    const entries = session.entries ?? [];
+    const domains = Array.from(new Set(entries.map((e) => e.domain)));
+    const auth = domains.map((d) => this.detectAuthForDomain(entries, d));
     const steps = this.extractWorkflowSteps(session);
     const inputs = this.detectInputs(session, steps);
     const outputs = this.detectOutputs(session, steps);
@@ -650,18 +652,20 @@ export class WorkflowLearner {
   /** Calculate confidence score */
   private calculateConfidence(session: RecordedSession, category: SkillCategory): number {
     let confidence = 0.5; // Base confidence
+    const entries = session.entries ?? [];
+    const annotations = session.annotations ?? [];
 
     // More entries = higher confidence
-    confidence += Math.min(session.entries.length / 50, 0.2);
+    confidence += Math.min(entries.length / 50, 0.2);
 
     // Annotations increase confidence
-    confidence += Math.min(session.annotations.length / 10, 0.15);
+    confidence += Math.min(annotations.length / 10, 0.15);
 
     // Successful responses increase confidence
-    const successfulCalls = session.entries.filter(
+    const successfulCalls = entries.filter(
       (e) => e.responseStatus && e.responseStatus >= 200 && e.responseStatus < 300
     ).length;
-    confidence += Math.min(successfulCalls / session.entries.length, 0.15);
+    confidence += Math.min(entries.length > 0 ? successfulCalls / entries.length : 0, 0.15);
 
     return Math.min(confidence, 1);
   }
