@@ -2361,6 +2361,184 @@ a {
 }
 
 /* ============================================
+   SIMPLE DOCS PAGE
+   ============================================ */
+
+.docs-page-simple {
+  min-height: 100vh;
+  padding: 120px 24px 80px;
+}
+
+.docs-container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.docs-container h1 {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  letter-spacing: 0.08em;
+  color: var(--text-bright);
+  margin-bottom: 48px;
+  text-align: center;
+}
+
+.docs-block {
+  margin-bottom: 48px;
+}
+
+.docs-block h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  margin-bottom: 16px;
+}
+
+.docs-block p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.docs-block a {
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.docs-code-block {
+  background: var(--depth-deep);
+  border: 1px solid var(--border-faint);
+  border-radius: 8px;
+  padding: 24px;
+  overflow-x: auto;
+}
+
+.docs-code-block code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+
+.code-comment {
+  color: var(--text-faint);
+}
+
+.code-prompt {
+  color: var(--gold);
+  margin-right: 8px;
+}
+
+/* Revenue Split */
+.docs-revenue {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.revenue-item {
+  background: var(--depth-deep);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.revenue-item.creator {
+  border-color: var(--emerald);
+  background: var(--emerald-dim);
+}
+
+.revenue-item.platform {
+  border-color: var(--gold);
+  background: var(--gold-dim);
+}
+
+.revenue-percent {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  letter-spacing: 0.02em;
+  color: var(--text-bright);
+}
+
+.revenue-label {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+}
+
+.revenue-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.revenue-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Simple List */
+.docs-list-simple {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.docs-list-simple li {
+  color: var(--text-secondary);
+  padding-left: 20px;
+  position: relative;
+}
+
+.docs-list-simple li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--gold);
+}
+
+.docs-list-simple strong {
+  color: var(--text-bright);
+}
+
+/* Links */
+.docs-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.docs-links a {
+  padding: 12px 20px;
+  background: var(--depth-surface);
+  border: 1px solid var(--border-faint);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.docs-links a:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+@media (max-width: 500px) {
+  .docs-revenue {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 
