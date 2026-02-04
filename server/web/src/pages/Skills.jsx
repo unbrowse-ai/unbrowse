@@ -272,23 +272,138 @@ export default function Skills() {
           </div>
         </div>
 
-        {/* Speed Comparison */}
-        <div className="ub-comparison">
-          <div className="ub-compare-card old">
-            <div className="ub-compare-label">Browser Automation</div>
-            <div className="ub-compare-time">45s</div>
-            <div className="ub-compare-method">Launch Chrome, render, scrape, fail 20%</div>
+      </section>
+
+      {/* Quickstart - How to Actually Use It */}
+      <section className="ub-quickstart">
+        <div className="ub-quickstart-header">
+          <div className="ub-section-kicker">5 Minutes to First Skill</div>
+          <h2 className="ub-section-title">HOW IT WORKS</h2>
+          <p className="ub-quickstart-subtitle">
+            Just talk to your agent. It's that simple.
+          </p>
+        </div>
+
+        <div className="ub-chat-demo">
+          <div className="ub-chat-window">
+            <div className="ub-chat-header">
+              <div className="ub-chat-avatar">
+                <img src="/logo.png" alt="Agent" />
+              </div>
+              <div className="ub-chat-info">
+                <span className="ub-chat-name">OpenClaw Agent</span>
+                <span className="ub-chat-status">
+                  <span className="ub-status-dot" />
+                  Online
+                </span>
+              </div>
+            </div>
+
+            <div className="ub-chat-messages">
+              {/* Install */}
+              <div className="ub-msg ub-msg-user">
+                <div className="ub-msg-bubble">
+                  Install the unbrowse extension
+                </div>
+                <span className="ub-msg-time">2:41 PM</span>
+              </div>
+              <div className="ub-msg ub-msg-agent">
+                <div className="ub-msg-bubble">
+                  <span className="ub-msg-action">Installing @getfoundry/unbrowse-openclaw...</span>
+                  <span className="ub-msg-success">✓ Done! Extension loaded with 16 tools</span>
+                </div>
+                <span className="ub-msg-time">2:41 PM</span>
+              </div>
+
+              {/* Capture */}
+              <div className="ub-msg ub-msg-user">
+                <div className="ub-msg-bubble">
+                  Unbrowse reddit.com and learn its API
+                </div>
+                <span className="ub-msg-time">2:42 PM</span>
+              </div>
+              <div className="ub-msg ub-msg-agent">
+                <div className="ub-msg-bubble">
+                  <span className="ub-msg-action">Opening browser, capturing API traffic...</span>
+                  <span className="ub-msg-detail">Found 23 endpoints (GET /api/v1/posts, POST /api/v1/comment...)</span>
+                  <span className="ub-msg-success">✓ Generated skill: <strong>reddit-api</strong></span>
+                </div>
+                <span className="ub-msg-time">2:43 PM</span>
+              </div>
+
+              {/* Publish */}
+              <div className="ub-msg ub-msg-user">
+                <div className="ub-msg-bubble">
+                  Publish it to unbrowse for $0.10
+                </div>
+                <span className="ub-msg-time">2:44 PM</span>
+              </div>
+              <div className="ub-msg ub-msg-agent">
+                <div className="ub-msg-bubble">
+                  <span className="ub-msg-action">Running quality check... Score: 92/100</span>
+                  <span className="ub-msg-success">✓ Published to marketplace!</span>
+                  <span className="ub-msg-earn">You'll earn <strong>$0.07</strong> per download (70% creator share)</span>
+                </div>
+                <span className="ub-msg-time">2:44 PM</span>
+              </div>
+
+              {/* Discover */}
+              <div className="ub-msg ub-msg-user">
+                <div className="ub-msg-bubble">
+                  Find me a skill for posting to Twitter
+                </div>
+                <span className="ub-msg-time">2:45 PM</span>
+              </div>
+              <div className="ub-msg ub-msg-agent">
+                <div className="ub-msg-bubble">
+                  <span className="ub-msg-action">Searching marketplace...</span>
+                  <div className="ub-msg-skill-card">
+                    <span className="ub-skill-badge free">FREE</span>
+                    <strong>twitter-api</strong>
+                    <span className="ub-skill-meta">12 endpoints • 2.3k downloads</span>
+                  </div>
+                  <span className="ub-msg-detail">Want me to install it?</span>
+                </div>
+                <span className="ub-msg-time">2:45 PM</span>
+              </div>
+
+              {/* Use */}
+              <div className="ub-msg ub-msg-user">
+                <div className="ub-msg-bubble">
+                  Yes, and post "Hello from my AI agent! 🤖"
+                </div>
+                <span className="ub-msg-time">2:45 PM</span>
+              </div>
+              <div className="ub-msg ub-msg-agent">
+                <div className="ub-msg-bubble">
+                  <span className="ub-msg-success">✓ Tweet posted successfully!</span>
+                  <span className="ub-msg-link">twitter.com/you/status/1234...</span>
+                </div>
+                <span className="ub-msg-time">2:45 PM</span>
+              </div>
+            </div>
+
+            <div className="ub-chat-input">
+              <input type="text" placeholder="Message your agent..." disabled />
+              <button className="ub-chat-send" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                </svg>
+              </button>
+            </div>
           </div>
-          <div className="ub-compare-arrow">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </div>
-          <div className="ub-compare-card new">
-            <div className="ub-compare-label">Unbrowse Skill</div>
-            <div className="ub-compare-time">200ms</div>
-            <div className="ub-compare-method">Direct API call, clean JSON, 95%+ success</div>
-          </div>
+        </div>
+
+        <div className="ub-quickstart-cta">
+          <p>Works with <strong>Claude Code</strong>, <strong>OpenClaw</strong>, <strong>Cursor</strong>, or any agent</p>
+          <a
+            href="https://github.com/lekt9/unbrowse-openclaw"
+            target="_blank"
+            rel="noopener"
+            className="ub-btn ub-btn-primary"
+          >
+            Get Started Now
+          </a>
         </div>
       </section>
 
