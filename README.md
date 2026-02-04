@@ -38,7 +38,7 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`):
 {
   "plugins": {
     "entries": {
-      "unbrowse": { "enabled": true }
+      "unbrowse-openclaw": { "enabled": true }
     }
   }
 }
@@ -55,7 +55,7 @@ openclaw gateway restart
 {
   "plugins": {
     "entries": {
-      "unbrowse": {
+      "unbrowse-openclaw": {
         "enabled": true,
         "source": "github:lekt9/unbrowse-openclaw"
       }
@@ -67,7 +67,7 @@ openclaw gateway restart
 ### Option D: Manual Clone
 
 ```bash
-git clone https://github.com/lekt9/unbrowse-openclaw ~/.openclaw/extensions/unbrowse
+git clone https://github.com/lekt9/unbrowse-openclaw ~/.openclaw/extensions/unbrowse-openclaw
 cd ~/.openclaw/extensions/unbrowse && npm install
 openclaw gateway restart
 ```
@@ -232,7 +232,7 @@ Full config example:
 {
   "plugins": {
     "entries": {
-      "unbrowse": {
+      "unbrowse-openclaw": {
         "enabled": true,
         "config": {
           "skillsOutputDir": "~/.openclaw/skills",

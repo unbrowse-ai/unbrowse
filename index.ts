@@ -450,7 +450,7 @@ const WORKFLOW_STATS_SCHEMA = {
 // ── Plugin ────────────────────────────────────────────────────────────────────
 
 const plugin = {
-  id: "unbrowse",
+  id: "unbrowse-openclaw",
   name: "Unbrowse",
   description:
     "Self-learning skill generator. Primarily reverse-engineers APIs by browsing websites and " +
