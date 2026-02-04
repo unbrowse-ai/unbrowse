@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,14 +22,8 @@
     "solana"
   ],
   "files": [
-    "dist/index.js",
-    "dist/index.d.ts",
-    "native/index.js",
-    "native/index.d.ts",
-    "native/unbrowse-native.darwin-arm64.node",
-    "native/unbrowse-native.darwin-x64.node",
-    "native/unbrowse-native.linux-x64-gnu.node",
-    "native/unbrowse-native.win32-x64-msvc.node",
+    "dist/",
+    "src/",
     "hooks/",
     "openclaw.plugin.json",
     "clawdbot.plugin.json"
