@@ -120,17 +120,17 @@ a {
   height: 40px;
   border-radius: 10px;
   overflow: hidden;
-  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.25);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   transition: all 0.3s ease;
 }
 
 .ub-nav-brand:hover .ub-nav-logo {
   transform: scale(1.05);
-  box-shadow: 0 6px 28px rgba(249, 115, 22, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .ub-nav-logo img {
@@ -254,10 +254,21 @@ a {
   transform: scale(1.1);
 }
 
-/* Mobile responsive */
+/* Mobile responsive - Nav */
 @media (max-width: 768px) {
   .ub-nav-inner {
     padding: 0 16px;
+    height: 48px;
+  }
+
+  .ub-nav-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .ub-nav-logo img {
+    width: 28px;
+    height: 28px;
   }
 
   .ub-nav-wordmark {
@@ -281,6 +292,24 @@ a {
   .ub-nav-github {
     padding: 10px;
     border-radius: 10px;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 400px) {
+  .ub-nav-inner {
+    padding: 0 12px;
+  }
+
+  .ub-nav-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .ub-nav-link {
+    padding: 6px 10px;
+    font-size: 0.75rem;
   }
 }
 
@@ -488,6 +517,29 @@ a {
   transform: scale(1.02);
 }
 
+/* Mobile install box */
+@media (max-width: 560px) {
+  .ub-install-box {
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .ub-install-box code {
+    font-size: 0.75rem;
+    white-space: normal;
+    word-break: break-all;
+    text-align: left;
+    width: 100%;
+  }
+
+  .ub-copy-btn {
+    width: 100%;
+    padding: 14px;
+  }
+}
+
 /* CTA buttons */
 .ub-cta-row {
   display: flex;
@@ -668,11 +720,12 @@ a {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .ub-chat-avatar img {
@@ -3110,17 +3163,102 @@ a {
 
 @media (max-width: 768px) {
   .ub-hero {
-    padding: 120px 20px 80px;
+    padding: 100px 16px 60px;
     min-height: auto;
   }
 
+  .ub-kicker {
+    padding: 10px 16px;
+    font-size: 0.65rem;
+    margin-bottom: 32px;
+  }
+
   .ub-vision-main {
-    font-size: 3rem;
+    font-size: 2.5rem;
+  }
+
+  .ub-vision-context {
+    font-size: 1rem;
+  }
+
+  .ub-subhead {
+    font-size: 1rem;
+    margin-bottom: 32px;
+  }
+
+  .ub-cta-row {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ub-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 14px 24px;
+  }
+
+  /* Chat demo mobile */
+  .ub-quickstart {
+    padding: 60px 16px;
+  }
+
+  .ub-chat-window {
+    border-radius: 16px;
+  }
+
+  .ub-chat-messages {
+    padding: 16px;
+    max-height: 400px;
+  }
+
+  .ub-msg {
+    max-width: 90%;
+  }
+
+  .ub-msg-bubble {
+    padding: 10px 14px;
+    font-size: 0.85rem;
+  }
+
+  .ub-chat-input {
+    padding: 12px 16px;
+  }
+
+  .ub-chat-input input {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+  }
+
+  .ub-quickstart-cta {
+    margin-top: 32px;
+  }
+
+  /* Value section mobile */
+  .ub-value-section {
+    padding: 60px 16px;
+  }
+
+  .ub-section-header {
+    margin-bottom: 40px;
+  }
+
+  .ub-value-card {
+    padding: 24px 20px;
+  }
+
+  .ub-value-step {
+    font-size: 2.5rem;
+    top: 16px;
+    right: 20px;
   }
 
   .ub-stats-strip {
-    gap: 32px;
-    padding: 40px 20px;
+    gap: 24px;
+    padding: 32px 16px;
+  }
+
+  .ub-stat-num {
+    font-size: 2.25rem;
   }
 
   .ub-stat-divider {
@@ -3128,47 +3266,234 @@ a {
   }
 
   .ub-marketplace {
-    padding: 60px 20px;
+    padding: 48px 16px;
   }
 
   .ub-marketplace-header {
     flex-direction: column;
     align-items: stretch;
+    gap: 16px;
+    margin-bottom: 32px;
   }
 
   .ub-search-form {
     width: 100%;
   }
 
+  .ub-filter-tabs {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .ub-filter-tab {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 0.7rem;
+    text-align: center;
+  }
+
   .ub-skills-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ub-skill-card {
+    padding: 20px;
+  }
+
+  .ub-card-name {
+    font-size: 1rem;
+  }
+
+  .ub-card-desc {
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+  }
+
+  /* Flywheel mobile */
+  .ub-flywheel {
+    padding: 60px 16px;
+  }
+
+  .ub-flywheel h2 {
+    font-size: 1.5rem;
+  }
+
+  .ub-flywheel-desc {
+    font-size: 1rem;
+    margin-bottom: 32px;
+  }
+
+  .ub-flywheel-chain {
+    flex-direction: column;
+    padding: 20px;
+    gap: 8px;
+  }
+
+  .ub-chain-arrow {
+    transform: rotate(90deg);
+  }
+
+  .ub-chain-step {
+    width: 100%;
+    text-align: center;
+    padding: 10px 16px;
+    font-size: 0.75rem;
   }
 
   .ub-cta {
-    padding: 100px 20px;
+    padding: 80px 16px;
+  }
+
+  .ub-cta h2 {
+    font-size: 1.5rem;
+  }
+
+  .ub-cta p {
+    font-size: 1rem;
+    margin-bottom: 32px;
+  }
+
+  .ub-cta-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ub-cta-buttons .ub-btn {
+    width: 100%;
+  }
+
+  /* Footer mobile */
+  .ub-footer {
+    padding: 40px 16px;
+  }
+
+  .ub-footer-inner {
+    flex-direction: column;
+    text-align: center;
+    gap: 20px;
+  }
+
+  .ub-footer-nav {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .ub-footer-nav a {
+    font-size: 0.8rem;
+  }
+
+  /* Skill detail mobile */
+  .skill-detail {
+    padding: 100px 16px 60px;
   }
 
   .detail-hero {
     flex-direction: column;
   }
 
+  .detail-title-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
   .detail-title {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
+  }
+
+  .detail-description {
+    font-size: 1rem;
+  }
+
+  .detail-actions {
+    width: 100%;
+  }
+
+  .detail-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .detail-meta-grid {
     grid-template-columns: 1fr 1fr;
   }
 
-  .ub-footer-inner {
-    flex-direction: column;
-    text-align: center;
+  .meta-card {
+    padding: 16px;
   }
 
-  .ub-footer-nav {
-    flex-wrap: wrap;
+  .meta-value {
+    font-size: 1rem;
+  }
+
+  .detail-section {
+    padding: 20px;
+  }
+
+  .paywall-section {
+    padding: 24px 16px;
+  }
+
+  .price-amount {
+    font-size: 2.25rem;
+  }
+
+  .btn-purchase {
+    width: 100%;
     justify-content: center;
-    gap: 20px;
+    padding: 16px 24px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 400px) {
+  .ub-hero {
+    padding: 90px 12px 50px;
+  }
+
+  .ub-vision-main {
+    font-size: 2rem;
+  }
+
+  .ub-kicker {
+    padding: 8px 12px;
+    font-size: 0.6rem;
+    gap: 8px;
+  }
+
+  .ub-stat-block {
+    min-width: 80px;
+  }
+
+  .ub-stat-num {
+    font-size: 1.75rem;
+  }
+
+  .ub-stat-label {
+    font-size: 0.6rem;
+  }
+
+  .detail-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ub-chat-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .ub-chat-avatar img {
+    width: 22px;
+    height: 22px;
+  }
+
+  .ub-chat-name {
+    font-size: 0.85rem;
+  }
+
+  .ub-chat-status {
+    font-size: 0.7rem;
   }
 }
 
