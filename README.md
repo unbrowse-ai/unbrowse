@@ -72,6 +72,44 @@ cd ~/.openclaw/extensions/unbrowse && npm install
 openclaw gateway restart
 ```
 
+## Quick Start — No Config Needed! 🚀
+
+**Unbrowse works immediately after installation.** No API key required for core features:
+
+```bash
+# Install and start using right away
+openclaw plugins install @getfoundry/unbrowse-openclaw
+
+# Start capturing immediately - no config needed
+"Capture the API from airbnb.com"
+```
+
+### What Needs What
+
+| Feature | Requirements |
+|---------|-------------|
+| **Capture APIs** | ✅ Nothing — works out of box |
+| **Generate skills** | ✅ Nothing — works out of box |
+| **Replay captured APIs** | ✅ Nothing — uses your captured auth |
+| **Browse & login** | ✅ Nothing — uses your Chrome profile |
+| **Search marketplace** | ✅ Nothing — free to search |
+| **Download from marketplace** | 💰 Solana wallet + USDC ($0.01/skill) |
+| **Publish to marketplace** | 💰 Solana wallet (earn 70% revenue) |
+
+### Setting Up Marketplace (Optional)
+
+Only needed if you want to download/publish skills to the marketplace:
+
+```bash
+# Create a Solana wallet for marketplace transactions
+unbrowse_wallet action="create"
+
+# Or use your existing wallet
+unbrowse_wallet action="set_creator" wallet="<your-solana-address>"
+```
+
+> **Note:** The `SOLANA_PRIVATE_KEY` and `UNBROWSE_API_KEY` environment variables are only for advanced marketplace features. Basic capture, generation, and replay work without any configuration.
+
 ## How It Works
 
 ### 1. Capture
@@ -341,6 +379,55 @@ my-skill/
 │   └── run.ts        # Main execution script
 └── references/       # Supporting documentation
     └── api.md        # API reference
+```
+
+## Troubleshooting
+
+### "Given napi value is not an array" or "Failed to convert JavaScript value"
+
+This error occurs on **Node.js v24+** due to N-API compatibility issues with the `@solana/web3.js` native bindings.
+
+**Solution:** Use Node.js v22 LTS (Long Term Support)
+
+```bash
+# If using nvm
+nvm install 22
+nvm use 22
+
+# Then restart the gateway
+openclaw gateway restart
+```
+
+### "Native module failed to load" (ESM Error)
+
+Fixed in v0.4.0+. Update to the latest version:
+
+```bash
+openclaw plugins update @getfoundry/unbrowse-openclaw
+```
+
+### unbrowse_skills returns undefined
+
+Usually a Node version issue. See the Node.js v24+ fix above.
+
+### Wallet operations fail
+
+Wallet/marketplace features require:
+1. Node.js v22 or earlier (not v24+)
+2. A funded Solana wallet (for downloads)
+
+Basic capture, generation, and replay work without a wallet.
+
+### Chrome won't connect
+
+Make sure Chrome is running with remote debugging enabled, or let Unbrowse launch it:
+
+```bash
+# Kill existing Chrome instances
+pkill -f "Google Chrome"
+
+# Try capture again (Unbrowse will launch Chrome)
+unbrowse_capture urls=["https://example.com"]
 ```
 
 ## Star History
