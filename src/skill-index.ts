@@ -267,12 +267,17 @@ export class SkillIndexClient {
     const { getAssociatedTokenAddress, createTransferInstruction } =
       await import("@solana/spl-token");
 
-    // Decode private key
+    // Decode private key with Node.js version compatibility check
     let keypair: InstanceType<typeof Keypair>;
     try {
       const bs58 = await import("bs58");
-      keypair = Keypair.fromSecretKey(bs58.default.decode(this.solanaPrivateKey!));
-    } catch {
+      const { createKeypairSafe } = await import("./node-compat.js");
+      keypair = await createKeypairSafe(this.solanaPrivateKey!) as InstanceType<typeof Keypair>;
+    } catch (error: any) {
+      // Check for Node.js version compatibility issues
+      if (error.message?.includes('Node.js v') || error.message?.includes('napi')) {
+        throw error; // Re-throw with helpful message from createKeypairSafe
+      }
       throw new Error("Invalid Solana private key. Must be base58-encoded.");
     }
 
@@ -456,12 +461,16 @@ export class SkillIndexClient {
     const { Keypair } = await import("@solana/web3.js");
     const bs58 = await import("bs58");
     const nacl = await import("tweetnacl");
+    const { createKeypairSafe } = await import("./node-compat.js");
 
-    // Decode private key
+    // Decode private key with Node.js version compatibility check
     let keypair: InstanceType<typeof Keypair>;
     try {
-      keypair = Keypair.fromSecretKey(bs58.default.decode(this.solanaPrivateKey!));
-    } catch {
+      keypair = await createKeypairSafe(this.solanaPrivateKey!) as InstanceType<typeof Keypair>;
+    } catch (error: any) {
+      if (error.message?.includes('Node.js v') || error.message?.includes('napi')) {
+        throw error;
+      }
       throw new Error("Invalid Solana private key. Must be base58-encoded.");
     }
 

@@ -534,9 +534,22 @@ const plugin = {
     // Generates a new Solana keypair and saves it to config.
     // Only called when user explicitly chooses to create a new wallet.
     async function generateNewWallet(): Promise<{ publicKey: string; privateKey: string }> {
+      // Check Node.js version compatibility
+      const { isWalletOperationsAvailable } = await import("./src/node-compat.js");
+      const { available, reason } = isWalletOperationsAvailable();
+      if (!available) {
+        throw new Error(reason);
+      }
+      
       const { Keypair } = await import("@solana/web3.js");
       const bs58 = await import("bs58");
-      const keypair = Keypair.generate();
+      let keypair;
+      try {
+        keypair = Keypair.generate();
+      } catch (error: any) {
+        const { getCompatibilityErrorMessage } = await import("./src/node-compat.js");
+        throw new Error(getCompatibilityErrorMessage('wallet generation', error));
+      }
       const publicKey = keypair.publicKey.toBase58();
       const privateKeyB58 = bs58.default.encode(keypair.secretKey);
 
