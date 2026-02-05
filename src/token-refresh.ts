@@ -457,11 +457,25 @@ export class TokenRefreshScheduler {
   start(): void {
     if (this.timer) return;
 
+    // Detect if we're running in diagnostic mode (doctor, audit, etc.)
+    // These commands load plugins briefly then exit - don't start background tasks
+    const args = process.argv.join(" ").toLowerCase();
+    if (args.includes("doctor") || args.includes("audit") || args.includes("--help") || args.includes("--version")) {
+      this.logger.info("[token-refresh] Diagnostic mode detected, scheduler disabled");
+      return;
+    }
+
     this.logger.info(`[token-refresh] Scheduler started (checking every ${this.intervalMs / 60000}min)`);
 
-    // Run immediately, then on interval
-    this.checkAllSkills();
-    this.timer = setInterval(() => this.checkAllSkills(), this.intervalMs);
+    // Defer initial check to avoid blocking plugin initialization
+    // This prevents deadlocks with diagnostic commands that load plugins briefly
+    setTimeout(() => {
+      this.checkAllSkills().catch(() => {});
+    }, 5000);
+
+    this.timer = setInterval(() => {
+      this.checkAllSkills().catch(() => {});
+    }, this.intervalMs);
   }
 
   stop(): void {
@@ -473,36 +487,41 @@ export class TokenRefreshScheduler {
   }
 
   private async checkAllSkills(): Promise<void> {
-    if (!existsSync(this.skillsDir)) return;
+    try {
+      if (!existsSync(this.skillsDir)) return;
 
-    const skills = readdirSync(this.skillsDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
+      const skills = readdirSync(this.skillsDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name);
 
-    for (const skill of skills) {
-      const authPath = join(this.skillsDir, skill, "auth.json");
-      if (!existsSync(authPath)) continue;
+      for (const skill of skills) {
+        try {
+          const authPath = join(this.skillsDir, skill, "auth.json");
+          if (!existsSync(authPath)) continue;
 
-      try {
-        const auth = JSON.parse(readFileSync(authPath, "utf-8"));
-        const config = auth.refreshConfig as RefreshConfig | undefined;
+          const auth = JSON.parse(readFileSync(authPath, "utf-8"));
+          const config = auth.refreshConfig as RefreshConfig | undefined;
 
-        if (!config?.url) continue;
+          if (!config?.url) continue;
 
-        if (needsRefresh(config)) {
-          this.logger.info(`[token-refresh] Refreshing token for ${skill}...`);
+          if (needsRefresh(config)) {
+            this.logger.info(`[token-refresh] Refreshing token for ${skill}...`);
 
-          const newTokens = await refreshToken(config);
-          if (newTokens?.accessToken) {
-            updateAuthWithTokens(authPath, newTokens, config);
-            this.logger.info(`[token-refresh] Token refreshed for ${skill}`);
-          } else {
-            this.logger.warn(`[token-refresh] Failed to refresh token for ${skill}`);
+            const newTokens = await refreshToken(config);
+            if (newTokens?.accessToken) {
+              updateAuthWithTokens(authPath, newTokens, config);
+              this.logger.info(`[token-refresh] Token refreshed for ${skill}`);
+            } else {
+              this.logger.warn(`[token-refresh] Failed to refresh token for ${skill}`);
+            }
           }
+        } catch {
+          // Skip this skill on any error
         }
-      } catch {
-        // Skip this skill
       }
+    } catch {
+      // Silently fail if skills directory access fails
+      // This can happen during plugin load/unload or diagnostic commands
     }
   }
 }
