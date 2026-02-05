@@ -3847,6 +3847,18 @@ a {
   color: var(--text-secondary);
 }
 
+.leaderboard-revenue {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--emerald);
+  margin-left: 8px;
+}
+
+.revenue-cell {
+  color: var(--emerald);
+  font-weight: 500;
+}
+
 .leaderboard-empty {
   color: var(--text-faint);
   font-size: 0.85rem;

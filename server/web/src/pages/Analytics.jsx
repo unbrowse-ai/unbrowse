@@ -22,7 +22,7 @@ export default function Analytics() {
       const [overviewRes, timeSeriesRes, topRes, breakdownRes] = await Promise.all([
         fetch(API_BASE + '/admin/analytics/overview'),
         fetch(API_BASE + '/admin/analytics/timeseries?days=' + timeRange),
-        fetch(API_BASE + '/admin/analytics/top-skills?limit=10&metric=executions'),
+        fetch(API_BASE + '/admin/analytics/top-skills?limit=10&metric=installations'),
         fetch(API_BASE + '/admin/analytics/skills?limit=50'),
       ]);
 
@@ -49,14 +49,20 @@ export default function Analytics() {
     return num?.toLocaleString() || '0';
   };
 
+  const formatUSDC = (num) => {
+    const val = Number(num) || 0;
+    if (val >= 1000) return '$' + (val / 1000).toFixed(1) + 'K';
+    return '$' + val.toFixed(2);
+  };
+
   const formatPercent = (num) => (num || 0).toFixed(1) + '%';
 
-  const Sparkline = ({ data, color = 'var(--gold)' }) => {
+  const Sparkline = ({ data, color = 'var(--gold)', valueKey = 'count' }) => {
     if (!data || data.length === 0) return <div className="sparkline-empty">No data</div>;
-    const max = Math.max(...data.map(d => d.count), 1);
+    const max = Math.max(...data.map(d => d[valueKey] || 0), 1);
     const points = data.map((d, i) => {
       const x = (i / (data.length - 1 || 1)) * 200;
-      const y = 40 - (d.count / max) * 40;
+      const y = 40 - ((d[valueKey] || 0) / max) * 40;
       return x + ',' + y;
     }).join(' ');
     return (
@@ -78,6 +84,7 @@ export default function Analytics() {
   }
 
   const retention = overview?.retention || {};
+  const totalRevenue = timeSeries?.installations?.reduce((a, b) => a + (b.revenue || 0), 0) || 0;
 
   return (
     <div className="analytics-page">
@@ -90,7 +97,7 @@ export default function Analytics() {
           </Link>
           <div>
             <h1>Analytics Dashboard</h1>
-            <p className="analytics-subtitle">Marketplace metrics & usage data</p>
+            <p className="analytics-subtitle">Marketplace metrics & revenue</p>
           </div>
         </div>
         <div className="analytics-header-right">
@@ -126,26 +133,24 @@ export default function Analytics() {
             <div className="metric-card">
               <div className="metric-label">Total Skills</div>
               <div className="metric-value">{formatNumber(overview?.totalSkills)}</div>
-              <div className="metric-sub">{overview?.activeSkills || 0} active</div>
+              <div className="metric-sub">{overview?.activeSkills || 0} with downloads</div>
             </div>
             <div className="metric-card">
               <div className="metric-label">Installations</div>
               <div className="metric-value">{formatNumber(overview?.totalInstallations)}</div>
               <div className="metric-sub">{formatNumber(overview?.uniqueUsers)} unique users</div>
             </div>
-            <div className="metric-card">
-              <div className="metric-label">Executions</div>
-              <div className="metric-value">{formatNumber(overview?.totalExecutions)}</div>
-              <div className="metric-sub">{formatPercent(overview?.successRate)} success rate</div>
-            </div>
             <div className="metric-card highlight">
+              <div className="metric-label">Revenue</div>
+              <div className="metric-value">{formatUSDC(overview?.totalRevenue)}</div>
+              <div className="metric-sub">{overview?.paidInstallations || 0} paid installs</div>
+            </div>
+            <div className="metric-card">
               <div className="metric-label">Active This Week</div>
               <div className="metric-value">{formatNumber(retention.activeThisWeek)}</div>
               <div className="metric-sub">
-                {retention.retentionRate > 0 && (
-                  <span className={retention.retentionRate >= 100 ? 'positive' : 'negative'}>
-                    {retention.retentionRate >= 100 ? '+' : ''}{formatPercent(retention.retentionRate - 100)} vs last week
-                  </span>
+                {retention.newThisWeek > 0 && (
+                  <span className="positive">+{retention.newThisWeek} new</span>
                 )}
               </div>
             </div>
@@ -157,34 +162,37 @@ export default function Analytics() {
                 <h3>Installations</h3>
                 <span className="chart-period">Last {timeRange} days</span>
               </div>
-              <Sparkline data={timeSeries?.installations} color="var(--emerald)" />
+              <Sparkline data={timeSeries?.installations} color="var(--emerald)" valueKey="count" />
               <div className="chart-stats">
                 <span>Total: {timeSeries?.installations?.reduce((a, b) => a + b.count, 0) || 0}</span>
               </div>
             </div>
             <div className="chart-card">
               <div className="chart-header">
-                <h3>Executions</h3>
+                <h3>Revenue</h3>
                 <span className="chart-period">Last {timeRange} days</span>
               </div>
-              <Sparkline data={timeSeries?.executions} color="var(--gold)" />
+              <Sparkline data={timeSeries?.installations} color="var(--gold)" valueKey="revenue" />
               <div className="chart-stats">
-                <span>Total: {timeSeries?.executions?.reduce((a, b) => a + b.count, 0) || 0}</span>
+                <span>Total: {formatUSDC(totalRevenue)}</span>
               </div>
             </div>
           </div>
 
           <div className="leaderboard-card">
-            <h3>Top Skills by Executions</h3>
+            <h3>Top Skills by Installations</h3>
             <div className="leaderboard-list">
               {topSkills.map((skill, i) => (
                 <div key={skill.skillId} className="leaderboard-item">
                   <span className="leaderboard-rank">#{i + 1}</span>
                   <span className="leaderboard-name">{skill.name}</span>
                   <span className="leaderboard-value">{formatNumber(skill.value)}</span>
+                  {skill.revenue > 0 && (
+                    <span className="leaderboard-revenue">{formatUSDC(skill.revenue)}</span>
+                  )}
                 </div>
               ))}
-              {topSkills.length === 0 && <div className="leaderboard-empty">No execution data yet</div>}
+              {topSkills.length === 0 && <div className="leaderboard-empty">No installation data yet</div>}
             </div>
           </div>
         </div>
@@ -200,11 +208,10 @@ export default function Analytics() {
                   <tr>
                     <th>Skill</th>
                     <th>Domain</th>
+                    <th>Price</th>
                     <th>Downloads</th>
                     <th>Installs</th>
-                    <th>Executions</th>
-                    <th>Success Rate</th>
-                    <th>Avg Time</th>
+                    <th>Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -212,15 +219,10 @@ export default function Analytics() {
                     <tr key={skill.skillId}>
                       <td><Link to={'/skill/' + skill.skillId} className="skill-link">{skill.name}</Link></td>
                       <td className="domain-cell">{skill.domain || '-'}</td>
+                      <td>{skill.priceUsdc > 0 ? formatUSDC(skill.priceUsdc) : 'Free'}</td>
                       <td>{formatNumber(skill.downloads)}</td>
                       <td>{formatNumber(skill.installations)}</td>
-                      <td>{formatNumber(skill.executions)}</td>
-                      <td>
-                        <span className={'rate-badge ' + (skill.successRate >= 90 ? 'good' : skill.successRate >= 70 ? 'ok' : 'bad')}>
-                          {formatPercent(skill.successRate)}
-                        </span>
-                      </td>
-                      <td>{skill.avgExecutionTime ? skill.avgExecutionTime.toFixed(0) + 'ms' : '-'}</td>
+                      <td className={skill.revenue > 0 ? 'revenue-cell' : ''}>{skill.revenue > 0 ? formatUSDC(skill.revenue) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -237,17 +239,17 @@ export default function Analytics() {
             <div className="metric-card large">
               <div className="metric-label">Total Users</div>
               <div className="metric-value big">{formatNumber(retention.totalUsers)}</div>
-              <div className="metric-sub">All time registered</div>
+              <div className="metric-sub">All time</div>
             </div>
             <div className="metric-card large">
               <div className="metric-label">New This Week</div>
               <div className="metric-value big">{formatNumber(retention.newThisWeek)}</div>
-              <div className="metric-sub">First-time users</div>
+              <div className="metric-sub">First install</div>
             </div>
             <div className="metric-card large">
               <div className="metric-label">Active This Week</div>
               <div className="metric-value big">{formatNumber(retention.activeThisWeek)}</div>
-              <div className="metric-sub">Had activity</div>
+              <div className="metric-sub">Installed a skill</div>
             </div>
             <div className="metric-card large negative-card">
               <div className="metric-label">Churned</div>
@@ -268,7 +270,7 @@ export default function Analytics() {
             </div>
             <div className="rate-info">
               <h4>Week-over-Week Retention</h4>
-              <p>Users active this week vs last week</p>
+              <p>Users who installed this week vs last week</p>
             </div>
           </div>
         </div>
