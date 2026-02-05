@@ -143,7 +143,7 @@ export default function Analytics() {
             <div className="metric-card highlight">
               <div className="metric-label">Revenue</div>
               <div className="metric-value">{formatUSDC(overview?.totalRevenue)}</div>
-              <div className="metric-sub">{overview?.paidInstallations || 0} paid installs</div>
+              <div className="metric-sub">{overview?.paidSkills || 0} paid skills</div>
             </div>
             <div className="metric-card">
               <div className="metric-label">Active This Week</div>
