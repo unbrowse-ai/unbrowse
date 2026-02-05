@@ -473,6 +473,12 @@ const plugin = {
     const OTP_WATCHER_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
     async function startPersistentOtpWatcher(page: any, elementIndex: number) {
+      // OTP auto-fill is opt-in only
+      if (!enableOtpAutoFill) {
+        logger.info(`[unbrowse] OTP auto-fill disabled. Enable with config: enableOtpAutoFill: true`);
+        return;
+      }
+      
       // Stop any existing watcher
       stopPersistentOtpWatcher();
 
@@ -529,6 +535,21 @@ const plugin = {
     const credentialSourceCfg = (cfg.credentialSource as string) ?? process.env.UNBROWSE_CREDENTIAL_SOURCE ?? "none";
     const vaultDbPath = join(homedir(), ".openclaw", "unbrowse", "vault.db");
     const credentialProvider = createCredentialProvider(credentialSourceCfg, vaultDbPath);
+
+    // ── Security: Opt-in sensitive features (all disabled by default) ────
+    const enableChromeCookies = (cfg.enableChromeCookies as boolean) ?? false;
+    const enableOtpAutoFill = (cfg.enableOtpAutoFill as boolean) ?? false;
+    const enableDesktopAutomation = (cfg.enableDesktopAutomation as boolean) ?? false;
+    
+    if (enableChromeCookies) {
+      logger.info("[unbrowse] Chrome cookie reading ENABLED (opt-in)");
+    }
+    if (enableOtpAutoFill) {
+      logger.info("[unbrowse] OTP auto-fill ENABLED (opt-in)");
+    }
+    if (enableDesktopAutomation) {
+      logger.info("[unbrowse] Desktop automation ENABLED (opt-in)");
+    }
 
     // ── Wallet Setup Helpers ──────────────────────────────────────────────
     // Generates a new Solana keypair and saves it to config.
@@ -1409,8 +1430,8 @@ const plugin = {
                 }
               } catch { /* vault not available */ }
 
-              // Fallback: try loading cookies from Chrome's cookie database
-              if (Object.keys(cookies).length === 0) {
+              // Fallback: try loading cookies from Chrome's cookie database (opt-in only)
+              if (Object.keys(cookies).length === 0 && enableChromeCookies) {
                 try {
                   const { readChromeCookies, chromeCookiesAvailable } = await import("./src/chrome-cookies.js");
                   if (chromeCookiesAvailable()) {
@@ -3144,8 +3165,8 @@ const plugin = {
               } catch { /* vault not available */ }
             }
 
-            // Fallback: try loading cookies from Chrome's cookie database
-            if (Object.keys(authCookies).length === 0) {
+            // Fallback: try loading cookies from Chrome's cookie database (opt-in only)
+            if (Object.keys(authCookies).length === 0 && enableChromeCookies) {
               try {
                 const { readChromeCookies, chromeCookiesAvailable } = await import("./src/chrome-cookies.js");
                 if (chromeCookiesAvailable()) {
@@ -3919,6 +3940,16 @@ const plugin = {
           required: ["action"],
         },
         async execute(_toolCallId: string, params: unknown) {
+          // Desktop automation is opt-in only
+          if (!enableDesktopAutomation) {
+            return {
+              content: [{
+                type: "text",
+                text: `Desktop automation is disabled by default for security.\n\nTo enable, add to your config:\n\n  "plugins": {\n    "entries": {\n      "unbrowse": {\n        "config": {\n          "enableDesktopAutomation": true\n        }\n      }\n    }\n  }\n\nSee SECURITY.md for details on what this enables.`,
+              }],
+            };
+          }
+          
           const p = params as any;
           const { action, ...rest } = p;
 
