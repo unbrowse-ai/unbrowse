@@ -147,17 +147,13 @@ export default function Skills() {
         setOffset(LIMIT);
         setHasMore(skillsList.length === LIMIT);
 
-        // Update stats from API response if available, otherwise compute locally
+        // Use real stats from API (returned on first page)
         if (data.total !== undefined) {
           setStats({
             total: data.total,
-            services: data.services || new Set(skillsList.map(s => s.serviceName).filter(Boolean)).size,
-            downloads: data.downloads || skillsList.reduce((sum, s) => sum + (s.downloadCount || 0), 0)
+            services: data.totalServices || 0,
+            downloads: data.totalDownloads || 0
           });
-        } else {
-          const services = new Set(skillsList.map(s => s.serviceName).filter(Boolean)).size;
-          const totalDownloads = skillsList.reduce((sum, s) => sum + (s.downloadCount || 0), 0);
-          setStats({ total: skillsList.length, services, downloads: totalDownloads });
         }
       }
     } catch (err) {
