@@ -355,6 +355,46 @@ my-skill/
     └── api.md        # API reference
 ```
 
+## Changelog
+
+### v0.6.0 (Breaking Changes)
+
+**Security: All sensitive features now disabled by default**
+
+The following capabilities now require explicit opt-in via config:
+
+| Feature | Config to Enable |
+|---------|------------------|
+| Chrome cookie reading | `enableChromeCookies: true` |
+| OTP auto-fill (SMS/clipboard) | `enableOtpAutoFill: true` |
+| Desktop automation (AppleScript) | `enableDesktopAutomation: true` |
+| Keychain/1Password credentials | `credentialSource: "keychain"` |
+
+**Why:** These features access sensitive local data. While necessary for full automation, they should be opt-in so users understand what they're enabling.
+
+**Migration:** Add to your config if you need these features:
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse": {
+        "config": {
+          "enableChromeCookies": true,
+          "enableOtpAutoFill": true,
+          "enableDesktopAutomation": true
+        }
+      }
+    }
+  }
+}
+```
+
+**Core capture/replay functionality is unaffected** — basic API capture and replay work without any config changes.
+
+See [SECURITY.md](SECURITY.md) for full details on what each feature does.
+
+---
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=lekt9/unbrowse-openclaw&type=Date)](https://star-history.com/#lekt9/unbrowse-openclaw&Date)
