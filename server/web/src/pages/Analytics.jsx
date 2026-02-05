@@ -1,378 +1,277 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
+
+const API_BASE = 'https://index.unbrowse.ai';
 
 export default function Analytics() {
-  const { user } = useAuth();
-  const [stats, setStats] = useState(null);
-  const [popularAbilities, setPopularAbilities] = useState([]);
-  const [selectedAbility, setSelectedAbility] = useState(null);
-  const [abilityDetails, setAbilityDetails] = useState(null);
+  const [overview, setOverview] = useState(null);
+  const [timeSeries, setTimeSeries] = useState(null);
+  const [topSkills, setTopSkills] = useState([]);
+  const [skillBreakdown, setSkillBreakdown] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [view, setView] = useState('overview'); // 'overview' or 'details'
+  const [activeTab, setActiveTab] = useState('overview');
+  const [timeRange, setTimeRange] = useState(30);
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    loadAnalytics();
+  }, [timeRange]);
 
-  const fetchAnalytics = async () => {
+  const loadAnalytics = async () => {
     setLoading(true);
-    setError(null);
-
     try {
-      // Fetch user stats
-      const statsResponse = await fetch('/analytics/my/stats', {
-        credentials: 'include',
-      });
+      const [overviewRes, timeSeriesRes, topRes, breakdownRes] = await Promise.all([
+        fetch(API_BASE + '/admin/analytics/overview'),
+        fetch(API_BASE + '/admin/analytics/timeseries?days=' + timeRange),
+        fetch(API_BASE + '/admin/analytics/top-skills?limit=10&metric=executions'),
+        fetch(API_BASE + '/admin/analytics/skills?limit=50'),
+      ]);
 
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData.stats);
-      } else {
-        const data = await statsResponse.json();
-        setError(data.error || 'Failed to fetch analytics');
+      if (overviewRes.ok) setOverview(await overviewRes.json());
+      if (timeSeriesRes.ok) setTimeSeries(await timeSeriesRes.json());
+      if (topRes.ok) {
+        const data = await topRes.json();
+        setTopSkills(data.skills || []);
       }
-
-      // Fetch popular public abilities
-      const popularResponse = await fetch('/analytics/public/popular', {
-        credentials: 'include',
-      });
-
-      if (popularResponse.ok) {
-        const popularData = await popularResponse.json();
-        setPopularAbilities(popularData.abilities || []);
+      if (breakdownRes.ok) {
+        const data = await breakdownRes.json();
+        setSkillBreakdown(data.skills || []);
       }
     } catch (err) {
-      setError(err.message);
+      console.error('Failed to load analytics:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAbilityDetails = async (abilityId) => {
-    setError(null);
-
-    try {
-      const response = await fetch(`/analytics/my/abilities/${abilityId}`, {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAbilityDetails(data);
-        setView('details');
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to fetch ability details');
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
   const formatNumber = (num) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num?.toString() || '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num?.toLocaleString() || '0';
   };
 
-  const formatDuration = (ms) => {
-    if (!ms) return 'N/A';
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
-  };
+  const formatPercent = (num) => (num || 0).toFixed(1) + '%';
 
-  const getSuccessRate = (total, successful) => {
-    if (!total || total === 0) return 0;
-    return ((successful / total) * 100).toFixed(1);
-  };
-
-  if (loading) {
+  const Sparkline = ({ data, color = 'var(--gold)' }) => {
+    if (!data || data.length === 0) return <div className="sparkline-empty">No data</div>;
+    const max = Math.max(...data.map(d => d.count), 1);
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1 || 1)) * 200;
+      const y = 40 - (d.count / max) * 40;
+      return x + ',' + y;
+    }).join(' ');
     return (
-      <div className="page">
-        <div className="loading">Loading analytics...</div>
+      <svg width={200} height={40} className="sparkline">
+        <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
+      </svg>
+    );
+  };
+
+  if (loading && !overview) {
+    return (
+      <div className="analytics-page">
+        <div className="analytics-loading">
+          <div className="analytics-loader" />
+          <span>Loading analytics...</span>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="page">
-      <header className="page-header">
-        <h1>Analytics Dashboard</h1>
-        <p>Track your API usage and performance metrics</p>
-      </header>
+  const retention = overview?.retention || {};
 
-      {error && (
-        <div className="card error">
-          <h3>✗ Error</h3>
-          <p>{error}</p>
-          <button onClick={() => setError(null)} className="btn btn-secondary">
-            Dismiss
+  return (
+    <div className="analytics-page">
+      <div className="analytics-header">
+        <div className="analytics-header-left">
+          <Link to="/" className="analytics-back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <div>
+            <h1>Analytics Dashboard</h1>
+            <p className="analytics-subtitle">Marketplace metrics & usage data</p>
+          </div>
+        </div>
+        <div className="analytics-header-right">
+          <select value={timeRange} onChange={(e) => setTimeRange(Number(e.target.value))} className="analytics-select">
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+          <button onClick={loadAnalytics} className="analytics-refresh">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            </svg>
+            Refresh
           </button>
+        </div>
+      </div>
+
+      <div className="analytics-tabs">
+        {['overview', 'skills', 'retention'].map(tab => (
+          <button
+            key={tab}
+            className={'analytics-tab' + (activeTab === tab ? ' active' : '')}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab === 'overview' ? 'Overview' : tab === 'skills' ? 'Skills Breakdown' : 'Retention'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' && (
+        <div className="analytics-content">
+          <div className="metrics-grid">
+            <div className="metric-card">
+              <div className="metric-label">Total Skills</div>
+              <div className="metric-value">{formatNumber(overview?.totalSkills)}</div>
+              <div className="metric-sub">{overview?.activeSkills || 0} active</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Installations</div>
+              <div className="metric-value">{formatNumber(overview?.totalInstallations)}</div>
+              <div className="metric-sub">{formatNumber(overview?.uniqueUsers)} unique users</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Executions</div>
+              <div className="metric-value">{formatNumber(overview?.totalExecutions)}</div>
+              <div className="metric-sub">{formatPercent(overview?.successRate)} success rate</div>
+            </div>
+            <div className="metric-card highlight">
+              <div className="metric-label">Active This Week</div>
+              <div className="metric-value">{formatNumber(retention.activeThisWeek)}</div>
+              <div className="metric-sub">
+                {retention.retentionRate > 0 && (
+                  <span className={retention.retentionRate >= 100 ? 'positive' : 'negative'}>
+                    {retention.retentionRate >= 100 ? '+' : ''}{formatPercent(retention.retentionRate - 100)} vs last week
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="charts-grid">
+            <div className="chart-card">
+              <div className="chart-header">
+                <h3>Installations</h3>
+                <span className="chart-period">Last {timeRange} days</span>
+              </div>
+              <Sparkline data={timeSeries?.installations} color="var(--emerald)" />
+              <div className="chart-stats">
+                <span>Total: {timeSeries?.installations?.reduce((a, b) => a + b.count, 0) || 0}</span>
+              </div>
+            </div>
+            <div className="chart-card">
+              <div className="chart-header">
+                <h3>Executions</h3>
+                <span className="chart-period">Last {timeRange} days</span>
+              </div>
+              <Sparkline data={timeSeries?.executions} color="var(--gold)" />
+              <div className="chart-stats">
+                <span>Total: {timeSeries?.executions?.reduce((a, b) => a + b.count, 0) || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="leaderboard-card">
+            <h3>Top Skills by Executions</h3>
+            <div className="leaderboard-list">
+              {topSkills.map((skill, i) => (
+                <div key={skill.skillId} className="leaderboard-item">
+                  <span className="leaderboard-rank">#{i + 1}</span>
+                  <span className="leaderboard-name">{skill.name}</span>
+                  <span className="leaderboard-value">{formatNumber(skill.value)}</span>
+                </div>
+              ))}
+              {topSkills.length === 0 && <div className="leaderboard-empty">No execution data yet</div>}
+            </div>
+          </div>
         </div>
       )}
 
-      {view === 'overview' ? (
-        <>
-          {/* Overview Stats */}
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">📊</div>
-              <div className="stat-content">
-                <h3>{formatNumber(stats?.totalAbilities || 0)}</h3>
-                <p>Total Abilities</p>
-              </div>
+      {activeTab === 'skills' && (
+        <div className="analytics-content">
+          <div className="table-card">
+            <h3>All Skills Performance</h3>
+            <div className="table-wrapper">
+              <table className="analytics-table">
+                <thead>
+                  <tr>
+                    <th>Skill</th>
+                    <th>Domain</th>
+                    <th>Downloads</th>
+                    <th>Installs</th>
+                    <th>Executions</th>
+                    <th>Success Rate</th>
+                    <th>Avg Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {skillBreakdown.map((skill) => (
+                    <tr key={skill.skillId}>
+                      <td><Link to={'/skill/' + skill.skillId} className="skill-link">{skill.name}</Link></td>
+                      <td className="domain-cell">{skill.domain || '-'}</td>
+                      <td>{formatNumber(skill.downloads)}</td>
+                      <td>{formatNumber(skill.installations)}</td>
+                      <td>{formatNumber(skill.executions)}</td>
+                      <td>
+                        <span className={'rate-badge ' + (skill.successRate >= 90 ? 'good' : skill.successRate >= 70 ? 'ok' : 'bad')}>
+                          {formatPercent(skill.successRate)}
+                        </span>
+                      </td>
+                      <td>{skill.avgExecutionTime ? skill.avgExecutionTime.toFixed(0) + 'ms' : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+            {skillBreakdown.length === 0 && <div className="table-empty">No skill data available</div>}
+          </div>
+        </div>
+      )}
 
-            <div className="stat-card">
-              <div className="stat-icon">🚀</div>
-              <div className="stat-content">
-                <h3>{formatNumber(stats?.totalExecutions || 0)}</h3>
-                <p>Total Executions</p>
-              </div>
+      {activeTab === 'retention' && (
+        <div className="analytics-content">
+          <div className="retention-grid">
+            <div className="metric-card large">
+              <div className="metric-label">Total Users</div>
+              <div className="metric-value big">{formatNumber(retention.totalUsers)}</div>
+              <div className="metric-sub">All time registered</div>
             </div>
-
-            <div className="stat-card">
-              <div className="stat-icon">✅</div>
-              <div className="stat-content">
-                <h3>{getSuccessRate(stats?.totalExecutions, stats?.successfulExecutions)}%</h3>
-                <p>Success Rate</p>
-              </div>
+            <div className="metric-card large">
+              <div className="metric-label">New This Week</div>
+              <div className="metric-value big">{formatNumber(retention.newThisWeek)}</div>
+              <div className="metric-sub">First-time users</div>
             </div>
-
-            <div className="stat-card">
-              <div className="stat-icon">⏱️</div>
-              <div className="stat-content">
-                <h3>{formatDuration(stats?.averageExecutionTime)}</h3>
-                <p>Avg Execution Time</p>
-              </div>
+            <div className="metric-card large">
+              <div className="metric-label">Active This Week</div>
+              <div className="metric-value big">{formatNumber(retention.activeThisWeek)}</div>
+              <div className="metric-sub">Had activity</div>
+            </div>
+            <div className="metric-card large negative-card">
+              <div className="metric-label">Churned</div>
+              <div className="metric-value big">{formatNumber(retention.churned)}</div>
+              <div className="metric-sub">No activity 14+ days</div>
             </div>
           </div>
 
-          {/* Top Abilities */}
-          {stats?.topAbilities && stats.topAbilities.length > 0 && (
-            <div className="card">
-              <h2>🏆 Your Top Abilities</h2>
-              <div className="top-abilities-list">
-                {stats.topAbilities.map((ability, index) => (
-                  <div
-                    key={ability.abilityId}
-                    className="top-ability-item"
-                    onClick={() => fetchAbilityDetails(ability.abilityId)}
-                  >
-                    <div className="ability-rank">#{index + 1}</div>
-                    <div className="ability-info">
-                      <h4>{ability.name}</h4>
-                      <p className="ability-domain">{ability.domain}</p>
-                    </div>
-                    <div className="ability-stats">
-                      <span className="stat">
-                        {formatNumber(ability.executionCount)} executions
-                      </span>
-                      <span className="stat">
-                        {getSuccessRate(ability.executionCount, ability.successCount)}% success
-                      </span>
-                    </div>
-                    <button className="btn btn-secondary btn-sm">View Details →</button>
-                  </div>
-                ))}
-              </div>
+          <div className="retention-rate-card">
+            <div className="rate-circle">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="var(--depth-surface)" strokeWidth="8" />
+                <circle cx="50" cy="50" r="45" fill="none" stroke="var(--gold)" strokeWidth="8"
+                  strokeDasharray={(retention.retentionRate || 0) * 2.83 + ' 283'}
+                  strokeLinecap="round" transform="rotate(-90 50 50)" />
+              </svg>
+              <div className="rate-value">{formatPercent(retention.retentionRate)}</div>
             </div>
-          )}
-
-          {/* Popular Public Abilities */}
-          {popularAbilities.length > 0 && (
-            <div className="card">
-              <h2>🌐 Popular Public Abilities</h2>
-              <p className="help-text">
-                Discover what other users are using most frequently
-              </p>
-              <div className="popular-abilities-grid">
-                {popularAbilities.map((ability, index) => (
-                  <div key={ability.abilityId} className="popular-ability-card">
-                    <div className="popular-badge">#{index + 1}</div>
-                    <h4>{ability.name}</h4>
-                    {ability.description && (
-                      <p className="ability-description">{ability.description}</p>
-                    )}
-                    <div className="ability-meta">
-                      <span className="meta-item">🌐 {ability.domain}</span>
-                      <span className="meta-item">{ability.method}</span>
-                    </div>
-                    <div className="popularity-stats">
-                      <div className="popularity-stat">
-                        <span className="stat-label">Executions:</span>
-                        <span className="stat-value">
-                          {formatNumber(ability.executionCount)}
-                        </span>
-                      </div>
-                      <div className="popularity-stat">
-                        <span className="stat-label">Success Rate:</span>
-                        <span className="stat-value">
-                          {getSuccessRate(ability.executionCount, ability.successCount)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Recent Activity */}
-          {stats?.recentExecutions && stats.recentExecutions.length > 0 && (
-            <div className="card">
-              <h2>📅 Recent Activity</h2>
-              <div className="activity-timeline">
-                {stats.recentExecutions.map((execution, index) => (
-                  <div key={index} className="activity-item">
-                    <div className={`activity-status ${execution.success ? 'success' : 'failed'}`}>
-                      {execution.success ? '✅' : '❌'}
-                    </div>
-                    <div className="activity-details">
-                      <h4>{execution.abilityName}</h4>
-                      <p className="activity-time">
-                        {new Date(execution.executedAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="activity-metrics">
-                      <span className="metric">
-                        {formatDuration(execution.executionTime)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {(!stats || stats.totalAbilities === 0) && (
-            <div className="card">
-              <div className="empty-state">
-                <h3>📊 No Analytics Yet</h3>
-                <p>Start ingesting APIs and executing abilities to see your analytics here.</p>
-                <a href="/ingestion" className="btn btn-primary">
-                  Get Started with Ingestion →
-                </a>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          {/* Ability Details View */}
-          <div className="card">
-            <div className="detail-header">
-              <button
-                onClick={() => {
-                  setView('overview');
-                  setAbilityDetails(null);
-                }}
-                className="btn btn-secondary"
-              >
-                ← Back to Overview
-              </button>
+            <div className="rate-info">
+              <h4>Week-over-Week Retention</h4>
+              <p>Users active this week vs last week</p>
             </div>
           </div>
-
-          {abilityDetails && (
-            <>
-              <div className="card">
-                <h2>{abilityDetails.ability?.name}</h2>
-                {abilityDetails.ability?.description && (
-                  <p className="ability-description">{abilityDetails.ability.description}</p>
-                )}
-                <div className="ability-meta-grid">
-                  <div className="meta-item">
-                    <span className="meta-label">Domain:</span>
-                    <span className="meta-value">{abilityDetails.ability?.domain}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Method:</span>
-                    <span className="meta-value">{abilityDetails.ability?.method}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-icon">🚀</div>
-                  <div className="stat-content">
-                    <h3>{formatNumber(abilityDetails.stats?.totalExecutions || 0)}</h3>
-                    <p>Total Executions</p>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">✅</div>
-                  <div className="stat-content">
-                    <h3>
-                      {getSuccessRate(
-                        abilityDetails.stats?.totalExecutions,
-                        abilityDetails.stats?.successfulExecutions
-                      )}
-                      %
-                    </h3>
-                    <p>Success Rate</p>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">⏱️</div>
-                  <div className="stat-content">
-                    <h3>{formatDuration(abilityDetails.stats?.averageExecutionTime)}</h3>
-                    <p>Avg Execution Time</p>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">⚡</div>
-                  <div className="stat-content">
-                    <h3>{formatDuration(abilityDetails.stats?.fastestExecution)}</h3>
-                    <p>Fastest Execution</p>
-                  </div>
-                </div>
-              </div>
-
-              {abilityDetails.usage && abilityDetails.usage.length > 0 && (
-                <div className="card">
-                  <h3>📜 Execution History</h3>
-                  <div className="usage-table-container">
-                    <table className="usage-table">
-                      <thead>
-                        <tr>
-                          <th>Status</th>
-                          <th>Executed At</th>
-                          <th>Duration</th>
-                          <th>Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {abilityDetails.usage.map((record, index) => (
-                          <tr key={index}>
-                            <td>
-                              <span className={`status-badge ${record.success ? 'success' : 'failed'}`}>
-                                {record.success ? '✅ Success' : '❌ Failed'}
-                              </span>
-                            </td>
-                            <td>{new Date(record.executedAt).toLocaleString()}</td>
-                            <td>{formatDuration(record.executionTime)}</td>
-                            <td>
-                              {record.errorMessage && (
-                                <span className="error-message">{record.errorMessage}</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </>
+        </div>
       )}
     </div>
   );
