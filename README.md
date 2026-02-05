@@ -4,6 +4,8 @@
 
 Unbrowse is an [OpenClaw](https://github.com/lekt9/openclaw) extension that captures API traffic from any website and turns it into monetizable skills for AI agents. Browse a site, capture the API calls, generate skills, and publish them to the marketplace to earn USDC on every download.
 
+> **🔒 Security Note:** Unbrowse runs locally and accesses browser sessions to automate logins. All data stays on your machine — nothing is transmitted externally unless you explicitly publish to the marketplace. See [SECURITY.md](SECURITY.md) for full details on what's accessed and why.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        UNBROWSE                             │
@@ -307,6 +309,16 @@ Full config example:
 | `browser.proxyCountry` | `"us"` | Proxy location for stealth browser |
 | `credentialSource` | `"none"` | Password lookup: none/keychain/1password |
 
+### Security Options (all disabled by default)
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enableChromeCookies` | `false` | Read cookies from Chrome's database |
+| `enableOtpAutoFill` | `false` | Auto-fill OTP codes from SMS/clipboard |
+| `enableDesktopAutomation` | `false` | Allow AppleScript desktop control |
+
+See [SECURITY.md](SECURITY.md) for detailed explanations of each feature.
+
 ## x402 Payment Protocol
 
 Unbrowse uses the x402 protocol for machine-to-machine payments:
@@ -429,6 +441,46 @@ pkill -f "Google Chrome"
 # Try capture again (Unbrowse will launch Chrome)
 unbrowse_capture urls=["https://example.com"]
 ```
+
+## Changelog
+
+### v0.6.0 (Breaking Changes)
+
+**Security: All sensitive features now disabled by default**
+
+The following capabilities now require explicit opt-in via config:
+
+| Feature | Config to Enable |
+|---------|------------------|
+| Chrome cookie reading | `enableChromeCookies: true` |
+| OTP auto-fill (SMS/clipboard) | `enableOtpAutoFill: true` |
+| Desktop automation (AppleScript) | `enableDesktopAutomation: true` |
+| Keychain/1Password credentials | `credentialSource: "keychain"` |
+
+**Why:** These features access sensitive local data. While necessary for full automation, they should be opt-in so users understand what they're enabling.
+
+**Migration:** Add to your config if you need these features:
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse": {
+        "config": {
+          "enableChromeCookies": true,
+          "enableOtpAutoFill": true,
+          "enableDesktopAutomation": true
+        }
+      }
+    }
+  }
+}
+```
+
+**Core capture/replay functionality is unaffected** — basic API capture and replay work without any config changes.
+
+See [SECURITY.md](SECURITY.md) for full details on what each feature does.
+
+---
 
 ## Star History
 
