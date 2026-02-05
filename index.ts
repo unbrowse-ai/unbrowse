@@ -215,7 +215,8 @@ const WALLET_SCHEMA = {
       type: "string" as const,
       description:
         'Action: "status" (show wallet config + balances), "create" (generate a new Solana keypair), ' +
-        '"set_creator" (use an existing wallet address for earnings), "set_payer" (set private key for paying downloads)',
+        '"set_creator" (use an existing wallet address for earnings), "set_payer" (set private key for paying downloads), ' +
+        '"export" (reveal private key for backup - SECURITY: back up before funding!)',
     },
     wallet: {
       type: "string" as const,
@@ -564,7 +565,7 @@ const plugin = {
       // Save to plugin config via runtime
       const currentConfig = await api.runtime.config.loadConfig();
       const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
-      const unbrowseEntry = pluginEntries.unbrowse ?? {};
+      const unbrowseEntry = pluginEntries["unbrowse-openclaw"] ?? {};
       const unbrowseConfig = unbrowseEntry.config ?? {};
 
       unbrowseConfig.creatorWallet = publicKey;
@@ -575,7 +576,7 @@ const plugin = {
       indexOpts.solanaPrivateKey = privateKeyB58;
 
       unbrowseEntry.config = unbrowseConfig;
-      pluginEntries.unbrowse = unbrowseEntry;
+      pluginEntries["unbrowse-openclaw"] = unbrowseEntry;
       (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
 
       await api.runtime.config.writeConfigFile(currentConfig);
@@ -2623,11 +2624,11 @@ const plugin = {
               try {
                 const currentConfig = await api.runtime.config.loadConfig();
                 const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
-                const unbrowseEntry = pluginEntries.unbrowse ?? {};
+                const unbrowseEntry = pluginEntries["unbrowse-openclaw"] ?? {};
                 const unbrowseConfig = unbrowseEntry.config ?? {};
                 unbrowseConfig.creatorWallet = p.wallet;
                 unbrowseEntry.config = unbrowseConfig;
-                pluginEntries.unbrowse = unbrowseEntry;
+                pluginEntries["unbrowse-openclaw"] = unbrowseEntry;
                 (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
                 await api.runtime.config.writeConfigFile(currentConfig);
                 creatorWallet = p.wallet;
@@ -2651,11 +2652,11 @@ const plugin = {
 
                 const currentConfig = await api.runtime.config.loadConfig();
                 const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
-                const unbrowseEntry = pluginEntries.unbrowse ?? {};
+                const unbrowseEntry = pluginEntries["unbrowse-openclaw"] ?? {};
                 const unbrowseConfig = unbrowseEntry.config ?? {};
                 unbrowseConfig.skillIndexSolanaPrivateKey = p.privateKey;
                 unbrowseEntry.config = unbrowseConfig;
-                pluginEntries.unbrowse = unbrowseEntry;
+                pluginEntries["unbrowse-openclaw"] = unbrowseEntry;
                 (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
                 await api.runtime.config.writeConfigFile(currentConfig);
                 solanaPrivateKey = p.privateKey;
@@ -2668,6 +2669,37 @@ const plugin = {
                 };
               } catch (err) {
                 return { content: [{ type: "text", text: `Invalid key or save failed: ${(err as Error).message}` }] };
+              }
+            }
+
+            // "export" - reveal private key for backup (SECURITY WARNING)
+            if (action === "export") {
+              if (!solanaPrivateKey) {
+                return { content: [{ type: "text", text: "No private key configured. Nothing to export." }] };
+              }
+              try {
+                const { Keypair } = await import("@solana/web3.js");
+                const bs58 = await import("bs58");
+                const keypair = Keypair.fromSecretKey(bs58.default.decode(solanaPrivateKey));
+                return {
+                  content: [{
+                    type: "text",
+                    text: [
+                      "⚠️  WALLET PRIVATE KEY - KEEP THIS SAFE!",
+                      "",
+                      `Address: ${keypair.publicKey.toBase58()}`,
+                      `Private Key: ${solanaPrivateKey}`,
+                      "",
+                      "SECURITY WARNINGS:",
+                      "  - Never share this private key with anyone",
+                      "  - Store it in a secure password manager",
+                      "  - Anyone with this key can drain your wallet",
+                      "  - Back this up BEFORE funding the wallet",
+                    ].join("\n"),
+                  }],
+                };
+              } catch (err) {
+                return { content: [{ type: "text", text: `Export failed: ${(err as Error).message}` }] };
               }
             }
 
