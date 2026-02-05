@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const API_BASE = 'https://index.unbrowse.ai';
 
@@ -95,6 +95,7 @@ function Constellation() {
 }
 
 export default function Skills() {
+  const navigate = useNavigate();
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -191,9 +192,11 @@ export default function Skills() {
     }
   };
 
-  const handleSearch = async (e) => {
+  const handleSearch = (e) => {
     e.preventDefault();
-    loadMarketplaceSkills(search, true);
+    if (search.trim()) {
+      navigate(`/search?q=${encodeURIComponent(search.trim())}`);
+    }
   };
 
   const filteredSkills = skills.filter(skill => {
