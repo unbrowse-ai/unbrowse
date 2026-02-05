@@ -271,6 +271,16 @@ Full config example:
 | `browser.proxyCountry` | `"us"` | Proxy location for stealth browser |
 | `credentialSource` | `"none"` | Password lookup: none/keychain/1password |
 
+### Security Options (all disabled by default)
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enableChromeCookies` | `false` | Read cookies from Chrome's database |
+| `enableOtpAutoFill` | `false` | Auto-fill OTP codes from SMS/clipboard |
+| `enableDesktopAutomation` | `false` | Allow AppleScript desktop control |
+
+See [SECURITY.md](SECURITY.md) for detailed explanations of each feature.
+
 ## x402 Payment Protocol
 
 Unbrowse uses the x402 protocol for machine-to-machine payments:

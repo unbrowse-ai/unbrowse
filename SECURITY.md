@@ -106,13 +106,38 @@ The **only** external communication happens when you explicitly:
 
 ## Feature Defaults
 
-| Feature | Default | Requires |
-|---------|---------|----------|
-| Chrome cookie reading | ✅ Enabled | Calling capture/login tools |
-| OTP auto-fill | ✅ Enabled | OTP being sent during login |
-| Keychain/1Password | ❌ Disabled | `credentialSource` config |
-| Desktop automation | ❌ Disabled | Explicit `unbrowse_desktop` call |
+**All sensitive features are disabled by default.** You must explicitly opt-in via config.
+
+| Feature | Default | Config to Enable |
+|---------|---------|------------------|
+| Chrome cookie reading | ❌ Disabled | `enableChromeCookies: true` |
+| OTP auto-fill | ❌ Disabled | `enableOtpAutoFill: true` |
+| Keychain/1Password | ❌ Disabled | `credentialSource: "keychain"` or `"1password"` |
+| Desktop automation | ❌ Disabled | `enableDesktopAutomation: true` |
 | Marketplace publish | ❌ Disabled | Explicit `unbrowse_publish` call |
+
+### Enabling Features
+
+Add to your OpenClaw config (`~/.openclaw/openclaw.json`):
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse": {
+        "config": {
+          "enableChromeCookies": true,
+          "enableOtpAutoFill": true,
+          "enableDesktopAutomation": true,
+          "credentialSource": "keychain"
+        }
+      }
+    }
+  }
+}
+```
+
+Only enable what you need. Each feature is independent.
 
 ---
 
