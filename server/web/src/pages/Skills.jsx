@@ -106,6 +106,7 @@ export default function Skills() {
   const [offset, setOffset] = useState(0);
   const loaderRef = useRef(null);
   const LIMIT = 50;
+  const MAX_SKILLS = 100; // Cap infinite scroll so users can reach footer
 
   useEffect(() => {
     loadMarketplaceSkills();
@@ -167,6 +168,12 @@ export default function Skills() {
   const loadMoreSkills = async () => {
     if (loadingMore || !hasMore) return;
 
+    // Cap at MAX_SKILLS so users can reach footer (they can search for more)
+    if (skills.length >= MAX_SKILLS) {
+      setHasMore(false);
+      return;
+    }
+
     setLoadingMore(true);
     try {
       const url = search.trim()
@@ -179,11 +186,21 @@ export default function Skills() {
         const newSkills = data.skills || [];
 
         if (newSkills.length > 0) {
-          setSkills(prev => [...prev, ...newSkills]);
+          setSkills(prev => {
+            const updated = [...prev, ...newSkills];
+            // Stop if we've reached the cap
+            if (updated.length >= MAX_SKILLS) {
+              setHasMore(false);
+            }
+            return updated;
+          });
           setOffset(prev => prev + LIMIT);
         }
 
-        setHasMore(newSkills.length === LIMIT);
+        // Only continue if we got a full page AND haven't hit the cap
+        if (newSkills.length < LIMIT) {
+          setHasMore(false);
+        }
       }
     } catch (err) {
       console.error('Failed to load more skills:', err);
@@ -615,7 +632,11 @@ export default function Skills() {
                 </>
               )}
               {!hasMore && skills.length > 0 && (
-                <span className="ub-end-message">All {skills.length} skills loaded</span>
+                <span className="ub-end-message">
+                  {skills.length >= MAX_SKILLS
+                    ? `Showing ${skills.length} skills — use search to find more`
+                    : `All ${skills.length} skills loaded`}
+                </span>
               )}
             </div>
           </>
