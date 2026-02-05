@@ -4,6 +4,8 @@
 
 Unbrowse is an [OpenClaw](https://github.com/lekt9/openclaw) extension that captures API traffic from any website and turns it into monetizable skills for AI agents. Browse a site, capture the API calls, generate skills, and publish them to the marketplace to earn USDC on every download.
 
+> **🔒 Security Note:** Unbrowse runs locally and accesses browser sessions to automate logins. All data stays on your machine — nothing is transmitted externally unless you explicitly publish to the marketplace. See [SECURITY.md](SECURITY.md) for full details on what's accessed and why.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        UNBROWSE                             │
