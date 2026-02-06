@@ -594,7 +594,16 @@ export default function Skills() {
                       </div>
                     </div>
 
-                    <h3 className="ub-card-name">{skill.name}</h3>
+                    <h3 className="ub-card-name">
+                      {skill.name}
+                      {skill.badge === 'verified' && (
+                        <svg className="verified-check" viewBox="0 0 24 24" width="14" height="14">
+                          <circle cx="12" cy="12" r="10" fill="var(--emerald)" opacity="0.15" stroke="none" />
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" fill="none" stroke="var(--emerald)" strokeWidth="2" />
+                          <polyline points="22 4 12 14.01 9 11.01" fill="none" stroke="var(--emerald)" strokeWidth="2" />
+                        </svg>
+                      )}
+                    </h3>
 
                     <p className="ub-card-desc">
                       {skill.description || 'No description available'}

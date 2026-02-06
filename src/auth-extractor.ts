@@ -1,10 +1,75 @@
 /**
  * Auth Extractor — Determine authentication method and build auth.json.
  *
- * Ported from meta_learner_simple.py guess_auth_method() + generate_auth_json().
+ * Central home for all auth detection patterns:
+ *   - Header names and patterns that indicate auth-related headers
+ *   - Cookie names that indicate auth-related cookies
+ *   - Path patterns that indicate auth-related endpoints
+ *
+ * Other modules (har-parser, endpoint-analyzer, agentic-analyzer) import
+ * these shared constants rather than maintaining their own copies.
  */
 
 import type { ApiData, AuthInfo } from "./types.js";
+
+// ── Shared auth detection constants ────────────────────────────────────────
+
+/** Auth header names to capture (exact matches, lowercase). */
+export const AUTH_HEADER_NAMES = new Set([
+  // Standard auth headers
+  "authorization", "x-api-key", "api-key", "apikey",
+  "x-auth-token", "access-token", "x-access-token",
+  "token", "x-token", "authtype", "mudra",
+  // Bearer/JWT variants
+  "bearer", "jwt", "x-jwt", "x-jwt-token", "id-token", "id_token",
+  "x-id-token", "refresh-token", "x-refresh-token",
+  // API key variants
+  "x-apikey", "x-key", "key", "secret", "x-secret",
+  "api-secret", "x-api-secret", "client-secret", "x-client-secret",
+  // Session tokens
+  "session", "session-id", "sessionid", "x-session", "x-session-id",
+  "x-session-token", "session-token", "csrf", "x-csrf", "x-csrf-token",
+  "csrf-token", "x-xsrf-token", "xsrf-token",
+  // OAuth
+  "x-oauth-token", "oauth-token", "x-oauth", "oauth",
+  // Custom auth patterns used by various APIs
+  "x-amz-security-token", "x-amz-access-token", // AWS
+  "x-goog-api-key", // Google
+  "x-rapidapi-key", // RapidAPI
+  "ocp-apim-subscription-key", // Azure
+  "x-functions-key", // Azure Functions
+  "x-auth", "x-authentication", "x-authorization",
+  "x-user-token", "x-app-token", "x-client-token",
+  "x-access-key", "x-secret-key", "x-signature",
+  "x-request-signature", "signature",
+]);
+
+/** Patterns that indicate an auth-related header (substring match). */
+export const AUTH_HEADER_PATTERNS = [
+  "auth", "token", "key", "secret", "bearer", "jwt",
+  "session", "credential", "password", "signature", "sign",
+  "api-", "apikey", "access", "oauth", "csrf", "xsrf",
+];
+
+/** Cookie names that indicate auth (exact match, lowercase). */
+export const AUTH_COOKIE_NAMES = [
+  "session", "sessionid", "token", "authtoken", "jwt", "auth",
+  "access_token", "accesstoken", "id_token", "refresh_token",
+];
+
+/** Patterns that indicate an auth-related cookie (substring match). */
+export const AUTH_COOKIE_PATTERNS = ["auth", "token", "session", "jwt", "access", "id_token"];
+
+/** Check if a header name looks like it could be auth-related. */
+export function isAuthLikeHeader(name: string): boolean {
+  const lower = name.toLowerCase();
+  // Exact match
+  if (AUTH_HEADER_NAMES.has(lower)) return true;
+  // Pattern match
+  return AUTH_HEADER_PATTERNS.some(p => lower.includes(p));
+}
+
+// ── Auth method classification ─────────────────────────────────────────────
 
 /**
  * Determine the auth method from extracted headers and cookies.
@@ -80,22 +145,16 @@ export function guessAuthMethod(
     return `Custom Header (${customHeaders[0]})`;
   }
 
-  // Cookie-based auth (fallback)
-  const authCookieNames = [
-    "session", "sessionid", "token", "authtoken", "jwt", "auth",
-    "access_token", "accesstoken", "id_token", "refresh_token"
-  ];
-  for (const name of authCookieNames) {
+  // Cookie-based auth (fallback) — exact name match
+  for (const name of AUTH_COOKIE_NAMES) {
     if (Object.keys(cookies).some((c) => c.toLowerCase() === name.toLowerCase())) {
       return `Cookie-based (${name})`;
     }
   }
 
-  // Any cookie that looks auth-related
+  // Any cookie that looks auth-related — pattern match
   const authCookies = Object.keys(cookies).filter(c =>
-    c.toLowerCase().includes("auth") ||
-    c.toLowerCase().includes("token") ||
-    c.toLowerCase().includes("session")
+    AUTH_COOKIE_PATTERNS.some(p => c.toLowerCase().includes(p))
   );
   if (authCookies.length > 0) {
     return `Cookie-based (${authCookies[0]})`;
@@ -179,12 +238,9 @@ export function generateAuthInfo(service: string, data: ApiData): AuthInfo {
   if (Object.keys(data.cookies).length > 0) {
     auth.cookies = { ...data.cookies };
 
-    const authCookies = Object.keys(data.cookies).filter(c => {
-      const lower = c.toLowerCase();
-      return lower.includes("auth") || lower.includes("token") ||
-             lower.includes("session") || lower.includes("jwt") ||
-             lower.includes("access") || lower.includes("id_token");
-    });
+    const authCookies = Object.keys(data.cookies).filter(c =>
+      AUTH_COOKIE_PATTERNS.some(p => c.toLowerCase().includes(p))
+    );
 
     if (authCookies.length > 0) {
       auth.notes.push(`Found ${authCookies.length} auth cookie(s): ${authCookies.join(", ")}`);

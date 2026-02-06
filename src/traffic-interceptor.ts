@@ -147,9 +147,15 @@ function matchesPattern(path: string, pattern: string): boolean {
 }
 
 /**
- * Safely apply a transform function string to a body.
+ * Apply a transform function string to a body.
  * The function receives `body` (string) and should return a string.
  * Falls back to original body on any error.
+ *
+ * SECURITY NOTE: Uses `new Function()` which is equivalent to eval().
+ * This is acceptable here because:
+ * - This is a local-only proxy; transforms are set by the user/agent, not external input
+ * - The transform code never comes from untrusted sources (network, database, etc.)
+ * - If intercept rules are ever loaded from files, those files must be trusted
  */
 function applyTransform(body: string, transformCode: string): string {
   try {

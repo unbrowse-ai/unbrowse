@@ -108,6 +108,18 @@ export default function SkillDetail() {
               <span className="detail-category">{skill.category}</span>
             )}
             <h1 className="detail-title">{skill.name}</h1>
+            {skill.badge === 'verified' && (
+              <div className="validation-badge verified">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                Verified
+              </div>
+            )}
+            {skill.badge === 'deprecated' && (
+              <span className="validation-badge failed">Unverified</span>
+            )}
             {isFree && <span className="detail-free-badge">FREE</span>}
           </div>
           <p className="detail-description">
@@ -144,6 +156,12 @@ export default function SkillDetail() {
           <div className="meta-label">Price</div>
           <div className="meta-value">{isFree ? 'Free' : `$${price.toFixed(2)} USDC`}</div>
         </div>
+        {skill.badge === 'verified' && (
+          <div className="meta-card">
+            <div className="meta-label">Status</div>
+            <div className="meta-value" style={{color: 'var(--emerald)'}}>Verified</div>
+          </div>
+        )}
       </div>
 
       {/* FREE SKILL: Show SKILL.md content */}

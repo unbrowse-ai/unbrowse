@@ -241,6 +241,68 @@ function groupRequestsByDomainPath(requests: ParsedRequest[]): Record<string, Pa
   return grouped;
 }
 
+// ── EndpointGroup builder ─────────────────────────────────────────────────
+
+interface EndpointGroupOptions {
+  method?: string;
+  normalizedPath?: string;
+  description?: string;
+  category?: "auth" | "read" | "write" | "delete" | "other";
+  pathParams?: { name: string; type: string; example: string }[];
+  queryParams?: { name: string; example: string; required: boolean }[];
+  requestBodySchema?: Record<string, string>;
+  responseBodySchema?: Record<string, string>;
+  responseSummary?: string;
+  exampleCount?: number;
+  verified?: boolean;
+  fromSpec?: boolean;
+  dependencies?: string[];
+  produces?: string[];
+  consumes?: string[];
+}
+
+/**
+ * Build an EndpointGroup for unit tests.
+ * Defaults to a GET read endpoint at /api/v1/items.
+ */
+export function makeEndpointGroup(opts: EndpointGroupOptions = {}): EndpointGroup {
+  const {
+    method = "GET",
+    normalizedPath = "/api/v1/items",
+    description = "List items",
+    category = "read",
+    pathParams = [],
+    queryParams = [],
+    requestBodySchema,
+    responseBodySchema,
+    responseSummary = "object{items}",
+    exampleCount = 1,
+    verified,
+    fromSpec,
+    dependencies = [],
+    produces = [],
+    consumes = [],
+  } = opts;
+
+  return {
+    method,
+    normalizedPath,
+    description,
+    category,
+    pathParams,
+    queryParams,
+    ...(requestBodySchema ? { requestBodySchema } : {}),
+    ...(responseBodySchema ? { responseBodySchema } : {}),
+    responseSummary,
+    exampleCount,
+    ...(verified !== undefined ? { verified } : {}),
+    ...(fromSpec !== undefined ? { fromSpec } : {}),
+    dependencies,
+    produces,
+    consumes,
+  };
+}
+
 // ── Assertion helpers ──────────────────────────────────────────────────────
 
 /**

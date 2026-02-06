@@ -86,7 +86,7 @@ This is why platform lock-in is a feature, not a bug.
 
 ## Competitive Position
 
-| | Browser-Use | Zapier | Unbrowse |
+| | GUI Agents | Zapier | Unbrowse |
 |---|-------------|--------|----------|
 | Learning | Individual | None | Collective |
 | Speed | Slow (GUI) | Fast | Fast |
@@ -94,7 +94,7 @@ This is why platform lock-in is a feature, not a bug.
 | Sharing | None | None | Marketplace |
 | Platform | Any | Any | OpenClaw |
 
-**Unbrowse = Browser-Use's collective memory layer**
+**Unbrowse = the collective memory layer for browser agents**
 
 ---
 

@@ -256,11 +256,6 @@ unbrowse_replay service="protected-api" useStealth=true
 
 Chrome 127+ blocks third-party cookie access. Use `unbrowse_login` instead.
 
-### Stealth browser not working
-
-- Check your `browserUseApiKey` is configured
-- Verify the BrowserBase service is accessible
-
 ---
 
 ## Next Steps

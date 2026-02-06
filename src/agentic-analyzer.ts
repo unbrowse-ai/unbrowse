@@ -206,13 +206,6 @@ const RATE_LIMIT_HEADERS = [
   "x-ratelimit-tokens-limit", "x-ratelimit-tokens-remaining",
 ];
 
-const AUTH_PATH_PATTERNS = [
-  /\/login\b/i, /\/signin\b/i, /\/sign-in\b/i,
-  /\/auth\b/i, /\/token\b/i, /\/oauth\b/i,
-  /\/register\b/i, /\/signup\b/i, /\/sign-up\b/i,
-  /\/session\b/i,
-];
-
 const REFRESH_PATH_PATTERNS = [
   /\/refresh\b/i, /\/renew\b/i, /\/rotate\b/i,
 ];

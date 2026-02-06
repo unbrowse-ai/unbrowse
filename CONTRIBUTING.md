@@ -44,7 +44,7 @@ src/
 ├── skill-index.ts          # Cloud marketplace client
 ├── vault.ts                # Encrypted credential storage
 ├── token-refresh.ts        # OAuth/JWT token refresh detection
-├── dom-service.ts          # Browser-use style element indexing
+├── dom-service.ts          # DOM element indexing for LLM consumption
 └── site-crawler.ts         # Link discovery and crawling
 server/                     # Skill marketplace server (x402 payments)
 ```

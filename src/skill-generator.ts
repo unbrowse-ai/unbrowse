@@ -22,7 +22,7 @@ export function generateVersionHash(
   scripts: Record<string, string>,
   references: Record<string, string>,
 ): string {
-  const content = JSON.stringify({ skillMd, scripts, references }, Object.keys, 2);
+  const content = JSON.stringify({ skillMd, scripts, references }, null, 2);
   return createHash("sha256").update(content).digest("hex").slice(0, 8);
 }
 
@@ -898,8 +898,9 @@ export async function generateSkill(
     try {
       const typeMap = inferTypes(data.endpointGroups, service);
       typesTs = generateDeclarationFile(typeMap, service);
-    } catch {
+    } catch (err) {
       // Type inference is best-effort — don't block skill generation
+      console.error(`[unbrowse] Type inference failed for ${service}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -958,8 +959,9 @@ export async function generateSkill(
         : undefined,
     });
     vault.close();
-  } catch {
-    // Vault not available — that's fine, auth.json still written
+  } catch (err) {
+    // Vault not available — auth.json still written as fallback
+    console.error(`[unbrowse] Vault storage failed for ${service}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return {

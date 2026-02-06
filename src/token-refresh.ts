@@ -515,13 +515,13 @@ export class TokenRefreshScheduler {
               this.logger.warn(`[token-refresh] Failed to refresh token for ${skill}`);
             }
           }
-        } catch {
-          // Skip this skill on any error
+        } catch (err) {
+          this.logger.warn(`[token-refresh] Error checking skill ${skill}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-    } catch {
-      // Silently fail if skills directory access fails
-      // This can happen during plugin load/unload or diagnostic commands
+    } catch (err) {
+      // Can happen during plugin load/unload or diagnostic commands
+      this.logger.warn(`[token-refresh] Skills directory access failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }

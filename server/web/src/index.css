@@ -1888,6 +1888,41 @@ a {
   margin-top: 12px;
 }
 
+/* Validation badges */
+.validation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 0;
+}
+
+.validation-badge.verified {
+  color: var(--emerald);
+  background: var(--emerald-dim);
+  border: 1px solid var(--emerald);
+}
+
+.validation-badge.verified svg {
+  flex-shrink: 0;
+}
+
+.validation-badge.failed {
+  color: var(--text-muted);
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid var(--border-faint);
+}
+
+.verified-check {
+  flex-shrink: 0;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 /* Free skill badge */
 .detail-free-badge {
   display: inline-flex;

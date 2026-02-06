@@ -131,8 +131,8 @@ export async function captureWithHar(
           maxDepth: opts.crawlOptions?.maxDepth ?? 2,
           discoverOpenApi: opts.crawlOptions?.discoverOpenApi ?? true,
         });
-      } catch {
-        // Crawl is optional, continue without it
+      } catch (err) {
+        console.error(`[unbrowse] Crawl failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   } finally {
@@ -151,8 +151,8 @@ export async function captureWithHar(
       try {
         const harContent = readFileSync(harPath, "utf-8");
         har = JSON.parse(harContent);
-      } catch {
-        // HAR parse failed
+      } catch (err) {
+        console.error(`[unbrowse] HAR parse failed: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         // Clean up temp file
         try {
@@ -196,8 +196,8 @@ export async function captureWithAuth(
       const auth = JSON.parse(readFileSync(authPath, "utf-8"));
       cookies = auth.cookies ?? {};
       headers = auth.headers ?? {};
-    } catch {
-      // Invalid auth file
+    } catch (err) {
+      console.error(`[unbrowse] Invalid auth file ${authPath}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

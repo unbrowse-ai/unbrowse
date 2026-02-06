@@ -88,6 +88,8 @@ export interface PublishPayload {
   creatorWallet?: string;
   /** Price in USDC (e.g., "0" for free, "1.00" for $1.00). Min: $0.10, Max: $100.00. Default: free. */
   priceUsdc?: string;
+  /** Client-side endpoint validation evidence */
+  validation?: import("./types.js").ValidationEvidence;
 }
 
 export interface PublishResult {
@@ -107,10 +109,12 @@ export interface SearchResult {
 
 export class SkillIndexClient {
   private indexUrl: string;
+  private apiKey?: string;
   private opts: {
     indexUrl: string;
     creatorWallet?: string;
     solanaPrivateKey?: string;
+    apiKey?: string;
   };
 
   get creatorWallet(): string | undefined { return this.opts.creatorWallet; }
@@ -120,9 +124,20 @@ export class SkillIndexClient {
     indexUrl: string;
     creatorWallet?: string;
     solanaPrivateKey?: string;
+    apiKey?: string;
   }) {
     this.indexUrl = opts.indexUrl.replace(/\/$/, "");
+    this.apiKey = opts.apiKey;
     this.opts = opts;
+  }
+
+  /** Build headers for authenticated POST requests. */
+  private authHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (this.apiKey) {
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
+    }
+    return headers;
   }
 
   /** Search the skill marketplace (free). */
@@ -348,11 +363,11 @@ export class SkillIndexClient {
     return Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
   }
 
-  /** Publish a skill to the marketplace (free). */
+  /** Publish a skill to the marketplace (requires authentication). */
   async publish(payload: PublishPayload): Promise<PublishResult> {
     const resp = await fetch(`${this.indexUrl}/marketplace/skills`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.authHeaders(),
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30_000),
     });
@@ -573,7 +588,7 @@ export class SkillIndexClient {
     try {
       const resp = await fetch(`${this.indexUrl}/marketplace/installations`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.authHeaders(),
         body: JSON.stringify({
           skillId: input.skillId,
           versionHash: input.versionHash,
@@ -612,12 +627,13 @@ export class SkillIndexClient {
     try {
       await fetch(`${this.indexUrl}/marketplace/executions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.authHeaders(),
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(5_000),
       });
-    } catch {
+    } catch (err) {
       // Execution tracking is best-effort, don't fail the operation
+      console.error(`[unbrowse] Execution tracking failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

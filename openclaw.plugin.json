@@ -28,6 +28,10 @@
         "default": "https://index.unbrowse.ai",
         "description": "Cloud skill marketplace API URL"
       },
+      "apiKey": {
+        "type": "string",
+        "description": "API key for authenticated marketplace operations (publish, install, execute)"
+      },
       "marketplace": {
         "type": "object",
         "properties": {
@@ -49,10 +53,6 @@
       "browser": {
         "type": "object",
         "properties": {
-          "useApiKey": {
-            "type": "string",
-            "description": "Browser Use API key for stealth cloud browsers"
-          },
           "proxyCountry": {
             "type": "string",
             "default": "us",
@@ -86,6 +86,12 @@
       "label": "Skill Marketplace URL",
       "help": "Cloud skill marketplace API endpoint"
     },
+    "apiKey": {
+      "label": "API Key",
+      "help": "Unbrowse API key for publishing skills to the marketplace. Get one from your account settings.",
+      "sensitive": true,
+      "placeholder": "re_..."
+    },
     "marketplace.creatorWallet": {
       "label": "Creator Wallet (Solana)",
       "help": "Your Solana wallet address for receiving USDC when others download your skills",
@@ -100,12 +106,6 @@
       "label": "Default Skill Price",
       "help": "Default price when publishing skills (0 = free)",
       "placeholder": "0"
-    },
-    "browser.useApiKey": {
-      "label": "Browser Use API Key",
-      "help": "API key for stealth cloud browsers (browser-use.com)",
-      "sensitive": true,
-      "placeholder": "bu_..."
     },
     "browser.proxyCountry": {
       "label": "Proxy Country",

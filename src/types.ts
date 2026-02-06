@@ -155,3 +155,30 @@ export interface CdpNetworkEntry {
   resourceType?: string;
   timestamp?: number;
 }
+
+/** Evidence from client-side endpoint validation before publish */
+export interface ValidationEvidence {
+  validatedAt: string;
+  totalEndpoints: number;
+  endpointsTested: number;
+  endpointsVerified: number;
+  endpointsFailed: number;
+  endpointsSkipped: number;
+  results: ValidationResult[];
+  passed: boolean;
+  platform: string;
+  pluginVersion: string;
+}
+
+/** Evidence for a single validated endpoint */
+export interface ValidationResult {
+  method: string;
+  path: string;
+  status: number;
+  ok: boolean;
+  hasData: boolean;
+  responseShape: string;
+  responseSize: number;
+  latencyMs: number;
+  responseHash: string;
+}

@@ -520,7 +520,6 @@ Gas fees:        5%
         "config": {
           "skillsOutputDir": "~/.clawdbot/skills",
           "browserPort": 18791,
-          "browserUseApiKey": "your-browserbase-key",
           "autoDiscover": true,
           "skillIndexUrl": "https://skills.unbrowse.ai",
           "creatorWallet": "your-solana-address",

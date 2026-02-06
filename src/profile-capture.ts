@@ -276,8 +276,9 @@ export async function captureFromChromeProfile(
           }
         }
         await browser.close();
-      } catch {
+      } catch (err) {
         // Crawl is optional, continue without it
+        console.error(`[unbrowse] Crawl failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

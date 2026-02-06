@@ -85,8 +85,8 @@ export class AutoDiscovery {
           this.logger.info(`[unbrowse] Auto-discover: ${this.learnedDomains.size} existing skills loaded`);
         }
       }
-    } catch {
-      // Skills dir doesn't exist yet — that's fine
+    } catch (err) {
+      this.logger.info(`[unbrowse] Auto-discover: could not load existing skills: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -155,8 +155,8 @@ export class AutoDiscovery {
       }
 
       return generated;
-    } catch {
-      // Browser not running or no requests — silently ignore
+    } catch (err) {
+      this.logger.info(`[unbrowse] Auto-discover: browser not reachable: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
   }

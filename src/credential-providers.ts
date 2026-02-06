@@ -224,12 +224,12 @@ export class OnePasswordProvider implements CredentialProvider {
               source: "1password",
             });
           }
-        } catch {
-          // Skip this item if we can't fetch details
+        } catch (err) {
+          console.error(`[unbrowse] 1Password item fetch failed: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-    } catch {
-      // 1Password CLI not available or not signed in
+    } catch (err) {
+      console.error(`[unbrowse] 1Password CLI unavailable: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     return results;
@@ -286,8 +286,8 @@ export class VaultCredentialProvider implements CredentialProvider {
       }
 
       vault.close();
-    } catch {
-      // Vault not initialized or key not found
+    } catch (err) {
+      console.error(`[unbrowse] Vault lookup failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     return results;
@@ -305,8 +305,8 @@ export class VaultCredentialProvider implements CredentialProvider {
       });
 
       vault.close();
-    } catch {
-      // Vault not available
+    } catch (err) {
+      console.error(`[unbrowse] Vault store failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }
@@ -373,8 +373,8 @@ class AutoDetectProvider implements CredentialProvider {
           this.name = `auto:${provider.name}`;
           return provider;
         }
-      } catch {
-        // Skip unavailable provider
+      } catch (err) {
+        console.error(`[unbrowse] Provider ${provider.name} check failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -430,7 +430,8 @@ export async function lookupCredentials(
     }
 
     return null;
-  } catch {
+  } catch (err) {
+    console.error(`[unbrowse] Credential lookup failed for ${url}: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }

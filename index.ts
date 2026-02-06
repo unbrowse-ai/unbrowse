@@ -77,6 +77,62 @@ function detectAndSaveRefreshConfig(
   }
 }
 
+/**
+ * Build minimal EndpointGroup objects from SKILL.md content for validation.
+ *
+ * Parses the endpoint listing lines like:
+ *   - `GET /api/users/{userId}` — description — params: `userId` (string, e.g. `abc123`)
+ */
+function buildEndpointGroupsFromSkillMd(skillMd: string): import("./src/types.js").EndpointGroup[] {
+  const groups: import("./src/types.js").EndpointGroup[] = [];
+  // Match lines like: - `METHOD /path` — description...
+  const linePattern = /^-\s+`(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`(?:\s*—\s*(.*))?$/gm;
+  let match: RegExpExecArray | null;
+
+  while ((match = linePattern.exec(skillMd)) !== null) {
+    const method = match[1];
+    const normalizedPath = match[2].trim();
+    const rest = match[3] ?? "";
+
+    // Extract path params from "params: `name` (type, e.g. `value`)" segments
+    const pathParams: { name: string; type: string; example: string }[] = [];
+    const paramPattern = /`(\w+)`\s*\((\w+),\s*e\.g\.\s*`([^`]+)`\)/g;
+    const paramsSection = rest.match(/params:\s*(.*?)(?:\s*—|$)/)?.[1] ?? "";
+    let paramMatch: RegExpExecArray | null;
+    while ((paramMatch = paramPattern.exec(paramsSection)) !== null) {
+      pathParams.push({
+        name: paramMatch[1],
+        type: paramMatch[2],
+        example: paramMatch[3],
+      });
+    }
+
+    // Determine category
+    let category: "auth" | "read" | "write" | "delete" | "other" = "other";
+    const m = method.toUpperCase();
+    if (m === "GET" || m === "HEAD" || m === "OPTIONS") category = "read";
+    else if (m === "DELETE") category = "delete";
+    else if (m === "POST" || m === "PUT" || m === "PATCH") category = "write";
+    if (/\b(auth|login|signin|token|oauth|session)\b/i.test(normalizedPath)) category = "auth";
+
+    groups.push({
+      method,
+      normalizedPath,
+      description: rest.split("—")[0]?.trim() || "",
+      category,
+      pathParams,
+      queryParams: [],
+      responseSummary: "",
+      exampleCount: 1,
+      dependencies: [],
+      produces: [],
+      consumes: [],
+    });
+  }
+
+  return groups;
+}
+
 // ── Tool Schemas ──────────────────────────────────────────────────────────────
 
 const LEARN_SCHEMA = {
@@ -619,6 +675,7 @@ const plugin = {
     const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
+    const apiKey = (cfg.apiKey as string) ?? process.env.UNBROWSE_API_KEY;
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
     let solanaPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
     const credentialSourceCfg = (cfg.credentialSource as string) ?? process.env.UNBROWSE_CREDENTIAL_SOURCE ?? "none";
@@ -692,10 +749,11 @@ const plugin = {
 
     // ── Skill Index Client ─────────────────────────────────────────────────
     // Use a shared opts object so wallet values stay in sync after auto-generation
-    const indexOpts: { indexUrl: string; creatorWallet?: string; solanaPrivateKey?: string } = {
+    const indexOpts: { indexUrl: string; creatorWallet?: string; solanaPrivateKey?: string; apiKey?: string } = {
       indexUrl: skillIndexUrl,
       creatorWallet,
       solanaPrivateKey,
+      apiKey,
     };
     const indexClient = new SkillIndexClient(indexOpts);
 
@@ -767,6 +825,27 @@ const plugin = {
           } catch { /* skip */ }
         }
 
+        // Validate skill endpoints before publishing
+        let validationEvidence: import("./src/types.js").ValidationEvidence | undefined;
+        try {
+          const { validateSkillEndpoints } = await import("./src/skill-validator.js");
+          if (existsSync(authJsonPath) && baseUrl) {
+            const authData = JSON.parse(readFileSync(authJsonPath, "utf-8"));
+            const endpointGroups = buildEndpointGroupsFromSkillMd(skillMd);
+            if (endpointGroups.length > 0) {
+              validationEvidence = await validateSkillEndpoints(
+                authData.baseUrl || baseUrl,
+                endpointGroups,
+                authData.headers || {},
+                authData.cookies || {},
+              );
+              logger.info(`[unbrowse] Validation: ${validationEvidence.endpointsVerified}/${validationEvidence.endpointsTested} endpoints verified${validationEvidence.passed ? ' (passed)' : ' (failed)'}`);
+            }
+          }
+        } catch (err) {
+          logger.info(`[unbrowse] Validation skipped: ${(err as Error).message}`);
+        }
+
         const result = await indexClient.publish({
           name: service,
           description,
@@ -777,6 +856,7 @@ const plugin = {
           domain: domain || undefined,
           creatorWallet,
           priceUsdc: "0", // Auto-published skills are free by default
+          validation: validationEvidence,
         });
         logger.info(`[unbrowse] Auto-published: ${service} (${result.skill.skillId})`);
         return result.skill.skillId;
@@ -787,6 +867,9 @@ const plugin = {
           serverReachable = false;
           lastReachabilityCheck = now;
           logger.info(`[unbrowse] Skill marketplace unreachable — auto-publish disabled until server is available.`);
+        } else if (msg.includes("(401)")) {
+          logger.warn(`[unbrowse] Publish failed: authentication required. Configure your API key in plugin settings.`);
+          // Don't throw — just skip publishing
         } else {
           logger.warn(`[unbrowse] Auto-publish failed for ${service}: ${msg}`);
         }
@@ -1079,7 +1162,7 @@ const plugin = {
     // ── Tools ─────────────────────────────────────────────────────────────
 
     const tools = (_ctx: OpenClawPluginToolContext) => {
-      const toolList = [
+      const toolList: Array<{ name: string; label: string; description: string; parameters: Record<string, any>; execute: (...args: any[]) => Promise<any> }> = [
         // ── unbrowse_learn ──────────────────────────────────────────
         {
           name: "unbrowse_learn",
@@ -2214,6 +2297,29 @@ const plugin = {
               const versionHashMatch = skillMd.match(/versionHash:\s*"?([a-f0-9]+)"?/i);
               const versionHash = versionHashMatch?.[1];
 
+              // Validate skill endpoints before publishing
+              let validationEvidence: import("./src/types.js").ValidationEvidence | undefined;
+              try {
+                const { validateSkillEndpoints } = await import("./src/skill-validator.js");
+                if (baseUrl) {
+                  const authData = existsSync(authJsonPath)
+                    ? JSON.parse(readFileSync(authJsonPath, "utf-8"))
+                    : {};
+                  const endpointGroupsForValidation = buildEndpointGroupsFromSkillMd(skillMd);
+                  if (endpointGroupsForValidation.length > 0) {
+                    validationEvidence = await validateSkillEndpoints(
+                      authData.baseUrl || baseUrl,
+                      endpointGroupsForValidation,
+                      authData.headers || {},
+                      authData.cookies || {},
+                    );
+                    logger.info(`[unbrowse] Validation: ${validationEvidence.endpointsVerified}/${validationEvidence.endpointsTested} endpoints verified${validationEvidence.passed ? ' (passed)' : ' (failed)'}`);
+                  }
+                }
+              } catch (err) {
+                logger.info(`[unbrowse] Validation skipped: ${(err as Error).message}`);
+              }
+
               // Build payload following agentskills.io format
               const payload: PublishPayload = {
                 name: p.service,
@@ -2226,6 +2332,7 @@ const plugin = {
                 domain: domain || undefined,
                 creatorWallet,
                 priceUsdc: (p as any).price ?? "0", // Default to free
+                validation: validationEvidence,
               };
 
               const result = await indexClient.publish(payload);
@@ -2233,6 +2340,9 @@ const plugin = {
               const priceDisplay = (p as any).price && parseFloat((p as any).price) > 0
                 ? `$${parseFloat((p as any).price).toFixed(2)} USDC`
                 : "Free";
+              const validationLine = validationEvidence
+                ? `Validation: ${validationEvidence.endpointsVerified}/${validationEvidence.endpointsTested} endpoints verified${validationEvidence.passed ? ' (passed)' : ' (failed)'}`
+                : "Validation: skipped (no auth or endpoints)";
               const summary = [
                 `Skill published to cloud marketplace`,
                 `Name: ${p.service}`,
@@ -2240,6 +2350,7 @@ const plugin = {
                 versionHash ? `Version: ${versionHash}` : null,
                 `Price: ${priceDisplay}`,
                 `Endpoints: ${endpoints.length}`,
+                validationLine,
                 `Creator wallet: ${creatorWallet}`,
                 ``,
                 `Others can find and download this skill via unbrowse_search.`,
@@ -3508,7 +3619,7 @@ const plugin = {
                 await startPersistentOtpWatcher(page, otpAutoFillIndex);
               }
 
-              // Execute actions (browser-use style — index-based)
+              // Execute actions (index-based element interaction)
               const actionResults: string[] = [];
 
               for (const act of p.actions) {

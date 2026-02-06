@@ -1,5 +1,5 @@
 /**
- * DOM Element Extraction — browser-use-inspired element indexing for LLM consumption.
+ * DOM Element Extraction — Element indexing for LLM consumption.
  *
  * Injects JavaScript into a Playwright page to:
  *   1. Find all interactive elements (links, buttons, inputs, selects, textareas, etc.)
@@ -7,7 +7,7 @@
  *   3. Return structured metadata (tag, text, type, placeholder, href, value, role, options)
  *   4. Provide a way to interact with elements by index
  *
- * Ported from the browser-use Python library's DOM service concept.
+ * Based on open-source DOM extraction patterns.
  */
 
 export interface IndexedElement {
@@ -186,7 +186,7 @@ export async function extractPageState(page: any): Promise<PageState> {
 
   const elements: IndexedElement[] = raw.elements;
 
-  // Build element tree text representation (like browser-use's serialized DOM)
+  // Build element tree text representation (serialized DOM representation)
   const lines: string[] = [];
   for (const el of elements) {
     if (!el.isVisible) continue;

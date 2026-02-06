@@ -284,7 +284,6 @@ Full config example:
             "defaultPrice": "0"
           },
           "browser": {
-            "useApiKey": "bu_...",
             "proxyCountry": "us"
           },
           "credentialSource": "none"
@@ -305,7 +304,6 @@ Full config example:
 | `marketplace.creatorWallet` | - | Solana address to receive USDC |
 | `marketplace.solanaPrivateKey` | - | Private key for x402 payments |
 | `marketplace.defaultPrice` | `"0"` | Default price for new skills |
-| `browser.useApiKey` | - | Browser Use API key for stealth |
 | `browser.proxyCountry` | `"us"` | Proxy location for stealth browser |
 | `credentialSource` | `"none"` | Password lookup: none/keychain/1password |
 

@@ -11,7 +11,7 @@ import { mergeSchemas, getTopLevelSchema } from "./schema-inferrer.js";
 
 // ── Auth detection ──────────────────────────────────────────────────────
 
-const AUTH_PATH_PATTERNS = [
+export const AUTH_PATH_PATTERNS = [
   /\/login\b/i,
   /\/signin\b/i,
   /\/sign-in\b/i,
@@ -25,7 +25,7 @@ const AUTH_PATH_PATTERNS = [
   /\/refresh\b/i,
 ];
 
-function isAuthEndpoint(path: string): boolean {
+export function isAuthEndpoint(path: string): boolean {
   return AUTH_PATH_PATTERNS.some((p) => p.test(path));
 }
 

@@ -5,7 +5,7 @@
  */
 
 import type { HarEntry, ParsedRequest, ApiData } from "./types.js";
-import { guessAuthMethod } from "./auth-extractor.js";
+import { guessAuthMethod, isAuthLikeHeader } from "./auth-extractor.js";
 import { normalizePath } from "./path-normalizer.js";
 import { safeParseJson, inferSchema, getTopLevelSchema } from "./schema-inferrer.js";
 import { analyzeEndpoints } from "./endpoint-analyzer.js";
@@ -74,52 +74,6 @@ const SKIP_DOMAINS = [
   "datadoghq.com", "browser-intake-datadoghq.com",
   "bugsnag.com", "sessions.bugsnag.com",
 ];
-
-/** Auth header names to capture (exact matches, lowercase). */
-const AUTH_HEADER_NAMES = new Set([
-  // Standard auth headers
-  "authorization", "x-api-key", "api-key", "apikey",
-  "x-auth-token", "access-token", "x-access-token",
-  "token", "x-token", "authtype", "mudra",
-  // Bearer/JWT variants
-  "bearer", "jwt", "x-jwt", "x-jwt-token", "id-token", "id_token",
-  "x-id-token", "refresh-token", "x-refresh-token",
-  // API key variants
-  "x-apikey", "x-key", "key", "secret", "x-secret",
-  "api-secret", "x-api-secret", "client-secret", "x-client-secret",
-  // Session tokens
-  "session", "session-id", "sessionid", "x-session", "x-session-id",
-  "x-session-token", "session-token", "csrf", "x-csrf", "x-csrf-token",
-  "csrf-token", "x-xsrf-token", "xsrf-token",
-  // OAuth
-  "x-oauth-token", "oauth-token", "x-oauth", "oauth",
-  // Custom auth patterns used by various APIs
-  "x-amz-security-token", "x-amz-access-token", // AWS
-  "x-goog-api-key", // Google
-  "x-rapidapi-key", // RapidAPI
-  "ocp-apim-subscription-key", // Azure
-  "x-functions-key", // Azure Functions
-  "x-auth", "x-authentication", "x-authorization",
-  "x-user-token", "x-app-token", "x-client-token",
-  "x-access-key", "x-secret-key", "x-signature",
-  "x-request-signature", "signature",
-]);
-
-/** Patterns that indicate an auth-related header (substring match). */
-const AUTH_HEADER_PATTERNS = [
-  "auth", "token", "key", "secret", "bearer", "jwt",
-  "session", "credential", "password", "signature", "sign",
-  "api-", "apikey", "access", "oauth", "csrf", "xsrf",
-];
-
-/** Check if a header name looks like it could be auth-related. */
-function isAuthLikeHeader(name: string): boolean {
-  const lower = name.toLowerCase();
-  // Exact match
-  if (AUTH_HEADER_NAMES.has(lower)) return true;
-  // Pattern match
-  return AUTH_HEADER_PATTERNS.some(p => lower.includes(p));
-}
 
 /** Standard browser headers that are NOT custom API auth. */
 const STANDARD_HEADERS = new Set([
