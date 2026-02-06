@@ -182,7 +182,7 @@ export async function setupPageForDomain(
   if (!currentUrl.includes(domain)) {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {
       // If main page fails, try a simple path
-      return page.goto(`${url.origin}/favicon.ico`, { timeout: 5000 }).catch(() => {});
+      return page.goto(`${url.origin}/favicon.ico`, { timeout: 5000 }).catch(() => { /* last-resort navigation — safe to ignore */ });
     });
   }
 

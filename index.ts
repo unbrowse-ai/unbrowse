@@ -27,7 +27,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 
-import { parseHar } from "./src/har-parser.js";
+import { parseHar, enrichApiData } from "./src/har-parser.js";
 import { generateSkill } from "./src/skill-generator.js";
 import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener } from "./src/cdp-capture.js";
 import { AutoDiscovery } from "./src/auto-discover.js";
@@ -362,6 +362,94 @@ const LOGIN_SCHEMA = {
     },
   },
   required: ["loginUrl"],
+};
+
+// ── Agentic Reverse Engineering Schemas ──────────────────────────────────────
+
+const ANALYZE_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    service: {
+      type: "string" as const,
+      description: "Service name (skill directory) to deeply analyze. Runs agentic analysis on captured traffic.",
+    },
+    focus: {
+      type: "string" as const,
+      description:
+        "Focus area for deeper analysis: 'entities', 'auth', 'dataflow', 'gaps', 'pagination', or 'errors'. " +
+        "Without focus, gives overview. Use after initial analysis to dig deeper into a specific topic.",
+    },
+    depth: {
+      type: "string" as const,
+      description: "'quick' (overview only) or 'deep' (include reasoning prompts + action plan). Default: 'deep'",
+    },
+    skillsDir: {
+      type: "string" as const,
+      description: "Skills directory (default: ~/.openclaw/skills)",
+    },
+  },
+  required: ["service"],
+};
+
+const PROBE_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    service: {
+      type: "string" as const,
+      description: "Service name (skill directory) whose endpoints to probe from.",
+    },
+    aggressive: {
+      type: "boolean" as const,
+      description: "Try more speculative probes including version variants and utility endpoints (default: false).",
+    },
+    maxProbes: {
+      type: "number" as const,
+      description: "Maximum number of probes to execute (default: 50).",
+    },
+    skillsDir: {
+      type: "string" as const,
+      description: "Skills directory (default: ~/.openclaw/skills)",
+    },
+  },
+  required: ["service"],
+};
+
+const INTERCEPT_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    action: {
+      type: "string" as const,
+      description:
+        'Action: "start" (launch proxy), "stop" (stop proxy + generate skill), ' +
+        '"status" (show traffic stats), "snapshot" (get current API map without stopping), ' +
+        '"add_rule" (add traffic modification rule), "clear_rules" (remove all rules).',
+    },
+    targetUrl: {
+      type: "string" as const,
+      description: 'Base URL to proxy to (required for "start"). e.g. "https://api.example.com"',
+    },
+    port: {
+      type: "number" as const,
+      description: "Local port for the proxy (default: 8787).",
+    },
+    rule: {
+      type: "object" as const,
+      description: 'Traffic rule for "add_rule". Shape: { match: "/path/*", action: "forward"|"modify"|"mock"|"block", ... }',
+      properties: {
+        match: { type: "string" as const, description: "Path pattern to match (exact, glob with *, or regex)" },
+        action: { type: "string" as const, description: '"forward" (observe only), "modify" (transform), "mock" (return fake), "block" (403)' },
+        injectHeaders: { type: "object" as const, description: "Headers to add/replace on the request" },
+        transformResponse: { type: "string" as const, description: "JS expression to transform response body: (body) => modified" },
+        mockStatus: { type: "number" as const, description: "Status code for mock responses" },
+        mockBody: { type: "string" as const, description: "Response body for mock responses" },
+      },
+    },
+    service: {
+      type: "string" as const,
+      description: 'Service name for skill generation on "stop" (auto-detected from targetUrl if omitted).',
+    },
+  },
+  required: ["action"],
 };
 
 // ── Workflow Schemas ──────────────────────────────────────────────────────────
@@ -1028,7 +1116,7 @@ const plugin = {
             }
 
             try {
-              const apiData = parseHar(harData as any);
+              const apiData = enrichApiData(parseHar(harData as any));
               const result = await generateSkill(apiData, p.outputDir ?? defaultOutputDir);
               discovery.markLearned(result.service);
 
@@ -1170,6 +1258,7 @@ const plugin = {
                 }
               }
 
+              enrichApiData(apiData);
               const result = await generateSkill(apiData, p.outputDir ?? defaultOutputDir, {
                 verifiedEndpoints: testSummary?.verified,
                 unverifiedEndpoints: testSummary?.failed,
@@ -2444,6 +2533,7 @@ const plugin = {
                   for (const [name, value] of Object.entries(result.cookies)) {
                     if (!apiData.cookies[name]) apiData.cookies[name] = value;
                   }
+                  enrichApiData(apiData);
                   await generateSkill(apiData, defaultOutputDir);
                   discovery.markLearned(service);
                   skillGenerated = true;
@@ -3742,6 +3832,7 @@ const plugin = {
                     if (!apiData.authHeaders[name]) apiData.authHeaders[name] = value;
                   }
 
+                  enrichApiData(apiData);
                   const result = await generateSkill(apiData, defaultOutputDir);
                   discovery.markLearned(result.service);
                   skillResult = result;
@@ -3826,6 +3917,626 @@ const plugin = {
         },
 
       ];
+
+      // ── Agentic Reverse Engineering Tools ──────────────────────────────────
+
+      // Shared state for traffic interceptor (persists across tool calls)
+      let activeInterceptor: import("./src/traffic-interceptor.js").TrafficInterceptor | null = null;
+
+      toolList.push(
+        // ── unbrowse_analyze ──────────────────────────────────────────────
+        {
+          name: "unbrowse_analyze",
+          label: "Deep API Analysis",
+          description:
+            "Deep agentic analysis of a captured API. Returns domain model (entities + relationships), " +
+            "auth flow tracing, pagination patterns, error conventions, data flow graph, rate limits, " +
+            "and suggested undiscovered endpoints. Supports focus mode for deeper dives into specific areas " +
+            "(entities, auth, dataflow, gaps, pagination, errors) and includes confidence scoring with " +
+            "reasoning prompts and recommended next steps. Use after capturing to deeply understand an API.",
+          parameters: ANALYZE_SCHEMA,
+          async execute(_toolCallId: string, params: unknown) {
+            const p = params as { service: string; focus?: string; depth?: string; skillsDir?: string };
+            const skillsDir = p.skillsDir ?? defaultOutputDir;
+            const skillDir = join(skillsDir, p.service);
+            const focus = p.focus as "entities" | "auth" | "dataflow" | "gaps" | "pagination" | "errors" | undefined;
+            const depth = p.depth ?? "deep";
+
+            if (!existsSync(skillDir)) {
+              return { content: [{ type: "text", text: `Skill not found: ${p.service}. Run unbrowse_capture first.` }] };
+            }
+
+            try {
+              // Load the skill's API data
+              const skillMdPath = join(skillDir, "SKILL.md");
+              const authPath = join(skillDir, "auth.json");
+
+              if (!existsSync(skillMdPath)) {
+                return { content: [{ type: "text", text: `No SKILL.md found for ${p.service}. Run unbrowse_capture first.` }] };
+              }
+
+              // Re-parse from any available HAR data, or reconstruct from skill
+              let apiData: import("./src/types.js").ApiData;
+
+              // Check if there's a cached HAR file
+              const harCachePath = join(skillDir, ".har-cache.json");
+              if (existsSync(harCachePath)) {
+                const harData = JSON.parse(readFileSync(harCachePath, "utf-8"));
+                apiData = enrichApiData(parseHar(harData, undefined));
+              } else {
+                // Reconstruct minimal ApiData from auth.json + SKILL.md
+                let auth: any = {};
+                if (existsSync(authPath)) {
+                  auth = JSON.parse(readFileSync(authPath, "utf-8"));
+                }
+
+                const skillMd = readFileSync(skillMdPath, "utf-8");
+                const endpointRegex = /^- `(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`/gm;
+                const requests: import("./src/types.js").ParsedRequest[] = [];
+                let match;
+                while ((match = endpointRegex.exec(skillMd)) !== null) {
+                  const method = match[1];
+                  const path = match[2];
+                  const { normalizePath } = await import("./src/path-normalizer.js");
+                  const { normalizedPath, pathParams } = normalizePath(path);
+                  requests.push({
+                    method,
+                    url: (auth.baseUrl || "https://api.example.com") + path,
+                    path,
+                    domain: auth.baseUrl ? new URL(auth.baseUrl).hostname : "unknown",
+                    status: 200,
+                    normalizedPath,
+                    pathParams: pathParams.length > 0 ? pathParams : undefined,
+                  });
+                }
+
+                apiData = enrichApiData({
+                  service: p.service,
+                  baseUrls: [auth.baseUrl || ""],
+                  baseUrl: auth.baseUrl || "",
+                  authHeaders: auth.headers || {},
+                  authMethod: auth.authMethod || "Unknown",
+                  cookies: auth.cookies || {},
+                  authInfo: {},
+                  requests,
+                  endpoints: {},
+                });
+              }
+
+              // Run agentic analysis
+              const { analyzeTraffic } = await import("./src/agentic-analyzer.js");
+
+              // Try to load raw HAR entries for deeper analysis
+              let harEntries: import("./src/types.js").HarEntry[] | undefined;
+              if (existsSync(harCachePath)) {
+                try {
+                  const harData = JSON.parse(readFileSync(harCachePath, "utf-8"));
+                  harEntries = harData.log?.entries;
+                } catch { /* skip */ }
+              }
+
+              const analysis = analyzeTraffic(apiData, harEntries, focus ? { focus } : undefined);
+
+              // Format output
+              const lines: string[] = [
+                `## Deep Analysis: ${p.service}`,
+                "",
+                `**API Style:** ${analysis.apiStyle}`,
+              ];
+
+              if (analysis.versioning?.detected) {
+                lines.push(`**Versioning:** ${analysis.versioning.versions.join(", ")} (${analysis.versioning.pattern})`);
+              }
+
+              lines.push("", `### Summary`, "", analysis.summary);
+
+              // Entities
+              if (analysis.entities.length > 0) {
+                lines.push("", `### Domain Model (${analysis.entities.length} entities)`, "");
+                for (const entity of analysis.entities) {
+                  const crudBadge = entity.crudComplete ? "✓ CRUD complete" : `⚠ Missing: ${entity.missingOps.join(", ")}`;
+                  lines.push(`**${entity.name}** — ${crudBadge}`);
+                  lines.push(`  Fields: ${entity.fields.map(f => `${f.name}: ${f.type}${f.isId ? " (ID)" : ""}`).join(", ")}`);
+                  if (entity.readEndpoints.length) lines.push(`  Read: ${entity.readEndpoints.join(", ")}`);
+                  if (entity.writeEndpoints.length) lines.push(`  Write: ${entity.writeEndpoints.join(", ")}`);
+                  if (entity.deleteEndpoints.length) lines.push(`  Delete: ${entity.deleteEndpoints.join(", ")}`);
+                  lines.push("");
+                }
+              }
+
+              // Auth flows
+              if (analysis.authFlows.length > 0) {
+                lines.push("### Auth Flows", "");
+                for (const flow of analysis.authFlows) {
+                  lines.push(`**${flow.method} ${flow.endpoint}**`);
+                  lines.push(`  Input: ${flow.inputFields.join(", ")}`);
+                  lines.push(`  Produces: ${flow.producedTokens.join(", ")}`);
+                  if (flow.consumedBy.length) {
+                    lines.push(`  Used by: ${flow.consumedBy.map(c => `${c.endpoint} (${c.location}:${c.field})`).join(", ")}`);
+                  }
+                  if (flow.refreshEndpoint) lines.push(`  Refresh: ${flow.refreshEndpoint}`);
+                  lines.push("");
+                }
+              }
+
+              // Pagination
+              if (analysis.pagination.length > 0) {
+                lines.push("### Pagination Patterns", "");
+                for (const pg of analysis.pagination) {
+                  lines.push(`- **${pg.endpoint}** — ${pg.type}: ${JSON.stringify(pg.params)}`);
+                }
+                lines.push("");
+              }
+
+              // Data flows
+              if (analysis.dataFlows.length > 0) {
+                lines.push("### Data Flow", "");
+                for (const df of analysis.dataFlows) {
+                  lines.push(`- ${df.producer} → \`${df.producerField}\` → ${df.consumer} (${df.consumerLocation}:\`${df.consumerField}\`)`);
+                }
+                lines.push("");
+              }
+
+              // Error patterns
+              if (analysis.errors.length > 0) {
+                lines.push("### Error Patterns", "");
+                for (const err of analysis.errors) {
+                  lines.push(`- **${err.status}** — shape: ${err.shape}, fields: ${err.fields.join(", ")}${err.example ? ` (e.g. "${err.example}")` : ""}`);
+                }
+                lines.push("");
+              }
+
+              // Rate limits
+              if (analysis.rateLimits.length > 0) {
+                lines.push("### Rate Limits", "");
+                for (const rl of analysis.rateLimits) {
+                  lines.push(`- **${rl.scope}** — ${rl.limit ? `${rl.limit} req` : "unknown limit"}/${rl.windowSeconds ? `${rl.windowSeconds}s` : "?"} (headers: ${rl.headers.join(", ")})`);
+                }
+                lines.push("");
+              }
+
+              // Suggestions
+              if (analysis.suggestions.length > 0) {
+                lines.push("### Suggested Endpoints to Probe", "");
+                for (const s of analysis.suggestions) {
+                  lines.push(`- \`${s.method} ${s.path}\` — ${s.reason} [${s.confidence}]`);
+                }
+                lines.push("");
+                lines.push(`_Run \`unbrowse_probe\` with service="${p.service}" to automatically discover these._`);
+              }
+
+              // Confidence assessment (always included)
+              const conf = analysis.confidence;
+              lines.push(
+                "",
+                "### Confidence Assessment",
+                `**Overall: ${Math.round(conf.overall * 100)}%**`,
+                `- Entities: ${Math.round(conf.entities * 100)}%`,
+                `- Auth: ${Math.round(conf.auth * 100)}%`,
+                `- Data Flows: ${Math.round(conf.dataFlows * 100)}%`,
+                `- Coverage: ${Math.round(conf.coverage * 100)}%`,
+              );
+
+              // Reasoning layer (only in 'deep' mode)
+              if (depth === "deep") {
+                try {
+                  const { generateReasoningLayer } = await import("./src/reasoning-prompts.js");
+                  const reasoning = generateReasoningLayer(analysis, apiData);
+
+                  // Enriched confidence with reasoning
+                  lines.push("");
+                  for (const [key, score] of Object.entries(reasoning.confidenceScores) as [string, { value: number; reasoning: string }][]) {
+                    if (key === "overall") continue;
+                    lines.push(`  - _${key}: ${score.reasoning}_`);
+                  }
+
+                  // Investigation prompts
+                  if (reasoning.investigationPrompts.length > 0) {
+                    lines.push("", "### Investigation Prompts", "");
+                    for (const prompt of reasoning.investigationPrompts) {
+                      lines.push(`**[${prompt.priority.toUpperCase()}] ${prompt.topic}**`);
+                      lines.push(`> ${prompt.question}`);
+                      lines.push(`> ${prompt.hypothesis}`);
+                      lines.push(`> **Verify:** ${prompt.verification}`);
+                      if (prompt.suggestedAction) {
+                        const paramStr = Object.entries(prompt.suggestedAction.params)
+                          .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+                          .join(" ");
+                        lines.push(`> **Action:** \`${prompt.suggestedAction.tool}\` ${paramStr}`);
+                      }
+                      lines.push("");
+                    }
+                  }
+
+                  // Recommended next steps
+                  if (reasoning.actionPlan.length > 0) {
+                    lines.push("### Recommended Next Steps", "");
+                    for (const step of reasoning.actionPlan) {
+                      const paramStr = Object.entries(step.params)
+                        .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+                        .join(" ");
+                      lines.push(`${step.priority}. \`${step.tool}\` ${paramStr} — ${step.action}`);
+                      lines.push(`   _${step.reasoning}_`);
+                    }
+                    lines.push("");
+                  }
+
+                  // Knowledge gaps
+                  if (reasoning.knowledgeGaps.length > 0) {
+                    lines.push("### Knowledge Gaps", "");
+                    for (const gap of reasoning.knowledgeGaps) {
+                      lines.push(`- ${gap}`);
+                    }
+                    lines.push("");
+                  }
+
+                  // Deep dive suggestions
+                  if (reasoning.deepDiveTopics.length > 0) {
+                    lines.push("### Deep Dive Suggestions", "");
+                    for (const topic of reasoning.deepDiveTopics) {
+                      lines.push(`- **${topic.topic}** — \`unbrowse_analyze\` service="${p.service}" focus="${topic.focusKey}"`);
+                      lines.push(`  _${topic.why} (current confidence: ${Math.round(topic.currentConfidence * 100)}%, expected: ${topic.expectedImprovement})_`);
+                    }
+                  }
+                } catch {
+                  // reasoning-prompts module failed — non-fatal, skip reasoning sections
+                }
+              }
+
+              return { content: [{ type: "text", text: lines.join("\n") }] };
+            } catch (err) {
+              return { content: [{ type: "text", text: `Analysis failed: ${(err as Error).message}` }] };
+            }
+          },
+        },
+
+        // ── unbrowse_probe ────────────────────────────────────────────────
+        {
+          name: "unbrowse_probe",
+          label: "Discover API Endpoints",
+          description:
+            "Intelligently probe for undiscovered API endpoints based on known ones. " +
+            "Tries CRUD completion, sub-resources, common patterns, and API documentation URLs. " +
+            "Uses captured auth for authenticated probing. Discovered endpoints are added to the skill. " +
+            "After probing, use unbrowse_analyze with focus='gaps' for further investigation.",
+          parameters: PROBE_SCHEMA,
+          async execute(_toolCallId: string, params: unknown) {
+            const p = params as { service: string; aggressive?: boolean; maxProbes?: number; skillsDir?: string };
+            const skillsDir = p.skillsDir ?? defaultOutputDir;
+            const skillDir = join(skillsDir, p.service);
+            const authPath = join(skillDir, "auth.json");
+
+            if (!existsSync(skillDir)) {
+              return { content: [{ type: "text", text: `Skill not found: ${p.service}. Run unbrowse_capture first.` }] };
+            }
+
+            try {
+              // Load auth
+              let auth: any = {};
+              if (existsSync(authPath)) {
+                auth = JSON.parse(readFileSync(authPath, "utf-8"));
+              }
+              const baseUrl = auth.baseUrl || "";
+              if (!baseUrl) {
+                return { content: [{ type: "text", text: `No baseUrl in auth.json for ${p.service}` }] };
+              }
+
+              // Build auth headers
+              const authHeaders: Record<string, string> = auth.headers ?? {};
+              const cookies: Record<string, string> = auth.cookies ?? {};
+
+              // Load current endpoint groups
+              const skillMdPath = join(skillDir, "SKILL.md");
+              const skillMd = existsSync(skillMdPath) ? readFileSync(skillMdPath, "utf-8") : "";
+
+              // Reconstruct requests from skill
+              const endpointRegex = /^- `(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`/gm;
+              const requests: import("./src/types.js").ParsedRequest[] = [];
+              let match;
+              while ((match = endpointRegex.exec(skillMd)) !== null) {
+                const { normalizePath } = await import("./src/path-normalizer.js");
+                const { normalizedPath, pathParams } = normalizePath(match[2]);
+                requests.push({
+                  method: match[1],
+                  url: baseUrl + match[2],
+                  path: match[2],
+                  domain: new URL(baseUrl).hostname,
+                  status: 200,
+                  normalizedPath,
+                  pathParams: pathParams.length > 0 ? pathParams : undefined,
+                });
+              }
+
+              const apiData = enrichApiData({
+                service: p.service,
+                baseUrls: [baseUrl],
+                baseUrl,
+                authHeaders,
+                authMethod: auth.authMethod || "Unknown",
+                cookies,
+                authInfo: {},
+                requests,
+                endpoints: {},
+              });
+
+              if (!apiData.endpointGroups || apiData.endpointGroups.length === 0) {
+                return { content: [{ type: "text", text: `No endpoints found for ${p.service}. Run unbrowse_capture first.` }] };
+              }
+
+              // Run probing
+              const { probeEndpoints } = await import("./src/endpoint-prober.js");
+              const results = await probeEndpoints(apiData.endpointGroups, {
+                baseUrl,
+                authHeaders,
+                cookies,
+                maxProbes: p.maxProbes ?? 50,
+                aggressive: p.aggressive ?? false,
+                concurrency: 3,
+                timeoutMs: 5000,
+              });
+
+              const discovered = results.filter(r => r.discovered);
+              const total = results.length;
+
+              const lines: string[] = [
+                `## Endpoint Probing: ${p.service}`,
+                "",
+                `Probed **${total}** endpoints, discovered **${discovered.length}** new ones.`,
+                "",
+              ];
+
+              if (discovered.length > 0) {
+                lines.push("### Discovered Endpoints", "");
+                for (const r of discovered) {
+                  lines.push(`- \`${r.method} ${r.path}\` → ${r.status} ${r.responseSummary} (${r.latencyMs}ms) — _${r.reason}_`);
+                }
+                lines.push("");
+
+                // Add discovered endpoints to the skill by re-generating
+                const newRequests = discovered.map(r => ({
+                  method: r.method,
+                  url: r.url,
+                  path: r.path,
+                  domain: new URL(baseUrl).hostname,
+                  status: r.status,
+                  responseSummary: r.responseSummary,
+                  responseBody: r.responseSchema ?? undefined,
+                }));
+
+                // Merge into existing apiData and regenerate skill
+                for (const req of newRequests) {
+                  const { normalizePath } = await import("./src/path-normalizer.js");
+                  const { normalizedPath, pathParams } = normalizePath(req.path);
+                  const enrichedReq: import("./src/types.js").ParsedRequest = {
+                    ...req,
+                    normalizedPath,
+                    pathParams: pathParams.length > 0 ? pathParams : undefined,
+                  };
+                  apiData.requests.push(enrichedReq);
+                  const key = `${req.domain}:${req.path}`;
+                  if (!apiData.endpoints[key]) apiData.endpoints[key] = [];
+                  apiData.endpoints[key].push(enrichedReq);
+                }
+
+                // Re-enrich and regenerate
+                enrichApiData(apiData);
+                const result = await generateSkill(apiData, skillsDir);
+                lines.push(`Skill updated: ${result.endpointCount} total endpoints${result.diff ? ` (${result.diff})` : ""}`);
+                lines.push("");
+                lines.push(`_Re-run \`unbrowse_analyze\` with service="${p.service}" for updated domain model with the new endpoints._`);
+              } else {
+                lines.push("No new endpoints discovered. The API surface may be fully mapped.");
+
+                // Show what was tried
+                const failed = results.filter(r => !r.discovered).slice(0, 10);
+                if (failed.length > 0) {
+                  lines.push("", "### Probed (not found)", "");
+                  for (const r of failed) {
+                    lines.push(`- \`${r.method} ${r.path}\` → ${r.status} — _${r.reason}_`);
+                  }
+                }
+                lines.push("");
+                lines.push(`_Try \`unbrowse_analyze\` with service="${p.service}" focus="gaps" to identify other investigation angles._`);
+              }
+
+              return { content: [{ type: "text", text: lines.join("\n") }] };
+            } catch (err) {
+              return { content: [{ type: "text", text: `Probing failed: ${(err as Error).message}` }] };
+            }
+          },
+        },
+
+        // ── unbrowse_intercept ────────────────────────────────────────────
+        {
+          name: "unbrowse_intercept",
+          label: "Live Traffic Proxy",
+          description:
+            "Start/stop a local HTTP proxy that captures and maps API traffic in real-time. " +
+            "Point your app or browser at the proxy to reverse-engineer APIs by observation. " +
+            "Supports traffic modification rules for request/response transformation, mocking, and blocking. " +
+            "The proxy builds an API map incrementally — snapshot anytime or stop to generate a skill.",
+          parameters: INTERCEPT_SCHEMA,
+          async execute(_toolCallId: string, params: unknown) {
+            const p = params as {
+              action: string;
+              targetUrl?: string;
+              port?: number;
+              rule?: any;
+              service?: string;
+            };
+
+            switch (p.action) {
+              case "start": {
+                if (activeInterceptor) {
+                  const stats = activeInterceptor.getStats();
+                  return { content: [{ type: "text", text: `Proxy already running on port ${stats.port} → ${stats.targetUrl}. Stop it first or use "status".` }] };
+                }
+                if (!p.targetUrl) {
+                  return { content: [{ type: "text", text: `targetUrl is required for "start". e.g. "https://api.example.com"` }] };
+                }
+
+                try {
+                  const { TrafficInterceptor } = await import("./src/traffic-interceptor.js");
+                  activeInterceptor = new TrafficInterceptor(p.targetUrl, p.port ?? 8787);
+                  await activeInterceptor.start();
+                  const stats = activeInterceptor.getStats();
+
+                  return {
+                    content: [{
+                      type: "text",
+                      text: [
+                        `## Proxy Started`,
+                        "",
+                        `**Local:** http://localhost:${stats.port}`,
+                        `**Target:** ${stats.targetUrl}`,
+                        "",
+                        `All requests to http://localhost:${stats.port}/* will be forwarded to ${stats.targetUrl}/*`,
+                        "",
+                        `Configure your app/browser to use http://localhost:${stats.port} as the API base URL.`,
+                        `Use "status" to check traffic stats, "snapshot" to see the API map, "stop" to generate a skill.`,
+                        `Use "add_rule" to add traffic modification rules.`,
+                      ].join("\n"),
+                    }],
+                  };
+                } catch (err) {
+                  return { content: [{ type: "text", text: `Failed to start proxy: ${(err as Error).message}` }] };
+                }
+              }
+
+              case "stop": {
+                if (!activeInterceptor) {
+                  return { content: [{ type: "text", text: "No proxy running." }] };
+                }
+
+                try {
+                  const apiData = await activeInterceptor.stop();
+                  const stats = activeInterceptor.getStats();
+                  activeInterceptor = null;
+
+                  // Generate skill from captured traffic
+                  if (apiData.requests.length > 0) {
+                    enrichApiData(apiData);
+
+                    // Override service name if provided
+                    if (p.service) apiData.service = p.service;
+
+                    const result = await generateSkill(apiData, defaultOutputDir);
+
+                    return {
+                      content: [{
+                        type: "text",
+                        text: [
+                          `## Proxy Stopped`,
+                          "",
+                          `Captured **${stats.requestCount}** requests across **${stats.endpointCount}** endpoints.`,
+                          "",
+                          `### Generated Skill: ${result.service}`,
+                          `- Endpoints: ${result.endpointCount}`,
+                          `- Auth: ${result.authMethod}`,
+                          `- Location: ${result.skillDir}`,
+                          "",
+                          `Use \`unbrowse_replay\` with service="${result.service}" to call these APIs.`,
+                          `Use \`unbrowse_analyze\` with service="${result.service}" for deep analysis.`,
+                        ].join("\n"),
+                      }],
+                    };
+                  } else {
+                    return { content: [{ type: "text", text: "Proxy stopped. No traffic was captured." }] };
+                  }
+                } catch (err) {
+                  activeInterceptor = null;
+                  return { content: [{ type: "text", text: `Error stopping proxy: ${(err as Error).message}` }] };
+                }
+              }
+
+              case "status": {
+                if (!activeInterceptor) {
+                  return { content: [{ type: "text", text: "No proxy running. Use action='start' to launch one." }] };
+                }
+
+                const stats = activeInterceptor.getStats();
+                const uptimeMin = Math.round(stats.uptime / 60);
+                const lines = [
+                  `## Proxy Status`,
+                  "",
+                  `**Port:** ${stats.port} → ${stats.targetUrl}`,
+                  `**Uptime:** ${uptimeMin}m`,
+                  `**Requests:** ${stats.requestCount}`,
+                  `**Endpoints:** ${stats.endpointCount}`,
+                ];
+
+                if (Object.keys(stats.endpointHits).length > 0) {
+                  lines.push("", "### Endpoint Traffic", "");
+                  const sorted = Object.entries(stats.endpointHits).sort((a, b) => b[1] - a[1]);
+                  for (const [ep, hits] of sorted.slice(0, 20)) {
+                    const avgMs = Math.round(stats.avgLatency[ep] || 0);
+                    lines.push(`- \`${ep}\` — ${hits} hits (avg ${avgMs}ms)`);
+                  }
+                }
+
+                const rules = activeInterceptor.getRules();
+                if (rules.length > 0) {
+                  lines.push("", "### Active Rules", "");
+                  for (const rule of rules) {
+                    lines.push(`- \`${rule.match}\` → ${rule.action}`);
+                  }
+                }
+
+                return { content: [{ type: "text", text: lines.join("\n") }] };
+              }
+
+              case "snapshot": {
+                if (!activeInterceptor) {
+                  return { content: [{ type: "text", text: "No proxy running." }] };
+                }
+
+                const apiMap = activeInterceptor.getApiMap();
+                enrichApiData(apiMap);
+
+                const lines = [
+                  `## API Map Snapshot`,
+                  "",
+                  `**Service:** ${apiMap.service}`,
+                  `**Base URL:** ${apiMap.baseUrl}`,
+                  `**Endpoints:** ${apiMap.endpointGroups?.length ?? Object.keys(apiMap.endpoints).length}`,
+                  "",
+                ];
+
+                if (apiMap.endpointGroups) {
+                  for (const ep of apiMap.endpointGroups) {
+                    lines.push(`- \`${ep.method} ${ep.normalizedPath}\` — ${ep.description}${ep.responseSummary ? ` → ${ep.responseSummary}` : ""}`);
+                  }
+                }
+
+                return { content: [{ type: "text", text: lines.join("\n") }] };
+              }
+
+              case "add_rule": {
+                if (!activeInterceptor) {
+                  return { content: [{ type: "text", text: "No proxy running. Start one first." }] };
+                }
+                if (!p.rule) {
+                  return { content: [{ type: "text", text: "rule is required for add_rule action." }] };
+                }
+
+                activeInterceptor.addRule(p.rule);
+                return { content: [{ type: "text", text: `Rule added: \`${p.rule.match}\` → ${p.rule.action}` }] };
+              }
+
+              case "clear_rules": {
+                if (!activeInterceptor) {
+                  return { content: [{ type: "text", text: "No proxy running." }] };
+                }
+                activeInterceptor.clearRules();
+                return { content: [{ type: "text", text: "All rules cleared." }] };
+              }
+
+              default:
+                return { content: [{ type: "text", text: `Unknown action: ${p.action}. Use: start, stop, status, snapshot, add_rule, clear_rules.` }] };
+            }
+          },
+        } as any,
+      );
 
       // ── Meta-Tool: unbrowse_do ────────────────────────────────────────────
       // "Do whatever it takes" orchestrator
@@ -4484,6 +5195,9 @@ const plugin = {
       "unbrowse_wallet",
       "browser",
       "unbrowse_do",
+      "unbrowse_analyze",
+      "unbrowse_probe",
+      "unbrowse_intercept",
       "unbrowse_desktop",
       "unbrowse_workflow_record",
       "unbrowse_workflow_learn",
@@ -4572,6 +5286,11 @@ const plugin = {
         "- E-commerce carts, checkout, orders (internal checkout API)",
         "- Dashboard data, exports, actions (internal admin API)",
         "- Auth captured includes: session cookies, bearer tokens, API keys, CSRF tokens, custom headers",
+        "",
+        "Agentic reverse engineering (deep analysis + active discovery):",
+        "5. Use unbrowse_analyze for deep analysis — domain model, auth flows, data dependencies, pagination patterns",
+        "6. Use unbrowse_probe to discover undiscovered endpoints — CRUD gaps, sub-resources, API docs",
+        "7. Use unbrowse_intercept to start a live proxy — point any app at it to map APIs by observation in real-time",
         "",
       ];
 

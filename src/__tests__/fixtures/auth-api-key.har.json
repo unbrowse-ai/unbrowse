@@ -1,0 +1,141 @@
+{
+  "log": {
+    "version": "1.2",
+    "creator": { "name": "Test", "version": "1.0" },
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.shopify-example.com/api/v1/products",
+          "headers": [
+            { "name": "X-Api-Key", "value": "sk_live_abc123def456ghi789" },
+            { "name": "Accept", "value": "application/json" },
+            { "name": "X-Shop-Domain", "value": "mystore.shopify-example.com" }
+          ],
+          "queryString": [
+            { "name": "limit", "value": "50" },
+            { "name": "since_id", "value": "0" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-RateLimit-Remaining", "value": "39" },
+            { "name": "X-RateLimit-Limit", "value": "40" }
+          ],
+          "content": {
+            "size": 600,
+            "mimeType": "application/json",
+            "text": "{\"products\":[{\"id\":1001,\"title\":\"Classic T-Shirt\",\"vendor\":\"Acme Apparel\",\"productType\":\"Shirts\",\"status\":\"active\",\"variants\":[{\"id\":2001,\"title\":\"Small / Blue\",\"price\":\"29.99\",\"sku\":\"TS-BLU-S\",\"inventory_quantity\":50}]},{\"id\":1002,\"title\":\"Running Shoes\",\"vendor\":\"SpeedFit\",\"productType\":\"Footwear\",\"status\":\"active\",\"variants\":[{\"id\":2002,\"title\":\"Size 10 / Black\",\"price\":\"89.99\",\"sku\":\"RS-BLK-10\",\"inventory_quantity\":25}]}]}"
+          }
+        },
+        "time": 250
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.shopify-example.com/api/v1/products/1001",
+          "headers": [
+            { "name": "X-Api-Key", "value": "sk_live_abc123def456ghi789" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-RateLimit-Remaining", "value": "38" }
+          ],
+          "content": {
+            "size": 450,
+            "mimeType": "application/json",
+            "text": "{\"id\":1001,\"title\":\"Classic T-Shirt\",\"vendor\":\"Acme Apparel\",\"productType\":\"Shirts\",\"status\":\"active\",\"bodyHtml\":\"<p>Premium cotton t-shirt</p>\",\"tags\":\"cotton,casual,summer\",\"variants\":[{\"id\":2001,\"title\":\"Small / Blue\",\"price\":\"29.99\",\"sku\":\"TS-BLU-S\",\"inventory_quantity\":50},{\"id\":2003,\"title\":\"Medium / Blue\",\"price\":\"29.99\",\"sku\":\"TS-BLU-M\",\"inventory_quantity\":35}]}"
+          }
+        },
+        "time": 180
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.shopify-example.com/api/v1/orders",
+          "headers": [
+            { "name": "X-Api-Key", "value": "sk_live_abc123def456ghi789" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": [
+            { "name": "status", "value": "open" },
+            { "name": "limit", "value": "25" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-RateLimit-Remaining", "value": "37" }
+          ],
+          "content": {
+            "size": 700,
+            "mimeType": "application/json",
+            "text": "{\"orders\":[{\"id\":5001,\"name\":\"#1001\",\"email\":\"customer@example.com\",\"total_price\":\"59.98\",\"currency\":\"USD\",\"financial_status\":\"paid\",\"fulfillment_status\":null,\"line_items\":[{\"id\":7001,\"product_id\":1001,\"variant_id\":2001,\"title\":\"Classic T-Shirt\",\"quantity\":2,\"price\":\"29.99\"}],\"created_at\":\"2025-12-01T14:30:00Z\"}]}"
+          }
+        },
+        "time": 220
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://api.shopify-example.com/api/v1/orders/5001/fulfillments",
+          "headers": [
+            { "name": "X-Api-Key", "value": "sk_live_abc123def456ghi789" },
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"tracking_number\":\"1Z999AA10123456784\",\"tracking_company\":\"UPS\",\"line_items\":[{\"id\":7001,\"quantity\":2}]}"
+          }
+        },
+        "response": {
+          "status": 201,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 350,
+            "mimeType": "application/json",
+            "text": "{\"id\":9001,\"order_id\":5001,\"status\":\"success\",\"tracking_number\":\"1Z999AA10123456784\",\"tracking_company\":\"UPS\",\"tracking_url\":\"https://ups.com/track?num=1Z999AA10123456784\",\"line_items\":[{\"id\":7001,\"quantity\":2}],\"created_at\":\"2025-12-03T16:45:00Z\"}"
+          }
+        },
+        "time": 300
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.shopify-example.com/api/v1/customers",
+          "headers": [
+            { "name": "X-Api-Key", "value": "sk_live_abc123def456ghi789" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": [
+            { "name": "limit", "value": "10" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-RateLimit-Remaining", "value": "36" }
+          ],
+          "content": {
+            "size": 500,
+            "mimeType": "application/json",
+            "text": "{\"customers\":[{\"id\":3001,\"email\":\"customer@example.com\",\"first_name\":\"Jane\",\"last_name\":\"Doe\",\"orders_count\":5,\"total_spent\":\"349.95\",\"created_at\":\"2025-06-15T10:00:00Z\"},{\"id\":3002,\"email\":\"buyer@test.com\",\"first_name\":\"Bob\",\"last_name\":\"Smith\",\"orders_count\":2,\"total_spent\":\"149.98\",\"created_at\":\"2025-09-20T14:00:00Z\"}]}"
+          }
+        },
+        "time": 190
+      }
+    ]
+  }
+}

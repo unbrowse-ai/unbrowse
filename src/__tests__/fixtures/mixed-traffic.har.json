@@ -1,0 +1,312 @@
+{
+  "log": {
+    "version": "1.2",
+    "creator": { "name": "Test", "version": "1.0" },
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://app.acmecrm.io/api/v1/auth/login",
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"email\":\"admin@acmecrm.io\",\"password\":\"s3cret\"}"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Set-Cookie", "value": "session_id=sess-abcdef123456; Path=/; HttpOnly; Secure" }
+          ],
+          "content": {
+            "size": 250,
+            "mimeType": "application/json",
+            "text": "{\"accessToken\":\"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWRtaW4ifQ.fake\",\"refreshToken\":\"rt_1234567890abcdef\",\"expiresIn\":3600,\"userId\":\"u-100\"}"
+          }
+        },
+        "time": 300
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://app.acmecrm.io/api/v1/contacts",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWRtaW4ifQ.fake" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "cookies": [
+            { "name": "session_id", "value": "sess-abcdef123456" }
+          ],
+          "queryString": [
+            { "name": "page", "value": "1" },
+            { "name": "per_page", "value": "50" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 600,
+            "mimeType": "application/json",
+            "text": "{\"data\":[{\"id\":\"c-201\",\"name\":\"John Doe\",\"email\":\"john@company.com\",\"company\":\"Acme Inc\",\"status\":\"lead\",\"createdAt\":\"2025-11-01T10:00:00Z\"},{\"id\":\"c-202\",\"name\":\"Sarah Connor\",\"email\":\"sarah@skynet.com\",\"company\":\"Skynet Corp\",\"status\":\"customer\",\"createdAt\":\"2025-10-15T08:00:00Z\"}],\"total\":150,\"page\":1,\"perPage\":50}"
+          }
+        },
+        "time": 160
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://www.google-analytics.com/collect?v=1&tid=UA-12345&t=pageview",
+          "headers": [
+            { "name": "Accept", "value": "*/*" }
+          ],
+          "queryString": [
+            { "name": "v", "value": "1" },
+            { "name": "tid", "value": "UA-12345" },
+            { "name": "t", "value": "pageview" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "image/gif" }
+          ],
+          "content": {
+            "size": 35,
+            "mimeType": "image/gif"
+          }
+        },
+        "time": 50
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js",
+          "headers": [
+            { "name": "Accept", "value": "*/*" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/javascript" }
+          ],
+          "content": {
+            "size": 72000,
+            "mimeType": "application/javascript"
+          }
+        },
+        "time": 30
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://app.acmecrm.io/styles/main.css",
+          "headers": [
+            { "name": "Accept", "value": "text/css" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "text/css" }
+          ],
+          "content": {
+            "size": 15000,
+            "mimeType": "text/css"
+          }
+        },
+        "time": 20
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://app.acmecrm.io/logo.png",
+          "headers": [
+            { "name": "Accept", "value": "image/png" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "image/png" }
+          ],
+          "content": {
+            "size": 5000,
+            "mimeType": "image/png"
+          }
+        },
+        "time": 15
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://app.acmecrm.io/",
+          "headers": [
+            { "name": "Accept", "value": "text/html" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "text/html; charset=utf-8" }
+          ],
+          "content": {
+            "size": 10000,
+            "mimeType": "text/html",
+            "text": "<!DOCTYPE html><html><head><title>AcmeCRM</title></head><body></body></html>"
+          }
+        },
+        "time": 100
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://app.acmecrm.io/api/v1/contacts",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWRtaW4ifQ.fake" },
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "cookies": [
+            { "name": "session_id", "value": "sess-abcdef123456" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"name\":\"Eve Adams\",\"email\":\"eve@newcompany.com\",\"company\":\"NewCo\",\"phone\":\"+1-555-0199\"}"
+          }
+        },
+        "response": {
+          "status": 201,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 320,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"c-203\",\"name\":\"Eve Adams\",\"email\":\"eve@newcompany.com\",\"company\":\"NewCo\",\"phone\":\"+1-555-0199\",\"status\":\"lead\",\"createdAt\":\"2025-12-03T17:00:00Z\"}"
+          }
+        },
+        "time": 200
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api-js.mixpanel.com/track/?data=eyJldmVudCI6InBhZ2V2aWV3In0%3D",
+          "headers": [
+            { "name": "Accept", "value": "*/*" }
+          ],
+          "queryString": [
+            { "name": "data", "value": "eyJldmVudCI6InBhZ2V2aWV3In0=" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "text/plain" }
+          ],
+          "content": {
+            "size": 1,
+            "mimeType": "text/plain",
+            "text": "1"
+          }
+        },
+        "time": 40
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://app.acmecrm.io/api/v1/contacts/c-201",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWRtaW4ifQ.fake" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "cookies": [
+            { "name": "session_id", "value": "sess-abcdef123456" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 400,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"c-201\",\"name\":\"John Doe\",\"email\":\"john@company.com\",\"company\":\"Acme Inc\",\"phone\":\"+1-555-0100\",\"status\":\"lead\",\"notes\":\"Met at conference\",\"deals\":[{\"id\":\"d-301\",\"title\":\"Enterprise License\",\"value\":50000,\"stage\":\"negotiation\"}],\"createdAt\":\"2025-11-01T10:00:00Z\"}"
+          }
+        },
+        "time": 120
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://app.acmecrm.io/api/v1/deals",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWRtaW4ifQ.fake" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "cookies": [
+            { "name": "session_id", "value": "sess-abcdef123456" }
+          ],
+          "queryString": [
+            { "name": "stage", "value": "negotiation" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 450,
+            "mimeType": "application/json",
+            "text": "{\"data\":[{\"id\":\"d-301\",\"title\":\"Enterprise License\",\"value\":50000,\"stage\":\"negotiation\",\"contactId\":\"c-201\",\"probability\":0.75,\"expectedClose\":\"2026-01-15\"},{\"id\":\"d-302\",\"title\":\"SaaS Subscription\",\"value\":12000,\"stage\":\"negotiation\",\"contactId\":\"c-202\",\"probability\":0.5,\"expectedClose\":\"2026-02-01\"}],\"total\":8}"
+          }
+        },
+        "time": 140
+      },
+      {
+        "request": {
+          "method": "PATCH",
+          "url": "https://app.acmecrm.io/api/v1/deals/d-301",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYWRtaW4ifQ.fake" },
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "cookies": [
+            { "name": "session_id", "value": "sess-abcdef123456" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"stage\":\"closed_won\",\"probability\":1.0}"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 350,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"d-301\",\"title\":\"Enterprise License\",\"value\":50000,\"stage\":\"closed_won\",\"contactId\":\"c-201\",\"probability\":1.0,\"expectedClose\":\"2026-01-15\",\"closedAt\":\"2025-12-03T18:00:00Z\"}"
+          }
+        },
+        "time": 170
+      }
+    ]
+  }
+}

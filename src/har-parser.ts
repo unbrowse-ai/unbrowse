@@ -6,9 +6,24 @@
 
 import type { HarEntry, ParsedRequest, ApiData } from "./types.js";
 import { guessAuthMethod } from "./auth-extractor.js";
+import { normalizePath } from "./path-normalizer.js";
+import { safeParseJson, inferSchema, getTopLevelSchema } from "./schema-inferrer.js";
+import { analyzeEndpoints } from "./endpoint-analyzer.js";
+import { isNoiseEndpoint } from "./noise-filter.js";
 
 /** Static asset extensions to skip. */
-const STATIC_EXTS = [".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".woff", ".woff2", ".ico", ".map"];
+const STATIC_EXTS = [
+  // Styles & scripts
+  ".css", ".js", ".map",
+  // Images
+  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".avif", ".bmp",
+  // Fonts
+  ".woff", ".woff2", ".ttf", ".otf", ".eot",
+  // Video & audio
+  ".webm", ".mp4", ".mov", ".avi", ".mp3", ".ogg", ".wav", ".flac",
+  // Archives & binaries
+  ".pdf", ".zip", ".gz", ".tar", ".dmg", ".exe", ".msi", ".wasm",
+];
 
 /** Third-party domains to skip (analytics, payments, social, etc.). */
 const SKIP_DOMAINS = [
@@ -140,8 +155,9 @@ const CONTEXT_HEADER_NAMES = new Set([
 
 /** Path prefixes to skip (infra noise on any domain). */
 const SKIP_PATHS = [
-  "/cdn-cgi/", "/_next/data/", "/__nextjs", "/sockjs-node/",
+  "/cdn-cgi/", "/_next/data/", "/_next/static/", "/__nextjs", "/sockjs-node/",
   "/favicon", "/manifest.json", "/robots.txt", "/sitemap",
+  "/static/", "/assets/", "/precache-images",
 ];
 
 /** Check if a URL is a static asset or infra noise. */
@@ -149,6 +165,22 @@ function isStaticAsset(url: string): boolean {
   const path = new URL(url).pathname.toLowerCase();
   if (STATIC_EXTS.some((ext) => path.endsWith(ext))) return true;
   if (SKIP_PATHS.some((prefix) => path.startsWith(prefix))) return true;
+  return false;
+}
+
+/** Check if a response content-type indicates non-API content (media, fonts, css, binary). */
+function isNonApiContentType(mimeType?: string): boolean {
+  if (!mimeType) return false;
+  const mt = mimeType.toLowerCase();
+  if (mt.startsWith("image/")) return true;
+  if (mt.startsWith("video/")) return true;
+  if (mt.startsWith("audio/")) return true;
+  if (mt.startsWith("font/") || mt.includes("font")) return true;
+  if (mt === "text/css") return true;
+  if (mt === "application/wasm") return true;
+  if (mt === "application/octet-stream") return true;
+  if (mt === "application/pdf") return true;
+  if (mt === "application/zip") return true;
   return false;
 }
 
@@ -202,11 +234,88 @@ function isSameRootDomain(domain1: string, domain2: string): boolean {
   return getRootDomain(domain1) === getRootDomain(domain2);
 }
 
+/**
+ * Detect if a request is a GraphQL persisted query.
+ * These use URL patterns like /api/v3/OperationName/hexHash with operationName query param.
+ */
+function detectGraphqlPersistedQuery(
+  pathname: string,
+  queryParams: { name: string; value: string }[],
+  requestBody: unknown,
+  responseBody: unknown,
+): { operationName: string; queryHash?: string; basePath: string } | null {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length < 2) return null;
+
+  // Signal 1: operationName query param
+  const opNameParam = queryParams.find((q) => q.name === "operationName");
+
+  // Signal 2: Path pattern — look for a PascalCase/camelCase word followed by a long hex hash
+  // e.g. /api/v3/AutoSuggestionsQuery/fd31e16424decce319...
+  let pathOperationName: string | undefined;
+  let pathHash: string | undefined;
+  let basePath: string | undefined;
+
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    const nextSeg = segments[i + 1];
+    // Operation name: starts with uppercase letter, contains only word chars, not a version prefix
+    const isOperationName = /^[A-Z][a-zA-Z0-9]+$/.test(seg) && seg.length >= 3;
+    // Next segment is a long hex hash (persisted query ID)
+    const isHexHash = /^[0-9a-f]{32,}$/i.test(nextSeg);
+
+    if (isOperationName && isHexHash) {
+      pathOperationName = seg;
+      pathHash = nextSeg;
+      basePath = "/" + segments.slice(0, i).join("/");
+      break;
+    }
+  }
+
+  // Signal 3: Response has GraphQL envelope shape {data, extensions}
+  let hasGraphqlEnvelope = false;
+  if (responseBody && typeof responseBody === "object" && !Array.isArray(responseBody)) {
+    const keys = Object.keys(responseBody as Record<string, unknown>);
+    hasGraphqlEnvelope = keys.includes("data") && (keys.includes("extensions") || keys.length <= 3);
+  }
+
+  // Signal 4: Request body has GraphQL structure
+  let bodyOperationName: string | undefined;
+  if (requestBody && typeof requestBody === "object" && !Array.isArray(requestBody)) {
+    const body = requestBody as Record<string, unknown>;
+    if (typeof body.operationName === "string") {
+      bodyOperationName = body.operationName;
+    }
+  }
+
+  // Determine operation name from best source
+  const operationName = opNameParam?.value || pathOperationName || bodyOperationName;
+  if (!operationName) return null;
+
+  // Need at least 2 signals to confirm GraphQL persisted query
+  const signals = [
+    !!opNameParam,
+    !!pathOperationName,
+    hasGraphqlEnvelope,
+    !!bodyOperationName,
+  ].filter(Boolean).length;
+
+  if (signals < 2) return null;
+
+  return {
+    operationName,
+    queryHash: pathHash,
+    basePath: basePath || "/" + segments.slice(0, -1).join("/"),
+  };
+}
+
 /** Group requests by domain:path. */
 function groupByDomainAndPath(requests: ParsedRequest[]): Record<string, ParsedRequest[]> {
   const grouped: Record<string, ParsedRequest[]> = {};
   for (const req of requests) {
-    const key = `${req.domain}:${req.path}`;
+    // GraphQL operations collapse to their base path
+    const path = req.graphqlOperation ? req.graphqlOperation.basePath : req.path;
+    const key = `${req.domain}:${path}`;
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(req);
   }
@@ -302,6 +411,27 @@ export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string
       continue;
     }
 
+    // Skip non-API content types (images, video, audio, fonts, css, binary)
+    if (responseContentType && isNonApiContentType(responseContentType)) {
+      continue;
+    }
+
+    // Skip noise endpoints (tracking, analytics, telemetry, asset manifests)
+    // Uses generalized multi-signal scoring, not hardcoded paths
+    if (isNoiseEndpoint({
+      url,
+      method,
+      path: parsed.pathname,
+      requestContentType: entry.request.postData?.mimeType,
+      requestBodyText: entry.request.postData?.text,
+      responseStatus,
+      responseContentType,
+      responseSize: entry.response?.content?.size,
+      responseBodyText: entry.response?.content?.text,
+    })) {
+      continue;
+    }
+
     // Check if this domain is related to the seed domain (same root, e.g., api.dflow.net for dflow.net)
     const isSeedRelated = seedDomain && isSameRootDomain(domain, seedDomain);
 
@@ -371,6 +501,34 @@ export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string
       }
     }
 
+    // ── Enrich: extract bodies, normalize path ────────────────────────────
+    const queryParams = entry.request.queryString ?? [];
+
+    let requestBody: unknown = undefined;
+    let requestContentType: string | undefined = undefined;
+    if (["POST", "PUT", "PATCH"].includes(method) && entry.request.postData?.text) {
+      requestBody = safeParseJson(entry.request.postData.text);
+      requestContentType = entry.request.postData.mimeType;
+    }
+
+    let responseBody: unknown = undefined;
+    let responseSummary: string | undefined = undefined;
+    const rawResponseText = entry.response?.content?.text;
+    if (rawResponseText) {
+      const parsedResponse = safeParseJson(rawResponseText);
+      if (parsedResponse !== null) {
+        responseBody = getTopLevelSchema(parsedResponse);
+        responseSummary = inferSchema(parsedResponse).summary;
+      }
+    }
+
+    const { normalizedPath, pathParams } = normalizePath(parsed.pathname);
+
+    // Detect GraphQL persisted queries (e.g. /api/v3/OperationName/hexHash)
+    const graphqlOp = detectGraphqlPersistedQuery(
+      parsed.pathname, queryParams, requestBody, responseBody,
+    );
+
     requests.push({
       method,
       url,
@@ -378,6 +536,14 @@ export function parseHar(har: { log: { entries: HarEntry[] } }, seedUrl?: string
       domain,
       status: responseStatus,
       responseContentType,
+      queryParams: queryParams.length > 0 ? queryParams : undefined,
+      requestBody,
+      requestContentType,
+      responseBody,
+      responseSummary,
+      normalizedPath: graphqlOp ? graphqlOp.basePath : normalizedPath,
+      pathParams: graphqlOp ? undefined : (pathParams.length > 0 ? pathParams : undefined),
+      graphqlOperation: graphqlOp ?? undefined,
     });
   }
 
@@ -492,4 +658,18 @@ export function mergeOpenApiEndpoints(
   }
 
   return apiData;
+}
+
+/**
+ * Enrich parsed API data with endpoint analysis.
+ *
+ * Runs the endpoint analyzer to populate `data.endpointGroups` with
+ * categorized, described, dependency-ordered endpoint groups.
+ *
+ * This is a separate post-processing step — call it after parseHar()
+ * and optionally after mergeOpenApiEndpoints().
+ */
+export function enrichApiData(data: ApiData): ApiData {
+  data.endpointGroups = analyzeEndpoints(data.requests, data.endpoints);
+  return data;
 }

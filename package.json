@@ -73,7 +73,12 @@
       "optional": true
     }
   },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit --target es2022 --module nodenext --moduleResolution nodenext --skipLibCheck"
+  },
   "devDependencies": {
+    "@types/bun": "^1.0.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
   }

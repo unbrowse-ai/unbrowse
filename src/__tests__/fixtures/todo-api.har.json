@@ -1,0 +1,207 @@
+{
+  "log": {
+    "version": "1.2",
+    "creator": { "name": "Test", "version": "1.0" },
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.todoapp.com/api/v1/todos",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": [
+            { "name": "page", "value": "1" },
+            { "name": "limit", "value": "20" },
+            { "name": "status", "value": "active" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "content": {
+            "size": 512,
+            "mimeType": "application/json",
+            "text": "{\"data\":[{\"id\":\"t-1001\",\"title\":\"Buy groceries\",\"status\":\"active\",\"priority\":\"high\",\"userId\":42,\"createdAt\":\"2025-12-01T10:00:00Z\"},{\"id\":\"t-1002\",\"title\":\"Walk the dog\",\"status\":\"active\",\"priority\":\"medium\",\"userId\":42,\"createdAt\":\"2025-12-02T08:30:00Z\"}],\"total\":15,\"page\":1,\"limit\":20}"
+          }
+        },
+        "time": 120
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.todoapp.com/api/v1/todos/t-1001",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "content": {
+            "size": 256,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"t-1001\",\"title\":\"Buy groceries\",\"status\":\"active\",\"priority\":\"high\",\"userId\":42,\"description\":\"Milk, eggs, bread\",\"tags\":[\"personal\",\"errands\"],\"createdAt\":\"2025-12-01T10:00:00Z\",\"updatedAt\":\"2025-12-01T10:00:00Z\"}"
+          }
+        },
+        "time": 85
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://api.todoapp.com/api/v1/todos",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" },
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"title\":\"Read a book\",\"priority\":\"low\",\"tags\":[\"personal\"],\"description\":\"Finish chapter 5\"}"
+          }
+        },
+        "response": {
+          "status": 201,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "content": {
+            "size": 192,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"t-1003\",\"title\":\"Read a book\",\"status\":\"active\",\"priority\":\"low\",\"userId\":42,\"description\":\"Finish chapter 5\",\"tags\":[\"personal\"],\"createdAt\":\"2025-12-03T14:20:00Z\",\"updatedAt\":\"2025-12-03T14:20:00Z\"}"
+          }
+        },
+        "time": 150
+      },
+      {
+        "request": {
+          "method": "PUT",
+          "url": "https://api.todoapp.com/api/v1/todos/t-1001",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" },
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"title\":\"Buy groceries\",\"status\":\"completed\",\"priority\":\"high\"}"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "content": {
+            "size": 256,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"t-1001\",\"title\":\"Buy groceries\",\"status\":\"completed\",\"priority\":\"high\",\"userId\":42,\"description\":\"Milk, eggs, bread\",\"tags\":[\"personal\",\"errands\"],\"createdAt\":\"2025-12-01T10:00:00Z\",\"updatedAt\":\"2025-12-03T15:00:00Z\"}"
+          }
+        },
+        "time": 130
+      },
+      {
+        "request": {
+          "method": "DELETE",
+          "url": "https://api.todoapp.com/api/v1/todos/t-1002",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 204,
+          "headers": [],
+          "content": {
+            "size": 0,
+            "mimeType": "application/json"
+          }
+        },
+        "time": 95
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.todoapp.com/api/v1/users/42",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "content": {
+            "size": 180,
+            "mimeType": "application/json",
+            "text": "{\"id\":42,\"name\":\"Alice Johnson\",\"email\":\"alice@example.com\",\"role\":\"admin\",\"createdAt\":\"2025-01-15T09:00:00Z\"}"
+          }
+        },
+        "time": 70
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.todoapp.com/api/v1/users/42/todos",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": [
+            { "name": "status", "value": "active" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "content": {
+            "size": 350,
+            "mimeType": "application/json",
+            "text": "{\"data\":[{\"id\":\"t-1001\",\"title\":\"Buy groceries\",\"status\":\"active\",\"priority\":\"high\"},{\"id\":\"t-1003\",\"title\":\"Read a book\",\"status\":\"active\",\"priority\":\"low\"}],\"total\":2}"
+          }
+        },
+        "time": 110
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://api.todoapp.com/api/v1/todos/t-1001/tags",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.dGVzdA.abc123" },
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"tag\":\"urgent\"}"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" }
+          ],
+          "content": {
+            "size": 128,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"t-1001\",\"tags\":[\"personal\",\"errands\",\"urgent\"]}"
+          }
+        },
+        "time": 90
+      }
+    ]
+  }
+}

@@ -1,0 +1,185 @@
+{
+  "log": {
+    "version": "1.2",
+    "creator": { "name": "Test", "version": "1.0" },
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.myshop.com/v2/products",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJSUzI1NiJ9.c2hvcA.xyz789" },
+            { "name": "Accept", "value": "application/json" },
+            { "name": "X-Store-Id", "value": "store-55" }
+          ],
+          "queryString": [
+            { "name": "category", "value": "electronics" },
+            { "name": "page", "value": "1" },
+            { "name": "sort", "value": "price_asc" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 800,
+            "mimeType": "application/json",
+            "text": "{\"items\":[{\"id\":\"prod-001\",\"name\":\"Wireless Headphones\",\"price\":79.99,\"currency\":\"USD\",\"category\":\"electronics\",\"stock\":150,\"rating\":4.5},{\"id\":\"prod-002\",\"name\":\"USB-C Hub\",\"price\":34.99,\"currency\":\"USD\",\"category\":\"electronics\",\"stock\":300,\"rating\":4.2}],\"total\":42,\"page\":1,\"pageSize\":20}"
+          }
+        },
+        "time": 200
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.myshop.com/v2/products/prod-001",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJSUzI1NiJ9.c2hvcA.xyz789" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 480,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"prod-001\",\"name\":\"Wireless Headphones\",\"price\":79.99,\"currency\":\"USD\",\"category\":\"electronics\",\"stock\":150,\"rating\":4.5,\"description\":\"Premium noise-canceling headphones\",\"images\":[\"https://cdn.myshop.com/img/prod-001-1.jpg\"],\"variants\":[{\"color\":\"black\",\"sku\":\"WH-BLK-001\"},{\"color\":\"white\",\"sku\":\"WH-WHT-001\"}]}"
+          }
+        },
+        "time": 110
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://api.myshop.com/v2/cart/items",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJSUzI1NiJ9.c2hvcA.xyz789" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Store-Id", "value": "store-55" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"productId\":\"prod-001\",\"quantity\":2,\"variant\":\"WH-BLK-001\"}"
+          }
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 320,
+            "mimeType": "application/json",
+            "text": "{\"cartId\":\"cart-8a3f\",\"items\":[{\"productId\":\"prod-001\",\"name\":\"Wireless Headphones\",\"quantity\":2,\"variant\":\"WH-BLK-001\",\"unitPrice\":79.99,\"subtotal\":159.98}],\"total\":159.98,\"itemCount\":1}"
+          }
+        },
+        "time": 180
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://api.myshop.com/v2/orders",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJSUzI1NiJ9.c2hvcA.xyz789" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Store-Id", "value": "store-55" }
+          ],
+          "queryString": [],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"cartId\":\"cart-8a3f\",\"shippingAddressId\":\"addr-12\",\"paymentMethodId\":\"pm-99\"}"
+          }
+        },
+        "response": {
+          "status": 201,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 400,
+            "mimeType": "application/json",
+            "text": "{\"orderId\":\"ord-20251203-001\",\"status\":\"confirmed\",\"items\":[{\"productId\":\"prod-001\",\"quantity\":2,\"unitPrice\":79.99}],\"total\":159.98,\"shippingAddress\":{\"street\":\"123 Main St\",\"city\":\"Austin\",\"state\":\"TX\"},\"estimatedDelivery\":\"2025-12-07\"}"
+          }
+        },
+        "time": 350
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.myshop.com/v2/orders/ord-20251203-001",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJSUzI1NiJ9.c2hvcA.xyz789" },
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 500,
+            "mimeType": "application/json",
+            "text": "{\"orderId\":\"ord-20251203-001\",\"status\":\"confirmed\",\"items\":[{\"productId\":\"prod-001\",\"name\":\"Wireless Headphones\",\"quantity\":2,\"unitPrice\":79.99}],\"total\":159.98,\"shippingAddress\":{\"street\":\"123 Main St\",\"city\":\"Austin\",\"state\":\"TX\"},\"tracking\":null,\"estimatedDelivery\":\"2025-12-07\",\"createdAt\":\"2025-12-03T16:00:00Z\"}"
+          }
+        },
+        "time": 95
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.myshop.com/v2/products/prod-001/reviews",
+          "headers": [
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": [
+            { "name": "page", "value": "1" },
+            { "name": "sort", "value": "newest" }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 420,
+            "mimeType": "application/json",
+            "text": "{\"reviews\":[{\"id\":\"rev-501\",\"userId\":88,\"rating\":5,\"title\":\"Excellent sound quality\",\"body\":\"Best headphones I have owned.\",\"createdAt\":\"2025-11-20T12:00:00Z\"},{\"id\":\"rev-502\",\"userId\":92,\"rating\":4,\"title\":\"Good but pricey\",\"body\":\"Sound is great, price is a bit high.\",\"createdAt\":\"2025-11-18T09:30:00Z\"}],\"total\":27,\"averageRating\":4.5}"
+          }
+        },
+        "time": 130
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.myshop.com/v2/categories",
+          "headers": [
+            { "name": "Accept", "value": "application/json" }
+          ],
+          "queryString": []
+        },
+        "response": {
+          "status": 200,
+          "headers": [
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "content": {
+            "size": 300,
+            "mimeType": "application/json",
+            "text": "{\"categories\":[{\"id\":\"cat-1\",\"name\":\"Electronics\",\"slug\":\"electronics\",\"productCount\":42},{\"id\":\"cat-2\",\"name\":\"Clothing\",\"slug\":\"clothing\",\"productCount\":128},{\"id\":\"cat-3\",\"name\":\"Books\",\"slug\":\"books\",\"productCount\":65}]}"
+          }
+        },
+        "time": 60
+      }
+    ]
+  }
+}
