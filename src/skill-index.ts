@@ -256,16 +256,19 @@ export class SkillIndexClient {
     network: string;
     extra?: { feePayer?: string; programId?: string };
   }): Promise<string> {
-    const {
-      Connection,
-      PublicKey,
-      Transaction,
-      TransactionInstruction,
-      Keypair,
-      SystemProgram,
-    } = await import("@solana/web3.js");
-    const { getAssociatedTokenAddress, createTransferInstruction } =
-      await import("@solana/spl-token");
+    let Connection: any, PublicKey: any, Transaction: any, TransactionInstruction: any, Keypair: any, SystemProgram: any;
+    let getAssociatedTokenAddress: any, createTransferInstruction: any;
+    try {
+      ({ Connection, PublicKey, Transaction, TransactionInstruction, Keypair, SystemProgram } =
+        await import("@solana/web3.js"));
+      ({ getAssociatedTokenAddress, createTransferInstruction } =
+        await import("@solana/spl-token"));
+    } catch (err) {
+      throw new Error(
+        `Solana native bindings failed to load (Node ${process.version}). ` +
+        `Try Node v22 LTS. Error: ${(err as Error).message}`
+      );
+    }
 
     // Decode private key
     let keypair: InstanceType<typeof Keypair>;
@@ -453,9 +456,17 @@ export class SkillIndexClient {
    * Returns base58-encoded Ed25519 signature.
    */
   private async signMessage(message: string): Promise<string> {
-    const { Keypair } = await import("@solana/web3.js");
-    const bs58 = await import("bs58");
-    const nacl = await import("tweetnacl");
+    let Keypair: any, bs58: any, nacl: any;
+    try {
+      ({ Keypair } = await import("@solana/web3.js"));
+      bs58 = await import("bs58");
+      nacl = await import("tweetnacl");
+    } catch (err) {
+      throw new Error(
+        `Solana native bindings failed to load (Node ${process.version}). ` +
+        `Try Node v22 LTS. Error: ${(err as Error).message}`
+      );
+    }
 
     // Decode private key
     let keypair: InstanceType<typeof Keypair>;
