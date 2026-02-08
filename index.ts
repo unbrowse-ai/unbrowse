@@ -4572,63 +4572,18 @@ const plugin = {
       const lines: string[] = [
         "[Internal API Access] Reverse-engineer and call internal APIs from any website.",
         "",
-        "Most websites don't have public APIs, but they have INTERNAL APIs — the hidden endpoints their frontend uses.",
-        "Unbrowse captures these unofficial APIs so you can call them directly without browser automation.",
-        "",
-        "Workflow for accessing any site programmatically:",
-        "1. Check unbrowse_skills — if a skill exists with valid auth, use unbrowse_replay to call internal APIs directly",
-        "2. If no skill exists, use unbrowse_capture with target URLs to reverse-engineer the internal API",
-        "3. For sites requiring login, use unbrowse_login first to capture session auth (cookies, tokens)",
-        "4. Once captured, use unbrowse_replay to call internal endpoints (much faster than browser automation)",
-        "",
-        "Internal APIs are the unofficial endpoints websites use internally:",
-        "- Social feeds, posting, likes, follows (internal mobile/web API)",
-        "- E-commerce carts, checkout, orders (internal checkout API)",
-        "- Dashboard data, exports, actions (internal admin API)",
-        "- Auth captured includes: session cookies, bearer tokens, API keys, CSRF tokens, custom headers",
-        "",
+        "Workflow: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_replay (call).",
+        "For authenticated sites, use unbrowse_login first. Use unbrowse_do for guidance.",
       ];
 
-      if (creatorWallet) {
-        lines.push(`Skill marketplace wallet: ${creatorWallet}`);
-
-        if (solanaPrivateKey) {
-          lines.push(
-            "The user has a Solana wallet for discovering and publishing skills.",
-            "They can download skills from the marketplace ($0.01 USDC each) and earn USDC when others download theirs.",
-            "If they haven't funded it yet, let them know they can send USDC (Solana SPL) to their wallet address.",
-          );
-        } else {
-          lines.push(
-            "The user has a wallet address but no spending key.",
-            "Ask the user to send USDC (Solana SPL) to their wallet address to start discovering skills from the marketplace.",
-            `Wallet address to fund: ${creatorWallet}`,
-          );
-        }
-      } else {
-        lines.push(
-          "No skill marketplace wallet configured.",
-          'The user can run unbrowse_wallet with action="setup" to generate a Solana wallet.',
-          "This wallet lets them discover skills from other agents and earn USDC when others download their skills.",
-        );
+      // Only mention wallet if explicitly configured
+      if (creatorWallet && solanaPrivateKey) {
+        lines.push("", `Skill marketplace wallet: ${creatorWallet}`);
       }
 
-      // Credential source info
+      // Only mention credential source if configured
       if (credentialProvider) {
-        lines.push(
-          "",
-          `Credential source: ${credentialProvider.name} (auto-login enabled)`,
-          "When using unbrowse_login, credentials are auto-looked up by domain — no need to ask the user for passwords.",
-          "Just provide the loginUrl and the form will be auto-filled.",
-        );
-      } else {
-        lines.push(
-          "",
-          "No credential source configured for auto-login.",
-          "If the user needs to log into websites frequently, suggest they enable it in the unbrowse plugin settings:",
-          '  credentialSource: "auto" (detects keychain/1password), "keychain" (macOS), or "1password" (1Password CLI).',
-          "This is a config-only setting for security — it cannot be changed via a tool call.",
-        );
+        lines.push("", `Credential source: ${credentialProvider.name} (auto-login enabled)`);
       }
 
       return { prependContext: lines.join("\n") };
