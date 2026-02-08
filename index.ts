@@ -465,6 +465,12 @@ const plugin = {
     const logger = api.logger;
     const browserPort = (cfg.browserPort as number) ?? 18791;
 
+    // Detect diagnostic mode (doctor, audit, help, version) — skip all background tasks
+    const isDiagnosticMode = (() => {
+      const args = process.argv.join(" ").toLowerCase();
+      return args.includes("doctor") || args.includes("audit") || args.includes("--help") || args.includes("--version");
+    })();
+
     // ── Persistent OTP Watcher ─────────────────────────────────────────────
     // Keeps running across interact calls so OTP can be filled when it arrives
     let persistentOtpWatcher: any = null;
@@ -4495,14 +4501,18 @@ const plugin = {
 
     // ── Token Refresh Scheduler ─────────────────────────────────────────────
     // Automatically refresh OAuth/JWT tokens before they expire
-    const tokenRefreshScheduler = new TokenRefreshScheduler(defaultOutputDir, {
-      intervalMinutes: 1, // Check every minute
-      logger: {
-        info: (msg) => logger.info(msg),
-        warn: (msg) => logger.warn(msg),
-      },
-    });
-    tokenRefreshScheduler.start();
+    // Skip in diagnostic mode to prevent deadlocks with doctor/audit commands
+    let tokenRefreshScheduler: TokenRefreshScheduler | null = null;
+    if (!isDiagnosticMode) {
+      tokenRefreshScheduler = new TokenRefreshScheduler(defaultOutputDir, {
+        intervalMinutes: 1,
+        logger: {
+          info: (msg) => logger.info(msg),
+          warn: (msg) => logger.warn(msg),
+        },
+      });
+      tokenRefreshScheduler.start();
+    }
 
     // ── Failure Detection + Auto-Discovery Hook ────────────────────────────
     // Detects failures and suggests fixes, plus auto-discovers skills from browse activity
@@ -4510,6 +4520,8 @@ const plugin = {
     const failureResolver = new CapabilityResolver(defaultOutputDir);
 
     api.on("after_tool_call", async (event: any) => {
+      if (isDiagnosticMode) return;
+
       const toolName = event?.toolName ?? event?.tool ?? "";
       const result = event?.result;
       const error = event?.error;
@@ -4545,13 +4557,15 @@ const plugin = {
       }
     });
 
-    if (autoDiscoverEnabled) {
+    if (autoDiscoverEnabled && !isDiagnosticMode) {
       logger.info("[unbrowse] Auto-discovery hook active");
     }
 
     // ── Agent Context Hook — Internal API Reverse Engineering ─────────────
     // Guide the agent to reverse-engineer internal/unofficial APIs from websites
+    // Skip in diagnostic mode to prevent deadlocks
     api.on("before_agent_start", async () => {
+      if (isDiagnosticMode) return {};
       // Wait for wallet generation to complete (may still be running)
       await ensureWallet().catch(() => { });
 
