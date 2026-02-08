@@ -522,6 +522,7 @@ const plugin = {
         logger.info(`[unbrowse] Auto-OTP watcher TTL expired (${OTP_WATCHER_TTL_MS / 1000}s)`);
         stopPersistentOtpWatcher();
       }, OTP_WATCHER_TTL_MS);
+      otpWatcherTimeout.unref?.();
 
       logger.info(`[unbrowse] Persistent OTP watcher started for element [${elementIndex}] (TTL: ${OTP_WATCHER_TTL_MS / 1000}s)`);
     }

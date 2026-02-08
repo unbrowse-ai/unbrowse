@@ -362,6 +362,8 @@ export class OTPWatcher {
 
     // Poll every 2 seconds
     this.pollInterval = setInterval(() => this.poll(), 2000);
+    // Don't keep the process alive just for polling.
+    this.pollInterval.unref?.();
 
     // Initial poll
     this.poll();
@@ -524,6 +526,9 @@ export class OTPWatcher {
           resolve(null);
         }
       }, 1000);
+
+      // This is just a watchdog timer; it shouldn't prevent process exit.
+      (checkInterval as any)?.unref?.();
     });
   }
 
