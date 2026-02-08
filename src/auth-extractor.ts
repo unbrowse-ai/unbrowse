@@ -6,6 +6,46 @@
 
 import type { ApiData, AuthInfo } from "./types.js";
 
+// ── Header classification ────────────────────────────────────────────────
+
+const AUTH_HEADER_NAMES = new Set([
+  "authorization", "x-api-key", "api-key", "apikey",
+  "x-auth-token", "access-token", "x-access-token",
+  "token", "x-token", "authtype", "mudra",
+  "bearer", "jwt", "x-jwt", "x-jwt-token", "id-token", "id_token",
+  "x-id-token", "refresh-token", "x-refresh-token",
+  "x-apikey", "x-key", "key", "secret", "x-secret",
+  "api-secret", "x-api-secret", "client-secret", "x-client-secret",
+  "session", "session-id", "sessionid", "x-session", "x-session-id",
+  "x-session-token", "session-token", "csrf", "x-csrf", "x-csrf-token",
+  "csrf-token", "x-xsrf-token", "xsrf-token",
+  "x-oauth-token", "oauth-token", "x-oauth", "oauth",
+  "x-amz-security-token", "x-amz-access-token",
+  "x-goog-api-key",
+  "x-rapidapi-key",
+  "ocp-apim-subscription-key",
+  "x-functions-key",
+  "x-auth", "x-authentication", "x-authorization",
+  "x-user-token", "x-app-token", "x-client-token",
+  "x-access-key", "x-secret-key", "x-signature",
+  "x-request-signature", "signature",
+]);
+
+const AUTH_HEADER_PATTERNS = [
+  "auth", "token", "key", "secret", "bearer", "jwt",
+  "session", "credential", "password", "signature", "sign",
+  "api-", "apikey", "access", "oauth", "csrf", "xsrf",
+];
+
+/** Classifies HTTP headers as auth-related or standard. */
+export class HeaderClassifier {
+  isAuthLike(name: string): boolean {
+    const lower = name.toLowerCase();
+    if (AUTH_HEADER_NAMES.has(lower)) return true;
+    return AUTH_HEADER_PATTERNS.some(p => lower.includes(p));
+  }
+}
+
 /**
  * Determine the auth method from extracted headers and cookies.
  * Analyzes all captured auth-related headers to identify the primary auth mechanism.
