@@ -468,7 +468,11 @@ const plugin = {
     // Detect diagnostic mode (doctor, audit, help, version) — skip all background tasks
     const isDiagnosticMode = (() => {
       const args = process.argv.join(" ").toLowerCase();
-      return args.includes("doctor") || args.includes("audit") || args.includes("--help") || args.includes("--version");
+      const argMatch = args.includes("doctor") || args.includes("audit") || args.includes("--help") || args.includes("--version");
+      if (argMatch) return true;
+      // OpenClaw renames the process (e.g. "openclaw-doctor"), so also check process.title
+      const title = (process.title || "").toLowerCase();
+      return title.includes("doctor") || title.includes("audit");
     })();
 
     // ── Persistent OTP Watcher ─────────────────────────────────────────────
