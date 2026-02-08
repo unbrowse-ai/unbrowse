@@ -70,7 +70,8 @@ openclaw gateway restart
 
 ```bash
 git clone https://github.com/lekt9/unbrowse-openclaw ~/.openclaw/extensions/unbrowse-openclaw
-cd ~/.openclaw/extensions/unbrowse && npm install
+cd ~/.openclaw/extensions/unbrowse-openclaw && npm install
+npm run build
 openclaw gateway restart
 ```
 

@@ -1,16 +1,26 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "type": "module",
-  "main": "index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
+  "scripts": {
+    "clean": "rm -rf dist .tsbuildinfo",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "prepack": "npm run build"
+  },
   "files": [
-    "index.ts",
+    "dist/",
     "src/",
     "hooks/",
     "openclaw.plugin.json",
+    "clawdbot.plugin.json",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/lekt9/unbrowse-openclaw"
@@ -28,7 +38,7 @@
   ],
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "hooks": [
       "./hooks/auto-discover"
@@ -36,7 +46,7 @@
   },
   "clawdbot": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "hooks": [
       "./hooks/auto-discover"
@@ -44,7 +54,7 @@
   },
   "moltbot": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "hooks": [
       "./hooks/auto-discover"
