@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 import type { ApiData, AuthInfo, SkillResult, EndpointGroup } from "./types.js";
 import { generateAuthInfo } from "./auth-extractor.js";
+import { enrichEndpointDescriptions } from "./llm-describer.js";
 
 // ---------------------------------------------------------------------------
 // VersionHasher — content-addressable versioning
@@ -178,7 +179,8 @@ export class SkillFileWriter {
       for (const g of endpointGroups) {
         const schema = g.responseBodySchema ? ` \u2192 ${g.responseBodySchema.summary}` : "";
         const method = g.methodName ? ` \`${g.methodName}()\`` : "";
-        endpointLines.push(`- \`${g.method} ${g.normalizedPath}\`${method} \u2014 ${g.description}${schema}`);
+        const whenHint = g.whenToUse ? ` | **Use when:** ${g.whenToUse}` : "";
+        endpointLines.push(`- \`${g.method} ${g.normalizedPath}\`${method} \u2014 ${g.description}${schema}${whenHint}`);
       }
     } else {
       endpointCount = Object.keys(data.endpoints).length;
@@ -591,18 +593,27 @@ ${this.generateTypedWrappers(endpointGroups)}}
       for (const g of endpointGroups) {
         let section = `### ${g.method} ${g.normalizedPath}\n\n`;
         section += `**Description:** ${g.description}\n`;
+        if (g.whenToUse) section += `**When to use:** ${g.whenToUse}\n`;
         if (g.methodName) section += `**Method:** \`client.${g.methodName}()\`\n`;
         section += `**Category:** ${g.category}\n\n`;
 
         if (g.pathParams.length > 0) {
           section += "**Path Parameters:**\n";
-          for (const p of g.pathParams) section += `- \`${p.name}\` (${p.type}) \u2014 e.g. \`${p.example}\`\n`;
+          for (const p of g.pathParams) {
+            const hint = g.paramHints?.[p.name];
+            const desc = hint ? ` ${hint}` : ` e.g. \`${p.example}\``;
+            section += `- \`${p.name}\` (${p.type}) \u2014${desc}\n`;
+          }
           section += "\n";
         }
 
         if (g.queryParams.length > 0) {
           section += "**Query Parameters:**\n";
-          for (const p of g.queryParams) section += `- \`${p.name}\` (${p.type}) \u2014 e.g. \`${p.example}\`\n`;
+          for (const p of g.queryParams) {
+            const hint = g.paramHints?.[p.name];
+            const desc = hint ? ` ${hint}` : ` e.g. \`${p.example}\``;
+            section += `- \`${p.name}\` (${p.type}) \u2014${desc}\n`;
+          }
           section += "\n";
         }
 
@@ -794,6 +805,7 @@ export class SkillGenerator {
       unverifiedEndpoints?: number;
       openApiSource?: string | null;
       pagesCrawled?: number;
+      llmApiKey?: string;
     },
   ): Promise<SkillResult> {
     const service = data.service;
@@ -814,8 +826,15 @@ export class SkillGenerator {
     const skillMdPath = join(skillDir, "SKILL.md");
     const oldEndpointCount = this.endpointMerger.mergeExisting(data, skillMdPath);
 
-    // Generate content
+    // Enrich endpoints with LLM-generated descriptions (if API key available)
     const groups = data.endpointGroups;
+    if (groups && groups.length > 0) {
+      await enrichEndpointDescriptions(service, data.baseUrl, groups, {
+        apiKey: meta?.llmApiKey,
+      });
+    }
+
+    // Generate content
     const authJson = this.fileWriter.generateAuthJson(service, data);
     let skillMd = this.fileWriter.generateSkillMd(service, data, groups);
     const apiTs = this.fileWriter.generateApiTs(service, data, groups);
@@ -934,6 +953,7 @@ export async function generateSkill(
     unverifiedEndpoints?: number;
     openApiSource?: string | null;
     pagesCrawled?: number;
+    llmApiKey?: string;
   },
 ): Promise<SkillResult> {
   return _defaultGenerator.generate(data, outputDir, meta);
