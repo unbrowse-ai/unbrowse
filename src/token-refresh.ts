@@ -440,6 +440,7 @@ export class TokenRefreshScheduler {
   private skillsDir: string;
   private intervalMs: number;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private initialTimeout: ReturnType<typeof setTimeout> | null = null;
   private logger: { info: (msg: string) => void; warn: (msg: string) => void };
 
   constructor(
@@ -469,16 +470,24 @@ export class TokenRefreshScheduler {
 
     // Defer initial check to avoid blocking plugin initialization
     // This prevents deadlocks with diagnostic commands that load plugins briefly
-    setTimeout(() => {
+    this.initialTimeout = setTimeout(() => {
       this.checkAllSkills().catch(() => {});
     }, 5000);
+    // Don't keep short-lived CLI commands alive just because this plugin is installed.
+    this.initialTimeout.unref?.();
 
     this.timer = setInterval(() => {
       this.checkAllSkills().catch(() => {});
     }, this.intervalMs);
+    // Same rationale: gateway/daemon will stay alive on its own.
+    this.timer.unref?.();
   }
 
   stop(): void {
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = null;
+    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
