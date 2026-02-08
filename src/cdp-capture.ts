@@ -228,6 +228,11 @@ export async function startCdpHeaderListener(chromePort = 9222): Promise<boolean
     let msgId = 1;
 
     ws.on("open", () => {
+      // If the plugin is loaded in a short-lived CLI process (e.g. `openclaw gateway restart`),
+      // don't keep Node alive just because this socket exists.
+      const sock = (ws as any)?._socket;
+      sock?.unref?.();
+
       // Enable network domain
       ws.send(JSON.stringify({ id: msgId++, method: "Network.enable" }));
       cdpListenerActive = true;
