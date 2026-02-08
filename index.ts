@@ -566,8 +566,19 @@ const plugin = {
     // Generates a new Solana keypair and saves it to config.
     // Only called when user explicitly chooses to create a new wallet.
     async function generateNewWallet(): Promise<{ publicKey: string; privateKey: string }> {
-      const { Keypair } = await import("@solana/web3.js");
-      const bs58 = await import("bs58");
+      let Keypair: any;
+      let bs58: any;
+      try {
+        ({ Keypair } = await import("@solana/web3.js"));
+        bs58 = await import("bs58");
+      } catch (err) {
+        throw new Error(
+          `Solana native bindings failed to load (Node ${process.version}). ` +
+          `This is a known issue with @solana/web3.js on newer Node versions. ` +
+          `Try Node v22 LTS, or set creatorWallet manually in plugin config. ` +
+          `Original error: ${(err as Error).message}`
+        );
+      }
       const keypair = Keypair.generate();
       const publicKey = keypair.publicKey.toBase58();
       const privateKeyB58 = bs58.default.encode(keypair.secretKey);
@@ -1097,7 +1108,11 @@ const plugin = {
               headless?: boolean;
             };
 
-            if (!p.urls || p.urls.length === 0) {
+            // Normalize urls: accept string or array
+            if (typeof p.urls === "string") {
+              p.urls = [p.urls];
+            }
+            if (!p.urls || !Array.isArray(p.urls) || p.urls.length === 0) {
               return { content: [{ type: "text", text: "Provide at least one URL to capture." }] };
             }
 
@@ -2728,8 +2743,13 @@ const plugin = {
                 const bs58 = await import("bs58");
                 const keypair = Keypair.fromSecretKey(bs58.default.decode(solanaPrivateKey));
                 lines.push(`Payer (spending):  ${keypair.publicKey.toBase58()}`);
-              } catch {
-                lines.push("Payer (spending):  configured (key decode failed)");
+              } catch (err) {
+                const msg = (err as Error).message;
+                if (msg.includes("napi") || msg.includes("native") || msg.includes("NAPI")) {
+                  lines.push(`Payer (spending):  configured (native binding error — try Node v22 LTS)`);
+                } else {
+                  lines.push("Payer (spending):  configured (key decode failed)");
+                }
               }
             } else {
               lines.push("Payer (spending):  not configured");
