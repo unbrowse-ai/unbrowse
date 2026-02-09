@@ -469,13 +469,15 @@ export class TokenRefreshScheduler {
 
     // Defer initial check to avoid blocking plugin initialization
     // This prevents deadlocks with diagnostic commands that load plugins briefly
-    setTimeout(() => {
+    const initialCheck = setTimeout(() => {
       this.checkAllSkills().catch(() => {});
     }, 5000);
+    initialCheck.unref(); // Don't keep process alive for deferred check
 
     this.timer = setInterval(() => {
       this.checkAllSkills().catch(() => {});
     }, this.intervalMs);
+    this.timer.unref(); // Don't keep process alive for background refresh
   }
 
   stop(): void {
