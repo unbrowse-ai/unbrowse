@@ -351,11 +351,13 @@ export class SkillIndexClient {
     return Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
   }
 
-  /** Publish a skill to the marketplace (free). */
+  /** Publish a skill to the marketplace (requires wallet signature). */
   async publish(payload: PublishPayload): Promise<PublishResult> {
+    const walletHeaders = await this.getWalletAuthHeaders("publish");
+
     const resp = await fetch(`${this.indexUrl}/marketplace/skills`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...walletHeaders },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30_000),
     });
@@ -388,24 +390,11 @@ export class SkillIndexClient {
    * Only the wallet that published the skill can update it.
    */
   async update(id: string, payload: Partial<PublishPayload>): Promise<PublishResult> {
-    if (!this.solanaPrivateKey) {
-      throw new Error(
-        "No Solana private key configured. Required to sign update requests. " +
-        "Set skillIndexSolanaPrivateKey in unbrowse config.",
-      );
-    }
-
-    const timestamp = Date.now().toString();
-    const message = `unbrowse:edit:${id}:${timestamp}`;
-    const signature = await this.signMessage(message);
+    const walletHeaders = await this.getWalletAuthHeaders("edit");
 
     const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Signature": signature,
-        "X-Timestamp": timestamp,
-      },
+      headers: { "Content-Type": "application/json", ...walletHeaders },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30_000),
     });
@@ -423,23 +412,11 @@ export class SkillIndexClient {
    * Only the wallet that published the skill can delete it.
    */
   async delete(id: string): Promise<{ deleted: boolean; id: string }> {
-    if (!this.solanaPrivateKey) {
-      throw new Error(
-        "No Solana private key configured. Required to sign delete requests. " +
-        "Set skillIndexSolanaPrivateKey in unbrowse config.",
-      );
-    }
-
-    const timestamp = Date.now().toString();
-    const message = `unbrowse:edit:${id}:${timestamp}`;
-    const signature = await this.signMessage(message);
+    const walletHeaders = await this.getWalletAuthHeaders("delete");
 
     const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}`, {
       method: "DELETE",
-      headers: {
-        "X-Signature": signature,
-        "X-Timestamp": timestamp,
-      },
+      headers: walletHeaders,
       signal: AbortSignal.timeout(15_000),
     });
 
@@ -449,6 +426,34 @@ export class SkillIndexClient {
     }
 
     return resp.json() as Promise<{ deleted: boolean; id: string }>;
+  }
+
+  /**
+   * Build wallet auth headers for the backend.
+   * Returns X-Wallet-Address, X-Wallet-Signature, X-Wallet-Message headers.
+   */
+  private async getWalletAuthHeaders(action: string): Promise<Record<string, string>> {
+    if (!this.solanaPrivateKey) {
+      throw new Error(
+        "No Solana private key configured. Required to sign requests. " +
+        'Use unbrowse_wallet action="set_payer" to configure.',
+      );
+    }
+
+    const { Keypair } = await import("@solana/web3.js");
+    const bs58 = await import("bs58");
+
+    const keypair = Keypair.fromSecretKey(bs58.default.decode(this.solanaPrivateKey));
+    const walletAddress = keypair.publicKey.toBase58();
+    const timestamp = Date.now().toString();
+    const message = `unbrowse:${action}:${timestamp}`;
+    const signature = await this.signMessage(message);
+
+    return {
+      "X-Wallet-Address": walletAddress,
+      "X-Wallet-Signature": signature,
+      "X-Wallet-Message": message,
+    };
   }
 
   /**

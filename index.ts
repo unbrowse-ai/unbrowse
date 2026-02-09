@@ -23,7 +23,7 @@
  */
 
 import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -48,6 +48,7 @@ import {
 } from "./src/token-refresh.js";
 import { TaskWatcher, type TaskIntent, type FailureInfo } from "./src/task-watcher.js";
 import { CapabilityResolver, type Resolution } from "./src/capability-resolver.js";
+import { loadWallet, saveWallet, migrateToKeychain, isKeychainAvailable } from "./src/keychain-wallet.js";
 import { DesktopAutomation } from "./src/desktop-automation.js";
 
 /** Scan HAR entries for refresh token endpoints and save config to auth.json */
@@ -543,8 +544,18 @@ const plugin = {
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
-    let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
-    let solanaPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
+
+    // ── Wallet persistence ──────────────────────────────────────────────
+    // Private key stored in OS keychain (macOS) with file fallback (Linux/CI).
+    // Public address always in ~/.openclaw/unbrowse/wallet.json.
+    const migrated = migrateToKeychain();
+    if (migrated) {
+      logger.info("[unbrowse] Migrated Solana private key from wallet.json to OS Keychain.");
+    }
+
+    const savedWallet = loadWallet();
+    let creatorWallet = savedWallet.creatorWallet ?? (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
+    let solanaPrivateKey = savedWallet.solanaPrivateKey ?? (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
     const credentialSourceCfg = (cfg.credentialSource as string) ?? process.env.UNBROWSE_CREDENTIAL_SOURCE ?? "none";
     const vaultDbPath = join(homedir(), ".openclaw", "unbrowse", "vault.db");
     const credentialProvider = createCredentialProvider(credentialSourceCfg, vaultDbPath);
@@ -588,24 +599,12 @@ const plugin = {
       const publicKey = keypair.publicKey.toBase58();
       const privateKeyB58 = bs58.default.encode(keypair.secretKey);
 
-      // Save to plugin config via runtime
-      const currentConfig = await api.runtime.config.loadConfig();
-      const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
-      const unbrowseEntry = pluginEntries["unbrowse-openclaw"] ?? {};
-      const unbrowseConfig = unbrowseEntry.config ?? {};
-
-      unbrowseConfig.creatorWallet = publicKey;
-      unbrowseConfig.skillIndexSolanaPrivateKey = privateKeyB58;
+      // Save to keychain (macOS) or wallet file (fallback)
+      saveWallet({ creatorWallet: publicKey, solanaPrivateKey: privateKeyB58 });
       creatorWallet = publicKey;
       solanaPrivateKey = privateKeyB58;
       indexOpts.creatorWallet = publicKey;
       indexOpts.solanaPrivateKey = privateKeyB58;
-
-      unbrowseEntry.config = unbrowseConfig;
-      pluginEntries["unbrowse-openclaw"] = unbrowseEntry;
-      (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
-
-      await api.runtime.config.writeConfigFile(currentConfig);
 
       logger.info(
         `[unbrowse] Solana wallet created: ${publicKey}` +
@@ -2666,15 +2665,7 @@ const plugin = {
                 return { content: [{ type: "text", text: "Provide wallet= with a Solana address." }] };
               }
               try {
-                const currentConfig = await api.runtime.config.loadConfig();
-                const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
-                const unbrowseEntry = pluginEntries["unbrowse-openclaw"] ?? {};
-                const unbrowseConfig = unbrowseEntry.config ?? {};
-                unbrowseConfig.creatorWallet = p.wallet;
-                unbrowseEntry.config = unbrowseConfig;
-                pluginEntries["unbrowse-openclaw"] = unbrowseEntry;
-                (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
-                await api.runtime.config.writeConfigFile(currentConfig);
+                saveWallet({ creatorWallet: p.wallet });
                 creatorWallet = p.wallet;
                 indexOpts.creatorWallet = p.wallet;
                 return { content: [{ type: "text", text: `Creator wallet set: ${p.wallet}\nYou'll earn USDC when others download your published skills.` }] };
@@ -2694,15 +2685,7 @@ const plugin = {
                 const keypair = Keypair.fromSecretKey(bs58.default.decode(p.privateKey));
                 const publicKey = keypair.publicKey.toBase58();
 
-                const currentConfig = await api.runtime.config.loadConfig();
-                const pluginEntries = (currentConfig as any).plugins?.entries ?? {};
-                const unbrowseEntry = pluginEntries["unbrowse-openclaw"] ?? {};
-                const unbrowseConfig = unbrowseEntry.config ?? {};
-                unbrowseConfig.skillIndexSolanaPrivateKey = p.privateKey;
-                unbrowseEntry.config = unbrowseConfig;
-                pluginEntries["unbrowse-openclaw"] = unbrowseEntry;
-                (currentConfig as any).plugins = { ...(currentConfig as any).plugins, entries: pluginEntries };
-                await api.runtime.config.writeConfigFile(currentConfig);
+                saveWallet({ solanaPrivateKey: p.privateKey });
                 solanaPrivateKey = p.privateKey;
                 indexOpts.solanaPrivateKey = p.privateKey;
                 return {
@@ -2729,10 +2712,11 @@ const plugin = {
                   content: [{
                     type: "text",
                     text: [
-                      "⚠️  WALLET PRIVATE KEY - KEEP THIS SAFE!",
+                      "WALLET PRIVATE KEY - KEEP THIS SAFE!",
                       "",
                       `Address: ${keypair.publicKey.toBase58()}`,
                       `Private Key: ${solanaPrivateKey}`,
+                      `Storage: ${isKeychainAvailable() ? "OS Keychain (encrypted)" : "~/.openclaw/unbrowse/wallet.json"}`,
                       "",
                       "SECURITY WARNINGS:",
                       "  - Never share this private key with anyone",
@@ -2757,11 +2741,13 @@ const plugin = {
             }
 
             if (solanaPrivateKey) {
+              const storage = isKeychainAvailable() ? "OS Keychain" : "wallet.json";
               try {
                 const { Keypair } = await import("@solana/web3.js");
                 const bs58 = await import("bs58");
                 const keypair = Keypair.fromSecretKey(bs58.default.decode(solanaPrivateKey));
                 lines.push(`Payer (spending):  ${keypair.publicKey.toBase58()}`);
+                lines.push(`  Storage: ${storage}`);
               } catch (err) {
                 const msg = (err as Error).message;
                 if (msg.includes("napi") || msg.includes("native") || msg.includes("NAPI")) {
