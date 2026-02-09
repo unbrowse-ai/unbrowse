@@ -29,7 +29,7 @@ import { homedir } from "node:os";
 
 import { parseHar } from "./src/har-parser.js";
 import { generateSkill } from "./src/skill-generator.js";
-import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener } from "./src/cdp-capture.js";
+import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener, stopCdpHeaderListener } from "./src/cdp-capture.js";
 import { AutoDiscovery } from "./src/auto-discover.js";
 import { SkillIndexClient, type PublishPayload } from "./src/skill-index.js";
 import { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth } from "./src/skill-sanitizer.js";
@@ -522,6 +522,7 @@ const plugin = {
         logger.info(`[unbrowse] Auto-OTP watcher TTL expired (${OTP_WATCHER_TTL_MS / 1000}s)`);
         stopPersistentOtpWatcher();
       }, OTP_WATCHER_TTL_MS);
+      otpWatcherTimeout.unref(); // Don't keep process alive for OTP watcher TTL
 
       logger.info(`[unbrowse] Persistent OTP watcher started for element [${elementIndex}] (TTL: ${OTP_WATCHER_TTL_MS / 1000}s)`);
     }
@@ -540,6 +541,7 @@ const plugin = {
     }
     const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
+    const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
     let creatorWallet = (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
     let solanaPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
@@ -560,6 +562,9 @@ const plugin = {
     }
     if (enableDesktopAutomation) {
       logger.info("[unbrowse] Desktop automation ENABLED (opt-in)");
+    }
+    if (!autoContributeEnabled) {
+      logger.info("[unbrowse] Auto-contribute DISABLED — skills will stay local only. Set autoContribute: true to earn revenue from contributions.");
     }
 
     // ── Wallet Setup Helpers ──────────────────────────────────────────────
@@ -641,8 +646,9 @@ const plugin = {
     let lastReachabilityCheck = 0;
     const REACHABILITY_CHECK_INTERVAL = 5 * 60 * 1000; // Re-check every 5 minutes
 
-    /** Publish a skill to the cloud index if creatorWallet is configured. */
+    /** Publish a skill to the cloud index if autoContribute is enabled and creatorWallet is configured. */
     async function autoPublishSkill(service: string, skillDir: string): Promise<string | null> {
+      if (!autoContributeEnabled) return null;
       if (!creatorWallet) return null;
 
       // Check server reachability (with caching to avoid hammering)
@@ -2274,6 +2280,19 @@ const plugin = {
                 return { content: [{ type: "text", text: summary }] };
               } catch (err) {
                 const msg = (err as Error).message;
+                // If FDRY balance is insufficient, suggest contributing skills to earn more
+                if (msg.includes("FDRY") || msg.includes("fdry") || msg.includes("insufficient balance")) {
+                  const fdryHint = [
+                    "",
+                    "Your FDRY balance is insufficient for this operation.",
+                    "",
+                    "How to earn FDRY:",
+                    "  - Contribute skills to the marketplace using unbrowse_publish",
+                    "  - You earn FDRY daily when your published skills are used by others",
+                    "  - Use unbrowse_wallet action=\"status\" to check your current FDRY balance",
+                  ].join("\n");
+                  return { content: [{ type: "text", text: `Install failed: ${msg}${fdryHint}` }] };
+                }
                 // If payment failed due to missing key or insufficient funds, prompt to fund wallet
                 if (msg.includes("private key") || msg.includes("x402") || msg.includes("payment")) {
                   let walletHint: string;
@@ -2756,6 +2775,33 @@ const plugin = {
             }
 
             lines.push("");
+
+            // Query FDRY balance from index server (silently skips if backend has FDRY disabled — returns 503)
+            if (creatorWallet) {
+              try {
+                const fdryRes = await fetch(`${skillIndexUrl}/fdry/balance/${creatorWallet}`);
+                if (fdryRes.ok) {
+                  const fdryData = await fdryRes.json() as {
+                    success: boolean;
+                    wallet: string;
+                    balance: number;
+                    dailyEarnings: number;
+                    dailyCap: number;
+                    dailyRemaining: number;
+                  };
+                  if (fdryData.success) {
+                    lines.push("FDRY Balance");
+                    lines.push(`  Balance:         ${fdryData.balance} FDRY`);
+                    lines.push(`  Daily Earnings:  ${fdryData.dailyEarnings} FDRY`);
+                    lines.push(`  Daily Cap:       ${fdryData.dailyCap} FDRY`);
+                    lines.push(`  Daily Remaining: ${fdryData.dailyRemaining} FDRY`);
+                    lines.push("");
+                  }
+                }
+              } catch {
+                // FDRY balance fetch failed silently — not critical for wallet status
+              }
+            }
 
             if (!creatorWallet && !solanaPrivateKey) {
               lines.push(
@@ -4524,10 +4570,13 @@ const plugin = {
     api.registerTool(tools, { names: toolNames });
 
     // ── Token Refresh Scheduler ─────────────────────────────────────────────
-    // Automatically refresh OAuth/JWT tokens before they expire
-    // Skip in diagnostic mode to prevent deadlocks with doctor/audit commands
+    // Automatically refresh OAuth/JWT tokens before they expire.
+    // IMPORTANT: Don't start background tasks on plugin load; many `openclaw` commands
+    // load plugins briefly then expect to exit back to the CLI.
     let tokenRefreshScheduler: TokenRefreshScheduler | null = null;
-    if (!isDiagnosticMode) {
+    const ensureTokenRefreshScheduler = () => {
+      if (isDiagnosticMode) return;
+      if (tokenRefreshScheduler) return;
       tokenRefreshScheduler = new TokenRefreshScheduler(defaultOutputDir, {
         intervalMinutes: 1,
         logger: {
@@ -4536,7 +4585,7 @@ const plugin = {
         },
       });
       tokenRefreshScheduler.start();
-    }
+    };
 
     // ── Failure Detection + Auto-Discovery Hook ────────────────────────────
     // Detects failures and suggests fixes, plus auto-discovers skills from browse activity
@@ -4581,15 +4630,24 @@ const plugin = {
       }
     });
 
-    if (autoDiscoverEnabled && !isDiagnosticMode) {
-      logger.info("[unbrowse] Auto-discovery hook active");
-    }
-
     // ── Agent Context Hook — Internal API Reverse Engineering ─────────────
     // Guide the agent to reverse-engineer internal/unofficial APIs from websites
     // Skip in diagnostic mode to prevent deadlocks
     api.on("before_agent_start", async () => {
       if (isDiagnosticMode) return {};
+
+      // Start background tasks only in long-lived agent contexts (not for one-shot CLI commands).
+      ensureTokenRefreshScheduler();
+      startCdpHeaderListener(9222).then((started) => {
+        if (started) {
+          logger.info("[unbrowse] CDP header listener active (Chrome port 9222)");
+        }
+      }).catch(() => { /* Chrome remote debugging not available */ });
+
+      if (autoDiscoverEnabled) {
+        logger.info("[unbrowse] Auto-discovery hook active");
+      }
+
       // Wait for wallet generation to complete (may still be running)
       await ensureWallet().catch(() => { });
 
@@ -4640,6 +4698,9 @@ const plugin = {
 
     // Register cleanup on process exit signals
     const handleExit = () => {
+      tokenRefreshScheduler?.stop();
+      stopCdpHeaderListener();
+      stopPersistentOtpWatcher();
       cleanupAllSessions().catch(() => {});
     };
     process.on("beforeExit", handleExit);
@@ -4656,13 +4717,6 @@ const plugin = {
 
     logger.info(`[unbrowse] Plugin registered (${features})`);
 
-    // Try to start CDP header listener for Chrome remote debugging
-    // This captures headers in real-time to enrich /requests data from extension
-    startCdpHeaderListener(9222).then((started) => {
-      if (started) {
-        logger.info("[unbrowse] CDP header listener active (Chrome port 9222)");
-      }
-    }).catch(() => { /* Chrome remote debugging not available */ });
   },
 };
 

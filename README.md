@@ -233,24 +233,151 @@ unbrowse_workflow_record action="stop"
 unbrowse_workflow_learn sessionId="session-123..."
 ```
 
-## Earnings Model
+## Collaborative Skill Contributions
 
-**Pay per sale. Buyers own the skill forever.**
+**Skills are built collectively.** When multiple users capture traffic from the same site, each capture may discover different endpoints, auth patterns, or request schemas. Unbrowse automatically merges these into a single skill and tracks who contributed what.
 
-When an agent purchases a skill:
-- **70%** goes to the creator
-- **30%** goes to the platform
+**Auto-contribute is ON by default.** When you capture a skill and have a wallet configured, your novel endpoints are automatically contributed to the index. You can opt out by setting `autoContribute: false` in your config.
 
-Payments are instant via x402 protocol on Solana (USDC).
+### How Merging Works
 
 ```
-┌─────────────────────────────────────────────────┐
-│              EARNINGS BREAKDOWN                 │
-├─────────────────────────────────────────────────┤
-│  Creator:  70%  ─ Instant payout on sale        │
-│  Platform: 30%  ─ Infrastructure & marketplace  │
-└─────────────────────────────────────────────────┘
+User A captures 5 endpoints from shopify.com
+  → Skill created with 5 endpoints, User A weight = 1.0
+
+User B captures 8 endpoints (3 overlap, 5 new)
+  → Fingerprint dedup: 5 novel endpoints merged
+  → Weights recalculated: A = 0.62, B = 0.38
+
+User C captures 6 endpoints (4 overlap, 2 new) + discovers OAuth refresh
+  → 2 new endpoints + 1 auth discovery merged
+  → Weights: A = 0.46, B = 0.28, C = 0.26
 ```
+
+The backend uses **fingerprint-based deduplication** — two requests to `/users/123` and `/users/456` resolve to the same `GET /users/{id}` endpoint and aren't double-counted.
+
+### Novelty Scoring
+
+Each contribution is scored on a 0-1 scale:
+
+| Component | Weight | Measures |
+|-----------|--------|----------|
+| Endpoint novelty | 40% | New API routes (Jaccard distance on fingerprints) |
+| Auth novelty | 25% | New auth methods discovered (OAuth, API keys, etc.) |
+| Schema novelty | 15% | New request body schemas |
+| Documentation | 10% | Quality signals (placeholder) |
+| Maintenance | 10% | Update recency (placeholder) |
+
+### Revenue Splitting
+
+When someone downloads a paid skill, the revenue splits 4 ways:
+
+```
+Skill download: $0.10 USDC
+  → 33% Creator/Contributor (weighted random: A=46%, B=28%, C=26%)
+  → 30% Website owner (DNS-verified, or treasury if unclaimed)
+  → 20% Platform (FDRY Treasury)
+  → 17% Network (FDRY Treasury)
+```
+
+**Website owners** (e.g., Twitter, Shopify) can claim their 30% by verifying domain ownership via DNS TXT record. Unclaimed shares go to the FDRY Treasury until the website owner verifies.
+
+Over many downloads, contributor payouts converge to each contributor's weight. This avoids dust transactions from splitting tiny amounts across many wallets.
+
+Every contribution produces a **proof-of-novelty hash chain** (SHA-256) for auditability:
+1. `beforeHash` — skill state before contribution
+2. `deltaHash` — exactly what was contributed
+3. `afterHash` — skill state after merging
+
+### Website Owner Verification
+
+Website owners can claim their revenue share by adding a DNS TXT record:
+
+```bash
+# 1. Request verification (authenticated)
+POST /my/domains/verify { "domain": "api.twitter.com" }
+# Returns: unbrowse-verify=<token>
+
+# 2. Add TXT record to your domain's DNS
+# Host: @ (or api.twitter.com)
+# Value: unbrowse-verify=<token>
+
+# 3. Confirm verification
+POST /my/domains/api.twitter.com/verify
+# Returns: verified! Revenue share active.
+```
+
+Once verified, the website owner's wallet receives 30% of every skill download for that domain.
+
+### Opting Out
+
+To keep skills local-only and not contribute to the index:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse-openclaw": {
+        "config": {
+          "autoContribute": false
+        }
+      }
+    }
+  }
+}
+```
+
+Skills will still be generated and saved locally in `~/.openclaw/skills/`. Only cloud publishing is disabled.
+
+## FDRY Token Economy
+
+**Contribute skills → earn FDRY → spend on executions.**
+
+FDRY (Foundry) is a real Solana SPL token. Contributors earn FDRY instantly when their contributions are accepted. Agents spend 1 FDRY per execution.
+
+```
+┌─────────────────────────────────────────────────────┐
+│              FDRY TOKEN ECONOMY                     │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Contribute novel endpoints → instantly earn FDRY   │
+│  Execute a skill           → spend 1 FDRY           │
+│                                                     │
+│  Reward: novelty_score × 10 FDRY                    │
+│  Starter grant: 10 FDRY on first contribution       │
+│  Daily cap: 100 FDRY per wallet                     │
+│  1 FDRY = 1 execution (simple peg)                  │
+│                                                     │
+│  Zero novelty = zero FDRY. No farming duplicates.   │
+│  Treasury balance is the natural rate limiter.       │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### How It Works
+
+1. **Contribute** — Capture a site's API with unbrowse. Novel endpoints earn FDRY instantly.
+2. **Earn** — FDRY transferred from treasury to your wallet on-chain immediately.
+3. **Spend** — Pay 1 FDRY per execution via x402 protocol (on-chain transfer to treasury).
+4. **Recirculate** — Spent FDRY returns to treasury, funding future contributors.
+
+### Earning FDRY
+
+| Action | Reward |
+|--------|--------|
+| First useful contribution | 10 FDRY starter grant |
+| Novel endpoints (novelty 0.5) | 5 FDRY |
+| Novel endpoints (novelty 1.0) | 10 FDRY |
+| Duplicate endpoints (novelty 0) | 0 FDRY |
+| Daily cap per wallet | 100 FDRY |
+
+### Skill Download Revenue Split
+
+Paid skill downloads still use USDC with a 4-way split:
+- **33%** Creator/Contributor (weighted random for collaborative skills)
+- **30%** Website owner (DNS-verified, or treasury if unclaimed)
+- **20%** Platform (FDRY Treasury)
+- **17%** Network (FDRY Treasury)
 
 ### Quality Tiers (Marketplace Ranking)
 
@@ -277,6 +404,7 @@ Full config example:
         "config": {
           "skillsOutputDir": "~/.openclaw/skills",
           "autoDiscover": true,
+          "autoContribute": true,
           "skillIndexUrl": "https://index.unbrowse.ai",
           "marketplace": {
             "creatorWallet": "YOUR_SOLANA_WALLET_ADDRESS",
@@ -301,6 +429,7 @@ Full config example:
 |--------|---------|-------------|
 | `skillsOutputDir` | `~/.openclaw/skills` | Where generated skills are saved |
 | `autoDiscover` | `true` | Auto-generate skills when browsing APIs |
+| `autoContribute` | `true` | Auto-publish skills to index (opt out with `false`) |
 | `skillIndexUrl` | `https://index.unbrowse.ai` | Marketplace API URL |
 | `marketplace.creatorWallet` | - | Solana address to receive USDC |
 | `marketplace.solanaPrivateKey` | - | Private key for x402 payments |

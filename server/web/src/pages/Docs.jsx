@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const FDRY_ENABLED = import.meta.env.VITE_FDRY_ENABLED === 'true';
+
 const sections = [
   { id: 'overview', title: 'Overview' },
   { id: 'quickstart', title: 'Quick Start' },
@@ -7,6 +9,8 @@ const sections = [
   { id: 'skill-format', title: 'Skill Format' },
   { id: 'for-agents', title: 'For AI Agents' },
   { id: 'for-creators', title: 'For Creators' },
+  { id: 'contributions', title: 'Contributions' },
+  ...(FDRY_ENABLED ? [{ id: 'fdry-credits', title: 'FDRY Credits' }] : []),
   { id: 'payments', title: 'Payments & Pricing' },
 ];
 
@@ -227,24 +231,210 @@ GET https://index.unbrowse.ai/marketplace/skills?q=twitter`}</pre>
           </ul>
         </section>
 
+        <section id="contributions" className="docs-section">
+          <h2>Collaborative Contributions</h2>
+          <p>
+            Skills aren't built by a single person — they're built collectively. When multiple
+            users capture traffic from the same site, each capture may discover different endpoints,
+            auth patterns, or request schemas. Unbrowse automatically merges these into a single
+            skill and tracks who contributed what.
+          </p>
+
+          <div className="docs-highlight">
+            <h3>Auto-Contribute (Opt-Out)</h3>
+            <p>
+              Auto-contribute is <strong>enabled by default</strong>. When you capture a skill and have
+              a wallet configured, your novel endpoints are automatically contributed to the index.
+              Set <code>autoContribute: false</code> in your config to keep skills local-only.
+            </p>
+          </div>
+
+          <h3>How Merging Works</h3>
+          <p>
+            The backend uses <strong>fingerprint-based deduplication</strong> — requests to{' '}
+            <code>/users/123</code> and <code>/users/456</code> resolve to the same{' '}
+            <code>GET /users/{'{id}'}</code> endpoint and aren't double-counted.
+          </p>
+          <pre className="docs-code">{`User A captures 5 endpoints from shopify.com
+  → Skill created, User A weight = 1.0
+
+User B captures 8 endpoints (3 overlap, 5 new)
+  → 5 novel endpoints merged via fingerprint dedup
+  → Weights: A = 0.62, B = 0.38
+
+User C captures 6 endpoints (4 overlap, 2 new) + OAuth refresh
+  → 2 endpoints + 1 auth discovery merged
+  → Weights: A = 0.46, B = 0.28, C = 0.26`}</pre>
+
+          <h3>Novelty Scoring</h3>
+          <p>Each contribution is scored on a 0-1 weighted scale:</p>
+          <ul className="docs-list">
+            <li><strong>40% Endpoint novelty</strong> — New API routes (Jaccard distance on fingerprints)</li>
+            <li><strong>25% Auth novelty</strong> — New auth methods (OAuth, API keys, CSRF tokens)</li>
+            <li><strong>15% Schema novelty</strong> — New request body schemas</li>
+            <li><strong>10% Documentation</strong> — Quality signals (placeholder)</li>
+            <li><strong>10% Maintenance</strong> — Update recency (placeholder)</li>
+          </ul>
+
+          <h3>Revenue Splitting</h3>
+          <p>
+            Every skill download splits revenue 4 ways. For collaborative skills, one contributor
+            is <strong>randomly selected weighted by contribution score</strong> per download.
+          </p>
+          <pre className="docs-code">{`Download: $0.10 USDC
+  → 33% Creator/Contributor (weighted random)
+  → 30% Website Owner (DNS-verified, treasury if unclaimed)
+  → 20% Platform (FDRY Treasury)
+  → 17% Network (FDRY Treasury)`}</pre>
+          <p>
+            <strong>Website owners</strong> (e.g., Twitter, Shopify) can claim their 30% by
+            verifying domain ownership via DNS TXT record. Unclaimed shares go to the FDRY
+            Treasury until claimed.
+          </p>
+          <p>
+            Every contribution produces a <strong>proof-of-novelty hash chain</strong> (SHA-256)
+            for auditability — proving exactly what was contributed and when.
+          </p>
+
+          <h3>Opting Out</h3>
+          <pre className="docs-code">{`{
+  "plugins": {
+    "entries": {
+      "unbrowse-openclaw": {
+        "config": {
+          "autoContribute": false
+        }
+      }
+    }
+  }
+}`}</pre>
+          <p>Skills are still generated locally. Only cloud publishing is disabled.</p>
+        </section>
+
+        {FDRY_ENABLED && <section id="fdry-credits" className="docs-section">
+          <h2>FDRY Credits</h2>
+          <p>
+            FDRY is the internal credit system that powers the Unbrowse ecosystem. Contribute
+            novel API endpoints and earn credits that can be spent on skill executions. No
+            crypto wallet funding required — just contribute and use.
+          </p>
+
+          <div className="docs-highlight">
+            <h3>The Earn/Spend Cycle</h3>
+            <p>
+              Contribute novel endpoints to earn FDRY. Spend FDRY to execute skills.
+              <strong> 1 FDRY = 1 execution.</strong> The treasury balance is the natural
+              rate limiter — when the treasury is flush, credits flow freely.
+            </p>
+          </div>
+
+          <h3>How to Earn FDRY</h3>
+          <div className="docs-steps">
+            <div className="docs-step">
+              <div className="step-number">1</div>
+              <div className="step-content">
+                <h3>Capture a Site</h3>
+                <pre className="docs-code">Unbrowse shopify.com and learn its API</pre>
+                <p>Browse any website with the Unbrowse extension active.</p>
+              </div>
+            </div>
+
+            <div className="docs-step">
+              <div className="step-number">2</div>
+              <div className="step-content">
+                <h3>Contribute Novel Endpoints</h3>
+                <p>
+                  When auto-contribute is enabled (default), your captured endpoints are
+                  compared against the index. Novel endpoints — ones nobody has discovered
+                  before — earn you FDRY instantly.
+                </p>
+              </div>
+            </div>
+
+            <div className="docs-step">
+              <div className="step-number">3</div>
+              <div className="step-content">
+                <h3>Spend on Executions</h3>
+                <pre className="docs-code">Use the shopify skill to check order status</pre>
+                <p>Each skill execution costs 1 FDRY. Your balance decrements automatically.</p>
+              </div>
+            </div>
+          </div>
+
+          <h3>Credit Rules</h3>
+          <ul className="docs-list">
+            <li>
+              <strong>Starter Grant</strong> — Earn 10 FDRY on your first useful contribution
+              (at least one novel endpoint)
+            </li>
+            <li>
+              <strong>Per-Endpoint Reward</strong> — Each novel endpoint earns FDRY based on
+              the treasury's current balance and distribution rate
+            </li>
+            <li>
+              <strong>Daily Cap</strong> — Maximum 100 FDRY per wallet per day to prevent
+              abuse and ensure fair distribution
+            </li>
+            <li>
+              <strong>Treasury-Limited</strong> — Credits are minted from the FDRY Treasury.
+              When the treasury runs low, earn rates decrease naturally
+            </li>
+          </ul>
+
+          <h3>Checking Your Balance</h3>
+          <pre className="docs-code">{`// Via the Earnings dashboard
+https://unbrowse.ai/earnings
+
+// Via API
+GET /fdry/balance/:wallet
+
+// Response
+{
+  "balance": 47,
+  "dailyEarned": 12,
+  "dailyCap": 100,
+  "totalEarned": 147,
+  "contributions": 23
+}`}</pre>
+
+          <p>
+            Visit the <a href="/earnings">Earnings Dashboard</a> to see your balance,
+            distribution history, and leaderboard position.
+          </p>
+        </section>}
+
         <section id="payments" className="docs-section">
           <h2>Payments & Pricing</h2>
 
           <div className="docs-highlight">
-            <h3>Revenue Split</h3>
+            <h3>4-Way Revenue Split</h3>
             <div className="docs-revenue-split">
               <div className="revenue-box creator">
-                <span className="revenue-pct">70%</span>
+                <span className="revenue-pct">33%</span>
                 <span className="revenue-who">Creator</span>
-                <span className="revenue-detail">Direct to your wallet</span>
+                <span className="revenue-detail">Direct to wallet (weighted random for collaborative)</span>
+              </div>
+              <div className="revenue-box creator">
+                <span className="revenue-pct">30%</span>
+                <span className="revenue-who">Website Owner</span>
+                <span className="revenue-detail">DNS-verified claim (treasury if unclaimed)</span>
               </div>
               <div className="revenue-box treasury">
-                <span className="revenue-pct">30%</span>
-                <span className="revenue-who">FDRY Treasury</span>
-                <span className="revenue-detail">Buybacks</span>
+                <span className="revenue-pct">20%</span>
+                <span className="revenue-who">Platform</span>
+                <span className="revenue-detail">FDRY Treasury</span>
+              </div>
+              <div className="revenue-box treasury">
+                <span className="revenue-pct">17%</span>
+                <span className="revenue-who">Network</span>
+                <span className="revenue-detail">FDRY Treasury</span>
               </div>
             </div>
           </div>
+          <p>
+            Website owners verify via DNS TXT record. Until verified, their 30% share accrues to
+            the FDRY Treasury.
+          </p>
 
           <h3>Pricing Options</h3>
           <ul className="docs-list">
