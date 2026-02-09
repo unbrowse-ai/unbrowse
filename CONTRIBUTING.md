@@ -1,6 +1,6 @@
 # Contributing to Unbrowse
 
-Self-learning browser agent extension for Clawdbot. Captures API traffic from websites, generates reusable skills, and replays them with stored auth.
+Self-learning browser agent extension for OpenClaw (also compatible with Clawdbot/Moltbot). Captures API traffic from websites, generates reusable skills, and replays them with stored auth.
 
 ## Development Setup
 
@@ -21,32 +21,31 @@ npx tsc          # compile TypeScript
 npx tsc --noEmit # type-check only
 ```
 
-### Run with Clawdbot Gateway
+### Run with OpenClaw Gateway
 ```bash
-clawdbot gateway restart  # picks up extension changes
-clawdbot gateway status   # check if running
+openclaw gateway restart  # picks up extension changes
+openclaw gateway status   # check if running
 ```
 
-Gateway logs: `~/.clawdbot/logs/gateway.log`
+Gateway logs: `~/.openclaw/logs/gateway.log`
 
 ## Architecture
 
 ```
-index.ts                    # Plugin entry point (11 tools, hooks)
+index.ts                    # Plugin entry point (exports the plugin)
 src/
+├── plugin/                 # Plugin composition + tool implementations (main editing surface)
 ├── har-parser.ts           # HAR → API endpoints
-├── skill-generator.ts      # Endpoints → SKILL.md + auth.json + api.ts
-├── profile-capture.ts      # Playwright-based network capture
-├── session-login.ts        # Credential login + session capture
+├── skill-generator.ts      # Endpoints → SKILL.md + auth.json + scripts/*
 ├── cdp-capture.ts          # Live CDP network capture
-├── stealth-browser.ts      # Cloud browser via BrowserBase
-├── auto-discover.ts        # Background skill generation hook
-├── skill-index.ts          # Cloud marketplace client
-├── vault.ts                # Encrypted credential storage
+├── session-login.ts        # Credential login + session capture
 ├── token-refresh.ts        # OAuth/JWT token refresh detection
-├── dom-service.ts          # Browser-use style element indexing
-└── site-crawler.ts         # Link discovery and crawling
-server/                     # Skill marketplace server (x402 payments)
+├── skill-index.ts          # Marketplace client (x402 payments)
+└── wallet/                 # Wallet persistence + unbrowse_wallet tool
+server/web/                 # Marketing site (Vercel build)
+test/e2e/                   # Real-backend E2E (reverse-engineer via docker compose)
+test/oct/                   # Black-box gateway E2E (OCT)
+third_party/openclaw-test-suite/  # Vendored OCT harness
 ```
 
 ## Key Concepts
@@ -80,9 +79,15 @@ A "skill" is a learned API integration:
 # Type check
 npx tsc --noEmit
 
-# Manual testing via Clawdbot
-clawdbot gateway restart
-# Then use unbrowse_* tools in a Clawdbot session
+# Unit tests
+bun run test
+
+# Integration tests (real backend, no mocks)
+bun run test:e2e
+
+# Black-box gateway tests
+bun run test:oct
+bun run test:oct:docker
 ```
 
 ## Pull Requests

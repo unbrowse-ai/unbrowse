@@ -1,10 +1,26 @@
 /**
- * Skill Index Client — Publish and search the cloud skill marketplace.
+ * Skill Index Client — Publish/search/download skills from the marketplace.
  *
- * Handles communication with the skill index API, including x402 payments
- * for downloading skills on Solana. Publishing and searching are free;
- * downloading a skill package requires USDC via x402.
+ * Backend API surface used by this extension:
+ * - GET  /marketplace/skills?q=&limit=
+ * - GET  /marketplace/skills/:id
+ * - GET  /marketplace/skills/:id/versions
+ * - GET  /marketplace/skills/:id/versions/:hash
+ * - GET  /marketplace/skill-downloads/:id   (200 for free, 402 for paid via x402)
+ * - POST /marketplace/skills               (wallet-signed)
+ * - GET  /health
+ *
+ * Notes:
+ * - Paid downloads use x402 (HTTP 402) + Solana USDC.
+ * - Publishing requires a Solana private key to sign X-Wallet-* headers.
  */
+
+import {
+  loadWeb3,
+  loadSplToken,
+  keypairFromBase58PrivateKey,
+  signEd25519MessageBase58,
+} from "./solana/solana-helpers.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,44 +38,6 @@ export interface SkillSummary {
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
-  // Version info
-  latestVersionHash?: string;
-  totalVersions?: number;
-  // Badge info
-  badge?: "official" | "highlighted" | "deprecated" | "verified";
-  badgeReason?: string;
-  // Trending info
-  velocity?: number;
-  downloads24h?: number;
-}
-
-export interface VersionInfo {
-  versionId: string;
-  versionHash: string;
-  versionNumber: string;
-  changelog: string | null;
-  isLatest: boolean;
-  createdAt: string;
-}
-
-export interface TrendingSkill extends SkillSummary {
-  velocity: number;
-  downloads24h: number;
-  downloads7d: number;
-  executions24h: number;
-  successRate: number | null;
-}
-
-export interface SkillStats {
-  skillId: string;
-  period: string;
-  installations: number;
-  executions: {
-    total: number;
-    successful: number;
-    successRate: number;
-    avgExecutionTimeMs: number | null;
-  };
 }
 
 export interface SkillPackage {
@@ -73,6 +51,15 @@ export interface SkillPackage {
   authType: string | null;
   serviceName: string | null;
   domain: string | null;
+}
+
+export interface VersionInfo {
+  versionId: string;
+  versionHash: string;
+  versionNumber: string;
+  changelog: string | null;
+  isLatest: boolean;
+  createdAt: string;
 }
 
 export interface PublishPayload {
@@ -256,28 +243,9 @@ export class SkillIndexClient {
     network: string;
     extra?: { feePayer?: string; programId?: string };
   }): Promise<string> {
-    let Connection: any, PublicKey: any, Transaction: any, TransactionInstruction: any, Keypair: any, SystemProgram: any;
-    let getAssociatedTokenAddress: any, createTransferInstruction: any;
-    try {
-      ({ Connection, PublicKey, Transaction, TransactionInstruction, Keypair, SystemProgram } =
-        await import("@solana/web3.js"));
-      ({ getAssociatedTokenAddress, createTransferInstruction } =
-        await import("@solana/spl-token"));
-    } catch (err) {
-      throw new Error(
-        `Solana native bindings failed to load (Node ${process.version}). ` +
-        `Try Node v22 LTS. Error: ${(err as Error).message}`
-      );
-    }
-
-    // Decode private key
-    let keypair: InstanceType<typeof Keypair>;
-    try {
-      const bs58 = await import("bs58");
-      keypair = Keypair.fromSecretKey(bs58.default.decode(this.solanaPrivateKey!));
-    } catch {
-      throw new Error("Invalid Solana private key. Must be base58-encoded.");
-    }
+    const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadWeb3();
+    const { getAssociatedTokenAddress, createTransferInstruction } = await loadSplToken();
+    const keypair = await keypairFromBase58PrivateKey(this.solanaPrivateKey!);
 
     const isDevnet = accepts.network?.includes("devnet");
     const rpcUrl = isDevnet ? "https://api.devnet.solana.com" : "https://api.mainnet-beta.solana.com";
@@ -370,131 +338,7 @@ export class SkillIndexClient {
     return resp.json() as Promise<PublishResult>;
   }
 
-  /**
-   * Health check — verify the server is reachable (fast, no auth required).
-   * Returns true if reachable, false otherwise.
-   */
-  async healthCheck(): Promise<boolean> {
-    try {
-      const resp = await fetch(`${this.indexUrl}/health`, {
-        signal: AbortSignal.timeout(5_000),
-      });
-      return resp.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Update a skill (creator wallet signature required).
-   * Only the wallet that published the skill can update it.
-   */
-  async update(id: string, payload: Partial<PublishPayload>): Promise<PublishResult> {
-    const walletHeaders = await this.getWalletAuthHeaders("edit");
-
-    const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...walletHeaders },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Update failed (${resp.status}): ${text}`);
-    }
-
-    return resp.json() as Promise<PublishResult>;
-  }
-
-  /**
-   * Delete a skill (creator wallet signature required).
-   * Only the wallet that published the skill can delete it.
-   */
-  async delete(id: string): Promise<{ deleted: boolean; id: string }> {
-    const walletHeaders = await this.getWalletAuthHeaders("delete");
-
-    const resp = await fetch(`${this.indexUrl}/skills/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      headers: walletHeaders,
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Delete failed (${resp.status}): ${text}`);
-    }
-
-    return resp.json() as Promise<{ deleted: boolean; id: string }>;
-  }
-
-  /**
-   * Build wallet auth headers for the backend.
-   * Returns X-Wallet-Address, X-Wallet-Signature, X-Wallet-Message headers.
-   */
-  private async getWalletAuthHeaders(action: string): Promise<Record<string, string>> {
-    if (!this.solanaPrivateKey) {
-      throw new Error(
-        "No Solana private key configured. Required to sign requests. " +
-        'Use unbrowse_wallet action="set_payer" to configure.',
-      );
-    }
-
-    const { Keypair } = await import("@solana/web3.js");
-    const bs58 = await import("bs58");
-
-    const keypair = Keypair.fromSecretKey(bs58.default.decode(this.solanaPrivateKey));
-    const walletAddress = keypair.publicKey.toBase58();
-    const timestamp = Date.now().toString();
-    const message = `unbrowse:${action}:${timestamp}`;
-    const signature = await this.signMessage(message);
-
-    return {
-      "X-Wallet-Address": walletAddress,
-      "X-Wallet-Signature": signature,
-      "X-Wallet-Message": message,
-    };
-  }
-
-  /**
-   * Sign a message with the Solana keypair.
-   * Returns base58-encoded Ed25519 signature.
-   */
-  private async signMessage(message: string): Promise<string> {
-    let Keypair: any, bs58: any, nacl: any;
-    try {
-      ({ Keypair } = await import("@solana/web3.js"));
-      bs58 = await import("bs58");
-      nacl = await import("tweetnacl");
-    } catch (err) {
-      throw new Error(
-        `Solana native bindings failed to load (Node ${process.version}). ` +
-        `Try Node v22 LTS. Error: ${(err as Error).message}`
-      );
-    }
-
-    // Decode private key
-    let keypair: InstanceType<typeof Keypair>;
-    try {
-      keypair = Keypair.fromSecretKey(bs58.default.decode(this.solanaPrivateKey!));
-    } catch {
-      throw new Error("Invalid Solana private key. Must be base58-encoded.");
-    }
-
-    // Sign message
-    const messageBytes = new TextEncoder().encode(message);
-    const signature = nacl.sign.detached(messageBytes, keypair.secretKey);
-
-    return bs58.default.encode(signature);
-  }
-
-  // ============================================================================
-  // VERSION MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Get all versions for a skill.
-   */
+  /** List all published versions for a skill (free). */
   async getVersions(skillId: string): Promise<VersionInfo[]> {
     const resp = await fetch(
       `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/versions`,
@@ -513,47 +357,7 @@ export class SkillIndexClient {
     return data.versions || [];
   }
 
-  /**
-   * Create a new version for a skill.
-   * Returns null if version already exists (no changes).
-   */
-  async createVersion(
-    skillId: string,
-    payload: {
-      skillMd: string;
-      scripts?: Record<string, string>;
-      references?: Record<string, string>;
-      changelog?: string;
-      versionNumber?: string;
-    },
-  ): Promise<VersionInfo | null> {
-    const resp = await fetch(
-      `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/versions`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(30_000),
-      },
-    );
-
-    if (resp.status === 409) {
-      // Version already exists (no changes)
-      return null;
-    }
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Create version failed (${resp.status}): ${text}`);
-    }
-
-    const data = await resp.json();
-    return data.version;
-  }
-
-  /**
-   * Download a specific version of a skill by version hash.
-   */
+  /** Download a specific skill version by version hash (free for free skills; may still be gated for paid). */
   async downloadVersion(skillId: string, versionHash: string): Promise<SkillPackage> {
     const resp = await fetch(
       `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/versions/${encodeURIComponent(versionHash)}`,
@@ -572,140 +376,53 @@ export class SkillIndexClient {
     return data.skill;
   }
 
-  // ============================================================================
-  // INSTALLATION & EXECUTION TRACKING
-  // ============================================================================
-
   /**
-   * Report a skill installation (called after successful download).
+   * Health check — verify the server is reachable (fast, no auth required).
+   * Returns true if reachable, false otherwise.
    */
-  async reportInstallation(input: {
-    skillId: string;
-    versionHash?: string;
-    installedBy?: string;
-    platform?: string;
-    metadata?: Record<string, unknown>;
-  }): Promise<{ installationId: string }> {
+  async healthCheck(): Promise<boolean> {
     try {
-      const resp = await fetch(`${this.indexUrl}/marketplace/installations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          skillId: input.skillId,
-          versionHash: input.versionHash,
-          installedBy: input.installedBy || this.creatorWallet,
-          platform: input.platform || process.platform,
-          metadata: input.metadata,
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
-
-      if (!resp.ok) {
-        console.warn(`[SkillIndexClient] Installation tracking failed: ${resp.status}`);
-        return { installationId: "" };
-      }
-
-      const data = await resp.json();
-      return { installationId: data.installation?.installationId || "" };
-    } catch (err) {
-      // Installation tracking is best-effort, don't fail the operation
-      console.warn(`[SkillIndexClient] Installation tracking failed: ${err}`);
-      return { installationId: "" };
-    }
-  }
-
-  /**
-   * Report a skill execution (called after each replay).
-   */
-  async reportExecution(input: {
-    skillId: string;
-    installationId?: string;
-    success: boolean;
-    executionTimeMs?: number;
-    errorMessage?: string;
-    endpoint?: string;
-  }): Promise<void> {
-    try {
-      await fetch(`${this.indexUrl}/marketplace/executions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+      const resp = await fetch(`${this.indexUrl}/health`, {
         signal: AbortSignal.timeout(5_000),
       });
+      return resp.ok;
     } catch {
-      // Execution tracking is best-effort, don't fail the operation
+      return false;
     }
   }
 
   /**
-   * Get stats for a skill.
+   * Build wallet auth headers for the backend.
+   * Returns X-Wallet-Address, X-Wallet-Signature, X-Wallet-Message headers.
    */
-  async getSkillStats(
-    skillId: string,
-    period: "24h" | "7d" | "30d" | "all" = "24h",
-  ): Promise<SkillStats> {
-    const resp = await fetch(
-      `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/stats?period=${period}`,
-      {
-        headers: { "Accept": "application/json" },
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Get stats failed (${resp.status}): ${text}`);
+  private async getWalletAuthHeaders(action: string): Promise<Record<string, string>> {
+    if (!this.solanaPrivateKey) {
+      throw new Error(
+        "No Solana private key configured. Required to sign requests. " +
+        'Use unbrowse_wallet action="set_payer" to configure.',
+      );
     }
+    const keypair = await keypairFromBase58PrivateKey(this.solanaPrivateKey);
+    const walletAddress = keypair.publicKey.toBase58();
+    const timestamp = Date.now().toString();
+    const message = `unbrowse:${action}:${timestamp}`;
+    const signature = await this.signMessage(message);
 
-    return resp.json();
+    return {
+      "X-Wallet-Address": walletAddress,
+      "X-Wallet-Signature": signature,
+      "X-Wallet-Message": message,
+    };
   }
 
-  // ============================================================================
-  // TRENDING
-  // ============================================================================
-
   /**
-   * Get trending skills.
+   * Sign a message with the Solana keypair.
+   * Returns base58-encoded Ed25519 signature.
    */
-  async getTrending(
-    opts?: { period?: "24h" | "7d" | "30d"; limit?: number },
-  ): Promise<TrendingSkill[]> {
-    const url = new URL(`${this.indexUrl}/marketplace/trending`);
-    if (opts?.period) url.searchParams.set("period", opts.period);
-    if (opts?.limit) url.searchParams.set("limit", String(opts.limit));
-
-    const resp = await fetch(url.toString(), {
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(10_000),
+  private async signMessage(message: string): Promise<string> {
+    return signEd25519MessageBase58({
+      privateKeyB58: this.solanaPrivateKey!,
+      message,
     });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Get trending failed (${resp.status}): ${text}`);
-    }
-
-    const data = await resp.json();
-    return data.skills || [];
-  }
-
-  /**
-   * Get featured/badged skills.
-   */
-  async getFeatured(limit: number = 50): Promise<SkillSummary[]> {
-    const resp = await fetch(
-      `${this.indexUrl}/marketplace/featured?limit=${limit}`,
-      {
-        headers: { "Accept": "application/json" },
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Get featured failed (${resp.status}): ${text}`);
-    }
-
-    const data = await resp.json();
-    return data.skills || [];
   }
 }

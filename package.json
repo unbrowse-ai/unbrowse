@@ -74,6 +74,12 @@
       "optional": true
     }
   },
+  "scripts": {
+    "test": "bun test test/*.test.ts",
+    "test:e2e": "E2E_BACKEND_START=docker bun test test/e2e",
+    "test:oct": "bash scripts/test-oct.sh",
+    "test:oct:docker": "bash scripts/test-oct-docker.sh"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"

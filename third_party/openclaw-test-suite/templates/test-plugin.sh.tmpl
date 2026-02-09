@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+source "${OCT_LIB_DIR}/core.sh"
+source "${OCT_LIB_DIR}/gateway.sh"
+source "${OCT_LIB_DIR}/health.sh"
+source "${OCT_LIB_DIR}/lifecycle.sh"
+
+setup "Plugin Validation"
+
+phase "Environment"
+assert "openclaw CLI installed" "$(command -v openclaw &>/dev/null && echo true || echo false)"
+assert "Node.js available" "$(command -v node &>/dev/null && echo true || echo false)"
+assert "jq available" "$(command -v jq &>/dev/null && echo true || echo false)"
+
+phase "Gateway"
+require_gateway
+
+teardown
+

@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: reverse_engineer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    # Expose on a non-default host port to avoid colliding with any local dev DB.
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/00-pgvector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  reverse-engineer:
+    # Force amd64 for the backend image on Apple Silicon hosts.
+    # Some native deps (e.g. node-libcurl-ja3) publish x64 prebuilts but not arm64.
+    platform: linux/amd64
+    build:
+      context: ${E2E_BACKEND_PATH}
+      dockerfile: Dockerfile
+    env_file:
+      - ./reverse-engineer.e2e.env
+    environment:
+      NODE_ENV: production
+      PORT: "4111"
+      # The host-mapped port is 4112 (see ports below). Keep Better Auth aligned with host URL.
+      BETTER_AUTH_URL: http://localhost:4112
+      VECTOR_DB_KEEPALIVE_MINUTES: "0"
+    ports:
+      - "4112:4111"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4111/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+
+volumes:
+  pgdata:
+    driver: local

@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# oct — OpenClaw Test Suite Runner
+# Usage: oct [OPTIONS] [SUITE_DIR]
+set -uo pipefail
+
+OCT_VERSION="1.0.0"
+
+# Resolve OCT_LIB_DIR relative to this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export OCT_LIB_DIR="${OCT_LIB_DIR:-${SCRIPT_DIR}/../lib}"
+
+# ── Parse CLI arguments ──────────────────────────────────
+RUN_PATTERN=""
+TAG_FILTER=""
+TRACE_MODE=""
+TRACE_MINUTES="10"
+TRACE_SESSION=""
+TRACE_ERRORS=""
+DO_INIT=""
+DO_LIST=""
+DO_DOCKER=""
+SUITE_DIR=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -r|--run)       RUN_PATTERN="$2"; shift 2 ;;
+    -t|--tag)       TAG_FILTER="$2"; shift 2 ;;
+    -f|--format)    export OCT_OUTPUT_FORMAT="$2"; shift 2 ;;
+    -v|--verbose)   export OCT_VERBOSE=1; shift ;;
+    -q|--quiet)     export OCT_QUIET=1; shift ;;
+    --docker)       DO_DOCKER=1; shift ;;
+    --trace)
+      TRACE_MODE=1
+      if [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+        TRACE_MINUTES="$2"; shift 2
+      else
+        shift
+      fi
+      ;;
+    --trace-errors) TRACE_MODE=1; TRACE_ERRORS="true"; shift ;;
+    --trace-session)
+      TRACE_MODE=1; TRACE_SESSION="$2"; shift 2 ;;
+    --init)         DO_INIT=1; shift ;;
+    --list)         DO_LIST=1; shift ;;
+    --version)      echo "oct $OCT_VERSION"; exit 0 ;;
+    -h|--help)      _oct_help; exit 0 ;;
+    -*)             echo "Unknown option: $1"; exit 1 ;;
+    *)              SUITE_DIR="$1"; shift ;;
+  esac
+done
+
+# ── Help ─────────────────────────────────────────────────
+_oct_help() {
+  cat << 'EOF'
+oct — OpenClaw Test Suite Runner
+
+USAGE:
+    oct [OPTIONS] [SUITE_DIR]
+
+OPTIONS:
+    -r, --run <pattern>        Run only tests matching pattern
+    -t, --tag <tag>            Run only suites with this tag
+    -f, --format <format>      Output: pretty (default), json, tap
+    -v, --verbose              Show full tool responses
+    -q, --quiet                Only show summary
+    --docker                   Run in Docker container
+    --trace [minutes]          Show gateway trace (default: 10min)
+    --trace-errors             Show only errors from trace
+    --trace-session <pattern>  Filter trace by session
+    --init                     Scaffold a new test suite
+    --list                     List discovered test files
+    --version                  Show version
+    -h, --help                 Show this help
+
+EXAMPLES:
+    oct                        Run all tests in current directory
+    oct ./test/oct             Run tests in specified directory
+    oct -r "test-*"            Run only plugin tests
+    oct -f json                Machine-readable JSON output
+    oct --trace 30             Show 30-minute gateway trace
+
+ENVIRONMENT:
+    OCT_LIB_DIR                Path to lib/ (auto-detected)
+    OCT_GATEWAY_URL            Gateway URL (default: http://127.0.0.1:18789)
+    OCT_GATEWAY_TOKEN          Auth token (may be auto-detected from openclaw config)
+    OCT_OUTPUT_FORMAT          Output format override
+    NO_COLOR                   Disable color output
+EOF
+}
+
+# ── Init mode ────────────────────────────────────────────
+if [ -n "$DO_INIT" ]; then
+  target="${SUITE_DIR:-.}"
+  mkdir -p "$target/fixtures"
+
+  TEMPLATE_DIR="${SCRIPT_DIR}/../templates"
+
+  if [ -f "$TEMPLATE_DIR/oct.env.example" ]; then
+    cp "$TEMPLATE_DIR/oct.env.example" "$target/oct.env"
+  else
+    cat > "$target/oct.env" << 'ENVEOF'
+# OpenClaw Test Suite Configuration
+OCT_GATEWAY_URL=http://127.0.0.1:18789
+OCT_GATEWAY_TOKEN=
+OCT_PLUGIN_ID=my-plugin
+OCT_PLUGIN_DIR=$HOME/.openclaw/extensions/my-plugin
+OCT_MARKETPLACE_URL=
+OCT_BROWSER_PORT=18791
+OCT_SKILLS_DIR=$HOME/.openclaw/skills
+OCT_TOOL_TIMEOUT=30
+OCT_OUTPUT_FORMAT=pretty
+ENVEOF
+  fi
+
+  if [ -f "$TEMPLATE_DIR/test-plugin.sh.tmpl" ]; then
+    cp "$TEMPLATE_DIR/test-plugin.sh.tmpl" "$target/test-plugin.sh"
+    chmod +x "$target/test-plugin.sh"
+  fi
+
+  echo "Initialized test suite in $target"
+  echo "  - oct.env (edit with your plugin config)"
+  echo "  - test-plugin.sh (starter test)"
+  echo "  - fixtures/ (place test data here)"
+  exit 0
+fi
+
+# ── Resolve suite directory ──────────────────────────────
+SUITE_DIR="${SUITE_DIR:-.}"
+if [ ! -d "$SUITE_DIR" ]; then
+  echo "Error: suite directory not found: $SUITE_DIR"
+  exit 1
+fi
+export OCT_SUITE_DIR="$(cd "$SUITE_DIR" && pwd)"
+
+# ── Trace mode ───────────────────────────────────────────
+if [ -n "$TRACE_MODE" ]; then
+  source "${OCT_LIB_DIR}/config.sh"
+  oct_load_config "$OCT_SUITE_DIR"
+  source "${OCT_LIB_DIR}/trace.sh"
+  oct_trace "$TRACE_MINUTES" "$TRACE_SESSION" "${TRACE_ERRORS:-false}"
+  exit 0
+fi
+
+# ── Discover test files ──────────────────────────────────
+TEST_FILES=()
+
+if [ -n "$RUN_PATTERN" ]; then
+  while IFS= read -r -d '' f; do
+    TEST_FILES+=("$f")
+  done < <(find "$OCT_SUITE_DIR" -maxdepth 1 -name "$RUN_PATTERN" -type f -print0 2>/dev/null | sort -z)
+else
+  while IFS= read -r -d '' f; do
+    TEST_FILES+=("$f")
+  done < <(find "$OCT_SUITE_DIR" -maxdepth 1 \( -name "test-*.sh" -o -name "suite-*.sh" \) -type f -print0 2>/dev/null | sort -z)
+fi
+
+# ── List mode ────────────────────────────────────────────
+if [ -n "$DO_LIST" ]; then
+  echo "Discovered test files in $OCT_SUITE_DIR:"
+  for f in "${TEST_FILES[@]}"; do
+    echo "  $(basename "$f")"
+  done
+  echo ""
+  echo "Total: ${#TEST_FILES[@]} files"
+  exit 0
+fi
+
+# ── Run tests ────────────────────────────────────────────
+if [ ${#TEST_FILES[@]} -eq 0 ]; then
+  echo "No test files found in $OCT_SUITE_DIR"
+  echo "Looking for: test-*.sh, suite-*.sh"
+  echo ""
+  echo "Run 'oct --init' to scaffold a new test suite."
+  exit 1
+fi
+
+source "${OCT_LIB_DIR}/config.sh"
+oct_load_config "$OCT_SUITE_DIR"
+
+TOTAL_EXIT=0
+
+for test_file in "${TEST_FILES[@]}"; do
+  echo ""
+  echo "━━━ Running: $(basename "$test_file") ━━━"
+  echo ""
+
+  (
+    export OCT_LIB_DIR="${OCT_LIB_DIR}"
+    export OCT_SUITE_DIR="${OCT_SUITE_DIR}"
+    bash "$test_file"
+  )
+  test_exit=$?
+
+  if [ $test_exit -ne 0 ]; then
+    TOTAL_EXIT=$((TOTAL_EXIT + test_exit))
+  fi
+done
+
+exit $TOTAL_EXIT
+
