@@ -465,6 +465,15 @@ const plugin = {
     const logger = api.logger;
     const browserPort = (cfg.browserPort as number) ?? 18791;
 
+    // OpenClaw daemon/service sets env vars; CLI invocations generally do not.
+    // Only start background schedulers in the gateway service process.
+    const isGatewayService = (() => {
+      const kind = (process.env.OPENCLAW_SERVICE_KIND || "").toLowerCase();
+      if (kind === "gateway") return true;
+      const title = (process.title || "").toLowerCase();
+      return title.includes("openclaw-gateway");
+    })();
+
     // Detect diagnostic mode (doctor, audit, help, version) — skip all background tasks
     const isDiagnosticMode = (() => {
       const args = process.argv.join(" ").toLowerCase();
@@ -4528,7 +4537,7 @@ const plugin = {
     // Automatically refresh OAuth/JWT tokens before they expire
     // Skip in diagnostic mode to prevent deadlocks with doctor/audit commands
     let tokenRefreshScheduler: TokenRefreshScheduler | null = null;
-    if (!isDiagnosticMode) {
+    if (isGatewayService && !isDiagnosticMode) {
       tokenRefreshScheduler = new TokenRefreshScheduler(defaultOutputDir, {
         intervalMinutes: 1,
         logger: {
@@ -4545,7 +4554,7 @@ const plugin = {
     const failureResolver = new CapabilityResolver(defaultOutputDir);
 
     api.on("after_tool_call", async (event: any) => {
-      if (isDiagnosticMode) return;
+      if (!isGatewayService || isDiagnosticMode) return;
 
       const toolName = event?.toolName ?? event?.tool ?? "";
       const result = event?.result;
@@ -4582,7 +4591,7 @@ const plugin = {
       }
     });
 
-    if (autoDiscoverEnabled && !isDiagnosticMode) {
+    if (autoDiscoverEnabled && isGatewayService && !isDiagnosticMode) {
       logger.info("[unbrowse] Auto-discovery hook active");
     }
 
@@ -4590,7 +4599,7 @@ const plugin = {
     // Guide the agent to reverse-engineer internal/unofficial APIs from websites
     // Skip in diagnostic mode to prevent deadlocks
     api.on("before_agent_start", async () => {
-      if (isDiagnosticMode) return {};
+      if (!isGatewayService || isDiagnosticMode) return {};
       // Wait for wallet generation to complete (may still be running)
       await ensureWallet().catch(() => { });
 
@@ -4659,11 +4668,13 @@ const plugin = {
 
     // Try to start CDP header listener for Chrome remote debugging
     // This captures headers in real-time to enrich /requests data from extension
-    startCdpHeaderListener(9222).then((started) => {
-      if (started) {
-        logger.info("[unbrowse] CDP header listener active (Chrome port 9222)");
-      }
-    }).catch(() => { /* Chrome remote debugging not available */ });
+    if (isGatewayService && !isDiagnosticMode) {
+      startCdpHeaderListener(9222).then((started) => {
+        if (started) {
+          logger.info("[unbrowse] CDP header listener active (Chrome port 9222)");
+        }
+      }).catch(() => { /* Chrome remote debugging not available */ });
+    }
   },
 };
 
