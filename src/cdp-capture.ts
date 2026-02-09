@@ -30,6 +30,12 @@ const responseHeaderCache = new Map<string, Record<string, string>>();
 /** Whether CDP header listener is active. */
 let cdpListenerActive = false;
 
+/** Active WebSocket for CDP header capture (if connected). */
+let cdpWs: any | null = null;
+
+/** In-flight start promise to avoid concurrent connections. */
+let cdpStartPromise: Promise<boolean> | null = null;
+
 /** Shape returned by OpenClaw's GET /requests endpoint. */
 interface BrowserRequestEntry {
   id: string;
@@ -209,73 +215,137 @@ export function requestsToHar(entries: BrowserRequestEntry[]): { log: { entries:
  */
 export async function startCdpHeaderListener(chromePort = 9222): Promise<boolean> {
   if (cdpListenerActive) return true;
+  if (cdpStartPromise) return cdpStartPromise;
 
-  try {
-    // Check if Chrome has remote debugging enabled
-    const resp = await fetch(`http://127.0.0.1:${chromePort}/json/version`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    if (!resp.ok) return false;
+  cdpStartPromise = (async () => {
+    try {
+      // Check if Chrome has remote debugging enabled.
+      const resp = await fetch(`http://127.0.0.1:${chromePort}/json/version`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      if (!resp.ok) return false;
 
-    const data = await resp.json() as { webSocketDebuggerUrl?: string };
-    const wsUrl = data.webSocketDebuggerUrl;
-    if (!wsUrl) return false;
+      const data = await resp.json() as { webSocketDebuggerUrl?: string };
+      const wsUrl = data.webSocketDebuggerUrl;
+      if (!wsUrl) return false;
 
-    // Connect via WebSocket and listen for Network events
-    const WebSocket = (await import("ws")).default;
-    const ws = new WebSocket(wsUrl);
+      // Connect via WebSocket and listen for Network events.
+      // Use `createConnection` to `unref()` the socket immediately so a stuck
+      // connection attempt never prevents short-lived CLI commands from exiting.
+      const WebSocket = (await import("ws")).default as any;
+      const net = await import("node:net");
+      const tls = await import("node:tls");
 
-    let msgId = 1;
+      let msgId = 1;
+      const ws: any = new WebSocket(wsUrl, {
+        handshakeTimeout: 2000,
+        perMessageDeflate: false,
+        createConnection: (opts: any) => {
+          const protocol = String(opts?.protocol ?? "");
+          const isTls = protocol === "https:" || protocol === "wss:";
+          const socket = isTls ? (tls as any).connect(opts) : (net as any).connect(opts);
+          socket.unref?.();
+          return socket;
+        },
+      });
+      cdpWs = ws;
 
-    ws.on("open", () => {
-      // Enable network domain
-      ws.send(JSON.stringify({ id: msgId++, method: "Network.enable" }));
-      cdpListenerActive = true;
-    });
+      return await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const settle = (ok: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(ok);
+        };
 
-    ws.on("message", (data: Buffer) => {
-      try {
-        const msg = JSON.parse(data.toString());
+        const connectTimeout = setTimeout(() => {
+          // Best-effort: ensure a hung connect doesn't leave dangling handles.
+          try { ws.terminate?.(); } catch { /* ignore */ }
+          try { ws.close?.(); } catch { /* ignore */ }
+          if (cdpWs === ws) cdpWs = null;
+          cdpListenerActive = false;
+          settle(false);
+        }, 2500);
+        connectTimeout.unref?.(); // Don't keep process alive for handshake timeout
 
-        // Cache request headers
-        if (msg.method === "Network.requestWillBeSent") {
-          const req = msg.params?.request;
-          if (req?.url && req?.headers) {
-            headerCache.set(req.url, req.headers);
-            // Keep cache bounded
-            if (headerCache.size > 1000) {
-              const firstKey = headerCache.keys().next().value;
-              if (firstKey) headerCache.delete(firstKey);
+        ws.on("open", () => {
+          // Enable network domain
+          try {
+            ws.send(JSON.stringify({ id: msgId++, method: "Network.enable" }));
+          } catch { /* ignore */ }
+
+          cdpListenerActive = true;
+
+          // Extra safety for older ws versions that expose the raw socket.
+          try { ws._socket?.unref?.(); } catch { /* ignore */ }
+
+          clearTimeout(connectTimeout);
+          settle(true);
+        });
+
+        ws.on("message", (data: any) => {
+          try {
+            const text = Buffer.isBuffer(data) ? data.toString() : String(data);
+            const msg = JSON.parse(text);
+
+            // Cache request headers
+            if (msg.method === "Network.requestWillBeSent") {
+              const req = msg.params?.request;
+              if (req?.url && req?.headers) {
+                headerCache.set(req.url, req.headers);
+                // Keep cache bounded
+                if (headerCache.size > 1000) {
+                  const firstKey = headerCache.keys().next().value;
+                  if (firstKey) headerCache.delete(firstKey);
+                }
+              }
             }
-          }
-        }
 
-        // Cache response headers
-        if (msg.method === "Network.responseReceived") {
-          const resp = msg.params?.response;
-          if (resp?.url && resp?.headers) {
-            responseHeaderCache.set(resp.url, resp.headers);
-            if (responseHeaderCache.size > 1000) {
-              const firstKey = responseHeaderCache.keys().next().value;
-              if (firstKey) responseHeaderCache.delete(firstKey);
+            // Cache response headers
+            if (msg.method === "Network.responseReceived") {
+              const resp2 = msg.params?.response;
+              if (resp2?.url && resp2?.headers) {
+                responseHeaderCache.set(resp2.url, resp2.headers);
+                if (responseHeaderCache.size > 1000) {
+                  const firstKey = responseHeaderCache.keys().next().value;
+                  if (firstKey) responseHeaderCache.delete(firstKey);
+                }
+              }
             }
+          } catch { /* ignore parse errors */ }
+        });
+
+        const onCloseOrError = () => {
+          cdpListenerActive = false;
+          if (cdpWs === ws) cdpWs = null;
+          if (!settled) {
+            clearTimeout(connectTimeout);
+            settle(false);
           }
-        }
-      } catch { /* ignore parse errors */ }
-    });
+        };
+        ws.on("close", onCloseOrError);
+        ws.on("error", onCloseOrError);
+      });
+    } catch {
+      return false;
+    } finally {
+      cdpStartPromise = null;
+    }
+  })();
 
-    ws.on("close", () => {
-      cdpListenerActive = false;
-    });
+  return cdpStartPromise;
+}
 
-    ws.on("error", () => {
-      cdpListenerActive = false;
-    });
-
-    return true;
-  } catch {
-    return false;
-  }
+/**
+ * Stop the CDP header listener (best-effort).
+ * This is used to avoid leaking long-lived sockets across short-lived CLI commands.
+ */
+export function stopCdpHeaderListener(): void {
+  const ws: any = cdpWs;
+  cdpWs = null;
+  cdpListenerActive = false;
+  try { ws?.terminate?.(); } catch { /* ignore */ }
+  try { ws?.close?.(); } catch { /* ignore */ }
 }
 
 /**
