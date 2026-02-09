@@ -362,6 +362,7 @@ export class OTPWatcher {
 
     // Poll every 2 seconds
     this.pollInterval = setInterval(() => this.poll(), 2000);
+    this.pollInterval.unref(); // Don't keep process alive for OTP polling
 
     // Initial poll
     this.poll();
