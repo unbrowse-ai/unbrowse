@@ -1,9 +1,13 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import FdryBalance from './FdryBalance';
+
+const FDRY_ENABLED = import.meta.env.VITE_FDRY_ENABLED === 'true';
 
 export default function Layout() {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const [wallet, setWallet] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -11,6 +15,20 @@ export default function Layout() {
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Check for wallet in localStorage (set by Earnings page or extension)
+  useEffect(() => {
+    const stored = localStorage.getItem('unbrowse_wallet');
+    if (stored) setWallet(stored);
+
+    const handleStorage = (e) => {
+      if (e.key === 'unbrowse_wallet') {
+        setWallet(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   return (
@@ -42,9 +60,19 @@ export default function Layout() {
               <span className="ub-nav-link-text">Documentation</span>
               <span className="ub-nav-link-indicator" />
             </Link>
+            {FDRY_ENABLED && (
+              <Link
+                to="/earnings"
+                className={`ub-nav-link ${location.pathname === '/earnings' ? 'active' : ''}`}
+              >
+                <span className="ub-nav-link-text">Earnings</span>
+                <span className="ub-nav-link-indicator" />
+              </Link>
+            )}
           </div>
 
           <div className="ub-nav-actions">
+            {FDRY_ENABLED && <FdryBalance wallet={wallet} />}
             <a
               href="https://github.com/lekt9/unbrowse-openclaw"
               target="_blank"
