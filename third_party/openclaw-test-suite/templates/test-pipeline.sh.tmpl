@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+source "${OCT_LIB_DIR}/core.sh"
+source "${OCT_LIB_DIR}/gateway.sh"
+source "${OCT_LIB_DIR}/health.sh"
+source "${OCT_LIB_DIR}/lifecycle.sh"
+
+setup "Pipeline Suite"
+phase "Gateway"
+require_gateway
+teardown
+

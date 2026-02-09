@@ -1,0 +1,15 @@
+{
+  "description": "E2E tests for my OpenClaw plugin",
+  "gateway": {
+    "url": "http://127.0.0.1:18789"
+  },
+  "plugin": {
+    "id": "my-plugin",
+    "dir": "~/.openclaw/extensions/my-plugin"
+  },
+  "services": {
+    "marketplace": { "url": "" },
+    "browser": { "port": 18791 }
+  }
+}
+

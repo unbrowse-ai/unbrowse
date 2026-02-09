@@ -1,0 +1,36 @@
+FROM {{BASE_IMAGE}}
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl jq ca-certificates procps \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install openclaw globally
+RUN npm install -g openclaw@latest
+
+# Copy plugin (template assumes a built dist/; this repo uses a custom Dockerfile instead)
+COPY dist/ /plugin/dist/
+COPY src/ /plugin/src/
+COPY package.json /plugin/package.json
+
+RUN mkdir -p /root/.openclaw/extensions && \
+    cp -r /plugin /root/.openclaw/extensions/{{PLUGIN_ID}}
+
+RUN mkdir -p /root/.openclaw/skills /root/.openclaw/workspace
+
+COPY openclaw-test-suite/lib/ /opt/oct/lib/
+COPY openclaw-test-suite/bin/ /opt/oct/bin/
+ENV OCT_LIB_DIR=/opt/oct/lib
+ENV PATH="/opt/oct/bin:$PATH"
+
+COPY {{TEST_DIR}}/ /tests/
+
+ENV OCT_GATEWAY_TOKEN={{GATEWAY_TOKEN}}
+ENV OCT_PLUGIN_ID={{PLUGIN_ID}}
+ENV OCT_PLUGIN_DIR=/root/.openclaw/extensions/{{PLUGIN_ID}}
+ENV OCT_SUITE_DIR=/tests
+
+WORKDIR /root
+ENTRYPOINT ["oct", "/tests"]
+
