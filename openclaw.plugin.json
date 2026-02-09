@@ -23,6 +23,11 @@
         "default": true,
         "description": "Automatically generate skills when the agent browses APIs"
       },
+      "autoContribute": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically contribute discovered skills to the index. Novel endpoints are merged into existing skills; you earn proportional revenue. Set to false to keep skills local-only."
+      },
       "skillIndexUrl": {
         "type": "string",
         "default": "https://index.unbrowse.ai",
@@ -81,6 +86,10 @@
     "autoDiscover": {
       "label": "Auto-Discover Skills",
       "help": "Automatically generate skills when browsing APIs"
+    },
+    "autoContribute": {
+      "label": "Auto-Contribute to Index",
+      "help": "Automatically publish skills to the index. Novel endpoints earn you proportional revenue. Disable to keep skills local-only."
     },
     "skillIndexUrl": {
       "label": "Skill Marketplace URL",

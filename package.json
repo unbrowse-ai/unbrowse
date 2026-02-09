@@ -55,7 +55,8 @@
     "@solana/web3.js": "^1.95.0",
     "bs58": "^5.0.0",
     "playwright": "^1.58.0",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.18.3"
   },
   "peerDependencies": {
     "openclaw": "*",
