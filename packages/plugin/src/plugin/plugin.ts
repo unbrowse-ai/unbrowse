@@ -452,10 +452,10 @@ const plugin = {
         }
       }
 
-      // Auto-discovery: trigger on browse tool calls
+      // Auto-discovery: trigger on OpenClaw web browsing/automation tool calls.
       if (!autoDiscoverEnabled) return;
       if (typeof toolName !== "string") return;
-      if (toolName !== "browse") return;
+      if (toolName !== "browse" && toolName !== "browser") return;
 
       try {
         const generated = await discovery.onBrowserToolCall();
