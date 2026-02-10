@@ -93,11 +93,40 @@ function normalizeUrl(url: string): string {
     if (u.pathname.endsWith("/") && u.pathname !== "/") {
       u.pathname = u.pathname.slice(0, -1);
     }
+
+    // Drop common tracking params so the crawl frontier doesn't explode with
+    // semantically-identical URLs (utm_*, gclid, fbclid, etc).
+    // Keep this conservative: only remove params that are very unlikely to be functional.
+    const TRACKING_KEYS = new Set([
+      "gclid",
+      "dclid",
+      "gbraid",
+      "wbraid",
+      "fbclid",
+      "msclkid",
+      "ttclid",
+      "twclid",
+      "igshid",
+      "mc_cid",
+      "mc_eid",
+    ]);
+    for (const key of [...u.searchParams.keys()]) {
+      const k = key.toLowerCase();
+      if (k.startsWith("utm_") || TRACKING_KEYS.has(k)) {
+        u.searchParams.delete(key);
+      }
+    }
+
     u.searchParams.sort();
     return u.toString();
   } catch {
     return url;
   }
+}
+
+// Exported for unit tests and potential future reuse.
+export function normalizeCrawlUrl(url: string): string {
+  return normalizeUrl(url);
 }
 
 async function extractLinks(page: any, seedOrigin: string): Promise<string[]> {

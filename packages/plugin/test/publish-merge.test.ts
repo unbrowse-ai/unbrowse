@@ -19,6 +19,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { writeSkillPackageToDir } from "../src/skill-package-writer.js";
 
 // ── Helper: simulate the merge-back write logic ─────────────────────────────
 // Extracted from unbrowse_publish.ts lines 175-203 and plugin.ts lines 262-284.
@@ -42,47 +43,9 @@ interface MergeResult {
   };
 }
 
-/**
- * Writes merged skill content back to the local skill directory.
- * Returns true if writes were performed, false otherwise.
- * Matches the logic in unbrowse_publish.ts and plugin.ts autoPublishSkill.
- */
-function writeMergedSkillLocally(
-  skillDir: string,
-  result: MergeResult,
-): boolean {
-  if (!result?.merged || !result?.skill?.skillMd) {
-    return false;
-  }
-
-  try {
-    const skillMdPath = join(skillDir, "SKILL.md");
-    writeFileSync(skillMdPath, result.skill.skillMd, "utf-8");
-
-    if (result.skill.scripts && typeof result.skill.scripts === "object") {
-      const scriptsDir = join(skillDir, "scripts");
-      mkdirSync(scriptsDir, { recursive: true });
-      for (const [filename, content] of Object.entries(result.skill.scripts)) {
-        if (typeof content === "string") {
-          writeFileSync(join(scriptsDir, filename), content, "utf-8");
-        }
-      }
-    }
-
-    if (result.skill.references && typeof result.skill.references === "object") {
-      const refsDir = join(skillDir, "references");
-      mkdirSync(refsDir, { recursive: true });
-      for (const [filename, content] of Object.entries(result.skill.references)) {
-        if (typeof content === "string") {
-          writeFileSync(join(refsDir, filename), content, "utf-8");
-        }
-      }
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
+function writeMergedSkillLocally(skillDir: string, result: MergeResult): boolean {
+  if (!result?.merged) return false;
+  return writeSkillPackageToDir(skillDir, result?.skill);
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

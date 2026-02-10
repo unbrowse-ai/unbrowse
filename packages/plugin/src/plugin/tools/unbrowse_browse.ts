@@ -734,6 +734,19 @@ async execute(_toolCallId: string, params: unknown) {
         discovery.markLearned(result.service);
         skillResult = result;
 
+        // Best-effort: infer a dependency DAG from the captured request/response bodies.
+        // Stored as references/DAG.json so it can be published + merged server-side.
+        try {
+          const { inferDependencyDagFromHarEntries } = await import("../../dependency-dag.js");
+          const dag = inferDependencyDagFromHarEntries(apiHarEntries as any, { skillName: result.service });
+          if (dag.edges.length > 0) {
+            const { mkdirSync, writeFileSync } = await import("node:fs");
+            const refsDir = join(result.skillDir, "references");
+            mkdirSync(refsDir, { recursive: true });
+            writeFileSync(join(refsDir, "DAG.json"), JSON.stringify(dag, null, 2), "utf-8");
+          }
+        } catch { /* ignore DAG inference errors */ }
+
         // Detect and save refresh token config
         detectAndSaveRefreshConfig(apiHarEntries, join(result.skillDir, "auth.json"), logger);
 

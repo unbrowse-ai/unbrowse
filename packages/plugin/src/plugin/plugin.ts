@@ -33,6 +33,7 @@ import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener, sto
 import { AutoDiscovery } from "../auto-discover.js";
 import { SkillIndexClient, type PublishPayload } from "../skill-index.js";
 import { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth } from "../skill-sanitizer.js";
+import { writeSkillPackageToDir } from "../skill-package-writer.js";
 import { loginAndCapture, type LoginCredentials } from "../session-login.js";
 import {
   createCredentialProvider,
@@ -225,6 +226,25 @@ const plugin = {
           scripts["api.ts"] = sanitizeApiTemplate(readFileSync(apiTsPath, "utf-8"));
         }
 
+        // Collect references (small, publishable artifacts like REFERENCE.md, DAG.json).
+        const references: Record<string, string> = {};
+        try {
+          const refsDir = join(skillDir, "references");
+          if (existsSync(refsDir)) {
+            const { readdirSync, statSync } = await import("node:fs");
+            for (const fn of readdirSync(refsDir)) {
+              if (!fn.endsWith(".md") && !fn.endsWith(".json")) continue;
+              const p2 = join(refsDir, fn);
+              const st = statSync(p2);
+              if (!st.isFile()) continue;
+              if (st.size > 250_000) continue; // avoid huge payloads
+              try {
+                references[fn] = readFileSync(p2, "utf-8");
+              } catch { /* ignore per-file */ }
+            }
+          }
+        } catch { /* ignore */ }
+
         // Extract description from SKILL.md frontmatter
         let description = "";
         const descMatch = skillMd.match(/^description:\s*>-?\s*\n([\s\S]*?)(?=\n\w|---)/m);
@@ -251,6 +271,7 @@ const plugin = {
           skillMd,
           authType: authMethodType !== "Unknown" ? authMethodType : undefined,
           scripts: Object.keys(scripts).length > 0 ? scripts : undefined,
+          references: Object.keys(references).length > 0 ? references : undefined,
           serviceName: service,
           domain: domain || undefined,
           creatorWallet,
@@ -259,27 +280,16 @@ const plugin = {
 
         const skillId: string = result?.skill?.skillId ?? result?.skillId;
 
-        // On collaborative merge, write the merged skill locally for free
-        if (result?.merged && result?.skill?.skillMd) {
-          try {
-            writeFileSync(join(skillDir, "SKILL.md"), result.skill.skillMd, "utf-8");
-            if (result.skill.scripts && typeof result.skill.scripts === "object") {
-              const scriptsDir = join(skillDir, "scripts");
-              mkdirSync(scriptsDir, { recursive: true });
-              for (const [fn, content] of Object.entries(result.skill.scripts)) {
-                if (typeof content === "string") writeFileSync(join(scriptsDir, fn), content, "utf-8");
-              }
-            }
-            if (result.skill.references && typeof result.skill.references === "object") {
-              const refsDir = join(skillDir, "references");
-              mkdirSync(refsDir, { recursive: true });
-              for (const [fn, content] of Object.entries(result.skill.references)) {
-                if (typeof content === "string") writeFileSync(join(refsDir, fn), content, "utf-8");
-              }
-            }
-            logger.info(`[unbrowse] Auto-publish merged: ${service} — local skill updated with all contributors' endpoints`);
-          } catch (writeErr) {
-            logger.warn(`[unbrowse] Failed to write merged skill locally: ${(writeErr as Error).message}`);
+        // Backend returns canonical skill content for merge/update/create.
+        // Always sync it locally (credentials stay local in auth.json).
+        if (result?.skill) {
+          const wrote = writeSkillPackageToDir(skillDir, result.skill);
+          if (wrote) {
+            logger.info(
+              result?.merged
+                ? `[unbrowse] Auto-publish merged: ${service} — local skill updated with canonical version`
+                : `[unbrowse] Auto-publish sync: ${service} — local skill updated with canonical version`,
+            );
           }
         }
 
