@@ -73,7 +73,7 @@ switch (resolution.strategy) {
     output += `Use \`unbrowse_desktop\` with app="${resolution.app}" to control the desktop app.\n`;
     break;
   case "browser_agent":
-    output += `Use the \`browse\` tool to navigate and interact with the website.\n`;
+    output += `Use \`unbrowse_browse\` to navigate and interact with the website (more reliable than the built-in browser tool).\n`;
     break;
 }
 
