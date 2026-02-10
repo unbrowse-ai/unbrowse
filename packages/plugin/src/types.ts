@@ -65,6 +65,8 @@ export interface ApiData {
   endpoints: Record<string, ParsedRequest[]>;
   /** Structured endpoint groups with normalization metadata */
   endpointGroups?: EndpointGroup[];
+  /** Header profile for browser-like replay (from header-profiler) */
+  headerProfile?: HeaderProfileFile;
 }
 
 /** Result of skill generation. */
@@ -262,4 +264,56 @@ export interface ReviewReward {
   rewardUsdc: string;
   trustScoreDelta: number;
   message: string;
+}
+
+// --- Header profiling types ---
+
+/** Classification of a header for capture/replay purposes. */
+export type HeaderCategory =
+  | "auth"      // Authorization, Bearer, API keys, CSRF — handled by auth.json
+  | "browser"   // sec-fetch-*, sec-ch-ua*, accept-encoding — browser auto-adds
+  | "context"   // accept, user-agent, referer, origin — browser settings/context
+  | "app"       // Custom app headers (x-app-version, x-client-id, etc.)
+  | "protocol"  // HTTP/2 pseudo-headers, host, connection, content-length
+  | "cookie";   // Cookie header — handled separately
+
+/** A captured header with metadata for the header profile. */
+export interface CapturedHeader {
+  /** Original case-preserving name (e.g., "Accept-Language") */
+  name: string;
+  /** Sample value from capture (fallback for replay) */
+  value: string;
+  /** Classification category */
+  category: HeaderCategory;
+  /** How many requests included this header */
+  seenCount: number;
+}
+
+/** Domain-level header profile: headers consistently sent to this domain. */
+export interface DomainHeaderProfile {
+  domain: string;
+  /** Headers sent on >= 80% of requests to this domain (keyed by lowercased name). */
+  commonHeaders: Record<string, CapturedHeader>;
+  /** Total requests analyzed for this domain. */
+  requestCount: number;
+  /** ISO timestamp of capture. */
+  capturedAt: string;
+}
+
+/** Per-endpoint header overrides (headers unique to specific endpoint patterns). */
+export interface EndpointHeaderOverride {
+  /** e.g., "POST /api/upload" */
+  endpointPattern: string;
+  /** Headers that differ from the domain profile for this endpoint. */
+  headers: Record<string, string>;
+}
+
+/** Top-level headers.json structure — a header template for replay. */
+export interface HeaderProfileFile {
+  /** Schema version for forward compat. */
+  version: 1;
+  /** One profile per domain. */
+  domains: Record<string, DomainHeaderProfile>;
+  /** Per-endpoint overrides, keyed by "METHOD normalizedPath". */
+  endpointOverrides: Record<string, EndpointHeaderOverride>;
 }

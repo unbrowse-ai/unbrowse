@@ -61,6 +61,39 @@ describe("Plugin tools (learn e2e)", () => {
 
     const md = readFileSync(join(installed, "SKILL.md"), "utf-8");
     expect(md.includes("---")).toBe(true);
+
+    // headers.json should be generated with browser-like header profile
+    const headersJsonPath = join(installed, "headers.json");
+    expect(existsSync(headersJsonPath)).toBe(true);
+
+    const headersProfile = JSON.parse(readFileSync(headersJsonPath, "utf-8"));
+    expect(headersProfile.version).toBe(1);
+    expect(headersProfile.domains).toBeDefined();
+
+    // Should have captured the target domain
+    const domains = Object.keys(headersProfile.domains);
+    expect(domains.length).toBeGreaterThan(0);
+
+    // Domain profile should have common headers (context + app, not auth/cookie)
+    const domainProfile = headersProfile.domains[domains[0]];
+    expect(domainProfile.commonHeaders).toBeDefined();
+    expect(domainProfile.requestCount).toBeGreaterThan(0);
+
+    // Context headers should be captured
+    expect(domainProfile.commonHeaders["accept"]).toBeDefined();
+    expect(domainProfile.commonHeaders["user-agent"]).toBeDefined();
+
+    // Auth headers should NOT be in the profile (handled separately)
+    expect(domainProfile.commonHeaders["authorization"]).toBeUndefined();
+    expect(domainProfile.commonHeaders["x-csrf-token"]).toBeUndefined();
+
+    // Cookie header should NOT be in the profile (handled separately)
+    expect(domainProfile.commonHeaders["cookie"]).toBeUndefined();
+
+    // Generated api.ts should include headerProfile support
+    const apiTs = readFileSync(join(installed, "scripts", "api.ts"), "utf-8");
+    expect(apiTs).toContain("headerProfile");
+    expect(apiTs).toContain("headers.json");
   });
 });
 

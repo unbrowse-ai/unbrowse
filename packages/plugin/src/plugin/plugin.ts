@@ -245,7 +245,7 @@ const plugin = {
           } catch { /* skip */ }
         }
 
-        const result = await indexClient.publish({
+        const result: any = await indexClient.publish({
           name: service,
           description,
           skillMd,
@@ -256,8 +256,35 @@ const plugin = {
           creatorWallet,
           priceUsdc: "0", // Auto-published skills are free by default
         });
-        logger.info(`[unbrowse] Auto-published: ${service} (${result.skill.skillId})`);
-        return result.skill.skillId;
+
+        const skillId: string = result?.skill?.skillId ?? result?.skillId;
+
+        // On collaborative merge, write the merged skill locally for free
+        if (result?.merged && result?.skill?.skillMd) {
+          try {
+            writeFileSync(join(skillDir, "SKILL.md"), result.skill.skillMd, "utf-8");
+            if (result.skill.scripts && typeof result.skill.scripts === "object") {
+              const scriptsDir = join(skillDir, "scripts");
+              mkdirSync(scriptsDir, { recursive: true });
+              for (const [fn, content] of Object.entries(result.skill.scripts)) {
+                if (typeof content === "string") writeFileSync(join(scriptsDir, fn), content, "utf-8");
+              }
+            }
+            if (result.skill.references && typeof result.skill.references === "object") {
+              const refsDir = join(skillDir, "references");
+              mkdirSync(refsDir, { recursive: true });
+              for (const [fn, content] of Object.entries(result.skill.references)) {
+                if (typeof content === "string") writeFileSync(join(refsDir, fn), content, "utf-8");
+              }
+            }
+            logger.info(`[unbrowse] Auto-publish merged: ${service} — local skill updated with all contributors' endpoints`);
+          } catch (writeErr) {
+            logger.warn(`[unbrowse] Failed to write merged skill locally: ${(writeErr as Error).message}`);
+          }
+        }
+
+        logger.info(`[unbrowse] Auto-published: ${service} (${skillId})`);
+        return skillId;
       } catch (err) {
         const msg = (err as Error).message ?? "";
         // If it's a connection error, mark server as unreachable

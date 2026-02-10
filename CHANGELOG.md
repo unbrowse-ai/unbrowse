@@ -1,0 +1,65 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Browser header profiler for capturing and replaying site-specific headers from Node.js (`header-profiler.ts`)
+- Frequency-based header template system — captures headers appearing on >= 80% of requests to a domain
+- Header classification engine: `protocol`, `browser`, `cookie`, `auth`, `context`, `app` categories
+- `resolveHeaders()` merges template + endpoint overrides + auth + cookies into a full header set
+- `primeHeaders()` connects to Chrome via Playwright CDP to capture fresh cookies and header values
+- Cookie priming from browser sessions — `primeHeaders()` returns `PrimeResult { headers, cookies }`
+- `headers.json` written to skill directory during skill generation
+- Generated `api.ts` client automatically loads and uses `headers.json` for replay
+- Sanitized header profiles included in marketplace skill publish payload (auth values stripped)
+- `sanitizeHeaderProfile()` function to strip auth header values before publishing
+- Per-endpoint header overrides for headers that differ from domain-wide common set
+- Node mode as default for `resolveHeaders()` — skips context headers to avoid TLS fingerprint mismatch
+- Production benchmark eval against 1,555 marketplace skills (`production-benchmark.ts`)
+- Capture-replay eval across 10 real websites with 6 header strategies (`capture-replay-eval.ts`)
+- Comprehensive benchmark report with before/after comparison (`docs/benchmark-report.md`)
+- 110+ unit and integration tests for header profiler pipeline
+- Server proxy integration contract documentation for header profile usage
+
+### Changed
+- `parseHar()` now always generates `headerProfile` on the returned `ApiData` object
+- `execViaFetch` in `unbrowse_replay.ts` now uses `resolveHeaders()` + primed cookies by default
+- Skill publish payload (`PublishPayload`) includes optional `headerProfile` field
+- Skill install writes `headers.json` alongside `SKILL.md` and `auth.json`
+
+### Fixed
+- Endpoint override domain resolution — keys now include domain to prevent cross-domain confusion
+- TLS fingerprint mismatch detection — sending Chrome User-Agent from Node.js no longer triggers anti-bot (context headers excluded in node mode)
+
+## [0.5.4] - 2026-02-07
+
+### Fixed
+- Wrap Solana native imports in try/catch for Node v24/v25 compatibility
+- Check process.title in isDiagnosticMode() for openclaw-doctor
+- Deadlock with doctor/security audit commands
+- Reduce agent context injection noise
+
+## [0.5.3] - 2026-02-05
+
+### Added
+- FDRY token economy — rewards, execution, API routes (feature-flagged)
+- Telemetry events endpoint (`POST /telemetry/events`)
+- E2E tests for collaborative skill system
+- Wallet integration for skill publishing and staking
+- Frontend FDRY token economy UI
+
+### Fixed
+- CORS: allow localhost:3001 and staging-index.unbrowse.ai origins
+
+### Changed
+- OOP refactor of HAR parser with route generalization and schema capture
+- Integrated LLM describer for rich endpoint documentation in skill generation
+
+[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.3...v0.5.4
+[0.5.3]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.2...v0.5.3

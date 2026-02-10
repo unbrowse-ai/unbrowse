@@ -406,6 +406,7 @@ export class ${className}Client {
   private authToken?: string;
   private cookies: Record<string, string>;
   private extraHeaders: Record<string, string>;
+  private headerProfile: Record<string, string>;
   private timeout: number;
   private proxyUrl?: string;
   private proxyApiKey?: string;
@@ -417,6 +418,7 @@ export class ${className}Client {
     authToken?: string;
     cookies?: Record<string, string>;
     extraHeaders?: Record<string, string>;
+    headerProfile?: Record<string, string>;
     timeout?: number;
   } & ProxyOptions = {}) {
     this.baseUrl = opts.baseUrl ?? ${JSON.stringify(data.baseUrl)};
@@ -424,6 +426,7 @@ export class ${className}Client {
     this.authToken = opts.authToken;
     this.cookies = opts.cookies ?? {};
     this.extraHeaders = opts.extraHeaders ?? {};
+    this.headerProfile = opts.headerProfile ?? {};
     this.timeout = opts.timeout ?? 30_000;
     this.proxyUrl = opts.proxyUrl;
     this.proxyApiKey = opts.proxyApiKey;
@@ -437,10 +440,34 @@ export class ${className}Client {
       throw new Error(\`Auth file not found: \${authPath}\`);
     }
     const data = JSON.parse(readFileSync(authPath, "utf-8"));
+
+    // Load header profile (headers.json) — only "app" category headers.
+    // Context headers (user-agent, accept, referer) are excluded because
+    // sending browser-like context from Node.js triggers TLS fingerprint
+    // mismatch detection (Cloudflare/Akamai).
+    const headersPath = join(dirname(authPath), "headers.json");
+    let headerProfile: Record<string, string> = {};
+    if (existsSync(headersPath)) {
+      try {
+        const profile = JSON.parse(readFileSync(headersPath, "utf-8"));
+        const domains = profile?.domains ?? {};
+        for (const domainProfile of Object.values(domains) as any[]) {
+          for (const header of Object.values(domainProfile?.commonHeaders ?? {}) as any[]) {
+            if (header?.name && header?.value && header?.category === "app") {
+              headerProfile[header.name] = header.value;
+            }
+          }
+        }
+      } catch {
+        // Invalid headers.json — skip silently
+      }
+    }
+
     return new ${className}Client({
       authToken: data.headers?.[${JSON.stringify(primaryAuthHeader)}],
       cookies: data.cookies ?? {},
       extraHeaders: data.headers ?? {},
+      headerProfile,
       ...proxyOpts,
     });
   }
@@ -477,6 +504,7 @@ export class ${className}Client {
 
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
+      ...this.headerProfile,
       "Content-Type": "application/json",
       ...this.extraHeaders,
     };
@@ -874,6 +902,15 @@ export class SkillGenerator {
     }
     // auth.json always overwritten — may contain fresh tokens
     writeFileSync(join(skillDir, "auth.json"), authJson, "utf-8");
+
+    // headers.json — header profile template for browser-like replay
+    if (data.headerProfile && Object.keys(data.headerProfile.domains).length > 0) {
+      writeFileSync(
+        join(skillDir, "headers.json"),
+        JSON.stringify(data.headerProfile, null, 2),
+        "utf-8",
+      );
+    }
 
     // Store credentials in encrypted vault (best-effort)
     try {
