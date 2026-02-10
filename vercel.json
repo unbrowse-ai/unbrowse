@@ -1,6 +1,6 @@
 {
-  "buildCommand": "cd server/web && npm install && npm run build",
-  "outputDirectory": "server/web/dist",
+  "buildCommand": "cd packages/web && npm install && npm run build",
+  "outputDirectory": "packages/web/dist",
   "installCommand": "echo 'skipping root install'",
   "framework": "vite",
   "rewrites": [

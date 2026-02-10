@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive benchmark report with before/after comparison (`docs/benchmark-report.md`)
 - 110+ unit and integration tests for header profiler pipeline
 - Server proxy integration contract documentation for header profile usage
+- Auto-routing skill for OpenClaw — agent automatically uses unbrowse when user asks to interact with any website's API
+- Plugin skill registration via `openclaw.plugin.json` `skills` field — unbrowse instructions injected into agent prompt
+- Auto-launch headless Chromium for replay when no browser is running — `execInChrome` is now the default path everywhere
 
 ### Changed
 - `parseHar()` now always generates `headerProfile` on the returned `ApiData` object

@@ -11,8 +11,8 @@ description: >
 include:
   - README.md
   - CLAUDE.md
-  - src/**/*.ts
-  - index.ts
+  - packages/plugin/src/**/*.ts
+  - packages/plugin/index.ts
 
 # Files to exclude
 exclude:
@@ -23,7 +23,7 @@ exclude:
 
 # Output configuration
 output:
-  dir: server/web/public
+  dir: packages/web/public
   llms_txt: llms.txt
   llms_full_txt: llms-full.txt
 

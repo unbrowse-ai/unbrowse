@@ -1,87 +1,15 @@
 {
-  "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.5.4",
-  "type": "module",
-  "main": "index.ts",
-  "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
-  "files": [
-    "index.ts",
-    "src/",
-    "hooks/",
-    "openclaw.plugin.json",
-    "README.md"
+  "name": "unbrowse-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
   ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/lekt9/unbrowse-openclaw"
-  },
-  "keywords": [
-    "openclaw",
-    "clawdbot",
-    "ai-agent",
-    "api-reverse-engineering",
-    "browser-automation",
-    "skill-marketplace",
-    "x402",
-    "solana",
-    "usdc"
-  ],
-  "openclaw": {
-    "extensions": [
-      "./index.ts"
-    ],
-    "hooks": [
-      "./hooks/auto-discover"
-    ]
-  },
-  "clawdbot": {
-    "extensions": [
-      "./index.ts"
-    ],
-    "hooks": [
-      "./hooks/auto-discover"
-    ]
-  },
-  "moltbot": {
-    "extensions": [
-      "./index.ts"
-    ],
-    "hooks": [
-      "./hooks/auto-discover"
-    ]
-  },
-  "dependencies": {
-    "@solana/spl-token": "^0.4.0",
-    "@solana/web3.js": "^1.95.0",
-    "bs58": "^5.0.0",
-    "playwright": "^1.58.0",
-    "tweetnacl": "^1.0.3",
-    "ws": "^8.18.3"
-  },
-  "peerDependencies": {
-    "openclaw": "*",
-    "clawdbot": "*",
-    "moltbot": "*"
-  },
-  "peerDependenciesMeta": {
-    "openclaw": {
-      "optional": true
-    },
-    "clawdbot": {
-      "optional": true
-    },
-    "moltbot": {
-      "optional": true
-    }
-  },
   "scripts": {
-    "test": "bun test test/*.test.ts",
-    "test:e2e": "E2E_BACKEND_START=docker bun test test/e2e",
-    "test:oct": "bash scripts/test-oct.sh",
-    "test:oct:docker": "bash scripts/test-oct-docker.sh"
-  },
-  "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
+    "test": "bun test packages/plugin/test/*.test.ts",
+    "test:e2e": "E2E_BACKEND_START=docker bun test packages/plugin/test/e2e",
+    "test:oct": "bash packages/plugin/scripts/test-oct.sh",
+    "build": "cd packages/plugin && npx tsc",
+    "build:web": "cd packages/web && pnpm build",
+    "typecheck": "cd packages/plugin && npx tsc --noEmit"
   }
 }
