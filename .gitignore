@@ -13,11 +13,11 @@ build/
 !src/**/*.d.ts
 
 # Keep these declaration files
-!openclaw.d.ts
+!packages/plugin/openclaw.d.ts
 
 # Keep frontend files
-!server/web/**/*.js
-!server/web/pnpm-lock.yaml
+!packages/web/**/*.js
+!packages/web/pnpm-lock.yaml
 
 # Lockfiles (let users generate their own)
 package-lock.json
@@ -99,6 +99,9 @@ pids/
 *.pid
 *.seed
 *.pid.lock
+
+# Backend (lives in separate unbrowse-index repo, never commit here)
+server/
 
 # Optional: skills directory (user-generated)
 # Uncomment if you don't want to track captured skills

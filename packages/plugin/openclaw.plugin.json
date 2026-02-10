@@ -5,6 +5,7 @@
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
   "version": "0.2.0",
   "repository": "github:lekt9/unbrowse-openclaw",
+  "skills": ["skills/unbrowse"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
