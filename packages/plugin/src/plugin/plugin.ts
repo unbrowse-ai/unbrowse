@@ -184,6 +184,7 @@ const plugin = {
     let serverReachable: boolean | null = null; // null = unknown, needs check
     let lastReachabilityCheck = 0;
     const REACHABILITY_CHECK_INTERVAL = 5 * 60 * 1000; // Re-check every 5 minutes
+    const publishBackoff = new Map<string, { untilMs: number; reason: string }>();
 
     /** Publish a skill to the cloud index if autoContribute is enabled and creatorWallet is configured. */
     async function autoPublishSkill(service: string, skillDir: string): Promise<string | null> {
@@ -191,8 +192,15 @@ const plugin = {
       // Publishing requires a creator address (earnings) + a private key to sign the request.
       if (!creatorWallet || !solanaPrivateKey) return null;
 
-      // Check server reachability (with caching to avoid hammering)
+      // Per-skill backoff: avoid spamming publish when a given skill consistently fails
+      // (quality gate, schema errors, upstream 5xx, etc.).
       const now = Date.now();
+      const backoff = publishBackoff.get(service);
+      if (backoff && now < backoff.untilMs) {
+        return null;
+      }
+
+      // Check server reachability (with caching to avoid hammering)
       if (serverReachable === null || (serverReachable === false && now - lastReachabilityCheck > REACHABILITY_CHECK_INTERVAL)) {
         lastReachabilityCheck = now;
         serverReachable = await indexClient.healthCheck();
@@ -300,13 +308,37 @@ const plugin = {
         return skillId;
       } catch (err) {
         const msg = (err as Error).message ?? "";
+        const statusMatch = msg.match(/\((\d{3})\)/);
+        const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+
         // If it's a connection error, mark server as unreachable
         if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND") || msg.includes("timeout")) {
           serverReachable = false;
           lastReachabilityCheck = now;
           logger.info(`[unbrowse] Skill marketplace unreachable — auto-publish disabled until server is available.`);
         } else {
-          logger.warn(`[unbrowse] Auto-publish failed for ${service}: ${msg}`);
+          // Backoff by failure class.
+          const isQualityGate = statusCode === 400 && msg.includes("quality review");
+          const isAuthOrBadReq = statusCode === 401 || statusCode === 403;
+          const isServerError = statusCode != null && statusCode >= 500;
+
+          const backoffMs =
+            isQualityGate ? 24 * 60 * 60 * 1000 :
+            isAuthOrBadReq ? 30 * 60 * 1000 :
+            isServerError ? 10 * 60 * 1000 :
+            5 * 60 * 1000;
+
+          publishBackoff.set(service, {
+            untilMs: now + backoffMs,
+            reason:
+              isQualityGate ? "quality_gate" :
+              isAuthOrBadReq ? "auth_or_bad_request" :
+              isServerError ? "server_error" :
+              "unknown_error",
+          });
+
+          const shortMsg = msg.length > 600 ? `${msg.slice(0, 600)}…` : msg;
+          logger.warn(`[unbrowse] Auto-publish failed for ${service}: ${shortMsg}`);
         }
         return null;
       }

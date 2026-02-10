@@ -9,7 +9,6 @@ import {
   parseHar,
   generateSkill,
 } from "./shared.js";
-import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
@@ -176,12 +175,12 @@ async execute(_toolCallId: string, params: unknown) {
     p.captureTraffic = true;
   }
 
-  // Preferred: OpenClaw native browser control. Fallback: Playwright.
-  const openclawRes = await runOpenClawBrowse(deps, p);
-  if (openclawRes) return openclawRes;
-
-  // Playwright-based flow (usually via OpenClaw-managed Chrome on CDP :18800).
-  logger.info(`[unbrowse] Using browser automation flow (Playwright + CDP when available)`);
+  // Browser automation flow (Playwright; prefers OpenClaw-managed Chrome via CDP :18800).
+  //
+  // NOTE: We intentionally avoid OpenClaw's legacy browser HTTP control API here.
+  // It has been unstable across OpenClaw versions and can surface noisy errors
+  // like "ref is required"/"fields are required". CDP is the reliable path.
+  logger.info(`[unbrowse] Using browser automation flow (Playwright + CDP :18800 when available)`);
 
   // Check if Chrome is running and we need to handle it
   if (!getSharedBrowser()) {
