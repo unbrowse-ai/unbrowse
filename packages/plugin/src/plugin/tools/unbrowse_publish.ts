@@ -14,7 +14,7 @@ import {
   sanitizeApiTemplate,
   sanitizeHeaderProfile,
 } from "./shared.js";
-import { writeSkillPackageToDir } from "../../skill-package-writer.js";
+import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 
 export function makeUnbrowsePublishTool(deps: ToolDeps) {
   const {
@@ -119,7 +119,7 @@ async execute(_toolCallId: string, params: unknown) {
     const referencesDir = join(skillDir, "references");
     if (existsSync(referencesDir)) {
       for (const file of readdirSync(referencesDir)) {
-        if (file.endsWith(".md")) {
+        if (file.endsWith(".md") || file.endsWith(".json")) {
           references[file] = readFileSync(join(referencesDir, file), "utf-8");
         }
       }
@@ -189,6 +189,7 @@ async execute(_toolCallId: string, params: unknown) {
     if (updatedLocally) {
       logger.info(`[unbrowse] Published skill written to ${skillDir}`);
     }
+    writeMarketplaceMeta(skillDir, { skillId, indexUrl: indexOpts.indexUrl, name: p.service });
 
     const priceDisplay = (p as any).price && parseFloat((p as any).price) > 0
       ? `$${parseFloat((p as any).price).toFixed(2)} USDC`
