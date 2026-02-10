@@ -14,6 +14,7 @@ import {
   sanitizeApiTemplate,
   sanitizeHeaderProfile,
 } from "./shared.js";
+import { writeSkillPackageToDir } from "../../skill-package-writer.js";
 
 export function makeUnbrowsePublishTool(deps: ToolDeps) {
   const {
@@ -183,37 +184,10 @@ async execute(_toolCallId: string, params: unknown) {
     }
     const merged = Boolean(result?.merged);
 
-    // On collaborative merge, the server returns the full merged skill — write it locally for free
-    let mergedLocally = false;
-    if (merged && result?.skill?.skillMd) {
-      try {
-        writeFileSync(skillMdPath, result.skill.skillMd, "utf-8");
-
-        if (result.skill.scripts && typeof result.skill.scripts === "object") {
-          const scriptsDir = join(skillDir, "scripts");
-          mkdirSync(scriptsDir, { recursive: true });
-          for (const [filename, content] of Object.entries(result.skill.scripts)) {
-            if (typeof content === "string") {
-              writeFileSync(join(scriptsDir, filename), content, "utf-8");
-            }
-          }
-        }
-
-        if (result.skill.references && typeof result.skill.references === "object") {
-          const referencesDir = join(skillDir, "references");
-          mkdirSync(referencesDir, { recursive: true });
-          for (const [filename, content] of Object.entries(result.skill.references)) {
-            if (typeof content === "string") {
-              writeFileSync(join(referencesDir, filename), content, "utf-8");
-            }
-          }
-        }
-
-        mergedLocally = true;
-        logger.info(`[unbrowse] Merged skill written to ${skillDir}`);
-      } catch (writeErr) {
-        logger.warn(`[unbrowse] Failed to write merged skill locally: ${(writeErr as Error).message}`);
-      }
+    // Server returns canonical skill content (merge/update/create). Sync it locally.
+    const updatedLocally = writeSkillPackageToDir(skillDir, result?.skill);
+    if (updatedLocally) {
+      logger.info(`[unbrowse] Published skill written to ${skillDir}`);
     }
 
     const priceDisplay = (p as any).price && parseFloat((p as any).price) > 0
@@ -229,7 +203,7 @@ async execute(_toolCallId: string, params: unknown) {
       `Creator wallet: ${creatorWallet}`,
       merged && result?.message ? `Merge: ${String(result.message)}` : null,
       merged && result?.contribution ? `Contribution: +${result.contribution.endpointsAdded} endpoints, novelty ${(result.contribution.noveltyScore * 100).toFixed(0)}%` : null,
-      mergedLocally ? `Local skill updated with merged version (all endpoints from all contributors)` : null,
+      updatedLocally ? `Local skill updated with canonical version from backend` : null,
       ``,
       `Others can find and download this skill via unbrowse_search.`,
       priceDisplay !== "Free" ? `You earn 70% ($${(parseFloat((p as any).price) * 0.7).toFixed(2)}) for each download.` : "",
