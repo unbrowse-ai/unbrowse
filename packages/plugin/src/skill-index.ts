@@ -21,6 +21,7 @@ import {
   keypairFromBase58PrivateKey,
   signEd25519MessageBase58,
 } from "./solana/solana-helpers.js";
+import type { HeaderProfileFile } from "./types.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export interface SkillPackage {
   skillMd: string;
   scripts?: Record<string, string>;
   references?: Record<string, string>;
+  headerProfile?: HeaderProfileFile;
   category: string | null;
   authType: string | null;
   serviceName: string | null;
@@ -70,6 +72,7 @@ export interface PublishPayload {
   authType?: string;
   scripts?: Record<string, string>;
   references?: Record<string, string>;
+  headerProfile?: HeaderProfileFile;
   serviceName?: string;
   domain?: string;
   creatorWallet?: string;
@@ -79,9 +82,21 @@ export interface PublishPayload {
 
 export interface PublishResult {
   success: boolean;
-  skill: {
+  merged?: boolean;
+  message?: string;
+  skillId?: string;
+  skill?: {
     skillId: string;
     name: string;
+    skillMd?: string;
+    scripts?: Record<string, string>;
+    references?: Record<string, string>;
+  };
+  contribution?: {
+    contributionId: string;
+    noveltyScore: number;
+    weight: number;
+    endpointsAdded: number;
   };
 }
 

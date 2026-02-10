@@ -6,6 +6,8 @@
  * never the actual credentials.
  */
 
+import type { HeaderProfileFile } from "./types.js";
+
 /**
  * Strip real credentials from an API template, replacing with placeholders.
  *
@@ -73,4 +75,34 @@ export function extractPublishableAuth(authJsonStr: string): {
   } catch {
     return { baseUrl: "", authMethodType: "Unknown" };
   }
+}
+
+/**
+ * Sanitize a header profile for publishing to the marketplace.
+ *
+ * Strips auth header VALUES (replaces with empty string) to prevent credential
+ * leakage. Keeps header keys and categories so the template shape is preserved
+ * for replay. App and context header values are non-sensitive and kept as-is.
+ */
+export function sanitizeHeaderProfile(profile: HeaderProfileFile): HeaderProfileFile {
+  const sanitized: HeaderProfileFile = {
+    version: profile.version,
+    domains: {},
+    endpointOverrides: { ...profile.endpointOverrides },
+  };
+
+  for (const [domain, domainProfile] of Object.entries(profile.domains)) {
+    const commonHeaders = { ...domainProfile.commonHeaders };
+    for (const [key, header] of Object.entries(commonHeaders)) {
+      if (header.category === "auth") {
+        commonHeaders[key] = { ...header, value: "" };
+      }
+    }
+    sanitized.domains[domain] = {
+      ...domainProfile,
+      commonHeaders,
+    };
+  }
+
+  return sanitized;
 }
