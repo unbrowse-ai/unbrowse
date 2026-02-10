@@ -95,7 +95,13 @@ export function createBrowserSessionManager(opts: {
       }
     }
 
-    const { chromium } = await import("playwright");
+    let chromium: any;
+    try {
+      ({ chromium } = await import("playwright"));
+    } catch {
+      // Should not be fatal for the whole agent; caller can fall back to node/backend execution.
+      throw new Error("PLAYWRIGHT_MISSING");
+    }
 
     if (sharedBrowser) {
       try {
@@ -108,24 +114,22 @@ export function createBrowserSessionManager(opts: {
     }
 
     if (!sharedBrowser) {
-      sharedBrowser = await tryCdpConnect(chromium, 18792);
-      sharedBrowserMethod = "cdp-chrome";
+      // Prefer OpenClaw-managed Chrome profile first (preserves logins via ~/.openclaw/browser/openclaw).
+      sharedBrowser = await tryCdpConnect(chromium, 18800);
+      sharedBrowserMethod = "cdp-openclaw";
 
       if (!sharedBrowser) {
-        sharedBrowser = await tryCdpConnect(chromium, 18800);
-        sharedBrowserMethod = "cdp-openclaw";
+        // "chrome" relay profile (requires the OpenClaw Chrome extension to be attached).
+        sharedBrowser = await tryCdpConnect(chromium, 18792);
+        sharedBrowserMethod = "cdp-chrome";
       }
 
       if (!sharedBrowser) {
-        sharedBrowser = await tryCdpConnect(chromium, browserPort);
-        sharedBrowserMethod = "cdp-openclaw";
-      }
-
-      if (!sharedBrowser) {
-        for (const port of [9222, 9229]) {
+        // Legacy/local Chrome debugging ports.
+        for (const port of [browserPort, 9222, 9229]) {
           sharedBrowser = await tryCdpConnect(chromium, port);
           if (sharedBrowser) {
-            sharedBrowserMethod = "cdp-chrome";
+            sharedBrowserMethod = port === browserPort ? "cdp-openclaw" : "cdp-chrome";
             break;
           }
         }
@@ -211,4 +215,3 @@ export function createBrowserSessionManager(opts: {
     cleanupAllSessions,
   };
 }
-

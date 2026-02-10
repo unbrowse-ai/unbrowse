@@ -100,6 +100,7 @@ async execute(_toolCallId: string, params: unknown) {
     const result = await loginAndCapture(p.loginUrl, credentials, {
       captureUrls: p.captureUrls,
       waitMs: 5000,
+      browserPort,
     });
 
     // Save auth.json

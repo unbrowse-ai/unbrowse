@@ -337,40 +337,39 @@ async execute(_toolCallId: string, params: unknown) {
   async function getChromePage(): Promise<any | null> {
     if (chromePage) return chromePage;
 
-    const { chromium } = await import("playwright");
-
-    // Strategy 1: Try OpenClaw browser API first (has better request capture)
+    let chromium: any;
     try {
-      const statusResp = await fetch(`http://127.0.0.1:${browserPort}/`, {
-        signal: AbortSignal.timeout(2000),
-      });
-      if (statusResp.ok) {
-        const status = await statusResp.json() as { running?: boolean; wsUrl?: string };
-        if (status.running && status.wsUrl) {
-          chromeBrowser = await chromium.connectOverCDP(status.wsUrl, { timeout: 5000 });
-          browserSource = "openclaw";
-          logger.info(`[unbrowse] Connected to OpenClaw browser`);
-        } else if (!status.running) {
-          // Try to start the browser
-          const startResp = await fetch(`http://127.0.0.1:${browserPort}/start`, {
-            method: "POST",
-            signal: AbortSignal.timeout(10000),
-          });
-          if (startResp.ok) {
-            const startData = await startResp.json() as { wsUrl?: string };
-            if (startData.wsUrl) {
-              chromeBrowser = await chromium.connectOverCDP(startData.wsUrl, { timeout: 5000 });
-              browserSource = "openclaw";
-              logger.info(`[unbrowse] Started and connected to OpenClaw browser`);
-            }
-          }
-        }
-      }
-    } catch { /* OpenClaw not available */ }
+      ({ chromium } = await import("playwright"));
+    } catch {
+      // Can't do browser-eval execution; caller will fall back to node/backend.
+      return null;
+    }
+
+    // Strategy 1: OpenClaw-managed Chrome (preserves logins, best fingerprint).
+    // Default CDP port for profile "openclaw" is 18800.
+    try {
+      chromeBrowser = await chromium.connectOverCDP(`http://127.0.0.1:18800`, { timeout: 5000 });
+      browserSource = "openclaw";
+      logger.info(`[unbrowse] Connected to OpenClaw-managed Chrome via CDP (:18800)`);
+    } catch {
+      // If the browser isn't running, attempt to start it once.
+      try {
+        const { spawnSync } = await import("node:child_process");
+        spawnSync("openclaw", ["browser", "start", "--browser-profile", "openclaw", "--json"], {
+          encoding: "utf-8",
+          timeout: 15_000,
+        });
+      } catch { /* ignore */ }
+      try {
+        chromeBrowser = await chromium.connectOverCDP(`http://127.0.0.1:18800`, { timeout: 5000 });
+        browserSource = "openclaw";
+        logger.info(`[unbrowse] Started + connected to OpenClaw-managed Chrome via CDP (:18800)`);
+      } catch { /* still unavailable */ }
+    }
 
     // Strategy 2: Try CDP ports directly
     if (!chromeBrowser) {
-      for (const port of [9222, 9229]) {
+      for (const port of [9222, 9229, browserPort, 18792]) {
         try {
           const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
           if (!resp.ok) continue;
@@ -715,7 +714,11 @@ async execute(_toolCallId: string, params: unknown) {
   const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
   results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
 
-  const executionMode = p.executionMode ?? "browser";
+  // Default: marketplace-installed skills run via backend executor so we trace workflows (LAM training).
+  // If wallet isn't configured, fall back to browser.
+  const hasMarketplaceMeta = existsSync(marketplaceMetaPath);
+  const hasWallet = Boolean(deps.walletState?.creatorWallet && deps.walletState?.solanaPrivateKey);
+  const executionMode = p.executionMode ?? (hasMarketplaceMeta && hasWallet ? "backend" : "browser");
   if (executionMode === "backend") {
     results.push(`Using backend executor (marketplace) for trace capture`);
     if (p.intent) results.push(`Intent: ${p.intent}`);

@@ -401,7 +401,8 @@ async function captureFromBrowser(
   // Try connecting to an existing Chrome via CDP
   let browser: import("playwright").Browser | null = null;
   let ownsBrowser = false;
-  for (const p of [port, 9222, 9229]) {
+  // Prefer OpenClaw-managed Chrome (CDP :18800) when available.
+  for (const p of [port, 18800, 9222, 9229, 18792]) {
     try {
       browser = await pw.chromium.connectOverCDP(`http://127.0.0.1:${p}`, { timeout: 3000 });
       break;

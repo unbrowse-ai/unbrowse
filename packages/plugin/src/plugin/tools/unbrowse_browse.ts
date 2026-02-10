@@ -180,8 +180,8 @@ async execute(_toolCallId: string, params: unknown) {
   const openclawRes = await runOpenClawBrowse(deps, p);
   if (openclawRes) return openclawRes;
 
-  // Playwright fallback when OpenClaw browser is not available.
-  logger.info(`[unbrowse] OpenClaw browser not available, using Playwright fallback`);
+  // Playwright-based flow (usually via OpenClaw-managed Chrome on CDP :18800).
+  logger.info(`[unbrowse] Using browser automation flow (Playwright + CDP when available)`);
 
   // Check if Chrome is running and we need to handle it
   if (!getSharedBrowser()) {
@@ -189,9 +189,9 @@ async execute(_toolCallId: string, params: unknown) {
     const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
     const chromeIsRunning = psResult.stdout.trim().length > 0;
 
-    // Check if any CDP port is available (Chrome with debugging OR openclaw browser)
+    // Check if any CDP port is available (OpenClaw-managed Chrome or user Chrome with debugging)
     let cdpAvailable = false;
-    for (const port of [18792, 18800, browserPort, 9222, 9229]) {
+    for (const port of [18800, browserPort, 9222, 9229, 18792]) {
       try {
         const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
           signal: AbortSignal.timeout(1000),
@@ -281,8 +281,8 @@ async execute(_toolCallId: string, params: unknown) {
   }
 
   // Get or reuse browser session - uses CDP cascade:
-  // 1. Try openclaw managed browser (port 18791) - has existing cookies/auth
-  // 2. Try Chrome remote debugging (9222, 9229)
+  // 1. Try OpenClaw-managed Chrome (CDP :18800) - preserves logins/cookies
+  // 2. Try user Chrome remote debugging (9222, 9229)
   // 3. Launch Chrome with user's profile (requires Chrome to be closed)
   let session: any | null = null;
   let browser: any = null;
@@ -302,6 +302,18 @@ async execute(_toolCallId: string, params: unknown) {
     isReusedSession = hadExistingSession && browserSessions.get(service) === session;
   } catch (browserErr) {
     const errMsg = (browserErr as Error).message;
+    if (errMsg === "PLAYWRIGHT_MISSING") {
+      return {
+        content: [{
+          type: "text",
+          text:
+            `Playwright dependency missing in the Unbrowse plugin install.\n\n` +
+            `Fix:\n` +
+            `- Reinstall the plugin: \`openclaw plugins install @getfoundry/unbrowse-openclaw\`\n` +
+            `- Or inside the install dir (~/.openclaw/extensions/unbrowse-openclaw): \`npm install\``,
+        }],
+      };
+    }
     if (errMsg === "NO_BROWSER") {
       return {
         content: [{
