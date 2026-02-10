@@ -64,6 +64,38 @@ export interface VersionInfo {
   createdAt: string;
 }
 
+export interface ExecuteEndpointRequest {
+  params?: Record<string, any>;
+  pathParams?: Record<string, any>;
+  query?: Record<string, any>;
+  body?: any;
+  auth?: {
+    cookies?: string;
+    headers?: Record<string, string>;
+  };
+  context?: {
+    traceId?: string;
+    sessionId?: string;
+    stepId?: string;
+    parentStepId?: string;
+    autoChain?: boolean;
+    intent?: string;
+  };
+  privacy?: {
+    storeTrace?: boolean;
+    storeRaw?: boolean;
+  };
+}
+
+export interface ExecuteEndpointResult {
+  success: boolean;
+  ok?: boolean;
+  statusCode?: number;
+  data?: any;
+  error?: any;
+  meta?: any;
+}
+
 export interface PublishPayload {
   name: string;
   description: string;
@@ -351,6 +383,29 @@ export class SkillIndexClient {
     }
 
     return resp.json() as Promise<PublishResult>;
+  }
+
+  /** Execute an endpoint through the backend executor (requires wallet signature). */
+  async executeEndpoint(endpointId: string, req: ExecuteEndpointRequest): Promise<ExecuteEndpointResult> {
+    if (!endpointId) throw new Error("endpointId is required");
+    const walletHeaders = await this.getWalletAuthHeaders("execute");
+
+    const resp = await fetch(
+      `${this.indexUrl}/marketplace/endpoints/${encodeURIComponent(endpointId)}/execute`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...walletHeaders },
+        body: JSON.stringify(req ?? {}),
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Execute failed (${resp.status}): ${text}`);
+    }
+
+    return resp.json() as Promise<ExecuteEndpointResult>;
   }
 
   /** List all published versions for a skill (free). */

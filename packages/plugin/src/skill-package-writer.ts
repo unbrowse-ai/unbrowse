@@ -19,6 +19,24 @@ export interface WriteableSkillPackage {
   references?: Record<string, string>;
 }
 
+export function writeMarketplaceMeta(
+  skillDir: string,
+  meta: { skillId: string; indexUrl: string; syncedAt?: string; name?: string },
+): boolean {
+  try {
+    const payload = {
+      skillId: meta.skillId,
+      indexUrl: meta.indexUrl,
+      name: meta.name,
+      syncedAt: meta.syncedAt ?? new Date().toISOString(),
+    };
+    writeFileSync(join(skillDir, "marketplace.json"), JSON.stringify(payload, null, 2), "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Write skill package content to disk.
  * Returns true if SKILL.md was written (skillMd present), false otherwise.
@@ -54,4 +72,3 @@ export function writeSkillPackageToDir(skillDir: string, pkg: WriteableSkillPack
     return false;
   }
 }
-

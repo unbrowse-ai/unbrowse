@@ -1,6 +1,10 @@
 import type { ToolDeps } from "../deps.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ApiData, ParsedRequest } from "../../../types.js";
+import { guessAuthMethod } from "../../../auth-extractor.js";
+import { enrichApiData } from "../../../har-parser.js";
+import { generateSkill } from "../../../skill-generator.js";
 
 type ToolResponse = { content: Array<{ type: "text"; text: string }> };
 
@@ -118,9 +122,10 @@ export async function runOpenClawBrowse(
       selector?: string;
     }>;
     captureTraffic?: boolean;
+    learnOnFly?: boolean;
   },
 ): Promise<ToolResponse | null> {
-  const { logger, browserPort, defaultOutputDir } = deps;
+  const { logger, browserPort, defaultOutputDir, discovery, autoPublishSkill } = deps;
 
   // OpenClaw browser API (preferred) - uses native browser control.
   const { getOpenClawBrowser } = await import("../../../openclaw-browser.js");
@@ -376,6 +381,11 @@ export async function runOpenClawBrowse(
   // For many sites, CSRF tokens + session cookies + SPA storage are the key ingredients.
   // Some sites still require a real browser fetch fingerprint, but persisting the auth
   // state keeps later tool calls deterministic.
+  let persistedCookies: Record<string, string> = {};
+  let persistedLocalStorage: Record<string, string> = {};
+  let persistedSessionStorage: Record<string, string> = {};
+  let persistedMetaTokens: Record<string, string> = {};
+  let persistedAuthHeaders: Record<string, string> = {};
   try {
     const skillDir = join(defaultOutputDir, service);
     mkdirSync(skillDir, { recursive: true });
@@ -386,6 +396,7 @@ export async function runOpenClawBrowse(
       openclawBrowser.storage("local"),
       openclawBrowser.storage("session"),
     ]);
+    persistedCookies = cookies;
 
     const metaTokens =
       ((await openclawBrowser.evaluate(
@@ -408,6 +419,10 @@ export async function runOpenClawBrowse(
     const localStorage = filterAuthStorage(localStorageRaw);
     const sessionStorage = filterAuthStorage(sessionStorageRaw);
     const authHeaders = extractAuthHeadersFromRequests(capturedRequests, localStorage, sessionStorage, metaTokens);
+    persistedLocalStorage = localStorage;
+    persistedSessionStorage = sessionStorage;
+    persistedMetaTokens = metaTokens;
+    persistedAuthHeaders = authHeaders;
 
     // Best-effort baseUrl; callers can override later.
     const baseUrl = new URL(p.url).origin;
@@ -425,6 +440,72 @@ export async function runOpenClawBrowse(
     });
   } catch (err) {
     logger.warn(`[unbrowse] Failed to persist OpenClaw auth state: ${(err as Error).message}`);
+  }
+
+  // Learn on the fly: if no marketplace skill exists, generate a skill from captured API calls.
+  // OpenClaw /requests doesn't include bodies yet; we still learn structure (method/path/domain) + auth headers/cookies.
+  let skillResult: { service: string; endpointCount: number; changed: boolean; diff?: string; skillDir: string } | null = null;
+  if (p.captureTraffic !== false && apiCalls.length >= (p.learnOnFly ? 1 : 2)) {
+    try {
+      const seedOrigin = new URL(p.url).origin;
+      const requests: ParsedRequest[] = [];
+      for (const r of apiCalls) {
+        try {
+          const u = new URL(String(r.url));
+          requests.push({
+            method: String(r.method || "GET").toUpperCase(),
+            url: u.toString(),
+            path: u.pathname,
+            domain: u.host,
+            status: Number(r.status ?? 0),
+            resourceType: r.resourceType,
+            responseContentType: String(r.responseHeaders?.["content-type"] ?? r.responseHeaders?.["Content-Type"] ?? ""),
+          });
+        } catch { /* ignore */ }
+      }
+
+      const apiData: ApiData = {
+        service,
+        baseUrls: [seedOrigin],
+        baseUrl: seedOrigin,
+        authHeaders: persistedAuthHeaders,
+        authMethod: guessAuthMethod(persistedAuthHeaders, persistedCookies),
+        cookies: persistedCookies,
+        authInfo: {},
+        requests,
+        endpoints: {},
+      };
+
+      // Match HarParser behavior: endpoints grouped by domain:path
+      for (const req of requests) {
+        const key = `${req.domain}:${req.path}`;
+        if (!apiData.endpoints[key]) apiData.endpoints[key] = [];
+        apiData.endpoints[key].push(req);
+      }
+
+      enrichApiData(apiData);
+      const result = await generateSkill(apiData, defaultOutputDir);
+      discovery?.markLearned?.(result.service);
+      skillResult = result;
+
+      // generateSkill overwrites auth.json; restore storage/meta tokens captured from the browser session.
+      try {
+        const authPath = join(result.skillDir, "auth.json");
+        const existing = existsSync(authPath) ? JSON.parse(readFileSync(authPath, "utf-8")) : {};
+        existing.cookies = { ...(existing.cookies ?? {}), ...(persistedCookies ?? {}) };
+        existing.headers = { ...(existing.headers ?? {}), ...(persistedAuthHeaders ?? {}) };
+        existing.localStorage = { ...(existing.localStorage ?? {}), ...(persistedLocalStorage ?? {}) };
+        existing.sessionStorage = { ...(existing.sessionStorage ?? {}), ...(persistedSessionStorage ?? {}) };
+        existing.metaTokens = { ...(existing.metaTokens ?? {}), ...(persistedMetaTokens ?? {}) };
+        writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
+      } catch { /* ignore */ }
+
+      if (result.changed) {
+        autoPublishSkill?.(result.service, result.skillDir).catch(() => { });
+      }
+    } catch (err) {
+      logger.warn(`[unbrowse] OpenClaw learn-on-fly failed: ${(err as Error).message}`);
+    }
   }
 
   // Format page state for LLM (index-based display)
@@ -466,6 +547,15 @@ export async function runOpenClawBrowse(
     if (apiCalls.length > 20) {
       resultLines.push(`  ... and ${apiCalls.length - 20} more`);
     }
+  }
+
+  if (skillResult) {
+    resultLines.push(
+      "",
+      `Skill auto-generated: ${skillResult.service} (${skillResult.endpointCount} endpoints)`,
+    );
+    if (skillResult.diff) resultLines.push(`  Changes: ${skillResult.diff}`);
+    resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
   }
 
   logger.info(

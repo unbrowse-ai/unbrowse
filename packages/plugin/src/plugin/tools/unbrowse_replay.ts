@@ -22,6 +22,7 @@ export function makeUnbrowseReplayTool(deps: ToolDeps) {
     vaultDbPath,
     credentialProvider,
     getOrCreateBrowserSession,
+    indexClient,
   } = deps;
 
   return {
@@ -33,11 +34,24 @@ description:
   "Uses session cookies, tokens, and headers from capture. Auto-refreshes auth on 401/403.",
 parameters: REPLAY_SCHEMA,
 async execute(_toolCallId: string, params: unknown) {
-  const p = params as { service: string; endpoint?: string; body?: string; skillsDir?: string; useStealth?: boolean; proxyCountry?: string };
+  const p = params as {
+    service: string;
+    endpoint?: string;
+    body?: string;
+    skillsDir?: string;
+    executionMode?: "browser" | "node" | "backend";
+    traceId?: string;
+    intent?: string;
+    storeTrace?: boolean;
+    storeRaw?: boolean;
+    autoChain?: boolean;
+    skillId?: string;
+  };
   const skillsDir = p.skillsDir ?? defaultOutputDir;
   const skillDir = join(skillsDir, p.service);
   const authPath = join(skillDir, "auth.json");
   const skillMdPath = join(skillDir, "SKILL.md");
+  const marketplaceMetaPath = join(skillDir, "marketplace.json");
 
   if (!existsSync(skillDir)) {
     return { content: [{ type: "text", text: `Skill not found: ${skillDir}` }] };
@@ -166,6 +180,103 @@ async execute(_toolCallId: string, params: unknown) {
     }
   }
   await loadAuth();
+
+  function toCookieHeader(c: Record<string, string>): string {
+    return Object.entries(c).map(([k, v]) => `${k}=${v}`).join("; ");
+  }
+
+  async function execViaBackend(
+    ep: { method: string; path: string },
+    body?: string,
+  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean } | null> {
+    const skillId = (() => {
+      if (p.skillId) return p.skillId;
+      if (existsSync(marketplaceMetaPath)) {
+        try {
+          const meta = JSON.parse(readFileSync(marketplaceMetaPath, "utf-8"));
+          if (typeof meta?.skillId === "string" && meta.skillId.trim().length > 0) return meta.skillId.trim();
+        } catch { /* ignore */ }
+      }
+      return null;
+    })();
+
+    if (!skillId) {
+      return { status: 0, ok: false, data: "backend mode requires marketplace skillId. Publish first (unbrowse_publish) or pass skillId." };
+    }
+
+    const endpointsPath = join(skillDir, "references", "ENDPOINTS.json");
+    if (!existsSync(endpointsPath)) {
+      return { status: 0, ok: false, data: "backend mode requires references/ENDPOINTS.json. Re-download or re-publish to sync canonical references." };
+    }
+
+    let endpointId: string | null = null;
+    try {
+      const list = JSON.parse(readFileSync(endpointsPath, "utf-8"));
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          if (!item) continue;
+          const m = String(item.method || "").toUpperCase();
+          const np = String(item.normalizedPath || item.normalized_path || "");
+          const id = item.endpointId ?? item.endpoint_id;
+          if (m === ep.method.toUpperCase() && np === ep.path && typeof id === "string" && id.length > 0) {
+            endpointId = id;
+            break;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
+    if (!endpointId) {
+      return { status: 0, ok: false, data: `No endpointId for ${ep.method} ${ep.path} in references/ENDPOINTS.json. Re-publish to refresh references.` };
+    }
+
+    let parsedBody: any = undefined;
+    if (body && ["POST", "PUT", "PATCH"].includes(ep.method)) {
+      try { parsedBody = JSON.parse(body); } catch { parsedBody = body; }
+    }
+
+    const traceId =
+      p.traceId && p.traceId.trim().length > 0
+        ? p.traceId.trim()
+        : (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`);
+    const storeTrace = typeof p.storeTrace === "boolean" ? p.storeTrace : true;
+    const storeRaw = typeof p.storeRaw === "boolean" ? p.storeRaw : false;
+    const autoChain = typeof p.autoChain === "boolean" ? p.autoChain : true;
+    const intent = typeof p.intent === "string" && p.intent.trim().length > 0 ? p.intent.trim() : undefined;
+
+    try {
+      const resp: any = await indexClient.executeEndpoint(endpointId, {
+        params: {},
+        body: parsedBody,
+        auth: {
+          cookies: Object.keys(cookies).length > 0 ? toCookieHeader(cookies) : undefined,
+          headers: filterPseudoHeaders(authHeaders),
+        },
+        context: {
+          traceId,
+          sessionId: p.service,
+          autoChain,
+          intent,
+        },
+        privacy: {
+          storeTrace,
+          storeRaw,
+        },
+      });
+
+      const ok = Boolean(resp?.ok);
+      const status = typeof resp?.statusCode === "number" ? resp.statusCode : (ok ? 200 : 0);
+      const data = (() => {
+        const v = resp?.data;
+        if (typeof v === "string") return v.slice(0, 2000);
+        try { return JSON.stringify(v).slice(0, 2000); } catch { return String(v ?? "").slice(0, 2000); }
+      })();
+
+      return { status, ok, data };
+    } catch (err) {
+      return { status: 0, ok: false, data: String((err as Error).message ?? err) };
+    }
+  }
 
   // Load header profile template (headers.json) for browser-like headers
   const headersJsonPath = join(skillDir, "headers.json");
@@ -604,14 +715,42 @@ async execute(_toolCallId: string, params: unknown) {
   const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
   results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
 
+  const executionMode = p.executionMode ?? "browser";
+  if (executionMode === "backend") {
+    results.push(`Using backend executor (marketplace) for trace capture`);
+    if (p.intent) results.push(`Intent: ${p.intent}`);
+    if (p.traceId) results.push(`TraceId: ${p.traceId}`);
+    results.push("");
+
+    for (const ep of toTest) {
+      const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
+      const result = await execViaBackend(ep, body);
+      if (result && result.ok) {
+        results.push(`  ${ep.method} ${ep.path} → ${result.status} OK`);
+        if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+        passed++;
+      } else {
+        results.push(`  ${ep.method} ${ep.path} → ${result?.status || "FAILED"}${result?.data ? ` (${String(result.data).slice(0, 120)})` : ""}`);
+        failed++;
+      }
+    }
+
+    results.push("", `Results: ${passed} passed, ${failed} failed`);
+    return { content: [{ type: "text", text: results.join("\n") }] };
+  }
+
   // Check if browser is available upfront
   const browserPage = await getChromePage();
-  const hasBrowser = browserPage !== null;
+  const hasBrowser = browserPage !== null && executionMode !== "node";
 
   if (hasBrowser) {
     results.push(`Using browser (${browserSource}) for authentic TLS/HTTP2 fingerprint`);
   } else {
-    results.push(`⚠️  No browser available — using Node.js fetch (may be blocked by bot detection)`);
+    results.push(
+      executionMode === "node"
+        ? `Using Node.js fetch (forced) — may be blocked by bot detection`
+        : `⚠️  No browser available — using Node.js fetch (may be blocked by bot detection)`,
+    );
   }
   results.push("");
 

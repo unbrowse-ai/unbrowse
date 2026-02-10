@@ -33,7 +33,7 @@ import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener, sto
 import { AutoDiscovery } from "../auto-discover.js";
 import { SkillIndexClient, type PublishPayload } from "../skill-index.js";
 import { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth } from "../skill-sanitizer.js";
-import { writeSkillPackageToDir } from "../skill-package-writer.js";
+import { writeMarketplaceMeta, writeSkillPackageToDir } from "../skill-package-writer.js";
 import { loginAndCapture, type LoginCredentials } from "../session-login.js";
 import {
   createCredentialProvider,
@@ -291,6 +291,9 @@ const plugin = {
                 : `[unbrowse] Auto-publish sync: ${service} — local skill updated with canonical version`,
             );
           }
+        }
+        if (skillId) {
+          writeMarketplaceMeta(skillDir, { skillId, indexUrl: indexOpts.indexUrl, name: service });
         }
 
         logger.info(`[unbrowse] Auto-published: ${service} (${skillId})`);

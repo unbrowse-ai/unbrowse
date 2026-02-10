@@ -2,12 +2,15 @@ import type { ToolDeps } from "./deps.js";
 import {
   existsSync,
   readFileSync,
+  writeFileSync,
+  mkdirSync,
   join,
   INTERACT_SCHEMA,
   parseHar,
   generateSkill,
 } from "./shared.js";
 import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
+import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
   const {
@@ -26,6 +29,8 @@ export function makeUnbrowseBrowseTool(deps: ToolDeps) {
     discovery,
     detectAndSaveRefreshConfig,
     autoPublishSkill,
+    indexClient,
+    skillIndexUrl,
   } = deps;
 
   return {
@@ -42,6 +47,7 @@ async execute(_toolCallId: string, params: unknown) {
   const p = params as {
     url: string;
     service?: string;
+    skillMode?: "auto" | "marketplace" | "learn";
     actions: Array<{
       action: string;
       index?: number;
@@ -65,6 +71,53 @@ async execute(_toolCallId: string, params: unknown) {
         .replace(/\./g, "-");
     } catch {
       return { content: [{ type: "text", text: "Invalid URL." }] };
+    }
+  }
+
+  const skillMode = p.skillMode ?? "auto";
+
+  // Marketplace-first (unless user forced learn): if the local skill doesn't exist, try to find a verified skill and install it.
+  if (skillMode !== "learn") {
+    try {
+      const service = p.service;
+      const skillDir = join(defaultOutputDir, service);
+      if (!existsSync(skillDir)) {
+        const host = new URL(p.url).hostname.replace(/^www\./, "");
+        const results = await indexClient.search(host, { limit: 5 }).catch(() => null as any);
+        const candidates = (results?.skills ?? []) as Array<any>;
+        const best = candidates.find((s) => (s?.domain && String(s.domain).replace(/^www\./, "") === host) || String(s?.name) === service) ?? candidates[0];
+
+        if (best?.skillId && String(best?.priceUsdc ?? "0") === "0") {
+          const pkg = await indexClient.download(best.skillId);
+          mkdirSync(join(skillDir, "scripts"), { recursive: true });
+          mkdirSync(join(skillDir, "references"), { recursive: true });
+
+          // Canonical content.
+          writeSkillPackageToDir(skillDir, { skillMd: pkg.skillMd, scripts: pkg.scripts, references: pkg.references });
+          if (pkg.headerProfile) {
+            writeFileSync(join(skillDir, "headers.json"), JSON.stringify(pkg.headerProfile, null, 2), "utf-8");
+          }
+          writeMarketplaceMeta(skillDir, { skillId: best.skillId, indexUrl: skillIndexUrl, name: pkg.name });
+
+          // Placeholder auth.json; browse uses your Chrome profile anyway.
+          writeFileSync(join(skillDir, "auth.json"), JSON.stringify({
+            service: pkg.name,
+            baseUrl: pkg.domain ? `https://${pkg.domain}` : "",
+            authMethod: pkg.authType || "Unknown",
+            timestamp: new Date().toISOString(),
+            notes: ["Auto-installed from marketplace (verified skill). Add your own auth if you want replay/workflow execution without a browser."],
+            headers: {},
+            cookies: {},
+          }, null, 2), "utf-8");
+
+          logger.info(`[unbrowse] Marketplace-first installed skill: ${pkg.name} (${best.skillId})`);
+        } else if (best?.skillId) {
+          // Found a skill but it's paid; don't auto-purchase.
+          logger.info(`[unbrowse] Marketplace-first found paid skill for ${host}: ${best.skillId}`);
+        }
+      }
+    } catch {
+      // Marketplace is optional; continue with normal browse flow.
     }
   }
 
@@ -97,6 +150,30 @@ async execute(_toolCallId: string, params: unknown) {
         return act;
       })
       .filter((act) => act.action);
+  }
+
+  // Learn selection:
+  // - marketplace: require verified marketplace skill (no learning)
+  // - learn: always learn locally on the fly
+  // - auto: learn on the fly if marketplace didn't yield a local skill
+  const skillDirForService = join(defaultOutputDir, p.service);
+  if (skillMode === "marketplace" && !existsSync(skillDirForService)) {
+    return {
+      content: [{
+        type: "text",
+        text:
+          `No verified marketplace skill found for "${p.service}".\n` +
+          `Try:\n` +
+          `- unbrowse_browse skillMode="learn" (learn on the fly)\n` +
+          `- or run unbrowse_capture / unbrowse_learn first`,
+      }],
+    };
+  }
+
+  if (skillMode === "learn" || (!existsSync(skillDirForService) && skillMode === "auto")) {
+    (p as any).learnOnFly = true;
+    // Even if caller disables captureTraffic, "learn on the fly" needs traffic.
+    p.captureTraffic = true;
   }
 
   // Preferred: OpenClaw native browser control. Fallback: Playwright.
