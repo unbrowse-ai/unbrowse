@@ -188,6 +188,43 @@ export class TaskWatcher {
   private classifyError(toolName: string, error: string): FailureInfo {
     const lowerError = error.toLowerCase();
 
+    // OpenClaw browser tool errors (common, noisy). Recommend unbrowse_browse instead.
+    // This improves "seamlessness" by steering agents away from brittle ref-based snapshots.
+    if (toolName === "browser") {
+      if (lowerError.includes("chrome extension relay is running") && lowerError.includes("no tab is connected")) {
+        return {
+          toolName,
+          error,
+          errorType: "blocked",
+          canResolve: true,
+          suggestedAction:
+            "Avoid the built-in browser tool. Use unbrowse_browse (Playwright+CDP :18800). If you must use relay profile \"chrome\", click the OpenClaw Chrome extension icon on a tab to attach.",
+        };
+      }
+
+      if (lowerError.includes("ref is required") || lowerError.includes("fields are required")) {
+        return {
+          toolName,
+          error,
+          errorType: "unknown",
+          canResolve: true,
+          suggestedAction:
+            "Avoid the built-in browser tool snapshot/act path. Use unbrowse_browse actions by index (CDP-first) to reduce ref/fields errors.",
+        };
+      }
+
+      if (lowerError.includes("refs=aria does not support selector/frame snapshots yet")) {
+        return {
+          toolName,
+          error,
+          errorType: "unknown",
+          canResolve: true,
+          suggestedAction:
+            "Avoid refs=aria snapshots for now. Use unbrowse_browse (index-based actions) or rerun snapshot without aria refs.",
+        };
+      }
+    }
+
     // Auth failures
     if (
       lowerError.includes("401") ||

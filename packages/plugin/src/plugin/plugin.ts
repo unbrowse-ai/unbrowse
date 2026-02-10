@@ -494,6 +494,8 @@ const plugin = {
         "",
         "Workflow: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_replay (call).",
         "For authenticated sites, use unbrowse_login first. Use unbrowse_do for guidance.",
+        "",
+        "Tip: prefer unbrowse_browse for website automation (avoids brittle browser-tool ref errors).",
       ];
 
       // Only mention wallet if explicitly configured
