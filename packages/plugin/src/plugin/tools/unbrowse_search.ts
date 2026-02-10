@@ -1,5 +1,6 @@
 import type { ToolDeps } from "./deps.js";
 import { SEARCH_SCHEMA, join, extractEndpoints } from "./shared.js";
+import { writeMarketplaceMeta } from "../../skill-package-writer.js";
 
 export function makeUnbrowseSearchTool(deps: ToolDeps) {
   const { logger, defaultOutputDir, indexClient, discovery } = deps;
@@ -65,6 +66,8 @@ async execute(_toolCallId: string, params: unknown) {
           "utf-8",
         );
       }
+
+      writeMarketplaceMeta(skillDir, { skillId: p.install, indexUrl: deps.skillIndexUrl, name: pkg.name });
 
       // Create placeholder auth.json — user adds their own credentials
       writeFileSync(join(skillDir, "auth.json"), JSON.stringify({

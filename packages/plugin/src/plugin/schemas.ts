@@ -82,6 +82,37 @@ export const REPLAY_SCHEMA = {
       type: "string" as const,
       description: "JSON body for POST/PUT/PATCH requests",
     },
+    executionMode: {
+      type: "string" as const,
+      enum: ["browser", "node", "backend"],
+      description:
+        "Execution mode. browser/node = direct call (existing behavior). backend = call marketplace backend executor " +
+        "to capture traces for LAM training (requires published skill + wallet).",
+    },
+    traceId: {
+      type: "string" as const,
+      description: "Optional traceId to group multiple endpoint calls into one sequence (backend mode).",
+    },
+    intent: {
+      type: "string" as const,
+      description: "Optional natural-language intent for this trace (backend mode). Stored in trace metadata.",
+    },
+    storeTrace: {
+      type: "boolean" as const,
+      description: "Whether to store workflow trace steps for LAM fine-tuning (backend mode, default: true).",
+    },
+    storeRaw: {
+      type: "boolean" as const,
+      description: "Whether to store raw request/response payloads (backend mode, default: false).",
+    },
+    autoChain: {
+      type: "boolean" as const,
+      description: "Auto-chain parentStepId to previous step in the same trace (backend mode, default: true).",
+    },
+    skillId: {
+      type: "string" as const,
+      description: "Marketplace skillId override (backend mode). If omitted, uses skillDir/marketplace.json.",
+    },
     skillsDir: {
       type: "string" as const,
       description: "Skills directory (default: ~/.openclaw/skills)",
@@ -162,6 +193,14 @@ export const INTERACT_SCHEMA = {
     service: {
       type: "string" as const,
       description: "Service name to load auth from (uses auth.json from this skill). Auto-detected from URL domain if omitted.",
+    },
+    skillMode: {
+      type: "string" as const,
+      enum: ["auto", "marketplace", "learn"],
+      description:
+        "Skill acquisition mode. auto = try marketplace first, otherwise learn on the fly. " +
+        "marketplace = only use verified marketplace skills (no learning). " +
+        "learn = skip marketplace and learn locally on the fly.",
     },
     actions: {
       type: "array" as const,
@@ -369,4 +408,3 @@ export const WORKFLOW_STATS_SCHEMA = {
   },
   required: [] as string[],
 };
-
