@@ -15,6 +15,7 @@ import type {
   NormalizedEndpoint, EndpointFingerprint, EndpointGroup,
 } from "./types.js";
 import { guessAuthMethod, HeaderClassifier } from "./auth-extractor.js";
+import { buildHeaderProfiles } from "./header-profiler.js";
 import {
   safeParseJson, inferSchema, mergeSchemas, getTopLevelSchema,
   generateMethodName, generateEndpointDescription,
@@ -784,6 +785,7 @@ export class HarParser {
       authInfo,
       requests,
       endpoints: this.groupByDomainAndPath(requests),
+      headerProfile: buildHeaderProfiles(har.log.entries ?? [], targetDomains),
     };
   }
 

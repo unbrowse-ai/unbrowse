@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-02-10T06:47:33.072Z",
+  "totalSkillsInDB": 1555,
+  "skillsTested": 9,
+  "totalEndpoints": 26,
+  "strategies": {
+    "bare": {
+      "unblocked": 21,
+      "rate": 0.8076923076923077,
+      "description": "No headers (pre-change baseline)"
+    },
+    "node": {
+      "unblocked": 21,
+      "rate": 0.8076923076923077,
+      "description": "App-only headers from profile"
+    },
+    "nodeCookies": {
+      "unblocked": 21,
+      "rate": 0.8076923076923077,
+      "description": "App headers + primed cookies (new default)"
+    },
+    "exact": {
+      "unblocked": 24,
+      "rate": 0.9230769230769231,
+      "description": "Original captured headers (ceiling)"
+    }
+  },
+  "improvement": {
+    "absolute": 0,
+    "relativePct": 0,
+    "gapToCeiling": 3
+  },
+  "perSite": [
+    {
+      "skill": "linkedin",
+      "domain": "www.linkedin.com",
+      "endpoints": 1,
+      "bare": 1,
+      "node": 1,
+      "nodeCookies": 1,
+      "exact": 1,
+      "hasProfile": true
+    },
+    {
+      "skill": "reddit",
+      "domain": "www.reddit.com",
+      "endpoints": 5,
+      "bare": 0,
+      "node": 0,
+      "nodeCookies": 0,
+      "exact": 5,
+      "hasProfile": true
+    },
+    {
+      "skill": "amazon",
+      "domain": "www.amazon.com",
+      "endpoints": 1,
+      "bare": 1,
+      "node": 1,
+      "nodeCookies": 1,
+      "exact": 1,
+      "hasProfile": true
+    },
+    {
+      "skill": "tradingview",
+      "domain": "www.tradingview.com",
+      "endpoints": 1,
+      "bare": 1,
+      "node": 1,
+      "nodeCookies": 1,
+      "exact": 1,
+      "hasProfile": true
+    },
+    {
+      "skill": "resy",
+      "domain": "api.resy.com",
+      "endpoints": 5,
+      "bare": 5,
+      "node": 5,
+      "nodeCookies": 5,
+      "exact": 4,
+      "hasProfile": true
+    },
+    {
+      "skill": "airbnb",
+      "domain": "www.airbnb.com",
+      "endpoints": 5,
+      "bare": 5,
+      "node": 5,
+      "nodeCookies": 5,
+      "exact": 5,
+      "hasProfile": true
+    },
+    {
+      "skill": "ebay",
+      "domain": "www.ebay.com",
+      "endpoints": 2,
+      "bare": 2,
+      "node": 2,
+      "nodeCookies": 2,
+      "exact": 2,
+      "hasProfile": true
+    },
+    {
+      "skill": "bing",
+      "domain": "www.bing.com",
+      "endpoints": 5,
+      "bare": 5,
+      "node": 5,
+      "nodeCookies": 5,
+      "exact": 5,
+      "hasProfile": true
+    },
+    {
+      "skill": "dexscreener",
+      "domain": "dexscreener.com",
+      "endpoints": 1,
+      "bare": 1,
+      "node": 1,
+      "nodeCookies": 1,
+      "exact": 0,
+      "hasProfile": true
+    }
+  ]
+}

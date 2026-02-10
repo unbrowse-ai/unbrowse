@@ -70,6 +70,21 @@
         "enum": ["none", "auto", "keychain", "1password", "vault"],
         "default": "none",
         "description": "Where to look up login passwords for auto-login"
+      },
+      "enableChromeCookies": {
+        "type": "boolean",
+        "default": false,
+        "description": "Read Chrome cookies for authenticated API replay (opt-in for privacy)"
+      },
+      "enableOtpAutoFill": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically fill OTP codes during login flows (opt-in for security)"
+      },
+      "enableDesktopAutomation": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable desktop automation tools for GUI interaction (opt-in for security)"
       }
     }
   },
@@ -124,6 +139,18 @@
     "credentialSource": {
       "label": "Credential Source",
       "help": "Where to look up login passwords. 'keychain' = macOS Keychain, '1password' = 1Password CLI"
+    },
+    "enableChromeCookies": {
+      "label": "Chrome Cookie Access",
+      "help": "Read Chrome cookies for authenticated API replay. Opt-in for privacy."
+    },
+    "enableOtpAutoFill": {
+      "label": "OTP Auto-Fill",
+      "help": "Automatically fill OTP codes during login flows. Opt-in for security."
+    },
+    "enableDesktopAutomation": {
+      "label": "Desktop Automation",
+      "help": "Enable GUI interaction tools (mouse, keyboard, screenshots). Opt-in for security."
     }
   }
 }

@@ -303,6 +303,47 @@ describe("buildHeaderProfiles", () => {
     expect(uploadOverride.headers["accept"]).toBe("*/*");
   });
 
+  it("should match endpoint overrides to the correct domain with multiple domains", () => {
+    // Domain A: all requests use "Accept: application/json"
+    const domainAEntries = makeEntries(5, "api.example.com", {
+      "Accept": "application/json",
+      "X-Client": "web",
+    });
+
+    // Domain B: all requests use "Accept: text/html" + different X-Client
+    const domainBEntries = makeEntries(5, "cdn.example.com", {
+      "Accept": "text/html",
+      "X-Client": "mobile",
+    });
+
+    // Domain B also has an endpoint with a different Accept value
+    const domainBUpload = [
+      makeEntry("POST", "https://cdn.example.com/upload", {
+        "Accept": "*/*",
+        "X-Client": "mobile",
+      }),
+      makeEntry("POST", "https://cdn.example.com/upload", {
+        "Accept": "*/*",
+        "X-Client": "mobile",
+      }),
+    ];
+
+    const entries = [...domainAEntries, ...domainBEntries, ...domainBUpload];
+    const profile = buildHeaderProfiles(
+      entries,
+      new Set(["api.example.com", "cdn.example.com"]),
+    );
+
+    // Domain B common "accept" should be "text/html" (5/7 >= 80%)
+    expect(profile.domains["cdn.example.com"].commonHeaders["accept"].value).toBe("text/html");
+
+    // The upload override should be compared against cdn.example.com's common headers,
+    // NOT api.example.com's. The override accept="*/*" differs from cdn's "text/html".
+    const uploadOverride = profile.endpointOverrides["POST /upload"];
+    expect(uploadOverride).toBeDefined();
+    expect(uploadOverride.headers["accept"]).toBe("*/*");
+  });
+
   it("should handle empty entries gracefully", () => {
     const profile = buildHeaderProfiles([], new Set(["api.example.com"]));
     expect(profile.domains).toEqual({});

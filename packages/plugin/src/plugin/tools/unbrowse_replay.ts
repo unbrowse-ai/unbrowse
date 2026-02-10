@@ -8,7 +8,10 @@ import {
   homedir,
   REPLAY_SCHEMA,
   loginAndCapture,
+  resolveHeaders,
+  primeHeaders,
 } from "./shared.js";
+import type { HeaderProfileFile, PrimeResult } from "./shared.js";
 
 export function makeUnbrowseReplayTool(deps: ToolDeps) {
   const {
@@ -164,6 +167,21 @@ async execute(_toolCallId: string, params: unknown) {
   }
   await loadAuth();
 
+  // Load header profile template (headers.json) for browser-like headers
+  const headersJsonPath = join(skillDir, "headers.json");
+  let headerProfile: HeaderProfileFile | undefined;
+  if (existsSync(headersJsonPath)) {
+    try {
+      headerProfile = JSON.parse(readFileSync(headersJsonPath, "utf-8"));
+      logger.info(`[unbrowse] Loaded header profile from headers.json`);
+    } catch {
+      // Invalid headers.json — skip
+    }
+  }
+
+  // Hydrated header profile + cookies (populated on first Node.js fetch if browser available)
+  let primeResult: PrimeResult | undefined;
+
   // Parse endpoints from SKILL.md
   let endpoints: { method: string; path: string }[] = [];
   if (existsSync(skillMdPath)) {
@@ -202,7 +220,8 @@ async execute(_toolCallId: string, params: unknown) {
   let chromeBrowser: any = null;
   let chromePage: any = null;
   let chromeContext: any = null;
-  let browserSource: "openclaw" | "cdp" | "none" = "none";
+  let browserSource: "openclaw" | "cdp" | "playwright" | "none" = "none";
+  let ownsBrowser = false;
 
   async function getChromePage(): Promise<any | null> {
     if (chromePage) return chromePage;
@@ -254,17 +273,22 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
+    // Strategy 3: Launch headless Chromium as fallback (same as capture flow)
     if (!chromeBrowser) {
-      browserSource = "none";
-      return null;
+      try {
+        chromeBrowser = await chromium.launch({ headless: true });
+        ownsBrowser = true;
+        browserSource = "playwright";
+        logger.info(`[unbrowse] Launched headless Chromium for replay`);
+      } catch {
+        browserSource = "none";
+        return null;
+      }
     }
 
     chromeContext = chromeBrowser.contexts()[0];
     if (!chromeContext) {
-      await chromeBrowser.close();
-      chromeBrowser = null;
-      browserSource = "none";
-      return null;
+      chromeContext = await chromeBrowser.newContext();
     }
 
     // Inject stored cookies into the browser context
@@ -307,7 +331,10 @@ async execute(_toolCallId: string, params: unknown) {
   }
 
   async function cleanupChrome() {
-    try { await chromeBrowser?.close(); } catch { /* ignore */ }
+    // Only close the browser if we launched it (don't close user's browser)
+    if (ownsBrowser) {
+      try { await chromeBrowser?.close(); } catch { /* ignore */ }
+    }
     chromeBrowser = null;
     chromePage = null;
   }
@@ -320,9 +347,24 @@ async execute(_toolCallId: string, params: unknown) {
       const url = new URL(ep.path, baseUrl).toString();
       // Filter out HTTP/2 pseudo-headers before sending
       const cleanHeaders = filterPseudoHeaders(authHeaders);
+
+      // In browser mode, use full header profile (context + app headers).
+      // The browser's TLS fingerprint matches User-Agent so no mismatch detection.
+      let resolvedHeaders: Record<string, string>;
+      if (headerProfile) {
+        const domain = new URL(baseUrl).hostname;
+        const pathStr = new URL(url).pathname;
+        resolvedHeaders = resolveHeaders(headerProfile, domain, ep.method, pathStr, cleanHeaders, {}, "browser");
+        if (!resolvedHeaders["Content-Type"] && !resolvedHeaders["content-type"]) {
+          resolvedHeaders["Content-Type"] = "application/json";
+        }
+      } else {
+        resolvedHeaders = { "Content-Type": "application/json", ...cleanHeaders };
+      }
+
       const fetchOpts: Record<string, unknown> = {
         method: ep.method,
-        headers: { "Content-Type": "application/json", ...cleanHeaders },
+        headers: resolvedHeaders,
         credentials: "include",
       };
       if (body && ["POST", "PUT", "PATCH"].includes(ep.method)) {
@@ -353,11 +395,58 @@ async execute(_toolCallId: string, params: unknown) {
 
   async function execViaFetch(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean }> {
     const url = new URL(ep.path, baseUrl).toString();
-    // Filter out HTTP/2 pseudo-headers before sending
+
+    // Prime headers + cookies from browser on first Node.js fetch (one-time)
+    if (headerProfile && !primeResult) {
+      try {
+        primeResult = await primeHeaders(baseUrl, headerProfile, browserPort);
+        if (Object.keys(primeResult.headers).length > 0) {
+          logger.info(`[unbrowse] Primed ${Object.keys(primeResult.headers).length} headers from browser`);
+        }
+        // Merge primed cookies into session cookies (primed fills gaps, doesn't override existing)
+        if (Object.keys(primeResult.cookies).length > 0) {
+          for (const [name, value] of Object.entries(primeResult.cookies)) {
+            if (!cookies[name]) {
+              cookies[name] = value;
+            }
+          }
+          logger.info(`[unbrowse] Primed ${Object.keys(primeResult.cookies).length} cookies from browser`);
+        }
+      } catch {
+        primeResult = { headers: {}, cookies: {} }; // Mark as attempted so we don't retry
+      }
+    }
+
+    // Build headers using the profile resolution (template → overrides → auth → cookies)
     const cleanHeaders = filterPseudoHeaders(authHeaders);
-    const reqHeaders: Record<string, string> = { ...cleanHeaders, "Content-Type": "application/json" };
-    if (Object.keys(cookies).length > 0) {
-      reqHeaders["Cookie"] = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; ");
+    let reqHeaders: Record<string, string>;
+    if (headerProfile) {
+      const domain = new URL(baseUrl).hostname;
+      const pathStr = new URL(url).pathname;
+      // Use "node" mode — excludes context headers (user-agent, accept, referer)
+      // to avoid TLS fingerprint mismatch detection by Cloudflare/Akamai.
+      // Only includes app-specific custom headers (x-requested-with, etc.)
+      reqHeaders = resolveHeaders(headerProfile, domain, ep.method, pathStr, cleanHeaders, cookies, "node");
+      // Layer primed (fresh browser) header values over template sample values
+      if (primeResult?.headers) {
+        for (const [name, value] of Object.entries(primeResult.headers)) {
+          // Don't override auth headers or cookies from resolveHeaders
+          const lower = name.toLowerCase();
+          if (lower !== "cookie" && !cleanHeaders[name] && !cleanHeaders[lower]) {
+            reqHeaders[name] = value;
+          }
+        }
+      }
+      // Ensure Content-Type is present
+      if (!reqHeaders["Content-Type"] && !reqHeaders["content-type"]) {
+        reqHeaders["Content-Type"] = "application/json";
+      }
+    } else {
+      // No profile — original behavior
+      reqHeaders = { ...cleanHeaders, "Content-Type": "application/json" };
+      if (Object.keys(cookies).length > 0) {
+        reqHeaders["Cookie"] = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; ");
+      }
     }
     const resp = await fetch(url, {
       method: ep.method,
