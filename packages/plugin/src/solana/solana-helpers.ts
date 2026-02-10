@@ -70,7 +70,9 @@ export async function signEd25519MessageBase58(opts: {
 }): Promise<string> {
   const bs58mod = await loadBs58();
   const bs58: any = (bs58mod as any).default ?? bs58mod;
-  const nacl = await loadNacl();
+  // tweetnacl is CJS; dynamic import may return { default: nacl } in ESM.
+  const naclMod = await loadNacl();
+  const nacl: any = (naclMod as any).default ?? naclMod;
   const keypair = await keypairFromBase58PrivateKey(opts.privateKeyB58);
 
   const messageBytes = new TextEncoder().encode(opts.message);
