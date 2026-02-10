@@ -1,14 +1,18 @@
 import type { ToolDeps } from "./deps.js";
 import type { PublishPayload } from "./shared.js";
+import type { HeaderProfileFile } from "./shared.js";
 import {
   existsSync,
   readFileSync,
+  writeFileSync,
+  mkdirSync,
   readdirSync,
   join,
   PUBLISH_SCHEMA,
   extractEndpoints,
   extractPublishableAuth,
   sanitizeApiTemplate,
+  sanitizeHeaderProfile,
 } from "./shared.js";
 
 export function makeUnbrowsePublishTool(deps: ToolDeps) {
@@ -120,6 +124,16 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
+    // Load and sanitize header profile (strip auth values, keep template shape)
+    const headersJsonPath = join(skillDir, "headers.json");
+    let headerProfile: HeaderProfileFile | undefined;
+    if (existsSync(headersJsonPath)) {
+      try {
+        const raw: HeaderProfileFile = JSON.parse(readFileSync(headersJsonPath, "utf-8"));
+        headerProfile = sanitizeHeaderProfile(raw);
+      } catch { /* invalid headers.json — skip */ }
+    }
+
     // Extract description from SKILL.md frontmatter or generate one
     let description = "";
     const descMatch = skillMd.match(/^description:\s*>-?\s*\n([\s\S]*?)(?=\n\w|---)/m);
@@ -152,6 +166,7 @@ async execute(_toolCallId: string, params: unknown) {
       authType: authMethodType !== "Unknown" ? authMethodType : undefined,
       scripts: Object.keys(scripts).length > 0 ? scripts : undefined,
       references: Object.keys(references).length > 0 ? references : undefined,
+      headerProfile,
       serviceName: p.service,
       domain: domain || undefined,
       creatorWallet,
@@ -160,13 +175,46 @@ async execute(_toolCallId: string, params: unknown) {
 
     // Backend may return different success shapes:
     // - { success: true, skill: { skillId, ... }, ... } for create/update
-    // - { success: true, merged: true, skillId, message, ... } for collaborative merges
+    // - { success: true, merged: true, skillId, skill: { skillMd, scripts, ... }, ... } for collaborative merges
     const result: any = await indexClient.publish(payload);
     const skillId: string | undefined = result?.skill?.skillId ?? result?.skillId;
     if (!skillId) {
       throw new Error("Publish succeeded but response did not include a skillId");
     }
     const merged = Boolean(result?.merged);
+
+    // On collaborative merge, the server returns the full merged skill — write it locally for free
+    let mergedLocally = false;
+    if (merged && result?.skill?.skillMd) {
+      try {
+        writeFileSync(skillMdPath, result.skill.skillMd, "utf-8");
+
+        if (result.skill.scripts && typeof result.skill.scripts === "object") {
+          const scriptsDir = join(skillDir, "scripts");
+          mkdirSync(scriptsDir, { recursive: true });
+          for (const [filename, content] of Object.entries(result.skill.scripts)) {
+            if (typeof content === "string") {
+              writeFileSync(join(scriptsDir, filename), content, "utf-8");
+            }
+          }
+        }
+
+        if (result.skill.references && typeof result.skill.references === "object") {
+          const referencesDir = join(skillDir, "references");
+          mkdirSync(referencesDir, { recursive: true });
+          for (const [filename, content] of Object.entries(result.skill.references)) {
+            if (typeof content === "string") {
+              writeFileSync(join(referencesDir, filename), content, "utf-8");
+            }
+          }
+        }
+
+        mergedLocally = true;
+        logger.info(`[unbrowse] Merged skill written to ${skillDir}`);
+      } catch (writeErr) {
+        logger.warn(`[unbrowse] Failed to write merged skill locally: ${(writeErr as Error).message}`);
+      }
+    }
 
     const priceDisplay = (p as any).price && parseFloat((p as any).price) > 0
       ? `$${parseFloat((p as any).price).toFixed(2)} USDC`
@@ -180,6 +228,8 @@ async execute(_toolCallId: string, params: unknown) {
       `Endpoints: ${endpoints.length}`,
       `Creator wallet: ${creatorWallet}`,
       merged && result?.message ? `Merge: ${String(result.message)}` : null,
+      merged && result?.contribution ? `Contribution: +${result.contribution.endpointsAdded} endpoints, novelty ${(result.contribution.noveltyScore * 100).toFixed(0)}%` : null,
+      mergedLocally ? `Local skill updated with merged version (all endpoints from all contributors)` : null,
       ``,
       `Others can find and download this skill via unbrowse_search.`,
       priceDisplay !== "Free" ? `You earn 70% ($${(parseFloat((p as any).price) * 0.7).toFixed(2)}) for each download.` : "",

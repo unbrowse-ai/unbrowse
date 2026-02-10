@@ -57,6 +57,15 @@ async execute(_toolCallId: string, params: unknown) {
         }
       }
 
+      // Write header profile template if included in the package
+      if (pkg.headerProfile) {
+        writeFileSync(
+          join(skillDir, "headers.json"),
+          JSON.stringify(pkg.headerProfile, null, 2),
+          "utf-8",
+        );
+      }
+
       // Create placeholder auth.json — user adds their own credentials
       writeFileSync(join(skillDir, "auth.json"), JSON.stringify({
         service: pkg.name,
