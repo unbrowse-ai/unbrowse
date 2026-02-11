@@ -496,6 +496,7 @@ const plugin = {
         "For authenticated sites, use unbrowse_login first. Use unbrowse_do for guidance.",
         "",
         "Tip: prefer unbrowse_browse for website automation (avoids brittle browser-tool ref errors).",
+        "Login UX: use the OpenClaw-managed browser profile (manual login recommended). Avoid asking users for passwords.",
       ];
 
       // Only mention wallet if explicitly configured
