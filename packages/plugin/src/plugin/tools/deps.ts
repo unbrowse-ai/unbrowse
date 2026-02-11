@@ -1,6 +1,7 @@
 export type ToolDeps = {
   // Core
   logger: any;
+  pluginConfig?: any;
   browserPort: number;
   defaultOutputDir: string;
   autoDiscoverEnabled: boolean;
@@ -39,4 +40,3 @@ export type ToolDeps = {
   closeChrome: () => Promise<void>;
   browserSessions: Map<string, any>;
 };
-
