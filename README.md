@@ -489,7 +489,10 @@ See [SECURITY.md](SECURITY.md) for full details on what each feature does.
 
 ## License
 
-MIT
+GNU Affero General Public License v3.0 (`AGPL-3.0-only`).
+
+This requires preserving copyright/license notices and sharing source
+for networked derivatives under the same license.
 
 ---
 

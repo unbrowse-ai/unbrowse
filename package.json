@@ -5,6 +5,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "clean": "rm -rf dist .tsbuildinfo",
     "build": "npm run clean && tsc -p tsconfig.json",
