@@ -5,6 +5,7 @@ import type { ApiData, ParsedRequest } from "../../../types.js";
 import { guessAuthMethod } from "../../../auth-extractor.js";
 import { enrichApiData } from "../../../har-parser.js";
 import { generateSkill } from "../../../skill-generator.js";
+import { verifyAndPruneGetEndpoints } from "../../../endpoint-verification.js";
 
 type ToolResponse = { content: Array<{ type: "text"; text: string }> };
 
@@ -445,6 +446,7 @@ export async function runOpenClawBrowse(
   // Learn on the fly: if no marketplace skill exists, generate a skill from captured API calls.
   // OpenClaw /requests doesn't include bodies yet; we still learn structure (method/path/domain) + auth headers/cookies.
   let skillResult: { service: string; endpointCount: number; changed: boolean; diff?: string; skillDir: string } | null = null;
+  let getVerification: { total: number; verified: number; pruned: number } | null = null;
   if (p.captureTraffic !== false && apiCalls.length >= (p.learnOnFly ? 1 : 2)) {
     try {
       const seedOrigin = new URL(p.url).origin;
@@ -484,6 +486,14 @@ export async function runOpenClawBrowse(
       }
 
       enrichApiData(apiData);
+      const testSummary = await verifyAndPruneGetEndpoints(apiData, persistedCookies, { maxEndpoints: 30 });
+      if (testSummary) {
+        getVerification = {
+          total: testSummary.total,
+          verified: testSummary.verified,
+          pruned: testSummary.pruned,
+        };
+      }
       const result = await generateSkill(apiData, defaultOutputDir);
       discovery?.markLearned?.(result.service);
       skillResult = result;
@@ -554,6 +564,12 @@ export async function runOpenClawBrowse(
       "",
       `Skill auto-generated: ${skillResult.service} (${skillResult.endpointCount} endpoints)`,
     );
+    if (getVerification && getVerification.total > 0) {
+      resultLines.push(`  Verified GET: ${getVerification.verified}/${getVerification.total}`);
+      if (getVerification.pruned > 0) {
+        resultLines.push(`  Pruned failing GETs: ${getVerification.pruned}`);
+      }
+    }
     if (skillResult.diff) resultLines.push(`  Changes: ${skillResult.diff}`);
     resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
   }

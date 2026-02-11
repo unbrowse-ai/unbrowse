@@ -17,6 +17,7 @@ import { homedir } from "node:os";
 import { parseHar } from "./har-parser.js";
 import { generateSkill } from "./skill-generator.js";
 import { captureFromBrowser } from "./cdp-capture.js";
+import { verifyAndPruneGetEndpoints } from "./endpoint-verification.js";
 import type { ParsedRequest, SkillResult } from "./types.js";
 
 /** Minimum API calls to a domain before auto-generating a skill. */
@@ -133,12 +134,16 @@ export class AutoDiscovery {
           );
 
           try {
-            const result = await generateSkill(apiData, this.outputDir);
+            const testSummary = await verifyAndPruneGetEndpoints(apiData, cookies, { maxEndpoints: 20 });
+            const result = await generateSkill(apiData, this.outputDir, {
+              verifiedEndpoints: testSummary?.verified,
+              unverifiedEndpoints: testSummary ? Math.max(0, testSummary.total - testSummary.verified) : undefined,
+            });
             this.learnedDomains.add(result.service);
             generated.push(result.service);
 
             this.logger.info(
-              `[unbrowse] Auto-discover: skill "${result.service}" ${result.changed ? "updated" : "unchanged"} (${result.endpointCount} endpoints${result.diff ? `, ${result.diff}` : ""})`,
+              `[unbrowse] Auto-discover: skill "${result.service}" ${result.changed ? "updated" : "unchanged"} (${result.endpointCount} endpoints${result.diff ? `, ${result.diff}` : ""}${testSummary ? `, verified GET ${testSummary.verified}/${testSummary.total}` : ""}${testSummary && testSummary.pruned > 0 ? `, pruned ${testSummary.pruned}` : ""})`,
             );
 
             // Fire callback for auto-publish if skill changed
