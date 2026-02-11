@@ -65,6 +65,25 @@ export interface VersionInfo {
   createdAt: string;
 }
 
+export interface SkillEndpointSummary {
+  endpointId: string;
+  method: string;
+  normalizedPath: string;
+  rawPath?: string | null;
+  domain?: string | null;
+  fingerprint?: string | null;
+  queryKeys?: string[];
+  bodySchema?: string | null;
+  pathParams?: Array<{ name: string; type: string; example: string }>;
+  validationStatus?: string | null;
+  qualityScore?: number | null;
+  healthScore?: string | number | null;
+  totalExecutions?: number;
+  successfulExecutions?: number;
+  contributedBy?: string | null;
+  createdAt?: string;
+}
+
 export interface ExecuteEndpointRequest {
   params?: Record<string, any>;
   pathParams?: Record<string, any>;
@@ -463,6 +482,25 @@ export class SkillIndexClient {
 
     const data = await resp.json();
     return data.skill;
+  }
+
+  /** List canonical endpoints for a skill (includes endpointId required for backend execute). */
+  async getSkillEndpoints(skillId: string): Promise<SkillEndpointSummary[]> {
+    const resp = await fetch(
+      `${this.indexUrl}/marketplace/skills/${encodeURIComponent(skillId)}/endpoints`,
+      {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Get endpoints failed (${resp.status}): ${text}`);
+    }
+
+    const data = await resp.json();
+    return data.endpoints || [];
   }
 
   /**

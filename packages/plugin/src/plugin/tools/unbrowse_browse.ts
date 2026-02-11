@@ -11,11 +11,14 @@ import {
 } from "./shared.js";
 import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
+import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
   const {
     logger,
     browserPort,
+    browserProfile,
+    allowLegacyPlaywrightFallback,
     defaultOutputDir,
     vaultDbPath,
     enableOtpAutoFill,
@@ -176,22 +179,46 @@ async execute(_toolCallId: string, params: unknown) {
     p.captureTraffic = true;
   }
 
-  // Browser automation flow (Playwright; prefers OpenClaw-managed Chrome via CDP :18800).
-  //
-  // NOTE: We intentionally avoid OpenClaw's legacy browser HTTP control API here.
-  // It has been unstable across OpenClaw versions and can surface noisy errors
-  // like "ref is required"/"fields are required". CDP is the reliable path.
-  logger.info(`[unbrowse] Using browser automation flow (Playwright + CDP :18800 when available)`);
+  // OpenClaw-native traversal first (plugin-integrated browser API).
+  const nativeResult = await runOpenClawBrowse(deps, {
+    url: p.url,
+    service: p.service,
+    actions: p.actions,
+    captureTraffic: p.captureTraffic,
+    learnOnFly: (p as any).learnOnFly,
+  }).catch((err) => {
+    logger.warn(`[unbrowse] Native OpenClaw browse failed: ${(err as Error).message}`);
+    return null;
+  });
+  if (nativeResult) return nativeResult;
+
+  if (!allowLegacyPlaywrightFallback) {
+    return {
+      content: [{
+        type: "text",
+        text:
+          `Native OpenClaw browser traversal is unavailable for this request.` +
+          `${browserProfile ? ` (profile=${browserProfile})` : ""}\n` +
+          `Reason: either the browser control API is unreachable or this action set requires selector-based writes.\n` +
+          `Run native browser: \`openclaw browser start${browserProfile ? ` --browser-profile ${browserProfile}` : ""}\`\n` +
+          `To permit legacy fallback, set plugin config \`allowLegacyPlaywrightFallback: true\`.`,
+      }],
+    };
+  }
+
+  logger.info(`[unbrowse] Using legacy Playwright fallback flow`);
 
   // Check if Chrome is running and we need to handle it
   if (!getSharedBrowser()) {
     const { spawnSync } = await import("node:child_process");
     const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
     const chromeIsRunning = psResult.stdout.trim().length > 0;
+    const cdpProbePorts = Array.from(new Set([18800, 18792, browserPort, 9222, 9229]))
+      .filter((port) => Number.isInteger(port) && port > 0);
 
     // Check if any CDP port is available (OpenClaw-managed Chrome or user Chrome with debugging)
     let cdpAvailable = false;
-    for (const port of [18800, browserPort, 9222, 9229, 18792]) {
+    for (const port of cdpProbePorts) {
       try {
         const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
           signal: AbortSignal.timeout(1000),
@@ -801,6 +828,8 @@ async execute(_toolCallId: string, params: unknown) {
     // Auto-generate skill from captured API traffic
     let skillResult: { service: string; endpointCount: number; changed: boolean; diff?: string; skillDir: string } | null = null;
     let getVerification: { total: number; verified: number; pruned: number } | null = null;
+    let reverseEngineeringFailure: string | null = null;
+    let autoPublishStatus: string | null = null;
     const apiHarEntries = harEntries.filter((e) => {
       const ct = e.response.content.mimeType ?? "";
       return ct.includes("json") || ct.includes("xml") || ct.includes("text/plain") || e.request.method !== "GET";
@@ -819,46 +848,76 @@ async execute(_toolCallId: string, params: unknown) {
           if (!apiData.authHeaders[name]) apiData.authHeaders[name] = value;
         }
 
-        const testSummary = await verifyAndPruneGetEndpoints(apiData, authCookies, { maxEndpoints: 30 });
-        if (testSummary) {
-          getVerification = {
-            total: testSummary.total,
-            verified: testSummary.verified,
-            pruned: testSummary.pruned,
-          };
-        }
+        const extractedEndpointCount = Object.keys(apiData.endpoints ?? {}).length;
+        if (extractedEndpointCount === 0) {
+          reverseEngineeringFailure = "Reverse-engineering failed: no internal API endpoints were extracted from captured traffic.";
+        } else {
 
-        const result = await generateSkill(apiData, defaultOutputDir);
-        discovery.markLearned(result.service);
-        skillResult = result;
-
-        // Best-effort: infer a dependency DAG from the captured request/response bodies.
-        // Stored as references/DAG.json so it can be published + merged server-side.
-        try {
-          const { inferDependencyDagFromHarEntries } = await import("../../dependency-dag.js");
-          const dag = inferDependencyDagFromHarEntries(apiHarEntries as any, { skillName: result.service });
-          if (dag.edges.length > 0) {
-            const { mkdirSync, writeFileSync } = await import("node:fs");
-            const refsDir = join(result.skillDir, "references");
-            mkdirSync(refsDir, { recursive: true });
-            writeFileSync(join(refsDir, "DAG.json"), JSON.stringify(dag, null, 2), "utf-8");
+          const testSummary = await verifyAndPruneGetEndpoints(apiData, authCookies, { maxEndpoints: 30 });
+          if (testSummary) {
+            getVerification = {
+              total: testSummary.total,
+              verified: testSummary.verified,
+              pruned: testSummary.pruned,
+            };
           }
-        } catch { /* ignore DAG inference errors */ }
 
-        // Detect and save refresh token config
-        detectAndSaveRefreshConfig(apiHarEntries, join(result.skillDir, "auth.json"), logger);
+          const result = await generateSkill(apiData, defaultOutputDir);
+          discovery.markLearned(result.service);
+          skillResult = result;
 
-        logger.info(
-          `[unbrowse] Interact -> auto-skill "${result.service}" (${result.endpointCount} endpoints${result.diff ? `, ${result.diff}` : ""})`,
-        );
+          if (result.endpointCount <= 0) {
+            reverseEngineeringFailure = "Reverse-engineering failed: generated skill has 0 usable endpoints.";
+          }
 
-        // Auto-publish if changed
-        if (result.changed) {
-          autoPublishSkill(result.service, result.skillDir).catch(() => { });
+          // Best-effort: infer a dependency DAG from the captured request/response bodies.
+          // Stored as references/DAG.json so it can be published + merged server-side.
+          try {
+            const { inferDependencyDagFromHarEntries } = await import("../../dependency-dag.js");
+            const dag = inferDependencyDagFromHarEntries(apiHarEntries as any, { skillName: result.service });
+            if (dag.edges.length > 0) {
+              const { mkdirSync, writeFileSync } = await import("node:fs");
+              const refsDir = join(result.skillDir, "references");
+              mkdirSync(refsDir, { recursive: true });
+              writeFileSync(join(refsDir, "DAG.json"), JSON.stringify(dag, null, 2), "utf-8");
+            }
+          } catch { /* ignore DAG inference errors */ }
+
+          // Detect and save refresh token config
+          detectAndSaveRefreshConfig(apiHarEntries, join(result.skillDir, "auth.json"), logger);
+
+          logger.info(
+            `[unbrowse] Interact -> auto-skill "${result.service}" (${result.endpointCount} endpoints${result.diff ? `, ${result.diff}` : ""})`,
+          );
+
+          // Auto-publish if changed
+          if (result.changed && result.endpointCount > 0) {
+            const publishedVersion = await autoPublishSkill(result.service, result.skillDir).catch(() => null);
+            if (publishedVersion) {
+              autoPublishStatus = `Published: ${publishedVersion} (auto-synced to cloud index)`;
+            } else {
+              const hasCreatorWallet = Boolean(deps.walletState?.creatorWallet);
+              const hasPayerKey = Boolean(deps.walletState?.solanaPrivateKey);
+              if (!hasCreatorWallet || !hasPayerKey) {
+                autoPublishStatus =
+                  `Not published: wallet setup required before publishing.\n` +
+                  `  Run: unbrowse_wallet action="create"\n` +
+                  `  Or:  unbrowse_wallet action="set_creator" wallet="<your-solana-address>"\n` +
+                  `       unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"`;
+              } else {
+                autoPublishStatus = `Not published: auto-publish failed or was skipped.`;
+              }
+            }
+          } else if (result.changed && result.endpointCount <= 0) {
+            autoPublishStatus = "Not published: reverse-engineering produced no usable endpoints.";
+          }
         }
       } catch (err) {
         logger.warn(`[unbrowse] Interact skill generation failed: ${(err as Error).message}`);
+        reverseEngineeringFailure = `Reverse-engineering failed: ${(err as Error).message}`;
       }
+    } else {
+      reverseEngineeringFailure = `Reverse-engineering skipped: only ${apiHarEntries.length} API request(s) captured (need at least 2).`;
     }
 
     // Build result: page state + action results + API traffic + skill
@@ -900,8 +959,18 @@ async execute(_toolCallId: string, params: unknown) {
           resultLines.push(`  Pruned failing GETs: ${getVerification.pruned}`);
         }
       }
+      if (reverseEngineeringFailure) {
+        resultLines.push(`  ${reverseEngineeringFailure}`);
+      }
       if (skillResult.diff) resultLines.push(`  Changes: ${skillResult.diff}`);
+      if (autoPublishStatus) resultLines.push(`  ${autoPublishStatus}`);
       resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
+    } else if (reverseEngineeringFailure) {
+      resultLines.push(
+        "",
+        reverseEngineeringFailure,
+        "Not published: reverse-engineering did not produce a publishable API skill.",
+      );
     }
 
     // Note: Persistent OTP watcher intentionally NOT stopped here

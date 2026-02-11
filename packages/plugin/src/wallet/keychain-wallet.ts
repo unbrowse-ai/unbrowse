@@ -1,21 +1,23 @@
 /**
- * Keychain Wallet — Stores Solana private key in OS keychain with file fallback.
+ * Keychain Wallet — Stores Solana private key in OS keychain.
  *
- * macOS: Uses `security` CLI (Keychain Services)
- * Linux/CI: Falls back to wallet.json with chmod 600
+ * Default behavior is keychain-only for private keys to avoid confusing storage fallbacks.
+ * Public wallet address (creatorWallet) is still stored in wallet.json.
  *
- * The public wallet address (creatorWallet) stays in wallet.json since it's not sensitive.
- * Only the private key (solanaPrivateKey) is promoted to keychain storage.
+ * Optional escape hatch (CI/dev only):
+ *   UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY=true
+ * This re-enables private-key file storage fallback.
  */
 
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 
 const KEYCHAIN_SERVICE = "unbrowse-solana";
 const WALLET_DIR = join(homedir(), ".openclaw", "unbrowse");
 const WALLET_FILE = join(WALLET_DIR, "wallet.json");
+const ALLOW_FILE_PRIVATE_KEY = process.env.UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY === "true";
 
 export interface WalletConfig {
   creatorWallet?: string;
@@ -26,6 +28,10 @@ interface WalletFileData {
   creatorWallet?: string;
   solanaPrivateKey?: string;
   keychain?: boolean;
+}
+
+export function isWalletFileFallbackEnabled(): boolean {
+  return ALLOW_FILE_PRIVATE_KEY;
 }
 
 /** Escape a shell argument for safe use in shell commands. */
@@ -103,7 +109,7 @@ function writeWalletFile(data: WalletFileData): void {
 
 // ── Public API ────────────────────────────────────────────────────────────
 
-/** Load wallet config: private key from keychain (preferred) or file fallback. */
+/** Load wallet config (private key from keychain by default). */
 export function loadWallet(): WalletConfig {
   const file = readWalletFile();
 
@@ -123,11 +129,16 @@ export function loadWallet(): WalletConfig {
     return { creatorWallet: file.creatorWallet, solanaPrivateKey: keychainKey };
   }
 
-  // Fall back to file (Linux, CI, pre-migration)
-  return { creatorWallet: file.creatorWallet, solanaPrivateKey: file.solanaPrivateKey };
+  // Optional explicit fallback for CI/dev only.
+  if (ALLOW_FILE_PRIVATE_KEY && file.solanaPrivateKey) {
+    return { creatorWallet: file.creatorWallet, solanaPrivateKey: file.solanaPrivateKey };
+  }
+
+  // No implicit private-key fallback.
+  return { creatorWallet: file.creatorWallet };
 }
 
-/** Save wallet config: private key to keychain (preferred), public address to file. */
+/** Save wallet config: private key to keychain, public address to file. */
 export function saveWallet(data: { creatorWallet?: string; solanaPrivateKey?: string }): void {
   const existing = readWalletFile();
 
@@ -141,12 +152,20 @@ export function saveWallet(data: { creatorWallet?: string; solanaPrivateKey?: st
       };
       writeWalletFile(fileData);
     } else {
-      // Keychain unavailable — fall back to file with restricted permissions
-      const fileData: WalletFileData = {
-        creatorWallet: data.creatorWallet ?? existing.creatorWallet,
-        solanaPrivateKey: data.solanaPrivateKey,
-      };
-      writeWalletFile(fileData);
+      if (ALLOW_FILE_PRIVATE_KEY) {
+        // Explicit fallback only (CI/dev).
+        const fileData: WalletFileData = {
+          creatorWallet: data.creatorWallet ?? existing.creatorWallet,
+          solanaPrivateKey: data.solanaPrivateKey,
+          keychain: false,
+        };
+        writeWalletFile(fileData);
+      } else {
+        throw new Error(
+          "OS keychain unavailable. Refusing to store wallet private key in file. " +
+          "Enable UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY=true only for CI/dev.",
+        );
+      }
     }
   } else if (data.creatorWallet) {
     // Only updating public address

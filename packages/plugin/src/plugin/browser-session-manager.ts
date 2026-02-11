@@ -22,6 +22,8 @@ export function createBrowserSessionManager(opts: {
 }) {
   const { logger, browserPort } = opts;
   const sessionTtlMs = opts.sessionTtlMs ?? 5 * 60 * 1000;
+  const legacyCdpPorts = Array.from(new Set([browserPort, 9222, 9229]))
+    .filter((port) => Number.isInteger(port) && port > 0 && port !== 18800 && port !== 18792);
 
   let sharedBrowser: any = null;
   let sharedContext: any = null;
@@ -126,10 +128,10 @@ export function createBrowserSessionManager(opts: {
 
       if (!sharedBrowser) {
         // Legacy/local Chrome debugging ports.
-        for (const port of [browserPort, 9222, 9229]) {
+        for (const port of legacyCdpPorts) {
           sharedBrowser = await tryCdpConnect(chromium, port);
           if (sharedBrowser) {
-            sharedBrowserMethod = port === browserPort ? "cdp-openclaw" : "cdp-chrome";
+            sharedBrowserMethod = "cdp-chrome";
             break;
           }
         }

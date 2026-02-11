@@ -188,8 +188,7 @@ export class TaskWatcher {
   private classifyError(toolName: string, error: string): FailureInfo {
     const lowerError = error.toLowerCase();
 
-    // OpenClaw browser tool errors (common, noisy). Recommend unbrowse_browse instead.
-    // This improves "seamlessness" by steering agents away from brittle ref-based snapshots.
+    // OpenClaw browser tool errors (common, noisy). Recommend unbrowse_browse native flow instead.
     if (toolName === "browser") {
       if (lowerError.includes("chrome extension relay is running") && lowerError.includes("no tab is connected")) {
         return {
@@ -198,7 +197,7 @@ export class TaskWatcher {
           errorType: "blocked",
           canResolve: true,
           suggestedAction:
-            "Avoid the built-in browser tool. Use unbrowse_browse (Playwright+CDP :18800). If you must use relay profile \"chrome\", click the OpenClaw Chrome extension icon on a tab to attach.",
+            "Use unbrowse_browse with the OpenClaw managed profile (openclaw browser start --browser-profile openclaw). If using relay profile \"chrome\", attach the extension tab first.",
         };
       }
 
@@ -209,7 +208,7 @@ export class TaskWatcher {
           errorType: "unknown",
           canResolve: true,
           suggestedAction:
-            "Avoid the built-in browser tool snapshot/act path. Use unbrowse_browse actions by index (CDP-first) to reduce ref/fields errors.",
+            "Use unbrowse_browse actions by index (native OpenClaw snapshot/act ref flow).",
         };
       }
 
