@@ -1,16 +1,14 @@
 # Reverse Engineer - Frontend App
 
-A production-ready React application for managing API abilities, credentials, API keys, and analytics.
+A production-ready React app for the Unbrowse marketplace, skill detail explorer, docs, analytics, and earnings.
 
 ## Features
 
-- **Google OAuth Authentication** - Secure login with Google accounts
-- **HAR File Ingestion** - Upload HAR files to automatically extract API calls
-- **Single API Ingestion** - Manually add individual API endpoints
-- **Ability Management** - View, search, filter, favorite, publish, and delete abilities
-- **Credentials Storage** - Manage client-encrypted credentials for API authentication
-- **API Key Management** - Create, list, and revoke API keys for programmatic access
-- **Analytics Dashboard** - Track usage statistics and performance metrics
+- **Marketplace** - Browse/search skills with endpoint stats
+- **Skill Detail** - Endpoint radar with working endpoint filtering
+- **Docs** - Product and API usage docs
+- **Analytics** - Marketplace metrics dashboard
+- **Earnings** - FDRY stats, balances, leaderboard
 
 ## Tech Stack
 
@@ -118,17 +116,18 @@ In this mode, no host port mapping is created. Point Nginx Proxy Manager upstrea
 ```
 app/
 ├── src/
-│   ├── context/
-│   │   └── AuthContext.jsx       # Authentication state management
 │   ├── pages/
-│   │   ├── Login.jsx              # Google OAuth login page
-│   │   ├── Dashboard.jsx          # Main layout with sidebar navigation
-│   │   ├── Home.jsx               # Dashboard home with stats
-│   │   ├── Abilities.jsx          # Ability management
-│   │   ├── Ingestion.jsx          # HAR/API ingestion
-│   │   ├── Credentials.jsx        # Credential management
-│   │   ├── ApiKeys.jsx            # API key management
-│   │   └── Analytics.jsx          # Analytics dashboard
+│   │   ├── Skills.jsx             # Marketplace home
+│   │   ├── Search.jsx             # Search results
+│   │   ├── SkillDetail.jsx        # Skill detail + endpoint radar
+│   │   ├── Docs.jsx               # Documentation
+│   │   ├── Analytics.jsx          # Analytics dashboard
+│   │   └── Earnings.jsx           # FDRY earnings views
+│   ├── components/
+│   │   ├── Layout.jsx             # Main app shell/nav
+│   │   └── FdryBalance.jsx        # FDRY badge in nav
+│   ├── lib/
+│   │   └── api-base.js            # VITE_API_BASE URL helper
 │   ├── App.jsx                    # Root component with routing
 │   ├── main.jsx                   # Entry point
 │   └── index.css                  # Complete styling system
@@ -142,10 +141,6 @@ app/
 
 The dev server is configured to proxy the following routes to `http://localhost:4111`:
 
-- `/auth/*` - Authentication endpoints
-- `/my/*` - User-scoped endpoints
-- `/ingest/*` - Ingestion endpoints
-- `/abilities/*` - Ability endpoints
 - `/analytics/*` - Analytics endpoints
 - `/health` - Health check endpoint
 
@@ -153,49 +148,22 @@ Update the proxy configuration in `vite.config.js` if your backend runs on a dif
 
 ## Features by Page
 
-### Login
-- Google OAuth authentication
-- Clean, modern login UI
+### Marketplace
+- Browse skills by popularity
+- Filter free/paid and search by query/service/domain
+- Endpoint counts shown on cards
 
-### Home Dashboard
-- Overview statistics (total abilities, executions, success rate, avg execution time)
-- Quick action cards for common tasks
-
-### Abilities
-- View all your API abilities
-- Search by name, description, or domain
-- Filter by favorites or published status
-- View detailed information (headers, params, schema)
-- Favorite/unfavorite abilities
-- Publish abilities to share with others
-- Delete abilities
-
-### Ingestion
-- Upload HAR files for automatic API extraction
-- Manually add single API endpoints
-- Support for all HTTP methods (GET, POST, PUT, PATCH, DELETE)
-- JSON headers and body configuration
-
-### Credentials
-- View credentials grouped by domain or in list view
-- Client-side encryption (AES-256-GCM)
-- Export credentials for backup
-- Delete credentials by domain or individually
-- Zero-knowledge architecture (server never sees plaintext)
-
-### API Keys
-- Create API keys with optional expiration and rate limits
-- View key metadata (created, expires, last used, usage count)
-- Revoke keys
-- Copy key to clipboard
-- Usage examples in curl and JavaScript
+### Skill Detail
+- Endpoint radar with status/method/path filters
+- Shows only working endpoints in explorer
+- Skill install/replay command quickstart
 
 ### Analytics
-- User statistics (abilities, executions, success rate, execution time)
-- Top abilities by usage
-- Popular public abilities
-- Recent activity timeline
-- Detailed ability execution history
+- Marketplace-level stats and time series
+- Top skills and retention views
+
+### Earnings
+- FDRY balance/distributions/leaderboard
 
 ## Environment Variables
 
@@ -205,27 +173,16 @@ Update the proxy configuration in `vite.config.js` if your backend runs on a dif
 
 ## Security Notes
 
-- All credentials are encrypted CLIENT-SIDE before being sent to the server
-- The app uses AES-256-GCM encryption with SHA-256 key derivation
-- Zero-knowledge architecture: the server stores only encrypted values
-- API keys support expiration dates and rate limits
-- All requests use session-based authentication with cookies
-
-## Browser Extension
-
-To upload credentials, you'll need the companion browser extension which handles:
-- Automatic credential capture from browsing sessions
-- Client-side encryption before upload
-- Automatic decryption when executing abilities
+- No frontend login flow in this app. Access control is enforced by backend route policies where applicable.
 
 ## Contributing
 
 When adding new features:
 1. Create new page components in `src/pages/`
-2. Add routes to `Dashboard.jsx`
-3. Update navigation in `Dashboard.jsx`
-4. Use the existing CSS classes from `index.css`
-5. Follow the established patterns for API calls and error handling
+2. Add routes in `App.jsx`
+3. Update nav in `components/Layout.jsx`
+4. Use existing CSS variables/patterns in `index.css`
+5. Use `lib/api-base.js` for all backend calls
 
 ## License
 

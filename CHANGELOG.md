@@ -41,7 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plugin marketplace metadata refreshed
 - Default `autoContribute` enabled in plugin manifest
 - Marketplace frontend cards now show endpoint counts in browse and search views
-- Frontend now routes API/auth calls through `VITE_API_BASE` via shared `api-base` helper (marketplace + app + auth flows)
+- Frontend now routes API calls through `VITE_API_BASE` via shared `api-base` helper (marketplace + app flows)
+- Removed frontend email/google login flows and legacy auth-context pages; web app now runs without frontend login/auth routes
 - CI: web app deployment Dockerized for staging/prod SSH workflows
 - Documentation refresh for plugin auth/login behavior and agent notes
 

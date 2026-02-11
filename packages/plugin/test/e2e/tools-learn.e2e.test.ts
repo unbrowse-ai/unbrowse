@@ -23,7 +23,6 @@ describe("Plugin tools (learn e2e)", () => {
       defaultOutputDir: skillsDir,
       autoDiscoverEnabled: true,
       enableChromeCookies: false,
-      enableOtpAutoFill: false,
       enableDesktopAutomation: false,
       skillIndexUrl: "http://127.0.0.1:0",
       indexClient: null,
@@ -37,8 +36,6 @@ describe("Plugin tools (learn e2e)", () => {
       autoPublishSkill: async () => null,
       detectAndSaveRefreshConfig: () => {},
       getOrCreateBrowserSession: async () => ({}),
-      startPersistentOtpWatcher: async () => {},
-      isOtpWatcherActive: () => false,
       getSharedBrowser: () => null,
       closeChrome: async () => {},
       browserSessions: new Map(),
@@ -96,4 +93,3 @@ describe("Plugin tools (learn e2e)", () => {
     expect(apiTs).toContain("headers.json");
   });
 });
-

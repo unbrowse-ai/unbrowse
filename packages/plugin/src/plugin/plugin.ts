@@ -53,8 +53,8 @@ import { loadWallet, migrateToKeychain, saveWallet } from "../wallet/keychain-wa
 import type { WalletState } from "../wallet/wallet-tool.js";
 import { DesktopAutomation } from "../desktop-automation.js";
 import { createTools } from "./tools.js";
-import { createOtpManager } from "./otp-manager.js";
 import { createBrowserSessionManager } from "./browser-session-manager.js";
+import { hasApiIntent } from "./context-hints.js";
 import { createTelemetryClient, loadTelemetryConfig, hashDomain } from "../telemetry-client.js";
 
 /** Scan HAR entries for refresh token endpoints and save config to auth.json */
@@ -149,6 +149,7 @@ const plugin = {
     const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
+    const enableAgentContextHints = (cfg.enableAgentContextHints as boolean) ?? false;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
 
     const telemetryCfg = loadTelemetryConfig({ pluginConfig: cfg });
@@ -211,17 +212,16 @@ const plugin = {
 
     // ── Security: Opt-in sensitive features (all disabled by default) ────
     const enableChromeCookies = (cfg.enableChromeCookies as boolean) ?? false;
-    const enableOtpAutoFill = (cfg.enableOtpAutoFill as boolean) ?? false;
     const enableDesktopAutomation = (cfg.enableDesktopAutomation as boolean) ?? false;
     
     if (enableChromeCookies) {
       logger.info("[unbrowse] Chrome cookie reading ENABLED (opt-in)");
     }
-    if (enableOtpAutoFill) {
-      logger.info("[unbrowse] OTP auto-fill ENABLED (opt-in)");
-    }
     if (enableDesktopAutomation) {
       logger.info("[unbrowse] Desktop automation ENABLED (opt-in)");
+    }
+    if (enableAgentContextHints) {
+      logger.info("[unbrowse] Agent context hints ENABLED (opt-in)");
     }
     if (!autoContributeEnabled) {
       logger.info("[unbrowse] Auto-contribute DISABLED — skills will stay local only. Set autoContribute: true to earn revenue from contributions.");
@@ -233,7 +233,6 @@ const plugin = {
     );
 
     // ── Long-Lived Managers ───────────────────────────────────────────────
-    const otpManager = createOtpManager({ logger, enableOtpAutoFill });
     const sessionManager = createBrowserSessionManager({ logger, browserPort });
     const {
       browserSessions,
@@ -445,7 +444,6 @@ const plugin = {
       defaultOutputDir,
       autoDiscoverEnabled,
       enableChromeCookies,
-      enableOtpAutoFill,
       enableDesktopAutomation,
       skillIndexUrl,
       indexClient,
@@ -459,8 +457,6 @@ const plugin = {
       autoPublishSkill,
       detectAndSaveRefreshConfig,
       getOrCreateBrowserSession,
-      startPersistentOtpWatcher: otpManager.startPersistentOtpWatcher,
-      isOtpWatcherActive: otpManager.isOtpWatcherActive,
       getSharedBrowser,
       closeChrome: async () => { await closeChrome(); },
       browserSessions,
@@ -576,9 +572,8 @@ const plugin = {
     });
 
     // ── Agent Context Hook — Internal API Reverse Engineering ─────────────
-    // Guide the agent to reverse-engineer internal/unofficial APIs from websites
-    // Skip in diagnostic mode to prevent deadlocks
-    api.on("before_agent_start", async () => {
+    // Start long-lived helpers at agent start; context hints are separate opt-in.
+    api.on("before_agent_start", async (event: unknown) => {
       if (isDiagnosticMode) return {};
 
       // Start background tasks only in long-lived agent contexts (not for one-shot CLI commands).
@@ -596,6 +591,9 @@ const plugin = {
       if (telemetryCfg.enabled) {
         telemetry.record("agent_start", { hasWallet: Boolean(creatorWallet && solanaPrivateKey) });
       }
+
+      if (!enableAgentContextHints) return {};
+      if (!hasApiIntent(event)) return {};
 
       // Wallet setup is explicit via unbrowse_wallet (no auto-generation here).
 
@@ -626,7 +624,6 @@ const plugin = {
     const handleExit = () => {
       tokenRefreshScheduler?.stop();
       stopCdpHeaderListener();
-      otpManager.stopPersistentOtpWatcher();
       cleanupAllSessions().catch(() => {});
       telemetry.flush().catch(() => {});
     };
@@ -638,6 +635,7 @@ const plugin = {
     const features = [
       `${toolCount} tools`,
       autoDiscoverEnabled ? "auto-discover" : null,
+      enableAgentContextHints ? "context-hints" : null,
       creatorWallet ? "x402 publishing" : null,
       credentialProvider ? `creds:${credentialProvider.name}` : null,
     ].filter(Boolean).join(", ");

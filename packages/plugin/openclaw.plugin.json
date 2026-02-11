@@ -24,6 +24,11 @@
         "default": true,
         "description": "Automatically generate skills when the agent browses APIs"
       },
+      "enableAgentContextHints": {
+        "type": "boolean",
+        "default": false,
+        "description": "Opt-in: prepend Unbrowse API workflow hints into agent context when API intent is detected"
+      },
       "autoContribute": {
         "type": "boolean",
         "default": true,
@@ -77,11 +82,6 @@
         "default": false,
         "description": "Read Chrome cookies for authenticated API replay (opt-in for privacy)"
       },
-      "enableOtpAutoFill": {
-        "type": "boolean",
-        "default": false,
-        "description": "Automatically fill OTP codes during login flows (opt-in for security)"
-      },
       "enableDesktopAutomation": {
         "type": "boolean",
         "default": false,
@@ -113,6 +113,10 @@
     "autoDiscover": {
       "label": "Auto-Discover Skills",
       "help": "Automatically generate skills when browsing APIs"
+    },
+    "enableAgentContextHints": {
+      "label": "Agent Context Hints",
+      "help": "Opt-in: prepend Unbrowse API workflow hints when API intent is detected"
     },
     "autoContribute": {
       "label": "Auto-Contribute to Index",
@@ -155,10 +159,6 @@
     "enableChromeCookies": {
       "label": "Chrome Cookie Access",
       "help": "Read Chrome cookies for authenticated API replay. Opt-in for privacy."
-    },
-    "enableOtpAutoFill": {
-      "label": "OTP Auto-Fill",
-      "help": "Automatically fill OTP codes during login flows. Opt-in for security."
     },
     "enableDesktopAutomation": {
       "label": "Desktop Automation",
