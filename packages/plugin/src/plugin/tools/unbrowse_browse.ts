@@ -9,6 +9,7 @@ import {
   parseHar,
   generateSkill,
 } from "./shared.js";
+import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
@@ -799,6 +800,7 @@ async execute(_toolCallId: string, params: unknown) {
 
     // Auto-generate skill from captured API traffic
     let skillResult: { service: string; endpointCount: number; changed: boolean; diff?: string; skillDir: string } | null = null;
+    let getVerification: { total: number; verified: number; pruned: number } | null = null;
     const apiHarEntries = harEntries.filter((e) => {
       const ct = e.response.content.mimeType ?? "";
       return ct.includes("json") || ct.includes("xml") || ct.includes("text/plain") || e.request.method !== "GET";
@@ -815,6 +817,15 @@ async execute(_toolCallId: string, params: unknown) {
         // Merge auth headers
         for (const [name, value] of Object.entries(authHeaders)) {
           if (!apiData.authHeaders[name]) apiData.authHeaders[name] = value;
+        }
+
+        const testSummary = await verifyAndPruneGetEndpoints(apiData, authCookies, { maxEndpoints: 30 });
+        if (testSummary) {
+          getVerification = {
+            total: testSummary.total,
+            verified: testSummary.verified,
+            pruned: testSummary.pruned,
+          };
         }
 
         const result = await generateSkill(apiData, defaultOutputDir);
@@ -883,6 +894,12 @@ async execute(_toolCallId: string, params: unknown) {
         "",
         `Skill auto-generated: ${skillResult.service} (${skillResult.endpointCount} endpoints)`,
       );
+      if (getVerification && getVerification.total > 0) {
+        resultLines.push(`  Verified GET: ${getVerification.verified}/${getVerification.total}`);
+        if (getVerification.pruned > 0) {
+          resultLines.push(`  Pruned failing GETs: ${getVerification.pruned}`);
+        }
+      }
       if (skillResult.diff) resultLines.push(`  Changes: ${skillResult.diff}`);
       resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
     }
