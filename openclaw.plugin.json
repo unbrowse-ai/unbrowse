@@ -23,6 +23,11 @@
         "default": true,
         "description": "Automatically generate skills when the agent browses APIs"
       },
+      "enableAgentContextHints": {
+        "type": "boolean",
+        "default": false,
+        "description": "Opt-in: prepend Unbrowse API workflow hints into agent context when API intent is detected"
+      },
       "skillIndexUrl": {
         "type": "string",
         "default": "https://index.unbrowse.ai",
@@ -81,6 +86,10 @@
     "autoDiscover": {
       "label": "Auto-Discover Skills",
       "help": "Automatically generate skills when browsing APIs"
+    },
+    "enableAgentContextHints": {
+      "label": "Agent Context Hints",
+      "help": "Opt-in: prepend Unbrowse API workflow hints when API intent is detected"
     },
     "skillIndexUrl": {
       "label": "Skill Marketplace URL",
