@@ -522,6 +522,7 @@ Gas fees:        5%
           "browserPort": 18791,
           "browserUseApiKey": "your-browserbase-key",
           "autoDiscover": true,
+          "enableAgentContextHints": false,
           "skillIndexUrl": "https://skills.unbrowse.ai",
           "creatorWallet": "your-solana-address",
           "skillIndexSolanaPrivateKey": "base58-key",
