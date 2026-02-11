@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { API_BASE } from '../lib/api';
+
+const API_BASE = 'https://index.unbrowse.ai';
 
 export default function Search() {
   const [searchParams] = useSearchParams();

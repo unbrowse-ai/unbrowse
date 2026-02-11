@@ -1,0 +1,148 @@
+name: Deploy Web (SSH)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      ref:
+        description: "Git ref to deploy (branch/tag/SHA). Leave empty for current branch."
+        required: false
+        type: string
+  push:
+    branches:
+      - staging
+      - prod
+      - production
+      - main
+    paths:
+      - "packages/web/**"
+      - ".github/workflows/deploy-web-ssh.yml"
+
+concurrency:
+  group: deploy-web-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || ((github.ref_name == 'main' || github.ref_name == 'prod' || github.ref_name == 'production') && 'production' || 'staging') }}
+    permissions:
+      contents: read
+    env:
+      IMAGE_NAME: unbrowse-web
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/unbrowse-web' }}
+      DEPLOY_CONTAINER: ${{ secrets.DEPLOY_CONTAINER || 'unbrowse-web' }}
+      DEPLOY_PUBLIC_PORT: ${{ secrets.DEPLOY_PUBLIC_PORT || '3000' }}
+      DEPLOY_ROUTE_MODE: ${{ secrets.DEPLOY_ROUTE_MODE || 'host-port' }}
+      DEPLOY_DOCKER_NETWORK: ${{ secrets.DEPLOY_DOCKER_NETWORK }}
+      DEPLOY_NETWORK_ALIAS: ${{ secrets.DEPLOY_NETWORK_ALIAS || 'unbrowse-web' }}
+      DEPLOY_JUMP_HOST: ${{ secrets.DEPLOY_JUMP_HOST }}
+      DEPLOY_JUMP_USER: ${{ secrets.DEPLOY_JUMP_USER }}
+      DEPLOY_JUMP_PORT: ${{ secrets.DEPLOY_JUMP_PORT || '22' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.ref_name }}
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_HOST}" || { echo "Missing DEPLOY_HOST secret"; exit 1; }
+          test -n "${DEPLOY_USER}" || { echo "Missing DEPLOY_USER secret"; exit 1; }
+          test -n "${{ secrets.DEPLOY_SSH_KEY }}" || { echo "Missing DEPLOY_SSH_KEY secret"; exit 1; }
+
+      - name: Build web image
+        id: image
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="${GITHUB_SHA::12}"
+          IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
+          docker build -f packages/web/Dockerfile -t "${IMAGE_REF}" packages/web
+          docker save "${IMAGE_REF}" | gzip > web-image.tgz
+          echo "image_ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          if [ -n "${{ secrets.DEPLOY_KNOWN_HOSTS }}" ]; then
+            printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          else
+            : > ~/.ssh/known_hosts
+            if [ -n "${DEPLOY_JUMP_HOST}" ]; then
+              ssh-keyscan -p "${DEPLOY_JUMP_PORT}" "${DEPLOY_JUMP_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+            fi
+            ssh-keyscan -p "${DEPLOY_PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          fi
+          chmod 644 ~/.ssh/known_hosts
+          SSH_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+          SSH_JUMP=""
+          if [ -n "${DEPLOY_JUMP_HOST}" ]; then
+            JUMP_USER="${DEPLOY_JUMP_USER:-${DEPLOY_USER}}"
+            SSH_JUMP="-J ${JUMP_USER}@${DEPLOY_JUMP_HOST}:${DEPLOY_JUMP_PORT}"
+          fi
+          echo "SSH_TARGET=${SSH_TARGET}" >> "$GITHUB_ENV"
+          echo "SSH_JUMP=${SSH_JUMP}" >> "$GITHUB_ENV"
+
+      - name: Upload image to server
+        run: |
+          set -euo pipefail
+          ssh ${SSH_JUMP} -p "${DEPLOY_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "${SSH_TARGET}" "mkdir -p '${DEPLOY_PATH}'"
+          scp ${SSH_JUMP} -P "${DEPLOY_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new web-image.tgz "${SSH_TARGET}:${DEPLOY_PATH}/web-image.tgz"
+
+      - name: Deploy container on server
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${{ steps.image.outputs.image_ref }}"
+          ssh ${SSH_JUMP} -p "${DEPLOY_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "${SSH_TARGET}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' DEPLOY_CONTAINER='${DEPLOY_CONTAINER}' DEPLOY_PUBLIC_PORT='${DEPLOY_PUBLIC_PORT}' DEPLOY_ROUTE_MODE='${DEPLOY_ROUTE_MODE}' DEPLOY_DOCKER_NETWORK='${DEPLOY_DOCKER_NETWORK}' DEPLOY_NETWORK_ALIAS='${DEPLOY_NETWORK_ALIAS}' IMAGE_REF='${IMAGE_REF}' bash -s" <<'EOF'
+          set -euo pipefail
+          cd "${DEPLOY_PATH}"
+          gunzip -c web-image.tgz | docker load
+          docker rm -f "${DEPLOY_CONTAINER}" >/dev/null 2>&1 || true
+
+          run_args=(
+            -d
+            --name "${DEPLOY_CONTAINER}"
+            --restart unless-stopped
+          )
+
+          if [ "${DEPLOY_ROUTE_MODE}" = "network" ]; then
+            if [ -z "${DEPLOY_DOCKER_NETWORK}" ]; then
+              echo "DEPLOY_DOCKER_NETWORK is required when DEPLOY_ROUTE_MODE=network"
+              exit 1
+            fi
+            docker network inspect "${DEPLOY_DOCKER_NETWORK}" >/dev/null 2>&1 || docker network create "${DEPLOY_DOCKER_NETWORK}"
+            run_args+=(--network "${DEPLOY_DOCKER_NETWORK}")
+            if [ -n "${DEPLOY_NETWORK_ALIAS}" ]; then
+              run_args+=(--network-alias "${DEPLOY_NETWORK_ALIAS}")
+            fi
+          else
+            if [ -z "${DEPLOY_PUBLIC_PORT}" ]; then
+              echo "DEPLOY_PUBLIC_PORT is required when DEPLOY_ROUTE_MODE=host-port"
+              exit 1
+            fi
+            run_args+=(-p "${DEPLOY_PUBLIC_PORT}:80")
+          fi
+
+          docker run "${run_args[@]}" "${IMAGE_REF}"
+          rm -f web-image.tgz
+          docker image prune -f >/dev/null 2>&1 || true
+          EOF
+
+      - name: Deployment summary
+        run: |
+          echo "Deployed ${{ steps.image.outputs.image_ref }} to ${DEPLOY_HOST} (mode=${DEPLOY_ROUTE_MODE})"

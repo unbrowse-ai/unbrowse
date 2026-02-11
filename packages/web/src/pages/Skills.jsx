@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { API_BASE } from '../lib/api';
+
+const API_BASE = 'https://index.unbrowse.ai';
 
 // Animated constellation effect
 function Constellation() {

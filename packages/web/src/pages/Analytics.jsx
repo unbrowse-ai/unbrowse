@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { API_BASE } from '../lib/api';
+
+const API_BASE = 'https://index.unbrowse.ai';
 
 export default function Analytics() {
   const [overview, setOverview] = useState(null);
