@@ -53,7 +53,7 @@ High-level flow:
 
 ## Wallet
 
-- `src/wallet/keychain-wallet.ts`: stores wallet material (macOS keychain with file fallback for CI/Linux).
+- `src/wallet/keychain-wallet.ts`: stores wallet material (private key in OS keychain by default; file fallback only when explicitly enabled for CI/dev).
 - `src/wallet/wallet-tool.ts`: implementation for `unbrowse_wallet`.
 
 ## Tests
@@ -67,4 +67,3 @@ High-level flow:
     - `test/e2e/postgres-init.sql`
 - Black-box gateway E2E (OCT): `bun run test:oct` / `bun run test:oct:docker`
   - Uses the vendored harness under `third_party/openclaw-test-suite/`.
-

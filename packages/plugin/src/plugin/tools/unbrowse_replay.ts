@@ -12,6 +12,8 @@ import {
   primeHeaders,
 } from "./shared.js";
 import type { HeaderProfileFile, PrimeResult } from "./shared.js";
+import type { CsrfProvenance } from "../../types.js";
+import { applyCsrfProvenance, inferCsrfProvenance } from "../../auth-provenance.js";
 
 export function makeUnbrowseReplayTool(deps: ToolDeps) {
   const {
@@ -78,6 +80,8 @@ async execute(_toolCallId: string, params: unknown) {
   let baseUrl = "https://api.example.com";
   let storedLocalStorage: Record<string, string> = {};
   let storedSessionStorage: Record<string, string> = {};
+  let storedMetaTokens: Record<string, string> = {};
+  let csrfProvenance: CsrfProvenance | undefined;
   let loginConfig: {
     loginUrl: string;
     formFields?: Record<string, string>;
@@ -96,6 +100,7 @@ async execute(_toolCallId: string, params: unknown) {
         cookies = auth.cookies ?? {};
         baseUrl = auth.baseUrl ?? baseUrl;
         loginConfig = auth.loginConfig ?? null;
+        csrfProvenance = auth.csrfProvenance;
 
         // Restore client-side auth tokens (JWTs from localStorage/sessionStorage)
         // These were captured by session-login from the SPA's browser state.
@@ -104,6 +109,7 @@ async execute(_toolCallId: string, params: unknown) {
         const meta = auth.metaTokens as Record<string, string> | undefined;
         storedLocalStorage = ls ?? {};
         storedSessionStorage = ss ?? {};
+        storedMetaTokens = meta ?? {};
 
         for (const [key, value] of [...Object.entries(ls ?? {}), ...Object.entries(ss ?? {})]) {
           const lk = key.toLowerCase();
@@ -180,6 +186,20 @@ async execute(_toolCallId: string, params: unknown) {
     }
   }
   await loadAuth();
+  {
+    const resolved = applyCsrfProvenance({
+      authHeaders,
+      cookies,
+      localStorage: storedLocalStorage,
+      sessionStorage: storedSessionStorage,
+      metaTokens: storedMetaTokens,
+      csrfProvenance,
+    });
+    authHeaders = resolved.authHeaders;
+    if (resolved.applied.length > 0) {
+      logger.info(`[unbrowse] Applied CSRF provenance: ${resolved.applied.join(", ")}`);
+    }
+  }
 
   function toCookieHeader(c: Record<string, string>): string {
     return Object.entries(c).map(([k, v]) => `${k}=${v}`).join("; ");
@@ -204,30 +224,45 @@ async execute(_toolCallId: string, params: unknown) {
       return { status: 0, ok: false, data: "backend mode requires marketplace skillId. Publish first (unbrowse_publish) or pass skillId." };
     }
 
+    let endpointId: string | null = null;
     const endpointsPath = join(skillDir, "references", "ENDPOINTS.json");
-    if (!existsSync(endpointsPath)) {
-      return { status: 0, ok: false, data: "backend mode requires references/ENDPOINTS.json. Re-download or re-publish to sync canonical references." };
+    if (existsSync(endpointsPath)) {
+      try {
+        const list = JSON.parse(readFileSync(endpointsPath, "utf-8"));
+        if (Array.isArray(list)) {
+          for (const item of list) {
+            if (!item) continue;
+            const m = String(item.method || "").toUpperCase();
+            const np = String(item.normalizedPath || item.normalized_path || "");
+            const id = item.endpointId ?? item.endpoint_id;
+            if (m === ep.method.toUpperCase() && np === ep.path && typeof id === "string" && id.length > 0) {
+              endpointId = id;
+              break;
+            }
+          }
+        }
+      } catch { /* ignore */ }
     }
 
-    let endpointId: string | null = null;
-    try {
-      const list = JSON.parse(readFileSync(endpointsPath, "utf-8"));
-      if (Array.isArray(list)) {
+    if (!endpointId) {
+      try {
+        const list = await indexClient.getSkillEndpoints(skillId);
         for (const item of list) {
-          if (!item) continue;
           const m = String(item.method || "").toUpperCase();
-          const np = String(item.normalizedPath || item.normalized_path || "");
-          const id = item.endpointId ?? item.endpoint_id;
+          const np = String(item.normalizedPath || "");
+          const id = item.endpointId;
           if (m === ep.method.toUpperCase() && np === ep.path && typeof id === "string" && id.length > 0) {
             endpointId = id;
             break;
           }
         }
+      } catch (err) {
+        logger.warn(`[unbrowse] Failed to fetch canonical endpoint list for ${skillId}: ${(err as Error).message}`);
       }
-    } catch { /* ignore */ }
+    }
 
     if (!endpointId) {
-      return { status: 0, ok: false, data: `No endpointId for ${ep.method} ${ep.path} in references/ENDPOINTS.json. Re-publish to refresh references.` };
+      return { status: 0, ok: false, data: `No canonical endpointId for ${ep.method} ${ep.path}. Re-publish skill or refresh marketplace mapping.` };
     }
 
     let parsedBody: any = undefined;
@@ -333,6 +368,8 @@ async execute(_toolCallId: string, params: unknown) {
   let chromeContext: any = null;
   let browserSource: "openclaw" | "cdp" | "none" = "none";
   let ownsBrowser = false;
+  const fallbackCdpPorts = Array.from(new Set([18792, browserPort, 9222, 9229]))
+    .filter((port) => Number.isInteger(port) && port > 0 && port !== 18800);
 
   async function getChromePage(): Promise<any | null> {
     if (chromePage) return chromePage;
@@ -367,9 +404,9 @@ async execute(_toolCallId: string, params: unknown) {
       } catch { /* still unavailable */ }
     }
 
-    // Strategy 2: Try CDP ports directly
+    // Strategy 2: Try fallback CDP ports (most reliable first from observed runs)
     if (!chromeBrowser) {
-      for (const port of [9222, 9229, browserPort, 18792]) {
+      for (const port of fallbackCdpPorts) {
         try {
           const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
           if (!resp.ok) continue;
@@ -627,6 +664,15 @@ async execute(_toolCallId: string, params: unknown) {
         // Update in-memory creds
         authHeaders = result.authHeaders;
         cookies = result.cookies;
+        csrfProvenance = inferCsrfProvenance({
+          authHeaders,
+          cookies,
+          localStorage: storedLocalStorage,
+          sessionStorage: storedSessionStorage,
+          metaTokens: storedMetaTokens,
+          authInfo: {},
+          existing: csrfProvenance,
+        });
 
         // Persist refreshed creds to auth.json
         const { writeFileSync } = await import("node:fs");
@@ -635,6 +681,7 @@ async execute(_toolCallId: string, params: unknown) {
           : {};
         existing.headers = result.authHeaders;
         existing.cookies = result.cookies;
+        existing.csrfProvenance = csrfProvenance;
         existing.timestamp = new Date().toISOString();
         existing.refreshedAt = new Date().toISOString();
         writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
@@ -645,11 +692,11 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
-    // Strategy 2: re-grab cookies via CDP connect (Chrome profile)
+    // Strategy 2: re-grab cookies via CDP connect (reliability-ordered ports)
     try {
       const { chromium } = await import("playwright-core");
       let browser: any = null;
-      for (const port of [browserPort, 9222, 9229]) {
+      for (const port of [18800, ...fallbackCdpPorts]) {
         try {
           const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
           if (!resp.ok) continue;
@@ -675,12 +722,22 @@ async execute(_toolCallId: string, params: unknown) {
 
           if (Object.keys(freshCookies).length > 0) {
             cookies = freshCookies;
+            csrfProvenance = inferCsrfProvenance({
+              authHeaders,
+              cookies,
+              localStorage: storedLocalStorage,
+              sessionStorage: storedSessionStorage,
+              metaTokens: storedMetaTokens,
+              authInfo: {},
+              existing: csrfProvenance,
+            });
 
             const { writeFileSync } = await import("node:fs");
             const existing = existsSync(authPath)
               ? JSON.parse(readFileSync(authPath, "utf-8"))
               : {};
             existing.cookies = freshCookies;
+            existing.csrfProvenance = csrfProvenance;
             existing.timestamp = new Date().toISOString();
             existing.refreshedAt = new Date().toISOString();
             writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
@@ -884,6 +941,16 @@ async execute(_toolCallId: string, params: unknown) {
     existing.baseUrl = baseUrl;
     existing.localStorage = storedLocalStorage;
     existing.sessionStorage = storedSessionStorage;
+    existing.metaTokens = { ...(existing.metaTokens ?? {}), ...storedMetaTokens };
+    existing.csrfProvenance = inferCsrfProvenance({
+      authHeaders,
+      cookies,
+      localStorage: storedLocalStorage,
+      sessionStorage: storedSessionStorage,
+      metaTokens: existing.metaTokens ?? storedMetaTokens,
+      authInfo: existing.authInfo ?? {},
+      existing: existing.csrfProvenance ?? csrfProvenance,
+    });
     existing.lastReplayAt = new Date().toISOString();
     if (loginConfig) existing.loginConfig = loginConfig;
     writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");

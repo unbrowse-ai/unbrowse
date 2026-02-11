@@ -13,6 +13,7 @@ import {
   parseHar,
   generateSkill,
 } from "./shared.js";
+import { inferCsrfProvenance } from "../../auth-provenance.js";
 
 export function makeUnbrowseLoginTool(deps: ToolDeps) {
   const {
@@ -119,6 +120,13 @@ async execute(_toolCallId: string, params: unknown) {
       localStorage: result.localStorage,
       sessionStorage: result.sessionStorage,
       metaTokens: result.metaTokens,
+      csrfProvenance: inferCsrfProvenance({
+        authHeaders: result.authHeaders,
+        cookies: result.cookies,
+        localStorage: result.localStorage,
+        sessionStorage: result.sessionStorage,
+        metaTokens: result.metaTokens,
+      }),
     };
 
     // Store login config so replay can re-login when creds expire

@@ -1,4 +1,4 @@
-import { saveWallet, isKeychainAvailable } from "./keychain-wallet.js";
+import { saveWallet, isKeychainAvailable, isWalletFileFallbackEnabled } from "./keychain-wallet.js";
 import { generateBase58Keypair, keypairFromBase58PrivateKey } from "../solana/solana-helpers.js";
 
 type Logger = {
@@ -50,6 +50,8 @@ export function createWalletTool(opts: {
     async execute(_toolCallId: string, params: unknown) {
       const p = params as { action?: string; wallet?: string; privateKey?: string };
       const action = p.action ?? "status";
+      const keychainAvailable = isKeychainAvailable();
+      const fileFallbackEnabled = isWalletFileFallbackEnabled();
 
       const creatorWallet = walletState.creatorWallet;
       const solanaPrivateKey = walletState.solanaPrivateKey;
@@ -122,7 +124,16 @@ export function createWalletTool(opts: {
             }],
           };
         } catch (err) {
-          return { content: [{ type: "text", text: `Invalid key or save failed: ${(err as Error).message}` }] };
+          return {
+            content: [{
+              type: "text",
+              text:
+                `Invalid key or save failed: ${(err as Error).message}\n` +
+                (!keychainAvailable && !fileFallbackEnabled
+                  ? `Enable OS keychain access, or for CI/dev only set UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY=true.`
+                  : ``),
+            }],
+          };
         }
       }
 
@@ -140,7 +151,7 @@ export function createWalletTool(opts: {
                 "",
                 `Address: ${keypair.publicKey.toBase58()}`,
                 `Private Key: ${solanaPrivateKey}`,
-                `Storage: ${isKeychainAvailable() ? "OS Keychain (encrypted)" : "~/.openclaw/unbrowse/wallet.json"}`,
+                `Storage: ${keychainAvailable ? "OS Keychain (encrypted)" : (fileFallbackEnabled ? "~/.openclaw/unbrowse/wallet.json (fallback enabled)" : "Unavailable (keychain required)")}`,
                 "",
                 "SECURITY WARNINGS:",
                 "  - Never share this private key with anyone",
@@ -162,7 +173,9 @@ export function createWalletTool(opts: {
       else lines.push("Creator (earning): not configured");
 
       if (solanaPrivateKey) {
-        const storage = isKeychainAvailable() ? "OS Keychain" : "wallet.json";
+        const storage = keychainAvailable
+          ? "OS Keychain"
+          : (fileFallbackEnabled ? "wallet.json (fallback enabled)" : "Unavailable (keychain required)");
         try {
           const keypair = await keypairFromBase58PrivateKey(solanaPrivateKey);
           lines.push(`Payer (spending):  ${keypair.publicKey.toBase58()}`);
@@ -201,7 +214,9 @@ export function createWalletTool(opts: {
           '  Option 1: Use action="create" to generate a new keypair',
           '  Option 2: Use action="set_payer" with privateKey="YOUR_PRIVATE_KEY" to import existing',
           "",
-          "A payer key is needed to download skills from the marketplace.",
+          keychainAvailable || fileFallbackEnabled
+            ? "A payer key is needed to download skills from the marketplace."
+            : "A payer key is needed to download skills, and keychain access is required in this mode.",
         );
       } else if (!creatorWallet) {
         lines.push(

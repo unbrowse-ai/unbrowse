@@ -21,6 +21,8 @@ export function makeUnbrowseLearnTool(deps: ToolDeps) {
     parameters: LEARN_SCHEMA,
     async execute(_toolCallId: string, params: unknown) {
       const p = params as { harPath?: string; harJson?: string; outputDir?: string };
+      const hasCreatorWallet = Boolean(deps.walletState?.creatorWallet);
+      const hasPayerKey = Boolean(deps.walletState?.solanaPrivateKey);
 
       let harData: { log: { entries: unknown[] } };
 
@@ -46,6 +48,18 @@ export function makeUnbrowseLearnTool(deps: ToolDeps) {
 
       try {
         const apiData = parseHar(harData as any);
+        const extractedEndpointCount = Object.keys(apiData.endpoints ?? {}).length;
+        if (extractedEndpointCount === 0) {
+          return {
+            content: [{
+              type: "text",
+              text:
+                "Reverse-engineering failed: no internal API endpoints were extracted from this HAR.\n" +
+                "Not published: skills without usable endpoints are not sent to the marketplace.\n" +
+                "Capture more real in-app actions (especially authenticated API calls) and retry.",
+            }],
+          };
+        }
         const result = await generateSkill(apiData, p.outputDir ?? defaultOutputDir);
         discovery.markLearned(result.service);
 
@@ -72,6 +86,16 @@ export function makeUnbrowseLearnTool(deps: ToolDeps) {
         );
         if (publishedVersion) {
           summaryLines.push(`Published: ${publishedVersion} (auto-synced to cloud index)`);
+        } else if (result.changed) {
+          summaryLines.push(`Not published: auto-publish failed or was skipped.`);
+          if (!hasCreatorWallet || !hasPayerKey) {
+            summaryLines.push(`  Reason: wallet setup required before publishing.`);
+            summaryLines.push(`  Run: unbrowse_wallet action="create"`);
+            summaryLines.push(`  Or:  unbrowse_wallet action="set_creator" wallet="<your-solana-address>"`);
+            summaryLines.push(`       unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"`);
+          } else {
+            summaryLines.push(`  Reason: skill could not be safely published right now (quality gate or index availability).`);
+          }
         }
         summaryLines.push("", `Use ${toPascalCase(result.service)}Client from scripts/api.ts`);
 
@@ -83,4 +107,3 @@ export function makeUnbrowseLearnTool(deps: ToolDeps) {
     },
   };
 }
-

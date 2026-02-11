@@ -38,6 +38,22 @@ export interface ParsedRequest {
 }
 
 /** Auth credentials extracted from traffic. */
+export type CsrfSourceType = "cookie" | "localStorage" | "sessionStorage" | "meta" | "header";
+
+export interface CsrfProvenanceRule {
+  targetHeader: string;
+  sourceType: CsrfSourceType;
+  sourceKey: string;
+  confidence: number;
+  observedAt: string;
+}
+
+export interface CsrfProvenance {
+  version: 1;
+  lastUpdated: string;
+  rules: CsrfProvenanceRule[];
+}
+
 export interface AuthInfo {
   service: string;
   baseUrl: string;
@@ -50,6 +66,7 @@ export interface AuthInfo {
   userId?: string;
   outletIds?: string[];
   authInfo?: Record<string, string>;
+  csrfProvenance?: CsrfProvenance;
 }
 
 /** Full parsed API data from HAR analysis. */
