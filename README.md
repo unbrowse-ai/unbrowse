@@ -278,6 +278,7 @@ Full config example:
         "config": {
           "skillsOutputDir": "~/.openclaw/skills",
           "autoDiscover": true,
+          "enableAgentContextHints": false,
           "skillIndexUrl": "https://index.unbrowse.ai",
           "marketplace": {
             "creatorWallet": "YOUR_SOLANA_WALLET_ADDRESS",
@@ -302,6 +303,7 @@ Full config example:
 |--------|---------|-------------|
 | `skillsOutputDir` | `~/.openclaw/skills` | Where generated skills are saved |
 | `autoDiscover` | `true` | Auto-generate skills when browsing APIs |
+| `enableAgentContextHints` | `false` | Opt-in: prepend Unbrowse API guidance into agent context |
 | `skillIndexUrl` | `https://index.unbrowse.ai` | Marketplace API URL |
 | `marketplace.creatorWallet` | - | Solana address to receive USDC |
 | `marketplace.solanaPrivateKey` | - | Private key for x402 payments |
@@ -456,6 +458,7 @@ The following capabilities now require explicit opt-in via config:
 | Chrome cookie reading | `enableChromeCookies: true` |
 | OTP auto-fill (SMS/clipboard) | `enableOtpAutoFill: true` |
 | Desktop automation (AppleScript) | `enableDesktopAutomation: true` |
+| Agent context hints (before_agent_start prepend) | `enableAgentContextHints: true` |
 | Keychain/1Password credentials | `credentialSource: "keychain"` |
 
 **Why:** These features access sensitive local data. While necessary for full automation, they should be opt-in so users understand what they're enabling.
@@ -469,7 +472,8 @@ The following capabilities now require explicit opt-in via config:
         "config": {
           "enableChromeCookies": true,
           "enableOtpAutoFill": true,
-          "enableDesktopAutomation": true
+          "enableDesktopAutomation": true,
+          "enableAgentContextHints": true
         }
       }
     }

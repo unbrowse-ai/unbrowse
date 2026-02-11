@@ -561,6 +561,7 @@ const plugin = {
     const enableChromeCookies = (cfg.enableChromeCookies as boolean) ?? false;
     const enableOtpAutoFill = (cfg.enableOtpAutoFill as boolean) ?? false;
     const enableDesktopAutomation = (cfg.enableDesktopAutomation as boolean) ?? false;
+    const enableAgentContextHints = (cfg.enableAgentContextHints as boolean) ?? false;
     
     if (enableChromeCookies) {
       logger.info("[unbrowse] Chrome cookie reading ENABLED (opt-in)");
@@ -570,6 +571,9 @@ const plugin = {
     }
     if (enableDesktopAutomation) {
       logger.info("[unbrowse] Desktop automation ENABLED (opt-in)");
+    }
+    if (enableAgentContextHints) {
+      logger.info("[unbrowse] Agent context hints ENABLED (opt-in)");
     }
 
     // ── Wallet Setup Helpers ──────────────────────────────────────────────
@@ -4674,30 +4678,33 @@ const plugin = {
     };
 
     // ── Agent Context Hook — Internal API Reverse Engineering ─────────────
-    // Inject guidance only when the user explicitly asks about API access/capture.
-    api.on("before_agent_start", async (event: any) => {
-      if (!isGatewayService || isDiagnosticMode) return {};
-      if (!isApiIntent(event)) return {};
+    // Disabled by default: opt-in only via enableAgentContextHints.
+    if (enableAgentContextHints) {
+      // Inject guidance only when the user explicitly asks about API access/capture.
+      api.on("before_agent_start", async (event: any) => {
+        if (!isGatewayService || isDiagnosticMode) return {};
+        if (!isApiIntent(event)) return {};
 
-      const lines: string[] = [
-        "[Internal API Access] Reverse-engineer and call internal APIs from any website.",
-        "",
-        "Workflow: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_replay (call).",
-        "For authenticated sites, use unbrowse_login first. Use unbrowse_do for guidance.",
-      ];
+        const lines: string[] = [
+          "[Internal API Access] Reverse-engineer and call internal APIs from any website.",
+          "",
+          "Workflow: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_replay (call).",
+          "For authenticated sites, use unbrowse_login first. Use unbrowse_do for guidance.",
+        ];
 
-      // Only mention wallet if explicitly configured
-      if (creatorWallet && solanaPrivateKey) {
-        lines.push("", `Skill marketplace wallet: ${creatorWallet}`);
-      }
+        // Only mention wallet if explicitly configured
+        if (creatorWallet && solanaPrivateKey) {
+          lines.push("", `Skill marketplace wallet: ${creatorWallet}`);
+        }
 
-      // Only mention credential source if configured
-      if (credentialProvider) {
-        lines.push("", `Credential source: ${credentialProvider.name} (auto-login enabled)`);
-      }
+        // Only mention credential source if configured
+        if (credentialProvider) {
+          lines.push("", `Credential source: ${credentialProvider.name} (auto-login enabled)`);
+        }
 
-      return { prependContext: lines.join("\n") };
-    });
+        return { prependContext: lines.join("\n") };
+      });
+    }
 
     // ── Cleanup on shutdown ─────────────────────────────────────────────────
     // Close shared browser and sessions when gateway shuts down
@@ -4736,6 +4743,7 @@ const plugin = {
     const features = [
       `${toolCount} tools`,
       autoDiscoverEnabled ? "auto-discover" : null,
+      enableAgentContextHints ? "context-hints" : null,
       creatorWallet ? "x402 publishing" : null,
       credentialProvider ? `creds:${credentialProvider.name}` : null,
     ].filter(Boolean).join(", ");
