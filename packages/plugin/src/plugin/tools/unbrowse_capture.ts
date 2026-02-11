@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { parseHar } from "../../har-parser.js";
 import { generateSkill } from "../../skill-generator.js";
+import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
 import { CAPTURE_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 import { normalizeUrlList, coalesceDir } from "./input-normalizers.js";
@@ -89,34 +90,18 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           apiData = mergeOpenApiEndpoints(apiData, openApiSpec.endpoints, specBaseUrl);
         }
 
-        // Auto-test GET endpoints
+        // Auto-test GET endpoints and prune failing tested GETs.
         let testSummary: {
           total: number;
           verified: number;
           failed: number;
           skipped: number;
+          pruned: number;
           results: Array<{ method: string; path: string; ok: boolean; hasData: boolean }>;
         } | null = null;
         if (shouldTest && Object.keys(apiData.endpoints).length > 0) {
           try {
-            const { testGetEndpoints } = await import("../../endpoint-tester.js");
-            testSummary = await testGetEndpoints(
-              apiData.baseUrl,
-              apiData.endpoints,
-              apiData.authHeaders,
-              { ...apiData.cookies, ...cookies },
-            );
-
-            // Mark endpoints as verified based on test results
-            for (const tr of testSummary.results) {
-              for (const [, reqs] of Object.entries(apiData.endpoints)) {
-                for (const r of reqs as any[]) {
-                  if (r.path === tr.path && r.method === tr.method) {
-                    r.verified = tr.ok && tr.hasData;
-                  }
-                }
-              }
-            }
+            testSummary = await verifyAndPruneGetEndpoints(apiData, cookies);
           } catch (testErr) {
             logger.warn(`[unbrowse] Endpoint testing failed: ${(testErr as Error).message}`);
           }
@@ -124,7 +109,7 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
 
         const result = await generateSkill(apiData, outDir, {
           verifiedEndpoints: testSummary?.verified,
-          unverifiedEndpoints: testSummary?.failed,
+          unverifiedEndpoints: testSummary ? Math.max(0, testSummary.total - testSummary.verified) : undefined,
           openApiSource: crawlResult?.openApiSource,
           pagesCrawled: crawlResult?.pagesCrawled,
         });
@@ -159,6 +144,9 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         }
         if (testSummary) {
           summaryLines.push(`Verified: ${testSummary.verified}/${testSummary.total} GET endpoints`);
+          if (testSummary.pruned > 0) {
+            summaryLines.push(`Pruned: ${testSummary.pruned} failing GET endpoint(s) before publish`);
+          }
         }
         summaryLines.push(
           `Auth headers: ${result.authHeaderCount} | Cookies: ${result.cookieCount}`,
