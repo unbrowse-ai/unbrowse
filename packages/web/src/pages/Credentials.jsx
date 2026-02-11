@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { apiUrl } from '../lib/api-base';
 
 export default function Credentials() {
   const { user } = useAuth();
@@ -22,8 +23,8 @@ export default function Credentials() {
 
     try {
       const url = viewMode === 'grouped'
-        ? '/my/credentials?groupByDomain=true'
-        : '/my/credentials';
+        ? apiUrl('/my/credentials?groupByDomain=true')
+        : apiUrl('/my/credentials');
 
       const response = await fetch(url, {
         credentials: 'include',
@@ -53,7 +54,7 @@ export default function Credentials() {
     }
 
     try {
-      const response = await fetch(`/my/credentials/${encodeURIComponent(domain)}`, {
+      const response = await fetch(apiUrl(`/my/credentials/${encodeURIComponent(domain)}`), {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -76,7 +77,7 @@ export default function Credentials() {
     }
 
     try {
-      const response = await fetch(`/my/credentials/by-id/${credentialId}`, {
+      const response = await fetch(apiUrl(`/my/credentials/by-id/${credentialId}`), {
         method: 'DELETE',
         credentials: 'include',
       });

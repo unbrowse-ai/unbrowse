@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+import { apiUrl } from '../lib/api-base';
 
 export default function FdryBalance({ wallet }) {
   const [balance, setBalance] = useState(null);
@@ -12,7 +11,7 @@ export default function FdryBalance({ wallet }) {
 
     const fetchBalance = async () => {
       try {
-        const res = await fetch(`${API_BASE}/fdry/balance/${wallet}`);
+        const res = await fetch(apiUrl(`/fdry/balance/${wallet}`));
         if (res.ok) {
           const data = await res.json();
           setBalance(data.balance ?? data.credits ?? 0);

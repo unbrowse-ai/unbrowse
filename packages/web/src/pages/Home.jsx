@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { apiUrl } from '../lib/api-base';
 
 export default function Home() {
   const { user } = useAuth();
@@ -13,7 +14,7 @@ export default function Home() {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('/analytics/my/stats', {
+      const response = await fetch(apiUrl('/analytics/my/stats'), {
         credentials: 'include'
       });
       if (response.ok) {

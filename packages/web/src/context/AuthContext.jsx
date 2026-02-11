@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { apiUrl } from '../lib/api-base';
 
 const AuthContext = createContext(null);
 
@@ -13,7 +14,7 @@ export function AuthProvider({ children }) {
   const checkAuth = async () => {
     try {
       // Check if user has a valid session
-      const response = await fetch('/better-auth/session', {
+      const response = await fetch(apiUrl('/better-auth/session'), {
         credentials: 'include',
       });
 
@@ -32,12 +33,12 @@ export function AuthProvider({ children }) {
 
   const loginWithGoogle = () => {
     // Simple redirect to Google OAuth (BetterAuth handles the flow)
-    window.location.href = '/better-auth/sign-in/social?provider=google&callbackURL=/';
+    window.location.href = apiUrl('/better-auth/sign-in/social?provider=google&callbackURL=/');
   };
 
   const signUpWithEmail = async (email, password, name) => {
     try {
-      const response = await fetch('/better-auth/sign-up/email', {
+      const response = await fetch(apiUrl('/better-auth/sign-up/email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,7 +68,7 @@ export function AuthProvider({ children }) {
 
   const signInWithEmail = async (email, password) => {
     try {
-      const response = await fetch('/better-auth/sign-in/email', {
+      const response = await fetch(apiUrl('/better-auth/sign-in/email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,7 +97,7 @@ export function AuthProvider({ children }) {
 
   const resetPassword = async (email) => {
     try {
-      const response = await fetch('/better-auth/reset-password', {
+      const response = await fetch(apiUrl('/better-auth/reset-password'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +124,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await fetch('/better-auth/sign-out', {
+      await fetch(apiUrl('/better-auth/sign-out'), {
         method: 'POST',
         credentials: 'include',
       });

@@ -199,7 +199,9 @@ Update the proxy configuration in `vite.config.js` if your backend runs on a dif
 
 ## Environment Variables
 
-No environment variables are required for the frontend. All configuration is done through the backend API.
+- `VITE_API_BASE` (optional, recommended): backend base URL for marketplace/admin/FDRY calls.
+- Example: `VITE_API_BASE=https://staging-index.unbrowse.ai`
+- If unset, the app uses same-origin relative paths (works with local proxy/reverse proxy setups).
 
 ## Security Notes
 

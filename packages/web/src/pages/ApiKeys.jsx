@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { apiUrl } from '../lib/api-base';
 
 export default function ApiKeys() {
   const { user } = useAuth();
@@ -22,7 +23,7 @@ export default function ApiKeys() {
     setError(null);
 
     try {
-      const response = await fetch('/my/api-keys', {
+      const response = await fetch(apiUrl('/my/api-keys'), {
         credentials: 'include',
       });
 
@@ -63,7 +64,7 @@ export default function ApiKeys() {
         };
       }
 
-      const response = await fetch('/my/api-keys', {
+      const response = await fetch(apiUrl('/my/api-keys'), {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -96,7 +97,7 @@ export default function ApiKeys() {
     }
 
     try {
-      const response = await fetch(`/my/api-keys/${keyId}`, {
+      const response = await fetch(apiUrl(`/my/api-keys/${keyId}`), {
         method: 'DELETE',
         credentials: 'include',
       });

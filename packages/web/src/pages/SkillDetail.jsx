@@ -1,7 +1,30 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { apiUrl } from '../lib/api-base';
 
-const API_BASE = 'https://index.unbrowse.ai';
+function formatValidationStatus(status) {
+  if (!status) return 'Unknown';
+  return status
+    .toString()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function normalizeMethod(method) {
+  return String(method || 'GET').toUpperCase();
+}
+
+function methodClassName(method) {
+  return `method-${normalizeMethod(method).toLowerCase()}`;
+}
+
+function isWorkingEndpoint(endpoint) {
+  const status = String(endpoint?.validationStatus || '').toLowerCase();
+  if (status) {
+    return status === 'verified' || status === 'auth_required';
+  }
+  return Number(endpoint?.successfulExecutions || 0) > 0;
+}
 
 export default function SkillDetail() {
   const { id } = useParams();
@@ -11,18 +34,30 @@ export default function SkillDetail() {
   const [skillContent, setSkillContent] = useState(null);
   const [loadingContent, setLoadingContent] = useState(false);
 
+  const [endpoints, setEndpoints] = useState([]);
+  const [loadingEndpoints, setLoadingEndpoints] = useState(false);
+  const [endpointError, setEndpointError] = useState(null);
+  const [endpointMethodFilter, setEndpointMethodFilter] = useState('all');
+  const [endpointSearch, setEndpointSearch] = useState('');
+
   useEffect(() => {
+    setLoading(true);
+    setSkill(null);
+    setSkillContent(null);
+    setEndpoints([]);
+    setEndpointMethodFilter('all');
+    setEndpointSearch('');
     loadSkill();
+    loadSkillEndpoints(id);
   }, [id]);
 
   const loadSkill = async () => {
     try {
-      const res = await fetch(`${API_BASE}/marketplace/skills/${id}`);
+      const res = await fetch(apiUrl(`/marketplace/skills/${id}`));
       if (res.ok) {
         const data = await res.json();
         setSkill(data.skill);
 
-        // If free skill, fetch the full content
         const price = parseFloat(data.skill?.priceUsdc || '0');
         if (price === 0) {
           loadSkillContent(id);
@@ -38,8 +73,7 @@ export default function SkillDetail() {
   const loadSkillContent = async (skillId) => {
     setLoadingContent(true);
     try {
-      // Try to fetch the skill download endpoint (free skills should return content)
-      const res = await fetch(`${API_BASE}/marketplace/skill-downloads/${skillId}`);
+      const res = await fetch(apiUrl(`/marketplace/skill-downloads/${skillId}`));
       if (res.ok) {
         const data = await res.json();
         setSkillContent(data.skill || data);
@@ -48,6 +82,49 @@ export default function SkillDetail() {
       console.error('Failed to load skill content:', err);
     } finally {
       setLoadingContent(false);
+    }
+  };
+
+  const loadSkillEndpoints = async (skillId) => {
+    setLoadingEndpoints(true);
+    setEndpointError(null);
+    try {
+      const res = await fetch(apiUrl(`/marketplace/skills/${skillId}/endpoints`));
+      if (!res.ok) {
+        throw new Error(`Failed to load endpoints (${res.status})`);
+      }
+
+      const data = await res.json();
+      const normalized = (data.endpoints || [])
+        .map((ep, index) => ({
+          id: ep.endpointId || `${ep.method || 'GET'}-${ep.normalizedPath || ep.rawPath || index}`,
+          method: normalizeMethod(ep.method),
+          path: ep.rawPath || ep.normalizedPath || '/',
+          normalizedPath: ep.normalizedPath || ep.rawPath || '/',
+          domain: ep.domain || '',
+          validationStatus: ep.validationStatus || null,
+          qualityScore: typeof ep.qualityScore === 'number' ? ep.qualityScore : null,
+          healthScore: typeof ep.healthScore === 'number' ? ep.healthScore : null,
+          totalExecutions: typeof ep.totalExecutions === 'number' ? ep.totalExecutions : 0,
+          successfulExecutions: typeof ep.successfulExecutions === 'number' ? ep.successfulExecutions : 0,
+        }))
+        .sort((a, b) => {
+          if (b.totalExecutions !== a.totalExecutions) {
+            return b.totalExecutions - a.totalExecutions;
+          }
+          if (a.method !== b.method) {
+            return a.method.localeCompare(b.method);
+          }
+          return a.path.localeCompare(b.path);
+        });
+
+      setEndpoints(normalized);
+    } catch (err) {
+      const message = err?.message || 'Failed to load endpoints';
+      setEndpointError(message);
+      console.error('Failed to load endpoint list:', err);
+    } finally {
+      setLoadingEndpoints(false);
     }
   };
 
@@ -62,7 +139,6 @@ export default function SkillDetail() {
   };
 
   const handlePurchase = () => {
-    // TODO: Implement x402 payment flow
     alert('x402 payment flow coming soon!\n\nFor now, use unbrowse_search in Claude/OpenClaw to install skills.');
   };
 
@@ -85,8 +161,58 @@ export default function SkillDetail() {
     );
   }
 
+  const fallbackEndpointSource = Array.isArray(skillContent?.endpoints)
+    ? skillContent.endpoints
+    : (Array.isArray(skill.endpoints) ? skill.endpoints : []);
+
+  const fallbackEndpoints = fallbackEndpointSource.map((ep, index) => ({
+    id: `${ep.method || 'GET'}-${ep.path || ep.endpoint || ep.url || index}`,
+    method: normalizeMethod(ep.method),
+    path: ep.path || ep.endpoint || ep.url || '/',
+    normalizedPath: ep.path || ep.endpoint || ep.url || '/',
+    domain: skill.domain || '',
+    validationStatus: null,
+    qualityScore: null,
+    healthScore: null,
+    totalExecutions: 0,
+    successfulExecutions: 0,
+  }));
+
+  const endpointRecords = endpoints.length > 0 ? endpoints : fallbackEndpoints;
+  const workingEndpointRecords = endpointRecords.filter(isWorkingEndpoint);
+
+  const methodOptions = [
+    'all',
+    ...new Set(workingEndpointRecords.map((ep) => ep.method).filter(Boolean)),
+  ];
+
+  const filteredEndpoints = workingEndpointRecords.filter((ep) => {
+    if (endpointMethodFilter !== 'all' && ep.method !== endpointMethodFilter) {
+      return false;
+    }
+
+    if (!endpointSearch.trim()) {
+      return true;
+    }
+
+    const q = endpointSearch.toLowerCase();
+    return (
+      ep.path.toLowerCase().includes(q)
+      || ep.normalizedPath.toLowerCase().includes(q)
+      || ep.domain.toLowerCase().includes(q)
+    );
+  });
+
   const price = parseFloat(skill.priceUsdc || '0');
   const isFree = price === 0;
+
+  const listedEndpointCount = workingEndpointRecords.length;
+  const fallbackEndpointCount = Number(skill.verifiedEndpointCount || 0);
+  const endpointCount = listedEndpointCount || fallbackEndpointCount;
+
+  const verifiedEndpoints = endpointCount;
+  const methodCount = new Set(workingEndpointRecords.map((ep) => ep.method).filter(Boolean)).size;
+  const totalExecutions = workingEndpointRecords.reduce((sum, ep) => sum + (ep.totalExecutions || 0), 0);
 
   const searchCommand = `unbrowse_search query="${skill.name}"`;
   const installCommand = `unbrowse_install id="${skill.skillId}"`;
@@ -116,7 +242,6 @@ export default function SkillDetail() {
         </div>
       </div>
 
-      {/* Metadata Grid - Always visible */}
       <div className="detail-meta-grid">
         {skill.serviceName && (
           <div className="meta-card">
@@ -137,6 +262,10 @@ export default function SkillDetail() {
           </div>
         )}
         <div className="meta-card">
+          <div className="meta-label">Endpoints</div>
+          <div className="meta-value">{endpointCount.toLocaleString()}</div>
+        </div>
+        <div className="meta-card">
           <div className="meta-label">Downloads</div>
           <div className="meta-value">{(skill.downloadCount || 0).toLocaleString()}</div>
         </div>
@@ -146,10 +275,128 @@ export default function SkillDetail() {
         </div>
       </div>
 
-      {/* FREE SKILL: Show SKILL.md content */}
+      <section className="detail-section endpoint-radar-section">
+        <div className="endpoint-radar-head">
+          <div>
+            <h2>Endpoint Radar</h2>
+            <p className="endpoint-radar-subtitle">Paths + methods this skill can replay.</p>
+          </div>
+          <span className="endpoint-total-pill">{endpointCount.toLocaleString()} total</span>
+        </div>
+
+        {loadingEndpoints ? (
+          <div className="content-loading">
+            <div className="loading-spinner small" />
+            Loading endpoint map...
+          </div>
+        ) : (
+          <>
+            <div className="endpoint-insights-grid">
+              <div className="endpoint-insight-card">
+                <span className="endpoint-insight-label">Reachable</span>
+                <strong>{verifiedEndpoints.toLocaleString()}</strong>
+              </div>
+              <div className="endpoint-insight-card">
+                <span className="endpoint-insight-label">Methods</span>
+                <strong>{methodCount.toLocaleString()}</strong>
+              </div>
+              <div className="endpoint-insight-card">
+                <span className="endpoint-insight-label">Executions</span>
+                <strong>{totalExecutions.toLocaleString()}</strong>
+              </div>
+            </div>
+
+            {endpointError && (
+              <p className="endpoint-inline-error">
+                {endpointError}
+              </p>
+            )}
+
+            {workingEndpointRecords.length > 0 ? (
+              <>
+                <div className="endpoint-toolbar">
+                  <div className="endpoint-method-tabs">
+                    {methodOptions.map((method) => (
+                      <button
+                        key={method}
+                        className={`endpoint-method-tab ${endpointMethodFilter === method ? 'active' : ''}`}
+                        onClick={() => setEndpointMethodFilter(method)}
+                      >
+                        {method === 'all' ? 'ALL' : method}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="endpoint-search-input-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="m21 21-4.3-4.3" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={endpointSearch}
+                      onChange={(event) => setEndpointSearch(event.target.value)}
+                      placeholder="Filter paths or domains"
+                    />
+                  </label>
+                </div>
+
+                <div className="endpoint-list-head">
+                  Showing {filteredEndpoints.length.toLocaleString()} of {workingEndpointRecords.length.toLocaleString()} working endpoints
+                </div>
+
+                <div className="endpoint-radar-list">
+                  {filteredEndpoints.map((ep) => {
+                    const hasExecutions = ep.totalExecutions > 0;
+                    const successRate = hasExecutions
+                      ? Math.round((ep.successfulExecutions / ep.totalExecutions) * 100)
+                      : null;
+                    const statusClass = ep.validationStatus
+                      ? `status-${String(ep.validationStatus).toLowerCase().replace(/[^a-z0-9_-]+/g, '-')}`
+                      : 'status-unknown';
+
+                    return (
+                      <article key={ep.id} className="endpoint-radar-item">
+                        <div className="endpoint-radar-main">
+                          <span className={`endpoint-method ${methodClassName(ep.method)}`}>
+                            {ep.method}
+                          </span>
+                          <code className="endpoint-path">{ep.path}</code>
+                        </div>
+
+                        <div className="endpoint-radar-meta">
+                          <span className={`endpoint-status ${statusClass}`}>
+                            {formatValidationStatus(ep.validationStatus || 'unknown')}
+                          </span>
+                          {hasExecutions && (
+                            <span className="endpoint-chip">{ep.totalExecutions.toLocaleString()} runs</span>
+                          )}
+                          {successRate !== null && (
+                            <span className="endpoint-chip">{successRate}% success</span>
+                          )}
+                          {typeof ep.qualityScore === 'number' && (
+                            <span className="endpoint-chip">Q {ep.qualityScore}</span>
+                          )}
+                          {(ep.domain || skill.domain) && (
+                            <span className="endpoint-chip muted">{ep.domain || skill.domain}</span>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="endpoint-empty-state">
+                No working endpoints available yet for this skill.
+              </p>
+            )}
+          </>
+        )}
+      </section>
+
       {isFree ? (
         <>
-          {/* SKILL.md Content */}
           <section className="detail-section skill-content-section">
             <h2>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -178,25 +425,6 @@ export default function SkillDetail() {
             )}
           </section>
 
-          {/* Endpoints if available */}
-          {(skillContent?.endpoints || skill.endpoints) && (
-            <section className="detail-section">
-              <h2>Endpoints</h2>
-              <div className="endpoints-list">
-                {(skillContent?.endpoints || skill.endpoints || []).map((ep, i) => (
-                  <div key={i} className="endpoint-item">
-                    <span className={`endpoint-method method-${(ep.method || 'GET').toLowerCase()}`}>
-                      {ep.method || 'GET'}
-                    </span>
-                    <code className="endpoint-path">{ep.path || ep.endpoint || ep.url}</code>
-                    {ep.description && <p className="endpoint-desc">{ep.description}</p>}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Free Download CTA */}
           <section className="detail-section free-download-section">
             <div className="free-download-content">
               <div className="free-icon">
@@ -221,7 +449,6 @@ export default function SkillDetail() {
           </section>
         </>
       ) : (
-        /* PAID SKILL: Show Paywall */
         <section className="paywall-section">
           <div className="paywall-content">
             <div className="paywall-icon">
@@ -255,7 +482,6 @@ export default function SkillDetail() {
         </section>
       )}
 
-      {/* How to Use - Actual unbrowse workflow */}
       <section className="detail-section">
         <h2>How to Use</h2>
         <p className="section-intro">
@@ -361,7 +587,6 @@ export default function SkillDetail() {
         </div>
       </section>
 
-      {/* Prerequisites */}
       <section className="detail-section">
         <h2>Prerequisites</h2>
         <div className="prereq-grid">
@@ -406,7 +631,6 @@ export default function SkillDetail() {
         </div>
       </section>
 
-      {/* Creator */}
       {skill.creatorWallet && (
         <section className="detail-section creator-section">
           <h2>Creator</h2>

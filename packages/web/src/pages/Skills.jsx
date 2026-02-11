@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-
-const API_BASE = 'https://index.unbrowse.ai';
+import { apiUrl } from '../lib/api-base';
 
 // Animated constellation effect
 function Constellation() {
@@ -138,8 +137,8 @@ export default function Skills() {
     }
     try {
       const url = query.trim()
-        ? `${API_BASE}/marketplace/skills?q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=0`
-        : `${API_BASE}/marketplace/skills?limit=${LIMIT}&offset=0`;
+        ? apiUrl(`/marketplace/skills?q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=0`)
+        : apiUrl(`/marketplace/skills?limit=${LIMIT}&offset=0`);
 
       const res = await fetch(url);
       if (res.ok) {
@@ -177,8 +176,8 @@ export default function Skills() {
     setLoadingMore(true);
     try {
       const url = search.trim()
-        ? `${API_BASE}/marketplace/skills?q=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}`
-        : `${API_BASE}/marketplace/skills?limit=${LIMIT}&offset=${offset}`;
+        ? apiUrl(`/marketplace/skills?q=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}`)
+        : apiUrl(`/marketplace/skills?limit=${LIMIT}&offset=${offset}`);
 
       const res = await fetch(url);
       if (res.ok) {
@@ -571,6 +570,9 @@ export default function Skills() {
               {sortedSkills.map((skill) => {
                 const price = parseFloat(skill.priceUsdc || '0');
                 const isFree = price === 0;
+                const workingEndpointCount = Number(skill.verifiedEndpointCount || 0);
+                const endpointCount = workingEndpointCount || Number(skill.endpointCount || 0);
+                const endpointLabel = workingEndpointCount > 0 ? 'working endpoints' : 'endpoints';
 
                 return (
                   <Link
@@ -605,6 +607,18 @@ export default function Skills() {
                         {skill.domain || skill.serviceName || 'API'}
                       </span>
                       <div className="ub-card-stats">
+                        {endpointCount > 0 && (
+                          <span className="ub-card-endpoints">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M9 3H5a2 2 0 0 0-2 2v4" />
+                              <path d="M15 3h4a2 2 0 0 1 2 2v4" />
+                              <path d="M21 15v4a2 2 0 0 1-2 2h-4" />
+                              <path d="M3 15v4a2 2 0 0 0 2 2h4" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            {endpointCount} {endpointLabel}
+                          </span>
+                        )}
                         {skill.downloadCount > 0 && (
                           <span className="ub-card-downloads">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

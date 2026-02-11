@@ -28,16 +28,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto-routing skill for OpenClaw — agent automatically uses unbrowse when user asks to interact with any website's API
 - Plugin skill registration via `openclaw.plugin.json` `skills` field — unbrowse instructions injected into agent prompt
 - Auto-launch headless Chromium for replay when no browser is running — `execInChrome` is now the default path everywhere
+- Plugin telemetry opt-out support
+- Plugin account wallet-link request support
+- Marketplace frontend endpoint explorer in skill detail (`/skill/:id`) using `/marketplace/skills/:id/endpoints`
 
 ### Changed
 - `parseHar()` now always generates `headerProfile` on the returned `ApiData` object
 - `execViaFetch` in `unbrowse_replay.ts` now uses `resolveHeaders()` + primed cookies by default
 - Skill publish payload (`PublishPayload`) includes optional `headerProfile` field
 - Skill install writes `headers.json` alongside `SKILL.md` and `auth.json`
+- Plugin runtime switched to native CDP + `playwright-core`
+- Plugin marketplace metadata refreshed
+- Default `autoContribute` enabled in plugin manifest
+- Marketplace frontend cards now show endpoint counts in browse and search views
+- Frontend now routes API/auth calls through `VITE_API_BASE` via shared `api-base` helper (marketplace + app + auth flows)
+- CI: web app deployment Dockerized for staging/prod SSH workflows
+- Documentation refresh for plugin auth/login behavior and agent notes
 
 ### Fixed
 - Endpoint override domain resolution — keys now include domain to prevent cross-domain confusion
 - TLS fingerprint mismatch detection — sending Chrome User-Agent from Node.js no longer triggers anti-bot (context headers excluded in node mode)
+- Plugin auto-discovery and auth flows now fallback cleanly when browser tooling/CDP is unavailable
+- Plugin auto-publish now verifies/prunes invalid GET endpoints before publish
+- Stabilized OpenClaw CDP + backend tracing interactions
+- Reduced brittle legacy browser API usage and added auto-publish backoff
+- CI: web Docker build now works when lockfile is absent
+- Added `127.0.0.1` local origins to backend CORS/trusted-origins allowlists (3000/3001/5173/4111)
 
 ## [0.5.4] - 2026-02-07
 
