@@ -11,7 +11,7 @@
  * - All auto-added headers (User-Agent, Origin, etc.)
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

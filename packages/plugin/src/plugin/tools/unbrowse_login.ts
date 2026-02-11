@@ -228,8 +228,17 @@ async execute(_toolCallId: string, params: unknown) {
     return { content: [{ type: "text", text: summary }] };
   } catch (err) {
     const msg = (err as Error).message;
-    if (msg.includes("playwright")) {
-      return { content: [{ type: "text", text: `Playwright not available: ${msg}. Install with: bun add playwright` }] };
+    if (msg.includes("playwright-core")) {
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              `Browser runtime unavailable: ${msg}\n` +
+              `Start native browser first: openclaw browser start --browser-profile openclaw`,
+          },
+        ],
+      };
     }
     return { content: [{ type: "text", text: `Login capture failed: ${msg}` }] };
   }

@@ -259,7 +259,7 @@ export async function captureFromChromeProfile(
     let crawlResult: CrawlResult | undefined;
     if (shouldCrawl && urls[0]) {
       try {
-        const { chromium } = await import("playwright");
+        const { chromium } = await import("playwright-core");
         // Connect to OpenClaw's CDP
         const browser = await chromium.connectOverCDP(`http://127.0.0.1:${browserPort}`, { timeout: 5000 });
         const context = browser.contexts()[0];
@@ -315,7 +315,7 @@ export async function captureFromChromeDebug(
     waitMs?: number;
   } = {},
 ): Promise<CaptureResult> {
-  const { chromium } = await import("playwright");
+  const { chromium } = await import("playwright-core");
   const cdpUrl = opts.cdpUrl ?? "http://127.0.0.1:9222";
   const waitMs = opts.waitMs ?? 5000;
 

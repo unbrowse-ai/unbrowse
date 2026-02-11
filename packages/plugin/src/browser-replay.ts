@@ -9,7 +9,7 @@
  * - Cookies sent automatically for same-origin
  */
 
-import type { Page, BrowserContext } from "playwright";
+import type { Page, BrowserContext } from "playwright-core";
 
 export interface ReplayRequest {
   url: string;

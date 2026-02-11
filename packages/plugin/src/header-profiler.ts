@@ -390,16 +390,16 @@ async function captureFromBrowser(
     return empty;
   }
 
-  let pw: typeof import("playwright");
+  let pw: typeof import("playwright-core");
   try {
-    pw = await import("playwright");
+    pw = await import("playwright-core");
   } catch {
     // Playwright not installed — can't capture
     return empty;
   }
 
   // Try connecting to an existing Chrome via CDP
-  let browser: import("playwright").Browser | null = null;
+  let browser: import("playwright-core").Browser | null = null;
   let ownsBrowser = false;
   // Prefer OpenClaw-managed Chrome (CDP :18800) when available.
   for (const p of [port, 18800, 9222, 9229, 18792]) {
@@ -419,8 +419,8 @@ async function captureFromBrowser(
     }
   }
 
-  let page: import("playwright").Page | null = null;
-  let createdContext: import("playwright").BrowserContext | null = null;
+  let page: import("playwright-core").Page | null = null;
+  let createdContext: import("playwright-core").BrowserContext | null = null;
   try {
     const existingContext = ownsBrowser ? null : browser.contexts()[0];
     const context = existingContext ?? await browser.newContext();

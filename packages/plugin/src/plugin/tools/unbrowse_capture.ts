@@ -192,8 +192,17 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         if (msg.includes("Target page, context or browser has been closed")) {
           return { content: [{ type: "text", text: "Browser context closed unexpectedly. Try again." }] };
         }
-        if (msg.includes("playwright")) {
-          return { content: [{ type: "text", text: `Playwright not available: ${msg}. Install with: bun add playwright` }] };
+        if (msg.includes("playwright-core")) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  `Browser runtime unavailable: ${msg}\n` +
+                  `Start native browser first: openclaw browser start --browser-profile openclaw`,
+              },
+            ],
+          };
         }
         return { content: [{ type: "text", text: `Capture failed: ${msg}` }] };
       }

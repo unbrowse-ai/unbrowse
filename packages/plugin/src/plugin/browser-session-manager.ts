@@ -6,7 +6,7 @@ export type BrowserSession = {
   page: any;
   service: string;
   lastUsed: Date;
-  method: "cdp-openclaw" | "cdp-chrome" | "playwright";
+  method: "cdp-openclaw" | "cdp-chrome";
 };
 
 /**
@@ -25,7 +25,7 @@ export function createBrowserSessionManager(opts: {
 
   let sharedBrowser: any = null;
   let sharedContext: any = null;
-  let sharedBrowserMethod: "cdp-openclaw" | "cdp-chrome" | "playwright" = "playwright";
+  let sharedBrowserMethod: "cdp-openclaw" | "cdp-chrome" = "cdp-openclaw";
   const browserSessions = new Map<string, BrowserSession>();
 
   async function tryCdpConnect(chromium: any, port: number): Promise<any | null> {
@@ -97,7 +97,7 @@ export function createBrowserSessionManager(opts: {
 
     let chromium: any;
     try {
-      ({ chromium } = await import("playwright"));
+      ({ chromium } = await import("playwright-core"));
     } catch {
       // Should not be fatal for the whole agent; caller can fall back to node/backend execution.
       throw new Error("PLAYWRIGHT_MISSING");
