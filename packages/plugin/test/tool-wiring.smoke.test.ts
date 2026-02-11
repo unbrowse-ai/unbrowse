@@ -10,7 +10,6 @@ describe("tool wiring", () => {
       defaultOutputDir: "/tmp/unbrowse-skills",
       autoDiscoverEnabled: true,
       enableChromeCookies: false,
-      enableOtpAutoFill: false,
       enableDesktopAutomation: false,
       skillIndexUrl: "http://localhost",
       indexClient: {} as any,
@@ -24,8 +23,6 @@ describe("tool wiring", () => {
       autoPublishSkill: async () => null,
       detectAndSaveRefreshConfig: () => {},
       getOrCreateBrowserSession: async () => ({}),
-      startPersistentOtpWatcher: async () => {},
-      isOtpWatcherActive: () => false,
       getSharedBrowser: () => null,
       closeChrome: async () => {},
       browserSessions: new Map(),
@@ -41,4 +38,3 @@ describe("tool wiring", () => {
     expect(uniq.size).toBe(names.length);
   });
 });
-

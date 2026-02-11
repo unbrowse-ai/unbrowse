@@ -73,7 +73,6 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/
           "skillIndexUrl": "https://index.unbrowse.ai",
           "credentialSource": "keychain",
           "enableChromeCookies": true,
-          "enableOtpAutoFill": true,
           "enableDesktopAutomation": true
         }
       }

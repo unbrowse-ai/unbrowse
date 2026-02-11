@@ -10,7 +10,6 @@ export type ToolDeps = {
 
   // Feature flags
   enableChromeCookies: boolean;
-  enableOtpAutoFill: boolean;
   enableDesktopAutomation: boolean;
 
   // Marketplace
@@ -34,8 +33,6 @@ export type ToolDeps = {
 
   // Browser/session helpers provided by plugin runtime
   getOrCreateBrowserSession: (...args: any[]) => Promise<any>;
-  startPersistentOtpWatcher: (...args: any[]) => Promise<void>;
-  isOtpWatcherActive: () => boolean;
 
   // Shared browser/session state (needed for Playwright fallback behavior).
   getSharedBrowser: () => any;

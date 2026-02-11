@@ -70,10 +70,10 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/
           "skillsOutputDir": "~/.openclaw/skills",
           "autoDiscover": true,
           "autoContribute": true,
+          "enableAgentContextHints": false,
           "skillIndexUrl": "https://index.unbrowse.ai",
           "credentialSource": "keychain",
           "enableChromeCookies": true,
-          "enableOtpAutoFill": true,
           "enableDesktopAutomation": true
         }
       }
@@ -81,6 +81,8 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/
   }
 }
 ```
+
+`enableAgentContextHints` is disabled by default. When enabled, hints are only prepended when API-intent is detected in user input.
 
 ### Wallet Setup
 

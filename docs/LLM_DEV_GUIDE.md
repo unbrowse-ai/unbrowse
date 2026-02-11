@@ -24,8 +24,6 @@ This repo is designed to be iterated on by agents. The main principle is:
   - Small naming helpers (`toPascalCase`).
 - `src/plugin/browser-session-manager.ts`
   - Owns the shared CDP browser instance + per-service tab/session map.
-- `src/plugin/otp-manager.ts`
-  - Owns the long-lived OTP watcher (opt-in only).
 
 ## Common Agent Workflows
 

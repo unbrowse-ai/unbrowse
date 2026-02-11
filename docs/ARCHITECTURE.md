@@ -10,7 +10,8 @@ The marketplace backend is external (the `reverse-engineer` repo); this repo onl
 - `src/plugin/plugin.ts`
   - Plugin composition root:
     - reads config/env
-    - initializes shared services (browser/session manager, OTP manager, discovery)
+    - initializes shared services (browser/session manager, discovery)
+    - gates context hints behind `enableAgentContextHints` + API-intent detection
     - wires the marketplace client + wallet state
     - registers tools + hooks
 
