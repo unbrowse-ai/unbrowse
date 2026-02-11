@@ -55,6 +55,7 @@ import { DesktopAutomation } from "../desktop-automation.js";
 import { createTools } from "./tools.js";
 import { createOtpManager } from "./otp-manager.js";
 import { createBrowserSessionManager } from "./browser-session-manager.js";
+import { createTelemetryClient, loadTelemetryConfig, hashDomain } from "../telemetry-client.js";
 
 /** Scan HAR entries for refresh token endpoints and save config to auth.json */
 function detectAndSaveRefreshConfig(
@@ -114,6 +115,24 @@ const plugin = {
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
+
+    const telemetryCfg = loadTelemetryConfig({ pluginConfig: cfg });
+    const pluginVersion = (() => {
+      try {
+        const pkgUrl = new URL("../../package.json", import.meta.url);
+        const pkg = JSON.parse(readFileSync(pkgUrl, "utf-8"));
+        return String(pkg?.version ?? "dev");
+      } catch {
+        return "dev";
+      }
+    })();
+    const telemetry = createTelemetryClient({
+      indexUrl: skillIndexUrl,
+      pluginConfig: cfg,
+      pluginVersion,
+      platform: process.platform,
+      logger: { info: (m) => logger.info(m), warn: (m) => logger.warn(m) },
+    });
 
     // ── Wallet persistence ──────────────────────────────────────────────
     // Private key stored in OS keychain (macOS) with file fallback (Linux/CI).
@@ -362,6 +381,7 @@ const plugin = {
 
     const tools = createTools({
       logger,
+      pluginConfig: cfg,
       browserPort,
       defaultOutputDir,
       autoDiscoverEnabled,
@@ -391,6 +411,8 @@ const plugin = {
       "unbrowse_learn",
       "unbrowse_capture",
       "unbrowse_auth",
+      "unbrowse_account",
+      "unbrowse_telemetry",
       "unbrowse_replay",
       "unbrowse_skills",
       "unbrowse_publish",
@@ -437,6 +459,31 @@ const plugin = {
       const toolName = event?.toolName ?? event?.tool ?? "";
       const result = event?.result;
       const error = event?.error;
+
+      // Anonymous telemetry (opt-out): tool outcome timing/error class only.
+      try {
+        const ok = !error;
+        const durationMs = typeof event?.durationMs === "number" ? event.durationMs : undefined;
+        const errorName = error?.name ? String(error.name) : undefined;
+        telemetry.record("tool_call", {
+          tool: String(toolName),
+          ok,
+          durationMs,
+          errorName,
+        });
+
+        if (toolName === "unbrowse_browse") {
+          const url = event?.params?.url ?? "";
+          const domain = (() => { try { return new URL(String(url)).hostname; } catch { return ""; } })();
+          telemetry.record("browse", {
+            tool: String(toolName),
+            ok,
+            durationMs,
+            // domain hashed, never raw
+            domainHash: domain ? hashDomain(domain) : undefined,
+          });
+        }
+      } catch { /* never block */ }
 
       // Check for failures that unbrowse can help with
       if (error || (result && typeof result === "object")) {
@@ -487,6 +534,10 @@ const plugin = {
         logger.info("[unbrowse] Auto-discovery hook active");
       }
 
+      if (telemetryCfg.enabled) {
+        telemetry.record("agent_start", { hasWallet: Boolean(creatorWallet && solanaPrivateKey) });
+      }
+
       // Wallet setup is explicit via unbrowse_wallet (no auto-generation here).
 
       const lines: string[] = [
@@ -518,6 +569,7 @@ const plugin = {
       stopCdpHeaderListener();
       otpManager.stopPersistentOtpWatcher();
       cleanupAllSessions().catch(() => {});
+      telemetry.flush().catch(() => {});
     };
     process.on("beforeExit", handleExit);
     process.on("SIGINT", handleExit);

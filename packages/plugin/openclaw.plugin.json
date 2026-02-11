@@ -86,6 +86,17 @@
         "type": "boolean",
         "default": false,
         "description": "Enable desktop automation tools for GUI interaction (opt-in for security)"
+      },
+      "telemetryEnabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Send anonymous usage telemetry (opt-out). No credentials, headers, cookies, or full URLs are sent."
+      },
+      "telemetryLevel": {
+        "type": "string",
+        "enum": ["minimal", "standard", "debug"],
+        "default": "standard",
+        "description": "Telemetry detail level (minimal recommended for privacy)."
       }
     }
   },
@@ -152,6 +163,14 @@
     "enableDesktopAutomation": {
       "label": "Desktop Automation",
       "help": "Enable GUI interaction tools (mouse, keyboard, screenshots). Opt-in for security."
+    },
+    "telemetryEnabled": {
+      "label": "Anonymous Telemetry",
+      "help": "Opt-out analytics to improve Unbrowse reliability. No credentials, headers, cookies, or full URLs are sent."
+    },
+    "telemetryLevel": {
+      "label": "Telemetry Level",
+      "help": "minimal|standard|debug. minimal recommended."
     }
   }
 }
