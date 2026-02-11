@@ -8,6 +8,7 @@
  * - GET  /marketplace/skills/:id/versions/:hash
  * - GET  /marketplace/skill-downloads/:id   (200 for free, 402 for paid via x402)
  * - POST /marketplace/skills               (wallet-signed)
+ * - POST /auth/wallet/link/request         (wallet-signed; sends email)
  * - GET  /health
  *
  * Notes:
@@ -383,6 +384,24 @@ export class SkillIndexClient {
     }
 
     return resp.json() as Promise<PublishResult>;
+  }
+
+  /** Request wallet-email linking (requires wallet signature; sends email). */
+  async requestWalletLink(email: string): Promise<{ success: boolean; message?: string; dev?: any }> {
+    const walletHeaders = await this.getWalletAuthHeaders("link_wallet");
+
+    const resp = await fetch(`${this.indexUrl}/auth/wallet/link/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...walletHeaders },
+      body: JSON.stringify({ email }),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`Wallet link request failed (${resp.status}): ${text}`);
+    }
+    return resp.json() as any;
   }
 
   /** Execute an endpoint through the backend executor (requires wallet signature). */
