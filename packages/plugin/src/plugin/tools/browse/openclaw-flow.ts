@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ApiData, ParsedRequest } from "../../../types.js";
 import { guessAuthMethod } from "../../../auth-extractor.js";
+import { inferCsrfProvenance } from "../../../auth-provenance.js";
 import { enrichApiData } from "../../../har-parser.js";
 import { generateSkill } from "../../../skill-generator.js";
 import { verifyAndPruneGetEndpoints } from "../../../endpoint-verification.js";
@@ -99,6 +100,15 @@ async function writeAuthJson(opts: {
     metaTokens: { ...(existing.metaTokens ?? {}), ...opts.metaTokens },
     lastOpenClawBrowseAt: new Date().toISOString(),
   };
+  merged.csrfProvenance = inferCsrfProvenance({
+    authHeaders: merged.headers,
+    cookies: merged.cookies,
+    localStorage: merged.localStorage,
+    sessionStorage: merged.sessionStorage,
+    metaTokens: merged.metaTokens,
+    authInfo: existing.authInfo ?? {},
+    existing: existing.csrfProvenance,
+  });
 
   try {
     writeFileSync(opts.authPath, JSON.stringify(merged, null, 2), "utf-8");
@@ -126,16 +136,27 @@ export async function runOpenClawBrowse(
     learnOnFly?: boolean;
   },
 ): Promise<ToolResponse | null> {
-  const { logger, browserPort, defaultOutputDir, discovery, autoPublishSkill } = deps;
+  const { logger, browserPort, browserProfile, defaultOutputDir, discovery, autoPublishSkill } = deps;
 
   // OpenClaw browser API (preferred) - uses native browser control.
   const { getOpenClawBrowser } = await import("../../../openclaw-browser.js");
-  const openclawBrowser = getOpenClawBrowser(browserPort);
+  const openclawBrowser = getOpenClawBrowser(browserPort, browserProfile);
   const openclawAvailable = await openclawBrowser.isAvailable();
 
   if (!openclawAvailable) return null;
 
-  logger.info(`[unbrowse] Using native OpenClaw browser API on port ${browserPort}`);
+  logger.info(
+    `[unbrowse] Using native OpenClaw browser API on port ${browserPort}` +
+    `${browserProfile ? ` (profile=${browserProfile})` : ""}`,
+  );
+
+  // Native OpenClaw /act flow is ref-based; selector-based writes should use fallback flow.
+  const hasSelectorDrivenWrite = p.actions.some(
+    (act) =>
+      Boolean(act.selector) &&
+      (act.action === "click_element" || act.action === "input_text" || act.action === "select_option"),
+  );
+  if (hasSelectorDrivenWrite) return null;
 
   // Derive service name from URL if not provided
   let service = p.service;
@@ -167,11 +188,19 @@ export async function runOpenClawBrowse(
     return { content: [{ type: "text", text: `Failed to navigate to ${p.url}` }] };
   }
 
+  const snapshotOpts = {
+    format: "ai" as const,
+    mode: "efficient" as const,
+    refs: "role" as const,
+    interactive: true,
+    labels: true,
+  };
+
   // Wait for page to settle
-  await openclawBrowser.wait({ load: "networkidle", timeoutMs: 10000 });
+  await openclawBrowser.wait({ loadState: "networkidle", timeoutMs: 10000 });
 
   // Get initial snapshot with interactive elements
-  let snapshot = await openclawBrowser.snapshot({ interactive: true, labels: true });
+  let snapshot = await openclawBrowser.snapshot(snapshotOpts);
   if (!snapshot) {
     return { content: [{ type: "text", text: "Failed to get page snapshot" }] };
   }
@@ -194,19 +223,18 @@ export async function runOpenClawBrowse(
     try {
       switch (act.action) {
         case "click_element": {
-          if (act.index == null && !act.selector) {
-            actionResults.push("click_element: missing index or selector");
+          if (act.index == null) {
+            actionResults.push("click_element: missing index");
             break;
           }
-          const ref = act.index != null ? refMap.get(act.index) : undefined;
-          if (act.index != null && !ref) {
+          const ref = refMap.get(act.index);
+          if (!ref) {
             actionResults.push(`click_element: index ${act.index} not found (max: ${refMap.size})`);
             break;
           }
           const result = await openclawBrowser.act({
             kind: "click",
-            ref: ref,
-            selector: act.selector,
+            ref,
           });
           if (!result.ok) {
             actionResults.push(`click_element: failed - ${result.error}`);
@@ -214,64 +242,62 @@ export async function runOpenClawBrowse(
           }
           // Re-snapshot after click
           await new Promise((r) => setTimeout(r, 500));
-          snapshot = (await openclawBrowser.snapshot({ interactive: true, labels: true })) ?? snapshot;
+          snapshot = (await openclawBrowser.snapshot(snapshotOpts)) ?? snapshot;
           refMap = buildRefMap(snapshot.elements);
-          actionResults.push(`click_element: [${act.index ?? act.selector}] done`);
+          actionResults.push(`click_element: [${act.index}] done`);
           break;
         }
 
         case "input_text": {
-          if (act.index == null && !act.selector) {
-            actionResults.push("input_text: missing index or selector");
+          if (act.index == null) {
+            actionResults.push("input_text: missing index");
             break;
           }
-          const ref = act.index != null ? refMap.get(act.index) : undefined;
-          if (act.index != null && !ref) {
+          const ref = refMap.get(act.index);
+          if (!ref) {
             actionResults.push(`input_text: index ${act.index} not found`);
             break;
           }
           // Clear first if needed (default true)
-          if (act.clear !== false && ref) {
+          if (act.clear !== false) {
             await openclawBrowser.act({ kind: "click", ref });
-            await openclawBrowser.act({ kind: "press", text: "Control+a" });
+            await openclawBrowser.act({ kind: "press", key: "Control+a" });
           }
           const result = await openclawBrowser.act({
             kind: "type",
-            ref: ref,
-            selector: act.selector,
+            ref,
             text: act.text ?? "",
           });
           if (!result.ok) {
             actionResults.push(`input_text: failed - ${result.error}`);
             break;
           }
-          actionResults.push(`input_text: [${act.index ?? act.selector}] = "${(act.text ?? "").slice(0, 50)}" done`);
+          actionResults.push(`input_text: [${act.index}] = "${(act.text ?? "").slice(0, 50)}" done`);
           break;
         }
 
         case "select_option": {
-          if (act.index == null && !act.selector) {
-            actionResults.push("select_option: missing index or selector");
+          if (act.index == null) {
+            actionResults.push("select_option: missing index");
             break;
           }
-          const ref = act.index != null ? refMap.get(act.index) : undefined;
-          if (act.index != null && !ref) {
+          const ref = refMap.get(act.index);
+          if (!ref) {
             actionResults.push(`select_option: index ${act.index} not found`);
             break;
           }
           const result = await openclawBrowser.act({
             kind: "select",
-            ref: ref,
-            selector: act.selector,
-            text: act.text ?? "",
+            ref,
+            values: act.text ? [act.text] : [],
           });
           if (!result.ok) {
             actionResults.push(`select_option: failed - ${result.error}`);
             break;
           }
-          snapshot = (await openclawBrowser.snapshot({ interactive: true, labels: true })) ?? snapshot;
+          snapshot = (await openclawBrowser.snapshot(snapshotOpts)) ?? snapshot;
           refMap = buildRefMap(snapshot.elements);
-          actionResults.push(`select_option: [${act.index ?? act.selector}] = "${act.text}" done`);
+          actionResults.push(`select_option: [${act.index}] = "${act.text}" done`);
           break;
         }
 
@@ -295,14 +321,17 @@ export async function runOpenClawBrowse(
           const amount = act.amount ?? 600;
           const steps = Math.max(1, Math.ceil(amount / 600));
           for (let i = 0; i < steps; i++) {
-            const result = await openclawBrowser.act({ kind: "scroll", direction });
+            const result = await openclawBrowser.act({
+              kind: "press",
+              key: direction === "up" ? "PageUp" : "PageDown",
+            });
             if (!result.ok) {
               actionResults.push(`scroll: failed - ${result.error}`);
               break;
             }
           }
           if (actionResults.at(-1)?.startsWith("scroll: failed")) break;
-          snapshot = (await openclawBrowser.snapshot({ interactive: true, labels: true })) ?? snapshot;
+          snapshot = (await openclawBrowser.snapshot(snapshotOpts)) ?? snapshot;
           refMap = buildRefMap(snapshot.elements);
           actionResults.push(`scroll: ${direction} ${amount}px done (${steps}x)`);
           break;
@@ -314,12 +343,12 @@ export async function runOpenClawBrowse(
             actionResults.push("send_keys: missing keys in text field");
             break;
           }
-          const result = await openclawBrowser.act({ kind: "press", text: keys });
+          const result = await openclawBrowser.act({ kind: "press", key: keys });
           if (!result.ok) {
             actionResults.push(`send_keys: failed - ${result.error}`);
             break;
           }
-          snapshot = (await openclawBrowser.snapshot({ interactive: true, labels: true })) ?? snapshot;
+          snapshot = (await openclawBrowser.snapshot(snapshotOpts)) ?? snapshot;
           refMap = buildRefMap(snapshot.elements);
           actionResults.push(`send_keys: ${keys} done`);
           break;
@@ -327,9 +356,13 @@ export async function runOpenClawBrowse(
 
         case "wait": {
           const ms = Math.max(0, Number(act.amount ?? 1000));
-          await new Promise((r) => setTimeout(r, ms));
-          actionResults.push(`wait: ${ms}ms done`);
-          snapshot = (await openclawBrowser.snapshot({ interactive: true, labels: true })) ?? snapshot;
+          const waited = await openclawBrowser.wait({
+            timeMs: ms,
+            selector: act.selector,
+            timeoutMs: Math.max(10_000, ms + 5_000),
+          });
+          actionResults.push(waited ? `wait: ${ms}ms done` : `wait: failed after ${ms}ms`);
+          snapshot = (await openclawBrowser.snapshot(snapshotOpts)) ?? snapshot;
           refMap = buildRefMap(snapshot.elements);
           break;
         }
@@ -340,9 +373,13 @@ export async function runOpenClawBrowse(
             actionResults.push("go_to_url: missing URL in text field");
             break;
           }
-          await openclawBrowser.navigate(url);
-          await openclawBrowser.wait({ load: "networkidle", timeoutMs: 10000 });
-          snapshot = (await openclawBrowser.snapshot({ interactive: true, labels: true })) ?? snapshot;
+          const navigatedToUrl = await openclawBrowser.navigate(url);
+          if (!navigatedToUrl) {
+            actionResults.push(`go_to_url: failed to navigate to ${url}`);
+            break;
+          }
+          await openclawBrowser.wait({ loadState: "networkidle", timeoutMs: 10000 });
+          snapshot = (await openclawBrowser.snapshot(snapshotOpts)) ?? snapshot;
           refMap = buildRefMap(snapshot.elements);
           actionResults.push(`go_to_url: ${url} done`);
           break;
@@ -366,7 +403,7 @@ export async function runOpenClawBrowse(
       actionResults.push(`${act.action}: FAILED - ${(err as Error).message}`);
       // Re-snapshot so agent can recover
       try {
-        snapshot = (await openclawBrowser.snapshot({ interactive: true, labels: true })) ?? snapshot;
+        snapshot = (await openclawBrowser.snapshot(snapshotOpts)) ?? snapshot;
         refMap = buildRefMap(snapshot.elements);
       } catch {
         // ignore
@@ -507,6 +544,15 @@ export async function runOpenClawBrowse(
         existing.localStorage = { ...(existing.localStorage ?? {}), ...(persistedLocalStorage ?? {}) };
         existing.sessionStorage = { ...(existing.sessionStorage ?? {}), ...(persistedSessionStorage ?? {}) };
         existing.metaTokens = { ...(existing.metaTokens ?? {}), ...(persistedMetaTokens ?? {}) };
+        existing.csrfProvenance = inferCsrfProvenance({
+          authHeaders: existing.headers,
+          cookies: existing.cookies,
+          localStorage: existing.localStorage,
+          sessionStorage: existing.sessionStorage,
+          metaTokens: existing.metaTokens,
+          authInfo: existing.authInfo ?? {},
+          existing: existing.csrfProvenance,
+        });
         writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
       } catch { /* ignore */ }
 
@@ -522,7 +568,7 @@ export async function runOpenClawBrowse(
   const formatOpenClawSnapshot = (snap: typeof snapshot) => {
     const lines: string[] = [
       `URL: ${snap.url}`,
-      `Title: ${snap.title}`,
+      `Title: ${snap.title ?? "(n/a)"}`,
       "",
       "Interactive elements:",
     ];

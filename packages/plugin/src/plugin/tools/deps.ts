@@ -3,6 +3,8 @@ export type ToolDeps = {
   logger: any;
   pluginConfig?: any;
   browserPort: number;
+  browserProfile?: string;
+  allowLegacyPlaywrightFallback: boolean;
   defaultOutputDir: string;
   autoDiscoverEnabled: boolean;
 

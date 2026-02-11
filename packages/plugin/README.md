@@ -38,7 +38,7 @@ Defaults:
 Typical flow:
 
 ```bash
-# 1) Create a wallet (stored in OS keychain on macOS; file fallback elsewhere)
+# 1) Create a wallet (private key stored in OS keychain by default)
 unbrowse_wallet action="create"
 
 # 2) Search for skills
@@ -84,7 +84,7 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/
 
 ### Wallet Setup
 
-Solana wallet credentials are managed separately from plugin config — private keys are stored in the OS keychain (macOS) with a file fallback on other platforms. Never put private keys in `openclaw.json`.
+Solana wallet credentials are managed separately from plugin config. Private keys are stored in OS keychain by default (no implicit file fallback). Never put private keys in `openclaw.json`.
 
 ```bash
 # Create a new wallet (keypair generated locally, private key stored in keychain)
@@ -99,8 +99,9 @@ Wallet state is stored in `~/.openclaw/unbrowse/wallet.json` (public address + k
 ### Env Vars (optional)
 
 - `UNBROWSE_INDEX_URL` — override the skill index URL
-- `UNBROWSE_CREATOR_WALLET` — fallback creator wallet address
-- `UNBROWSE_SOLANA_PRIVATE_KEY` — fallback private key (prefer keychain instead)
+- `UNBROWSE_CREATOR_WALLET` — optional creator wallet bootstrap
+- `UNBROWSE_SOLANA_PRIVATE_KEY` — optional one-time private key bootstrap into wallet storage
+- `UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY=true` — explicitly allow private-key file fallback (CI/dev only)
 
 ## Development
 
@@ -124,4 +125,3 @@ bun run test:oct:docker
 ```
 
 E2E backend details: see `docs/LLM_DEV_GUIDE.md` and `test/e2e/backend-harness.ts`.
-

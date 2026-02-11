@@ -49,7 +49,7 @@ import {
 } from "../token-refresh.js";
 import { TaskWatcher, type TaskIntent, type FailureInfo } from "../task-watcher.js";
 import { CapabilityResolver, type Resolution } from "../capability-resolver.js";
-import { loadWallet, migrateToKeychain } from "../wallet/keychain-wallet.js";
+import { loadWallet, migrateToKeychain, saveWallet } from "../wallet/keychain-wallet.js";
 import type { WalletState } from "../wallet/wallet-tool.js";
 import { DesktopAutomation } from "../desktop-automation.js";
 import { createTools } from "./tools.js";
@@ -84,6 +84,32 @@ function detectAndSaveRefreshConfig(
   }
 }
 
+function parsePositiveInt(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const parsed = Number.parseInt(raw.trim(), 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
+function resolveGatewayPort(config: any): number {
+  const envPort =
+    parsePositiveInt(process.env.OPENCLAW_GATEWAY_PORT) ??
+    parsePositiveInt(process.env.CLAWDBOT_GATEWAY_PORT);
+  if (envPort) return envPort;
+  const cfgPort = parsePositiveInt(config?.gateway?.port);
+  if (cfgPort) return cfgPort;
+  return 18789;
+}
+
+function deriveBrowserControlPort(gatewayPort: number): number {
+  // OpenClaw control port family: gateway + 2 (docs + upstream defaults).
+  return gatewayPort + 2;
+}
+
 // ── Plugin ────────────────────────────────────────────────────────────────────
 
 const plugin = {
@@ -99,7 +125,16 @@ const plugin = {
   register(api: OpenClawPluginApi) {
     const cfg = api.pluginConfig ?? {};
     const logger = api.logger;
-    const browserPort = (cfg.browserPort as number) ?? 18791;
+    const rootConfig = (api as any).config ?? {};
+    const gatewayPort = resolveGatewayPort(rootConfig);
+    const derivedBrowserPort = deriveBrowserControlPort(gatewayPort);
+    const browserPort = parsePositiveInt(cfg.browserPort) ?? derivedBrowserPort;
+    const browserProfile = String(
+      (cfg.browserProfile as string) ??
+      ((rootConfig as any)?.browser?.defaultProfile as string) ??
+      "",
+    ).trim() || undefined;
+    const allowLegacyPlaywrightFallback = (cfg.allowLegacyPlaywrightFallback as boolean) ?? false;
 
     // Detect diagnostic mode (doctor, audit, help, version) — skip all background tasks
     const isDiagnosticMode = (() => {
@@ -135,8 +170,8 @@ const plugin = {
     });
 
     // ── Wallet persistence ──────────────────────────────────────────────
-    // Private key stored in OS keychain (macOS) with file fallback (Linux/CI).
-    // Public address always in ~/.openclaw/unbrowse/wallet.json.
+    // Private key stored in OS keychain by default (file fallback only when explicitly enabled).
+    // Public address remains in ~/.openclaw/unbrowse/wallet.json.
     const migrated = migrateToKeychain();
     if (migrated) {
       logger.info("[unbrowse] Migrated Solana private key from wallet.json to OS Keychain.");
@@ -144,7 +179,24 @@ const plugin = {
 
     const savedWallet = loadWallet();
     let creatorWallet = savedWallet.creatorWallet ?? (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
-    let solanaPrivateKey = savedWallet.solanaPrivateKey ?? (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
+    let solanaPrivateKey = savedWallet.solanaPrivateKey;
+    if (!solanaPrivateKey) {
+      const bootstrappedPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
+      if (bootstrappedPrivateKey) {
+        try {
+          saveWallet({ creatorWallet, solanaPrivateKey: bootstrappedPrivateKey });
+          solanaPrivateKey = bootstrappedPrivateKey;
+          logger.warn(
+            "[unbrowse] Imported payer private key from config/env into wallet storage. " +
+            "Remove skillIndexSolanaPrivateKey/UNBROWSE_SOLANA_PRIVATE_KEY to avoid ambiguity.",
+          );
+        } catch (err) {
+          logger.warn(
+            `[unbrowse] Could not import payer key from config/env into wallet storage: ${(err as Error).message}`,
+          );
+        }
+      }
+    }
     // Keep a single mutable wallet reference for tool handlers to update,
     // while preserving the legacy `creatorWallet`/`solanaPrivateKey` locals.
     const walletState = ({
@@ -174,6 +226,11 @@ const plugin = {
     if (!autoContributeEnabled) {
       logger.info("[unbrowse] Auto-contribute DISABLED — skills will stay local only. Set autoContribute: true to earn revenue from contributions.");
     }
+    logger.info(
+      `[unbrowse] Browser integration: OpenClaw control on :${browserPort}` +
+      `${browserProfile ? ` (profile=${browserProfile})` : ""}` +
+      `${allowLegacyPlaywrightFallback ? ", Playwright fallback=enabled" : ", Playwright fallback=disabled"}`,
+    );
 
     // ── Long-Lived Managers ───────────────────────────────────────────────
     const otpManager = createOtpManager({ logger, enableOtpAutoFill });
@@ -383,6 +440,8 @@ const plugin = {
       logger,
       pluginConfig: cfg,
       browserPort,
+      browserProfile,
+      allowLegacyPlaywrightFallback,
       defaultOutputDir,
       autoDiscoverEnabled,
       enableChromeCookies,

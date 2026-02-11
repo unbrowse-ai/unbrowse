@@ -5,6 +5,7 @@
  */
 
 import type { ApiData, AuthInfo } from "./types.js";
+import { inferCsrfProvenance } from "./auth-provenance.js";
 
 // ── Header classification ────────────────────────────────────────────────
 
@@ -237,6 +238,12 @@ export function generateAuthInfo(service: string, data: ApiData): AuthInfo {
   if (Object.keys(data.authInfo).length > 0) {
     auth.authInfo = Object.fromEntries(Object.entries(data.authInfo).slice(0, 50));
   }
+
+  auth.csrfProvenance = inferCsrfProvenance({
+    authHeaders: auth.headers ?? {},
+    cookies: auth.cookies ?? {},
+    authInfo: auth.authInfo ?? {},
+  });
 
   return auth;
 }

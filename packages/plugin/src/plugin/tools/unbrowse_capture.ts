@@ -37,6 +37,8 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         return { content: [{ type: "text", text: "Provide at least one URL to capture." }] };
       }
       const outDir = coalesceDir({ outputDir: (p as any).outputDir, skillsDir: (p as any).skillsDir, fallback: defaultOutputDir });
+      const hasCreatorWallet = Boolean(deps.walletState?.creatorWallet);
+      const hasPayerKey = Boolean(deps.walletState?.solanaPrivateKey);
 
       try {
         const { captureWithHar } = await import("../../har-capture.js");
@@ -88,6 +90,17 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           const { mergeOpenApiEndpoints } = await import("../../har-parser.js");
           const specBaseUrl = openApiSpec.baseUrl ?? apiData.baseUrl;
           apiData = mergeOpenApiEndpoints(apiData, openApiSpec.endpoints, specBaseUrl);
+        }
+
+        const extractedEndpointCount = Object.keys(apiData.endpoints ?? {}).length;
+        if (extractedEndpointCount === 0) {
+          const lines = [
+            `Captured (${method}): ${requestCount} requests from ${urls.length} page(s)`,
+            "Reverse-engineering failed: no internal API endpoints were extracted from this traffic.",
+            "Not published: skills without usable endpoints are not sent to the marketplace.",
+            "Try: capture authenticated flows first (unbrowse_login), then run unbrowse_capture again with longer waitMs or more targeted pages.",
+          ];
+          return { content: [{ type: "text", text: lines.join("\n") }] };
         }
 
         // Auto-test GET endpoints and prune failing tested GETs.
@@ -154,6 +167,16 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         );
         if (publishedVersion) {
           summaryLines.push(`Published: ${publishedVersion} (auto-synced to cloud index)`);
+        } else if (result.changed) {
+          summaryLines.push(`Not published: auto-publish failed or was skipped.`);
+          if (!hasCreatorWallet || !hasPayerKey) {
+            summaryLines.push(`  Reason: wallet setup required before publishing.`);
+            summaryLines.push(`  Run: unbrowse_wallet action="create"`);
+            summaryLines.push(`  Or:  unbrowse_wallet action="set_creator" wallet="<your-solana-address>"`);
+            summaryLines.push(`       unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"`);
+          } else {
+            summaryLines.push(`  Reason: skill could not be safely published right now (quality gate or index availability).`);
+          }
         }
 
         // Rate limit / bot detection warnings
