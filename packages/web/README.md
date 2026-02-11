@@ -58,6 +58,61 @@ The production build will be output to the `dist` directory.
 pnpm preview
 ```
 
+## Self-Hosting (Docker)
+
+This frontend is Vite + React (not Next.js). Deploy as a static bundle behind nginx.
+
+### Build and run locally
+
+```bash
+docker build -f packages/web/Dockerfile -t unbrowse-web:local packages/web
+docker run --rm -p 3000:80 unbrowse-web:local
+```
+
+App is available at [http://localhost:3000](http://localhost:3000).
+
+## GitHub Actions SSH Deploy
+
+Workflow: `/Users/lekt9/Projects/unbrowse-openclaw/.github/workflows/deploy-web-ssh.yml`
+
+Triggers:
+- `push` to `staging`, `prod`, `production`, or `main` (web changes)
+- manual `workflow_dispatch`
+
+Configure GitHub Environment secrets (`staging` / `production`):
+
+- `DEPLOY_HOST` - SSH host (e.g. `1.2.3.4`)
+- `DEPLOY_USER` - SSH user
+- `DEPLOY_SSH_KEY` - private key for deploy user
+- `DEPLOY_PORT` - optional, default `22`
+- `DEPLOY_PATH` - optional, default `/opt/unbrowse-web`
+- `DEPLOY_CONTAINER` - optional, default `unbrowse-web`
+- `DEPLOY_PUBLIC_PORT` - optional, default `3000`
+- `DEPLOY_ROUTE_MODE` - optional, `host-port` (default) or `network`
+- `DEPLOY_DOCKER_NETWORK` - required when `DEPLOY_ROUTE_MODE=network` (shared docker network name)
+- `DEPLOY_NETWORK_ALIAS` - optional network alias in shared network (default `unbrowse-web`)
+- `DEPLOY_KNOWN_HOSTS` - optional, full known_hosts entry (recommended)
+- `DEPLOY_JUMP_HOST` - optional bastion host for private targets
+- `DEPLOY_JUMP_USER` - optional bastion SSH user (defaults to `DEPLOY_USER`)
+- `DEPLOY_JUMP_PORT` - optional bastion SSH port (default `22`)
+
+Remote server requirements:
+- Docker installed and available for the deploy user
+- Port (`DEPLOY_PUBLIC_PORT`) open on server/firewall
+
+### Using Nginx Proxy Manager / Shared Docker Network
+
+If Nginx Proxy Manager runs in Docker on the same host, use shared-network mode:
+
+- `DEPLOY_ROUTE_MODE=network`
+- `DEPLOY_DOCKER_NETWORK=<your-shared-network>` (e.g. `proxy`)
+- `DEPLOY_NETWORK_ALIAS=unbrowse-web`
+
+In this mode, no host port mapping is created. Point Nginx Proxy Manager upstream to:
+
+- Host: `unbrowse-web` (or your alias)
+- Port: `80`
+
 ## Project Structure
 
 ```

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { API_BASE } from '../lib/api';
+
+const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 export default function FdryBalance({ wallet }) {
   const [balance, setBalance] = useState(null);
