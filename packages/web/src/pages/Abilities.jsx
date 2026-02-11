@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { apiUrl } from '../lib/api-base';
 
 export default function Abilities() {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ export default function Abilities() {
     setError(null);
 
     try {
-      const response = await fetch('/my/abilities', {
+      const response = await fetch(apiUrl('/my/abilities'), {
         credentials: 'include',
       });
 
@@ -69,7 +70,7 @@ export default function Abilities() {
 
   const toggleFavorite = async (abilityId, currentStatus) => {
     try {
-      const response = await fetch(`/my/abilities/${abilityId}/favorite`, {
+      const response = await fetch(apiUrl(`/my/abilities/${abilityId}/favorite`), {
         method: currentStatus ? 'DELETE' : 'POST',
         credentials: 'include',
       });
@@ -93,7 +94,7 @@ export default function Abilities() {
 
   const publishAbility = async (abilityId) => {
     try {
-      const response = await fetch(`/my/abilities/${abilityId}/publish`, {
+      const response = await fetch(apiUrl(`/my/abilities/${abilityId}/publish`), {
         method: 'POST',
         credentials: 'include',
       });
@@ -121,7 +122,7 @@ export default function Abilities() {
     }
 
     try {
-      const response = await fetch(`/my/abilities/${abilityId}`, {
+      const response = await fetch(apiUrl(`/my/abilities/${abilityId}`), {
         method: 'DELETE',
         credentials: 'include',
       });

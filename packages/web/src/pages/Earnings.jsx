@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+import { apiUrl } from '../lib/api-base';
 
 export default function Earnings() {
   const [wallet, setWallet] = useState('');
@@ -29,7 +28,7 @@ export default function Earnings() {
 
   const loadBalance = async () => {
     try {
-      const res = await fetch(`${API_BASE}/fdry/balance/${wallet}`);
+      const res = await fetch(apiUrl(`/fdry/balance/${wallet}`));
       if (res.ok) {
         const data = await res.json();
         setBalance(data);
@@ -41,7 +40,7 @@ export default function Earnings() {
 
   const loadDistributions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/fdry/distributions/${wallet}?page=${distPage}&limit=10`);
+      const res = await fetch(apiUrl(`/fdry/distributions/${wallet}?page=${distPage}&limit=10`));
       if (res.ok) {
         const data = await res.json();
         setDistributions(data.distributions || data.items || []);
@@ -54,7 +53,7 @@ export default function Earnings() {
 
   const loadLeaderboard = async () => {
     try {
-      const res = await fetch(`${API_BASE}/fdry/leaderboard`);
+      const res = await fetch(apiUrl('/fdry/leaderboard'));
       if (res.ok) {
         const data = await res.json();
         setLeaderboard(data.leaderboard || data || []);
@@ -66,7 +65,7 @@ export default function Earnings() {
 
   const loadStats = async () => {
     try {
-      const res = await fetch(`${API_BASE}/fdry/stats`);
+      const res = await fetch(apiUrl('/fdry/stats'));
       if (res.ok) {
         const data = await res.json();
         setStats(data);

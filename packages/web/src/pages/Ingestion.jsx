@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiUrl } from '../lib/api-base';
 
 export default function Ingestion() {
   const [activeTab, setActiveTab] = useState('har');
@@ -31,7 +32,7 @@ export default function Ingestion() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/ingest', {
+      const response = await fetch(apiUrl('/ingest'), {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -83,7 +84,7 @@ export default function Ingestion() {
         }
       }
 
-      const response = await fetch('/ingest/api', {
+      const response = await fetch(apiUrl('/ingest/api'), {
         method: 'POST',
         credentials: 'include',
         headers: {
