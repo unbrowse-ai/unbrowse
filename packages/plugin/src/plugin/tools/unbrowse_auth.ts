@@ -86,7 +86,7 @@ export function makeUnbrowseAuthTool(deps: ToolDeps) {
         if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed") || msg.includes("/requests failed")) {
           // Fallback: CDP (:18800) direct connect. No request history, but can pull cookies + storage.
           try {
-            const { chromium } = await import("playwright");
+            const { chromium } = await import("playwright-core");
             const browser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 5000 });
             const context = browser.contexts()[0] ?? (await browser.newContext());
             const baseUrl = p.domain

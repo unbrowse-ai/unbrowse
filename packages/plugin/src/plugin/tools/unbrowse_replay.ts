@@ -331,7 +331,7 @@ async execute(_toolCallId: string, params: unknown) {
   let chromeBrowser: any = null;
   let chromePage: any = null;
   let chromeContext: any = null;
-  let browserSource: "openclaw" | "cdp" | "playwright" | "none" = "none";
+  let browserSource: "openclaw" | "cdp" | "none" = "none";
   let ownsBrowser = false;
 
   async function getChromePage(): Promise<any | null> {
@@ -339,7 +339,7 @@ async execute(_toolCallId: string, params: unknown) {
 
     let chromium: any;
     try {
-      ({ chromium } = await import("playwright"));
+      ({ chromium } = await import("playwright-core"));
     } catch {
       // Can't do browser-eval execution; caller will fall back to node/backend.
       return null;
@@ -383,17 +383,10 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
-    // Strategy 3: Launch headless Chromium as fallback (same as capture flow)
+    // No headless launch fallback. Native-only: require OpenClaw/Chrome CDP.
     if (!chromeBrowser) {
-      try {
-        chromeBrowser = await chromium.launch({ headless: true });
-        ownsBrowser = true;
-        browserSource = "playwright";
-        logger.info(`[unbrowse] Launched headless Chromium for replay`);
-      } catch {
-        browserSource = "none";
-        return null;
-      }
+      browserSource = "none";
+      return null;
     }
 
     chromeContext = chromeBrowser.contexts()[0];
@@ -654,7 +647,7 @@ async execute(_toolCallId: string, params: unknown) {
 
     // Strategy 2: re-grab cookies via CDP connect (Chrome profile)
     try {
-      const { chromium } = await import("playwright");
+      const { chromium } = await import("playwright-core");
       let browser: any = null;
       for (const port of [browserPort, 9222, 9229]) {
         try {

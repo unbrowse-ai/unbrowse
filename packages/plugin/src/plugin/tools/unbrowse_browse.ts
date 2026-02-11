@@ -281,8 +281,7 @@ async execute(_toolCallId: string, params: unknown) {
 
   // Get or reuse browser session - uses CDP cascade:
   // 1. Try OpenClaw-managed Chrome (CDP :18800) - preserves logins/cookies
-  // 2. Try user Chrome remote debugging (9222, 9229)
-  // 3. Launch Chrome with user's profile (requires Chrome to be closed)
+  // 2. Try relay/default Chrome remote debugging ports (18792, 9222, 9229)
   let session: any | null = null;
   let browser: any = null;
   let context: any = null;
@@ -306,7 +305,7 @@ async execute(_toolCallId: string, params: unknown) {
         content: [{
           type: "text",
           text:
-            `Playwright dependency missing in the Unbrowse plugin install.\n\n` +
+            `Browser runtime dependency missing in the Unbrowse plugin install.\n\n` +
             `Fix:\n` +
             `- Reinstall the plugin: \`openclaw plugins install @getfoundry/unbrowse-openclaw\`\n` +
             `- Or inside the install dir (~/.openclaw/extensions/unbrowse-openclaw): \`npm install\``,
@@ -318,10 +317,10 @@ async execute(_toolCallId: string, params: unknown) {
         content: [{
           type: "text",
           text: `**Could not launch browser.**\n\n` +
-            `Playwright Chromium failed to start.\n\n` +
+            `No OpenClaw/Chrome CDP session is available.\n\n` +
             `**Try:**\n` +
-            `1. Run: \`npx playwright install chromium\`\n` +
-            `2. Then run this command again`,
+            `1. Run: \`openclaw browser start --browser-profile openclaw\`\n` +
+            `2. Keep that browser running and run this command again`,
         }],
       };
     }
@@ -904,9 +903,16 @@ async execute(_toolCallId: string, params: unknown) {
       deadSession.browser?.close().catch(() => { });
       browserSessions.delete(service);
     }
-    if (msg.includes("playwright")) {
+    if (msg.includes("playwright-core")) {
       return {
-        content: [{ type: "text", text: `Playwright not available: ${msg}. Install with: bun add playwright` }],
+        content: [
+          {
+            type: "text",
+            text:
+              `Browser runtime unavailable: ${msg}\n` +
+              `Start native browser first: openclaw browser start --browser-profile openclaw`,
+          },
+        ],
       };
     }
     return { content: [{ type: "text", text: `Interaction failed: ${msg}` }] };

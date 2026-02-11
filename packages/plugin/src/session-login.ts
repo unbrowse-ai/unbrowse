@@ -350,7 +350,7 @@ export async function loginAndCapture(
   // Fallback: use Playwright via CDP to OpenClaw-managed Chrome (preserves logins).
   // This avoids depending on any OpenClaw-internal REST port contracts.
   try {
-    const { chromium } = await import("playwright");
+    const { chromium } = await import("playwright-core");
     let browser: any | null = null;
     try {
       browser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 5000 });
