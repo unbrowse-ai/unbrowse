@@ -21,11 +21,8 @@ export function makeUnbrowseBrowseTool(deps: ToolDeps) {
     allowLegacyPlaywrightFallback,
     defaultOutputDir,
     vaultDbPath,
-    enableOtpAutoFill,
     enableChromeCookies,
     getOrCreateBrowserSession,
-    startPersistentOtpWatcher,
-    isOtpWatcherActive,
     getSharedBrowser,
     closeChrome,
     browserSessions,
@@ -241,7 +238,7 @@ async execute(_toolCallId: string, params: unknown) {
     // If Chrome is running without CDP and no permission, fall back to Playwright
   }
 
-  const { extractPageState, getElementByIndex, formatPageStateForLLM, detectOTPField } = await import(
+  const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import(
     "../../dom-service.js"
   );
   const service = p.service;
@@ -354,9 +351,6 @@ async execute(_toolCallId: string, params: unknown) {
     }
     throw browserErr;
   }
-
-  // Track OTP field index for re-detection after clicks
-  let otpAutoFillIndex: number | null = null;
 
   try {
     // If this is an existing session, we may need to navigate to a new page
@@ -512,15 +506,6 @@ async execute(_toolCallId: string, params: unknown) {
     // Extract initial page state (indexed elements)
     let pageState = await extractPageState(page);
 
-    // Auto-OTP detection - use persistent watcher that survives interact completion
-    const otpDetection = detectOTPField(pageState);
-    otpAutoFillIndex = otpDetection.hasOTP ? (otpDetection.elementIndex ?? null) : null;
-
-    if (otpDetection.hasOTP && otpAutoFillIndex != null) {
-      // Start persistent watcher (runs in background, doesn't stop when interact ends)
-      await startPersistentOtpWatcher(page, otpAutoFillIndex);
-    }
-
     // Execute actions (browser-use style - index-based)
     const actionResults: string[] = [];
 
@@ -547,16 +532,6 @@ async execute(_toolCallId: string, params: unknown) {
             await page.waitForTimeout(500);
             // Re-extract page state after click (page may have changed)
             pageState = await extractPageState(page);
-
-            // Re-check for OTP fields after click (might have navigated to 2FA page)
-            if (!isOtpWatcherActive()) {
-              const newOtpCheck = detectOTPField(pageState);
-              if (newOtpCheck.hasOTP && newOtpCheck.elementIndex != null) {
-                otpAutoFillIndex = newOtpCheck.elementIndex;
-                await startPersistentOtpWatcher(page, otpAutoFillIndex);
-                actionResults.push(`OTP field detected - auto-watching for SMS/notifications (5min TTL)`);
-              }
-            }
 
             const desc = act.index != null
               ? `[${act.index}] ${pageState.elements.find(e => e.index === act.index)?.text?.slice(0, 50) ?? ""}`
@@ -720,40 +695,6 @@ async execute(_toolCallId: string, params: unknown) {
 
           case "done": {
             actionResults.push(`done: ${act.text ?? "Task complete"}`);
-            break;
-          }
-
-          case "wait_for_otp": {
-            // Wait for OTP from SMS/notification and auto-fill
-            const { startOTPWatcher, stopOTPWatcher, getOTPWatcher } = await import("../../otp-watcher.js");
-            const watcher = startOTPWatcher((otp) => {
-              logger.info(`[unbrowse] OTP detected: ${otp.code} from ${otp.source}`);
-            });
-
-            const timeoutMs = (act.amount ?? 60) * 1000;
-            actionResults.push(`wait_for_otp: Waiting up to ${timeoutMs / 1000}s for OTP from SMS/clipboard...`);
-
-            const otp = await watcher.waitForOTP(timeoutMs);
-
-            if (otp) {
-              actionResults.push(`wait_for_otp: Got OTP "${otp.code}" from ${otp.source}`);
-
-              // Auto-fill if index is provided
-              if (act.index != null) {
-                const el = await getElementByIndex(page, act.index);
-                if (el) {
-                  await el.click();
-                  await el.fill(otp.code);
-                  actionResults.push(`wait_for_otp: Filled OTP into element [${act.index}]`);
-                }
-              }
-
-              watcher.clear(); // Clear so we don't reuse
-            } else {
-              actionResults.push(`wait_for_otp: No OTP received within ${timeoutMs / 1000}s`);
-            }
-
-            pageState = await extractPageState(page);
             break;
           }
 
@@ -972,9 +913,6 @@ async execute(_toolCallId: string, params: unknown) {
         "Not published: reverse-engineering did not produce a publishable API skill.",
       );
     }
-
-    // Note: Persistent OTP watcher intentionally NOT stopped here
-    // It continues running in background to fill OTP when it arrives
 
     logger.info(
       `[unbrowse] Interact: ${p.actions.length} actions on ${pageState.url} (${apiCalls.length} API calls, ${pageState.elements.length} elements${skillResult ? `, skill: ${skillResult.service}` : ""})`,

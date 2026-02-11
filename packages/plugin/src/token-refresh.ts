@@ -440,6 +440,7 @@ export class TokenRefreshScheduler {
   private skillsDir: string;
   private intervalMs: number;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private initialTimeout: ReturnType<typeof setTimeout> | null = null;
   private logger: { info: (msg: string) => void; warn: (msg: string) => void };
 
   constructor(
@@ -469,10 +470,10 @@ export class TokenRefreshScheduler {
 
     // Defer initial check to avoid blocking plugin initialization
     // This prevents deadlocks with diagnostic commands that load plugins briefly
-    const initialCheck = setTimeout(() => {
+    this.initialTimeout = setTimeout(() => {
       this.checkAllSkills().catch(() => {});
     }, 5000);
-    initialCheck.unref(); // Don't keep process alive for deferred check
+    this.initialTimeout.unref(); // Don't keep process alive for deferred check
 
     this.timer = setInterval(() => {
       this.checkAllSkills().catch(() => {});
@@ -481,6 +482,10 @@ export class TokenRefreshScheduler {
   }
 
   stop(): void {
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = null;
+    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;

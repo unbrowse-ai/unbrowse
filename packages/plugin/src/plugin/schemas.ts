@@ -228,13 +228,12 @@ export const INTERACT_SCHEMA = {
             enum: [
               "click_element", "input_text", "select_option", "get_dropdown_options",
               "scroll", "send_keys", "wait", "extract_content",
-              "go_to_url", "go_back", "done", "wait_for_otp",
+              "go_to_url", "go_back", "done",
             ],
             description:
               "Action type. Use element indices from the page state (e.g. click_element index=3). " +
               "Index-based actions: click_element, input_text, select_option, get_dropdown_options. " +
-              "Page actions: scroll, send_keys, wait, extract_content, go_to_url, go_back, done. " +
-              "Special: wait_for_otp (waits for OTP from SMS/notification, auto-fills into index).",
+              "Page actions: scroll, send_keys, wait, extract_content, go_to_url, go_back, done.",
           },
           index: {
             type: "number" as const,

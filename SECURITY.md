@@ -24,21 +24,7 @@ Unbrowse is a **local-first automation tool** that runs entirely on your machine
 
 ---
 
-### 2. OTP/2FA Code Reading (`src/otp-watcher.ts`)
-
-**What:** Monitors clipboard, iMessage, Notification Center, and Mail.app for OTP codes.
-
-**Why:** To auto-fill 2FA codes during automated login flows, eliminating manual copy-paste.
-
-**When used:** Only during `unbrowse_login` when a site requires 2FA. You'll see a prompt that it's waiting for an OTP.
-
-**Where data goes:** OTP codes are used immediately for form filling. Not stored.
-
-**Opt-out:** Set `credentialSource: "none"` in config. You'll need to manually enter OTP codes.
-
----
-
-### 3. Credential Access (`src/credential-providers.ts`)
+### 2. Credential Access (`src/credential-providers.ts`)
 
 **What:** Reads passwords from macOS Keychain or 1Password CLI.
 
@@ -52,7 +38,7 @@ Unbrowse is a **local-first automation tool** that runs entirely on your machine
 
 ---
 
-### 4. Desktop Automation (`src/desktop-automation.ts`)
+### 3. Desktop Automation (`src/desktop-automation.ts`)
 
 **What:** Uses AppleScript to control apps (open, quit, type, click).
 
@@ -66,7 +52,7 @@ Unbrowse is a **local-first automation tool** that runs entirely on your machine
 
 ---
 
-### 5. Auth Storage (`src/vault.ts`, `auth.json`)
+### 4. Auth Storage (`src/vault.ts`, `auth.json`)
 
 **What:** Stores captured session tokens, cookies, and headers locally.
 
@@ -111,7 +97,6 @@ The **only** external communication happens when you explicitly:
 | Feature | Default | Config to Enable |
 |---------|---------|------------------|
 | Chrome cookie reading | ❌ Disabled | `enableChromeCookies: true` |
-| OTP auto-fill | ❌ Disabled | `enableOtpAutoFill: true` |
 | Keychain/1Password | ❌ Disabled | `credentialSource: "keychain"` or `"1password"` |
 | Desktop automation | ❌ Disabled | `enableDesktopAutomation: true` |
 | Marketplace publish | ❌ Disabled | Explicit `unbrowse_publish` call |
@@ -127,7 +112,6 @@ Add to your OpenClaw config (`~/.openclaw/openclaw.json`):
       "unbrowse": {
         "config": {
           "enableChromeCookies": true,
-          "enableOtpAutoFill": true,
           "enableDesktopAutomation": true,
           "credentialSource": "keychain"
         }
@@ -181,7 +165,6 @@ All "scary" capabilities are in clearly named files:
 
 ```
 src/chrome-cookies.ts      — Cookie decryption
-src/otp-watcher.ts         — OTP monitoring
 src/credential-providers.ts — Keychain/1Password
 src/desktop-automation.ts  — AppleScript
 src/vault.ts               — Auth storage
