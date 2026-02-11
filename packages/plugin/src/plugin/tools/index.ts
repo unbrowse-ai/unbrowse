@@ -5,6 +5,7 @@ import type { ToolDeps } from "./deps.js";
 import { makeUnbrowseLearnTool } from "./unbrowse_learn.js";
 import { makeUnbrowseCaptureTool } from "./unbrowse_capture.js";
 import { makeUnbrowseAuthTool } from "./unbrowse_auth.js";
+import { makeUnbrowseAccountTool } from "./unbrowse_account.js";
 import { makeUnbrowseReplayTool } from "./unbrowse_replay.js";
 import { makeUnbrowseSkillsTool } from "./unbrowse_skills.js";
 import { makeUnbrowsePublishTool } from "./unbrowse_publish.js";
@@ -27,6 +28,7 @@ export function createTools(deps: ToolDeps) {
       makeUnbrowseLearnTool(deps),
       makeUnbrowseCaptureTool(deps),
       makeUnbrowseAuthTool(deps),
+      makeUnbrowseAccountTool(deps),
       makeUnbrowseReplayTool(deps),
       makeUnbrowseSkillsTool(deps),
       makeUnbrowsePublishTool(deps),
