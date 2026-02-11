@@ -5,6 +5,8 @@ on:
   release:
     types: [published]
   push:
+    branches:
+      - stable
     tags:
       - "v*"
 
@@ -26,10 +28,26 @@ jobs:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
 
+      - name: Check npm version availability
+        id: npm_check
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Package already published: ${PKG_NAME}@${PKG_VERSION}"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Package version available: ${PKG_NAME}@${PKG_VERSION}"
+          fi
+
       - run: npm install
+        if: steps.npm_check.outputs.exists != 'true'
 
       - run: npm run build
+        if: steps.npm_check.outputs.exists != 'true'
 
       - run: npm publish --provenance --access public
+        if: steps.npm_check.outputs.exists != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
