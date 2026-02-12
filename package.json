@@ -12,5 +12,6 @@
     "build:web": "cd packages/web && pnpm build",
     "typecheck": "cd packages/plugin && npx tsc --noEmit"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "description": "Open protocol for agent web access. Capture, package, and replay internal web APIs."
 }
