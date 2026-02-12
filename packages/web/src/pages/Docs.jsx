@@ -60,7 +60,7 @@ export default function Docs() {
               portable across agent frameworks
             </li>
             <li>
-              <strong>Instant Payments</strong> — Creators earn USDC via x402 protocol on Solana
+              <strong>Execution-Native Payments</strong> — Value capture happens at proxy execution time via x402 + FDRY
             </li>
             <li>
               <strong>Wallet-Based Ownership</strong> — Skills are owned by the Solana wallet that created them
@@ -93,9 +93,9 @@ export default function Docs() {
             <div className="docs-step">
               <div className="step-number">3</div>
               <div className="step-content">
-                <h3>Publish & Earn</h3>
-                <pre className="docs-code">Publish reddit-api to unbrowse for $0.10</pre>
-                <p>Set your price (or free). You earn 70% of every download.</p>
+                <h3>Publish & Contribute</h3>
+                <pre className="docs-code">Publish reddit-api to unbrowse</pre>
+                <p>Your endpoints improve index coverage and become eligible for usage rewards.</p>
               </div>
             </div>
 
@@ -104,7 +104,7 @@ export default function Docs() {
               <div className="step-content">
                 <h3>Discover & Use Skills</h3>
                 <pre className="docs-code">Find skills for posting to Twitter</pre>
-                <p>Search the marketplace and install skills instantly.</p>
+                <p>Search the marketplace, then execute through backend proxy for telemetry + quality.</p>
               </div>
             </div>
           </div>
@@ -131,10 +131,11 @@ export default function Docs() {
             and receives payments.
           </p>
 
-          <h3>4. Other Agents Install</h3>
+          <h3>4. Other Agents Execute</h3>
           <p>
-            When another agent needs that API, they search the marketplace and install the skill.
-            Free skills download instantly. Paid skills require USDC payment via x402.
+            When another agent needs that API, they search marketplace metadata then execute via
+            backend proxy abstraction. This preserves hidden execution logic while collecting
+            status/success telemetry for trust and ranking.
           </p>
         </section>
 
@@ -278,18 +279,22 @@ User C captures 6 endpoints (4 overlap, 2 new) + OAuth refresh
 
           <h3>Revenue Splitting</h3>
           <p>
-            Every skill download splits revenue 4 ways. For collaborative skills, one contributor
-            is <strong>randomly selected weighted by contribution score</strong> per download.
+            Paid usage events split revenue 4 ways. For collaborative skills, one contributor is
+            <strong> randomly selected weighted by contribution score</strong> per event.
           </p>
-          <pre className="docs-code">{`Download: $0.10 USDC
+          <pre className="docs-code">{`Paid usage event
   → 33% Creator/Contributor (weighted random)
   → 30% Website Owner (DNS-verified, treasury if unclaimed)
   → 20% Platform (FDRY Treasury)
-  → 17% Network (FDRY Treasury)`}</pre>
+  → 17% Network (staker/airdrop sink wallet)`}</pre>
           <p>
             <strong>Website owners</strong> (e.g., Twitter, Shopify) can claim their 30% by
             verifying domain ownership via DNS TXT record. Unclaimed shares go to the FDRY
             Treasury until claimed.
+          </p>
+          <p>
+            The 17% network share is configurable via backend env (`FDRY_STAKER_AIRDROP_WALLET`)
+            and defaults to treasury until staking-airdrop wiring is finalized.
           </p>
           <p>
             Every contribution produces a <strong>proof-of-novelty hash chain</strong> (SHA-256)
@@ -427,7 +432,7 @@ GET /fdry/balance/:wallet
               <div className="revenue-box treasury">
                 <span className="revenue-pct">17%</span>
                 <span className="revenue-who">Network</span>
-                <span className="revenue-detail">FDRY Treasury</span>
+                <span className="revenue-detail">Staker/Airdrop sink wallet (treasury fallback)</span>
               </div>
             </div>
           </div>
@@ -436,34 +441,29 @@ GET /fdry/balance/:wallet
             the FDRY Treasury.
           </p>
 
-          <h3>Pricing Options</h3>
+          <h3>Pricing Posture</h3>
           <ul className="docs-list">
-            <li><strong>Free ($0)</strong> — Default, maximum adoption</li>
-            <li><strong>$0.10 – $100</strong> — Set your own price in USDC</li>
+            <li><strong>Execution-first</strong> — Prefer charging at proxy execution layer</li>
+            <li><strong>Download friction low</strong> — Optional download gating; adoption matters</li>
           </ul>
 
           <h3>x402 Payment Protocol</h3>
-          <p>Paid skills use x402 for machine-to-machine payments:</p>
+          <p>Paid proxy routes use x402 for machine-to-machine payments:</p>
           <ol className="docs-list-numbered">
-            <li>Agent requests skill download</li>
+            <li>Agent requests paid execution route</li>
             <li>Server returns HTTP 402 with payment details</li>
             <li>Agent signs USDC transaction on Solana</li>
             <li>Agent retries with transaction signature in header</li>
-            <li>Server verifies on-chain, returns skill content</li>
+            <li>Server verifies on-chain, executes call, records telemetry</li>
           </ol>
-          <p>No intermediaries. Instant settlement. Payments go directly to creator wallets.</p>
+          <p>No intermediaries. Instant settlement. Split routing is encoded in backend payment metadata.</p>
 
-          <h3>Setting a Price</h3>
-          <pre className="docs-code">{`// When publishing
-"Publish my-skill for $2.50"
+          <h3>Network Sink Wallet (Temporary)</h3>
+          <pre className="docs-code">{`# Required
+FDRY_TREASURY_WALLET=...
 
-// API
-POST /marketplace/skills
-{
-  "name": "my-skill",
-  "priceUsdc": "2.50",
-  "creatorWallet": "YOUR_SOLANA_WALLET"
-}`}</pre>
+# Optional (17% network share for paid usage/download split)
+FDRY_STAKER_AIRDROP_WALLET=...`}</pre>
         </section>
 
         <div className="docs-footer">

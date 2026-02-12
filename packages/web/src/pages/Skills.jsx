@@ -263,7 +263,7 @@ export default function Skills() {
 
           <p className="ub-subhead">
             An index of every API on the internet as skills—discovered automatically,
-            paid for with micropayments. <strong>And the agents who map it get paid.</strong>
+            executed through a proxy layer with micropayments. <strong>And the agents who map it get paid from usage.</strong>
           </p>
 
           <div className="ub-install-box">
@@ -372,7 +372,7 @@ export default function Skills() {
                 <div className="ub-msg-bubble">
                   <span className="ub-msg-action">Running quality check... Score: 92/100</span>
                   <span className="ub-msg-success">✓ Published to marketplace!</span>
-                  <span className="ub-msg-earn">You'll earn <strong>$0.07</strong> per download (70% creator share)</span>
+                  <span className="ub-msg-earn">Eligible for <strong>FDRY rewards</strong> as proxy executions succeed</span>
                 </div>
                 <span className="ub-msg-time">2:44 PM</span>
               </div>
@@ -390,7 +390,7 @@ export default function Skills() {
                   <div className="ub-msg-skill-card">
                     <span className="ub-skill-badge free">FREE</span>
                     <strong>twitter-api</strong>
-                    <span className="ub-skill-meta">12 endpoints • 2.3k downloads</span>
+                    <span className="ub-skill-meta">12 endpoints • 2.3k installs</span>
                   </div>
                   <span className="ub-msg-detail">Want me to install it?</span>
                 </div>
@@ -483,12 +483,12 @@ export default function Skills() {
             </div>
             <h3>MONETIZE</h3>
             <p>
-              Publish to the marketplace. Set your price. Earn 70% of every download
-              in USDC via x402 micropayments. Your skills work while you sleep.
+              Publish to the index. Keep distribution easy. Monetize through
+              x402-gated proxy execution while preserving backend abstraction.
             </p>
             <div className="ub-value-highlight">
               <div className="ub-value-stat">{stats.downloads.toLocaleString()}</div>
-              <div className="ub-value-stat-label">TOTAL DOWNLOADS</div>
+              <div className="ub-value-stat-label">TOTAL INSTALLS</div>
             </div>
           </div>
         </div>
@@ -507,13 +507,13 @@ export default function Skills() {
         </div>
         <div className="ub-stat-divider" />
         <div className="ub-stat-block">
-          <div className="ub-stat-num">70%</div>
-          <div className="ub-stat-label">Creator Revenue</div>
+          <div className="ub-stat-num">x402</div>
+          <div className="ub-stat-label">Execution Gating</div>
         </div>
         <div className="ub-stat-divider" />
         <div className="ub-stat-block">
-          <div className="ub-stat-num">USDC</div>
-          <div className="ub-stat-label">Instant Payouts</div>
+          <div className="ub-stat-num">FDRY</div>
+          <div className="ub-stat-label">Usage Rewards</div>
         </div>
       </section>
 
@@ -571,8 +571,7 @@ export default function Skills() {
                 const price = parseFloat(skill.priceUsdc || '0');
                 const isFree = price === 0;
                 const workingEndpointCount = Number(skill.verifiedEndpointCount || 0);
-                const endpointCount = workingEndpointCount || Number(skill.endpointCount || 0);
-                const endpointLabel = workingEndpointCount > 0 ? 'working endpoints' : 'endpoints';
+                const endpointCount = workingEndpointCount;
 
                 return (
                   <Link
@@ -616,7 +615,7 @@ export default function Skills() {
                               <path d="M3 15v4a2 2 0 0 0 2 2h4" />
                               <circle cx="12" cy="12" r="3" />
                             </svg>
-                            {endpointCount} {endpointLabel}
+                            {endpointCount} working endpoints
                           </span>
                         )}
                         {skill.downloadCount > 0 && (
@@ -662,10 +661,10 @@ export default function Skills() {
         <div className="ub-flywheel-inner">
           <h2>THE NETWORK EFFECT</h2>
           <p className="ub-flywheel-desc">
-            Google's crawlers worked for free. Ours don't. Every API you map becomes
-            a skill that other agents can buy—and you earn 70% on every download.
-            More mappers means more skills. More skills means faster agents. Faster
-            agents means more demand. The flywheel spins.
+            Google crawled pages. We map callable endpoints. Every API you map improves
+            routing quality, drives proxy executions, and raises reward value for contributors.
+            More mappers means better coverage. Better coverage means better execution success.
+            Better execution means more demand. The flywheel spins.
           </p>
           <div className="ub-flywheel-chain">
             <span className="ub-chain-step">More Mappers</span>
