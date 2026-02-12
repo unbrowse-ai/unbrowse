@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.5.4",
+  "version": "0.7.0",
   "type": "module",
   "main": "index.ts",
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
