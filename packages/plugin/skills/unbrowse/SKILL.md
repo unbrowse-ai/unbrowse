@@ -41,6 +41,7 @@ Do NOT use unbrowse for:
 | `unbrowse_login` | Authenticate on a site when auth is missing or expired |
 | `unbrowse_capture` | Capture API traffic from a browsing session |
 | `unbrowse_learn` | Learn a site's API structure from captured traffic |
+| `unbrowse_publish` | Publish a captured skill to the marketplace (run in a delegated subagent) |
 
 ## Typical Flow Example
 
@@ -73,3 +74,4 @@ User: "Book a table at Resy for Friday 7pm"
 - If auth expires, use `unbrowse_login` to re-authenticate
 - The browser auto-launches for replay if not already running — no manual setup needed
 - Always prefer `unbrowse_replay` over manual HTTP requests when a skill exists
+- Publishing policy: when asked to publish/share a skill, delegate publishing to a dedicated subagent and run `unbrowse_publish` there (do not publish from the main agent flow)

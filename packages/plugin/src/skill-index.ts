@@ -130,6 +130,14 @@ export interface PublishPayload {
   creatorWallet?: string;
   /** Price in USDC (e.g., "0" for free, "1.00" for $1.00). Min: $0.10, Max: $100.00. Default: free. */
   priceUsdc?: string;
+  /**
+   * Optional per-publish auth bundle used only for backend quality validation.
+   * This is ephemeral request data and is not intended for persistence.
+   */
+  validationAuth?: {
+    headers?: Record<string, string>;
+    cookies?: string;
+  };
 }
 
 export interface PublishResult {

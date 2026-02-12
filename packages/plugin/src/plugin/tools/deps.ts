@@ -11,6 +11,7 @@ export type ToolDeps = {
   // Feature flags
   enableChromeCookies: boolean;
   enableDesktopAutomation: boolean;
+  publishValidationWithAuth: boolean;
 
   // Marketplace
   skillIndexUrl: string;
