@@ -11,5 +11,6 @@
     "build": "cd packages/plugin && npx tsc",
     "build:web": "cd packages/web && pnpm build",
     "typecheck": "cd packages/plugin && npx tsc --noEmit"
-  }
+  },
+  "license": "Apache-2.0"
 }
