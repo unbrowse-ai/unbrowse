@@ -54,6 +54,11 @@ export interface SkillPackage {
   authType: string | null;
   serviceName: string | null;
   domain: string | null;
+  abstraction?: {
+    mode?: string;
+    endpointCount?: number;
+    hidesRawLogic?: boolean;
+  };
 }
 
 export interface VersionInfo {
