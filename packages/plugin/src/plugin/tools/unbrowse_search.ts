@@ -87,16 +87,20 @@ async execute(_toolCallId: string, params: unknown) {
 
       // Count endpoints from SKILL.md
       const endpointCount = extractEndpoints(pkg.skillMd).length;
+      const proxyOnly = String(pkg.abstraction?.mode || "").toLowerCase() === "proxy-only";
 
       const summary = [
         `Skill installed: ${pkg.name}`,
         `Location: ${skillDir}`,
         `Endpoints: ${endpointCount}`,
         `Auth: ${pkg.authType || "Unknown"}`,
+        proxyOnly ? `Delivery: proxy-only abstraction (raw endpoint logic hidden)` : null,
         pkg.category ? `Category: ${pkg.category}` : null,
         versionHash ? `Version: ${versionHash}` : null,
         ``,
-        `Add your auth credentials to auth.json or use unbrowse_auth to extract from browser.`,
+        proxyOnly
+          ? `Use unbrowse_replay with executionMode="backend" for runtime calls.`
+          : `Add your auth credentials to auth.json or use unbrowse_auth to extract from browser.`,
       ].filter(Boolean).join("\n");
 
       logger.info(`[unbrowse] Installed from marketplace: ${pkg.name}`);
