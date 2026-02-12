@@ -615,7 +615,7 @@ export default function Skills() {
                               <path d="M3 15v4a2 2 0 0 0 2 2h4" />
                               <circle cx="12" cy="12" r="3" />
                             </svg>
-                            {endpointCount} working endpoints
+                            {endpointCount} verified endpoints
                           </span>
                         )}
                         {skill.downloadCount > 0 && (

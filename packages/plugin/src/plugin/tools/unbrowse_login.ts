@@ -14,6 +14,7 @@ import {
   generateSkill,
 } from "./shared.js";
 import { inferCsrfProvenance } from "../../auth-provenance.js";
+import { buildPublishPromptLines, isPayerPrivateKeyValid } from "./publish-prompts.js";
 
 export function makeUnbrowseLoginTool(deps: ToolDeps) {
   const {
@@ -22,7 +23,6 @@ export function makeUnbrowseLoginTool(deps: ToolDeps) {
     defaultOutputDir,
     vaultDbPath,
     credentialProvider,
-    autoPublishSkill,
     detectAndSaveRefreshConfig,
     discovery,
   } = deps;
@@ -144,6 +144,7 @@ async execute(_toolCallId: string, params: unknown) {
 
     // If we captured enough API traffic, generate a skill too
     let skillGenerated = false;
+    let skillChanged = false;
     if (result.requestCount > 5) {
       try {
         const apiData = parseHar(result.har, p.loginUrl);
@@ -151,9 +152,10 @@ async execute(_toolCallId: string, params: unknown) {
         for (const [name, value] of Object.entries(result.cookies)) {
           if (!apiData.cookies[name]) apiData.cookies[name] = value;
         }
-        await generateSkill(apiData, defaultOutputDir);
+        const skillResult = await generateSkill(apiData, defaultOutputDir);
         discovery.markLearned(service);
         skillGenerated = true;
+        skillChanged = Boolean(skillResult.changed);
 
         // Detect and save refresh token config
         detectAndSaveRefreshConfig(result.har.log?.entries ?? [], join(skillDir, "auth.json"), logger);
@@ -206,6 +208,11 @@ async execute(_toolCallId: string, params: unknown) {
         logger.warn(`[unbrowse] Could not store in vault: ${(vaultErr as Error).message}`);
       }
     }
+    const hasPayerKey = Boolean(deps.walletState?.solanaPrivateKey);
+    const payerKeyValid = hasPayerKey
+      ? await isPayerPrivateKeyValid(deps.walletState?.solanaPrivateKey)
+      : false;
+
     const summary = [
       `Session captured via ${backend}`,
       `Service: ${service}`,
@@ -219,6 +226,15 @@ async execute(_toolCallId: string, params: unknown) {
       `Base URL: ${result.baseUrl}`,
       `Auth saved: ${join(skillDir, "auth.json")}`,
       skillGenerated ? `Skill generated with ${result.requestCount} captured requests` : "",
+      skillGenerated && skillChanged
+        ? buildPublishPromptLines({
+          service,
+          skillsDir: defaultOutputDir,
+          hasCreatorWallet: Boolean(deps.walletState?.creatorWallet),
+          hasPayerKey,
+          payerKeyValid,
+        }).join("\n")
+        : "",
       !hasAnyAuth ? `WARNING: No auth state captured (0 cookies, 0 headers, 0 tokens). Login may have failed — check form selectors or try different selectors.` : "",
       "",
       hasAnyAuth
