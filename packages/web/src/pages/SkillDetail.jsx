@@ -293,7 +293,7 @@ export default function SkillDetail() {
           <>
             <div className="endpoint-insights-grid">
               <div className="endpoint-insight-card">
-                <span className="endpoint-insight-label">Reachable</span>
+                <span className="endpoint-insight-label">Verified</span>
                 <strong>{verifiedEndpoints.toLocaleString()}</strong>
               </div>
               <div className="endpoint-insight-card">
@@ -342,7 +342,7 @@ export default function SkillDetail() {
                 </div>
 
                 <div className="endpoint-list-head">
-                  Showing {filteredEndpoints.length.toLocaleString()} of {workingEndpointRecords.length.toLocaleString()} working endpoints
+                  Showing {filteredEndpoints.length.toLocaleString()} of {workingEndpointRecords.length.toLocaleString()} verified endpoints
                 </div>
 
                 <div className="endpoint-radar-list">
@@ -388,7 +388,7 @@ export default function SkillDetail() {
               </>
             ) : (
               <p className="endpoint-empty-state">
-                No working endpoints available yet for this skill.
+                No verified endpoints available yet for this skill.
               </p>
             )}
           </>

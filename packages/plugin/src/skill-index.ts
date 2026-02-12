@@ -20,6 +20,7 @@ import {
   loadWeb3,
   loadSplToken,
   keypairFromBase58PrivateKey,
+  keypairFromBase58PrivateKeyWeb3,
   signEd25519MessageBase58,
 } from "./solana/solana-helpers.js";
 import type { HeaderProfileFile } from "./types.js";
@@ -333,7 +334,7 @@ export class SkillIndexClient {
   }): Promise<string> {
     const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadWeb3();
     const { getAssociatedTokenAddress, createTransferInstruction } = await loadSplToken();
-    const keypair = await keypairFromBase58PrivateKey(this.solanaPrivateKey!);
+    const keypair = await keypairFromBase58PrivateKeyWeb3(this.solanaPrivateKey!);
 
     const isDevnet = accepts.network?.includes("devnet");
     const rpcUrl = isDevnet ? "https://api.devnet.solana.com" : "https://api.mainnet-beta.solana.com";

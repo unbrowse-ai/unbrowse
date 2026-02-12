@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import FdryBalance from './FdryBalance';
 
 const FDRY_ENABLED = import.meta.env.VITE_FDRY_ENABLED === 'true';
+const TOKEN_URL = 'https://dexscreener.com/solana/2jc1lpgy1zjl9uertfdmtnm4kc2ahhydk4tqqqgbjdhh';
+const SOCIAL_URL = 'https://x.com/getFoundry';
 
 export default function Layout() {
   const location = useLocation();
@@ -80,6 +82,24 @@ export default function Layout() {
 
           <div className="ub-nav-actions">
             {FDRY_ENABLED && <FdryBalance wallet={wallet} />}
+            <div className="ub-nav-meta">
+              <a
+                href={TOKEN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ub-nav-meta-link"
+              >
+                Token
+              </a>
+              <a
+                href={SOCIAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ub-nav-meta-link"
+              >
+                @getFoundry
+              </a>
+            </div>
             <a
               href="https://github.com/lekt9/unbrowse-openclaw"
               target="_blank"

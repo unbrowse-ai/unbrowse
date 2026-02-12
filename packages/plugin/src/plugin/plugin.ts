@@ -430,7 +430,15 @@ const plugin = {
       logger,
       onSkillGenerated: async (service, result) => {
         if (result.changed) {
-          await autoPublishSkill(service, result.skillDir);
+          const publishCmd = `unbrowse_publish service="${service.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}" skillsDir="${defaultOutputDir.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}" price="0"`;
+          if (!creatorWallet || !solanaPrivateKey) {
+            logger.info(
+              `[unbrowse] Skill ready to publish: ${service}. ` +
+              `Wallet not configured yet; run unbrowse_wallet action="create" first, then ${publishCmd}`,
+            );
+          } else {
+            logger.info(`[unbrowse] Skill ready to publish: ${service}. Publish now: ${publishCmd}`);
+          }
         }
       },
     });

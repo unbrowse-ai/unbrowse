@@ -222,6 +222,30 @@ a {
   gap: 12px;
 }
 
+.ub-nav-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ub-nav-meta-link {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: all 0.25s ease;
+}
+
+.ub-nav-meta-link:hover {
+  color: var(--gold-bright);
+  border-color: var(--border-gold);
+  background: var(--gold-dim);
+}
+
 .ub-nav-github {
   display: flex;
   align-items: center;
@@ -292,6 +316,15 @@ a {
   .ub-nav-github {
     padding: 10px;
     border-radius: 10px;
+  }
+
+  .ub-nav-meta-link {
+    padding: 8px 10px;
+    font-size: 0.68rem;
+  }
+
+  .ub-nav-meta-link:last-child {
+    display: none;
   }
 }
 

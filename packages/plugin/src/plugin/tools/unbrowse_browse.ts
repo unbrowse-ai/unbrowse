@@ -12,6 +12,7 @@ import {
 import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
+import { buildPublishPromptLines } from "./publish-prompts.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
   const {
@@ -28,7 +29,6 @@ export function makeUnbrowseBrowseTool(deps: ToolDeps) {
     browserSessions,
     discovery,
     detectAndSaveRefreshConfig,
-    autoPublishSkill,
     indexClient,
     skillIndexUrl,
   } = deps;
@@ -770,7 +770,7 @@ async execute(_toolCallId: string, params: unknown) {
     let skillResult: { service: string; endpointCount: number; changed: boolean; diff?: string; skillDir: string } | null = null;
     let getVerification: { total: number; verified: number; pruned: number } | null = null;
     let reverseEngineeringFailure: string | null = null;
-    let autoPublishStatus: string | null = null;
+    let publishPromptLines: string[] = [];
     const apiHarEntries = harEntries.filter((e) => {
       const ct = e.response.content.mimeType ?? "";
       return ct.includes("json") || ct.includes("xml") || ct.includes("text/plain") || e.request.method !== "GET";
@@ -831,26 +831,15 @@ async execute(_toolCallId: string, params: unknown) {
             `[unbrowse] Interact -> auto-skill "${result.service}" (${result.endpointCount} endpoints${result.diff ? `, ${result.diff}` : ""})`,
           );
 
-          // Auto-publish if changed
           if (result.changed && result.endpointCount > 0) {
-            const publishedVersion = await autoPublishSkill(result.service, result.skillDir).catch(() => null);
-            if (publishedVersion) {
-              autoPublishStatus = `Published: ${publishedVersion} (auto-synced to cloud index)`;
-            } else {
-              const hasCreatorWallet = Boolean(deps.walletState?.creatorWallet);
-              const hasPayerKey = Boolean(deps.walletState?.solanaPrivateKey);
-              if (!hasCreatorWallet || !hasPayerKey) {
-                autoPublishStatus =
-                  `Not published: wallet setup required before publishing.\n` +
-                  `  Run: unbrowse_wallet action="create"\n` +
-                  `  Or:  unbrowse_wallet action="set_creator" wallet="<your-solana-address>"\n` +
-                  `       unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"`;
-              } else {
-                autoPublishStatus = `Not published: auto-publish failed or was skipped.`;
-              }
-            }
+            publishPromptLines = buildPublishPromptLines({
+              service: result.service,
+              skillsDir: defaultOutputDir,
+              hasCreatorWallet: Boolean(deps.walletState?.creatorWallet),
+              hasPayerKey: Boolean(deps.walletState?.solanaPrivateKey),
+            });
           } else if (result.changed && result.endpointCount <= 0) {
-            autoPublishStatus = "Not published: reverse-engineering produced no usable endpoints.";
+            publishPromptLines = ["Not published: reverse-engineering produced no usable endpoints."];
           }
         }
       } catch (err) {
@@ -904,7 +893,7 @@ async execute(_toolCallId: string, params: unknown) {
         resultLines.push(`  ${reverseEngineeringFailure}`);
       }
       if (skillResult.diff) resultLines.push(`  Changes: ${skillResult.diff}`);
-      if (autoPublishStatus) resultLines.push(`  ${autoPublishStatus}`);
+      if (publishPromptLines.length > 0) resultLines.push(...publishPromptLines.map((line) => `  ${line}`));
       resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
     } else if (reverseEngineeringFailure) {
       resultLines.push(
