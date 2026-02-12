@@ -1,5 +1,5 @@
 import type { ToolDeps } from "../deps.js";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ApiData, ParsedRequest } from "../../../types.js";
 import { guessAuthMethod } from "../../../auth-extractor.js";
@@ -8,6 +8,7 @@ import { enrichApiData } from "../../../har-parser.js";
 import { generateSkill } from "../../../skill-generator.js";
 import { verifyAndPruneGetEndpoints } from "../../../endpoint-verification.js";
 import { buildPublishPromptLines, isPayerPrivateKeyValid } from "../publish-prompts.js";
+import { loadJsonOr } from "../../../disk-io.js";
 
 type ToolResponse = { content: Array<{ type: "text"; text: string }> };
 
@@ -73,11 +74,7 @@ function extractAuthHeadersFromRequests(
 
 async function readJsonIfExists(path: string): Promise<any> {
   if (!existsSync(path)) return {};
-  try {
-    return JSON.parse(readFileSync(path, "utf-8"));
-  } catch {
-    return {};
-  }
+  return loadJsonOr(path, {});
 }
 
 async function writeAuthJson(opts: {
@@ -539,7 +536,7 @@ export async function runOpenClawBrowse(
       // generateSkill overwrites auth.json; restore storage/meta tokens captured from the browser session.
       try {
         const authPath = join(result.skillDir, "auth.json");
-        const existing = existsSync(authPath) ? JSON.parse(readFileSync(authPath, "utf-8")) : {};
+        const existing = existsSync(authPath) ? loadJsonOr<Record<string, any>>(authPath, {}) : {};
         existing.cookies = { ...(existing.cookies ?? {}), ...(persistedCookies ?? {}) };
         existing.headers = { ...(existing.headers ?? {}), ...(persistedAuthHeaders ?? {}) };
         existing.localStorage = { ...(existing.localStorage ?? {}), ...(persistedLocalStorage ?? {}) };

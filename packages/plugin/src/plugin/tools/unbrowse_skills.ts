@@ -1,11 +1,11 @@
 import type { ToolDeps } from "./deps.js";
 import {
   existsSync,
-  readFileSync,
   readdirSync,
   join,
   SKILLS_SCHEMA,
 } from "./shared.js";
+import { loadJsonOr, loadText } from "../../disk-io.js";
 
 export function makeUnbrowseSkillsTool(deps: ToolDeps) {
   const { logger, defaultOutputDir, autoDiscoverEnabled } = deps;
@@ -38,14 +38,14 @@ async execute() {
 
         if (existsSync(authJson)) {
           try {
-            const auth = JSON.parse(readFileSync(authJson, "utf-8"));
+            const auth = loadJsonOr<Record<string, any>>(authJson, {});
             authMethod = auth.authMethod ?? "unknown";
             baseUrl = auth.baseUrl ?? "";
           } catch { /* skip */ }
         }
 
         // Count endpoints from SKILL.md
-        const md = readFileSync(skillMd, "utf-8");
+        const md = loadText(skillMd);
         const matches = md.match(/`(GET|POST|PUT|DELETE|PATCH)\s+[^`]+`/g);
         endpointCount = matches?.length ?? 0;
 

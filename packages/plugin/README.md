@@ -1,134 +1,97 @@
 # Unbrowse
 
-OpenClaw extension for reverse-engineering internal web APIs.
+**The open protocol for agent web access.**
 
-Unbrowse captures XHR/fetch traffic while you browse, turns it into an AgentSkills skill package (`SKILL.md`, `auth.json`, `scripts/`), and can publish/search/execute skills through a marketplace + proxy backend (x402 / Solana).
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@getfoundry/unbrowse-openclaw)](https://www.npmjs.com/package/@getfoundry/unbrowse-openclaw)
 
-Security note: Unbrowse runs locally. Captured auth (cookies/tokens) stays on your machine unless you explicitly publish a skill to the marketplace. See `SECURITY.md` for details.
+Every website has internal APIs — the hidden endpoints their frontend calls. Unbrowse captures them, packages them as reusable skills, and lets any AI agent call them directly. No browser automation. No Playwright. No Puppeteer.
 
-## Installation
+Think of it as **DNS for the agent internet** — mapping websites to callable APIs.
 
-```bash
-openclaw plugins install @getfoundry/unbrowse-openclaw
+## Why
+
+Browser automation is slow, fragile, and detectable. Every major site blocks it. But their internal APIs work perfectly — because that's what their own frontend uses.
+
+Unbrowse flips the approach: instead of automating browsers, reverse-engineer the APIs they already have.
+
+## How It Works
+
+```
+1. Capture    →  Visit any site, intercept all API traffic
+2. Package    →  Generate a skill (endpoints + auth + docs)
+3. Replay     →  Call internal APIs directly, 100x faster than browser
+4. Share      →  Publish to the open marketplace for other agents
 ```
 
-Supported hosts:
-- OpenClaw
-- Clawdbot
-- Moltbot
+## Quick Start
+
+```bash
+# Install as OpenClaw extension
+openclaw plugins install @getfoundry/unbrowse-openclaw
+
+# Or use standalone
+npm install @getfoundry/unbrowse-openclaw
+```
 
 ## Core Tools
 
-- `unbrowse_capture`: visit URLs and capture internal API traffic, then generate a local skill
-- `unbrowse_learn`: parse a HAR file (or HAR JSON) and generate a local skill
-- `unbrowse_login`: guided login flow to capture an authenticated session for a site
-- `unbrowse_auth`: extract auth from a running browser session (cookies/tokens)
-- `unbrowse_replay`: call captured endpoints with stored auth (auto-refresh supported when configured)
-- `unbrowse_skills`: list local skills
-- `unbrowse_publish`: publish a local skill folder to the marketplace
-- `unbrowse_search`: search marketplace and optionally install by skill ID
-- `unbrowse_wallet`: create/import a Solana wallet for paid execution/publishing
+| Tool | Description |
+|------|-------------|
+| `unbrowse_capture` | Visit URLs, capture internal API traffic, generate a skill |
+| `unbrowse_learn` | Parse a HAR file into a skill package |
+| `unbrowse_login` | Authenticate on a site, save session for replay |
+| `unbrowse_replay` | Call captured endpoints with stored auth |
+| `unbrowse_publish` | Share a skill to the open marketplace |
+| `unbrowse_search` | Find and install community skills |
+| `unbrowse_wallet` | Solana wallet for marketplace payments |
 
 ## Marketplace
 
-Defaults:
-- Index URL: `https://index.unbrowse.ai`
-- Override via config `skillIndexUrl` or env `UNBROWSE_INDEX_URL`.
+The Unbrowse marketplace is an open skill registry where agents share reverse-engineered APIs.
 
-Typical flow:
+- **Free to search and browse** — no auth required
+- **USDC payments on Solana** via x402 protocol for paid skills
+- **Creators earn directly** — no platform commission
+- **35+ skills live** — Jupiter, Polymarket, TikTok, Airbnb, Reddit, and more
 
-```bash
-# 1) Create a wallet (private key stored in OS keychain by default)
-unbrowse_wallet action="create"
+Index: [index.unbrowse.ai](https://index.unbrowse.ai)
 
-# 2) Search for skills
-unbrowse_search query="twitter"
+## Open Protocol
 
-# 3) Install a skill by ID
-unbrowse_search install="<skillId>"
+Unbrowse defines an open, framework-agnostic standard for packaging web APIs. Any agent framework can produce and consume Unbrowse skills — they're just files.
 
-# 4) Publish one of your local skills (service = local skill directory name)
-unbrowse_publish service="my-skill" price="0"
+See [PROTOCOL.md](PROTOCOL.md) for the full specification.
+
+## Security
+
+- **All data stays local** — captured auth never leaves your machine unless you explicitly publish
+- **Auth is stripped on publish** — marketplace skills contain endpoint docs only, no credentials
+- **Open source** — audit everything
+
+See [SECURITY.md](SECURITY.md) for the full trust model.
+
+## Contributing
+
+Unbrowse is a public good for the agent ecosystem. Contributions welcome.
+
+See [GOVERNANCE.md](GOVERNANCE.md) for contribution guidelines and [CONTRIBUTING.md](CONTRIBUTING.md) for development setup.
+
+## Architecture
+
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│   Capture    │────▶│  Skill Pkg   │────▶│   Marketplace   │
+│  (browser)   │     │  (local fs)  │     │  (Solana/USDC)  │
+└─────────────┘     └──────────────┘     └─────────────────┘
+                          │
+                          ▼
+                    ┌──────────────┐
+                    │    Replay    │
+                    │ (direct API) │
+                    └──────────────┘
 ```
 
-Notes:
-- Search is free.
-- Proxy execution can require x402 payment (HTTP 402 + `X-Payment`).
-- Skill download gating is optional policy; prioritize low-friction distribution and monetize on execution.
-- Publishing requires a Solana private key to sign the publish request.
-- Publishing contributes your skill + endpoint evidence to the shared index.
-- Contribution rewards are paid in `FDRY` when indexed skills are used successfully (execution quality weighted).
-- Marketplace executions run server-side through the backend executor abstraction.
-- Local reverse-engineering usage is still available: capture/learn/replay can run locally without publishing.
-- `FDRY` rewards can be used for execution flows where `FDRY` settlement is enabled.
+## License
 
-## Configuration
-
-Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/moltbot.json`):
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "unbrowse-openclaw": {
-        "enabled": true,
-        "config": {
-          "skillsOutputDir": "~/.openclaw/skills",
-          "autoDiscover": true,
-          "autoContribute": true,
-          "publishValidationWithAuth": false,
-          "skillIndexUrl": "https://index.unbrowse.ai",
-          "credentialSource": "keychain",
-          "enableChromeCookies": true,
-          "enableDesktopAutomation": true
-        }
-      }
-    }
-  }
-}
-```
-
-### Wallet Setup
-
-Solana wallet credentials are managed separately from plugin config. Private keys are stored in OS keychain by default (no implicit file fallback). Never put private keys in `openclaw.json`.
-
-```bash
-# Create a new wallet (keypair generated locally, private key stored in keychain)
-unbrowse_wallet action="create"
-
-# Import an existing wallet
-unbrowse_wallet action="import"
-```
-
-Wallet state is stored in `~/.openclaw/unbrowse/wallet.json` (public address + keychain flag only).
-
-### Env Vars (optional)
-
-- `UNBROWSE_INDEX_URL` — override the skill index URL
-- `UNBROWSE_PUBLISH_TIMEOUT_MS` — publish request timeout in ms (default `300000`)
-- `UNBROWSE_CREATOR_WALLET` — optional creator wallet bootstrap
-- `UNBROWSE_SOLANA_PRIVATE_KEY` — optional one-time private key bootstrap into wallet storage
-- `UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY=true` — explicitly allow private-key file fallback (CI/dev only)
-
-## Development
-
-```bash
-bun install
-npx tsc --noEmit
-```
-
-### Tests
-
-```bash
-# Unit tests (fast)
-bun run test
-
-# Real-backend E2E (no mocking). Uses docker compose by default.
-bun run test:e2e
-
-# Black-box gateway E2E (OCT)
-bun run test:oct
-bun run test:oct:docker
-```
-
-E2E backend details: see `docs/LLM_DEV_GUIDE.md` and `test/e2e/backend-harness.ts`.
+Apache 2.0 — See [LICENSE](LICENSE)

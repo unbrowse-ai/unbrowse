@@ -8,10 +8,11 @@
  * 4. Fall back to browser agent
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { TaskIntent } from "./task-watcher.js";
+import { loadText } from "./disk-io.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,7 +157,7 @@ export class CapabilityResolver {
         const authJson = join(skillDir, "auth.json");
 
         if (existsSync(skillMd)) {
-          const content = readFileSync(skillMd, "utf-8");
+          const content = loadText(skillMd);
           const endpoints = this.extractEndpoints(content);
 
           return {
@@ -259,7 +260,7 @@ export class CapabilityResolver {
         const authJson = join(skillDir, "auth.json");
 
         if (existsSync(skillMd)) {
-          const content = readFileSync(skillMd, "utf-8");
+          const content = loadText(skillMd);
           skills.push({
             name: entry.name,
             path: skillDir,

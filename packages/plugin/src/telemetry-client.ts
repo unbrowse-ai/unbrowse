@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import crypto from "node:crypto";
+import { loadText } from "./disk-io.js";
 
 export type TelemetryLevel = "minimal" | "standard" | "debug";
 export type TelemetryConfig = { enabled: boolean; level: TelemetryLevel };
@@ -17,7 +18,7 @@ function safeJsonParse<T>(raw: string): T | null {
 export function loadTelemetryConfig(opts?: { pluginConfig?: any }): TelemetryConfig {
   // 1) File override (tool-driven opt-out)
   if (existsSync(TELEMETRY_CFG_PATH)) {
-    const parsed = safeJsonParse<any>(readFileSync(TELEMETRY_CFG_PATH, "utf-8"));
+    const parsed = safeJsonParse<any>(loadText(TELEMETRY_CFG_PATH));
     if (parsed && typeof parsed.enabled === "boolean") {
       const level: TelemetryLevel =
         parsed.level === "minimal" || parsed.level === "standard" || parsed.level === "debug"
@@ -49,7 +50,7 @@ export function setTelemetryConfigFile(cfg: TelemetryConfig): void {
 export function getOrCreateDeviceId(): string {
   try {
     if (existsSync(DEVICE_ID_PATH)) {
-      const parsed = safeJsonParse<any>(readFileSync(DEVICE_ID_PATH, "utf-8"));
+      const parsed = safeJsonParse<any>(loadText(DEVICE_ID_PATH));
       if (parsed?.deviceId && typeof parsed.deviceId === "string") return parsed.deviceId;
     }
   } catch { /* ignore */ }

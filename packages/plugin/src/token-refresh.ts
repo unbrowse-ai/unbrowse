@@ -9,9 +9,10 @@
  * Stores refresh config and schedules automatic refresh before expiry.
  */
 
-import { existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { existsSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { loadJsonOr } from "./disk-io.js";
 
 export interface RefreshConfig {
   url: string;
@@ -388,7 +389,7 @@ export function updateAuthWithTokens(
 
   if (existsSync(authPath)) {
     try {
-      auth = JSON.parse(readFileSync(authPath, "utf-8"));
+      auth = loadJsonOr<Record<string, any>>(authPath, {});
     } catch {
       /* start fresh */
     }
@@ -506,7 +507,7 @@ export class TokenRefreshScheduler {
           const authPath = join(this.skillsDir, skill, "auth.json");
           if (!existsSync(authPath)) continue;
 
-          const auth = JSON.parse(readFileSync(authPath, "utf-8"));
+          const auth = loadJsonOr<Record<string, any>>(authPath, {});
           const config = auth.refreshConfig as RefreshConfig | undefined;
 
           if (!config?.url) continue;

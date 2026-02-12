@@ -326,14 +326,28 @@ export class SkillIndexClient {
     payTo: string;
     asset: string;
     network: string;
-    extra?: { feePayer?: string; programId?: string };
+    extra?: { feePayer?: string; programId?: string; rpcUrl?: string };
   }): Promise<string> {
     const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadWeb3();
     const { getAssociatedTokenAddress, createTransferInstruction } = await loadSplToken();
     const keypair = await keypairFromBase58PrivateKeyWeb3(this.solanaPrivateKey!);
 
-    const isDevnet = accepts.network?.includes("devnet");
-    const rpcUrl = isDevnet ? "https://api.devnet.solana.com" : "https://api.mainnet-beta.solana.com";
+    const DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+    const MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    const network = String(accepts.network ?? "").toLowerCase();
+    const isDevnetByNetwork = network.includes("devnet");
+    const isDevnetByMint = accepts.asset === DEVNET_USDC_MINT;
+    const isMainnetByMint = accepts.asset === MAINNET_USDC_MINT;
+
+    if ((isDevnetByNetwork && isMainnetByMint) || (!isDevnetByNetwork && isDevnetByMint)) {
+      throw new Error(
+        `x402 challenge mismatch: network=${accepts.network}, asset=${accepts.asset}. ` +
+        "Refusing to sign invalid payment challenge.",
+      );
+    }
+
+    const rpcUrl = accepts.extra?.rpcUrl
+      ?? (isDevnetByNetwork || isDevnetByMint ? "https://api.devnet.solana.com" : "https://api.mainnet-beta.solana.com");
     const connection = new Connection(rpcUrl, "confirmed");
 
     const amount = BigInt(accepts.maxAmountRequired);

@@ -1,7 +1,6 @@
 import type { ToolDeps } from "./deps.js";
 import {
   existsSync,
-  readFileSync,
   writeFileSync,
   mkdirSync,
   join,
@@ -13,6 +12,7 @@ import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
 import { buildPublishPromptLines } from "./publish-prompts.js";
+import { loadJsonOr } from "../../disk-io.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
   const {
@@ -230,7 +230,7 @@ async execute(_toolCallId: string, params: unknown) {
 
   if (existsSync(authPath)) {
     try {
-      const auth = JSON.parse(readFileSync(authPath, "utf-8"));
+      const auth = loadJsonOr<Record<string, any>>(authPath, {});
       authHeaders = auth.headers ?? {};
       authCookies = auth.cookies ?? {};
       baseUrl = auth.baseUrl ?? "";
@@ -722,7 +722,9 @@ async execute(_toolCallId: string, params: unknown) {
     try {
       const { mkdirSync, writeFileSync } = await import("node:fs");
       mkdirSync(join(skillDir, "scripts"), { recursive: true });
-      const existing = existsSync(authPath) ? JSON.parse(readFileSync(authPath, "utf-8")) : {};
+      const existing = existsSync(authPath)
+        ? loadJsonOr<Record<string, any>>(authPath, {})
+        : {};
       existing.cookies = { ...authCookies, ...updatedCookies };
       existing.localStorage = { ...storedLocalStorage, ...updatedLocalStorage };
       existing.sessionStorage = { ...storedSessionStorage, ...updatedSessionStorage };
