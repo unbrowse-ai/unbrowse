@@ -47,24 +47,8 @@ export function createBrowserSessionManager(opts: {
   }
 
   async function closeChrome(): Promise<boolean> {
-    try {
-      const { spawnSync } = await import("node:child_process");
-      spawnSync("osascript", ["-e", 'tell application "Google Chrome" to quit'], { timeout: 5000 });
-      for (let i = 0; i < 10; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
-        if (!psResult.stdout.trim()) {
-          logger.info(`[unbrowse] Chrome closed successfully`);
-          return true;
-        }
-      }
-      spawnSync("pkill", ["-x", "Google Chrome"], { timeout: 2000 });
-      logger.info(`[unbrowse] Chrome force-killed`);
-      return true;
-    } catch (err) {
-      logger.warn(`[unbrowse] Failed to close Chrome: ${(err as Error).message}`);
-      return false;
-    }
+    logger.warn("[unbrowse] closeChrome is disabled in this build (shell execution blocked).");
+    return false;
   }
 
   function cleanupStaleSessions() {

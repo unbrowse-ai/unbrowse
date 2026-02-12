@@ -351,20 +351,7 @@ export async function loginAndCapture(
   // This avoids depending on any OpenClaw-internal REST port contracts.
   try {
     const { chromium } = await import("playwright-core");
-    let browser: any | null = null;
-    try {
-      browser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 5000 });
-    } catch {
-      // Attempt to start the OpenClaw-managed browser once, then retry.
-      try {
-        const { spawnSync } = await import("node:child_process");
-        spawnSync("openclaw", ["browser", "start", "--browser-profile", "openclaw", "--json"], {
-          encoding: "utf-8",
-          timeout: 15_000,
-        });
-      } catch { /* ignore */ }
-      browser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 5000 });
-    }
+    const browser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 5000 });
 
     const context = browser.contexts()[0] ?? await browser.newContext();
     if (credentials.headers && Object.keys(credentials.headers).length > 0) {
@@ -453,20 +440,22 @@ export async function loginAndCapture(
 
     const localStorage = await page.evaluate(() => {
       const out: Record<string, string> = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
+      const ls = globalThis.localStorage;
+      for (let i = 0; i < ls.length; i++) {
+        const k = ls.key(i);
         if (!k) continue;
-        try { out[k] = String(localStorage.getItem(k) ?? ""); } catch { /* ignore */ }
+        try { out[k] = String(ls.getItem(k) ?? ""); } catch { /* ignore */ }
       }
       return out;
     }).catch(() => ({} as Record<string, string>));
 
     const sessionStorage = await page.evaluate(() => {
       const out: Record<string, string> = {};
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const k = sessionStorage.key(i);
+      const ss = globalThis.sessionStorage;
+      for (let i = 0; i < ss.length; i++) {
+        const k = ss.key(i);
         if (!k) continue;
-        try { out[k] = String(sessionStorage.getItem(k) ?? ""); } catch { /* ignore */ }
+        try { out[k] = String(ss.getItem(k) ?? ""); } catch { /* ignore */ }
       }
       return out;
     }).catch(() => ({} as Record<string, string>));

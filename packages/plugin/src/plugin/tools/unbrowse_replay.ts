@@ -389,19 +389,7 @@ async execute(_toolCallId: string, params: unknown) {
       browserSource = "openclaw";
       logger.info(`[unbrowse] Connected to OpenClaw-managed Chrome via CDP (:18800)`);
     } catch {
-      // If the browser isn't running, attempt to start it once.
-      try {
-        const { spawnSync } = await import("node:child_process");
-        spawnSync("openclaw", ["browser", "start", "--browser-profile", "openclaw", "--json"], {
-          encoding: "utf-8",
-          timeout: 15_000,
-        });
-      } catch { /* ignore */ }
-      try {
-        chromeBrowser = await chromium.connectOverCDP(`http://127.0.0.1:18800`, { timeout: 5000 });
-        browserSource = "openclaw";
-        logger.info(`[unbrowse] Started + connected to OpenClaw-managed Chrome via CDP (:18800)`);
-      } catch { /* still unavailable */ }
+      // No shell-based auto-start in this build. Continue to fallback CDP probes.
     }
 
     // Strategy 2: Try fallback CDP ports (most reliable first from observed runs)

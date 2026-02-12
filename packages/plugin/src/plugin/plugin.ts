@@ -56,6 +56,7 @@ import { createTools } from "./tools.js";
 import { createBrowserSessionManager } from "./browser-session-manager.js";
 import { hasApiIntent } from "./context-hints.js";
 import { createTelemetryClient, loadTelemetryConfig, hashDomain } from "../telemetry-client.js";
+import { getEnv } from "../runtime-env.js";
 
 /** Scan HAR entries for refresh token endpoints and save config to auth.json */
 function detectAndSaveRefreshConfig(
@@ -97,8 +98,8 @@ function parsePositiveInt(raw: unknown): number | null {
 
 function resolveGatewayPort(config: any): number {
   const envPort =
-    parsePositiveInt(process.env.OPENCLAW_GATEWAY_PORT) ??
-    parsePositiveInt(process.env.CLAWDBOT_GATEWAY_PORT);
+    parsePositiveInt(getEnv("OPENCLAW_GATEWAY_PORT")) ??
+    parsePositiveInt(getEnv("CLAWDBOT_GATEWAY_PORT"));
   if (envPort) return envPort;
   const cfgPort = parsePositiveInt(config?.gateway?.port);
   if (cfgPort) return cfgPort;
@@ -151,7 +152,7 @@ const plugin = {
     const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
     const enableAgentContextHints = (cfg.enableAgentContextHints as boolean) ?? false;
     const publishValidationWithAuth = (cfg.publishValidationWithAuth as boolean) ?? false;
-    const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
+    const skillIndexUrl = (cfg.skillIndexUrl as string) ?? getEnv("UNBROWSE_INDEX_URL") ?? "https://index.unbrowse.ai";
 
     const telemetryCfg = loadTelemetryConfig({ pluginConfig: cfg });
     const pluginVersion = (() => {
@@ -180,10 +181,10 @@ const plugin = {
     }
 
     const savedWallet = loadWallet();
-    let creatorWallet = savedWallet.creatorWallet ?? (cfg.creatorWallet as string) ?? process.env.UNBROWSE_CREATOR_WALLET;
+    let creatorWallet = savedWallet.creatorWallet ?? (cfg.creatorWallet as string) ?? getEnv("UNBROWSE_CREATOR_WALLET");
     let solanaPrivateKey = savedWallet.solanaPrivateKey;
     if (!solanaPrivateKey) {
-      const bootstrappedPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? process.env.UNBROWSE_SOLANA_PRIVATE_KEY;
+      const bootstrappedPrivateKey = (cfg.skillIndexSolanaPrivateKey as string) ?? getEnv("UNBROWSE_SOLANA_PRIVATE_KEY");
       if (bootstrappedPrivateKey) {
         try {
           saveWallet({ creatorWallet, solanaPrivateKey: bootstrappedPrivateKey });
@@ -207,7 +208,7 @@ const plugin = {
       get solanaPrivateKey() { return solanaPrivateKey; },
       set solanaPrivateKey(v: string | undefined) { solanaPrivateKey = v; },
     } as unknown) as WalletState;
-    const credentialSourceCfg = (cfg.credentialSource as string) ?? process.env.UNBROWSE_CREDENTIAL_SOURCE ?? "none";
+    const credentialSourceCfg = (cfg.credentialSource as string) ?? getEnv("UNBROWSE_CREDENTIAL_SOURCE") ?? "none";
     const vaultDbPath = join(homedir(), ".openclaw", "unbrowse", "vault.db");
     const credentialProvider = createCredentialProvider(credentialSourceCfg, vaultDbPath);
 

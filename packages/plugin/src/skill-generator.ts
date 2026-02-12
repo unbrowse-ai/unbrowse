@@ -758,9 +758,9 @@ async function testApi() {
     console.log("Loaded auth from auth.json");
     client = await ${className}Client.fromAuthFile(authPath);
   } else {
-    const apiKey = process.env.${service.toUpperCase().replace(/-/g, "_")}_API_KEY;
+    const apiKey = "";
     if (!apiKey) {
-      console.log("No auth found! Set ${service.toUpperCase().replace(/-/g, "_")}_API_KEY or create auth.json");
+      console.log("No auth found! Create auth.json or set apiKey in this test file.");
       process.exit(1);
     }
     client = new ${className}Client({ authToken: apiKey });

@@ -205,37 +205,12 @@ async execute(_toolCallId: string, params: unknown) {
 
   logger.info(`[unbrowse] Using legacy Playwright fallback flow`);
 
-  // Check if Chrome is running and we need to handle it
+  // Optional user-requested close (feature disabled in shell-free build).
   if (!getSharedBrowser()) {
-    const { spawnSync } = await import("node:child_process");
-    const psResult = spawnSync("pgrep", ["-x", "Google Chrome"], { encoding: "utf-8" });
-    const chromeIsRunning = psResult.stdout.trim().length > 0;
-    const cdpProbePorts = Array.from(new Set([18800, 18792, browserPort, 9222, 9229]))
-      .filter((port) => Number.isInteger(port) && port > 0);
-
-    // Check if any CDP port is available (OpenClaw-managed Chrome or user Chrome with debugging)
-    let cdpAvailable = false;
-    for (const port of cdpProbePorts) {
-      try {
-        const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
-          signal: AbortSignal.timeout(1000),
-        });
-        if (resp.ok) {
-          cdpAvailable = true;
-          break;
-        }
-      } catch { /* not available */ }
-    }
-
-    if (chromeIsRunning && cdpAvailable) {
-      // Chrome has CDP enabled - connect directly, no need to close
-      logger.info(`[unbrowse] Chrome has CDP enabled - connecting directly`);
-    } else if (chromeIsRunning && !cdpAvailable && p.closeChromeIfNeeded) {
-      // Chrome running without CDP and user gave permission - close and relaunch
-      logger.info(`[unbrowse] Closing Chrome to use your profile with all logins...`);
+    if (p.closeChromeIfNeeded) {
+      logger.info(`[unbrowse] closeChromeIfNeeded requested`);
       await closeChrome();
     }
-    // If Chrome is running without CDP and no permission, fall back to Playwright
   }
 
   const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import(
