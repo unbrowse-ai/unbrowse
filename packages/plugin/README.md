@@ -55,6 +55,11 @@ Notes:
 - Search is free.
 - Downloading a skill may require USDC via x402 (HTTP 402 + `X-Payment`).
 - Publishing requires a Solana private key to sign the publish request.
+- Publishing contributes your skill + endpoint evidence to the shared index.
+- Contribution rewards are paid in `FDRY` when indexed skills are used (per backend reward policy).
+- Marketplace executions run server-side through the backend executor abstraction.
+- Local reverse-engineering usage is still available: capture/learn/replay can run locally without publishing.
+- `FDRY` rewards can be used for execution flows where `FDRY` settlement is enabled.
 
 ## Configuration
 
@@ -99,6 +104,7 @@ Wallet state is stored in `~/.openclaw/unbrowse/wallet.json` (public address + k
 ### Env Vars (optional)
 
 - `UNBROWSE_INDEX_URL` — override the skill index URL
+- `UNBROWSE_PUBLISH_TIMEOUT_MS` — publish request timeout in ms (default `120000`)
 - `UNBROWSE_CREATOR_WALLET` — optional creator wallet bootstrap
 - `UNBROWSE_SOLANA_PRIVATE_KEY` — optional one-time private key bootstrap into wallet storage
 - `UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY=true` — explicitly allow private-key file fallback (CI/dev only)

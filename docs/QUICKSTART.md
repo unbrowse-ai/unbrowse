@@ -67,8 +67,13 @@ Publish one of your local skills:
 unbrowse_publish { "service": "<service-name>", "price": "0" }
 ```
 
+What publishing means:
+- Your publish contributes skill metadata + endpoint evidence to the shared index.
+- Eligible contribution rewards are in `FDRY` (based on backend reward policy and usage).
+- Marketplace/index executions run on the backend executor (server-side).
+- Local-only mode is still supported: if you reverse engineer and replay locally, calls run locally without publishing.
+
 ## Next Reads
 
 - Architecture: `docs/ARCHITECTURE.md`
 - Agent-oriented editing workflow: `docs/LLM_DEV_GUIDE.md`
-

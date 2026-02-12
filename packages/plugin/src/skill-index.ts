@@ -24,6 +24,14 @@ import {
 } from "./solana/solana-helpers.js";
 import type { HeaderProfileFile } from "./types.js";
 
+const DEFAULT_PUBLISH_TIMEOUT_MS = 120_000;
+
+function readTimeoutMs(envKey: string, fallbackMs: number): number {
+  const raw = Number(process.env[envKey] ?? fallbackMs);
+  if (!Number.isFinite(raw) || raw <= 0) return fallbackMs;
+  return Math.trunc(raw);
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface SkillSummary {
@@ -402,12 +410,13 @@ export class SkillIndexClient {
   /** Publish a skill to the marketplace (requires wallet signature). */
   async publish(payload: PublishPayload): Promise<PublishResult> {
     const walletHeaders = await this.getWalletAuthHeaders("publish");
+    const publishTimeoutMs = readTimeoutMs("UNBROWSE_PUBLISH_TIMEOUT_MS", DEFAULT_PUBLISH_TIMEOUT_MS);
 
     const resp = await fetch(`${this.indexUrl}/marketplace/skills`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...walletHeaders },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(publishTimeoutMs),
     });
 
     if (!resp.ok) {
