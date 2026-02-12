@@ -1,7 +1,6 @@
 import type { ToolDeps } from "./deps.js";
 import {
   existsSync,
-  readFileSync,
   writeFileSync,
   join,
   resolve,
@@ -14,6 +13,7 @@ import {
 import type { HeaderProfileFile, PrimeResult } from "./shared.js";
 import type { CsrfProvenance } from "../../types.js";
 import { applyCsrfProvenance, inferCsrfProvenance } from "../../auth-provenance.js";
+import { loadJsonOr, loadText } from "../../disk-io.js";
 
 export function makeUnbrowseReplayTool(deps: ToolDeps) {
   const {
@@ -95,7 +95,7 @@ async execute(_toolCallId: string, params: unknown) {
     // Try auth.json first
     if (existsSync(authPath)) {
       try {
-        const auth = JSON.parse(readFileSync(authPath, "utf-8"));
+        const auth = loadJsonOr<Record<string, any>>(authPath, {});
         authHeaders = auth.headers ?? {};
         cookies = auth.cookies ?? {};
         baseUrl = auth.baseUrl ?? baseUrl;
@@ -213,7 +213,7 @@ async execute(_toolCallId: string, params: unknown) {
       if (p.skillId) return p.skillId;
       if (existsSync(marketplaceMetaPath)) {
         try {
-          const meta = JSON.parse(readFileSync(marketplaceMetaPath, "utf-8"));
+          const meta = loadJsonOr<Record<string, any>>(marketplaceMetaPath, {});
           if (typeof meta?.skillId === "string" && meta.skillId.trim().length > 0) return meta.skillId.trim();
         } catch { /* ignore */ }
       }
@@ -228,7 +228,7 @@ async execute(_toolCallId: string, params: unknown) {
     const endpointsPath = join(skillDir, "references", "ENDPOINTS.json");
     if (existsSync(endpointsPath)) {
       try {
-        const list = JSON.parse(readFileSync(endpointsPath, "utf-8"));
+        const list = loadJsonOr<any[]>(endpointsPath, []);
         if (Array.isArray(list)) {
           for (const item of list) {
             if (!item) continue;
@@ -318,7 +318,11 @@ async execute(_toolCallId: string, params: unknown) {
   let headerProfile: HeaderProfileFile | undefined;
   if (existsSync(headersJsonPath)) {
     try {
-      headerProfile = JSON.parse(readFileSync(headersJsonPath, "utf-8"));
+      headerProfile = loadJsonOr<HeaderProfileFile>(headersJsonPath, {
+        version: 1,
+        domains: {},
+        endpointOverrides: {},
+      });
       logger.info(`[unbrowse] Loaded header profile from headers.json`);
     } catch {
       // Invalid headers.json — skip
@@ -331,7 +335,7 @@ async execute(_toolCallId: string, params: unknown) {
   // Parse endpoints from SKILL.md
   let endpoints: { method: string; path: string }[] = [];
   if (existsSync(skillMdPath)) {
-    const md = readFileSync(skillMdPath, "utf-8");
+    const md = loadText(skillMdPath);
     const re = /`(GET|POST|PUT|DELETE|PATCH)\s+([^`]+)`/g;
     let m;
     while ((m = re.exec(md)) !== null) {
@@ -665,7 +669,7 @@ async execute(_toolCallId: string, params: unknown) {
         // Persist refreshed creds to auth.json
         const { writeFileSync } = await import("node:fs");
         const existing = existsSync(authPath)
-          ? JSON.parse(readFileSync(authPath, "utf-8"))
+          ? loadJsonOr<Record<string, any>>(authPath, {})
           : {};
         existing.headers = result.authHeaders;
         existing.cookies = result.cookies;
@@ -722,7 +726,7 @@ async execute(_toolCallId: string, params: unknown) {
 
             const { writeFileSync } = await import("node:fs");
             const existing = existsSync(authPath)
-              ? JSON.parse(readFileSync(authPath, "utf-8"))
+              ? loadJsonOr<Record<string, any>>(authPath, {})
               : {};
             existing.cookies = freshCookies;
             existing.csrfProvenance = csrfProvenance;
@@ -922,7 +926,7 @@ async execute(_toolCallId: string, params: unknown) {
   try {
     const { writeFileSync } = await import("node:fs");
     const existing = existsSync(authPath)
-      ? JSON.parse(readFileSync(authPath, "utf-8"))
+      ? loadJsonOr<Record<string, any>>(authPath, {})
       : {};
     existing.headers = authHeaders;
     existing.cookies = cookies;

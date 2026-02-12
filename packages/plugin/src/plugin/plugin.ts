@@ -23,9 +23,10 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from "node:fs";
+import { writeFileSync, existsSync, readdirSync, mkdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 import { parseHar } from "../har-parser.js";
 import { generateSkill } from "../skill-generator.js";
@@ -57,6 +58,7 @@ import { createBrowserSessionManager } from "./browser-session-manager.js";
 import { hasApiIntent } from "./context-hints.js";
 import { createTelemetryClient, loadTelemetryConfig, hashDomain } from "../telemetry-client.js";
 import { getEnv } from "../runtime-env.js";
+import { loadJsonOr, loadText } from "../disk-io.js";
 
 /** Scan HAR entries for refresh token endpoints and save config to auth.json */
 function detectAndSaveRefreshConfig(
@@ -74,7 +76,7 @@ function detectAndSaveRefreshConfig(
       try {
         let auth: Record<string, any> = {};
         if (existsSync(authPath)) {
-          auth = JSON.parse(readFileSync(authPath, "utf-8"));
+          auth = loadJsonOr<Record<string, any>>(authPath, {});
         }
         auth.refreshConfig = refreshConfig;
         writeFileSync(authPath, JSON.stringify(auth, null, 2), "utf-8");
@@ -158,7 +160,7 @@ const plugin = {
     const pluginVersion = (() => {
       try {
         const pkgUrl = new URL("../../package.json", import.meta.url);
-        const pkg = JSON.parse(readFileSync(pkgUrl, "utf-8"));
+        const pkg = loadJsonOr<Record<string, any>>(fileURLToPath(pkgUrl), {});
         return String(pkg?.version ?? "dev");
       } catch {
         return "dev";
@@ -295,14 +297,14 @@ const plugin = {
       }
 
       try {
-        const skillMd = readFileSync(join(skillDir, "SKILL.md"), "utf-8");
+        const skillMd = loadText(join(skillDir, "SKILL.md"));
         const endpoints = extractEndpoints(skillMd);
 
         let baseUrl = "";
         let authMethodType = "Unknown";
         const authJsonPath = join(skillDir, "auth.json");
         if (existsSync(authJsonPath)) {
-          const pub = extractPublishableAuth(readFileSync(authJsonPath, "utf-8"));
+          const pub = extractPublishableAuth(loadText(authJsonPath));
           baseUrl = pub.baseUrl;
           authMethodType = pub.authMethodType;
         }
@@ -311,7 +313,7 @@ const plugin = {
         const scripts: Record<string, string> = {};
         const apiTsPath = join(skillDir, "scripts", "api.ts");
         if (existsSync(apiTsPath)) {
-          scripts["api.ts"] = sanitizeApiTemplate(readFileSync(apiTsPath, "utf-8"));
+          scripts["api.ts"] = sanitizeApiTemplate(loadText(apiTsPath));
         }
 
         // Collect references (small, publishable artifacts like REFERENCE.md, DAG.json).
@@ -327,7 +329,7 @@ const plugin = {
               if (!st.isFile()) continue;
               if (st.size > 250_000) continue; // avoid huge payloads
               try {
-                references[fn] = readFileSync(p2, "utf-8");
+                references[fn] = loadText(p2);
               } catch { /* ignore per-file */ }
             }
           }

@@ -8,9 +8,10 @@
  * - Success/failure tracking for earnings
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { loadJson } from "./disk-io.js";
 import type {
   WorkflowSkill,
   ApiPackageSkill,
@@ -566,7 +567,7 @@ export class WorkflowExecutor {
       return {};
     }
     try {
-      return JSON.parse(readFileSync(this.metricsFile, "utf-8"));
+      return loadJson(this.metricsFile);
     } catch {
       return {};
     }
