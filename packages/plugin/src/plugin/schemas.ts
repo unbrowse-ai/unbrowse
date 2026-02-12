@@ -148,7 +148,9 @@ export const PUBLISH_SCHEMA = {
   properties: {
     service: {
       type: "string" as const,
-      description: "Service name (skill directory name) to publish to the cloud index",
+      description:
+        "Service name (skill directory name) to publish to the cloud index. " +
+        "Run publish from a delegated subagent.",
     },
     skillsDir: {
       type: "string" as const,

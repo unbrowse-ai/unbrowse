@@ -16,6 +16,29 @@ import {
 } from "./shared.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 
+function toCookieHeader(raw: unknown): string | undefined {
+  if (typeof raw === "string" && raw.trim().length > 0) return raw.trim();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+
+  const pairs = Object.entries(raw as Record<string, unknown>)
+    .filter(([k, v]) => k.trim().length > 0 && v !== undefined && v !== null)
+    .map(([k, v]) => `${k}=${String(v)}`);
+  if (pairs.length === 0) return undefined;
+  return pairs.join("; ");
+}
+
+function toHeaderMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const name = String(k || "").trim();
+    if (!name) continue;
+    if (v === undefined || v === null) continue;
+    headers[name] = String(v);
+  }
+  return headers;
+}
+
 export function makeUnbrowsePublishTool(deps: ToolDeps) {
   const {
     logger,
@@ -24,6 +47,7 @@ export function makeUnbrowsePublishTool(deps: ToolDeps) {
     autoPublishSkill,
     indexClient,
     indexOpts,
+    publishValidationWithAuth,
   } = deps;
 
   return {
@@ -32,6 +56,7 @@ label: "Share Internal API",
 description:
   "Share a captured internal API skill to the marketplace. Publishes the endpoint structure, " +
   "auth method, and documentation — credentials stay local (others need their own login). " +
+  "This tool should be run from a delegated publishing subagent (not the main agent thread). " +
   "Useful when you've reverse-engineered an internal API that others might want to use. " +
   "Set price='0' for free or price='1.50' for $1.50 USDC (you earn 70%).",
 parameters: PUBLISH_SCHEMA,
@@ -108,6 +133,25 @@ async execute(_toolCallId: string, params: unknown) {
       authMethodType = pub.authMethodType;
     }
 
+    // Optional: include local auth headers/cookies to help backend quality gate
+    // verify authenticated endpoints during publish. Never written to marketplace skill files.
+    let validationAuth: PublishPayload["validationAuth"] | undefined;
+    if (publishValidationWithAuth && existsSync(authJsonPath)) {
+      try {
+        const auth = JSON.parse(readFileSync(authJsonPath, "utf-8")) as Record<string, unknown>;
+        const headers = toHeaderMap(auth.headers);
+        const cookies = toCookieHeader(auth.cookies);
+        if (Object.keys(headers).length > 0 || cookies) {
+          validationAuth = {
+            headers: Object.keys(headers).length > 0 ? headers : undefined,
+            cookies,
+          };
+        }
+      } catch (err) {
+        logger.warn(`[unbrowse] Failed to load auth.json for publish validation auth: ${(err as Error).message}`);
+      }
+    }
+
     // Collect scripts (api.ts and any other .ts files in scripts/)
     const scripts: Record<string, string> = {};
     if (existsSync(apiTsPath)) {
@@ -172,6 +216,7 @@ async execute(_toolCallId: string, params: unknown) {
       domain: domain || undefined,
       creatorWallet,
       priceUsdc: (p as any).price ?? "0", // Default to free
+      validationAuth,
     };
 
     // Backend may return different success shapes:
@@ -205,6 +250,7 @@ async execute(_toolCallId: string, params: unknown) {
       merged && result?.message ? `Merge: ${String(result.message)}` : null,
       merged && result?.contribution ? `Contribution: +${result.contribution.endpointsAdded} endpoints, novelty ${(result.contribution.noveltyScore * 100).toFixed(0)}%` : null,
       updatedLocally ? `Local skill updated with canonical version from backend` : null,
+      validationAuth ? `Validation auth: sent (opt-in)` : null,
       ``,
       `Others can find and download this skill via unbrowse_search.`,
       priceDisplay !== "Free" ? `You earn 70% ($${(parseFloat((p as any).price) * 0.7).toFixed(2)}) for each download.` : "",

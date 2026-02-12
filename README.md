@@ -71,6 +71,7 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/
           "autoDiscover": true,
           "autoContribute": true,
           "enableAgentContextHints": false,
+          "publishValidationWithAuth": false,
           "skillIndexUrl": "https://index.unbrowse.ai",
           "credentialSource": "keychain",
           "enableChromeCookies": true,
@@ -83,6 +84,7 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/
 ```
 
 `enableAgentContextHints` is disabled by default. When enabled, hints are only prepended when API-intent is detected in user input.
+`publishValidationWithAuth` is disabled by default. When enabled, `unbrowse_publish` sends local auth headers/cookies for backend endpoint validation only.
 
 ### Wallet Setup
 

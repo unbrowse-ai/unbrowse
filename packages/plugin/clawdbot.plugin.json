@@ -24,6 +24,10 @@
       "label": "Agent Context Hints",
       "help": "Opt-in: prepend Unbrowse API workflow hints when API intent is detected (default: false)"
     },
+    "publishValidationWithAuth": {
+      "label": "Publish Validation Auth",
+      "help": "Opt-in: include local auth headers/cookies during publish so backend can validate authenticated endpoints."
+    },
     "autoContribute": {
       "label": "Auto-Contribute to Index",
       "help": "Automatically publish discovered skills to the marketplace index (default: true). Disable to keep skills local-only."
@@ -58,6 +62,7 @@
       "browserUseApiKey": { "type": "string" },
       "autoDiscover": { "type": "boolean", "default": true },
       "enableAgentContextHints": { "type": "boolean", "default": false },
+      "publishValidationWithAuth": { "type": "boolean", "default": false },
       "autoContribute": { "type": "boolean", "default": true },
       "skillIndexUrl": { "type": "string", "default": "https://skills.unbrowse.ai" },
       "creatorWallet": { "type": "string" },
