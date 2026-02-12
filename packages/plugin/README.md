@@ -2,7 +2,7 @@
 
 OpenClaw extension for reverse-engineering internal web APIs.
 
-Unbrowse captures XHR/fetch traffic while you browse, turns it into an AgentSkills skill package (`SKILL.md`, `auth.json`, `scripts/`), and can publish/search/download skills from a marketplace (x402 / Solana USDC).
+Unbrowse captures XHR/fetch traffic while you browse, turns it into an AgentSkills skill package (`SKILL.md`, `auth.json`, `scripts/`), and can publish/search/execute skills through a marketplace + proxy backend (x402 / Solana).
 
 Security note: Unbrowse runs locally. Captured auth (cookies/tokens) stays on your machine unless you explicitly publish a skill to the marketplace. See `SECURITY.md` for details.
 
@@ -27,7 +27,7 @@ Supported hosts:
 - `unbrowse_skills`: list local skills
 - `unbrowse_publish`: publish a local skill folder to the marketplace
 - `unbrowse_search`: search marketplace and optionally install by skill ID
-- `unbrowse_wallet`: create/import a Solana wallet for paid downloads/publishing
+- `unbrowse_wallet`: create/import a Solana wallet for paid execution/publishing
 
 ## Marketplace
 
@@ -53,10 +53,11 @@ unbrowse_publish service="my-skill" price="0"
 
 Notes:
 - Search is free.
-- Downloading a skill may require USDC via x402 (HTTP 402 + `X-Payment`).
+- Proxy execution can require x402 payment (HTTP 402 + `X-Payment`).
+- Skill download gating is optional policy; prioritize low-friction distribution and monetize on execution.
 - Publishing requires a Solana private key to sign the publish request.
 - Publishing contributes your skill + endpoint evidence to the shared index.
-- Contribution rewards are paid in `FDRY` when indexed skills are used (per backend reward policy).
+- Contribution rewards are paid in `FDRY` when indexed skills are used successfully (execution quality weighted).
 - Marketplace executions run server-side through the backend executor abstraction.
 - Local reverse-engineering usage is still available: capture/learn/replay can run locally without publishing.
 - `FDRY` rewards can be used for execution flows where `FDRY` settlement is enabled.
@@ -104,7 +105,7 @@ Wallet state is stored in `~/.openclaw/unbrowse/wallet.json` (public address + k
 ### Env Vars (optional)
 
 - `UNBROWSE_INDEX_URL` — override the skill index URL
-- `UNBROWSE_PUBLISH_TIMEOUT_MS` — publish request timeout in ms (default `120000`)
+- `UNBROWSE_PUBLISH_TIMEOUT_MS` — publish request timeout in ms (default `300000`)
 - `UNBROWSE_CREATOR_WALLET` — optional creator wallet bootstrap
 - `UNBROWSE_SOLANA_PRIVATE_KEY` — optional one-time private key bootstrap into wallet storage
 - `UNBROWSE_WALLET_ALLOW_FILE_PRIVATE_KEY=true` — explicitly allow private-key file fallback (CI/dev only)

@@ -24,7 +24,7 @@ import {
 } from "./solana/solana-helpers.js";
 import type { HeaderProfileFile } from "./types.js";
 
-const DEFAULT_PUBLISH_TIMEOUT_MS = 120_000;
+const DEFAULT_PUBLISH_TIMEOUT_MS = 300_000;
 
 function readTimeoutMs(envKey: string, fallbackMs: number): number {
   const raw = Number(process.env[envKey] ?? fallbackMs);

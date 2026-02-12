@@ -48,7 +48,7 @@ unbrowse_replay { "service": "<service-name>", "endpoint": "GET /api/v1/me" }
 
 ## 5) Marketplace (Optional)
 
-Set up a wallet (required for paid downloads and publishing):
+Set up a wallet (required for paid execution and publishing):
 
 ```text
 unbrowse_wallet { "action": "create" }
@@ -69,8 +69,9 @@ unbrowse_publish { "service": "<service-name>", "price": "0" }
 
 What publishing means:
 - Your publish contributes skill metadata + endpoint evidence to the shared index.
-- Eligible contribution rewards are in `FDRY` (based on backend reward policy and usage).
+- Eligible contribution rewards are in `FDRY` (based on backend reward policy and execution outcomes).
 - Marketplace/index executions run on the backend executor (server-side).
+- Download gating is optional policy; most value capture should happen on execution.
 - Local-only mode is still supported: if you reverse engineer and replay locally, calls run locally without publishing.
 
 ## Next Reads

@@ -139,7 +139,7 @@ export default function SkillDetail() {
   };
 
   const handlePurchase = () => {
-    alert('x402 payment flow coming soon!\n\nFor now, use unbrowse_search in Claude/OpenClaw to install skills.');
+    alert('x402 execution flow is handled in agent runtime.\n\nUse unbrowse_search to install metadata and execute via proxy routes.');
   };
 
   if (loading) {
@@ -460,8 +460,8 @@ export default function SkillDetail() {
             <div className="paywall-text">
               <h3>Full Skill Package</h3>
               <p>
-                Get complete access to SKILL.md documentation, API scripts,
-                and reference materials. Includes all endpoints and implementation code.
+                Get complete access to SKILL.md documentation, generated wrappers,
+                and reference materials. Runtime execution is still routed through backend abstraction.
               </p>
             </div>
             <div className="paywall-price">
@@ -476,7 +476,7 @@ export default function SkillDetail() {
               Purchase Skill
             </button>
             <div className="paywall-split">
-              Creator earns 70% • Platform 30%
+              33% Creator • 30% Website Owner • 20% Platform • 17% Network
             </div>
           </div>
         </section>
@@ -521,8 +521,8 @@ export default function SkillDetail() {
               <h3>Install the skill</h3>
               <p className="step-description">
                 {isFree
-                  ? 'Download and save to your local skills directory (Free)'
-                  : `Download and save to your local skills directory ($${price.toFixed(2)} USDC)`
+                  ? 'Install metadata into your local skills directory (Free)'
+                  : `Install metadata package ($${price.toFixed(2)} USDC policy)`
                 }
               </p>
               <div className="code-block">
@@ -611,7 +611,7 @@ export default function SkillDetail() {
               </div>
               <div className="prereq-content">
                 <strong>Solana Wallet</strong>
-                <span>USDC balance for skill purchases</span>
+                <span>USDC/FDRY balance for paid execution flows</span>
               </div>
             </div>
           )}
@@ -642,7 +642,7 @@ export default function SkillDetail() {
               <span className="creator-name">
                 {`${skill.creatorWallet.slice(0, 6)}...${skill.creatorWallet.slice(-4)}`}
               </span>
-              <span className="creator-note">Earns 70% of each purchase in USDC</span>
+              <span className="creator-note">Eligible for weighted creator share on paid usage events</span>
             </div>
           </div>
         </section>

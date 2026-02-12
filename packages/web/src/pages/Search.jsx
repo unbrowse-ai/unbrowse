@@ -191,8 +191,7 @@ export default function Search() {
                 const price = parseFloat(skill.priceUsdc || '0');
                 const isFree = price === 0;
                 const workingEndpointCount = Number(skill.verifiedEndpointCount || 0);
-                const endpointCount = workingEndpointCount || Number(skill.endpointCount || 0);
-                const endpointLabel = workingEndpointCount > 0 ? 'working endpoints' : 'endpoints';
+                const endpointCount = workingEndpointCount;
 
                 return (
                   <Link
@@ -224,7 +223,7 @@ export default function Search() {
                             <path d="M3 15v4a2 2 0 0 0 2 2h4" />
                             <circle cx="12" cy="12" r="3" />
                           </svg>
-                          {endpointCount} {endpointLabel}
+                          {endpointCount} working endpoints
                         </span>
                       )}
                       {skill.authType && skill.authType !== 'none' && (
