@@ -70,6 +70,7 @@ Add to `~/.openclaw/openclaw.json` (or `~/.clawdbot/clawdbot.json`, `~/.moltbot/
           "skillsOutputDir": "~/.openclaw/skills",
           "autoDiscover": true,
           "autoContribute": true,
+          "publishValidationWithAuth": false,
           "skillIndexUrl": "https://index.unbrowse.ai",
           "credentialSource": "keychain",
           "enableChromeCookies": true,

@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: web Docker build now works when lockfile is absent
 - Added `127.0.0.1` local origins to backend CORS/trusted-origins allowlists (3000/3001/5173/4111)
 - Fixed staging backend request timeouts caused by session auth lookups during request middleware/ingestion paths
+- Production benchmark: exclude `kemono.party` from fetched production skill set
 
 ## [0.5.4] - 2026-02-07
 

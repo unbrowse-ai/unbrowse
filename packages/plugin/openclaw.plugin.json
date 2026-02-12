@@ -29,6 +29,11 @@
         "default": false,
         "description": "Opt-in: prepend Unbrowse API workflow hints into agent context when API intent is detected"
       },
+      "publishValidationWithAuth": {
+        "type": "boolean",
+        "default": false,
+        "description": "Opt-in: send local auth headers/cookies with publish requests for authenticated backend endpoint validation"
+      },
       "autoContribute": {
         "type": "boolean",
         "default": true,
@@ -117,6 +122,10 @@
     "enableAgentContextHints": {
       "label": "Agent Context Hints",
       "help": "Opt-in: prepend Unbrowse API workflow hints when API intent is detected"
+    },
+    "publishValidationWithAuth": {
+      "label": "Publish Validation Auth",
+      "help": "Opt-in: include local auth headers/cookies during publish so backend can validate authenticated endpoints."
     },
     "autoContribute": {
       "label": "Auto-Contribute to Index",

@@ -150,6 +150,7 @@ const plugin = {
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
     const enableAgentContextHints = (cfg.enableAgentContextHints as boolean) ?? false;
+    const publishValidationWithAuth = (cfg.publishValidationWithAuth as boolean) ?? false;
     const skillIndexUrl = (cfg.skillIndexUrl as string) ?? process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai";
 
     const telemetryCfg = loadTelemetryConfig({ pluginConfig: cfg });
@@ -222,6 +223,9 @@ const plugin = {
     }
     if (enableAgentContextHints) {
       logger.info("[unbrowse] Agent context hints ENABLED (opt-in)");
+    }
+    if (publishValidationWithAuth) {
+      logger.info("[unbrowse] Publish-time auth validation ENABLED (opt-in)");
     }
     if (!autoContributeEnabled) {
       logger.info("[unbrowse] Auto-contribute DISABLED — skills will stay local only. Set autoContribute: true to earn revenue from contributions.");
@@ -445,6 +449,7 @@ const plugin = {
       autoDiscoverEnabled,
       enableChromeCookies,
       enableDesktopAutomation,
+      publishValidationWithAuth,
       skillIndexUrl,
       indexClient,
       indexOpts,
@@ -636,6 +641,7 @@ const plugin = {
       `${toolCount} tools`,
       autoDiscoverEnabled ? "auto-discover" : null,
       enableAgentContextHints ? "context-hints" : null,
+      publishValidationWithAuth ? "publish-auth-validation" : null,
       creatorWallet ? "x402 publishing" : null,
       credentialProvider ? `creds:${credentialProvider.name}` : null,
     ].filter(Boolean).join(", ");

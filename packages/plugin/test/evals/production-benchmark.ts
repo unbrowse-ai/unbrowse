@@ -18,6 +18,15 @@ import { extractEndpoints } from "../../src/skill-sanitizer.js";
 import type { HarEntry, HeaderProfileFile } from "../../src/types.js";
 
 const API_BASE = "https://index.unbrowse.ai";
+const EXCLUDED_PRODUCTION_SKILL_DOMAINS = ["kemono.party"];
+
+function isExcludedDomain(domain: string | null | undefined): boolean {
+  if (!domain) return false;
+  const normalized = domain.toLowerCase().replace(/^https?:\/\//, "");
+  return EXCLUDED_PRODUCTION_SKILL_DOMAINS.some(
+    (blocked) => normalized === blocked || normalized.endsWith(`.${blocked}`),
+  );
+}
 
 // ── Fetch skills from production ──────────────────────────────────────────
 
@@ -42,7 +51,12 @@ interface SkillContent {
 async function fetchSkills(limit: number): Promise<SkillSummary[]> {
   const resp = await fetch(`${API_BASE}/marketplace/skills?limit=${limit}`);
   const data = await resp.json() as any;
-  return (data.skills ?? []).filter((s: any) => s.domain && parseFloat(s.priceUsdc || "0") === 0);
+  return (data.skills ?? []).filter(
+    (s: any) =>
+      s.domain &&
+      !isExcludedDomain(s.domain) &&
+      parseFloat(s.priceUsdc || "0") === 0,
+  );
 }
 
 async function fetchSkillContent(skillId: string): Promise<SkillContent | null> {
