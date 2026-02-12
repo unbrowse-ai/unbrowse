@@ -6,9 +6,10 @@ import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
 import { CAPTURE_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 import { normalizeUrlList, coalesceDir } from "./input-normalizers.js";
+import { buildPublishPromptLines, isPayerPrivateKeyValid } from "./publish-prompts.js";
 
 export function makeUnbrowseCaptureTool(deps: ToolDeps) {
-  const { logger, defaultOutputDir, discovery, autoPublishSkill, detectAndSaveRefreshConfig } = deps;
+  const { logger, defaultOutputDir, discovery, detectAndSaveRefreshConfig } = deps;
 
   return {
     name: "unbrowse_capture",
@@ -39,6 +40,9 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
       const outDir = coalesceDir({ outputDir: (p as any).outputDir, skillsDir: (p as any).skillsDir, fallback: defaultOutputDir });
       const hasCreatorWallet = Boolean(deps.walletState?.creatorWallet);
       const hasPayerKey = Boolean(deps.walletState?.solanaPrivateKey);
+      const payerKeyValid = hasPayerKey
+        ? await isPayerPrivateKeyValid(deps.walletState?.solanaPrivateKey)
+        : false;
 
       try {
         const { captureWithHar } = await import("../../har-capture.js");
@@ -131,12 +135,6 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         // Detect and save refresh token config
         detectAndSaveRefreshConfig(har.log?.entries ?? [], join(result.skillDir, "auth.json"), logger);
 
-        // Auto-publish if skill content changed
-        let publishedVersion: string | null = null;
-        if (result.changed) {
-          publishedVersion = await autoPublishSkill(result.service, result.skillDir);
-        }
-
         // Build summary
         const summaryLines = [
           `Captured (${method}): ${requestCount} requests from ${urls.length} page(s)`,
@@ -165,18 +163,14 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           `Auth headers: ${result.authHeaderCount} | Cookies: ${result.cookieCount}`,
           `Installed: ${result.skillDir}`,
         );
-        if (publishedVersion) {
-          summaryLines.push(`Published: ${publishedVersion} (auto-synced to cloud index)`);
-        } else if (result.changed) {
-          summaryLines.push(`Not published: auto-publish failed or was skipped.`);
-          if (!hasCreatorWallet || !hasPayerKey) {
-            summaryLines.push(`  Reason: wallet setup required before publishing.`);
-            summaryLines.push(`  Run: unbrowse_wallet action="create"`);
-            summaryLines.push(`  Or:  unbrowse_wallet action="set_creator" wallet="<your-solana-address>"`);
-            summaryLines.push(`       unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"`);
-          } else {
-            summaryLines.push(`  Reason: skill could not be safely published right now (quality gate or index availability).`);
-          }
+        if (result.changed) {
+          summaryLines.push(...buildPublishPromptLines({
+            service: result.service,
+            skillsDir: outDir,
+            hasCreatorWallet,
+            hasPayerKey,
+            payerKeyValid,
+          }));
         }
 
         // Rate limit / bot detection warnings

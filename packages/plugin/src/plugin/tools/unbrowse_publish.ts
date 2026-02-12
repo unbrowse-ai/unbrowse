@@ -15,6 +15,7 @@ import {
   sanitizeHeaderProfile,
 } from "./shared.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
+import { keypairFromBase58PrivateKey } from "../../solana/solana-helpers.js";
 
 function toCookieHeader(raw: unknown): string | undefined {
   if (typeof raw === "string" && raw.trim().length > 0) return raw.trim();
@@ -104,6 +105,29 @@ async execute(_toolCallId: string, params: unknown) {
           walletHint,
           "",
           "Once configured, try publishing again.",
+        ].join("\n"),
+      }],
+    };
+  }
+
+  try {
+    await keypairFromBase58PrivateKey(solanaPrivateKey);
+  } catch (err) {
+    logger.warn(`[unbrowse] Invalid payer key configured for publish: ${(err as Error).message}`);
+    return {
+      content: [{
+        type: "text",
+        text: [
+          "Wallet configured, but payer private key is invalid/corrupted.",
+          "",
+          "Your skill can still be generated locally; publishing is blocked until key is fixed.",
+          `Creator wallet: ${creatorWallet}`,
+          "",
+          "Fix options:",
+          '  1. Set a valid signing key: unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"',
+          '  2. Or create a fresh keypair: unbrowse_wallet action="create"',
+          "",
+          "Then run unbrowse_publish again.",
         ].join("\n"),
       }],
     };

@@ -7,6 +7,7 @@ import { inferCsrfProvenance } from "../../../auth-provenance.js";
 import { enrichApiData } from "../../../har-parser.js";
 import { generateSkill } from "../../../skill-generator.js";
 import { verifyAndPruneGetEndpoints } from "../../../endpoint-verification.js";
+import { buildPublishPromptLines, isPayerPrivateKeyValid } from "../publish-prompts.js";
 
 type ToolResponse = { content: Array<{ type: "text"; text: string }> };
 
@@ -136,7 +137,7 @@ export async function runOpenClawBrowse(
     learnOnFly?: boolean;
   },
 ): Promise<ToolResponse | null> {
-  const { logger, browserPort, browserProfile, defaultOutputDir, discovery, autoPublishSkill } = deps;
+  const { logger, browserPort, browserProfile, defaultOutputDir, discovery } = deps;
 
   // OpenClaw browser API (preferred) - uses native browser control.
   const { getOpenClawBrowser } = await import("../../../openclaw-browser.js");
@@ -556,9 +557,7 @@ export async function runOpenClawBrowse(
         writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
       } catch { /* ignore */ }
 
-      if (result.changed) {
-        autoPublishSkill?.(result.service, result.skillDir).catch(() => { });
-      }
+      // Publish is explicit; ask user after unbrowse flow completes.
     } catch (err) {
       logger.warn(`[unbrowse] OpenClaw learn-on-fly failed: ${(err as Error).message}`);
     }
@@ -617,6 +616,20 @@ export async function runOpenClawBrowse(
       }
     }
     if (skillResult.diff) resultLines.push(`  Changes: ${skillResult.diff}`);
+    if (skillResult.changed) {
+      const hasPayerKey = Boolean(deps.walletState?.solanaPrivateKey);
+      const payerKeyValid = hasPayerKey
+        ? await isPayerPrivateKeyValid(deps.walletState?.solanaPrivateKey)
+        : false;
+      const promptLines = buildPublishPromptLines({
+        service: skillResult.service,
+        skillsDir: defaultOutputDir,
+        hasCreatorWallet: Boolean(deps.walletState?.creatorWallet),
+        hasPayerKey,
+        payerKeyValid,
+      });
+      resultLines.push(...promptLines.map((line) => `  ${line}`));
+    }
     resultLines.push(`  Use unbrowse_replay with service="${skillResult.service}" to call these APIs directly.`);
   }
 
