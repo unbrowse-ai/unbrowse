@@ -1,75 +1,19 @@
 /**
- * Credential Vault — Encrypted local storage for API auth credentials.
+ * Credential Vault — encrypted local storage for API auth credentials.
  *
- * Uses SQLite (via CLI) + AES-256-GCM encryption with a key stored in macOS Keychain.
- * Generated skills store auth in the vault instead of plain text auth.json.
- * The vault key never touches disk — it lives in the OS keychain.
- *
- * Schema:
- *   credentials(service, base_url, auth_method, headers_enc, cookies_enc,
- *               extra_enc, created_at, updated_at, expires_at, notes)
+ * Security-hardened build: no shell/OS keychain invocations.
+ * Uses AES-256-GCM with a local key file protected by filesystem permissions.
  */
 
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 const VAULT_DIR = join(homedir(), ".openclaw", "unbrowse");
 const VAULT_DB = join(VAULT_DIR, "vault.db");
-const KEYCHAIN_SERVICE = "unbrowse-vault";
+const VAULT_KEY = join(VAULT_DIR, "vault.key");
 const CIPHER = "aes-256-gcm";
-
-/** Retrieve the vault encryption key from macOS Keychain, or create one if missing. */
-function getVaultKey(): Buffer {
-  const user = process.env.USER || "unbrowse";
-
-  try {
-    const keyHex = execSync(
-      `security find-generic-password -s "${KEYCHAIN_SERVICE}" -a "${user}" -w 2>/dev/null`,
-      { encoding: "utf-8" },
-    ).trim();
-    return Buffer.from(keyHex, "hex");
-  } catch {
-    // Key doesn't exist — create a new 256-bit key and store in Keychain
-    const newKey = randomBytes(32);
-    const keyHex = newKey.toString("hex");
-
-    try {
-      execSync(
-        `security add-generic-password -s "${KEYCHAIN_SERVICE}" -a "${user}" -w "${keyHex}" -U`,
-        { encoding: "utf-8" }
-      );
-      return newKey;
-    } catch (addErr) {
-      throw new Error(
-        `Could not create vault key in Keychain: ${addErr}`,
-      );
-    }
-  }
-}
-
-/** Encrypt a string with AES-256-GCM. Returns base64(iv + tag + ciphertext). */
-function encrypt(plaintext: string, key: Buffer): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv(CIPHER, key, iv);
-  const enc = Buffer.concat([cipher.update(plaintext, "utf-8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  // Pack: 12-byte IV + 16-byte auth tag + ciphertext
-  return Buffer.concat([iv, tag, enc]).toString("base64");
-}
-
-/** Decrypt a base64(iv + tag + ciphertext) string. */
-function decrypt(packed: string, key: Buffer): string {
-  const buf = Buffer.from(packed, "base64");
-  const iv = buf.subarray(0, 12);
-  const tag = buf.subarray(12, 28);
-  const enc = buf.subarray(28);
-  const decipher = createDecipheriv(CIPHER, key, iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf-8");
-}
 
 /** Stored credential row. */
 export interface VaultEntry {
@@ -85,46 +29,92 @@ export interface VaultEntry {
   notes?: string;
 }
 
-/** Escape a string for safe use in SQLite queries (single quotes). */
-function sqlEscape(str: string): string {
-  return str.replace(/'/g, "''");
-}
+type VaultRow = {
+  service: string;
+  base_url: string;
+  auth_method: string;
+  headers_enc: string;
+  cookies_enc: string;
+  extra_enc: string;
+  created_at: string;
+  updated_at: string;
+  expires_at?: string;
+  notes?: string;
+};
 
-/** Escape a shell argument for safe use in shell commands. */
-function shellEscape(str: string): string {
-  // Use single quotes for shell safety and escape any internal single quotes
-  return `'${str.replace(/'/g, "'\\''")}'`;
-}
+type VaultFile = {
+  version: number;
+  rows: Record<string, VaultRow>;
+};
 
-/** Run a SQLite query and return parsed JSON rows. */
-function sqlQuery(dbPath: string, query: string): any[] {
-  try {
-    const result = execSync(
-      `sqlite3 -json "${dbPath}" ${shellEscape(query)}`,
-      { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
-    ).trim();
-    if (!result) return [];
-    return JSON.parse(result);
-  } catch (err: any) {
-    // sqlite3 -json returns empty string for no results
-    if (err.stdout === "" || err.stdout?.trim() === "") return [];
-    throw err;
+function ensureDir(): void {
+  if (!existsSync(VAULT_DIR)) {
+    mkdirSync(VAULT_DIR, { recursive: true });
   }
 }
 
-/** Run a SQLite statement (INSERT/UPDATE/DELETE). */
-function sqlRun(dbPath: string, statement: string): void {
-  execSync(`sqlite3 "${dbPath}" ${shellEscape(statement)}`, { encoding: "utf-8" });
+function ensureKey(): Buffer {
+  ensureDir();
+
+  if (existsSync(VAULT_KEY)) {
+    const hex = readFileSync(VAULT_KEY, "utf-8").trim();
+    if (hex.length >= 64) {
+      return Buffer.from(hex, "hex");
+    }
+  }
+
+  const key = randomBytes(32);
+  writeFileSync(VAULT_KEY, key.toString("hex"), { mode: 0o600 });
+  chmodSync(VAULT_KEY, 0o600);
+  return key;
+}
+
+function readVaultFile(path: string): VaultFile {
+  if (!existsSync(path)) {
+    return { version: 1, rows: {} };
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf-8")) as VaultFile;
+    if (parsed && typeof parsed === "object" && parsed.rows && typeof parsed.rows === "object") {
+      return parsed;
+    }
+  } catch {
+    // fall through
+  }
+
+  return { version: 1, rows: {} };
+}
+
+function writeVaultFile(path: string, file: VaultFile): void {
+  ensureDir();
+  writeFileSync(path, JSON.stringify(file, null, 2), { mode: 0o600 });
+  chmodSync(path, 0o600);
+}
+
+/** Encrypt a string with AES-256-GCM. Returns base64(iv + tag + ciphertext). */
+function encrypt(plaintext: string, key: Buffer): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv(CIPHER, key, iv);
+  const enc = Buffer.concat([cipher.update(plaintext, "utf-8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, enc]).toString("base64");
+}
+
+/** Decrypt a base64(iv + tag + ciphertext) string. */
+function decrypt(packed: string, key: Buffer): string {
+  if (!packed) return "";
+  const buf = Buffer.from(packed, "base64");
+  const iv = buf.subarray(0, 12);
+  const tag = buf.subarray(12, 28);
+  const enc = buf.subarray(28);
+  const decipher = createDecipheriv(CIPHER, key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf-8");
 }
 
 /**
  * Credential Vault — encrypted local store for API auth.
- *
- * Usage:
- *   const vault = new Vault();
- *   vault.store("stocktwits", { headers, cookies, ... });
- *   const creds = vault.get("stocktwits");
- *   vault.list();
  */
 export class Vault {
   private dbPath: string;
@@ -132,30 +122,20 @@ export class Vault {
 
   constructor(dbPath = VAULT_DB) {
     this.dbPath = dbPath;
+    ensureDir();
+    this.key = ensureKey();
 
-    // Auto-create vault directory and database if missing
-    const vaultDir = join(homedir(), ".openclaw", "unbrowse");
-    if (!existsSync(vaultDir)) {
-      mkdirSync(vaultDir, { recursive: true });
+    if (!existsSync(this.dbPath)) {
+      writeVaultFile(this.dbPath, { version: 1, rows: {} });
     }
+  }
 
-    if (!existsSync(dbPath)) {
-      // Create the database with schema
-      execSync(`sqlite3 "${dbPath}" "CREATE TABLE IF NOT EXISTS credentials (
-        service TEXT PRIMARY KEY,
-        base_url TEXT NOT NULL,
-        auth_method TEXT NOT NULL,
-        headers_enc TEXT,
-        cookies_enc TEXT,
-        extra_enc TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT DEFAULT (datetime('now')),
-        expires_at TEXT,
-        notes TEXT
-      )"`, { encoding: "utf-8" });
-    }
+  private readRows(): Record<string, VaultRow> {
+    return readVaultFile(this.dbPath).rows;
+  }
 
-    this.key = getVaultKey();
+  private writeRows(rows: Record<string, VaultRow>): void {
+    writeVaultFile(this.dbPath, { version: 1, rows });
   }
 
   /** Store credentials for a service (upsert). */
@@ -171,33 +151,30 @@ export class Vault {
       notes?: string;
     },
   ): void {
-    const headersEnc = data.headers ? encrypt(JSON.stringify(data.headers), this.key) : "";
-    const cookiesEnc = data.cookies ? encrypt(JSON.stringify(data.cookies), this.key) : "";
-    const extraEnc = data.extra ? encrypt(JSON.stringify(data.extra), this.key) : "";
-    const expiresAt = data.expiresAt || "";
-    const notes = data.notes || "";
+    const rows = this.readRows();
+    const existing = rows[service];
+    const now = new Date().toISOString();
 
-    const stmt = `INSERT INTO credentials (service, base_url, auth_method, headers_enc, cookies_enc, extra_enc, expires_at, notes, updated_at)
-       VALUES ('${sqlEscape(service)}', '${sqlEscape(data.baseUrl)}', '${sqlEscape(data.authMethod)}', '${sqlEscape(headersEnc)}', '${sqlEscape(cookiesEnc)}', '${sqlEscape(extraEnc)}', '${sqlEscape(expiresAt)}', '${sqlEscape(notes)}', datetime('now'))
-       ON CONFLICT(service) DO UPDATE SET
-         base_url = excluded.base_url,
-         auth_method = excluded.auth_method,
-         headers_enc = excluded.headers_enc,
-         cookies_enc = excluded.cookies_enc,
-         extra_enc = excluded.extra_enc,
-         expires_at = excluded.expires_at,
-         notes = excluded.notes,
-         updated_at = datetime('now')`;
+    rows[service] = {
+      service,
+      base_url: data.baseUrl,
+      auth_method: data.authMethod,
+      headers_enc: encrypt(JSON.stringify(data.headers ?? {}), this.key),
+      cookies_enc: encrypt(JSON.stringify(data.cookies ?? {}), this.key),
+      extra_enc: encrypt(JSON.stringify(data.extra ?? {}), this.key),
+      created_at: existing?.created_at ?? now,
+      updated_at: now,
+      expires_at: data.expiresAt,
+      notes: data.notes,
+    };
 
-    sqlRun(this.dbPath, stmt);
+    this.writeRows(rows);
   }
 
   /** Get credentials for a service. */
   get(service: string): VaultEntry | null {
-    const rows = sqlQuery(this.dbPath, `SELECT * FROM credentials WHERE service = '${sqlEscape(service)}'`);
-
-    if (!rows.length) return null;
-    const row = rows[0];
+    const row = this.readRows()[service];
+    if (!row) return null;
 
     return {
       service: row.service,
@@ -208,45 +185,45 @@ export class Vault {
       extra: row.extra_enc ? JSON.parse(decrypt(row.extra_enc, this.key)) : {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      expiresAt: row.expires_at || undefined,
-      notes: row.notes || undefined,
+      expiresAt: row.expires_at,
+      notes: row.notes,
     };
   }
 
   /** List all stored services (without decrypting credentials). */
   list(): { service: string; baseUrl: string; authMethod: string; updatedAt: string; expiresAt?: string }[] {
-    const rows = sqlQuery(this.dbPath, `SELECT service, base_url, auth_method, updated_at, expires_at FROM credentials ORDER BY updated_at DESC`);
+    const rows = Object.values(this.readRows());
 
-    return rows.map((r: any) => ({
-      service: r.service,
-      baseUrl: r.base_url,
-      authMethod: r.auth_method,
-      updatedAt: r.updated_at,
-      expiresAt: r.expires_at || undefined,
-    }));
+    return rows
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+      .map((r) => ({
+        service: r.service,
+        baseUrl: r.base_url,
+        authMethod: r.auth_method,
+        updatedAt: r.updated_at,
+        expiresAt: r.expires_at,
+      }));
   }
 
   /** Delete credentials for a service. */
   delete(service: string): boolean {
-    try {
-      sqlRun(this.dbPath, `DELETE FROM credentials WHERE service = '${sqlEscape(service)}'`);
-      return true;
-    } catch {
-      return false;
-    }
+    const rows = this.readRows();
+    if (!rows[service]) return false;
+    delete rows[service];
+    this.writeRows(rows);
+    return true;
   }
 
   /** Check if a service has stored credentials. */
   has(service: string): boolean {
-    const rows = sqlQuery(this.dbPath, `SELECT 1 FROM credentials WHERE service = '${sqlEscape(service)}'`);
-    return rows.length > 0;
+    return Boolean(this.readRows()[service]);
   }
 
   /** Check if credentials are expired. */
   isExpired(service: string): boolean {
-    const rows = sqlQuery(this.dbPath, `SELECT expires_at FROM credentials WHERE service = '${sqlEscape(service)}'`);
-    if (!rows.length || !rows[0].expires_at) return false;
-    return new Date(rows[0].expires_at) < new Date();
+    const row = this.readRows()[service];
+    if (!row?.expires_at) return false;
+    return new Date(row.expires_at) < new Date();
   }
 
   /** Export credentials as plain auth.json format (for generated skills). */
@@ -267,6 +244,6 @@ export class Vault {
   }
 
   close(): void {
-    // No-op for CLI-based approach
+    // No-op for file-based storage.
   }
 }

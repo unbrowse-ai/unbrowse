@@ -7,6 +7,7 @@
  */
 
 import type { EndpointGroup } from "./types.js";
+import { getEnv } from "./runtime-env.js";
 
 interface LlmEndpointInput {
   method: string;
@@ -93,10 +94,10 @@ function resolveProvider(explicitKey?: string): { apiKey: string | undefined; pr
     return { apiKey: explicitKey, provider: "openrouter" };
   }
 
-  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  const openrouterKey = getEnv("OPENROUTER_API_KEY");
   if (openrouterKey) return { apiKey: openrouterKey, provider: "openrouter" };
 
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const openaiKey = getEnv("OPENAI_API_KEY");
   if (openaiKey) return { apiKey: openaiKey, provider: "openai" };
 
   return { apiKey: undefined, provider: "openrouter" };

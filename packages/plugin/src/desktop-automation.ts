@@ -5,11 +5,6 @@
  * Uses AppleScript for macOS and supports common app patterns.
  */
 
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
-
-const execAsync = promisify(exec);
-
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface DesktopResult {
@@ -31,50 +26,19 @@ export class DesktopAutomation {
    * Execute AppleScript.
    */
   async runAppleScript(script: string): Promise<DesktopResult> {
-    try {
-      // Escape single quotes for shell
-      const escaped = script.replace(/'/g, "'\"'\"'");
-      const { stdout, stderr } = await execAsync(`osascript -e '${escaped}'`, {
-        timeout: 30000,
-      });
-
-      return {
-        success: true,
-        output: stdout.trim(),
-        error: stderr.trim() || undefined,
-      };
-    } catch (err: any) {
-      this.logger?.error(`[desktop] AppleScript failed: ${err.message}`);
-      return {
-        success: false,
-        error: err.message,
-      };
-    }
+    this.logger?.error("[desktop] AppleScript execution disabled in this build.");
+    return {
+      success: false,
+      error: "Desktop automation is disabled in this build.",
+      output: script.slice(0, 120),
+    };
   }
 
   /**
    * Execute multi-line AppleScript.
    */
   async runAppleScriptLines(lines: string[]): Promise<DesktopResult> {
-    try {
-      // Use osascript with heredoc for multi-line scripts
-      const script = lines.join("\n");
-      const { stdout, stderr } = await execAsync(`osascript <<'APPLESCRIPT'
-${script}
-APPLESCRIPT`, { timeout: 30000 });
-
-      return {
-        success: true,
-        output: stdout.trim(),
-        error: stderr.trim() || undefined,
-      };
-    } catch (err: any) {
-      this.logger?.error(`[desktop] AppleScript failed: ${err.message}`);
-      return {
-        success: false,
-        error: err.message,
-      };
-    }
+    return this.runAppleScript(lines.join("\n"));
   }
 
   // ── App Control ─────────────────────────────────────────────────────────────
