@@ -153,7 +153,7 @@ export default function Skills() {
           setStats({
             total: data.total,
             services: data.totalServices || 0,
-            executions: data.totalExecutions || data.totalDownloads || 0,
+            executions: data.totalExecutions || 0,
           });
         }
       }
@@ -232,7 +232,7 @@ export default function Skills() {
     return true;
   });
 
-  const sortedSkills = [...filteredSkills].sort((a, b) => ((b.executionCount || b.downloadCount || 0) - (a.executionCount || a.downloadCount || 0)));
+  const sortedSkills = [...filteredSkills].sort((a, b) => (Number(b.executionCount || 0) - Number(a.executionCount || 0)));
 
   return (
     <div className="ub-page">
@@ -618,12 +618,12 @@ export default function Skills() {
                             {endpointCount} verified endpoints
                           </span>
                         )}
-                        {(skill.executionCount || skill.downloadCount) > 0 && (
+                        {Number(skill.executionCount || 0) > 0 && (
                           <span className="ub-card-downloads">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                             </svg>
-                            {(skill.executionCount || skill.downloadCount).toLocaleString()}
+                            {Number(skill.executionCount || 0).toLocaleString()}
                           </span>
                         )}
                         {skill.qualityScore >= 80 && (

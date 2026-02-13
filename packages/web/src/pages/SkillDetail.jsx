@@ -269,7 +269,7 @@ export default function SkillDetail() {
   const verifiedEndpoints = endpointCount;
   const methodCount = new Set(workingEndpointRecords.map((ep) => ep.method).filter(Boolean)).size;
   const totalExecutions = workingEndpointRecords.reduce((sum, ep) => sum + (ep.totalExecutions || 0), 0);
-  const executionCount = Number(skill.executionCount || totalExecutions || 0);
+  const executionCount = Number(skill.executionCount || 0);
 
   const searchCommand = `unbrowse_search query="${skill.name}"`;
   const installCommand = `unbrowse_install id="${skill.skillId}"`;
