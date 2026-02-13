@@ -17,6 +17,8 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      PKG_DIR: packages/plugin
     permissions:
       contents: write
       id-token: write
@@ -32,8 +34,8 @@ jobs:
         id: npm_check
         shell: bash
         run: |
-          PKG_NAME=$(node -p "require('./package.json').name")
-          PKG_VERSION=$(node -p "require('./package.json').version")
+          PKG_NAME=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').name")
+          PKG_VERSION=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').version")
           SHOULD_PUBLISH=true
           BUMPED=false
 
@@ -44,8 +46,10 @@ jobs:
           if version_exists "${PKG_VERSION}"; then
             if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/stable" ]]; then
               while version_exists "${PKG_VERSION}"; do
+                pushd "${PKG_DIR}" >/dev/null
                 npm version patch --no-git-tag-version >/dev/null
-                PKG_VERSION=$(node -p "require('./package.json').version")
+                popd >/dev/null
+                PKG_VERSION=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').version")
                 BUMPED=true
               done
               echo "Bumped package version to: ${PKG_NAME}@${PKG_VERSION}"
@@ -62,23 +66,23 @@ jobs:
           echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
           echo "bumped=${BUMPED}" >> "$GITHUB_OUTPUT"
 
-      - run: npm install
+      - run: npm install --prefix "${PKG_DIR}"
         if: steps.npm_check.outputs.should_publish == 'true'
 
-      - run: npm run build
+      - run: npm run build --prefix "${PKG_DIR}"
         if: steps.npm_check.outputs.should_publish == 'true'
 
       - name: Publish package (trusted publishing)
         id: publish_trusted
         if: steps.npm_check.outputs.should_publish == 'true'
         continue-on-error: true
-        run: npm publish --provenance --access public
+        run: cd "${PKG_DIR}" && npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ""
 
       - name: Publish package (token fallback)
         if: steps.npm_check.outputs.should_publish == 'true' && steps.publish_trusted.outcome == 'failure'
-        run: npm publish --provenance --access public
+        run: cd "${PKG_DIR}" && npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -88,7 +92,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json
+          git add "${PKG_DIR}/package.json"
           if git diff --cached --quiet; then
             echo "No version changes to commit."
             exit 0
