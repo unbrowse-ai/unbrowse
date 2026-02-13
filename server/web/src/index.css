@@ -2016,6 +2016,41 @@ a {
   flex: 1;
 }
 
+.endpoint-path.endpoint-operation {
+  color: var(--gold-bright);
+}
+
+.endpoint-path.endpoint-subpath {
+  width: 100%;
+  flex: none;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
+.endpoint-domain {
+  width: 100%;
+  flex: none;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.endpoint-inline-error {
+  margin-top: 10px;
+  color: #f87171;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.endpoint-desc.endpoint-radar-desc {
+  margin-top: 8px;
+  line-height: 1.55;
+}
+
 .endpoint-desc {
   width: 100%;
   margin: 8px 0 0 0;

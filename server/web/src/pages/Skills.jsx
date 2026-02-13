@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-
-const API_BASE = 'https://index.unbrowse.ai';
+import { apiUrl } from '../lib/api-base';
 
 // Animated constellation effect
 function Constellation() {
@@ -138,8 +137,8 @@ export default function Skills() {
     }
     try {
       const url = query.trim()
-        ? `${API_BASE}/marketplace/skills?q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=0`
-        : `${API_BASE}/marketplace/skills?limit=${LIMIT}&offset=0`;
+        ? apiUrl(`/marketplace/skills?q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=0`)
+        : apiUrl(`/marketplace/skills?limit=${LIMIT}&offset=0`);
 
       const res = await fetch(url);
       if (res.ok) {
@@ -177,8 +176,8 @@ export default function Skills() {
     setLoadingMore(true);
     try {
       const url = search.trim()
-        ? `${API_BASE}/marketplace/skills?q=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}`
-        : `${API_BASE}/marketplace/skills?limit=${LIMIT}&offset=${offset}`;
+        ? apiUrl(`/marketplace/skills?q=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}`)
+        : apiUrl(`/marketplace/skills?limit=${LIMIT}&offset=${offset}`);
 
       const res = await fetch(url);
       if (res.ok) {

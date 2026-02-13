@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-
-const API_BASE = 'https://index.unbrowse.ai';
+import { apiUrl } from '../lib/api-base';
 
 export default function Analytics() {
   const [overview, setOverview] = useState(null);
@@ -20,10 +19,10 @@ export default function Analytics() {
     setLoading(true);
     try {
       const [overviewRes, timeSeriesRes, topRes, breakdownRes] = await Promise.all([
-        fetch(API_BASE + '/admin/analytics/overview'),
-        fetch(API_BASE + '/admin/analytics/timeseries?days=' + timeRange),
-        fetch(API_BASE + '/admin/analytics/top-skills?limit=10&metric=installations'),
-        fetch(API_BASE + '/admin/analytics/skills?limit=50'),
+        fetch(apiUrl('/admin/analytics/overview')),
+        fetch(apiUrl('/admin/analytics/timeseries?days=' + timeRange)),
+        fetch(apiUrl('/admin/analytics/top-skills?limit=10&metric=installations')),
+        fetch(apiUrl('/admin/analytics/skills?limit=50')),
       ]);
 
       if (overviewRes.ok) setOverview(await overviewRes.json());

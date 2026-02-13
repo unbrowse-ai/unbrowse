@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { apiUrl } from '../lib/api-base';
 
-const API_BASE = 'https://index.unbrowse.ai';
+function normalizeMethod(method) {
+  return String(method || 'GET').toUpperCase();
+}
+
+function isWorkingEndpoint(endpoint) {
+  const status = String(endpoint?.validationStatus || '').toLowerCase();
+  if (status) return status === 'verified' || status === 'auth_required';
+  return Number(endpoint?.successfulExecutions || 0) > 0;
+}
 
 export default function SkillDetail() {
   const { id } = useParams();
@@ -10,14 +19,20 @@ export default function SkillDetail() {
   const [copiedStep, setCopiedStep] = useState(null);
   const [skillContent, setSkillContent] = useState(null);
   const [loadingContent, setLoadingContent] = useState(false);
+  const [endpoints, setEndpoints] = useState([]);
+  const [loadingEndpoints, setLoadingEndpoints] = useState(false);
+  const [endpointError, setEndpointError] = useState(null);
 
   useEffect(() => {
+    setEndpoints([]);
+    setEndpointError(null);
     loadSkill();
+    loadSkillEndpoints(id);
   }, [id]);
 
   const loadSkill = async () => {
     try {
-      const res = await fetch(`${API_BASE}/marketplace/skills/${id}`);
+      const res = await fetch(apiUrl(`/marketplace/skills/${id}`));
       if (res.ok) {
         const data = await res.json();
         setSkill(data.skill);
@@ -39,7 +54,7 @@ export default function SkillDetail() {
     setLoadingContent(true);
     try {
       // Try to fetch the skill download endpoint (free skills should return content)
-      const res = await fetch(`${API_BASE}/marketplace/skill-downloads/${skillId}`);
+      const res = await fetch(apiUrl(`/marketplace/skill-downloads/${skillId}`));
       if (res.ok) {
         const data = await res.json();
         setSkillContent(data.skill || data);
@@ -48,6 +63,34 @@ export default function SkillDetail() {
       console.error('Failed to load skill content:', err);
     } finally {
       setLoadingContent(false);
+    }
+  };
+
+  const loadSkillEndpoints = async (skillId) => {
+    setLoadingEndpoints(true);
+    setEndpointError(null);
+    try {
+      const res = await fetch(apiUrl(`/marketplace/skills/${skillId}/endpoints`));
+      if (!res.ok) throw new Error(`Failed to load endpoints (${res.status})`);
+      const data = await res.json();
+      const normalized = (data.endpoints || []).map((ep, i) => ({
+        id: ep.endpointId || `${ep.method || 'GET'}-${ep.normalizedPath || ep.rawPath || i}`,
+        endpointId: ep.endpointId || null,
+        method: normalizeMethod(ep.method),
+        path: ep.rawPath || ep.normalizedPath || '/',
+        operationName: ep.operationName || ep.methodName || null,
+        description: ep.description || null,
+        domain: ep.domain || '',
+        validationStatus: ep.validationStatus || null,
+        totalExecutions: typeof ep.totalExecutions === 'number' ? ep.totalExecutions : 0,
+        successfulExecutions: typeof ep.successfulExecutions === 'number' ? ep.successfulExecutions : 0,
+      }));
+      setEndpoints(normalized);
+    } catch (err) {
+      setEndpointError(err?.message || 'Failed to load endpoints');
+      console.error('Failed to load endpoints:', err);
+    } finally {
+      setLoadingEndpoints(false);
     }
   };
 
@@ -87,6 +130,11 @@ export default function SkillDetail() {
 
   const price = parseFloat(skill.priceUsdc || '0');
   const isFree = price === 0;
+  const workingEndpoints = endpoints.filter(isWorkingEndpoint);
+  const endpointCount = workingEndpoints.length
+    || Number(skill.verifiedEndpointCount || 0)
+    || Number(skill.endpointCount || 0)
+    || 0;
 
   const searchCommand = `unbrowse_search query="${skill.name}"`;
   const installCommand = `unbrowse_install id="${skill.skillId}"`;
@@ -146,6 +194,44 @@ export default function SkillDetail() {
         </div>
       </div>
 
+      <section className="detail-section">
+        <h2>Endpoints ({endpointCount.toLocaleString()})</h2>
+        {loadingEndpoints ? (
+          <div className="content-loading">
+            <div className="loading-spinner small" />
+            Loading endpoints...
+          </div>
+        ) : endpointError ? (
+          <p className="endpoint-inline-error">{endpointError}</p>
+        ) : workingEndpoints.length === 0 ? (
+          <p className="no-content">No verified endpoints available yet.</p>
+        ) : (
+          <div className="endpoints-list">
+            {workingEndpoints.map((ep) => {
+              const hasOperation = Boolean(ep.operationName);
+              const title = hasOperation ? `${ep.operationName}()` : ep.path;
+              return (
+                <div key={ep.id} className="endpoint-item">
+                  <span className={`endpoint-method method-${(ep.method || 'GET').toLowerCase()}`}>
+                    {ep.method || 'GET'}
+                  </span>
+                  <code className={`endpoint-path ${hasOperation ? 'endpoint-operation' : ''}`}>{title}</code>
+                  {hasOperation && (
+                    <code className="endpoint-path endpoint-subpath">{ep.path}</code>
+                  )}
+                  {ep.domain && (
+                    <span className="endpoint-domain">{ep.domain}</span>
+                  )}
+                  {ep.description && (
+                    <p className="endpoint-desc endpoint-radar-desc">{ep.description}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       {/* FREE SKILL: Show SKILL.md content */}
       {isFree ? (
         <>
@@ -177,24 +263,6 @@ export default function SkillDetail() {
               </div>
             )}
           </section>
-
-          {/* Endpoints if available */}
-          {(skillContent?.endpoints || skill.endpoints) && (
-            <section className="detail-section">
-              <h2>Endpoints</h2>
-              <div className="endpoints-list">
-                {(skillContent?.endpoints || skill.endpoints || []).map((ep, i) => (
-                  <div key={i} className="endpoint-item">
-                    <span className={`endpoint-method method-${(ep.method || 'GET').toLowerCase()}`}>
-                      {ep.method || 'GET'}
-                    </span>
-                    <code className="endpoint-path">{ep.path || ep.endpoint || ep.url}</code>
-                    {ep.description && <p className="endpoint-desc">{ep.description}</p>}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* Free Download CTA */}
           <section className="detail-section free-download-section">

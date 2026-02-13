@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-
-const API_BASE = 'https://index.unbrowse.ai';
+import { apiUrl } from '../lib/api-base';
 
 export default function Search() {
   const [searchParams] = useSearchParams();
@@ -54,7 +53,7 @@ export default function Search() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/marketplace/skills?q=${encodeURIComponent(q)}&limit=${LIMIT}&offset=0`
+        apiUrl(`/marketplace/skills?q=${encodeURIComponent(q)}&limit=${LIMIT}&offset=0`)
       );
       if (res.ok) {
         const data = await res.json();
@@ -76,7 +75,7 @@ export default function Search() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/marketplace/skills?q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=${offset}`
+        apiUrl(`/marketplace/skills?q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=${offset}`)
       );
       if (res.ok) {
         const data = await res.json();
