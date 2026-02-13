@@ -507,7 +507,9 @@ async execute(_toolCallId: string, params: unknown) {
         try {
           const resp = await fetch(url, opts);
           const text = await resp.text().catch(() => "");
-          return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000) };
+          const ct = resp.headers.get("content-type") ?? "";
+          const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
+          return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000), isHtml };
         } catch (err) {
           return { status: 0, ok: false, data: String(err) };
         }
@@ -630,7 +632,8 @@ async execute(_toolCallId: string, params: unknown) {
     const text = await resp.text().catch(() => "");
     const ct = resp.headers.get("content-type") ?? "";
     const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
-    return { status: resp.status, ok: resp.ok && !isHtml, data: text.slice(0, 2000), isHtml };
+    // HTML responses can still be a successful "endpoint" for SSR/scraping-style skills.
+    return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000), isHtml };
   }
 
   // ── Credential refresh on 401/403 ──────────────────────────
@@ -784,8 +787,9 @@ async execute(_toolCallId: string, params: unknown) {
     return { content: [{ type: "text", text: results.join("\n") }] };
   }
 
-  // Check if browser is available upfront
-  const browserPage = await getChromePage();
+  // Check if browser is available upfront.
+  // If node mode is forced, don't probe CDP ports (saves time + avoids noisy logs).
+  const browserPage = executionMode === "node" ? null : await getChromePage();
   const hasBrowser = browserPage !== null && executionMode !== "node";
 
   if (hasBrowser) {
@@ -852,13 +856,8 @@ async execute(_toolCallId: string, params: unknown) {
       // This will likely be blocked by sophisticated bot detection
       try {
         result = await execViaFetch(ep, body);
-        if (result.isHtml) {
-          results.push(`  ${ep.method} ${ep.path} → ${result.status} (HTML page, not API)`);
-          failed++;
-          continue;
-        }
         if (result.ok) {
-          results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Node.js)`);
+          results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Node.js)${result.isHtml ? " (HTML)" : ""}`);
           if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
           passed++;
           continue;
