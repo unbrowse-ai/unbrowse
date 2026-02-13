@@ -8,6 +8,8 @@
  * - GET  /marketplace/skills/:id/versions/:hash
  * - GET  /marketplace/skill-downloads/:id   (200 for free, 402 for paid via x402)
  * - POST /marketplace/skills
+ * - POST /marketplace/publish              (async publish; returns jobId)
+ * - GET  /marketplace/publish/:jobId       (poll publish status)
  * - GET  /health
  *
  * Notes:
@@ -419,6 +421,76 @@ export class SkillIndexClient {
     const publishTimeoutMs = Number.isFinite(this.opts.publishTimeoutMs) && (this.opts.publishTimeoutMs as number) > 0
       ? Math.trunc(this.opts.publishTimeoutMs as number)
       : DEFAULT_PUBLISH_TIMEOUT_MS;
+
+    // Prefer async publish to avoid Cloudflare timeouts for long ingest/quality gating.
+    // Fall back to synchronous /marketplace/skills if the server doesn't support async publish.
+    const startTimeoutMs = Math.min(15_000, publishTimeoutMs);
+    let startResp: Response | null = null;
+    try {
+      startResp = await fetch(`${this.indexUrl}/marketplace/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(startTimeoutMs),
+      });
+    } catch (err: any) {
+      // If async endpoint is unreachable (or times out), fall through to sync publish below.
+      startResp = null;
+    }
+
+    if (startResp) {
+      // Server supports async publish.
+      if (startResp.status === 202) {
+        const startData: any = await startResp.json().catch(() => ({}));
+        const jobId = typeof startData?.jobId === "string" ? startData.jobId : "";
+        if (!jobId) throw new Error("Async publish failed: server returned 202 without jobId");
+
+        const deadline = Date.now() + publishTimeoutMs;
+        const statusUrl = `${this.indexUrl}/marketplace/publish/${encodeURIComponent(jobId)}`;
+
+        while (Date.now() < deadline) {
+          const pollResp = await fetch(statusUrl, {
+            headers: { "Accept": "application/json" },
+            signal: AbortSignal.timeout(15_000),
+          });
+
+          if (!pollResp.ok) {
+            const text = await pollResp.text().catch(() => "");
+            throw new Error(`Async publish polling failed (${pollResp.status}): ${text}`);
+          }
+
+          const poll: any = await pollResp.json().catch(() => ({}));
+          const status = String(poll?.status || "");
+          if (status === "succeeded") {
+            const result = poll?.result;
+            if (!result || typeof result !== "object") {
+              throw new Error("Async publish succeeded but missing result payload");
+            }
+            return result as PublishResult;
+          }
+          if (status === "failed") {
+            const errMsg = typeof poll?.error === "string" && poll.error.trim().length > 0
+              ? poll.error.trim()
+              : "Publish failed";
+            throw new Error(`Publish failed: ${errMsg}`);
+          }
+
+          const pollAfterMs = Number.isFinite(poll?.pollAfterMs) && poll.pollAfterMs > 0
+            ? Math.min(10_000, Math.max(250, Math.trunc(poll.pollAfterMs)))
+            : 2000;
+          await new Promise((r) => setTimeout(r, pollAfterMs));
+        }
+
+        throw new Error(`Publish timed out while waiting for completion. Poll: ${statusUrl}`);
+      }
+
+      // If the endpoint exists but returned a non-202 error, surface it.
+      if (!startResp.ok && startResp.status !== 404) {
+        const text = await startResp.text().catch(() => "");
+        throw new Error(`Async publish failed (${startResp.status}): ${text}`);
+      }
+      // else: 404 or transient -> fall back to sync
+    }
 
     const resp = await fetch(`${this.indexUrl}/marketplace/skills`, {
       method: "POST",
