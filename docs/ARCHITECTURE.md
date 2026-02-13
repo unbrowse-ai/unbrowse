@@ -12,6 +12,8 @@ The system is organized around two components:
 - Extension component: `packages/plugin`
 - Marketplace component: `server` + `packages/web`
 
+See also: [Agentic Web framing](./AGENTIC_WEB.md).
+
 ## Core operating model
 
 Unbrowse is split by trust and execution scope:
@@ -20,6 +22,14 @@ Extension domain: `packages/plugin` writes and replays from local files.
 Marketplace domain: `server` + `packages/web` validates and exposes publish/search/execute contracts.
 
 The marketplace itself is a contract boundary. This repository documents contracts, not internal execution topology.
+
+### Why this design exists (performance + reliability)
+
+- local-first learning keeps first-run simple and debuggable
+- local replay removes DOM-driven delays
+- shared merge/publish enables reuse across users without repeating capture work
+
+In most repeat runs, this removes the browser-loop path that dominates latency in automation.
 
 ## Architecture map
 
@@ -32,6 +42,23 @@ OpenClaw user/tool call
   -> optional backend execution via marketplace contract
   -> result + trace metadata back to caller
 ```
+
+## Agentic web operating model
+
+This architecture is optimized for one-time learning and repeated direct execution.
+
+- **Observation stage**: capture from browser sessions is the bootstrap mechanism.
+- **Extraction stage**: API call graph is inferred from observed traffic.
+- **Stabilization stage**: artifacts are normalized, merged, and stored locally.
+- **Reuse stage**: those artifacts become replay paths for the same user.
+- **Ecosystem stage**: optional publish makes artifacts usable by more agents.
+
+The same site is therefore handled by two systems in sequence:
+
+- local runtime for first-party control,
+- marketplace contracts for optional shared runtime.
+
+This sequencing keeps the local model predictable while allowing growth.
 
 ## Execution mode decision
 
@@ -147,6 +174,13 @@ Step 6 optional install/search
 
 Step 7 optional backend replay
 - server executes and returns execution observability
+
+## Local vs remote in one sentence
+
+- local: deterministic file-backed replay from your captured artifacts.
+- remote: contract-driven backend execution for installed shared endpoint IDs.
+
+Both paths are valid; the user controls when to promote.
 
 ## Local artifacts: what is stored and why it matters
 
