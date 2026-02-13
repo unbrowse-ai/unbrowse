@@ -124,4 +124,4 @@ Skills can be exposed as MCP tools. Each endpoint becomes a callable tool with t
 
 ## License
 
-This specification is released under Apache 2.0. Anyone may implement it.
+This specification is released under AGPL-3.0-only. See [LICENSE](LICENSE).
