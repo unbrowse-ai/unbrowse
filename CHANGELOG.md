@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Marketplace frontend endpoint explorer in skill detail (`/skill/:id`) using `/marketplace/skills/:id/endpoints`
 
 ### Changed
+- Updated Vercel deployment config to build from `packages/web` with the monorepo structure (`pnpm --dir packages/web ...`) and preserve SPA rewrites/security headers at repo root.
 - `unbrowse_capture` now defaults `crawl=false` (crawl is opt-in)
 - License metadata/docs reverted to `AGPL-3.0-only`
 - `parseHar()` now always generates `headerProfile` on the returned `ApiData` object
