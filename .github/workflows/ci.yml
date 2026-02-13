@@ -27,4 +27,4 @@ jobs:
         run: npm run build --prefix packages/plugin
 
       # Ensures packaging works and the tarball includes dist/.
-      - run: npm pack --dry-run --prefix packages/plugin
+      - run: cd packages/plugin && npm pack --dry-run
