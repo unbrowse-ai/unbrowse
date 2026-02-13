@@ -1,8 +1,10 @@
 import { join } from "node:path";
 
 import { parseHar } from "../../har-parser.js";
+import { enrichApiData } from "../../har-parser.js";
 import { generateSkill } from "../../skill-generator.js";
 import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
+import { selectEndpointGroupsForIntent } from "../../intent-endpoint-selector.js";
 import { CAPTURE_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 import { normalizeUrlList, coalesceDir } from "./input-normalizers.js";
@@ -17,7 +19,7 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
     description:
       "Reverse-engineer internal APIs from any website. Provide URLs and the tool captures " +
       "all hidden API traffic the site uses internally — the undocumented endpoints, auth tokens, " +
-      "session cookies, and custom headers. Crawls same-domain links to discover more endpoints. " +
+      "session cookies, and custom headers. No crawling by default (to avoid random endpoints). " +
       "For authenticated sites, use unbrowse_login first to capture session auth.",
     parameters: CAPTURE_SCHEMA,
     async execute(_toolCallId: string, params: unknown) {
@@ -25,6 +27,8 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         outputDir?: string;
         skillsDir?: string;
         urls: string[];
+        intent?: string;
+        maxEndpoints?: number;
         waitMs?: number;
         crawl?: boolean;
         maxPages?: number;
@@ -47,12 +51,21 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
       try {
         const { captureWithHar } = await import("../../har-capture.js");
 
-        const shouldCrawl = p.crawl !== false;
+        const shouldCrawl = p.crawl === true;
         const shouldTest = p.testEndpoints !== false;
         const maxPages = p.maxPages ?? 15;
+        const intent = typeof p.intent === "string" ? p.intent.trim() : "";
+        const maxEndpoints = Number.isFinite(p.maxEndpoints) && (p.maxEndpoints as number) > 0
+          ? Math.min(200, Math.max(1, Math.trunc(p.maxEndpoints as number)))
+          : 25;
 
         // Progress feedback before starting
-        logger.info(`[unbrowse] Capture starting: ${urls.length} seed URL(s), crawl up to ${maxPages} pages (60s max)...`);
+        logger.info(
+          `[unbrowse] Capture starting: ${urls.length} seed URL(s)` +
+          `${shouldCrawl ? `, crawl up to ${maxPages} pages (60s max)` : ""}` +
+          `${intent ? `, intent="${intent.slice(0, 120)}"${intent.length > 120 ? "..." : ""}` : ""}` +
+          `...`,
+        );
 
         const { har, cookies, requestCount, method, crawlResult } = await captureWithHar(urls, {
           waitMs: p.waitMs,
@@ -124,6 +137,17 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           }
         }
 
+        // Build endpoint groups (normalized paths + generated method names).
+        apiData = enrichApiData(apiData);
+
+        // Optional pruning: keep only endpoints relevant to the user's intent.
+        if (intent && apiData.endpointGroups && apiData.endpointGroups.length > 0) {
+          const before = apiData.endpointGroups.length;
+          apiData.endpointGroups = selectEndpointGroupsForIntent(apiData.endpointGroups, intent, { limit: maxEndpoints });
+          const after = apiData.endpointGroups.length;
+          logger.info(`[unbrowse] Intent pruning: ${before} -> ${after} endpoint(s) (limit=${maxEndpoints})`);
+        }
+
         const result = await generateSkill(apiData, outDir, {
           verifiedEndpoints: testSummary?.verified,
           unverifiedEndpoints: testSummary ? Math.max(0, testSummary.total - testSummary.verified) : undefined,
@@ -139,7 +163,7 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         const summaryLines = [
           `Captured (${method}): ${requestCount} requests from ${urls.length} page(s)`,
         ];
-        if (crawlResult && crawlResult.pagesCrawled > 0) {
+        if (shouldCrawl && crawlResult && crawlResult.pagesCrawled > 0) {
           summaryLines.push(`Crawled: ${crawlResult.pagesCrawled} additional pages`);
         }
         if (openApiSpec) {
@@ -182,14 +206,14 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           summaryLines.push(
             "",
             `⚠️  High failure rate: ${failureDetails.join(", ")} out of ${totalRequests} requests`,
-            `   The site may be blocking automated crawls. Skill may be incomplete.`,
+            `   The site may be blocking automated browsing/crawling. Skill may be incomplete.`,
             `   Try: unbrowse_replay with useStealth=true, or the browse tool for manual exploration.`,
           );
           logger.warn(`[unbrowse] High failure rate (${Math.round(failureRate * 100)}%) — ${failureDetails.join(", ")}`);
         }
 
         logger.info(
-          `[unbrowse] Capture → ${result.service} (${result.endpointCount} endpoints, ${crawlResult?.pagesCrawled ?? 0} crawled, via ${method})`,
+          `[unbrowse] Capture → ${result.service} (${result.endpointCount} endpoints${shouldCrawl ? `, ${crawlResult?.pagesCrawled ?? 0} crawled` : ""}, via ${method})`,
         );
         return { content: [{ type: "text", text: summaryLines.join("\n") }] };
       } catch (err) {
