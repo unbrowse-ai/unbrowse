@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Intent-based endpoint grouping/pruning for `unbrowse_capture` via `intent` + `maxEndpoints`
 - Endpoint-intent selector heuristics + tests (`intent-endpoint-selector.ts`)
+- Marketplace async publish + polling endpoints (`POST /marketplace/publish`, `GET /marketplace/publish/:jobId`) to avoid Cloudflare timeouts
 - Browser header profiler for capturing and replaying site-specific headers from Node.js (`header-profiler.ts`)
 - Frequency-based header template system — captures headers appearing on >= 80% of requests to a domain
 - Header classification engine: `protocol`, `browser`, `cookie`, `auth`, `context`, `app` categories
