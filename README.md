@@ -1,253 +1,209 @@
 # Unbrowse (OpenClaw Plugin & Skill Ecosystem)
 
-Unbrowse turns real browser traffic into reusable agent capabilities.
+Open source API reverse engineering for OpenClaw.
 
-It is a two-part system:
+Unbrowse captures real browser network traffic and turns it into reusable agent skills.
 
-- **Extension component** (`packages/plugin`): local capture and local replay.
-- **Marketplace component** (`server` + `packages/web`): shared discovery, publish/search/install, and backend execution contracts.
+> Security note: core capture/replay is local by default. Data is kept on your machine unless you explicitly publish. See [`SECURITY.md`](SECURITY.md).
 
-This design keeps local control simple, while allowing shared capability growth.
+## Why this project exists
 
-## Why this matters
+Agents that drive websites through browser automation are slow and brittle:
 
-An OpenClaw agent that uses browser automation for every web action is slow and fragile.
-Each action spends time on browser startup, rendering, DOM waits, and scraping.
+- full browser startup
+- DOM waits and selector drift
+- repeated render/parse loops for every action
 
-Unbrowse changes the execution shape:
+Unbrowse short-circuits that path:
 
-- first browse = capture network behavior from the page you already control
-- subsequent runs = call captured API endpoints directly when possible
+- first run: observe with browser to capture real traffic
+- later runs: call the same behavior directly through inferred endpoint contracts
 
-That is why teams use Unbrowse for speed-sensitive workflows (scraping-to-API behavior conversion):
+Result: faster execution and fewer UI-shape failures in action-heavy workflows.
 
-- open a page and interact once to discover true API calls
-- avoid repeating GUI-level loops for every later execution
+This is the practical “agentic web” move: agents should execute capability contracts, not scrape screen pixels.
 
-In practical cases, direct endpoint execution can be tens to hundreds of times faster than repeated UI automation steps.
+## Quick Start (works without config)
 
-## The 100x story (pragmatic version)
-
-### What browser automation typically does
-
-- launch or coordinate a browser context
-- load and render the page
-- wait for script hydration and selectors
-- find DOM controls
-- click/type/submit/read UI text
-
-### What Unbrowse does after learn phase
-
-- run captured endpoint calls directly (`GET`, `POST`, etc.)
-- reuse typed auth/session context and endpoint schemas
-- execute in a deterministic HTTP workflow
-
-This removes the browser rendering loop from every repeat run.
-The result is large speed and reliability gains in action-heavy workflows.
-
-## The Agentic Web model
-
-Unbrowse assumes the web UI is an interface, not the source of truth.
-
-- The true source is request/response behavior.
-- The agent should act on that behavior directly after first observation.
-- Reusability matters more than one-off, site-specific DOM logic.
-
-In this model:
-
-- observe once in the browser,
-- capture underlying API graph,
-- normalize into stable execution contracts,
-- replay from those contracts when rerunning.
-
-The practical shift is:
-
-- legacy: open page, click, wait, read DOM, retry.
-- agentic web: infer, execute, compose outcomes.
-
-This framing is why this work matters:
-
-- reliability: fewer selector and layout assumptions.
-- speed: less browser startup/rendering overhead on repeated runs.
-- capability compounding: one discovered service can be reused by many agents.
-- local ergonomics: still starts as a private local skill.
-
-We call the deeper framing `docs/AGENTIC_WEB.md`.
-
-## Why we keep local first
-
-Because private/local-first usage is the default expected path:
-
-- skill discovery starts on your machine
-- artifacts are local files in `~/.openclaw/skills/<service>/`
-- replay can succeed without any published index
-- optional publish is explicit, never implicit
-
-If you do not publish, you do not need the marketplace.
-
-## What actually runs where
-
-### Extension
-
-`packages/plugin` is responsible for:
-
-- traffic capture from OpenClaw browser sessions and HAR/CDP sources
-- endpoint inference and candidate normalization
-- local artifact generation (`SKILL.md`, scripts, references, auth metadata)
-- local replay orchestration (`unbrowse_replay` local mode)
-- local merge of repeated captures
-
-### Marketplace
-
-`server` + `packages/web` are responsible for:
-
-- publish/search/install route contracts
-- merge/validation flow before skill is shared
-- execution contract routing for installed, published endpoint IDs
-- trace and status metadata for shared execution
-- web-facing discoverability and contributor views
-
-Marketplace internals are intentionally treated as a black box here.
-We document route contracts and observable behavior, not ranking/execution internals.
-
-### Marketplace as optional agentic growth layer
-
-- local behavior stays useful even with no account or publish.
-- publish converts local learning into discoverable, shared capabilities.
-- backend execution routing (`/marketplace/endpoints/:endpointId/execute`) handles traceable cross-agent replay when configured.
-- users get clear local/remote boundaries by command choice, not hidden switches.
-
-Payments are not enabled yet, so this path is for capability sharing first, not settlement.
-
-## End-to-end flow (single diagram)
-
-```text
-OpenClaw user action/tool call
- -> extension capture/replay tooling
- -> local skill artifacts in ~/.openclaw/skills/<service>/
- -> local replay (default)
- -> optional publish
- -> marketplace search/install
- -> optional backend execution contract path
- -> output + trace metadata returned
-```
-
-## Component-specific responsibilities
-
-### Local flow (default)
-
-Use these commands:
-
-- `unbrowse_capture { "urls": ["https://example.com"] }`
-- `unbrowse_browse`
-- `unbrowse_learn { "harPath": "/absolute/path/traffic.har" }`
-- `unbrowse_login` (for authenticated flows)
-
-Outcomes:
-
-- local service folder under `~/.openclaw/skills/<service>/`
-- generated `SKILL.md`
-- generated `scripts/`
-- optional `references/`
-- local `auth.json` when session context was captured
-
-`unbrowse_replay` uses this path first.
-
-### Shared flow (optional)
-
-Use:
-
-- `unbrowse_publish { "service": "example", "price": "0" }`
-- `unbrowse_search { "query": "analytics", "install": "<skill-id>" }`
-
-Outcomes:
-
-- server-side validation and merge
-- search/discovery visibility
-- installability for other users
-- backend replay for endpoint IDs via execution contracts (when mapped)
-
-## Why skills are shared
-
-Unbrowse creates the same kind of compounding behavior as shared code:
-
-- one capture can benefit many agents
-- repeated coverage improves success and confidence
-- contributor contribution logic tracks novelty and compatibility
-
-This is the central reason local learning and shared publish are both included.
-
-## Merge behavior (important for contributors)
-
-Merging is a core behavior, not a corner case.
-
-- local merge handles repeated capture updates for the same service.
-- server merge handles public publish-level updates and compatibility checks.
-
-Expected merge signals:
-- endpoint normalization and dedupe
-- schema compatibility filtering
-- conflict resolution policy and contribution ranking updates
-
-If parser/inference/merge logic changes, treat this as user-visible behavior.
-Update docs and tests for new merge expectations.
-
-## Security boundary
-
-- local session/auth material is for local execution first
-- publish payloads are sanitized for sensitive values
-- shared execution uses explicit contracts and boundary checks
-
-## Payments status (explicit)
-
-Payments are **not enabled** in this repository.
-
-- Wallet/payment route declarations may exist.
-- paid settlement and payout behavior are intentionally inactive in this stage.
-- do not treat repository behavior as paid-by-default.
-
-## Tool map
-
-- `unbrowse_browse`
-- `unbrowse_capture`
-- `unbrowse_learn`
-- `unbrowse_login`
-- `unbrowse_replay`
-- `unbrowse_search`
-- `unbrowse_publish`
-- `unbrowse_skills`
-- `unbrowse_wallet` (currently inactive placeholder)
-- `unbrowse_auth`, `unbrowse_do`, workflow helpers
-
-## Quick start
+### 1) Install
 
 ```bash
 openclaw plugins install @getfoundry/unbrowse-openclaw
 openclaw gateway restart
 ```
 
-```bash
+### 2) Capture a local skill
+
+```text
 unbrowse_capture { "urls": ["https://example.com"] }
+```
+
+### 3) Replay immediately
+
+```text
 unbrowse_replay { "service": "example" }
 ```
 
-```bash
-unbrowse_publish { "service": "example", "price": "0" }
-unbrowse_search { "query": "example", "install": "<skill-id>" }
+### What’s needed for each feature
+
+| Feature | What you need |
+|---|---|
+| Capture APIs | nothing extra |
+| Generate artifacts | nothing extra |
+| Replay local | nothing extra |
+| Browse/login capture | browser session |
+| Search shared skills | nothing extra |
+| Publish/install sharing | marketplace route (optional) |
+| Wallet payout flows | **inactive in this repo** |
+
+> Payments are not enabled. Wallet tooling and config fields may exist, but settlement remains inactive.
+
+## System layout
+
+- `packages/plugin`: local capture, inference, local replay, local artifact writes.
+- `server` + `packages/web`: optional publish/search/install contracts, shared execution routes, validation merge surface.
+
+The same command line can stay local-only indefinitely; marketplace participation is opt-in.
+
+## The 100x story (practical framing)
+
+### Browser-automation path
+
+- launch browser
+- render page
+- wait for JS hydration
+- inspect DOM / click and type
+- scrape rendered output
+
+### Unbrowse path after learn
+
+- execute the captured endpoint contract (`GET`, `POST`, etc.)
+- reuse inferred auth/session context
+- run deterministic request/response flows
+
+The gain is not a “small optimization.”
+It is often the difference between workflows that stall and ones that feel immediate.
+
+## How it works
+
+1. **Capture**  
+   `unbrowse_capture` records network traffic from your session.
+2. **Learn / infer**  
+   Endpoints, methods, auth styles, and request shapes are inferred.
+3. **Generate**  
+   Skill artifacts are written locally:
+   - `~/.openclaw/skills/<service>/SKILL.md`
+   - `scripts/`
+   - optional `references/`
+   - optional `auth.json`
+4. **Replay**  
+   `unbrowse_replay` executes locally first via browser/node mode.
+5. **Publish (optional)**  
+   `unbrowse_publish` proposes shareable artifacts; server validates + merges and exposes searchable IDs.
+6. **Install / execute (optional)**  
+   `unbrowse_search` can install discovered IDs into your local flow.
+
+## Core data and runtime boundary
+
+| Area | Local runtime | Remote/runtime contracts |
+|---|---|---|
+| Capture | ✅ local sessions | ❌ not required |
+| Replay | ✅ local artifacts | ⏯️ optional backend path |
+| Auth/session storage | ✅ local-first | ✅ explicit placeholder boundaries |
+| Search/discover | ❌ | ✅ |
+| Execution contracts | local fallback exists | optional through backend endpoint IDs |
+
+`payments` are intentionally not active in this repository.
+
+## Why local-first + publish-at-will
+
+- private work should not depend on the index
+- private credentials stay local
+- shareable behavior is still possible after publish
+- reusable ecosystem growth without forcing central lock-in
+
+## What isn’t documented (and why)
+
+We intentionally treat these as black-box/internal:
+
+- ranking internals
+- settlement routing internals
+- partner execution topology
+
+The docs focus on:
+
+- tool contracts
+- observable inputs/outputs
+- merge/conflict behavior
+- security boundaries
+
+## Local and shared command map
+
+- **Capture / learn**
+  - `unbrowse_browse`
+  - `unbrowse_capture`
+  - `unbrowse_learn`
+  - `unbrowse_login`
+  - `unbrowse_auth`
+- **Skill/runtime execution**
+  - `unbrowse_replay`
+  - `unbrowse_skills`
+- **Marketplace**
+  - `unbrowse_search`
+  - `unbrowse_publish`
+- **Automation helpers**
+  - `unbrowse_do`
+  - `unbrowse_desktop`
+- **Workflows**
+  - `unbrowse_workflow_record`
+  - `unbrowse_workflow_learn`
+  - `unbrowse_workflow_execute`
+  - `unbrowse_workflow_stats`
+- **Wallet/config**
+  - `unbrowse_wallet` (currently inactive for settlement path in this repo)
+
+## Installation options
+
+### Recommended
+
+`openclaw plugins install @getfoundry/unbrowse-openclaw`
+
+### Manual JSON install
+
+Add to your OpenClaw config (or equivalent runtime config file):
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse-openclaw": {
+        "enabled": true
+      }
+    }
+  }
+}
 ```
 
-## Developer entry points
+Then:
 
-- Typecheck: `npm run typecheck`
-- Plugin tests: `bun test`, `bun test:e2e`, `bun test:oct`
-- Server: `pnpm test`, `pnpm dev`, `pnpm build`
-- Web: `pnpm dev`, `pnpm build`, `pnpm preview`
+```bash
+openclaw gateway restart
+```
+
+### Run from source
+
+```bash
+git clone https://github.com/lekt9/unbrowse-openclaw ~/.openclaw/extensions/unbrowse-openclaw
+cd ~/.openclaw/extensions/unbrowse-openclaw
+npm install
+openclaw gateway restart
+```
 
 ## Next reads
 
-1. `docs/ARCHITECTURE.md`
-2. `docs/INTEGRATION_BOUNDARIES.md`
-3. `docs/CONTRIBUTOR_PLAYBOOK.md`
-4. `docs/QUICKSTART.md`
-5. `server/src/server/routes/README.md`
-6. `docs/AGENTIC_WEB.md`
+1. `docs/AGENTIC_WEB.md`
+2. `docs/ARCHITECTURE.md`
+3. `docs/INTEGRATION_BOUNDARIES.md`
+4. `docs/CONTRIBUTOR_PLAYBOOK.md`
+5. `docs/PURPOSE.md`
+
