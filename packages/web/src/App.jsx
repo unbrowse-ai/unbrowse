@@ -3,7 +3,6 @@ import Skills from './pages/Skills';
 import SkillDetail from './pages/SkillDetail';
 import Search from './pages/Search';
 import Docs from './pages/Docs';
-import Analytics from './pages/Analytics';
 import Earnings from './pages/Earnings';
 import Layout from './components/Layout';
 
@@ -15,7 +14,6 @@ function App() {
         <Route path="/search" element={<Search />} />
         <Route path="/skill/:id" element={<SkillDetail />} />
         <Route path="/docs" element={<Docs />} />
-        <Route path="/analytics" element={<Analytics />} />
         <Route path="/earnings" element={<Earnings />} />
       </Route>
     </Routes>
