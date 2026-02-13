@@ -2,6 +2,7 @@ import type { ToolDeps } from "./deps.js";
 import {
   existsSync,
   writeFileSync,
+  mkdirSync,
   join,
   resolve,
   homedir,
@@ -14,6 +15,7 @@ import type { HeaderProfileFile, PrimeResult } from "./shared.js";
 import type { CsrfProvenance } from "../../types.js";
 import { applyCsrfProvenance, inferCsrfProvenance } from "../../auth-provenance.js";
 import { loadJsonOr, loadText } from "../../disk-io.js";
+import { summarizeHtmlContent } from "../../html-structurer.js";
 
 export function makeUnbrowseReplayTool(deps: ToolDeps) {
   const {
@@ -48,6 +50,8 @@ async execute(_toolCallId: string, params: unknown) {
     storeRaw?: boolean;
     autoChain?: boolean;
     skillId?: string;
+    maxResponseChars?: number;
+    previewChars?: number;
   };
   const skillsDir = p.skillsDir ?? defaultOutputDir;
   const skillDir = join(skillsDir, p.service);
@@ -58,6 +62,17 @@ async execute(_toolCallId: string, params: unknown) {
   if (!existsSync(skillDir)) {
     return { content: [{ type: "text", text: `Skill not found: ${skillDir}` }] };
   }
+
+  const maxResponseChars =
+    typeof p.maxResponseChars === "number" && Number.isFinite(p.maxResponseChars) && p.maxResponseChars >= 0
+      ? Math.floor(p.maxResponseChars)
+      : 2000;
+
+  const previewCharsDefault = p.endpoint ? 4000 : 500;
+  const previewChars =
+    typeof p.previewChars === "number" && Number.isFinite(p.previewChars) && p.previewChars >= 0
+      ? Math.floor(p.previewChars)
+      : previewCharsDefault;
 
   // Filter out HTTP/2 pseudo-headers that break fetch()
   // These are protocol-level headers (e.g., :authority, :method, :path, :scheme)
@@ -208,7 +223,7 @@ async execute(_toolCallId: string, params: unknown) {
   async function execViaBackend(
     ep: { method: string; path: string },
     body?: string,
-  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean } | null> {
+  ): Promise<{ status: number; ok: boolean; endpointId?: string; raw?: any; data?: string } | null> {
     const skillId = (() => {
       if (p.skillId) return p.skillId;
       if (existsSync(marketplaceMetaPath)) {
@@ -278,6 +293,7 @@ async execute(_toolCallId: string, params: unknown) {
     const storeRaw = typeof p.storeRaw === "boolean" ? p.storeRaw : false;
     const autoChain = typeof p.autoChain === "boolean" ? p.autoChain : true;
     const intent = typeof p.intent === "string" && p.intent.trim().length > 0 ? p.intent.trim() : undefined;
+    const wantRawResponse = Boolean(p.endpoint) || storeRaw;
 
     try {
       const resp: any = await indexClient.executeEndpoint(endpointId, {
@@ -292,6 +308,7 @@ async execute(_toolCallId: string, params: unknown) {
           sessionId: p.service,
           autoChain,
           intent,
+          responseMode: wantRawResponse ? "raw" : "summary",
         },
         privacy: {
           storeTrace,
@@ -301,13 +318,13 @@ async execute(_toolCallId: string, params: unknown) {
 
       const ok = Boolean(resp?.ok);
       const status = typeof resp?.statusCode === "number" ? resp.statusCode : (ok ? 200 : 0);
+      const raw = resp?.data;
       const data = (() => {
-        const v = resp?.data;
-        if (typeof v === "string") return v.slice(0, 2000);
-        try { return JSON.stringify(v).slice(0, 2000); } catch { return String(v ?? "").slice(0, 2000); }
+        if (typeof raw === "string") return raw.slice(0, 2000);
+        try { return JSON.stringify(raw).slice(0, 2000); } catch { return String(raw ?? "").slice(0, 2000); }
       })();
 
-      return { status, ok, data };
+      return { status, ok, endpointId, raw, data };
     } catch (err) {
       return { status: 0, ok: false, data: String((err as Error).message ?? err) };
     }
@@ -471,7 +488,11 @@ async execute(_toolCallId: string, params: unknown) {
     chromePage = null;
   }
 
-  async function execInChrome(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean } | null> {
+  async function execInChrome(
+    ep: { method: string; path: string },
+    body: string | undefined,
+    limit: number,
+  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string } | null> {
     const page = await getChromePage();
     if (!page) return null;
 
@@ -503,17 +524,18 @@ async execute(_toolCallId: string, params: unknown) {
         fetchOpts.body = body;
       }
 
-      return await page.evaluate(async ({ url, opts }: { url: string; opts: any }) => {
+      return await page.evaluate(async ({ url, opts, limit }: { url: string; opts: any; limit: number }) => {
         try {
           const resp = await fetch(url, opts);
           const text = await resp.text().catch(() => "");
           const ct = resp.headers.get("content-type") ?? "";
           const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
-          return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000), isHtml };
+          const data = limit > 0 ? text.slice(0, limit) : text;
+          return { status: resp.status, ok: resp.ok, data, isHtml, contentType: ct };
         } catch (err) {
           return { status: 0, ok: false, data: String(err) };
         }
-      }, { url, opts: fetchOpts });
+      }, { url, opts: fetchOpts, limit });
     } catch {
       return null;
     }
@@ -527,7 +549,11 @@ async execute(_toolCallId: string, params: unknown) {
     "x-request-id", "x-session-id", "x-transaction-id",
   ]);
 
-  async function execViaFetch(ep: { method: string; path: string }, body?: string): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean }> {
+  async function execViaFetch(
+    ep: { method: string; path: string },
+    body: string | undefined,
+    limit: number,
+  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string }> {
     const url = new URL(ep.path, baseUrl).toString();
 
     // Prime headers + cookies from browser on first Node.js fetch (one-time)
@@ -633,7 +659,8 @@ async execute(_toolCallId: string, params: unknown) {
     const ct = resp.headers.get("content-type") ?? "";
     const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
     // HTML responses can still be a successful "endpoint" for SSR/scraping-style skills.
-    return { status: resp.status, ok: resp.ok, data: text.slice(0, 2000), isHtml };
+    const data = limit > 0 ? text.slice(0, limit) : text;
+    return { status: resp.status, ok: resp.ok, data, isHtml, contentType: ct };
   }
 
   // ── Credential refresh on 401/403 ──────────────────────────
@@ -756,26 +783,251 @@ async execute(_toolCallId: string, params: unknown) {
   let passed = 0;
   let failed = 0;
 
+  function sanitizeFilenamePart(input: string): string {
+    return String(input || "")
+      .replace(/^https?:\/\//i, "")
+      .replace(/[^\w.-]+/g, "_")
+      .replace(/_+/g, "_")
+      .slice(0, 120);
+  }
+
+  function maybePersistLocalReplay(
+    ep: { method: string; path: string },
+    result: { data?: string; isHtml?: boolean } | null,
+  ): string | null {
+    if (!p.storeRaw) return null;
+    if (!result?.data) return null;
+    try {
+      const dir = join(skillDir, "replays");
+      mkdirSync(dir, { recursive: true });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const ext = result.isHtml ? "html" : "txt";
+      const file = join(dir, `${ts}-${sanitizeFilenamePart(ep.method)}-${sanitizeFilenamePart(ep.path)}.${ext}`);
+      writeFileSync(file, result.data, "utf-8");
+      return file;
+    } catch {
+      return null;
+    }
+  }
+
+  function maybePersistTransformedReplay(
+    ep: { method: string; path: string },
+    transformed: unknown,
+  ): string | null {
+    if (!p.storeRaw) return null;
+    try {
+      const dir = join(skillDir, "replays");
+      mkdirSync(dir, { recursive: true });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const file = join(dir, `${ts}-${sanitizeFilenamePart(ep.method)}-${sanitizeFilenamePart(ep.path)}.transformed.json`);
+      writeFileSync(file, stringifyMaybeJson(transformed), "utf-8");
+      return file;
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizePathForKey(input: string): string {
+    const raw = String(input || "/").trim();
+    if (!raw) return "/";
+    try {
+      if (raw.startsWith("http://") || raw.startsWith("https://")) {
+        return new URL(raw).pathname || "/";
+      }
+    } catch { /* fall through */ }
+    const noQuery = raw.split("?")[0]?.split("#")[0] ?? raw;
+    return noQuery.startsWith("/") ? noQuery : `/${noQuery}`;
+  }
+
+  function toMethodPathKey(method: string, path: string): string {
+    return `${String(method || "GET").toUpperCase()} ${normalizePathForKey(path)}`;
+  }
+
+  function extractTransformCode(entry: Record<string, unknown>): string | undefined {
+    const direct = [
+      entry.transformCode,
+      entry.transform_code,
+      entry.postprocessTransform,
+      entry.postProcessTransform,
+      entry.postprocess,
+      entry.post_process,
+    ];
+    for (const candidate of direct) {
+      if (typeof candidate === "string" && candidate.trim().length > 0) return candidate.trim();
+    }
+    const nested = entry.transform;
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const n: any = nested;
+      if (typeof n.code === "string" && n.code.trim().length > 0) return n.code.trim();
+      if (typeof n.transformCode === "string" && n.transformCode.trim().length > 0) return n.transformCode.trim();
+    }
+    return undefined;
+  }
+
+  const transformsByMethodPath = (() => {
+    const out = new Map<string, string>();
+    const refsDir = join(skillDir, "references");
+    const candidates = [
+      join(refsDir, "TRANSFORMS.json"),
+      join(refsDir, "transforms.json"),
+      join(skillDir, "TRANSFORMS.json"),
+      join(skillDir, "transforms.json"),
+    ];
+    const file = candidates.find((p) => existsSync(p));
+    if (!file) return out;
+    try {
+      const catalog = loadJsonOr<unknown[]>(file, []);
+      if (!Array.isArray(catalog)) return out;
+      for (const rawEntry of catalog) {
+        if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) continue;
+        const entry = rawEntry as Record<string, unknown>;
+        const code = extractTransformCode(entry);
+        if (!code) continue;
+        const method = typeof entry.method === "string" ? entry.method : "GET";
+        const path =
+          typeof (entry as any).normalizedPath === "string" ? (entry as any).normalizedPath :
+          typeof (entry as any).normalized_path === "string" ? (entry as any).normalized_path :
+          typeof (entry as any).path === "string" ? (entry as any).path :
+          "/";
+        const key = toMethodPathKey(method, path);
+        out.set(key, code);
+      }
+    } catch {
+      // ignore invalid transforms
+    }
+    return out;
+  })();
+
+  async function runResponseTransform(
+    responseBody: unknown,
+    transformCode: string,
+  ): Promise<{ transformed: unknown; error?: string }> {
+    const code = String(transformCode || "").trim();
+    if (!code) return { transformed: responseBody };
+    try {
+      const vm = await import("node:vm");
+      const sandbox: any = {
+        data: responseBody,
+        // Built-in helper for SSR/HTML endpoints. Matches server-side name.
+        summarizeHtml: (html: string) => summarizeHtmlContent(html),
+      };
+      vm.createContext(sandbox);
+      try {
+        const functionScript = new vm.Script(`
+          const __transform = (${code});
+          if (typeof __transform !== 'function') {
+            throw new Error('Transform expression must evaluate to a function');
+          }
+          __transform(data);
+        `);
+        const transformed = functionScript.runInContext(sandbox, { timeout: 5000 });
+        return { transformed };
+      } catch (functionErr: any) {
+        try {
+          const blockScript = new vm.Script(`(function() { ${code} })()`);
+          const transformed = blockScript.runInContext(sandbox, { timeout: 5000 });
+          return { transformed };
+        } catch (blockErr: any) {
+          const message = String(blockErr?.message || functionErr?.message || "Transform failed");
+          return { transformed: responseBody, error: message };
+        }
+      }
+    } catch (err: any) {
+      return { transformed: responseBody, error: String(err?.message || err || "Transform failed") };
+    }
+  }
+
+  function parseMaybeJson(text: string, contentType?: string): unknown {
+    const ct = String(contentType || "").toLowerCase();
+    if (ct.includes("application/json")) {
+      try { return text ? JSON.parse(text) : null; } catch { return text; }
+    }
+    return text;
+  }
+
+  function stringifyMaybeJson(value: unknown): string {
+    if (typeof value === "string") return value;
+    try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+  }
+
   const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
   results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
 
   // Default: marketplace-installed skills run via backend executor so we trace workflows (LAM training).
-  // If wallet isn't configured, fall back to browser.
+  // Wallet is not required for execution; it is only used for paid flows / creator attribution elsewhere.
   const hasMarketplaceMeta = existsSync(marketplaceMetaPath);
-  const hasWallet = Boolean(deps.walletState?.creatorWallet && deps.walletState?.solanaPrivateKey);
-  const executionMode = p.executionMode ?? (hasMarketplaceMeta && hasWallet ? "backend" : "browser");
+  const executionMode = p.executionMode ?? (hasMarketplaceMeta ? "backend" : "browser");
   if (executionMode === "backend") {
     results.push(`Using backend executor (marketplace) for trace capture`);
     if (p.intent) results.push(`Intent: ${p.intent}`);
     if (p.traceId) results.push(`TraceId: ${p.traceId}`);
     results.push("");
 
+    const backendSkillId = (() => {
+      if (p.skillId) return p.skillId;
+      if (existsSync(marketplaceMetaPath)) {
+        try {
+          const meta = loadJsonOr<Record<string, any>>(marketplaceMetaPath, {});
+          if (typeof meta?.skillId === "string" && meta.skillId.trim().length > 0) return meta.skillId.trim();
+        } catch { /* ignore */ }
+      }
+      return null;
+    })();
+
+    const shouldAttemptTransforms = transformsByMethodPath.size > 0 && (Boolean(p.endpoint) || Boolean(p.storeRaw));
+    const canonicalById = new Map<string, any>();
+    if (backendSkillId && shouldAttemptTransforms) {
+      try {
+        const canonical = await indexClient.getSkillEndpoints(backendSkillId);
+        for (const item of canonical || []) {
+          if (!item?.endpointId) continue;
+          canonicalById.set(String(item.endpointId), item);
+        }
+      } catch (err) {
+        logger.warn(`[unbrowse] Failed to fetch canonical endpoint list for transforms: ${(err as Error).message}`);
+      }
+    }
+
     for (const ep of toTest) {
       const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
       const result = await execViaBackend(ep, body);
       if (result && result.ok) {
         results.push(`  ${ep.method} ${ep.path} → ${result.status} OK`);
-        if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+        const raw = result.raw;
+
+        let display = result.data ?? "";
+        let savedRawPath: string | null = null;
+        let savedTransformedPath: string | null = null;
+
+        if (p.storeRaw && typeof raw === "string" && raw.length > 0) {
+          const isHtml = /<!doctype html|<html\b|<body\b/i.test(raw);
+          savedRawPath = maybePersistLocalReplay(ep, { data: raw, isHtml });
+        }
+
+        if (shouldAttemptTransforms && result.endpointId) {
+          const canonical = canonicalById.get(result.endpointId);
+          const upstreamPath = String(canonical?.rawPath || canonical?.normalizedPath || "");
+          const key = toMethodPathKey(ep.method, upstreamPath || ep.path);
+          const transformCode = transformsByMethodPath.get(key);
+          if (transformCode) {
+            const transformed = await runResponseTransform(raw, transformCode);
+            if (transformed.error) {
+              results.push(`  Transform failed: ${transformed.error}`);
+            } else {
+              logger.info(`[unbrowse] Applied transform (${key})`);
+              display = stringifyMaybeJson(transformed.transformed);
+              savedTransformedPath = maybePersistTransformedReplay(ep, transformed.transformed);
+            }
+          }
+        }
+
+        if (p.endpoint && display) {
+          const raw = String(display);
+          const preview = previewChars > 0 ? raw.slice(0, previewChars) : raw;
+          results.push(`  Response: ${preview}`);
+        }
+        if (savedRawPath) results.push(`  Saved: ${savedRawPath}`);
+        if (savedTransformedPath) results.push(`  Saved (transformed): ${savedTransformedPath}`);
         passed++;
       } else {
         results.push(`  ${ep.method} ${ep.path} → ${result?.status || "FAILED"}${result?.data ? ` (${String(result.data).slice(0, 120)})` : ""}`);
@@ -805,15 +1057,35 @@ async execute(_toolCallId: string, params: unknown) {
 
   for (const ep of toTest) {
     const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
-    let result: { status: number; ok: boolean; data?: string; isHtml?: boolean } | null = null;
+    const transformCode = transformsByMethodPath.get(toMethodPathKey(ep.method, ep.path));
+    const wantsFull = Boolean(p.storeRaw) || maxResponseChars === 0 || Boolean(transformCode);
+    const limit = wantsFull ? 0 : maxResponseChars;
+    let result: { status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string } | null = null;
 
     // Strategy: Always use browser if available (authentic fingerprint)
     // Only fall back to Node.js fetch if no browser at all
     if (hasBrowser) {
-      result = await execInChrome(ep, body);
+      result = await execInChrome(ep, body, limit);
       if (result && result.ok) {
+        const saved = maybePersistLocalReplay(ep, result);
+        if (transformCode && typeof result.data === "string") {
+          const source = parseMaybeJson(result.data, result.contentType);
+          const transformed = await runResponseTransform(source, transformCode);
+          if (transformed.error) {
+            results.push(`  Transform failed: ${transformed.error}`);
+          } else {
+            logger.info(`[unbrowse] Applied transform (${toMethodPathKey(ep.method, ep.path)})`);
+            result.data = stringifyMaybeJson(transformed.transformed);
+            const savedTransformed = maybePersistTransformedReplay(ep, transformed.transformed);
+            if (savedTransformed) results.push(`  Saved (transformed): ${savedTransformed}`);
+          }
+        }
         results.push(`  ${ep.method} ${ep.path} → ${result.status} OK`);
-        if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+        if (p.endpoint && result.data) {
+          const preview = previewChars > 0 ? result.data.slice(0, previewChars) : result.data;
+          results.push(`  Response: ${preview}`);
+        }
+        if (saved) results.push(`  Saved: ${saved}`);
         passed++;
         continue;
       }
@@ -835,10 +1107,27 @@ async execute(_toolCallId: string, params: unknown) {
             } catch { /* non-critical */ }
           }
           // Retry via browser (not Node.js fetch!)
-          result = await execInChrome(ep, body);
+          result = await execInChrome(ep, body, limit);
           if (result && result.ok) {
+            const saved = maybePersistLocalReplay(ep, result);
+            if (transformCode && typeof result.data === "string") {
+              const source = parseMaybeJson(result.data, result.contentType);
+              const transformed = await runResponseTransform(source, transformCode);
+              if (transformed.error) {
+                results.push(`  Transform failed: ${transformed.error}`);
+              } else {
+                logger.info(`[unbrowse] Applied transform (${toMethodPathKey(ep.method, ep.path)})`);
+                result.data = stringifyMaybeJson(transformed.transformed);
+                const savedTransformed = maybePersistTransformedReplay(ep, transformed.transformed);
+                if (savedTransformed) results.push(`  Saved (transformed): ${savedTransformed}`);
+              }
+            }
             results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (refreshed)`);
-            if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+            if (p.endpoint && result.data) {
+              const preview = previewChars > 0 ? result.data.slice(0, previewChars) : result.data;
+              results.push(`  Response: ${preview}`);
+            }
+            if (saved) results.push(`  Saved: ${saved}`);
             passed++;
             continue;
           }
@@ -855,10 +1144,27 @@ async execute(_toolCallId: string, params: unknown) {
       // No browser available - fall back to Node.js fetch
       // This will likely be blocked by sophisticated bot detection
       try {
-        result = await execViaFetch(ep, body);
+        result = await execViaFetch(ep, body, limit);
         if (result.ok) {
+          const saved = maybePersistLocalReplay(ep, result);
+          if (transformCode && typeof result.data === "string") {
+            const source = parseMaybeJson(result.data, result.contentType);
+            const transformed = await runResponseTransform(source, transformCode);
+            if (transformed.error) {
+              results.push(`  Transform failed: ${transformed.error}`);
+            } else {
+              logger.info(`[unbrowse] Applied transform (${toMethodPathKey(ep.method, ep.path)})`);
+              result.data = stringifyMaybeJson(transformed.transformed);
+              const savedTransformed = maybePersistTransformedReplay(ep, transformed.transformed);
+              if (savedTransformed) results.push(`  Saved (transformed): ${savedTransformed}`);
+            }
+          }
           results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (Node.js)${result.isHtml ? " (HTML)" : ""}`);
-          if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+          if (p.endpoint && result.data) {
+            const preview = previewChars > 0 ? result.data.slice(0, previewChars) : result.data;
+            results.push(`  Response: ${preview}`);
+          }
+          if (saved) results.push(`  Saved: ${saved}`);
           passed++;
           continue;
         }
@@ -869,10 +1175,13 @@ async execute(_toolCallId: string, params: unknown) {
           results.push(`  ${ep.method} ${ep.path} → ${status} — refreshing credentials...`);
           const refreshed = await refreshCreds();
           if (refreshed) {
-            result = await execViaFetch(ep, body);
+            result = await execViaFetch(ep, body, limit);
             if (result.ok) {
               results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (refreshed)`);
-              if (p.endpoint && result.data) results.push(`  Response: ${result.data.slice(0, 500)}`);
+              if (p.endpoint && result.data) {
+                const preview = previewChars > 0 ? result.data.slice(0, previewChars) : result.data;
+                results.push(`  Response: ${preview}`);
+              }
               passed++;
               continue;
             }
