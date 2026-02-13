@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.13] - 2026-02-13
+
+### Fixed
+- Vercel build reliability: pin pnpm via corepack + frozen lockfile in both root and `packages/web` configs.
+
 ## [0.5.12] - 2026-02-13
 
 ### Added
@@ -111,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OOP refactor of HAR parser with route generalization and schema capture
 - Integrated LLM describer for rich endpoint documentation in skill generation
 
-[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.12...HEAD
+[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.13...HEAD
+[0.5.13]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.7...v0.5.12
 [0.5.5]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.3...v0.5.4
