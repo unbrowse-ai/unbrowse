@@ -7,7 +7,6 @@
     "unbrowse": "./unbrowse.js"
   },
   "dependencies": {
-    "@getfoundry/unbrowse-openclaw": "workspace:*"
+    "@getfoundry/unbrowse-openclaw": "file:../plugin"
   }
 }
-
