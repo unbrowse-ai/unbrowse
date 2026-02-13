@@ -20,9 +20,11 @@ jobs:
         with:
           node-version: 22
 
-      - run: npm install
+      - name: Install plugin dependencies
+        run: npm install --prefix packages/plugin
 
-      - run: npm run build
+      - name: Build plugin package
+        run: npm run build --prefix packages/plugin
 
       # Ensures packaging works and the tarball includes dist/.
-      - run: npm pack --dry-run
+      - run: npm pack --dry-run --prefix packages/plugin
