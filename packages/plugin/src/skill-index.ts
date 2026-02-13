@@ -472,7 +472,10 @@ export class SkillIndexClient {
             const errMsg = typeof poll?.error === "string" && poll.error.trim().length > 0
               ? poll.error.trim()
               : "Publish failed";
-            throw new Error(`Publish failed: ${errMsg}`);
+            const details = poll?.result && typeof poll.result === "object"
+              ? ` Details: ${JSON.stringify(poll.result).slice(0, 1500)}`
+              : "";
+            throw new Error(`Publish failed: ${errMsg}${details}`);
           }
 
           const pollAfterMs = Number.isFinite(poll?.pollAfterMs) && poll.pollAfterMs > 0
