@@ -66,13 +66,11 @@ jobs:
           PKG_NAME=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').name")
           PKG_VERSION=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').version")
           SHOULD_PUBLISH=false
-          BUMPED=false
 
           if [[ "${{ steps.extension_changes.outputs.has_changes }}" != "true" ]]; then
             echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
             echo "name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
             echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
-            echo "bumped=${BUMPED}" >> "$GITHUB_OUTPUT"
             echo "Skipping publish. No changes under packages/plugin."
             exit 0
           fi
@@ -84,32 +82,15 @@ jobs:
           }
 
           if version_exists "${PKG_VERSION}"; then
-            if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/stable" ]]; then
-              while version_exists "${PKG_VERSION}"; do
-                pushd "${PKG_DIR}" >/dev/null
-                npm version patch --no-git-tag-version >/dev/null
-                popd >/dev/null
-                PKG_VERSION=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').version")
-                BUMPED=true
-              done
-              echo "Bumped package version to: ${PKG_NAME}@${PKG_VERSION}"
-            else
-              SHOULD_PUBLISH=false
-              echo "Package already published: ${PKG_NAME}@${PKG_VERSION}"
-            fi
+            SHOULD_PUBLISH=false
+            echo "Package already published: ${PKG_NAME}@${PKG_VERSION} (skipping)"
           else
             echo "Package version available: ${PKG_NAME}@${PKG_VERSION}"
-          fi
-
-          if version_exists "${PKG_VERSION}"; then
-            SHOULD_PUBLISH=false
-            echo "Version is still occupied: ${PKG_NAME}@${PKG_VERSION}"
           fi
 
           echo "name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
           echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
-          echo "bumped=${BUMPED}" >> "$GITHUB_OUTPUT"
 
       - run: npm install --prefix "${PKG_DIR}"
         if: steps.npm_check.outputs.should_publish == 'true'
@@ -131,16 +112,4 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Commit bumped version to stable
-        if: steps.npm_check.outputs.should_publish == 'true' && steps.npm_check.outputs.bumped == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/stable'
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${PKG_DIR}/package.json"
-          if git diff --cached --quiet; then
-            echo "No version changes to commit."
-            exit 0
-          fi
-          git commit -m "chore: bump version to ${{ steps.npm_check.outputs.version }} [skip ci]"
-          git push origin HEAD:stable
+      # Version bumps are intentional: update packages/plugin/package.json in-repo, then push to stable.
