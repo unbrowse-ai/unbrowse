@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "npm --prefix packages/web install --no-audit --no-fund",
-  "buildCommand": "npm --prefix packages/web run build",
+  "installCommand": "bun install --cwd packages/web --no-cache",
+  "buildCommand": "bun --cwd packages/web run build",
   "outputDirectory": "packages/web/dist",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
