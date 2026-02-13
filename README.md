@@ -1,228 +1,223 @@
 # Unbrowse (OpenClaw Plugin & Skill Ecosystem)
 
-Unbrowse is the practical layer that turns real browser usage into reusable agent capabilities.
+Unbrowse turns real browser traffic into reusable agent capabilities.
 
-It is not a UI bot.
+It is a two-part system:
 
-It observes how a site already behaves over the network, infers how to call it, and writes reusable artifacts that can be run by an LLM tool or shared with others.
+- **Extension component** (`packages/plugin`): local capture and local replay.
+- **Marketplace component** (`server` + `packages/web`): shared discovery, publish/search/install, and backend execution contracts.
 
-## What problem Unbrowse solves
+This design keeps local control simple, while allowing shared capability growth.
 
-Most websites are built for humans, not agents.
+## Why this matters
 
-- Agents that automate browsers through UI steps are slow and brittle.
-- Existing integrations are often one-off and not shared.
-- Network behavior changes silently, and agents break without visibility.
+An OpenClaw agent that uses browser automation for every web action is slow and fragile.
+Each action spends time on browser startup, rendering, DOM waits, and scraping.
 
-Unbrowse solves this by turning observed network calls into versioned skill artifacts.
-The result is:
+Unbrowse changes the execution shape:
 
-- deterministic local execution for private use
-- optional shared execution through publish/search/execution contracts
-- repeatable behavior across teams and agents
+- first browse = capture network behavior from the page you already control
+- subsequent runs = call captured API endpoints directly when possible
 
-## Big picture: local first, then shared
+That is why teams use Unbrowse for speed-sensitive workflows (scraping-to-API behavior conversion):
 
-Unbrowse has two main components:
+- open a page and interact once to discover true API calls
+- avoid repeating GUI-level loops for every later execution
 
-- Extension: `packages/plugin` (local capture + local replay)
-- Marketplace: `server` + `packages/web` (publish/search/install contracts + shared execution bridge)
+In practical cases, direct endpoint execution can be tens to hundreds of times faster than repeated UI automation steps.
 
-Unbrowse runs in two clear modes.
+## The 100x story (pragmatic version)
 
-1) Local mode (default)
-- User captures traffic in OpenClaw.
-- Skill artifacts are written to local disk.
-- Replay happens locally by default.
-- No marketplace publish required.
+### What browser automation typically does
 
-2) Shared mode (optional)
-- User publishes a validated skill.
-- Backend merge and contribution logic canonicalizes the public version.
-- Other users can discover and install the skill.
-- Execution can run through backend contracts when using published endpoint mappings.
+- launch or coordinate a browser context
+- load and render the page
+- wait for script hydration and selectors
+- find DOM controls
+- click/type/submit/read UI text
 
-Important behavior rule:
+### What Unbrowse does after learn phase
 
-- Indexing/capture is local.
-- Publishing is the explicit action that opens shared/backend paths.
+- run captured endpoint calls directly (`GET`, `POST`, etc.)
+- reuse typed auth/session context and endpoint schemas
+- execute in a deterministic HTTP workflow
+
+This removes the browser rendering loop from every repeat run.
+The result is large speed and reliability gains in action-heavy workflows.
+
+## The Agentic Web model
+
+Unbrowse assumes the web UI is an interface, not the source of truth.
+
+- The true source is request/response behavior.
+- The agent should act on that behavior directly after first observation.
+- Reusability matters more than one-off, site-specific DOM logic.
+
+In this model:
+
+- observe once in the browser,
+- capture underlying API graph,
+- normalize into stable execution contracts,
+- replay from those contracts when rerunning.
+
+The practical shift is:
+
+- legacy: open page, click, wait, read DOM, retry.
+- agentic web: infer, execute, compose outcomes.
+
+This framing is why this work matters:
+
+- reliability: fewer selector and layout assumptions.
+- speed: less browser startup/rendering overhead on repeated runs.
+- capability compounding: one discovered service can be reused by many agents.
+- local ergonomics: still starts as a private local skill.
+
+We call the deeper framing `docs/AGENTIC_WEB.md`.
+
+## Why we keep local first
+
+Because private/local-first usage is the default expected path:
+
+- skill discovery starts on your machine
+- artifacts are local files in `~/.openclaw/skills/<service>/`
+- replay can succeed without any published index
+- optional publish is explicit, never implicit
+
+If you do not publish, you do not need the marketplace.
 
 ## What actually runs where
 
-Think of this as two components:
+### Extension
 
-- Extension (`packages/plugin`): capture, local merge, local replay.
-- Marketplace (`server` + `packages/web`): publish/search/install contracts, merge validation, and shared discovery/execution visibility.
+`packages/plugin` is responsible for:
 
-There is also a marketplace boundary. This repo treats marketplace internals as a contract boundary:
-- it documents route-level inputs/outputs and observable outcomes
-- it does not document internal ranking/execution settlement internals
+- traffic capture from OpenClaw browser sessions and HAR/CDP sources
+- endpoint inference and candidate normalization
+- local artifact generation (`SKILL.md`, scripts, references, auth metadata)
+- local replay orchestration (`unbrowse_replay` local mode)
+- local merge of repeated captures
 
-```mermaid
-flowchart TD
-    A["User in OpenClaw"] --> B["unbrowse_* tools"]
-    B --> C["Local skill folder: ~/.openclaw/skills/<service>/"]
-    C --> D["Local replay via unbrowse_replay"]
-    B --> E["Server API routes"]
-    E --> F["Publish/search/merge validation"]
-    F --> G["Marketplace contracts"]
-    B --> H["Install / search / execute through contract"]
-    H --> I["Result + trace metadata"]
-    D --> I
+### Marketplace
+
+`server` + `packages/web` are responsible for:
+
+- publish/search/install route contracts
+- merge/validation flow before skill is shared
+- execution contract routing for installed, published endpoint IDs
+- trace and status metadata for shared execution
+- web-facing discoverability and contributor views
+
+Marketplace internals are intentionally treated as a black box here.
+We document route contracts and observable behavior, not ranking/execution internals.
+
+### Marketplace as optional agentic growth layer
+
+- local behavior stays useful even with no account or publish.
+- publish converts local learning into discoverable, shared capabilities.
+- backend execution routing (`/marketplace/endpoints/:endpointId/execute`) handles traceable cross-agent replay when configured.
+- users get clear local/remote boundaries by command choice, not hidden switches.
+
+Payments are not enabled yet, so this path is for capability sharing first, not settlement.
+
+## End-to-end flow (single diagram)
+
+```text
+OpenClaw user action/tool call
+ -> extension capture/replay tooling
+ -> local skill artifacts in ~/.openclaw/skills/<service>/
+ -> local replay (default)
+ -> optional publish
+ -> marketplace search/install
+ -> optional backend execution contract path
+ -> output + trace metadata returned
 ```
 
-## Repository purpose by folder
+## Component-specific responsibilities
 
-### `packages/plugin/`
-Contains OpenClaw plugin implementation and all user-facing tool behavior:
+### Local flow (default)
 
-- capture from browser/CDP and HAR input
-- parse and infer endpoint candidates
-- generate skill package files
-- local execution (`unbrowse_replay`)
-- merge updates from repeated captures
+Use these commands:
 
-### `server/`
-Contains API routes and execution contracts used by plugin/web:
-
-- publish/search/install endpoints
-- route validation and auth checks
-- ability and endpoint repositories
-- server-side merge logic (`skill-merge`)
-- execution policy, endpoint health updates, and trace metadata
-- credentials and verification helpers
-
-### `packages/web/`
-Provides human workflows:
-
-- search/discovery pages
-- install and contributor views
-- analytics/traces UI tied to server contracts
-
-### `docs/`
-Design docs, architecture docs, contributor process, onboarding docs.
-
-## End-to-end user journey
-
-### 1. Learn (local) from your browser
-
-Use one of:
-
+- `unbrowse_capture { "urls": ["https://example.com"] }`
 - `unbrowse_browse`
-- `unbrowse_capture`
-- `unbrowse_learn` (HAR file)
-- `unbrowse_login` for auth-gated sessions
+- `unbrowse_learn { "harPath": "/absolute/path/traffic.har" }`
+- `unbrowse_login` (for authenticated flows)
 
 Outcomes:
 
-- local skill directory created/updated in `~/.openclaw/skills/<service>/`
-- local `SKILL.md`
-- helper `scripts/`
+- local service folder under `~/.openclaw/skills/<service>/`
+- generated `SKILL.md`
+- generated `scripts/`
 - optional `references/`
-- local `auth.json` when auth context is captured
+- local `auth.json` when session context was captured
 
-### 2. Re-run locally
+`unbrowse_replay` uses this path first.
 
-Use `unbrowse_replay` and `unbrowse_skills` for local-first execution.
+### Shared flow (optional)
 
-If local files exist and endpoint context is available, local replay runs from local data and scripts.
+Use:
 
-### 3. Publish (optional)
+- `unbrowse_publish { "service": "example", "price": "0" }`
+- `unbrowse_search { "query": "analytics", "install": "<skill-id>" }`
 
-Run `unbrowse_publish`.
+Outcomes:
 
-- Plugin sends a publish payload to server routes.
-- Backend validates and runs merge compatibility.
-- Public version is updated by merge and contribution policy.
-- Skill can be discovered by query and install flows.
+- server-side validation and merge
+- search/discovery visibility
+- installability for other users
+- backend replay for endpoint IDs via execution contracts (when mapped)
 
-### 4. Execute in shared mode (optional)
+## Why skills are shared
 
-If installed from shared catalog, replay can hit server execution contracts, typically via:
+Unbrowse creates the same kind of compounding behavior as shared code:
 
-`POST /marketplace/endpoints/:endpointId/execute`
+- one capture can benefit many agents
+- repeated coverage improves success and confidence
+- contributor contribution logic tracks novelty and compatibility
 
-Results include execution output and trace metadata where available.
+This is the central reason local learning and shared publish are both included.
 
-## Why publish is a distinct action
+## Merge behavior (important for contributors)
 
-Publishing is not just "copy local files."
-It is an indexing action with validation and merge impact:
+Merging is a core behavior, not a corner case.
 
-- canonical skill identity checks
-- endpoint deduplication
+- local merge handles repeated capture updates for the same service.
+- server merge handles public publish-level updates and compatibility checks.
+
+Expected merge signals:
+- endpoint normalization and dedupe
 - schema compatibility filtering
-- contribution scoring updates
+- conflict resolution policy and contribution ranking updates
 
-That is why you can learn privately without publishing.
-That is also why contributors must treat parser/inference changes as merge-sensitive behavior changes.
+If parser/inference/merge logic changes, treat this as user-visible behavior.
+Update docs and tests for new merge expectations.
 
-## Artifacts and data model (important for contributors)
+## Security boundary
 
-### Local artifacts
-
-Inside `~/.openclaw/skills/<service>/`:
-
-- `SKILL.md`: human + machine contract
-- `scripts/`: execution helpers
-- `references/*`: optional trace references
-- `auth.json`: local auth/session state
-- `ENDPOINTS.json` and mapping metadata for install/backend mode
-
-### Public/shared artifacts
-
-Publicly stored data is normalized and validated by server merge.
-Only publish-safe shape is expected to be shared; raw session credentials are not the intent of published payloads.
-
-## Security and trust model
-
-This project keeps execution control local by default:
-
-- local session auth material is local-first
-- published payloads are filtered for sensitive values
-- execution in shared mode is contract-driven and scoped
-
-This is intentionally conservative: local privacy-first behavior does not depend on remote services.
+- local session/auth material is for local execution first
+- publish payloads are sanitized for sensitive values
+- shared execution uses explicit contracts and boundary checks
 
 ## Payments status (explicit)
 
-Payments are not enabled in this repository.
+Payments are **not enabled** in this repository.
 
-- Payment routes and wallet utilities may exist.
-- Paid settlement/payout flows are not active in current behavior.
-- Do not treat the repository as a paid-activation-first system.
+- Wallet/payment route declarations may exist.
+- paid settlement and payout behavior are intentionally inactive in this stage.
+- do not treat repository behavior as paid-by-default.
 
-## Skill merge and contribution behavior
+## Tool map
 
-Merging is central, not optional.
-
-When captures repeat:
-- plugin merges local changes into existing local service files
-- server merge handles public version conflicts during publish
-
-Expected merge signals:
-- endpoint normalization/deduplication
-- compatibility checks on request/response contracts
-- merge output changes when parser behavior changes
-
-If you change parser/merge/sanitizer behavior:
-- update docs and expected merge outcomes
-- add regression coverage for merge edge cases
-
-## Tool reference
-
-Core tools:
-
-- `unbrowse_browse` – guided capture from browser context
-- `unbrowse_capture` – capture network traffic and infer endpoints
-- `unbrowse_learn` – ingest HAR files
-- `unbrowse_login` – capture auth context for private/protected flows
-- `unbrowse_replay` – run local execution and optional backend path
-- `unbrowse_search` – search and install published skills
-- `unbrowse_publish` – publish local skill
-- `unbrowse_skills` – list local skills
-- `unbrowse_wallet` – wallet setup/placeholder (inactive)
-- `unbrowse_auth`, `unbrowse_do`, workflow helpers – advanced execution and orchestration
+- `unbrowse_browse`
+- `unbrowse_capture`
+- `unbrowse_learn`
+- `unbrowse_login`
+- `unbrowse_replay`
+- `unbrowse_search`
+- `unbrowse_publish`
+- `unbrowse_skills`
+- `unbrowse_wallet` (currently inactive placeholder)
+- `unbrowse_auth`, `unbrowse_do`, workflow helpers
 
 ## Quick start
 
@@ -233,26 +228,26 @@ openclaw gateway restart
 
 ```bash
 unbrowse_capture { "urls": ["https://example.com"] }
-unbrowse_skills
 unbrowse_replay { "service": "example" }
 ```
 
 ```bash
-unbrowse_publish { "service": "example", "price": "0" }  # optional
-unbrowse_search { "query": "analytics", "install": "<skill-id>" }  # optional
+unbrowse_publish { "service": "example", "price": "0" }
+unbrowse_search { "query": "example", "install": "<skill-id>" }
 ```
 
-## Development map
+## Developer entry points
 
 - Typecheck: `npm run typecheck`
 - Plugin tests: `bun test`, `bun test:e2e`, `bun test:oct`
-- Server tests/dev/build: `pnpm test`, `pnpm dev`, `pnpm build`
-- Web tests/dev/build: `pnpm dev`, `pnpm build`, `pnpm preview`
+- Server: `pnpm test`, `pnpm dev`, `pnpm build`
+- Web: `pnpm dev`, `pnpm build`, `pnpm preview`
 
-## Where to read next
+## Next reads
 
-- `docs/ARCHITECTURE.md`
-- `docs/INTEGRATION_BOUNDARIES.md`
-- `docs/CONTRIBUTOR_PLAYBOOK.md`
-- `docs/QUICKSTART.md`
-- `server/src/server/routes/README.md`
+1. `docs/ARCHITECTURE.md`
+2. `docs/INTEGRATION_BOUNDARIES.md`
+3. `docs/CONTRIBUTOR_PLAYBOOK.md`
+4. `docs/QUICKSTART.md`
+5. `server/src/server/routes/README.md`
+6. `docs/AGENTIC_WEB.md`
