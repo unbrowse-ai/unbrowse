@@ -28,6 +28,16 @@ export const CAPTURE_SCHEMA = {
       items: { type: "string" as const },
       description: "URLs to visit and capture API traffic from. The tool launches a browser automatically — just provide URLs.",
     },
+    intent: {
+      type: "string" as const,
+      description:
+        "Optional user intent to prioritize endpoints (e.g. \"place an order\", \"search listings\"). " +
+        "When set, the generated skill will keep only the most relevant endpoints (default limit: 25).",
+    },
+    maxEndpoints: {
+      type: "number" as const,
+      description: "Max endpoints to keep when intent is provided (default: 25).",
+    },
     outputDir: {
       type: "string" as const,
       description: "Directory to save generated skill (default: ~/.openclaw/skills)",
@@ -38,7 +48,7 @@ export const CAPTURE_SCHEMA = {
     },
     crawl: {
       type: "boolean" as const,
-      description: "Browse the site after loading seed URLs to discover more API endpoints. Follows same-domain links. (default: true)",
+      description: "Optional broad discovery. Browse same-domain links to discover more endpoints. (default: false)",
     },
     maxPages: {
       type: "number" as const,
