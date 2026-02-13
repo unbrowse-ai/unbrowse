@@ -99,7 +99,7 @@ export default function Skills() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState('');
-  const [stats, setStats] = useState({ total: 0, services: 0, downloads: 0 });
+  const [stats, setStats] = useState({ total: 0, services: 0, executions: 0 });
   const [activeFilter, setActiveFilter] = useState('all');
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -153,7 +153,7 @@ export default function Skills() {
           setStats({
             total: data.total,
             services: data.totalServices || 0,
-            downloads: data.totalDownloads || 0
+            executions: data.totalExecutions || data.totalDownloads || 0,
           });
         }
       }
@@ -232,7 +232,7 @@ export default function Skills() {
     return true;
   });
 
-  const sortedSkills = [...filteredSkills].sort((a, b) => (b.downloadCount || 0) - (a.downloadCount || 0));
+  const sortedSkills = [...filteredSkills].sort((a, b) => ((b.executionCount || b.downloadCount || 0) - (a.executionCount || a.downloadCount || 0)));
 
   return (
     <div className="ub-page">
@@ -364,7 +364,7 @@ export default function Skills() {
               {/* Publish */}
               <div className="ub-msg ub-msg-user">
                 <div className="ub-msg-bubble">
-                  Publish it to unbrowse for $0.10
+                  Publish it to unbrowse
                 </div>
                 <span className="ub-msg-time">2:44 PM</span>
               </div>
@@ -390,7 +390,7 @@ export default function Skills() {
                   <div className="ub-msg-skill-card">
                     <span className="ub-skill-badge free">FREE</span>
                     <strong>twitter-api</strong>
-                    <span className="ub-skill-meta">12 endpoints • 2.3k installs</span>
+                    <span className="ub-skill-meta">12 endpoints • 2.3k executions</span>
                   </div>
                   <span className="ub-msg-detail">Want me to install it?</span>
                 </div>
@@ -487,8 +487,8 @@ export default function Skills() {
               x402-gated proxy execution while preserving backend abstraction.
             </p>
             <div className="ub-value-highlight">
-              <div className="ub-value-stat">{stats.downloads.toLocaleString()}</div>
-              <div className="ub-value-stat-label">TOTAL INSTALLS</div>
+              <div className="ub-value-stat">{stats.executions.toLocaleString()}</div>
+              <div className="ub-value-stat-label">TOTAL EXECUTIONS</div>
             </div>
           </div>
         </div>
@@ -618,12 +618,12 @@ export default function Skills() {
                             {endpointCount} verified endpoints
                           </span>
                         )}
-                        {skill.downloadCount > 0 && (
+                        {(skill.executionCount || skill.downloadCount) > 0 && (
                           <span className="ub-card-downloads">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                             </svg>
-                            {skill.downloadCount.toLocaleString()}
+                            {(skill.executionCount || skill.downloadCount).toLocaleString()}
                           </span>
                         )}
                         {skill.qualityScore >= 80 && (

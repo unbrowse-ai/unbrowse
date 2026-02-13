@@ -269,6 +269,7 @@ export default function SkillDetail() {
   const verifiedEndpoints = endpointCount;
   const methodCount = new Set(workingEndpointRecords.map((ep) => ep.method).filter(Boolean)).size;
   const totalExecutions = workingEndpointRecords.reduce((sum, ep) => sum + (ep.totalExecutions || 0), 0);
+  const executionCount = Number(skill.executionCount || totalExecutions || 0);
 
   const searchCommand = `unbrowse_search query="${skill.name}"`;
   const installCommand = `unbrowse_install id="${skill.skillId}"`;
@@ -322,8 +323,8 @@ export default function SkillDetail() {
           <div className="meta-value">{endpointCount.toLocaleString()}</div>
         </div>
         <div className="meta-card">
-          <div className="meta-label">Downloads</div>
-          <div className="meta-value">{(skill.downloadCount || 0).toLocaleString()}</div>
+          <div className="meta-label">Executions</div>
+          <div className="meta-value">{executionCount.toLocaleString()}</div>
         </div>
         <div className="meta-card">
           <div className="meta-label">Price</div>
