@@ -482,7 +482,6 @@ const plugin = {
       "unbrowse_learn",
       "unbrowse_capture",
       "unbrowse_auth",
-      "unbrowse_account",
       "unbrowse_telemetry",
       "unbrowse_replay",
       "unbrowse_skills",
