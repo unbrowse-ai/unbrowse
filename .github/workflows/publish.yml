@@ -61,6 +61,11 @@ jobs:
             echo "Package version available: ${PKG_NAME}@${PKG_VERSION}"
           fi
 
+          if version_exists "${PKG_VERSION}"; then
+            SHOULD_PUBLISH=false
+            echo "Version is still occupied: ${PKG_NAME}@${PKG_VERSION}"
+          fi
+
           echo "name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
           echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"

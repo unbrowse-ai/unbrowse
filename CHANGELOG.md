@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated Vercel deployment config to build from `packages/web` with the monorepo structure (`pnpm --dir packages/web ...`) and preserve SPA rewrites/security headers at repo root.
 - `unbrowse_capture` now defaults `crawl=false` (crawl is opt-in)
 - CI/publish GitHub Actions now install and publish from `packages/plugin` only, avoiding root `workspace:*` protocol install failures in this repo structure.
+- Publish workflow now treats occupied npm versions as non-publishable after checks to prevent `npm ERR! 400` duplicate-version publish failures.
 - License metadata/docs reverted to `AGPL-3.0-only`
 - `parseHar()` now always generates `headerProfile` on the returned `ApiData` object
 - `execViaFetch` in `unbrowse_replay.ts` now uses `resolveHeaders()` + primed cookies by default
