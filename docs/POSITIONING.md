@@ -107,6 +107,10 @@ Platform: 30%  — Infrastructure
 
 Pay per skill purchase. Skills are owned forever.
 
+Release posture note:
+- This repository does not have live payment settlement.
+- Wallet/payout language here is product positioning for a future stage.
+
 ---
 
 ## Messaging Hierarchy

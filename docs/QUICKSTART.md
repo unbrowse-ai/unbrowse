@@ -1,85 +1,83 @@
 # Quickstart
 
-Get started with Unbrowse quickly:
-
-## 1) Install
+## 1) Install plugin and restart gateway
 
 ```bash
 openclaw plugins install @getfoundry/unbrowse-openclaw
 openclaw gateway restart
 ```
 
-## 2) Generate A Skill
+The extension side is active immediately after restart.
+The marketplace side is used only when you explicitly publish and install shared skills.
 
-Option A: capture by browsing (recommended for most sites)
+## 2) Create a local skill
+
+This is the default path.
+Publishing is not required to run skills locally.
 
 ```text
 unbrowse_capture { "urls": ["https://example.com"] }
 ```
 
-For authenticated sites:
-- Login in the browser first (or run `unbrowse_login`) so Unbrowse can observe auth-gated API calls.
-- Those endpoints can then be packaged into your local skill and contributed on publish.
-- Credentials/tokens stay local; the marketplace only receives endpoint metadata and evidence.
+What this writes:
+- `~/.openclaw/skills/example/`
+- `SKILL.md`
+- generated helper scripts
+- optional `auth.json` for session context
 
-Option B: learn from an existing HAR
+For auth-gated flows:
 
 ```text
-unbrowse_learn { "harPath": "/path/to/traffic.har" }
+unbrowse_login { "url": "https://example.com/login" }
+unbrowse_capture { "urls": ["https://example.com/dashboard"] }
 ```
 
-Both commands write a local skill folder (default: `~/.openclaw/skills/<service>/`) containing:
-- `SKILL.md`
-- `auth.json` (local auth material)
-- `scripts/`
-
-## 3) List Skills
+## 3) Replay from local artifacts
 
 ```text
 unbrowse_skills
+unbrowse_replay { "service": "example" }
+unbrowse_replay { "service": "example", "endpoint": "GET /api/v1/me" }
 ```
 
-## 4) Replay Captured Endpoints
+If local artifacts exist, this stays local by default.
+
+## 4) Learn from HAR (optional)
 
 ```text
-unbrowse_replay { "service": "<service-name>" }
+unbrowse_learn { "harPath": "/absolute/path/traffic.har" }
 ```
 
-Or a specific endpoint:
+Use this for repeatable fixtures or when you already have captured traffic.
+
+## 5) Publish (optional)
+
+Publishing is optional.
+Use this when you want others to discover your skill and use shared execution contracts.
 
 ```text
-unbrowse_replay { "service": "<service-name>", "endpoint": "GET /api/v1/me" }
+unbrowse_publish { "service": "example", "price": "0" }
 ```
 
-## 5) Marketplace (Optional)
-
-Set up a wallet (required for paid execution and publishing):
+Discovery + install:
 
 ```text
-unbrowse_wallet { "action": "create" }
+unbrowse_search { "query": "example", "install": "<skill-id>" }
 ```
 
-Search + install:
+Published flow outcome:
+- shared discoverability
+- additional replay path through backend execution contracts
+- local mode remains available for your private copy
 
-```text
-unbrowse_search { "query": "twitter" }
-unbrowse_search { "install": "<skillId>" }
-```
+## 6) Payment note
 
-Publish one of your local skills:
+Payments are not active in this repository.
+Wallet tooling may be present but should be treated as inactive for now.
 
-```text
-unbrowse_publish { "service": "<service-name>", "price": "0" }
-```
+## Next read list
 
-What publishing means:
-- Your publish contributes skill metadata + endpoint evidence to the shared index.
-- Eligible contribution rewards are in `FDRY` (based on backend reward policy and execution outcomes).
-- Marketplace/index executions run on the backend executor (server-side).
-- Download gating is optional policy; most value capture should happen on execution.
-- Local-only mode is still supported: if you reverse engineer and replay locally, calls run locally without publishing.
-
-## Next Reads
-
-- Architecture: `docs/ARCHITECTURE.md`
-- Agent-oriented editing workflow: `docs/LLM_DEV_GUIDE.md`
+1. `docs/ARCHITECTURE.md`
+2. `docs/INTEGRATION_BOUNDARIES.md`
+3. `docs/CONTRIBUTOR_PLAYBOOK.md`
+4. `server/src/server/routes/README.md`
