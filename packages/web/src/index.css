@@ -2169,6 +2169,25 @@ a {
   flex-wrap: wrap;
 }
 
+.endpoint-radar-desc {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.endpoint-path.endpoint-operation {
+  color: var(--gold-bright);
+}
+
+.endpoint-path.endpoint-subpath {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
 .endpoint-radar-meta {
   display: flex;
   align-items: center;

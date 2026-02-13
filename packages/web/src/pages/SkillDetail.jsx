@@ -18,6 +18,45 @@ function methodClassName(method) {
   return `method-${normalizeMethod(method).toLowerCase()}`;
 }
 
+function isProxyPath(path) {
+  if (typeof path !== 'string') return false;
+  return path.startsWith('/marketplace/endpoints/') || path.startsWith('/__endpoint/');
+}
+
+function collectKeys(keys) {
+  if (!Array.isArray(keys)) return [];
+  return keys.map((k) => String(k || '').trim()).filter(Boolean);
+}
+
+function collectPathKeys(pathParams) {
+  if (!Array.isArray(pathParams)) return [];
+  return pathParams
+    .map((p) => String(p?.name || '').trim())
+    .filter(Boolean);
+}
+
+function collectBodyKeys(bodySchema) {
+  if (!bodySchema) return [];
+  if (Array.isArray(bodySchema)) return collectKeys(bodySchema);
+  if (typeof bodySchema === 'string') {
+    const raw = bodySchema.trim();
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return collectKeys(parsed);
+      if (parsed && typeof parsed === 'object') {
+        const props = parsed.properties && typeof parsed.properties === 'object'
+          ? Object.keys(parsed.properties)
+          : Object.keys(parsed);
+        return collectKeys(props);
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return [];
+}
+
 function isWorkingEndpoint(endpoint) {
   const status = String(endpoint?.validationStatus || '').toLowerCase();
   if (status) {
@@ -98,10 +137,17 @@ export default function SkillDetail() {
       const normalized = (data.endpoints || [])
         .map((ep, index) => ({
           id: ep.endpointId || `${ep.method || 'GET'}-${ep.normalizedPath || ep.rawPath || index}`,
+          endpointId: ep.endpointId || null,
           method: normalizeMethod(ep.method),
           path: ep.rawPath || ep.normalizedPath || '/',
           normalizedPath: ep.normalizedPath || ep.rawPath || '/',
           domain: ep.domain || '',
+          operationName: ep.operationName || ep.methodName || null,
+          category: ep.category || null,
+          description: ep.description || null,
+          pathKeys: collectKeys(ep.pathKeys).length > 0 ? collectKeys(ep.pathKeys) : collectPathKeys(ep.pathParams),
+          queryKeys: collectKeys(ep.queryKeys),
+          bodyKeys: collectKeys(ep.bodyKeys).length > 0 ? collectKeys(ep.bodyKeys) : collectBodyKeys(ep.bodySchema),
           validationStatus: ep.validationStatus || null,
           qualityScore: typeof ep.qualityScore === 'number' ? ep.qualityScore : null,
           healthScore: typeof ep.healthScore === 'number' ? ep.healthScore : null,
@@ -167,10 +213,17 @@ export default function SkillDetail() {
 
   const fallbackEndpoints = fallbackEndpointSource.map((ep, index) => ({
     id: `${ep.method || 'GET'}-${ep.path || ep.endpoint || ep.url || index}`,
+    endpointId: ep.endpointId || null,
     method: normalizeMethod(ep.method),
     path: ep.path || ep.endpoint || ep.url || '/',
     normalizedPath: ep.path || ep.endpoint || ep.url || '/',
     domain: skill.domain || '',
+    operationName: ep.operationName || null,
+    category: ep.category || null,
+    description: ep.description || null,
+    pathKeys: collectKeys(ep.pathKeys),
+    queryKeys: collectKeys(ep.queryKeys),
+    bodyKeys: collectKeys(ep.bodyKeys),
     validationStatus: null,
     qualityScore: null,
     healthScore: null,
@@ -186,22 +239,25 @@ export default function SkillDetail() {
     ...new Set(workingEndpointRecords.map((ep) => ep.method).filter(Boolean)),
   ];
 
-  const filteredEndpoints = workingEndpointRecords.filter((ep) => {
-    if (endpointMethodFilter !== 'all' && ep.method !== endpointMethodFilter) {
-      return false;
-    }
+	  const filteredEndpoints = workingEndpointRecords.filter((ep) => {
+	    if (endpointMethodFilter !== 'all' && ep.method !== endpointMethodFilter) {
+	      return false;
+	    }
 
-    if (!endpointSearch.trim()) {
-      return true;
-    }
+	    if (!endpointSearch.trim()) {
+	      return true;
+	    }
 
-    const q = endpointSearch.toLowerCase();
-    return (
-      ep.path.toLowerCase().includes(q)
-      || ep.normalizedPath.toLowerCase().includes(q)
-      || ep.domain.toLowerCase().includes(q)
-    );
-  });
+	    const q = endpointSearch.toLowerCase();
+	    return (
+	      ep.path.toLowerCase().includes(q)
+	      || ep.normalizedPath.toLowerCase().includes(q)
+	      || ep.domain.toLowerCase().includes(q)
+	      || String(ep.operationName || '').toLowerCase().includes(q)
+	      || String(ep.description || '').toLowerCase().includes(q)
+	      || String(ep.category || '').toLowerCase().includes(q)
+	    );
+	  });
 
   const price = parseFloat(skill.priceUsdc || '0');
   const isFree = price === 0;
@@ -346,42 +402,68 @@ export default function SkillDetail() {
                 </div>
 
                 <div className="endpoint-radar-list">
-                  {filteredEndpoints.map((ep) => {
-                    const hasExecutions = ep.totalExecutions > 0;
-                    const successRate = hasExecutions
-                      ? Math.round((ep.successfulExecutions / ep.totalExecutions) * 100)
-                      : null;
-                    const statusClass = ep.validationStatus
-                      ? `status-${String(ep.validationStatus).toLowerCase().replace(/[^a-z0-9_-]+/g, '-')}`
-                      : 'status-unknown';
+	                  {filteredEndpoints.map((ep) => {
+	                    const hasExecutions = ep.totalExecutions > 0;
+	                    const successRate = hasExecutions
+	                      ? Math.round((ep.successfulExecutions / ep.totalExecutions) * 100)
+	                      : null;
+	                    const statusClass = ep.validationStatus
+	                      ? `status-${String(ep.validationStatus).toLowerCase().replace(/[^a-z0-9_-]+/g, '-')}`
+	                      : 'status-unknown';
+	                    const hasOperation = Boolean(ep.operationName);
+	                    const showOperation = hasOperation;
+	                    const title = hasOperation ? `${ep.operationName}()` : ep.path;
+	
+	                    return (
+	                      <article key={ep.id} className="endpoint-radar-item">
+	                        <div className="endpoint-radar-main">
+	                          <span className={`endpoint-method ${methodClassName(ep.method)}`}>
+	                            {ep.method}
+	                          </span>
+	                          <code className={`endpoint-path ${showOperation ? 'endpoint-operation' : ''}`}>{title}</code>
+	                        </div>
 
-                    return (
-                      <article key={ep.id} className="endpoint-radar-item">
-                        <div className="endpoint-radar-main">
-                          <span className={`endpoint-method ${methodClassName(ep.method)}`}>
-                            {ep.method}
-                          </span>
-                          <code className="endpoint-path">{ep.path}</code>
-                        </div>
+	                        {hasOperation && (
+	                          <code className="endpoint-path endpoint-subpath">{ep.path}</code>
+	                        )}
 
-                        <div className="endpoint-radar-meta">
-                          <span className={`endpoint-status ${statusClass}`}>
-                            {formatValidationStatus(ep.validationStatus || 'unknown')}
-                          </span>
-                          {hasExecutions && (
-                            <span className="endpoint-chip">{ep.totalExecutions.toLocaleString()} runs</span>
-                          )}
-                          {successRate !== null && (
-                            <span className="endpoint-chip">{successRate}% success</span>
-                          )}
-                          {typeof ep.qualityScore === 'number' && (
-                            <span className="endpoint-chip">Q {ep.qualityScore}</span>
-                          )}
-                          {(ep.domain || skill.domain) && (
-                            <span className="endpoint-chip muted">{ep.domain || skill.domain}</span>
-                          )}
-                        </div>
-                      </article>
+	                        {ep.description && (
+	                          <p className="endpoint-radar-desc">{ep.description}</p>
+	                        )}
+	
+	                        <div className="endpoint-radar-meta">
+	                          <span className={`endpoint-status ${statusClass}`}>
+	                            {formatValidationStatus(ep.validationStatus || 'unknown')}
+	                          </span>
+	                          {ep.category && (
+	                            <span className="endpoint-chip">{ep.category}</span>
+	                          )}
+	                          {hasExecutions && (
+	                            <span className="endpoint-chip">{ep.totalExecutions.toLocaleString()} runs</span>
+	                          )}
+	                          {successRate !== null && (
+	                            <span className="endpoint-chip">{successRate}% success</span>
+	                          )}
+	                          {typeof ep.qualityScore === 'number' && (
+	                            <span className="endpoint-chip">Q {ep.qualityScore}</span>
+	                          )}
+	                          {Array.isArray(ep.pathKeys) && ep.pathKeys.length > 0 && (
+	                            <span className="endpoint-chip muted">path: {ep.pathKeys.slice(0, 6).join(', ')}</span>
+	                          )}
+	                          {Array.isArray(ep.queryKeys) && ep.queryKeys.length > 0 && (
+	                            <span className="endpoint-chip muted">query: {ep.queryKeys.slice(0, 6).join(', ')}</span>
+	                          )}
+	                          {Array.isArray(ep.bodyKeys) && ep.bodyKeys.length > 0 && (
+	                            <span className="endpoint-chip muted">body: {ep.bodyKeys.slice(0, 6).join(', ')}</span>
+	                          )}
+	                          {ep.endpointId && (
+	                            <span className="endpoint-chip muted">id: {String(ep.endpointId).slice(0, 8)}…</span>
+	                          )}
+	                          {(ep.domain || skill.domain) && (
+	                            <span className="endpoint-chip muted">{ep.domain || skill.domain}</span>
+	                          )}
+	                        </div>
+	                      </article>
                     );
                   })}
                 </div>
