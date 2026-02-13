@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-02-13
+
 ### Added
 - Added frontend marketplace analytics-page hard-hide (route + nav link removed) for production user flows.
 - Intent-based endpoint grouping/pruning for `unbrowse_capture` via `intent` + `maxEndpoints`
@@ -109,7 +111,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OOP refactor of HAR parser with route generalization and schema capture
 - Integrated LLM describer for rich endpoint documentation in skill generation
 
-[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.12...HEAD
+[0.5.12]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.7...v0.5.12
 [0.5.5]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.2...v0.5.3
