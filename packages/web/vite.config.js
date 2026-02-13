@@ -22,7 +22,7 @@ export default defineConfig({
         target: 'http://localhost:4111',
         changeOrigin: true,
       },
-      '/analytics': {
+      '/admin/analytics': {
         target: 'http://localhost:4111',
         changeOrigin: true,
       },

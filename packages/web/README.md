@@ -141,7 +141,7 @@ app/
 
 The dev server is configured to proxy the following routes to `http://localhost:4111`:
 
-- `/analytics/*` - Analytics endpoints
+- `/admin/analytics/*` - Analytics endpoints
 - `/health` - Health check endpoint
 
 Update the proxy configuration in `vite.config.js` if your backend runs on a different port.
