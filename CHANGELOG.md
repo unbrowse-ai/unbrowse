@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TLS fingerprint mismatch detection — sending Chrome User-Agent from Node.js no longer triggers anti-bot (context headers excluded in node mode)
 - Plugin auto-discovery and auth flows now fallback cleanly when browser tooling/CDP is unavailable
 - Plugin auto-publish now verifies/prunes invalid GET endpoints before publish
+- `unbrowse_replay` no longer marks `text/html` responses as failed in Node.js mode (passes through HTML body)
 - Stabilized OpenClaw CDP + backend tracing interactions
 - Reduced brittle legacy browser API usage and added auto-publish backoff
 - Marketplace frontend endpoint radar now prefers explainable `operationName()` + description instead of proxy UUID paths

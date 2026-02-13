@@ -1,0 +1,13 @@
+{
+  "name": "@getfoundry/unbrowse-cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "unbrowse": "./unbrowse.js"
+  },
+  "dependencies": {
+    "@getfoundry/unbrowse-openclaw": "workspace:*"
+  }
+}
+
