@@ -113,7 +113,22 @@ export const REPLAY_SCHEMA = {
     },
     storeRaw: {
       type: "boolean" as const,
-      description: "Whether to store raw request/response payloads (backend mode, default: false).",
+      description:
+        "Whether to store raw request/response payloads. Backend mode stores raw payloads in the index (default: false). " +
+        "Local (browser/node) mode saves the full response body to disk under <skillDir>/replays/.",
+    },
+    maxResponseChars: {
+      type: "number" as const,
+      description:
+        "Max response chars to include in tool output (local browser/node mode, default: 2000). " +
+        "Set to 0 to include the full body inline (not recommended). Use storeRaw=true to save full body to disk instead.",
+    },
+    previewChars: {
+      type: "number" as const,
+      description:
+        "Max chars to show in the `Response:` preview line (default: 500 for batch, 4000 for single endpoint). " +
+        "Set to 0 to disable preview truncation (the UI/logs may still clamp very large tool outputs). " +
+        "This does not affect what is saved to disk when storeRaw=true.",
     },
     autoChain: {
       type: "boolean" as const,
