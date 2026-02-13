@@ -67,6 +67,7 @@ See [PROTOCOL.md](PROTOCOL.md) for the full specification.
 
 - **All data stays local** — captured auth never leaves your machine unless you explicitly publish
 - **Auth is stripped on publish** — marketplace skills contain endpoint docs only, no credentials
+- **Auth-gated endpoints are learnable** — if you log in during capture (or run `unbrowse_login`), Unbrowse can learn endpoints behind auth and contribute their structure without publishing your secrets
 - **Open source** — audit everything
 
 See [SECURITY.md](SECURITY.md) for the full trust model.
