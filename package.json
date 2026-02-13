@@ -12,6 +12,7 @@
     "build:web": "cd packages/web && pnpm build",
     "typecheck": "cd packages/plugin && npx tsc --noEmit"
   },
+  "packageManager": "pnpm@9.15.5",
   "license": "AGPL-3.0-only",
   "description": "Open protocol for agent web access. Capture, package, and replay internal web APIs."
 }
