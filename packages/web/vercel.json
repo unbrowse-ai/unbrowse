@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "pnpm build",
+  "installCommand": "corepack prepare pnpm@9.15.5 --activate && pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
-  "installCommand": "pnpm install",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
