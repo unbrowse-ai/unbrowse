@@ -2,7 +2,7 @@
 
 **The open protocol for agent web access.**
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/@getfoundry/unbrowse-openclaw)](https://www.npmjs.com/package/@getfoundry/unbrowse-openclaw)
 
 Every website has internal APIs — the hidden endpoints their frontend calls. Unbrowse captures them, packages them as reusable skills, and lets any AI agent call them directly. No browser automation. No Playwright. No Puppeteer.
@@ -95,4 +95,4 @@ See [GOVERNANCE.md](GOVERNANCE.md) for contribution guidelines and [CONTRIBUTING
 
 ## License
 
-Apache 2.0 — See [LICENSE](LICENSE)
+AGPL-3.0-only — See [LICENSE](LICENSE)
