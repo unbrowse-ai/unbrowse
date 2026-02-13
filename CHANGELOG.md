@@ -43,7 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Marketplace frontend cards now show endpoint counts in browse and search views
 - Frontend now routes API calls through `VITE_API_BASE` via shared `api-base` helper (marketplace + app flows)
 - Removed frontend email/google login flows and legacy auth-context pages; web app now runs without frontend login/auth routes
-- Backend auth flow is now wallet-only on runtime routes; BetterAuth session middleware/routes are no longer used
+- Removed wallet/email account funnel; marketplace publish + endpoint execution no longer require login auth
+- Marketplace proxy bundles are now precomputed at ingest/publish time (no LLM work on download requests)
 - CI: web app deployment Dockerized for staging/prod SSH workflows
 - Documentation refresh for plugin auth/login behavior and agent notes
 
@@ -54,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plugin auto-publish now verifies/prunes invalid GET endpoints before publish
 - Stabilized OpenClaw CDP + backend tracing interactions
 - Reduced brittle legacy browser API usage and added auto-publish backoff
+- Marketplace frontend endpoint radar now prefers explainable `operationName()` + description instead of proxy UUID paths
 - CI: web Docker build now works when lockfile is absent
 - Added `127.0.0.1` local origins to backend CORS/trusted-origins allowlists (3000/3001/5173/4111)
 - Fixed staging backend request timeouts caused by session auth lookups during request middleware/ingestion paths
