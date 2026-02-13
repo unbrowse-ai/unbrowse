@@ -7,21 +7,17 @@
  * - GET  /marketplace/skills/:id/versions
  * - GET  /marketplace/skills/:id/versions/:hash
  * - GET  /marketplace/skill-downloads/:id   (200 for free, 402 for paid via x402)
- * - POST /marketplace/skills               (wallet-signed)
- * - POST /auth/wallet/link/request         (wallet-signed; sends email)
+ * - POST /marketplace/skills
  * - GET  /health
  *
  * Notes:
  * - Paid downloads use x402 (HTTP 402) + Solana USDC.
- * - Publishing requires a Solana private key to sign X-Wallet-* headers.
  */
 
 import {
   loadWeb3,
   loadSplToken,
-  keypairFromBase58PrivateKey,
   keypairFromBase58PrivateKeyWeb3,
-  signEd25519MessageBase58,
 } from "./solana/solana-helpers.js";
 import type { HeaderProfileFile } from "./types.js";
 
@@ -418,16 +414,15 @@ export class SkillIndexClient {
     return Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
   }
 
-  /** Publish a skill to the marketplace (requires wallet signature). */
+  /** Publish a skill to the marketplace (no login/auth required). */
   async publish(payload: PublishPayload): Promise<PublishResult> {
-    const walletHeaders = await this.getWalletAuthHeaders("publish");
     const publishTimeoutMs = Number.isFinite(this.opts.publishTimeoutMs) && (this.opts.publishTimeoutMs as number) > 0
       ? Math.trunc(this.opts.publishTimeoutMs as number)
       : DEFAULT_PUBLISH_TIMEOUT_MS;
 
     const resp = await fetch(`${this.indexUrl}/marketplace/skills`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...walletHeaders },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(publishTimeoutMs),
     });
@@ -440,34 +435,15 @@ export class SkillIndexClient {
     return resp.json() as Promise<PublishResult>;
   }
 
-  /** Request wallet-email linking (requires wallet signature; sends email). */
-  async requestWalletLink(email: string): Promise<{ success: boolean; message?: string; dev?: any }> {
-    const walletHeaders = await this.getWalletAuthHeaders("link_wallet");
-
-    const resp = await fetch(`${this.indexUrl}/auth/wallet/link/request`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...walletHeaders },
-      body: JSON.stringify({ email }),
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Wallet link request failed (${resp.status}): ${text}`);
-    }
-    return resp.json() as any;
-  }
-
-  /** Execute an endpoint through the backend executor (requires wallet signature). */
+  /** Execute an endpoint through the backend executor (no login/auth required). */
   async executeEndpoint(endpointId: string, req: ExecuteEndpointRequest): Promise<ExecuteEndpointResult> {
     if (!endpointId) throw new Error("endpointId is required");
-    const walletHeaders = await this.getWalletAuthHeaders("execute");
 
     const resp = await fetch(
       `${this.indexUrl}/marketplace/endpoints/${encodeURIComponent(endpointId)}/execute`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...walletHeaders },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(req ?? {}),
         signal: AbortSignal.timeout(30_000),
       },
@@ -553,38 +529,5 @@ export class SkillIndexClient {
     }
   }
 
-  /**
-   * Build wallet auth headers for the backend.
-   * Returns X-Wallet-Address, X-Wallet-Signature, X-Wallet-Message headers.
-   */
-  private async getWalletAuthHeaders(action: string): Promise<Record<string, string>> {
-    if (!this.solanaPrivateKey) {
-      throw new Error(
-        "No Solana private key configured. Required to sign requests. " +
-        'Use unbrowse_wallet action="set_payer" to configure.',
-      );
-    }
-    const keypair = await keypairFromBase58PrivateKey(this.solanaPrivateKey);
-    const walletAddress = keypair.publicKey.toBase58();
-    const timestamp = Date.now().toString();
-    const message = `unbrowse:${action}:${timestamp}`;
-    const signature = await this.signMessage(message);
-
-    return {
-      "X-Wallet-Address": walletAddress,
-      "X-Wallet-Signature": signature,
-      "X-Wallet-Message": message,
-    };
-  }
-
-  /**
-   * Sign a message with the Solana keypair.
-   * Returns base58-encoded Ed25519 signature.
-   */
-  private async signMessage(message: string): Promise<string> {
-    return signEd25519MessageBase58({
-      privateKeyB58: this.solanaPrivateKey!,
-      message,
-    });
-  }
+  // Note: marketplace requests are intentionally unauthenticated (no login/auth funnel).
 }

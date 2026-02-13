@@ -15,7 +15,6 @@ import {
   sanitizeHeaderProfile,
 } from "./shared.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
-import { keypairFromBase58PrivateKey } from "../../solana/solana-helpers.js";
 
 function toCookieHeader(raw: unknown): string | undefined {
   if (typeof raw === "string" && raw.trim().length > 0) return raw.trim();
@@ -64,74 +63,7 @@ parameters: PUBLISH_SCHEMA,
 async execute(_toolCallId: string, params: unknown) {
   const p = params as { service: string; skillsDir?: string };
   const creatorWallet = deps.walletState?.creatorWallet;
-  const solanaPrivateKey = deps.walletState?.solanaPrivateKey;
-
-  if (!creatorWallet || !solanaPrivateKey) {
-    const walletHint = (() => {
-      if (!creatorWallet && !solanaPrivateKey) {
-        return [
-          '  1. Create a new wallet: unbrowse_wallet action="create"',
-          '  2. Use existing wallet:',
-          '     - Set earning address: unbrowse_wallet action="set_creator" wallet="<your-solana-address>"',
-          '     - Set signing key:     unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"',
-        ].join("\n");
-      }
-      if (!creatorWallet) {
-        return [
-          '  1. Set earning address: unbrowse_wallet action="set_creator" wallet="<your-solana-address>"',
-          '  2. Or generate a new keypair: unbrowse_wallet action="create"',
-        ].join("\n");
-      }
-      // creatorWallet exists but no private key to sign
-      return [
-        `  Your wallet: ${creatorWallet}`,
-        '  Add a signing key to publish:',
-        '    - Generate a new keypair: unbrowse_wallet action="create"',
-        '    - Or import existing key: unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"',
-      ].join("\n");
-    })();
-
-    return {
-      content: [{
-        type: "text",
-        text: [
-          "Wallet not fully configured for publishing skills.",
-          "",
-          "Publishing requires both:",
-          "  - A creator wallet address (earning destination)",
-          "  - A Solana private key to sign the publish request",
-          "",
-          "Options:",
-          walletHint,
-          "",
-          "Once configured, try publishing again.",
-        ].join("\n"),
-      }],
-    };
-  }
-
-  try {
-    await keypairFromBase58PrivateKey(solanaPrivateKey);
-  } catch (err) {
-    logger.warn(`[unbrowse] Invalid payer key configured for publish: ${(err as Error).message}`);
-    return {
-      content: [{
-        type: "text",
-        text: [
-          "Wallet configured, but payer private key is invalid/corrupted.",
-          "",
-          "Your skill can still be generated locally; publishing is blocked until key is fixed.",
-          `Creator wallet: ${creatorWallet}`,
-          "",
-          "Fix options:",
-          '  1. Set a valid signing key: unbrowse_wallet action="set_payer" privateKey="<base58-private-key>"',
-          '  2. Or create a fresh keypair: unbrowse_wallet action="create"',
-          "",
-          "Then run unbrowse_publish again.",
-        ].join("\n"),
-      }],
-    };
-  }
+  // Wallet is optional for publish; set it if you want attribution/payout routing.
 
   const skillsDir = p.skillsDir ?? defaultOutputDir;
   const skillDir = join(skillsDir, p.service);
@@ -238,7 +170,7 @@ async execute(_toolCallId: string, params: unknown) {
       headerProfile,
       serviceName: p.service,
       domain: domain || undefined,
-      creatorWallet,
+      creatorWallet: creatorWallet || undefined,
       priceUsdc: (p as any).price ?? "0", // Default to free
       validationAuth,
     };
@@ -270,7 +202,7 @@ async execute(_toolCallId: string, params: unknown) {
       versionHash ? `Version: ${versionHash}` : null,
       `Price: ${priceDisplay}`,
       `Endpoints: ${endpoints.length}`,
-      `Creator wallet: ${creatorWallet}`,
+      creatorWallet ? `Creator wallet: ${creatorWallet}` : `Creator wallet: (none set)`,
       merged && result?.message ? `Merge: ${String(result.message)}` : null,
       merged && result?.contribution ? `Contribution: +${result.contribution.endpointsAdded} endpoints, novelty ${(result.contribution.noveltyScore * 100).toFixed(0)}%` : null,
       updatedLocally ? `Local skill updated with canonical version from backend` : null,

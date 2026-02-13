@@ -67,22 +67,6 @@ export const AUTH_SCHEMA = {
   required: [] as string[],
 };
 
-export const ACCOUNT_SCHEMA = {
-  type: "object" as const,
-  properties: {
-    action: {
-      type: "string" as const,
-      enum: ["request_wallet_link"],
-      description: "Account action. request_wallet_link sends an email to link your wallet to an existing account.",
-    },
-    email: {
-      type: "string" as const,
-      description: "Account email address to link wallet to",
-    },
-  },
-  required: ["action", "email"] as string[],
-};
-
 export const REPLAY_SCHEMA = {
   type: "object" as const,
   properties: {
