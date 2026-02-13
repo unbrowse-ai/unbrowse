@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added frontend marketplace analytics-page hard-hide (route + nav link removed) for production user flows.
 - Intent-based endpoint grouping/pruning for `unbrowse_capture` via `intent` + `maxEndpoints`
 - Endpoint-intent selector heuristics + tests (`intent-endpoint-selector.ts`)
 - Marketplace async publish + polling endpoints (`POST /marketplace/publish`, `GET /marketplace/publish/:jobId`) to avoid Cloudflare timeouts
@@ -68,6 +69,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed staging backend request timeouts caused by session auth lookups during request middleware/ingestion paths
 - Production benchmark: exclude `kemono.party` from fetched production skill set
 
+## [0.5.5] - 2026-02-13
+
+### Added
+- Added frontend marketplace analytics-page hide for non-exposed deployments.
+
+### Changed
+- Made `node-libcurl-ja3` optional across server replay/fetch paths; when unavailable, shared fetch and ability execution fallback to standard fetch behavior without failing startup/tests.
+- Added regression tests for CORS origin handling and HTML-quality-gate behavior (`tests/unit/origins-cors.test.ts`, `tests/unit/quality-gate-html-transform.test.ts`).
+
+### Fixed
+- Fixed runtime crash caused by hard failure when native `node-libcurl-ja3` bindings are missing.
+- Ensured marketplace replay quality-gate checks do not block HTML endpoints when a transform is attached.
+
 ## [0.5.4] - 2026-02-07
 
 ### Fixed
@@ -92,6 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OOP refactor of HAR parser with route generalization and schema capture
 - Integrated LLM describer for rich endpoint documentation in skill generation
 
-[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.2...v0.5.3

@@ -62,13 +62,6 @@ export default function Layout() {
               <span className="ub-nav-link-text">Documentation</span>
               <span className="ub-nav-link-indicator" />
             </Link>
-            <Link
-              to="/analytics"
-              className={`ub-nav-link ${location.pathname === '/analytics' ? 'active' : ''}`}
-            >
-              <span className="ub-nav-link-text">Analytics</span>
-              <span className="ub-nav-link-indicator" />
-            </Link>
             {FDRY_ENABLED && (
               <Link
                 to="/earnings"
