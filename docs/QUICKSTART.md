@@ -17,6 +17,11 @@ Option A: capture by browsing (recommended for most sites)
 unbrowse_capture { "urls": ["https://example.com"] }
 ```
 
+For authenticated sites:
+- Login in the browser first (or run `unbrowse_login`) so Unbrowse can observe auth-gated API calls.
+- Those endpoints can then be packaged into your local skill and contributed on publish.
+- Credentials/tokens stay local; the marketplace only receives endpoint metadata and evidence.
+
 Option B: learn from an existing HAR
 
 ```text
