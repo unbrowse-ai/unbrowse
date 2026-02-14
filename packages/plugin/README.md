@@ -34,6 +34,70 @@ openclaw plugins install @getfoundry/unbrowse-openclaw
 npm install @getfoundry/unbrowse-openclaw
 ```
 
+## Plugin configuration
+
+Set `plugins.entries.unbrowse-openclaw.config` in your OpenClaw config.
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse-openclaw": {
+        "config": {
+          "browserPort": 8891,
+          "browserProfile": "",
+          "allowLegacyPlaywrightFallback": false,
+          "skillsOutputDir": "~/.openclaw/skills",
+          "autoDiscover": true,
+          "autoContribute": true,
+          "enableAgentContextHints": false,
+          "publishValidationWithAuth": false,
+          "skillIndexUrl": "https://index.unbrowse.ai",
+          "creatorWallet": "",
+          "skillIndexSolanaPrivateKey": "",
+          "credentialSource": "none",
+          "enableChromeCookies": false,
+          "enableDesktopAutomation": false,
+          "telemetryEnabled": true,
+          "telemetryLevel": "standard"
+        }
+      }
+    }
+  }
+}
+```
+
+| Option | What it does | Default |
+|---|---|---|
+| `browserPort` | Browser bridge port override | `OPENCLAW_GATEWAY_PORT` / `CLAWDBOT_GATEWAY_PORT` / `config.gateway.port` / `18789`, then `+2` |
+| `browserProfile` | Browser context profile selector | open-claw root default profile |
+| `allowLegacyPlaywrightFallback` | Keep Playwright fallback enabled for edge cases | `false` |
+| `skillsOutputDir` | Directory for generated skill files | `~/.openclaw/skills` |
+| `autoDiscover` | Reuse existing local captures automatically | `true` |
+| `autoContribute` | Publish contributions automatically | `true` |
+| `enableAgentContextHints` | Pass extra agent context into capture prompts | `false` |
+| `publishValidationWithAuth` | Validate marketplace publish calls with auth context | `false` |
+| `skillIndexUrl` | Marketplace/search base URL | `UNBROWSE_INDEX_URL` or `https://index.unbrowse.ai` |
+| `creatorWallet` | Creator payout wallet | saved wallet or env override |
+| `skillIndexSolanaPrivateKey` | Marketplace payer key (private key) | unset unless configured |
+| `credentialSource` | Credential lookup strategy: `none`, `vault`, `keychain`, `1password` | `UNBROWSE_CREDENTIAL_SOURCE` or `none` |
+| `enableChromeCookies` | Allow Chrome cookie read path | `false` |
+| `enableDesktopAutomation` | Enable `unbrowse_desktop` tool | `false` |
+| `telemetryEnabled` | Enable telemetry events | `true` |
+| `telemetryLevel` | `minimal`, `standard`, `debug` | `standard` |
+
+Plugin env helpers (optional):
+
+- `OPENCLAW_GATEWAY_PORT` / `CLAWDBOT_GATEWAY_PORT`
+- `UNBROWSE_INDEX_URL`
+- `UNBROWSE_CREATOR_WALLET`
+- `UNBROWSE_SOLANA_PRIVATE_KEY`
+- `UNBROWSE_CREDENTIAL_SOURCE`
+- `OPENROUTER_API_KEY`
+- `OPENAI_API_KEY`
+
+The file `~/.openclaw/unbrowse/telemetry.json` can override telemetry settings (`enabled`, `level`) and takes precedence over plugin config.
+
 ## Core Tools
 
 | Tool | Description |
