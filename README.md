@@ -1,5 +1,7 @@
 # Unbrowse (OpenClaw Plugin & Skill Ecosystem)
 
+[![Star History Chart](https://api.star-history.com/svg?repos=lekt9/unbrowse-openclaw&type=date&legend=top-left)](https://www.star-history.com/#lekt9/unbrowse-openclaw&type=date&legend=top-left)
+
 Open source API reverse engineering for OpenClaw.
 
 Unbrowse captures real browser network traffic and turns it into reusable agent skills.
@@ -206,4 +208,3 @@ openclaw gateway restart
 3. `docs/INTEGRATION_BOUNDARIES.md`
 4. `docs/CONTRIBUTOR_PLAYBOOK.md`
 5. `docs/PURPOSE.md`
-
