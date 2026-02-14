@@ -124,6 +124,72 @@ It is often the difference between workflows that stall and ones that feel immed
 - shareable behavior is still possible after publish
 - reusable ecosystem growth without forcing central lock-in
 
+## Plugin configuration
+
+Set your plugin block in OpenClaw as `plugins.entries.unbrowse-openclaw.config`.
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "unbrowse-openclaw": {
+        "config": {
+          "browserPort": 8891,
+          "browserProfile": "",
+          "allowLegacyPlaywrightFallback": false,
+          "skillsOutputDir": "~/.openclaw/skills",
+          "autoDiscover": true,
+          "autoContribute": true,
+          "enableAgentContextHints": false,
+          "publishValidationWithAuth": false,
+          "skillIndexUrl": "https://index.unbrowse.ai",
+          "creatorWallet": "",
+          "skillIndexSolanaPrivateKey": "",
+          "credentialSource": "none",
+          "enableChromeCookies": false,
+          "enableDesktopAutomation": false,
+          "telemetryEnabled": true,
+          "telemetryLevel": "standard"
+        }
+      }
+    }
+  }
+}
+```
+
+| Option | Default | What it does |
+|---|---|---|
+| `browserPort` | `OPENCLAW_GATEWAY_PORT` / `CLAWDBOT_GATEWAY_PORT` / `config.gateway.port` / `18789`, then `+2` | Browser bridge port for session tools |
+| `browserProfile` | open-claw root default profile | Browser context profile selector |
+| `allowLegacyPlaywrightFallback` | `false` | Enable Playwright fallback on direct browser flow |
+| `skillsOutputDir` | `~/.openclaw/skills` | Skill write location |
+| `autoDiscover` | `true` | Reuse previously captured skill hints automatically |
+| `autoContribute` | `true` | Auto-contribute publish flow when enabled |
+| `enableAgentContextHints` | `false` | Add captured-session context hints |
+| `publishValidationWithAuth` | `false` | Validate publish calls with auth context |
+| `skillIndexUrl` | `UNBROWSE_INDEX_URL` / `https://index.unbrowse.ai` | Marketplace/search base URL |
+| `creatorWallet` | saved wallet or `UNBROWSE_CREATOR_WALLET` | Creator payout wallet |
+| `skillIndexSolanaPrivateKey` | `UNBROWSE_SOLANA_PRIVATE_KEY` | Payer private key for marketplace operations |
+| `credentialSource` | `UNBROWSE_CREDENTIAL_SOURCE` or `none` | Credential lookup: `none`, `vault`, `keychain`, `1password` |
+| `enableChromeCookies` | `false` | Allow Chrome cookie read path |
+| `enableDesktopAutomation` | `false` | Enable `unbrowse_desktop` |
+| `telemetryEnabled` | `true` | Send usage telemetry to index |
+| `telemetryLevel` | `standard` | Telemetry payload detail: `minimal`, `standard`, `debug` |
+
+Plugin env helpers:
+
+- `OPENCLAW_GATEWAY_PORT` / `CLAWDBOT_GATEWAY_PORT`
+- `UNBROWSE_INDEX_URL`
+- `UNBROWSE_CREATOR_WALLET`
+- `UNBROWSE_SOLANA_PRIVATE_KEY`
+- `UNBROWSE_CREDENTIAL_SOURCE`
+- `OPENROUTER_API_KEY`
+- `OPENAI_API_KEY`
+
+Local override:
+
+- `~/.openclaw/unbrowse/telemetry.json` with `{ "enabled": boolean, "level": "minimal" | "standard" | "debug" }` takes precedence over `telemetryEnabled` / `telemetryLevel`.
+
 ## What isn’t documented (and why)
 
 We intentionally treat these as black-box/internal:
