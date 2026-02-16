@@ -622,7 +622,8 @@ const plugin = {
         "  3) If no good match, it learns via capture/login, retries execution, and can publish",
         "",
         "Direct fallback tools: unbrowse_execute_goal or unbrowse_skills → unbrowse_capture → unbrowse_replay.",
-        "Marketplace: unbrowse_search install=\"<skillId>\" → unbrowse_login → unbrowse_replay executionMode=\"backend\" (auth forwarded per-call + 401/403 retry).",
+        "Marketplace: unbrowse_search install=\"<skillId>\" → unbrowse_login → unbrowse_replay " +
+        "(gated by marketplace metadata, then browser executes on original service URLs; 401/403 retry after refresh).",
         "Auth behavior: replay/goal execution auto-primes cookies+headers from browser and retries once on 401/403.",
         "For authenticated sites, use unbrowse_login first when browser session is not already active.",
         "",

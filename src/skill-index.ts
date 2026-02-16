@@ -103,6 +103,34 @@ export interface SearchResult {
   total: number;
 }
 
+export interface ExecutionGateResponse {
+  success: boolean;
+  ok: boolean;
+  allowed: boolean;
+  status: number;
+  reason?: string;
+  endpointId?: string;
+  normalizedPath?: string;
+  rawPath?: string;
+  domain?: string;
+}
+
+export interface ExecutionGatePayload {
+  skillId: string;
+  method: string;
+  url: string;
+  params?: Record<string, unknown>;
+  pathParams?: Record<string, unknown>;
+  query?: Record<string, unknown>;
+  body?: unknown;
+  auth?: {
+    cookies?: string;
+    headers?: Record<string, string>;
+  };
+  context?: Record<string, unknown>;
+  privacy?: Record<string, unknown>;
+}
+
 // ── Client ───────────────────────────────────────────────────────────────────
 
 export class SkillIndexClient {
@@ -181,10 +209,78 @@ export class SkillIndexClient {
     return data.skill;
   }
 
+  /** Request marketplace execution gate for a specific endpoint URL (no proxy execution). */
+  async requestExecutionGate(payload: ExecutionGatePayload): Promise<ExecutionGateResponse> {
+    const req: ExecutionGatePayload = {
+      ...payload,
+      method: String(payload.method || "").toUpperCase(),
+      url: String(payload.url || "").trim(),
+    };
+
+    let resp: Response;
+    let responseJson: unknown = null;
+
+    try {
+      resp = await fetch(`${this.indexUrl}/marketplace/execution-gate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(req),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (err) {
+      return {
+        success: false,
+        ok: false,
+        allowed: false,
+        status: 0,
+        reason: (err as Error).message ?? "Execution gate request failed",
+      };
+    }
+
+    try {
+      responseJson = await resp.json();
+    } catch {
+      responseJson = null;
+    }
+
+    const data = (typeof responseJson === "object" && responseJson !== null) ? responseJson as Record<string, unknown> : {};
+    const success = Boolean(data.success) || resp.ok;
+    const reason = typeof data.reason === "string" ? String(data.reason) : undefined;
+
+    if (!resp.ok || !success) {
+      return {
+        success: false,
+        ok: false,
+        allowed: false,
+        status: resp.status || 0,
+        reason: reason || `${resp.status} ${resp.statusText}` || "Execution gate denied",
+        endpointId: typeof data.endpointId === "string" ? String(data.endpointId) : undefined,
+        normalizedPath: typeof data.normalizedPath === "string" ? String(data.normalizedPath) : undefined,
+        rawPath: typeof data.rawPath === "string" ? String(data.rawPath) : undefined,
+        domain: typeof data.domain === "string" ? String(data.domain) : undefined,
+      };
+    }
+
+    return {
+      success: true,
+      ok: true,
+      allowed: true,
+      status: resp.status || 200,
+      reason,
+      endpointId: typeof data.endpointId === "string" ? String(data.endpointId) : undefined,
+      normalizedPath: typeof data.normalizedPath === "string" ? String(data.normalizedPath) : undefined,
+      rawPath: typeof data.rawPath === "string" ? String(data.rawPath) : undefined,
+      domain: typeof data.domain === "string" ? String(data.domain) : undefined,
+    };
+  }
+
   /**
    * Download a skill package with full content.
    * Free skills download directly; paid skills require x402 payment.
-   */
+  */
   async download(id: string): Promise<SkillPackage> {
     const downloadUrl = `${this.indexUrl}/marketplace/skill-downloads/${encodeURIComponent(id)}`;
 

@@ -32,11 +32,12 @@ export function makeUnbrowseReplayTool(deps: ToolDeps) {
   return {
 name: "unbrowse_replay",
 label: "Call Internal API",
-description:
+  description:
   "Call internal API endpoints using captured auth. Executes requests THROUGH THE BROWSER " +
   "(via page.evaluate) for authentic TLS/HTTP2 fingerprints that bypass bot detection. " +
   "Uses session cookies, tokens, and headers from auth.json/vault. " +
-  "Backend mode forwards auth to the executor per-call (no credential storage). " +
+  "Replay always runs a marketplace gate first, then executes requests directly via browser " +
+  "(same service URLs, no endpoint proxy rewriting). " +
   "Auto-refreshes auth once on 401/403 by re-login (if configured) or re-grabbing cookies from OpenClaw Chrome.",
 parameters: REPLAY_SCHEMA,
 async execute(_toolCallId: string, params: unknown) {
@@ -242,6 +243,7 @@ async execute(_toolCallId: string, params: unknown) {
   async function execViaBackend(
     ep: { method: string; path: string },
     body?: string,
+    limit = 2000,
   ): Promise<{ status: number; ok: boolean; endpointId?: string; raw?: any; data?: string } | null> {
     const skillId = (() => {
       if (p.skillId) return p.skillId;
@@ -369,10 +371,6 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
-    if (!endpointId) {
-      return { status: 0, ok: false, data: `No canonical endpointId for ${ep.method} ${ep.path}. Re-publish skill or refresh marketplace mapping.` };
-    }
-
     const traceId =
       p.traceId && p.traceId.trim().length > 0
         ? p.traceId.trim()
@@ -383,8 +381,12 @@ async execute(_toolCallId: string, params: unknown) {
     const intent = typeof p.intent === "string" && p.intent.trim().length > 0 ? p.intent.trim() : undefined;
     const wantRawResponse = Boolean(p.endpoint) || storeRaw;
 
-    const req = {
+    const targetUrl = new URL(ep.path, baseUrl).toString();
+
+    const gateReq = {
       params: {},
+      pathParams: {},
+      query: {},
       body: parsedBody,
       auth: {
         cookies: Object.keys(cookies).length > 0 ? toCookieHeader(cookies) : undefined,
@@ -403,19 +405,32 @@ async execute(_toolCallId: string, params: unknown) {
       },
     } as const;
 
-    async function doExec(): Promise<{ httpOk: boolean; httpStatus: number; body: any; text: string }> {
-      const anyClient: any = indexClient as any;
-      if (typeof anyClient.executeEndpointRaw === "function") {
-        const raw = await anyClient.executeEndpointRaw(endpointId, req);
+    let gateResult: {
+      success: boolean;
+      ok: boolean;
+      allowed: boolean;
+      status: number;
+      reason?: string;
+      endpointId?: string;
+    } | null = null;
+
+    try {
+      if (typeof (indexClient as any).requestExecutionGate === "function") {
+        gateResult = await (indexClient as any).requestExecutionGate({
+          skillId,
+          method: ep.method,
+          url: targetUrl,
+          ...gateReq,
+        });
+      } else {
         return {
-          httpOk: Boolean(raw?.ok),
-          httpStatus: typeof raw?.status === "number" ? raw.status : 0,
-          body: raw?.body,
-          text: String(raw?.text ?? ""),
+          status: 0,
+          ok: false,
+          data: "Backend client missing execution-gate request method.",
         };
       }
-      const body = await (indexClient as any).executeEndpoint(endpointId, req);
-      return { httpOk: true, httpStatus: 200, body, text: "" };
+    } catch (err) {
+      return { status: 0, ok: false, data: String((err as Error).message ?? err) };
     }
 
     const toPreview = (raw: any): string => {
@@ -423,37 +438,50 @@ async execute(_toolCallId: string, params: unknown) {
       try { return JSON.stringify(raw).slice(0, 2000); } catch { return String(raw ?? "").slice(0, 2000); }
     };
 
+    if (!gateResult?.ok) {
+      return {
+        status: gateResult?.status ?? 0,
+        ok: false,
+        endpointId: endpointId ?? gateResult?.endpointId,
+        data: gateResult?.reason || "Backend gate denied request",
+      };
+    }
+
+    const executeInBrowser = async (): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string } | null> =>
+      execInChrome(ep, body, limit);
+
     try {
-      const attempt1 = await doExec();
-      let resp: any = attempt1.body ?? (attempt1.text
-        ? { ok: attempt1.httpOk, success: attempt1.httpOk, statusCode: attempt1.httpStatus, data: attempt1.text }
-        : undefined);
-
-      const status1 =
-        typeof resp?.statusCode === "number"
-          ? resp.statusCode
-          : (typeof resp?.status === "number" ? resp.status : 0);
-
-      // 401/403: refresh once then retry (best-effort)
-      if ((status1 === 401 || status1 === 403) && (await refreshCreds())) {
-        const attempt2 = await doExec();
-        resp = attempt2.body ?? (attempt2.text
-          ? { ok: attempt2.httpOk, success: attempt2.httpOk, statusCode: attempt2.httpStatus, data: attempt2.text }
-          : undefined);
+      let result = await executeInBrowser();
+      if (!result) {
+        return { status: 0, ok: false, data: "No browser execution path available. Start OpenClaw browser and retry." };
       }
 
-      const status =
-        typeof resp?.statusCode === "number"
-          ? resp.statusCode
-          : (typeof resp?.status === "number" ? resp.status : 0);
+      let status =
+        typeof result.status === "number" ? result.status : 0;
+      if ((status === 401 || status === 403) && (await refreshCreds())) {
+        if (chromeContext && Object.keys(cookies).length > 0) {
+          try {
+            const domain = new URL(baseUrl).hostname;
+            const cookieObjects = Object.entries(cookies).map(([name, value]) => ({ name, value, domain, path: "/" }));
+            await chromeContext.addCookies(cookieObjects);
+          } catch { /* non-critical */ }
+        }
+        result = await executeInBrowser();
+        if (!result) return { status: 0, ok: false, data: "Execution retry unavailable: browser execution path missing." };
+        status = typeof result.status === "number" ? result.status : 0;
+      }
 
-      const ok =
-        (resp?.ok === true) ||
-        (resp?.success === true) ||
-        (typeof status === "number" && status >= 200 && status < 400 && resp?.success !== false);
+      const ok = result.ok
+        || (typeof status === "number" && status >= 200 && status < 400);
 
-      const raw = resp?.data;
-      return { status, ok, endpointId, raw, data: toPreview(raw) };
+      const raw = result.data;
+      return {
+        status,
+        ok,
+        endpointId: endpointId ?? gateResult?.endpointId,
+        raw,
+        data: toPreview(raw),
+      };
     } catch (err) {
       return { status: 0, ok: false, data: String((err as Error).message ?? err) };
     }
@@ -1342,27 +1370,35 @@ async execute(_toolCallId: string, params: unknown) {
     try { return JSON.stringify(value, null, 2); } catch { return String(value); }
   }
 
-  const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
-  results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
+    const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
+    results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
 
-  // Default: marketplace-installed skills run via backend executor so we trace workflows (LAM training).
+  // Default: run via backend gate + client-side browser execution so service URLs stay intact.
   // Wallet is not required for execution; it is only used for paid flows / creator attribution elsewhere.
   const hasMarketplaceMeta = existsSync(marketplaceMetaPath);
-  const configuredExecutionMode = p.executionMode ?? (hasMarketplaceMeta ? "backend" : "browser");
-  let executionMode = configuredExecutionMode;
+  const configuredExecutionMode = p.executionMode ?? "backend";
+  const executionMode = "backend" as const;
   const backendQuality = loadBackendQuality();
+  const hasSkillContext = hasMarketplaceMeta || Boolean(p.skillId);
+  const useBackendGate = true;
 
-  if (executionMode === "backend" && isBackendDisabled(backendQuality)) {
-    results.push(
-      `Backend quality: ${backendQuality.score}/100 (attempts=${backendQuality.attempts}, failures=${backendQuality.failures})`,
-      `Backend temporarily disabled until ${backendQuality.disabledUntil}; falling back to browser mode.`,
-      "",
-    );
-    executionMode = "browser";
+  if (configuredExecutionMode !== "backend") {
+    results.push(`executionMode="${configuredExecutionMode}" ignored; enforcing backend gate + browser execution.`, "");
   }
 
-  if (executionMode === "backend") {
-    results.push(`Using backend executor (marketplace) for trace capture`);
+  if (!hasSkillContext) {
+    return {
+      content: [{
+        type: "text",
+        text:
+          "Backend gate requires a published marketplace skill. " +
+          "Publish first (unbrowse_publish) or pass skillId, then replay will execute in-browser.",
+      }],
+    };
+  }
+
+  if (useBackendGate) {
+    results.push(`Using backend gate + browser execution (marketplace trace capture)`);
     if (p.intent) results.push(`Intent: ${p.intent}`);
     if (p.traceId) results.push(`TraceId: ${p.traceId}`);
     results.push(
@@ -1383,6 +1419,17 @@ async execute(_toolCallId: string, params: unknown) {
       return null;
     })();
 
+    if (!backendSkillId) {
+      return {
+        content: [{
+          type: "text",
+          text:
+            "Backend gate could not resolve skillId. " +
+            "Ensure marketplace.json has skillId or pass skillId explicitly.",
+        }],
+      };
+    }
+
     const shouldAttemptTransforms = transformsByMethodPath.size > 0 && (Boolean(p.endpoint) || Boolean(p.storeRaw));
     const canonicalById = new Map<string, any>();
     if (backendSkillId && shouldAttemptTransforms) {
@@ -1397,10 +1444,27 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
+    const backendLimit = (shouldAttemptTransforms || p.storeRaw || maxResponseChars === 0) ? 0 : maxResponseChars;
+
     for (const ep of toTest) {
       const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
-      const result = await execViaBackend(ep, body);
+      const stepStartedAt = Date.now();
+      const result = await execViaBackend(ep, body, backendLimit);
+      const executionTimeMs = Date.now() - stepStartedAt;
       applyBackendQuality(backendQuality, result?.status ?? 0, Boolean(result?.ok), result?.data);
+
+      if (typeof (indexClient as any).reportExecution === "function") {
+        try {
+          await (indexClient as any).reportExecution({
+            skillId: backendSkillId,
+            success: Boolean(result?.ok),
+            executionTimeMs,
+            errorMessage: result?.ok ? undefined : (result?.data ? String(result.data).slice(0, 300) : `HTTP ${result?.status ?? 0}`),
+            endpoint: `${ep.method} ${ep.path}`,
+          });
+        } catch { /* best-effort telemetry */ }
+      }
+
       if (result && result.ok) {
         results.push(`  ${ep.method} ${ep.path} → ${result.status} OK`);
         const raw = result.raw;

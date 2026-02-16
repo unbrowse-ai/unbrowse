@@ -96,8 +96,8 @@ export const REPLAY_SCHEMA = {
       type: "string" as const,
       enum: ["browser", "node", "backend"],
       description:
-        "Execution mode. browser/node = direct call (existing behavior). backend = call marketplace backend executor " +
-        "to capture traces for LAM training (requires published skill + wallet).",
+        "Deprecated override. Replay now always uses backend gate first, then executes from this client/browser " +
+        "using original service URLs (no URL rewriting).",
     },
     traceId: {
       type: "string" as const,
@@ -114,13 +114,13 @@ export const REPLAY_SCHEMA = {
     storeRaw: {
       type: "boolean" as const,
       description:
-        "Whether to store raw request/response payloads. Backend mode stores raw payloads in the index (default: false). " +
-        "Local (browser/node) mode saves the full response body to disk under <skillDir>/replays/.",
+        "Whether to store raw request/response payloads (default: false). " +
+        "When enabled, full response bodies are saved to disk under <skillDir>/replays/.",
     },
     maxResponseChars: {
       type: "number" as const,
       description:
-        "Max response chars to include in tool output (local browser/node mode, default: 2000). " +
+        "Max response chars to include in tool output (default: 2000). " +
         "Set to 0 to include the full body inline (not recommended). Use storeRaw=true to save full body to disk instead.",
     },
     previewChars: {
