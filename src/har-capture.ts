@@ -11,7 +11,7 @@
  * - All auto-added headers (User-Agent, Origin, etc.)
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -47,6 +47,8 @@ export interface HarCaptureOptions {
   headers?: Record<string, string>;
   /** User data dir for persistent profile (optional) */
   userDataDir?: string;
+  /** Connect to existing CDP browser (e.g. OpenClaw on port 18800) */
+  cdpEndpoint?: string;
 }
 
 /**
@@ -67,8 +69,20 @@ export async function captureWithHar(
   let browser: Browser;
   let context: BrowserContext;
 
-  // Launch browser
-  if (opts.userDataDir) {
+  let cdpMode = false;
+  let collectedEntries: HarEntry[] = [];
+
+  // CDP endpoint mode: connect to existing browser (e.g., OpenClaw)
+  if (opts.cdpEndpoint) {
+    browser = await chromium.connectOverCDP(opts.cdpEndpoint);
+    // Use first existing context (has all the cookies/session)
+    const contexts = browser.contexts();
+    if (contexts.length === 0) {
+      throw new Error(`CDP browser at ${opts.cdpEndpoint} has no contexts`);
+    }
+    context = contexts[0];
+    cdpMode = true;
+  } else if (opts.userDataDir) {
     // Persistent context (keeps login state)
     context = await chromium.launchPersistentContext(opts.userDataDir, {
       headless,
@@ -83,18 +97,35 @@ export async function captureWithHar(
     });
   }
 
-  // Inject cookies if provided
+  // Inject cookies if provided.
+  // Use leading-dot domain so cookies apply to both www.example.com and
+  // .example.com, and set secure + httpOnly + sameSite=None to match
+  // real session cookies (e.g. li_at on LinkedIn).
   if (opts.cookies && Object.keys(opts.cookies).length > 0) {
-    const cookiesToSet = [];
+    const cookiesToSet: Array<{
+      name: string; value: string; domain: string; path: string;
+      secure?: boolean; httpOnly?: boolean; sameSite?: "None" | "Lax" | "Strict";
+    }> = [];
+    const seenDomains = new Set<string>();
     for (const url of urls) {
       try {
         const parsed = new URL(url);
+        // Use root domain with leading dot so cookies cover all subdomains
+        const host = parsed.hostname;
+        const rootDomain = host.replace(/^www\./, "");
+        const dotDomain = rootDomain.startsWith(".") ? rootDomain : `.${rootDomain}`;
+        if (seenDomains.has(dotDomain)) continue;
+        seenDomains.add(dotDomain);
+
         for (const [name, value] of Object.entries(opts.cookies)) {
           cookiesToSet.push({
             name,
             value,
-            domain: parsed.hostname,
+            domain: dotDomain,
             path: "/",
+            secure: true,
+            httpOnly: true,
+            sameSite: "None",
           });
         }
       } catch {
@@ -104,6 +135,51 @@ export async function captureWithHar(
     if (cookiesToSet.length > 0) {
       await context.addCookies(cookiesToSet);
     }
+  }
+
+  // For CDP mode, set up manual request/response capture since recordHar doesn't work
+  if (cdpMode) {
+    context.on("request", (req) => {
+      const entry: Partial<HarEntry> = {
+        request: {
+          method: req.method(),
+          url: req.url(),
+          headers: Object.fromEntries(req.headersArray().map(h => [h.name, h.value])),
+          postData: req.postData() ?? undefined,
+        },
+        _id: (req as any)._guid ?? randomUUID(),
+        _startTime: Date.now(),
+      };
+      // Store temporarily, will update with response
+      (req as any).__harEntry = entry;
+    });
+
+    context.on("response", async (res) => {
+      const req = res.request();
+      const entry = (req as any).__harEntry as Partial<HarEntry> | undefined;
+      if (!entry) return;
+
+      try {
+        const body = await res.body().catch(() => Buffer.from(""));
+        const headers = await res.allHeaders().catch(() => ({}));
+
+        entry.response = {
+          status: res.status(),
+          statusText: res.statusText(),
+          headers,
+          content: {
+            text: body.toString("utf-8").slice(0, 100_000), // Limit size
+            size: body.length,
+            mimeType: res.headers()["content-type"]?.split(";")[0] ?? "application/octet-stream",
+          },
+        };
+        entry.time = Date.now() - (entry._startTime ?? Date.now());
+
+        collectedEntries.push(entry as HarEntry);
+      } catch {
+        // Ignore errors in response handling
+      }
+    });
   }
 
   const page = await context.newPage();
@@ -116,6 +192,25 @@ export async function captureWithHar(
         await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
       } catch {
         // Timeout is OK, page might have long-polling
+      }
+      // Scroll to trigger lazy-loaded content and GraphQL calls
+      try {
+        await page.evaluate(() => {
+          return new Promise<void>((resolve) => {
+            let scrollCount = 0;
+            const maxScrolls = 3;
+            const interval = setInterval(() => {
+              window.scrollBy(0, window.innerHeight);
+              scrollCount++;
+              if (scrollCount >= maxScrolls || (window.innerHeight + window.scrollY) >= document.body.scrollHeight) {
+                clearInterval(interval);
+                resolve();
+              }
+            }, 800);
+          });
+        });
+      } catch {
+        // Scroll errors are non-fatal (e.g. JSON endpoints have no DOM)
       }
       // Extra wait for any delayed API calls
       await page.waitForTimeout(waitMs);
@@ -145,9 +240,9 @@ export async function captureWithHar(
       await browser.close();
     }
 
-    // Read the HAR file
+    // Read the HAR file (for non-CDP modes)
     let har: { log: { entries: HarEntry[] } } = { log: { entries: [] } };
-    if (existsSync(harPath)) {
+    if (!cdpMode && existsSync(harPath)) {
       try {
         const harContent = readFileSync(harPath, "utf-8");
         har = JSON.parse(harContent);
@@ -163,6 +258,11 @@ export async function captureWithHar(
       }
     }
 
+    // In CDP mode, use manually collected entries
+    if (cdpMode && collectedEntries.length > 0) {
+      har = { log: { entries: collectedEntries } };
+    }
+
     // Convert browser cookies to simple map
     const cookies: Record<string, string> = {};
     for (const c of browserCookies) {
@@ -173,7 +273,7 @@ export async function captureWithHar(
       har,
       cookies,
       requestCount: har.log?.entries?.length ?? 0,
-      method: "playwright-har",
+      method: cdpMode ? "playwright-cdp" : "playwright-har",
       crawlResult,
     };
   }
