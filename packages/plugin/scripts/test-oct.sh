@@ -37,9 +37,16 @@ if [ "$MODE" = "docker" ] || [ "${OCT_CAN_START_GATEWAY:-}" = "1" ]; then
     fi
   fi
   openclaw --dev plugins install --link "${PLUGIN_ROOT}" >/tmp/oct-install.log 2>&1 || {
-    echo "openclaw plugin install failed. Log:"
-    tail -200 /tmp/oct-install.log || true
-    exit 1
+    # OpenClaw sometimes exits non-zero even though the plugin was linked successfully
+    # (e.g. when it requires a gateway restart). Treat that case as non-fatal.
+    if grep -q "Linked plugin path:" /tmp/oct-install.log 2>/dev/null; then
+      echo "[oct] openclaw plugins install returned non-zero, but plugin appears linked; continuing."
+      tail -50 /tmp/oct-install.log || true
+    else
+      echo "openclaw plugin install failed. Log:"
+      tail -200 /tmp/oct-install.log || true
+      exit 1
+    fi
   }
 else
   export OCT_CAN_START_GATEWAY=0

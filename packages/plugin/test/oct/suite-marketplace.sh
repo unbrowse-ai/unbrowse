@@ -37,7 +37,7 @@ assert "Skill directory created" "$([ -n "$SERVICE" ] && [ -d "$TMP_SKILLS/$SERV
 
 phase "Publish Skill (unbrowse_publish)"
 assert_tool_ok "unbrowse_publish ok" "unbrowse_publish" "{\"service\":\"${SERVICE}\",\"skillsDir\":\"${TMP_SKILLS}\",\"price\":\"0\"}" "oct" 60
-assert_tool_text_contains "Publish prints ID" "^ID: "
+assert_tool_text_contains "Publish prints ID" "ID: "
 SKILL_ID="$(echo "$LAST_TOOL_TEXT" | awk -F': ' '/^ID: /{print $2}' | head -n1)"
 assert "Parsed published skill ID" "$([ -n "$SKILL_ID" ] && echo true || echo false)"
 
