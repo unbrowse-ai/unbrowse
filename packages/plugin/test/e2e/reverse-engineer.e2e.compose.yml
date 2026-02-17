@@ -31,11 +31,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: "4111"
-      # The host-mapped port is 4112 (see ports below). Keep Better Auth aligned with host URL.
-      BETTER_AUTH_URL: http://localhost:4112
+      # Keep Better Auth aligned with the host URL (default host port is 4113).
+      BETTER_AUTH_URL: http://localhost:${E2E_BACKEND_HOST_PORT:-4113}
       VECTOR_DB_KEEPALIVE_MINUTES: "0"
     ports:
-      - "4112:4111"
+      - "${E2E_BACKEND_HOST_PORT:-4113}:4111"
     depends_on:
       postgres:
         condition: service_healthy

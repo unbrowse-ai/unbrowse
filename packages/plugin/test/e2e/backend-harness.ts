@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +12,6 @@ export type StartedBackend = {
 
 const E2E_PROJECT_NAME = "unbrowse-openclaw-e2e";
 const E2E_COMPOSE_FILE = fileURLToPath(new URL("./reverse-engineer.e2e.compose.yml", import.meta.url));
-const DEFAULT_BASE_URL = "http://127.0.0.1:4112";
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 function looksLikeReverseEngineerRepo(dir: string): boolean {
@@ -106,12 +105,44 @@ async function tryMarketplaceReady(baseUrl: string): Promise<boolean> {
   }
 }
 
+function resolveDesiredHostPort(): string {
+  // Prefer 4113, but avoid colliding with any unrelated local stack already bound there.
+  // If 4113 is occupied by a non-e2e container, use 4114.
+  const preferred = process.env.E2E_BACKEND_HOST_PORT || "4113";
+  const occupiedByOther = (() => {
+    try {
+      const out = spawnSyncText("docker", ["ps", "--format", "{{.Names}} {{.Ports}}"]);
+      const line = out
+        .split("\n")
+        .find((l) => l.includes(`:${preferred}->`) || l.includes(`[::]:${preferred}->`));
+      if (!line) return false;
+      const name = line.trim().split(/\s+/, 1)[0] || "";
+      return name.length > 0 && !name.startsWith(`${E2E_PROJECT_NAME}-`);
+    } catch {
+      return false;
+    }
+  })();
+
+  if (preferred === "4113" && occupiedByOther) return "4114";
+  return preferred;
+}
+
+function spawnSyncText(cmd: string, args: string[]): string {
+  // Used only for quick docker-ownership checks. Keep it tiny + resilient.
+  const out = spawnSync(cmd, args, { encoding: "utf-8" });
+  return String(out.stdout || "");
+}
+
 async function startBackendDockerCompose(backendPath: string): Promise<void> {
   // Run a dedicated, isolated stack for tests (separate containers/volume and a non-default port).
   // `--build` is important: backend changes are frequent and we want tests to reflect reality.
   const composeDir = dirname(E2E_COMPOSE_FILE);
 
-  const dockerEnv: NodeJS.ProcessEnv = { E2E_BACKEND_PATH: backendPath };
+  const dockerEnv: NodeJS.ProcessEnv = {
+    E2E_BACKEND_PATH: backendPath,
+    // Prefer a non-default port so local dev/staging stacks on :4112 don't interfere.
+    E2E_BACKEND_HOST_PORT: resolveDesiredHostPort(),
+  };
 
   // Ensure a clean DB (and ensure postgres init scripts run) when we have to start the stack.
   // This avoids partial-schema states where later migrations never ran.
@@ -127,11 +158,12 @@ async function startBackendDockerCompose(backendPath: string): Promise<void> {
   }
 
   await run("docker", ["compose", "-f", E2E_COMPOSE_FILE, "-p", E2E_PROJECT_NAME, "up", "-d", "--build"], composeDir, dockerEnv);
-  await waitForOk(`${DEFAULT_BASE_URL}/health`, 180_000);
+  const baseUrl = `http://127.0.0.1:${dockerEnv.E2E_BACKEND_HOST_PORT}`;
+  await waitForOk(`${baseUrl}/health`, 180_000);
 }
 
 async function startBackendPnpmDev(backendPath: string): Promise<{ child: ReturnType<typeof spawn>; baseUrl: string }> {
-  const port = 4112;
+  const port = Number(resolveDesiredHostPort());
   if (!existsSync(join(backendPath, ".env"))) {
     throw new Error(`Backend .env not found at ${join(backendPath, ".env")}. Create it or use E2E_BACKEND_START=docker.`);
   }
@@ -157,6 +189,7 @@ async function startBackendPnpmDev(backendPath: string): Promise<{ child: Return
  * - E2E_BACKEND_PATH: path to reverse-engineer repo (optional: auto-discovered for Codex worktrees)
  * - E2E_BACKEND_START: "docker" (default) | "pnpm" | "none"
  * - E2E_BACKEND_TEARDOWN: "down" to `docker compose down` on close (only if we started it)
+ * - E2E_BACKEND_HOST_PORT: host port for the backend (docker/pnpm). Default: 4113
  */
 export async function startRealBackend(): Promise<StartedBackend> {
   const baseUrlFromEnv = process.env.E2E_REAL_BACKEND_URL?.replace(/\/$/, "");
@@ -165,7 +198,8 @@ export async function startRealBackend(): Promise<StartedBackend> {
     return { baseUrl: baseUrlFromEnv, close: async () => {} };
   }
 
-  const baseUrl = DEFAULT_BASE_URL;
+  const hostPort = resolveDesiredHostPort();
+  const baseUrl = `http://127.0.0.1:${hostPort}`;
   const startMode = (process.env.E2E_BACKEND_START ?? "docker").toLowerCase();
   if ((await tryHealthy(baseUrl)) && (await tryMarketplaceReady(baseUrl))) {
     return { baseUrl, close: async () => {} };

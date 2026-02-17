@@ -48,7 +48,16 @@ assert_tool_ok() {
   LAST_TOOL_TEXT=$(tool_text "$LAST_TOOL_RESPONSE")
   LAST_TOOL_ERROR=$(tool_error "$LAST_TOOL_RESPONSE")
 
-  assert "$desc" "$([ "$LAST_TOOL_OK" = "true" ] && echo true || echo false)"
+  if [ "$LAST_TOOL_OK" != "true" ]; then
+    _oct_print "    tool error: ${LAST_TOOL_ERROR}"
+    if [ -n "${OCT_VERBOSE:-}" ]; then
+      echo "$LAST_TOOL_RESPONSE" | sed 's/^/    /'
+    fi
+    assert "$desc" "false"
+    return 1
+  fi
+
+  assert "$desc" "true"
   if [ -n "${OCT_VERBOSE:-}" ]; then
     echo "$LAST_TOOL_RESPONSE" | sed 's/^/    /'
   fi
@@ -59,4 +68,3 @@ assert_tool_text_contains() {
   local needle="$2"
   assert_contains "$desc" "$LAST_TOOL_TEXT" "$needle"
 }
-
