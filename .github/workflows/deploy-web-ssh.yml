@@ -51,6 +51,8 @@ jobs:
       DEPLOY_JUMP_PORT: ${{ secrets.DEPLOY_JUMP_PORT || '22' }}
       # Vite compile-time env (set per GitHub Environment: staging/production).
       VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+      # Optional: enable tailnet connectivity for private deploy targets.
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,10 +70,10 @@ jobs:
       # `TAILSCALE_AUTHKEY` as an Environment secret to allow GitHub-hosted runners
       # to reach `DEPLOY_HOST` over Tailscale.
       - name: Setup Tailscale (optional)
-        if: ${{ secrets.TAILSCALE_AUTHKEY != '' }}
+        if: ${{ env.TAILSCALE_AUTHKEY != '' }}
         uses: tailscale/github-action@v3
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          authkey: ${{ env.TAILSCALE_AUTHKEY }}
 
       - name: Build web image
         id: image
