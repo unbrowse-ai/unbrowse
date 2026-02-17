@@ -5,7 +5,8 @@ PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_ROOT="$(cd "${PLUGIN_ROOT}/../.." && pwd)"
 IMAGE_TAG="${OCT_DOCKER_IMAGE:-unbrowse-openclaw-oct:local}"
 
-# Ensure the real backend is up on the host (used by the gateway inside the container).
+# Ensure a backend is up on the host (used by the gateway inside the container).
+# Default prefers :4112 (legacy E2E), but falls back to :4113 if :4112 is occupied by local dev.
 BACKEND_PATH="${E2E_BACKEND_PATH:-}"
 if [ -z "${BACKEND_PATH}" ]; then
   BACKEND_PATH="$(REPO_ROOT="${REPO_ROOT}" node --input-type=module - <<'NODE' || true
@@ -47,7 +48,26 @@ process.stdout.write(candidates[0].p);
 NODE
 )"
 fi
+
+# Resolve backend url: explicit override, otherwise prefer the dedicated E2E backend on :4112
+# (only if that port is free or owned by the E2E compose project). If :4112 is occupied by
+# some other dev stack, prefer :4113 (which this repo commonly uses).
 BACKEND_URL="${E2E_REAL_BACKEND_URL:-http://127.0.0.1:4112}"
+if [ -z "${E2E_REAL_BACKEND_URL:-}" ]; then
+  # If :4112 is already bound by a non-E2E container, don't try to use it.
+  # This avoids accidentally running OCT against a staging/dev backend with stricter gates.
+  owner_4112="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | awk '/:4112->/{print $1; exit}')"
+  if [ -n "${owner_4112:-}" ] && [[ "${owner_4112}" != unbrowse-openclaw-e2e* ]]; then
+    BACKEND_URL="http://127.0.0.1:4113"
+  fi
+fi
+if ! curl -sf "${BACKEND_URL}/health" --max-time 2 >/dev/null 2>&1; then
+  FALLBACK_URL="http://127.0.0.1:4113"
+  if curl -sf "${FALLBACK_URL}/health" --max-time 2 >/dev/null 2>&1; then
+    BACKEND_URL="${FALLBACK_URL}"
+  fi
+fi
+
 if ! curl -sf "${BACKEND_URL}/health" --max-time 2 >/dev/null 2>&1; then
   if [ -z "${BACKEND_PATH}" ]; then
     echo "[oct] reverse-engineer backend repo not found. Set E2E_BACKEND_PATH=/path/to/reverse-engineer."
@@ -74,15 +94,20 @@ fi
 
 DOCKERFILE="${PLUGIN_ROOT}/test/oct/docker/Dockerfile"
 docker build --platform "${OCT_DOCKER_PLATFORM:-linux/amd64}" -t "${IMAGE_TAG}" -f "${DOCKERFILE}" "${REPO_ROOT}"
+
+# Map host url to container url.
+BACKEND_PORT="$(echo "${BACKEND_URL}" | sed -n 's#.*:\\([0-9][0-9]*\\).*#\\1#p')"
+[ -z "${BACKEND_PORT:-}" ] && BACKEND_PORT="4112"
+CONTAINER_INDEX_URL="http://host.docker.internal:${BACKEND_PORT}"
 if [ -n "${OCT_VERBOSE:-}" ]; then
   docker run --rm --platform "${OCT_DOCKER_PLATFORM:-linux/amd64}" \
     --add-host=host.docker.internal:host-gateway \
-    -e "UNBROWSE_INDEX_URL=${UNBROWSE_INDEX_URL:-http://host.docker.internal:4112}" \
+    -e "UNBROWSE_INDEX_URL=${UNBROWSE_INDEX_URL:-${CONTAINER_INDEX_URL}}" \
     -e "OCT_VERBOSE=${OCT_VERBOSE}" \
     "${IMAGE_TAG}"
 else
   docker run --rm --platform "${OCT_DOCKER_PLATFORM:-linux/amd64}" \
     --add-host=host.docker.internal:host-gateway \
-    -e "UNBROWSE_INDEX_URL=${UNBROWSE_INDEX_URL:-http://host.docker.internal:4112}" \
+    -e "UNBROWSE_INDEX_URL=${UNBROWSE_INDEX_URL:-${CONTAINER_INDEX_URL}}" \
     "${IMAGE_TAG}"
 fi
