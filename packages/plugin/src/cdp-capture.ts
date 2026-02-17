@@ -2,8 +2,8 @@
  * CDP Capture — Live network capture via OpenClaw's browser control API.
  *
  * Uses the browser control HTTP server (port 18791) which wraps Playwright's
- * network capture. Works with both `clawd` (managed Playwright) and `chrome`
- * (extension relay) profiles — no Chrome extension required for `clawd`.
+ * network capture. Works with both `openclaw` (managed Playwright) and `chrome`
+ * (extension relay) profiles — no Chrome extension required for `openclaw`.
  *
  * Browser control API (port 18791):
  *   GET  /requests              — captured network requests (max 500)
@@ -367,7 +367,7 @@ export function getCachedResponseHeaders(url: string): Record<string, string> | 
  * and convert to HAR format for the parser pipeline.
  *
  * Requires a browser session started via OpenClaw's browser tool
- * (e.g., `browser action=start profile=clawd targetUrl=...`).
+ * (e.g., `browser action=start profile=openclaw targetUrl=...`).
  *
  * If headers are missing from the /requests endpoint, tries to
  * enrich them from the CDP header cache.

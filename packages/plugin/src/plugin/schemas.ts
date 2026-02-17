@@ -96,25 +96,25 @@ export const REPLAY_SCHEMA = {
       type: "string" as const,
       enum: ["browser", "node", "backend"],
       description:
-        "Execution mode. browser/node = direct call (existing behavior). backend = call marketplace backend executor " +
-        "to capture traces for LAM training (requires published skill + wallet).",
+        "Execution mode. browser/node = direct call. backend = marketplace execution-gate + client browser execute " +
+        "(backend authorizes, browser sends request; requires published skill).",
     },
     traceId: {
       type: "string" as const,
-      description: "Optional traceId to group multiple endpoint calls into one sequence (backend mode).",
+      description: "Optional traceId to group multiple endpoint calls into one sequence (backend-gated mode).",
     },
     intent: {
       type: "string" as const,
-      description: "Optional natural-language intent for this trace (backend mode). Stored in trace metadata.",
+      description: "Optional natural-language intent for this trace (backend-gated mode). Stored in trace metadata.",
     },
     storeTrace: {
       type: "boolean" as const,
-      description: "Whether to store workflow trace steps for LAM fine-tuning (backend mode, default: true).",
+      description: "Whether to store workflow trace steps for LAM fine-tuning (backend-gated mode, default: true).",
     },
     storeRaw: {
       type: "boolean" as const,
       description:
-        "Whether to store raw request/response payloads. Backend mode stores raw payloads in the index (default: false). " +
+        "Whether to store raw request/response payloads. Backend-gated mode includes output summaries in receipts (default: false). " +
         "Local (browser/node) mode saves the full response body to disk under <skillDir>/replays/.",
     },
     maxResponseChars: {
@@ -132,11 +132,11 @@ export const REPLAY_SCHEMA = {
     },
     autoChain: {
       type: "boolean" as const,
-      description: "Auto-chain parentStepId to previous step in the same trace (backend mode, default: true).",
+      description: "Auto-chain parentStepId to previous step in the same trace (backend-gated mode, default: true).",
     },
     skillId: {
       type: "string" as const,
-      description: "Marketplace skillId override (backend mode). If omitted, uses skillDir/marketplace.json.",
+      description: "Marketplace skillId override (backend-gated mode). If omitted, uses skillDir/marketplace.json.",
     },
     skillsDir: {
       type: "string" as const,

@@ -149,7 +149,15 @@ const plugin = {
       return title.includes("doctor") || title.includes("audit");
     })();
 
-    const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
+    const isDevProfile = process.argv.some((a) => a === "--dev" || a.startsWith("--dev="));
+    const defaultSkillsDir = isDevProfile
+      ? join(homedir(), ".openclaw-dev", "skills")
+      : join(homedir(), ".openclaw", "skills");
+    const envSkillsDir =
+      getEnv("UNBROWSE_SKILLS_DIR") ??
+      getEnv("OPENCLAW_SKILLS_DIR") ??
+      getEnv("OCT_SKILLS_DIR");
+    const defaultOutputDir = (cfg.skillsOutputDir as string) ?? envSkillsDir ?? defaultSkillsDir;
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
     const enableAgentContextHints = (cfg.enableAgentContextHints as boolean) ?? false;
@@ -615,7 +623,10 @@ const plugin = {
       const lines: string[] = [
         "[Internal API Access] Reverse-engineer and call internal APIs from any website.",
         "",
-        "Workflow: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_replay (call).",
+        "Keyword: if the user says 'unbrowse ...', treat it as an instruction to use the Unbrowse workflow.",
+        "Workflow (auto): local skill → marketplace install → learn-on-the-fly capture → publish (optional) → execute in the client browser.",
+        "Primary entrypoint: unbrowse_browse skillMode=\"auto\" (marketplace-first + learn fallback).",
+        "Manual: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_publish (share) → unbrowse_replay (call).",
         "For authenticated sites, use unbrowse_login first. Use unbrowse_do for guidance.",
         "",
         "Tip: prefer unbrowse_browse for website automation (avoids brittle browser-tool ref errors).",
