@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "${PLUGIN_ROOT}/../.." && pwd)"
 IMAGE_TAG="${OCT_DOCKER_IMAGE:-unbrowse-openclaw-oct:local}"
 
 # Ensure the real backend is up on the host (used by the gateway inside the container).
@@ -57,7 +58,7 @@ if ! curl -sf "${BACKEND_URL}/health" --max-time 2 >/dev/null 2>&1; then
     echo "[oct] backend path not found: ${BACKEND_PATH}"
     exit 1
   fi
-  E2E_COMPOSE_FILE="${REPO_ROOT}/test/e2e/reverse-engineer.e2e.compose.yml"
+  E2E_COMPOSE_FILE="${PLUGIN_ROOT}/test/e2e/reverse-engineer.e2e.compose.yml"
   E2E_PROJECT_NAME="unbrowse-openclaw-e2e"
   E2E_BACKEND_PATH="${BACKEND_PATH}" docker compose -f "${E2E_COMPOSE_FILE}" -p "${E2E_PROJECT_NAME}" up -d --build
   for i in {1..120}; do
@@ -71,9 +72,17 @@ if ! curl -sf "${BACKEND_URL}/health" --max-time 2 >/dev/null 2>&1; then
   done
 fi
 
-DOCKERFILE="${REPO_ROOT}/test/oct/docker/Dockerfile"
+DOCKERFILE="${PLUGIN_ROOT}/test/oct/docker/Dockerfile"
 docker build --platform "${OCT_DOCKER_PLATFORM:-linux/amd64}" -t "${IMAGE_TAG}" -f "${DOCKERFILE}" "${REPO_ROOT}"
-docker run --rm --platform "${OCT_DOCKER_PLATFORM:-linux/amd64}" \
-  --add-host=host.docker.internal:host-gateway \
-  -e "UNBROWSE_INDEX_URL=${UNBROWSE_INDEX_URL:-http://host.docker.internal:4112}" \
-  "${IMAGE_TAG}"
+if [ -n "${OCT_VERBOSE:-}" ]; then
+  docker run --rm --platform "${OCT_DOCKER_PLATFORM:-linux/amd64}" \
+    --add-host=host.docker.internal:host-gateway \
+    -e "UNBROWSE_INDEX_URL=${UNBROWSE_INDEX_URL:-http://host.docker.internal:4112}" \
+    -e "OCT_VERBOSE=${OCT_VERBOSE}" \
+    "${IMAGE_TAG}"
+else
+  docker run --rm --platform "${OCT_DOCKER_PLATFORM:-linux/amd64}" \
+    --add-host=host.docker.internal:host-gateway \
+    -e "UNBROWSE_INDEX_URL=${UNBROWSE_INDEX_URL:-http://host.docker.internal:4112}" \
+    "${IMAGE_TAG}"
+fi
