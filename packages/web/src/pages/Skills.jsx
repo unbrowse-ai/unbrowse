@@ -104,12 +104,31 @@ export default function Skills() {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const loaderRef = useRef(null);
+  const searchDebounceRef = useRef(null);
+  const didMountRef = useRef(false);
+  const listRequestSeqRef = useRef(0);
   const LIMIT = 50;
-  const MAX_SKILLS = 100; // Cap infinite scroll so users can reach footer
 
   useEffect(() => {
     loadMarketplaceSkills();
   }, []);
+
+  // Debounced server-side search (avoid filtering only the first N skills on the client).
+  useEffect(() => {
+    // Initial fetch handled by mount effect.
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      loadMarketplaceSkills(search, true);
+    }, 250);
+
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [search]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -130,6 +149,7 @@ export default function Skills() {
   }, [hasMore, loadingMore, loading, offset, search]);
 
   const loadMarketplaceSkills = async (query = '', reset = true) => {
+    const requestSeq = ++listRequestSeqRef.current;
     if (reset) {
       setLoading(true);
       setOffset(0);
@@ -143,13 +163,14 @@ export default function Skills() {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
+        if (requestSeq !== listRequestSeqRef.current) return;
         const skillsList = data.skills || [];
         setSkills(skillsList);
         setOffset(LIMIT);
         setHasMore(skillsList.length === LIMIT);
 
-        // Use real stats from API (returned on first page)
-        if (data.total !== undefined) {
+        // Keep the global stats strip stable; only update on unfiltered browse.
+        if (!query.trim() && data.total !== undefined) {
           setStats({
             total: data.total,
             services: data.totalServices || 0,
@@ -167,14 +188,10 @@ export default function Skills() {
   const loadMoreSkills = async () => {
     if (loadingMore || !hasMore) return;
 
-    // Cap at MAX_SKILLS so users can reach footer (they can search for more)
-    if (skills.length >= MAX_SKILLS) {
-      setHasMore(false);
-      return;
-    }
-
     setLoadingMore(true);
     try {
+      const requestSeq = listRequestSeqRef.current;
+      const queryAtCall = search.trim();
       const url = search.trim()
         ? apiUrl(`/marketplace/skills?q=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}`)
         : apiUrl(`/marketplace/skills?limit=${LIMIT}&offset=${offset}`);
@@ -182,21 +199,19 @@ export default function Skills() {
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
+        if (requestSeq !== listRequestSeqRef.current) return;
+        if (queryAtCall !== search.trim()) return;
         const newSkills = data.skills || [];
 
         if (newSkills.length > 0) {
           setSkills(prev => {
             const updated = [...prev, ...newSkills];
-            // Stop if we've reached the cap
-            if (updated.length >= MAX_SKILLS) {
-              setHasMore(false);
-            }
             return updated;
           });
           setOffset(prev => prev + LIMIT);
         }
 
-        // Only continue if we got a full page AND haven't hit the cap
+        // Only continue if we got a full page.
         if (newSkills.length < LIMIT) {
           setHasMore(false);
         }
@@ -216,16 +231,6 @@ export default function Skills() {
   };
 
   const filteredSkills = skills.filter(skill => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      skill.name?.toLowerCase().includes(q) ||
-      skill.description?.toLowerCase().includes(q) ||
-      skill.domain?.toLowerCase().includes(q) ||
-      skill.serviceName?.toLowerCase().includes(q) ||
-      skill.category?.toLowerCase().includes(q)
-    );
-  }).filter(skill => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'free') return parseFloat(skill.priceUsdc || '0') === 0;
     if (activeFilter === 'paid') return parseFloat(skill.priceUsdc || '0') > 0;
@@ -646,9 +651,7 @@ export default function Skills() {
               )}
               {!hasMore && skills.length > 0 && (
                 <span className="ub-end-message">
-                  {skills.length >= MAX_SKILLS
-                    ? `Showing ${skills.length} skills — use search to find more`
-                    : `All ${skills.length} skills loaded`}
+                  All {skills.length} skills loaded
                 </span>
               )}
             </div>

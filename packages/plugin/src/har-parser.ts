@@ -410,6 +410,8 @@ export class TrafficFilter {
     "ad.doubleclick.net",
     // CDN / static assets (third-party)
     "bootstrapcdn.com", "maxcdn.bootstrapcdn.com",
+    // Observability / log aggregation
+    "splunkcloud.com", "sumologic.com", "logz.io",
   ];
 
   /** Path prefixes to skip (infra noise on any domain). */
@@ -417,6 +419,68 @@ export class TrafficFilter {
     "/cdn-cgi/", "/_next/data/", "/__nextjs", "/sockjs-node/",
     "/favicon", "/manifest.json", "/robots.txt", "/sitemap",
     "/piwik.php", "/piwik.js", "/matomo.php", "/matomo.js",
+  ];
+
+  /**
+   * Domain patterns that indicate telemetry/metrics infrastructure.
+   * Matched against subdomains — avoids blocking the root domain
+   * (e.g., won't block amazon.com when capturing it directly).
+   */
+  private static readonly TELEMETRY_DOMAIN_PATTERNS = [
+    /^fls[-.]/, /^unagi\./, /^device-metrics/, /^completion\./,
+    /^rum[-.]/, /^beacon[-.]/, /^metrics[-.]/, /^telemetry[-.]/, /^logging[-.]/, /^collector[-.]/, /^events[-.]/, /^pixel[-.]/, /^tracking[-.]/, /^report[-.]/, /^crash[-.]/, /^perf[-.]/, /^diagnostics[-.]/, /^health[-.]check/,
+    /reporting\b/,  // W3 Reporting API subdomains (e.g., w3-reporting.reddit.com)
+  ];
+
+  /**
+   * Path patterns that indicate telemetry/metrics/RUM traffic.
+   * Checked against the URL pathname.
+   */
+  /**
+   * Telemetry keyword stems. A path segment (split on `/` and lowercased)
+   * is considered telemetry if it contains any of these stems.
+   * Using stems instead of exact matches generalizes across vendors —
+   * catches "trackobserve", "eventTracking", "sensorCollect", etc.
+   */
+  private static readonly TELEMETRY_STEMS = [
+    "track",        // tracking, trackobserve, trackaction, etc.
+    "metric",       // metrics, reportMetrics
+    "beacon",       // beacon endpoints
+    "collect",      // collect, sensorcollect, collector
+    "telemetry",    // telemetry
+    "impression",   // impression, impressionevents
+    "logging",      // logging, eventlogging
+    "analytics",    // analytics
+    "diagnos",      // diagnostics
+    "pageview",     // pageview tracking (Instacart, Branch.io)
+    "ingest",       // data ingestion endpoints (rise/ingest, etc.)
+    "pixel",        // tracking pixels (pixelurls, pixel.gif, etc.)
+    "csm",          // client-side metrics (Amazon CSM, eBay gadget_csm)
+  ];
+
+  /** Path segments that are always telemetry (exact match after lowercasing). */
+  private static readonly TELEMETRY_EXACT_SEGMENTS = new Set([
+    "rum", "beacon", "track", "error", "generate_204",
+    "log_event", "uedata", "rgstr",
+    "events",       // /events — first-party analytics (Instacart, etc.)
+    "visits",       // /ahoy/visits — visit tracking
+    "ahoy",         // Ahoy analytics gem (Instacart, Shopify, etc.)
+    "jsdata",       // client-side metrics (eBay)
+    "sodar",        // Google Open Measurement SDK (SODAR)
+    "roverimp",     // eBay ad impression tracking
+  ]);
+
+  /**
+   * Structural path patterns for telemetry that can't be caught by keywords
+   * (e.g., Amazon CSM batched telemetry with numeric + op-code structure).
+   */
+  private static readonly TELEMETRY_STRUCTURAL_PATTERNS: RegExp[] = [
+    /\/\d+\/batch\/\d+\/O[EP]\//i,       // Amazon CSM batched telemetry
+    /\/\d+\/events\/com\.\w+\.\w+/,      // Amazon CSM event namespaces
+    /^\/[a-z]$/i,                         // Single-letter paths (/p, /b) — almost always tracking beacons
+    /^\/v\d+\/b$/i,                       // Batch tracking endpoints (/v2/b, /v1/b)
+    /\/ads?\//i,                          // Ad-related paths (/ads/, /ad/)
+    /\/v\d+\/open$/i,                     // Branch.io session open (/v1/open)
   ];
 
   /** Standard browser headers that are NOT custom API auth. */
@@ -446,7 +510,35 @@ export class TrafficFilter {
   }
 
   isSkippedDomain(domain: string): boolean {
-    return TrafficFilter.SKIP_DOMAINS.some(skip => domain.includes(skip));
+    if (TrafficFilter.SKIP_DOMAINS.some(skip => domain.includes(skip))) return true;
+    // Check telemetry subdomain patterns (e.g., fls-na.amazon.com, metrics.example.com)
+    const subdomain = domain.split(".").slice(0, -2).join(".");
+    if (subdomain && TrafficFilter.TELEMETRY_DOMAIN_PATTERNS.some(pat => pat.test(subdomain))) return true;
+    return false;
+  }
+
+  /**
+   * Check if a URL path looks like telemetry/metrics/RUM traffic.
+   * Uses a stem-based approach: splits the path into segments, lowercases them,
+   * and checks for telemetry keyword stems. This generalizes across vendors
+   * without hardcoding specific endpoint names.
+   */
+  isTelemetryPath(pathname: string): boolean {
+    const lc = pathname.toLowerCase();
+
+    // Structural patterns first (vendor-specific formats that need regex)
+    if (TrafficFilter.TELEMETRY_STRUCTURAL_PATTERNS.some(pat => pat.test(lc))) return true;
+
+    // Split into segments and check each against telemetry keywords
+    const segments = lc.split("/").filter(s => s.length > 0);
+    for (const seg of segments) {
+      // Exact segment matches
+      if (TrafficFilter.TELEMETRY_EXACT_SEGMENTS.has(seg)) return true;
+      // Stem-based: does any telemetry stem appear as a substring?
+      if (TrafficFilter.TELEMETRY_STEMS.some(stem => seg.includes(stem))) return true;
+    }
+
+    return false;
   }
 
   isHtmlContentType(contentType: string): boolean {
@@ -602,6 +694,9 @@ export class HarParser {
       const responseStatus = entry.response?.status ?? 0;
       const responseContentType = this.domainDetector.getResponseContentType(entry);
 
+      // Skip inline data/blob URIs (not real network requests)
+      if (url.startsWith("data:") || url.startsWith("blob:")) continue;
+
       // Skip static assets
       try {
         if (this.trafficFilter.isStaticAsset(url)) continue;
@@ -620,6 +715,12 @@ export class HarParser {
 
       // Skip third-party
       if (this.trafficFilter.isSkippedDomain(domain)) continue;
+
+      // Skip CORS preflight requests — they aren't real API calls
+      if (method === "OPTIONS") continue;
+
+      // Skip telemetry/RUM/metrics paths (on any domain)
+      if (this.trafficFilter.isTelemetryPath(parsed.pathname)) continue;
 
       // Skip HTML page navigations
       if (method === "GET" && responseContentType && this.trafficFilter.isHtmlContentType(responseContentType)) {
@@ -684,14 +785,27 @@ export class HarParser {
         }
       }
 
+      // ── GraphQL operation extraction ──────────────────────────────
+      // For GraphQL endpoints, extract operationName to distinguish
+      // different operations that share the same path (e.g., POST /graphql).
+      // Appends #OperationName to the path so each operation gets its own endpoint.
+      let effectivePath = parsed.pathname;
+      const isGraphqlPath = this.looksLikeGraphql(parsed.pathname, entry);
+      if (isGraphqlPath) {
+        const opName = this.extractGraphqlOperationName(entry);
+        if (opName) {
+          effectivePath = `${parsed.pathname}#${opName}`;
+        }
+      }
+
       // Normalize path
-      const { normalizedPath, pathParams } = this.routeNormalizer.normalizePath(parsed.pathname);
+      const { normalizedPath, pathParams } = this.routeNormalizer.normalizePath(effectivePath);
       const queryKeys = Array.from(new Set((entry.request.queryString ?? []).map((q) => q.name))).sort();
 
       requests.push({
         method,
         url,
-        path: parsed.pathname,
+        path: effectivePath,
         domain,
         status: responseStatus,
         responseContentType,
@@ -798,6 +912,85 @@ export class HarParser {
       endpoints: this.groupByDomainAndPath(requests),
       headerProfile: buildHeaderProfiles(har.log.entries ?? [], targetDomains),
     };
+  }
+
+  /** Known GraphQL path patterns. */
+  private static readonly GRAPHQL_PATH_PATTERNS = [
+    /\/graphql\b/i,       // Standard: /graphql, /_/graphql, /api/graphql
+    /\/gql\b/i,           // Twitch: /gql
+    /\/query\b/i,         // Spotify pathfinder: /pathfinder/v2/query
+  ];
+
+  /**
+   * Detect if a request is a GraphQL endpoint by path pattern + body heuristic.
+   * Path match alone is sufficient for /graphql and /gql.
+   * For the generic /query pattern, also require a GraphQL-like body.
+   */
+  private looksLikeGraphql(pathname: string, entry: HarEntry): boolean {
+    const lastSegment = pathname.split("/").pop() || "";
+    // Strong match: path ends with /graphql or /gql
+    if (/^graphql$/i.test(lastSegment) || /^gql$/i.test(lastSegment)) return true;
+    // Also match if /graphql appears anywhere in the path (e.g., /api/global-footer/graphql)
+    if (/\/graphql\b/i.test(pathname)) return true;
+
+    // Weak match: /query — require body evidence (operationName or extensions.persistedQuery)
+    if (/^query$/i.test(lastSegment)) {
+      const bodyText = entry.request.postData?.text;
+      if (bodyText) {
+        try {
+          const body = JSON.parse(bodyText);
+          if (body.operationName || body.extensions?.persistedQuery) return true;
+        } catch { /* not JSON */ }
+      }
+      // Check URL params
+      try {
+        const url = new URL(entry.request.url);
+        if (url.searchParams.has("operationName")) return true;
+      } catch { /* invalid URL */ }
+    }
+
+    return false;
+  }
+
+  /**
+   * Extract the GraphQL operation name from a HAR entry.
+   * Checks both query string params (GET persisted queries) and POST body JSON.
+   */
+  private extractGraphqlOperationName(entry: HarEntry): string | undefined {
+    // 1. Check HAR queryString array
+    for (const qs of entry.request.queryString ?? []) {
+      if (qs.name === "operationName" && qs.value) {
+        return qs.value;
+      }
+    }
+
+    // 2. Parse URL query params directly (CDP captures often omit queryString array)
+    try {
+      const url = new URL(entry.request.url);
+      const opFromUrl = url.searchParams.get("operationName");
+      if (opFromUrl) return opFromUrl;
+    } catch {
+      // Invalid URL — skip
+    }
+
+    // 3. Check POST body JSON
+    const bodyText = entry.request.postData?.text;
+    if (bodyText) {
+      try {
+        const body = JSON.parse(bodyText);
+        if (typeof body.operationName === "string" && body.operationName) {
+          return body.operationName;
+        }
+        // Batched GraphQL: array of operations — use first operation name
+        if (Array.isArray(body) && body.length > 0 && typeof body[0].operationName === "string") {
+          return body[0].operationName;
+        }
+      } catch {
+        // Not valid JSON — skip
+      }
+    }
+
+    return undefined;
   }
 
   /** Group requests by domain:path. */
@@ -1044,7 +1237,9 @@ function crossRequestGeneralize(
       const uniqueValues = new Set(segmentArrays.map(segs => segs[pos]));
       // Only consider positions that aren't already parameterized
       const allAlreadyParam = segmentArrays.every(segs => segs[pos]?.startsWith("{"));
-      if (uniqueValues.size > 1 && !allAlreadyParam) {
+      // Never parameterize GraphQL operation fragments (e.g., graphql#QueryName)
+      const hasOpFragment = segmentArrays.some(segs => segs[pos]?.includes("#"));
+      if (uniqueValues.size > 1 && !allAlreadyParam && !hasOpFragment) {
         varyingPositions.push(pos);
       }
     }
