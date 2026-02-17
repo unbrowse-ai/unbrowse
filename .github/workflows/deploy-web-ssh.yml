@@ -49,6 +49,8 @@ jobs:
       DEPLOY_JUMP_HOST: ${{ secrets.DEPLOY_JUMP_HOST }}
       DEPLOY_JUMP_USER: ${{ secrets.DEPLOY_JUMP_USER }}
       DEPLOY_JUMP_PORT: ${{ secrets.DEPLOY_JUMP_PORT || '22' }}
+      # Vite compile-time env (set per GitHub Environment: staging/production).
+      VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,7 +70,11 @@ jobs:
           set -euo pipefail
           IMAGE_TAG="${GITHUB_SHA::12}"
           IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
-          docker build -f packages/web/Dockerfile -t "${IMAGE_REF}" packages/web
+          docker build \
+            --build-arg "VITE_API_BASE=${VITE_API_BASE:-}" \
+            -f packages/web/Dockerfile \
+            -t "${IMAGE_REF}" \
+            packages/web
           docker save "${IMAGE_REF}" | gzip > web-image.tgz
           echo "image_ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
 
@@ -139,6 +145,34 @@ jobs:
           fi
 
           docker run "${run_args[@]}" "${IMAGE_REF}"
+
+          # Gate the deploy on the container becoming healthy.
+          # HEALTHCHECK is defined in packages/web/Dockerfile.
+          if docker inspect "${DEPLOY_CONTAINER}" >/dev/null 2>&1; then
+            for i in $(seq 1 30); do
+              health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${DEPLOY_CONTAINER}" 2>/dev/null || true)"
+              if [ "${health}" = "healthy" ] || [ "${health}" = "running" ]; then
+                break
+              fi
+              sleep 2
+            done
+            health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${DEPLOY_CONTAINER}" 2>/dev/null || true)"
+            if [ "${health}" != "healthy" ] && [ "${health}" != "running" ]; then
+              echo "Container did not become healthy (status=${health})"
+              docker logs --tail=200 "${DEPLOY_CONTAINER}" || true
+              exit 1
+            fi
+          fi
+
+          # Extra check when publishing a host port: verify nginx serves HTML on localhost.
+          if [ "${DEPLOY_ROUTE_MODE}" != "network" ]; then
+            wget -q -O /dev/null "http://127.0.0.1:${DEPLOY_PUBLIC_PORT}/" || {
+              echo "HTTP check failed on 127.0.0.1:${DEPLOY_PUBLIC_PORT}"
+              docker logs --tail=200 "${DEPLOY_CONTAINER}" || true
+              exit 1
+            }
+          fi
+
           rm -f web-image.tgz
           docker image prune -f >/dev/null 2>&1 || true
           EOF
