@@ -147,7 +147,16 @@ export class RouteNormalizer {
     if (PARAM_PATTERNS.numeric.test(segment)) return "integer";
     if (PARAM_PATTERNS.hex.test(segment) && segment.length >= 8) return "hex";
     if (PARAM_PATTERNS.slug.test(segment) && segment.length >= 8) return "slug";
-    if (PARAM_PATTERNS.base64.test(segment) && segment.length >= 16) return "base64";
+    // Base64 detection guardrail: avoid treating long pure-letter segments
+    // (e.g., GraphQL operation names like AutoSuggestionsQuery) as base64.
+    // Require at least one of "+", "/", "=", or a digit.
+    if (
+      PARAM_PATTERNS.base64.test(segment) &&
+      segment.length >= 16 &&
+      /[0-9+/=]/.test(segment)
+    ) {
+      return "base64";
+    }
 
     // Mixed alphanumeric (letters AND digits) — e.g. "CS2030S", "abc123"
     // Only parameterize if it contains both letters and digits
@@ -677,6 +686,7 @@ export class HarParser {
 
       // Normalize path
       const { normalizedPath, pathParams } = this.routeNormalizer.normalizePath(parsed.pathname);
+      const queryKeys = Array.from(new Set((entry.request.queryString ?? []).map((q) => q.name))).sort();
 
       requests.push({
         method,
@@ -687,6 +697,7 @@ export class HarParser {
         responseContentType,
         normalizedPath,
         pathParams: pathParams.length > 0 ? pathParams : undefined,
+        queryKeys: queryKeys.length > 0 ? queryKeys : undefined,
       });
 
       // ── Schema capture ──────────────────────────────────────────────
@@ -810,6 +821,11 @@ export class HarParser {
     // Apply cross-request generalization to detect varying segments
     crossRequestGeneralize(requests, this.routeNormalizer);
 
+    // Smart parameterization: persisted-query hashes are deterministic constants,
+    // but the RouteNormalizer will often treat them as {id}. Inline them when
+    // we have strong evidence (GraphQL-like query params + long hex).
+    inlinePersistedQueryConstants(requests);
+
     const groups = new Map<string, EndpointGroup>();
 
     for (const req of requests) {
@@ -863,6 +879,76 @@ export class HarParser {
     }
 
     return [...groups.values()];
+  }
+}
+
+function inlinePersistedQueryConstants(requests: ParsedRequest[]): void {
+  const byKey = new Map<string, ParsedRequest[]>();
+  for (const r of requests) {
+    const np = r.normalizedPath ?? r.path;
+    const key = `${r.method.toUpperCase()}|${np}`;
+    const arr = byKey.get(key) ?? [];
+    arr.push(r);
+    byKey.set(key, arr);
+  }
+
+  for (const [, group] of byKey) {
+    if (group.length < 1) continue;
+    const samplePath = String(group[0].path || "").toLowerCase();
+
+    let hasKeys = 0;
+    for (const r of group) {
+      const keys = (r.queryKeys ?? []).map((k) => k.toLowerCase());
+      if (keys.includes("variables") && keys.includes("extensions")) hasKeys++;
+    }
+    const looksLikePersistedQuery = (hasKeys >= Math.ceil(group.length * 0.5)) &&
+      (samplePath.includes("/graphql") || samplePath.includes("/api/v"));
+    if (!looksLikePersistedQuery) continue;
+
+    const params = group.flatMap((r) => r.pathParams ?? []);
+    if (params.length === 0) continue;
+
+    const longHex = (s: string | undefined) => Boolean(s) && /^[0-9a-f]{40,128}$/i.test(String(s));
+
+    // For each param name, determine uniqueness of observed examples.
+    const examplesByName = new Map<string, Set<string>>();
+    for (const r of group) {
+      for (const pp of r.pathParams ?? []) {
+        const set = examplesByName.get(pp.name) ?? new Set<string>();
+        set.add(pp.example);
+        examplesByName.set(pp.name, set);
+      }
+    }
+
+    for (const r of group) {
+      if (!r.normalizedPath || !r.pathParams || r.pathParams.length === 0) continue;
+      const segs = r.normalizedPath.split("/").filter(Boolean);
+      let changed = false;
+
+      const kept: typeof r.pathParams = [];
+      for (const pp of r.pathParams) {
+        const uniq = examplesByName.get(pp.name);
+        const isUnique = uniq && uniq.size === 1;
+        const isLongHex = pp.type === "hex" && longHex(pp.example);
+
+        if (isUnique && isLongHex) {
+          // Replace "{param}" segment with literal example.
+          for (let i = 0; i < segs.length; i++) {
+            if (segs[i] === `{${pp.name}}`) {
+              segs[i] = pp.example;
+              changed = true;
+            }
+          }
+          continue; // drop from pathParams (constant)
+        }
+        kept.push(pp);
+      }
+
+      if (changed) {
+        r.normalizedPath = "/" + segs.join("/");
+        r.pathParams = kept.length > 0 ? kept : undefined;
+      }
+    }
   }
 }
 
@@ -934,6 +1020,24 @@ function crossRequestGeneralize(
     const rawSegmentArrays = group.map(r => r.path.split("/").filter(s => s.length > 0));
     const segCount = segmentArrays[0].length;
 
+    const looksLikePersistedQuery = (() => {
+      // Heuristic: GraphQL persisted queries often have query keys like variables/extensions.
+      // Airbnb-style: /api/v3/<operation>/<sha256Hash>?variables=...&extensions=...
+      let hasKeys = 0;
+      for (const r of group) {
+        const keys = (r.queryKeys ?? []).map((k) => k.toLowerCase());
+        if (keys.includes("variables") && keys.includes("extensions")) hasKeys++;
+      }
+      if (hasKeys < Math.ceil(group.length * 0.5)) return false;
+      const sample = String(group[0].path || "").toLowerCase();
+      return sample.includes("/graphql") || sample.includes("/api/v");
+    })();
+
+    // Persisted-query style endpoints (GraphQL operation + sha256 hash in path)
+    // should not be cross-generalized. Over-generalization destroys deterministic
+    // constants needed for replay (Airbnb-style /api/v3/<op>/<hash>).
+    if (looksLikePersistedQuery) continue;
+
     // Find positions where segments vary across requests
     const varyingPositions: number[] = [];
     for (let pos = 0; pos < segCount; pos++) {
@@ -942,6 +1046,27 @@ function crossRequestGeneralize(
       const allAlreadyParam = segmentArrays.every(segs => segs[pos]?.startsWith("{"));
       if (uniqueValues.size > 1 && !allAlreadyParam) {
         varyingPositions.push(pos);
+      }
+    }
+
+    // Guardrail: persisted-query endpoints (operation + sha256 hash) should not be
+    // generalized into {id} segments. They are deterministic constants that vary
+    // across operations, not runtime variables.
+    if (looksLikePersistedQuery && varyingPositions.length > 0) {
+      const isOpLike = (s: string | undefined) => Boolean(s) && /^[A-Za-z][A-Za-z0-9_]{2,}$/.test(String(s));
+      const isLongHex = (s: string | undefined) => Boolean(s) && /^[0-9a-f]{32,128}$/i.test(String(s));
+
+      const shouldSkipPos = new Set<number>();
+      for (let pos = 0; pos < segCount - 1; pos++) {
+        const opCount = rawSegmentArrays.filter((segs) => isOpLike(segs[pos])).length;
+        const hashCount = rawSegmentArrays.filter((segs) => isLongHex(segs[pos + 1])).length;
+        if (opCount >= Math.ceil(group.length * 0.6) && hashCount >= Math.ceil(group.length * 0.6)) {
+          shouldSkipPos.add(pos);
+          shouldSkipPos.add(pos + 1);
+        }
+      }
+      for (let i = varyingPositions.length - 1; i >= 0; i--) {
+        if (shouldSkipPos.has(varyingPositions[i])) varyingPositions.splice(i, 1);
       }
     }
 
