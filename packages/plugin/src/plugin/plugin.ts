@@ -623,7 +623,10 @@ const plugin = {
       const lines: string[] = [
         "[Internal API Access] Reverse-engineer and call internal APIs from any website.",
         "",
-        "Workflow: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_replay (call).",
+        "Keyword: if the user says 'unbrowse ...', treat it as an instruction to use the Unbrowse workflow.",
+        "Workflow (auto): local skill → marketplace install → learn-on-the-fly capture → publish (optional) → execute in the client browser.",
+        "Primary entrypoint: unbrowse_browse skillMode=\"auto\" (marketplace-first + learn fallback).",
+        "Manual: unbrowse_skills (check existing) → unbrowse_capture (discover) → unbrowse_publish (share) → unbrowse_replay (call).",
         "For authenticated sites, use unbrowse_login first. Use unbrowse_do for guidance.",
         "",
         "Tip: prefer unbrowse_browse for website automation (avoids brittle browser-tool ref errors).",
