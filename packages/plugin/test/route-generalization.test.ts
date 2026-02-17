@@ -445,6 +445,42 @@ describe("Mixed real-world traffic scenarios", () => {
     );
     expect(putGroups.length).toBe(1);
   });
+
+  it("GraphQL persisted query endpoints are NOT over-parameterized into a single {id} route", () => {
+    const op1 = "AutoSuggestionsQuery";
+    const op2 = "ExploreSections";
+    const hash1 = "9bf3a6fd8f5999b25564b1ed00c8b35b1c69f2c43b3be55d2665393798d73cdf";
+    const hash2 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    const e1 = makeHarEntry(
+      "GET",
+      `https://www.airbnb.com/api/v3/${op1}/${hash1}?variables=%7B%7D&extensions=%7B%7D`,
+    );
+    e1.request.queryString = [
+      { name: "variables", value: "{}" },
+      { name: "extensions", value: "{}" },
+    ];
+
+    const e2 = makeHarEntry(
+      "GET",
+      `https://www.airbnb.com/api/v3/${op2}/${hash2}?variables=%7B%7D&extensions=%7B%7D`,
+    );
+    e2.request.queryString = [
+      { name: "variables", value: "{}" },
+      { name: "extensions", value: "{}" },
+    ];
+
+    const har = makeHar([e1, e2]);
+    const apiData = parser.parse(har, "https://www.airbnb.com");
+    const groups = parser.buildEndpointGroups(apiData.requests);
+
+    // Should remain separate endpoints (operation + hash are constants).
+    const persisted = groups.filter((g) => g.normalizedPath.startsWith("/api/v3/"));
+    expect(persisted.length).toBe(2);
+    for (const g of persisted) {
+      expect(g.normalizedPath).not.toMatch(/\{[^}]+\}/);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
