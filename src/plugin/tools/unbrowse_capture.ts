@@ -11,7 +11,7 @@ import { normalizeUrlList, coalesceDir } from "./input-normalizers.js";
 import { buildPublishPromptLines, isPayerPrivateKeyValid } from "./publish-prompts.js";
 
 export function makeUnbrowseCaptureTool(deps: ToolDeps) {
-  const { logger, defaultOutputDir, discovery, detectAndSaveRefreshConfig } = deps;
+  const { logger, defaultOutputDir, discovery, detectAndSaveRefreshConfig, browserPort } = deps;
 
   return {
     name: "unbrowse_capture",
@@ -34,7 +34,6 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         crawl?: boolean;
         maxPages?: number;
         testEndpoints?: boolean;
-        headless?: boolean;
       };
 
       // Normalize urls: accept string or array
@@ -68,17 +67,13 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           `...`,
         );
 
-        // Try CDP mode first if OpenClaw browser is running (port 18800).
-        // CDP mode connects to the existing browser which has the authenticated
-        // session cookies, so sites like LinkedIn fire XHR (voyager) API traffic.
-        // Fallback to userDataDir if CDP isn't available.
-        let userDataDir: string | undefined;
+        // Resolve CDP endpoint from OpenClaw profile config (single profile: openclaw).
         let cdpEndpoint: string | undefined;
+        let hasAttachedTab: boolean | null = null;
         let existingHeaders: Record<string, string> = {};
         try {
           const { existsSync: _exists, readFileSync: _read } = await import("node:fs");
           const { join: _join } = await import("node:path");
-          const { homedir } = await import("node:os");
           // Infer service from first URL
           const firstHost = new URL(urls[0]).hostname
             .replace(/^(www|api|app|auth|login)\./, "")
@@ -88,31 +83,126 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           if (_exists(authPath)) {
             const auth = JSON.parse(_read(authPath, "utf-8"));
             existingHeaders = auth.headers ?? {};
-            // Check if CDP browser is running
             try {
-              const res = await fetch("http://127.0.0.1:18800/json/version");
-              if (res.ok) {
-                cdpEndpoint = "http://127.0.0.1:18800";
-                logger.info(`[unbrowse] Using CDP browser for authenticated capture: ${cdpEndpoint}`);
+              const profilesResp = await fetch(`http://127.0.0.1:${browserPort}/profiles`, {
+                signal: AbortSignal.timeout(3000),
+              });
+              if (profilesResp.ok) {
+                const payload = await profilesResp.json() as any;
+                const profiles = Array.isArray(payload?.profiles)
+                  ? payload.profiles
+                  : (Array.isArray(payload) ? payload : []);
+                const profile = profiles.find((entry: any) => String(entry?.name ?? "").trim() === "openclaw");
+                if (profile) {
+                  const rawCdpUrl = typeof profile?.cdpUrl === "string" ? profile.cdpUrl.trim() : "";
+                  const cdpPort = Number(profile?.cdpPort);
+                  if (rawCdpUrl) {
+                    cdpEndpoint = rawCdpUrl;
+                  } else if (Number.isFinite(cdpPort) && cdpPort > 0) {
+                    cdpEndpoint = `http://127.0.0.1:${Math.floor(cdpPort)}`;
+                  }
+                }
               }
-            } catch {
-              // CDP not available, fallback to userDataDir
-              const openclawProfile = _join(homedir(), ".openclaw", "browser", "openclaw", "user-data");
-              if (_exists(openclawProfile)) {
-                userDataDir = openclawProfile;
-                logger.info(`[unbrowse] Using OpenClaw browser profile for authenticated capture: ${userDataDir}`);
+            } catch { /* best-effort */ }
+
+            try {
+              const tabsUrl = new URL(`http://127.0.0.1:${browserPort}/tabs`);
+              tabsUrl.searchParams.set("profile", "openclaw");
+              const tabsResp = await fetch(tabsUrl.toString(), { signal: AbortSignal.timeout(3000) });
+              if (tabsResp.ok) {
+                const tabsPayload = await tabsResp.json() as any;
+                const tabs = Array.isArray(tabsPayload?.tabs)
+                  ? tabsPayload.tabs
+                  : (Array.isArray(tabsPayload) ? tabsPayload : []);
+                hasAttachedTab = tabs.some((tab: any) => tab && typeof tab === "object" && tab.closed !== true && tab.isClosed !== true);
               }
+            } catch { /* best-effort */ }
+
+            if (!cdpEndpoint) {
+              return {
+                content: [{
+                  type: "text",
+                  text:
+                    "Could not resolve OpenClaw profile \"openclaw\" CDP endpoint from browser control API. " +
+                    "Start OpenClaw browser with profile \"openclaw\" and retry.",
+                }],
+              };
             }
+            if (hasAttachedTab === false) {
+              return {
+                content: [{
+                  type: "text",
+                  text:
+                    "OpenClaw profile \"openclaw\" has no attached tab. Attach a tab to profile \"openclaw\" and retry capture.",
+                }],
+              };
+            }
+            logger.info(`[unbrowse] Using OpenClaw profile "openclaw" CDP for authenticated capture: ${cdpEndpoint}`);
           }
         } catch { /* no existing auth — capture unauthenticated */ }
 
+        if (!cdpEndpoint) {
+          try {
+            const profilesResp = await fetch(`http://127.0.0.1:${browserPort}/profiles`, {
+              signal: AbortSignal.timeout(3000),
+            });
+            if (profilesResp.ok) {
+              const payload = await profilesResp.json() as any;
+              const profiles = Array.isArray(payload?.profiles)
+                ? payload.profiles
+                : (Array.isArray(payload) ? payload : []);
+              const profile = profiles.find((entry: any) => String(entry?.name ?? "").trim() === "openclaw");
+              if (profile) {
+                const rawCdpUrl = typeof profile?.cdpUrl === "string" ? profile.cdpUrl.trim() : "";
+                const cdpPort = Number(profile?.cdpPort);
+                if (rawCdpUrl) cdpEndpoint = rawCdpUrl;
+                else if (Number.isFinite(cdpPort) && cdpPort > 0) cdpEndpoint = `http://127.0.0.1:${Math.floor(cdpPort)}`;
+              }
+            }
+          } catch { /* best-effort */ }
+        }
+
+        if (hasAttachedTab === null) {
+          try {
+            const tabsUrl = new URL(`http://127.0.0.1:${browserPort}/tabs`);
+            tabsUrl.searchParams.set("profile", "openclaw");
+            const tabsResp = await fetch(tabsUrl.toString(), { signal: AbortSignal.timeout(3000) });
+            if (tabsResp.ok) {
+              const tabsPayload = await tabsResp.json() as any;
+              const tabs = Array.isArray(tabsPayload?.tabs)
+                ? tabsPayload.tabs
+                : (Array.isArray(tabsPayload) ? tabsPayload : []);
+              hasAttachedTab = tabs.some((tab: any) => tab && typeof tab === "object" && tab.closed !== true && tab.isClosed !== true);
+            }
+          } catch { /* best-effort */ }
+        }
+
+        if (!cdpEndpoint) {
+          return {
+            content: [{
+              type: "text",
+              text:
+                "Could not resolve OpenClaw profile \"openclaw\" CDP endpoint from browser control API. " +
+                "Start OpenClaw browser with profile \"openclaw\" and retry.",
+            }],
+          };
+        }
+        if (hasAttachedTab === false) {
+          return {
+            content: [{
+              type: "text",
+              text:
+                "OpenClaw profile \"openclaw\" has no attached tab. Attach a tab to profile \"openclaw\" and retry capture.",
+            }],
+          };
+        }
+
         const { har, cookies, requestCount, method, crawlResult } = await captureWithHar(urls, {
           waitMs: p.waitMs,
-          headless: p.headless ?? false, // Default visible so user can interact if needed
+          headless: false, // Locked: always use visible OpenClaw browser profile
           crawl: shouldCrawl,
           headers: Object.keys(existingHeaders).length > 0 ? existingHeaders : undefined,
-          userDataDir, // Fallback to profile directory if CDP not available
-          cdpEndpoint, // Preferred: connect to existing browser
+          cdpEndpoint, // Resolve from profile config (openclaw)
           crawlOptions: {
             maxPages,
             discoverOpenApi: true,

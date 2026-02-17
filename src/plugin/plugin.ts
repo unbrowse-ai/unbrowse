@@ -131,13 +131,10 @@ const plugin = {
     const rootConfig = (api as any).config ?? {};
     const gatewayPort = resolveGatewayPort(rootConfig);
     const derivedBrowserPort = deriveBrowserControlPort(gatewayPort);
-    const browserPort = parsePositiveInt(cfg.browserPort) ?? derivedBrowserPort;
-    const browserProfile = String(
-      (cfg.browserProfile as string) ??
-      ((rootConfig as any)?.browser?.defaultProfile as string) ??
-      "",
-    ).trim() || undefined;
-    const allowLegacyPlaywrightFallback = (cfg.allowLegacyPlaywrightFallback as boolean) ?? false;
+    // Single runtime path: OpenClaw-managed browser only.
+    const browserPort = derivedBrowserPort;
+    const browserProfile = "openclaw";
+    const allowLegacyPlaywrightFallback = false;
 
     // Detect diagnostic mode (doctor, audit, help, version) — skip all background tasks
     const isDiagnosticMode = (() => {
@@ -234,9 +231,7 @@ const plugin = {
       logger.info("[unbrowse] Auto-contribute DISABLED — skills will stay local only. Set autoContribute: true to earn revenue from contributions.");
     }
     logger.info(
-      `[unbrowse] Browser integration: OpenClaw control on :${browserPort}` +
-      `${browserProfile ? ` (profile=${browserProfile})` : ""}` +
-      `${allowLegacyPlaywrightFallback ? ", Playwright fallback=enabled" : ", Playwright fallback=disabled"}`,
+      `[unbrowse] Browser integration locked: profile=${browserProfile}, control=:${browserPort} (CDP resolved from profile config)`,
     );
 
     // ── Long-Lived Managers ───────────────────────────────────────────────
@@ -628,7 +623,7 @@ const plugin = {
         "For authenticated sites, use unbrowse_login first when browser session is not already active.",
         "",
         "Tip: prefer unbrowse_browse for website automation (avoids brittle browser-tool ref errors).",
-        "Login UX: use the OpenClaw-managed browser profile (manual login recommended). Avoid asking users for passwords.",
+        "Login UX: use the OpenClaw browser profile (manual login recommended). Avoid asking users for passwords.",
       ];
 
       // Only mention wallet if explicitly configured

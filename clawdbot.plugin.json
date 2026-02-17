@@ -8,11 +8,11 @@
     },
     "browserPort": {
       "label": "Browser Control Port",
-      "help": "Port for browser CDP control API (default: 18791)"
+      "help": "Legacy setting (ignored). Browser execution is locked to OpenClaw profile."
     },
     "browserUseApiKey": {
       "label": "Browser Use API Key",
-      "help": "API key for stealth cloud browsers (browser-use.com). Enables unbrowse_stealth tool.",
+      "help": "Legacy setting (ignored). OpenClaw browser is always used.",
       "sensitive": true,
       "placeholder": "bu_..."
     },
@@ -47,7 +47,7 @@
     "properties": {
       "skillsOutputDir": { "type": "string" },
       "browserPort": { "type": "number", "default": 18791 },
-      "browserUseApiKey": { "type": "string" },
+      "browserUseApiKey": { "type": "string", "description": "Deprecated (ignored). OpenClaw browser only." },
       "autoDiscover": { "type": "boolean", "default": true },
       "skillIndexUrl": { "type": "string", "default": "https://index.unbrowse.ai" },
       "creatorWallet": { "type": "string" },

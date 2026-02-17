@@ -345,7 +345,26 @@ export async function loginAndCapture(
   // This avoids depending on any OpenClaw-internal REST port contracts.
   try {
     const { chromium } = await import("playwright-core");
-    const browser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 5000 });
+    let cdpUrl = `http://127.0.0.1:${browserPort + 1}`;
+    try {
+      const profilesResp = await fetch(`http://127.0.0.1:${browserPort}/profiles`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (profilesResp.ok) {
+        const payload = await profilesResp.json() as any;
+        const profiles = Array.isArray(payload?.profiles)
+          ? payload.profiles
+          : (Array.isArray(payload) ? payload : []);
+        const profile = profiles.find((entry: any) => String(entry?.name ?? "").trim() === "openclaw");
+        if (profile) {
+          const rawCdpUrl = typeof profile?.cdpUrl === "string" ? profile.cdpUrl.trim() : "";
+          const cdpPort = Number(profile?.cdpPort);
+          if (rawCdpUrl) cdpUrl = rawCdpUrl;
+          else if (Number.isFinite(cdpPort) && cdpPort > 0) cdpUrl = `http://127.0.0.1:${Math.floor(cdpPort)}`;
+        }
+      }
+    } catch { /* best-effort */ }
+    const browser = await chromium.connectOverCDP(cdpUrl, { timeout: 5000 });
 
     const context = browser.contexts()[0] ?? await browser.newContext();
     if (credentials.headers && Object.keys(credentials.headers).length > 0) {

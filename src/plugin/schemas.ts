@@ -60,7 +60,7 @@ export const CAPTURE_SCHEMA = {
     },
     headless: {
       type: "boolean" as const,
-      description: "Run browser in headless mode (default: false — browser is visible so you can interact if needed).",
+      description: "Deprecated and ignored. Capture is locked to the visible OpenClaw browser profile.",
     },
   },
   required: ["urls"],
@@ -96,7 +96,7 @@ export const REPLAY_SCHEMA = {
       type: "string" as const,
       enum: ["browser", "node", "backend"],
       description:
-        "Deprecated override. Replay now always uses backend gate first, then executes from this client/browser " +
+        "Deprecated override. Replay now always uses backend gate first, then executes from the OpenClaw browser " +
         "using original service URLs (no URL rewriting).",
     },
     traceId: {
@@ -161,7 +161,7 @@ export const GOAL_EXECUTE_SCHEMA = {
       type: "string" as const,
       enum: ["auto", "backend", "browser", "node"],
       description:
-        "Routing mode. auto = policy-driven fallback chain. backend/browser/node = force single mode.",
+        "Deprecated override. Goal execution is locked to backend gate + OpenClaw browser execution.",
     },
     maxSteps: {
       type: "number" as const,

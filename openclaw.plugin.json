@@ -15,7 +15,7 @@
       "browserPort": {
         "type": "number",
         "default": 18791,
-        "description": "Port for browser CDP control API"
+        "description": "Deprecated override (ignored). Unbrowse uses OpenClaw-managed browser control port."
       },
       "autoDiscover": {
         "type": "boolean",
@@ -50,12 +50,12 @@
         "properties": {
           "useApiKey": {
             "type": "string",
-            "description": "Browser Use API key for stealth cloud browsers"
+            "description": "Deprecated (ignored). Unbrowse executes only via OpenClaw browser."
           },
           "proxyCountry": {
             "type": "string",
             "default": "us",
-            "description": "Default proxy country for stealth browser (us, gb, de, etc.)"
+            "description": "Deprecated (ignored). Unbrowse executes only via OpenClaw browser."
           }
         }
       },
@@ -75,7 +75,7 @@
     },
     "browserPort": {
       "label": "Browser Control Port",
-      "help": "Port for browser CDP control API (default: 18791)"
+      "help": "Legacy setting (ignored). Browser execution is locked to OpenClaw profile."
     },
     "autoDiscover": {
       "label": "Auto-Discover Skills",
@@ -102,13 +102,13 @@
     },
     "browser.useApiKey": {
       "label": "Browser Use API Key",
-      "help": "API key for stealth cloud browsers (browser-use.com)",
+      "help": "Legacy setting (ignored). OpenClaw browser is always used.",
       "sensitive": true,
       "placeholder": "bu_..."
     },
     "browser.proxyCountry": {
       "label": "Proxy Country",
-      "help": "Default proxy location for stealth browser",
+      "help": "Legacy setting (ignored). OpenClaw browser is always used.",
       "placeholder": "us"
     },
     "credentialSource": {

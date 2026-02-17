@@ -544,10 +544,64 @@ async execute(_toolCallId: string, params: unknown) {
   let chromeBrowser: any = null;
   let chromePage: any = null;
   let chromeContext: any = null;
-  let browserSource: "openclaw" | "cdp" | "none" = "none";
+  let browserSource: "openclaw" | "none" = "none";
   let ownsBrowser = false;
-  const fallbackCdpPorts = Array.from(new Set([18792, browserPort, 9222, 9229]))
-    .filter((port) => Number.isInteger(port) && port > 0 && port !== 18800);
+  type OpenClawProfileRuntime = {
+    name: string;
+    driver: string | null;
+    cdpUrl: string;
+    hasAttachedTab: boolean | null;
+  };
+  let openClawProfileRuntime: OpenClawProfileRuntime | null = null;
+
+  async function resolveOpenClawProfileRuntime(): Promise<OpenClawProfileRuntime | null> {
+    if (openClawProfileRuntime) return openClawProfileRuntime;
+    try {
+      const profilesResp = await fetch(`http://127.0.0.1:${browserPort}/profiles`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (!profilesResp.ok) return null;
+      const payload = await profilesResp.json() as any;
+      const profiles = Array.isArray(payload?.profiles)
+        ? payload.profiles
+        : (Array.isArray(payload) ? payload : []);
+      const profile = profiles.find((entry: any) => String(entry?.name ?? "").trim() === "openclaw");
+      if (!profile) return null;
+
+      const rawCdpUrl = typeof profile?.cdpUrl === "string" ? profile.cdpUrl.trim() : "";
+      const cdpPort = Number(profile?.cdpPort);
+      const cdpUrl = rawCdpUrl || (Number.isFinite(cdpPort) && cdpPort > 0 ? `http://127.0.0.1:${Math.floor(cdpPort)}` : "");
+      if (!cdpUrl) return null;
+
+      let hasAttachedTab: boolean | null = null;
+      try {
+        const tabsUrl = new URL(`http://127.0.0.1:${browserPort}/tabs`);
+        tabsUrl.searchParams.set("profile", "openclaw");
+        const tabsResp = await fetch(tabsUrl.toString(), { signal: AbortSignal.timeout(3000) });
+        if (tabsResp.ok) {
+          const tabsPayload = await tabsResp.json() as any;
+          const tabs = Array.isArray(tabsPayload?.tabs)
+            ? tabsPayload.tabs
+            : (Array.isArray(tabsPayload) ? tabsPayload : []);
+          hasAttachedTab = tabs.some((tab: any) => {
+            if (!tab || typeof tab !== "object") return false;
+            const closed = tab?.closed === true || tab?.isClosed === true;
+            return !closed;
+          });
+        }
+      } catch { /* best-effort */ }
+
+      openClawProfileRuntime = {
+        name: "openclaw",
+        driver: typeof profile?.driver === "string" ? profile.driver.trim() : null,
+        cdpUrl,
+        hasAttachedTab,
+      };
+      return openClawProfileRuntime;
+    } catch {
+      return null;
+    }
+  }
 
   async function getChromePage(): Promise<any | null> {
     if (chromePage) return chromePage;
@@ -560,30 +614,29 @@ async execute(_toolCallId: string, params: unknown) {
       return null;
     }
 
-    // Strategy 1: OpenClaw-managed Chrome (preserves logins, best fingerprint).
-    // Default CDP port for profile "openclaw" is 18800.
-    try {
-      chromeBrowser = await chromium.connectOverCDP(`http://127.0.0.1:18800`, { timeout: 5000 });
-      browserSource = "openclaw";
-      logger.info(`[unbrowse] Connected to OpenClaw-managed Chrome via CDP (:18800)`);
-    } catch {
-      // No shell-based auto-start in this build. Continue to fallback CDP probes.
+    const profileRuntime = await resolveOpenClawProfileRuntime();
+    if (!profileRuntime) {
+      browserSource = "none";
+      logger.warn("[unbrowse] Could not resolve OpenClaw profile \"openclaw\" from browser control API.");
+      return null;
+    }
+    if (profileRuntime.hasAttachedTab === false) {
+      browserSource = "none";
+      logger.warn(
+        "[unbrowse] OpenClaw profile \"openclaw\" has no attached tab. Attach a tab to this profile, then retry.",
+      );
+      return null;
     }
 
-    // Strategy 2: Try fallback CDP ports (most reliable first from observed runs)
-    if (!chromeBrowser) {
-      for (const port of fallbackCdpPorts) {
-        try {
-          const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
-          if (!resp.ok) continue;
-          const data = await resp.json() as { webSocketDebuggerUrl?: string };
-          const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
-          chromeBrowser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
-          browserSource = "cdp";
-          logger.info(`[unbrowse] Connected to Chrome via CDP port ${port}`);
-          break;
-        } catch { continue; }
-      }
+    // Single browser runtime path: resolve CDP from OpenClaw profile config.
+    try {
+      chromeBrowser = await chromium.connectOverCDP(profileRuntime.cdpUrl, { timeout: 5000 });
+      browserSource = "openclaw";
+      logger.info(
+        `[unbrowse] Connected via OpenClaw profile "${profileRuntime.name}" (${profileRuntime.driver ?? "unknown"} @ ${profileRuntime.cdpUrl})`,
+      );
+    } catch {
+      // No fallback browser sources in this mode.
     }
 
     // No headless launch fallback. Native-only: require OpenClaw/Chrome CDP.
@@ -608,7 +661,15 @@ async execute(_toolCallId: string, params: unknown) {
       } catch { /* non-critical */ }
     }
 
-    chromePage = chromeContext.pages()[0] ?? await chromeContext.newPage();
+    const pages = chromeContext.pages();
+    if (pages.length === 0) {
+      browserSource = "none";
+      logger.warn(
+        "[unbrowse] OpenClaw profile \"openclaw\" has no controllable page. Attach an active tab and retry.",
+      );
+      return null;
+    }
+    chromePage = pages[0];
 
     // Inject localStorage/sessionStorage via addInitScript BEFORE navigation
     const hasStorage = Object.keys(storedLocalStorage).length > 0 || Object.keys(storedSessionStorage).length > 0;
@@ -953,20 +1014,22 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
-    // Strategy 2: re-grab cookies via CDP connect (reliability-ordered ports)
+    // Strategy 2: re-grab cookies via OpenClaw CDP profile
     try {
       const { chromium } = await import("playwright-core");
       let browser: any = null;
-      for (const port of [18800, ...fallbackCdpPorts]) {
-        try {
-          const resp = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(2000) });
-          if (!resp.ok) continue;
+      const profileRuntime = await resolveOpenClawProfileRuntime();
+      if (!profileRuntime) return false;
+      if (profileRuntime.hasAttachedTab === false) return false;
+      try {
+        const versionUrl = new URL("/json/version", profileRuntime.cdpUrl).toString();
+        const resp = await fetch(versionUrl, { signal: AbortSignal.timeout(2000) });
+        if (resp.ok) {
           const data = await resp.json() as { webSocketDebuggerUrl?: string };
-          const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
+          const wsUrl = data.webSocketDebuggerUrl ?? profileRuntime.cdpUrl;
           browser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
-          break;
-        } catch { continue; }
-      }
+        }
+      } catch { /* no OpenClaw CDP available */ }
 
       if (browser) {
         const context = browser.contexts()[0];

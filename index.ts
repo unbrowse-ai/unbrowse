@@ -1,595 +1,650 @@
-/**
- * Unbrowse — Reverse-engineer internal APIs from any website.
- *
- * Pure native Rust implementation. All functionality provided by unbrowse-native.
- */
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-// @ts-nocheck - Native module types handled separately
-import * as native from "../native/index.js";
+import { fetchBrowserCookies, captureFromBrowser } from "./src/cdp-capture.js";
+import { parseHar } from "./src/har-parser.js";
+import { generateSkill } from "./src/skill-generator.js";
 
-// Re-export native module
-export * from "../native/index.js";
+type StringMap = Record<string, string>;
+
+type VaultEntry = {
+  baseUrl?: string;
+  authMethod?: string;
+  headers?: StringMap;
+  cookies?: StringMap;
+  updatedAt?: string;
+};
+
+type VaultDb = Record<string, VaultEntry>;
+
+const SKILLS_DIR = join(homedir(), ".openclaw", "skills");
+const UNBROWSE_DIR = join(homedir(), ".openclaw", "unbrowse");
+const VAULT_PATH = join(UNBROWSE_DIR, "vault.json");
+const INDEX_URL = (process.env.UNBROWSE_INDEX_URL ?? "https://index.unbrowse.ai").replace(/\/$/, "");
+
+function ensureDir(path: string): void {
+  if (!existsSync(path)) mkdirSync(path, { recursive: true });
+}
+
+function toServiceName(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0]
+    .replace(/^www\./, "")
+    .replace(/[^a-z0-9.-]/g, "")
+    .replace(/\./g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "unknown-service";
+}
+
+function safeJsonParse<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function loadVault(): VaultDb {
+  if (!existsSync(VAULT_PATH)) return {};
+  return safeJsonParse<VaultDb>(readFileSync(VAULT_PATH, "utf-8"), {});
+}
+
+function saveVault(vault: VaultDb): void {
+  ensureDir(UNBROWSE_DIR);
+  writeFileSync(VAULT_PATH, JSON.stringify(vault, null, 2), "utf-8");
+}
+
+function upsertVault(service: string, next: VaultEntry): VaultEntry {
+  const vault = loadVault();
+  const merged: VaultEntry = {
+    ...(vault[service] ?? {}),
+    ...next,
+    headers: { ...((vault[service]?.headers ?? {}) as StringMap), ...(next.headers ?? {}) },
+    cookies: { ...((vault[service]?.cookies ?? {}) as StringMap), ...(next.cookies ?? {}) },
+    updatedAt: new Date().toISOString(),
+  };
+  vault[service] = merged;
+  saveVault(vault);
+  return merged;
+}
+
+function detectAuthMethod(headers: StringMap, cookies: StringMap): string {
+  const keys = Object.keys(headers).map((k) => k.toLowerCase());
+  if (keys.includes("authorization")) return "bearer";
+  if (keys.some((k) => k.includes("api-key") || k === "x-api-key" || k === "apikey")) return "api_key";
+  if (Object.keys(cookies).length > 0) return "cookie";
+  return "none";
+}
+
+function readSkillAuth(service: string): VaultEntry | null {
+  const authPath = join(SKILLS_DIR, service, "auth.json");
+  if (!existsSync(authPath)) return null;
+  const auth = safeJsonParse<any>(readFileSync(authPath, "utf-8"), {});
+  return {
+    baseUrl: typeof auth.baseUrl === "string" ? auth.baseUrl : `https://${service.replace(/-/g, ".")}`,
+    authMethod: typeof auth.authMethod === "string" ? auth.authMethod : detectAuthMethod(auth.headers ?? {}, auth.cookies ?? {}),
+    headers: (auth.headers ?? {}) as StringMap,
+    cookies: (auth.cookies ?? {}) as StringMap,
+  };
+}
+
+function getAuth(service: string): VaultEntry | null {
+  const vault = loadVault();
+  const entry = vault[service];
+  if (entry) {
+    return {
+      baseUrl: entry.baseUrl ?? `https://${service.replace(/-/g, ".")}`,
+      authMethod: entry.authMethod ?? detectAuthMethod(entry.headers ?? {}, entry.cookies ?? {}),
+      headers: entry.headers ?? {},
+      cookies: entry.cookies ?? {},
+      updatedAt: entry.updatedAt,
+    };
+  }
+  const fromSkill = readSkillAuth(service);
+  if (fromSkill) {
+    return upsertVault(service, fromSkill);
+  }
+  return null;
+}
+
+function countEndpoints(skillMd: string): number {
+  const matches = skillMd.match(/^- `(GET|POST|PUT|PATCH|DELETE)\s+[^`]+`/gm);
+  return matches ? matches.length : 0;
+}
+
+function buildResponseShape(data: unknown): string {
+  if (Array.isArray(data)) return `array(${data.length})`;
+  if (data && typeof data === "object") return `object(${Object.keys(data as Record<string, unknown>).slice(0, 10).join(",")})`;
+  return typeof data;
+}
+
+function trimText(text: string, max = 60000): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}\n...<truncated ${text.length - max} chars>`;
+}
+
+function withContent(payload: Record<string, unknown>): Record<string, unknown> {
+  const text = trimText(JSON.stringify(payload, null, 2));
+  return {
+    ...payload,
+    content: [{ type: "text", text }],
+  };
+}
+
+function resolveRequestUrl(baseUrl: string, path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${suffix}`;
+}
+
+async function readMarketplaceSkillSummary(skillId: string): Promise<any | null> {
+  const resp = await fetch(`${INDEX_URL}/marketplace/skills/${encodeURIComponent(skillId)}`, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  return data?.skill ?? null;
+}
 
 export default function unbrowsePlugin(api: any) {
-  // =========================================================================
-  // Tool: unbrowse_capture
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_capture",
-    description: `Capture internal API traffic from browser and generate a skill.
-
-Visit URLs in the browser, capture all API calls, extract auth tokens, and generate a reusable skill package.
-
-Returns: Skill with endpoints, auth method, and generated TypeScript client.`,
+    description: `Capture internal API traffic from an active OpenClaw browser session and generate a skill.`,
     parameters: {
       type: "object",
       properties: {
-        urls: {
-          type: "array",
-          items: { type: "string" },
-          description: "URLs to visit and capture API traffic from",
-        },
-        output_dir: {
-          type: "string",
-          description: "Optional output directory for skill files",
-        },
+        urls: { type: "array", items: { type: "string" }, description: "Visited URLs (seed URL first)." },
+        output_dir: { type: "string", description: "Optional output directory for generated skill files." },
       },
       required: ["urls"],
     },
     async execute(args: { urls: string[]; output_dir?: string }) {
-      const apiData = await native.captureFromUrls(args.urls, undefined);
-      const result = native.generateSkill(apiData, args.output_dir, undefined);
+      try {
+        const capture = await captureFromBrowser();
+        if (!capture.requestCount) {
+          return withContent({
+            success: false,
+            error: "No browser requests captured. Start OpenClaw browser, browse target site, then retry.",
+          });
+        }
 
-      return {
-        success: true,
-        service: result.service,
-        skill_dir: result.skillDir,
-        endpoints_count: result.endpointsCount,
-        auth_method: result.authMethod,
-        message: `Captured ${result.endpointsCount} endpoints from ${result.service}. Skill saved to ${result.skillDir}`,
-      };
+        const apiData = parseHar(capture.har as any, args.urls?.[0]);
+        if (!Object.keys(apiData.endpoints ?? {}).length) {
+          return withContent({ success: false, error: "Capture had no API-like endpoints." });
+        }
+
+        const result = await generateSkill(apiData as any, args.output_dir);
+        upsertVault(result.service, {
+          baseUrl: apiData.baseUrl,
+          authMethod: apiData.authMethod,
+          headers: apiData.authHeaders,
+          cookies: apiData.cookies,
+        });
+
+        return withContent({
+          success: true,
+          service: result.service,
+          skill_dir: result.skillDir,
+          endpoints_count: result.endpointCount,
+          auth_method: apiData.authMethod,
+          captured_requests: capture.requestCount,
+          changed: result.changed,
+          diff: result.diff ?? null,
+          version_hash: result.versionHash ?? null,
+        });
+      } catch (err) {
+        return withContent({ success: false, error: (err as Error).message });
+      }
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_replay
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_replay",
-    description: `Call an internal API endpoint using captured auth.
-
-Execute HTTP requests against internal APIs with proper authentication headers and cookies.
-
-Returns: Response status, body, and timing.`,
+    description: `Call an endpoint using locally captured auth (JS runtime, no native module).`,
     parameters: {
       type: "object",
       properties: {
-        service: {
-          type: "string",
-          description: "Service name (skill name) to use for auth",
-        },
-        method: {
-          type: "string",
-          enum: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-          description: "HTTP method",
-        },
-        path: {
-          type: "string",
-          description: "API path (e.g., /api/users)",
-        },
-        body: {
-          type: "string",
-          description: "Request body (JSON string)",
-        },
+        service: { type: "string", description: "Service/skill name." },
+        method: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE"], description: "HTTP method." },
+        path: { type: "string", description: "API path or absolute URL." },
+        body: { type: "string", description: "Optional JSON/string body." },
       },
       required: ["service", "method", "path"],
     },
     async execute(args: { service: string; method: string; path: string; body?: string }) {
-      const skillInfo = native.getSkillInfo(args.service);
-      if (!skillInfo) {
-        return { success: false, error: `Skill not found: ${args.service}` };
+      const auth = getAuth(args.service);
+      if (!auth) return withContent({ success: false, error: `No auth found for service: ${args.service}` });
+
+      const baseUrl = auth.baseUrl ?? `https://${args.service.replace(/-/g, ".")}`;
+      const url = resolveRequestUrl(baseUrl, args.path);
+      const method = args.method.toUpperCase();
+
+      const headers: StringMap = { ...(auth.headers ?? {}) };
+      const cookies = auth.cookies ?? {};
+      if (Object.keys(cookies).length > 0 && !headers.cookie && !headers.Cookie) {
+        headers.Cookie = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; ");
       }
 
-      const vaultEntry = await native.vaultGet(args.service);
-      const authHeaders = vaultEntry?.headers || {};
-      const cookies = vaultEntry?.cookies || {};
-      const baseUrl = vaultEntry?.baseUrl || `https://${args.service}`;
+      let parsedBody: unknown = undefined;
+      if (typeof args.body === "string" && args.body.length > 0) {
+        parsedBody = safeJsonParse(args.body, args.body);
+        if (!headers["Content-Type"] && !headers["content-type"]) headers["Content-Type"] = "application/json";
+      }
 
-      const result = await native.testEndpoint(
-        baseUrl,
-        args.method,
-        args.path,
-        authHeaders,
-        cookies,
-        30000
-      );
+      const started = Date.now();
+      try {
+        const resp = await fetch(url, {
+          method,
+          headers,
+          body: parsedBody === undefined ? undefined : (typeof parsedBody === "string" ? parsedBody : JSON.stringify(parsedBody)),
+          signal: AbortSignal.timeout(30000),
+        });
 
-      return {
-        success: result.status >= 200 && result.status < 400,
-        status: result.status,
-        latency_ms: result.latencyMs,
-        response_shape: result.responseShape,
-        response_size: result.responseSize,
-        error: result.error,
-      };
+        const raw = await resp.text();
+        const parsed = safeJsonParse(raw, raw);
+
+        return withContent({
+          success: resp.ok,
+          status: resp.status,
+          latency_ms: Date.now() - started,
+          response_size: raw.length,
+          response_shape: buildResponseShape(parsed),
+          body: typeof parsed === "string" ? trimText(parsed, 20000) : parsed,
+        });
+      } catch (err) {
+        return withContent({
+          success: false,
+          status: 0,
+          latency_ms: Date.now() - started,
+          error: (err as Error).message,
+        });
+      }
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_login
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_login",
-    description: `Login to a website and capture session auth.
-
-Navigates to login page, fills credentials, and captures resulting session cookies/tokens.
-
-Returns: Captured auth headers and cookies.`,
+    description: `Seed auth from an already logged-in browser session (cookie capture).`,
     parameters: {
       type: "object",
       properties: {
-        url: {
-          type: "string",
-          description: "Login page URL",
-        },
-        username: {
-          type: "string",
-          description: "Username or email (optional - will lookup from keychain)",
-        },
-        password: {
-          type: "string",
-          description: "Password (optional - will lookup from keychain)",
-        },
+        url: { type: "string", description: "Site URL (used for service naming/base URL)." },
+        headers: { type: "object", description: "Optional manual headers to store." },
+        cookies: { type: "object", description: "Optional manual cookies to store." },
       },
       required: ["url"],
     },
-    async execute(args: { url: string; username?: string; password?: string }) {
-      const domain = new URL(args.url).hostname;
-      let username = args.username;
-      let password = args.password;
+    async execute(args: { url: string; headers?: StringMap; cookies?: StringMap }) {
+      let parsed: URL;
+      try {
+        parsed = new URL(args.url);
+      } catch {
+        return withContent({ success: false, error: `Invalid URL: ${args.url}` });
+      }
 
-      if (!username || !password) {
-        const creds = native.lookupCredentials(domain);
-        if (creds) {
-          username = username || creds.username;
-          password = password || creds.password;
+      const service = toServiceName(parsed.hostname);
+      let cookies = (args.cookies ?? {}) as StringMap;
+      if (!Object.keys(cookies).length) {
+        try {
+          cookies = await fetchBrowserCookies();
+        } catch {
+          cookies = {};
         }
       }
 
-      if (!username || !password) {
-        return { success: false, error: "Credentials not provided and not found in keychain" };
+      const headers = (args.headers ?? {}) as StringMap;
+      if (!Object.keys(headers).length && !Object.keys(cookies).length) {
+        return withContent({
+          success: false,
+          error: "No auth material captured. Log in via OpenClaw browser first or pass headers/cookies manually.",
+        });
       }
 
-      await native.browserStart(undefined);
-      await native.browserNavigate(args.url, undefined);
-      await new Promise(r => setTimeout(r, 2000));
+      const saved = upsertVault(service, {
+        baseUrl: `${parsed.protocol}//${parsed.host}`,
+        authMethod: detectAuthMethod(headers, cookies),
+        headers,
+        cookies,
+      });
 
-      const snapshot = await native.browserSnapshot(undefined);
-
-      for (const el of snapshot.elements) {
-        const elType = el.elementType?.toLowerCase() || "";
-        const elName = el.name?.toLowerCase() || "";
-
-        if (elType === "email" || elType === "text" || elName.includes("user") || elName.includes("email")) {
-          await native.browserAct("type", el.index, username, undefined);
-        }
-        if (elType === "password" || elName.includes("pass")) {
-          await native.browserAct("type", el.index, password, undefined);
-        }
-      }
-
-      for (const el of snapshot.elements) {
-        const elType = el.elementType?.toLowerCase() || "";
-        const elText = el.text?.toLowerCase() || "";
-        if (elType === "submit" || elText.includes("sign in") || elText.includes("log in")) {
-          await native.browserAct("click", el.index, undefined, undefined);
-          break;
-        }
-      }
-
-      await new Promise(r => setTimeout(r, 3000));
-      const authJson = await native.extractBrowserAuth(domain, undefined);
-
-      await native.vaultStore(
-        authJson.service,
-        authJson.baseUrl,
-        authJson.authMethod,
-        authJson.headers || {},
-        authJson.cookies || {}
-      );
-
-      return {
+      return withContent({
         success: true,
-        service: authJson.service,
-        auth_method: authJson.authMethod,
-        headers_count: Object.keys(authJson.headers || {}).length,
-        cookies_count: Object.keys(authJson.cookies || {}).length,
-        message: `Logged in and captured auth for ${authJson.service}`,
-      };
+        service,
+        base_url: saved.baseUrl,
+        auth_method: saved.authMethod,
+        headers_count: Object.keys(saved.headers ?? {}).length,
+        cookies_count: Object.keys(saved.cookies ?? {}).length,
+      });
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_learn
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_learn",
-    description: `Parse a HAR file and generate an API skill.
-
-Takes a HAR file (from browser DevTools export) and generates a complete skill package.
-
-Returns: Generated skill with endpoints and auth.`,
+    description: `Parse a HAR file and generate a local skill package (JS runtime).`,
     parameters: {
       type: "object",
       properties: {
-        har_path: {
-          type: "string",
-          description: "Path to HAR file",
-        },
-        seed_url: {
-          type: "string",
-          description: "Seed URL to determine service name",
-        },
-        output_dir: {
-          type: "string",
-          description: "Optional output directory",
-        },
+        har_path: { type: "string", description: "Path to HAR file." },
+        seed_url: { type: "string", description: "Optional seed URL for domain/service resolution." },
+        output_dir: { type: "string", description: "Optional output directory for skill files." },
       },
       required: ["har_path"],
     },
     async execute(args: { har_path: string; seed_url?: string; output_dir?: string }) {
-      const fs = await import("node:fs");
+      if (!existsSync(args.har_path)) return withContent({ success: false, error: `HAR file not found: ${args.har_path}` });
 
-      if (!fs.existsSync(args.har_path)) {
-        return { success: false, error: `HAR file not found: ${args.har_path}` };
+      try {
+        const har = safeJsonParse<any>(readFileSync(args.har_path, "utf-8"), null);
+        if (!har?.log?.entries) return withContent({ success: false, error: "Invalid HAR format: missing log.entries" });
+
+        const apiData = parseHar(har, args.seed_url);
+        if (!Object.keys(apiData.endpoints ?? {}).length) {
+          return withContent({ success: false, error: "No API endpoints discovered in HAR." });
+        }
+
+        const result = await generateSkill(apiData as any, args.output_dir);
+        upsertVault(result.service, {
+          baseUrl: apiData.baseUrl,
+          authMethod: apiData.authMethod,
+          headers: apiData.authHeaders,
+          cookies: apiData.cookies,
+        });
+
+        return withContent({
+          success: true,
+          service: result.service,
+          skill_dir: result.skillDir,
+          endpoints_count: result.endpointCount,
+          auth_method: apiData.authMethod,
+          changed: result.changed,
+          diff: result.diff ?? null,
+          version_hash: result.versionHash ?? null,
+        });
+      } catch (err) {
+        return withContent({ success: false, error: (err as Error).message });
       }
-
-      const harJson = fs.readFileSync(args.har_path, "utf-8");
-      const apiData = native.parseHar(harJson, args.seed_url);
-      const result = native.generateSkill(apiData, args.output_dir, undefined);
-
-      await native.vaultStore(
-        apiData.service,
-        apiData.baseUrl,
-        apiData.authMethod,
-        apiData.authHeaders,
-        apiData.cookies
-      );
-
-      return {
-        success: true,
-        service: result.service,
-        skill_dir: result.skillDir,
-        endpoints_count: result.endpointsCount,
-        auth_method: result.authMethod,
-      };
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_skills
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_skills",
-    description: `List all captured API skills.
-
-Shows locally learned skills with their endpoints and auth methods.`,
-    parameters: {
-      type: "object",
-      properties: {},
-    },
+    description: `List locally available unbrowse skills and auth summary.`,
+    parameters: { type: "object", properties: {} },
     async execute() {
-      const skills = native.listSkills();
-      const details = skills.map((service: string) => {
-        const info = native.getSkillInfo(service);
+      ensureDir(SKILLS_DIR);
+      const dirs = readdirSync(SKILLS_DIR)
+        .filter((name) => {
+          const full = join(SKILLS_DIR, name);
+          return statSync(full).isDirectory() && existsSync(join(full, "SKILL.md"));
+        })
+        .sort();
+
+      const skills = dirs.map((service) => {
+        const skillMdPath = join(SKILLS_DIR, service, "SKILL.md");
+        const skillMd = readFileSync(skillMdPath, "utf-8");
+        const auth = getAuth(service);
         return {
           service,
-          name: info?.name,
-          endpoints: info?.endpointsCount || 0,
-          version: info?.version,
+          endpoints: countEndpoints(skillMd),
+          auth_method: auth?.authMethod ?? "unknown",
+          base_url: auth?.baseUrl ?? null,
+          headers_count: Object.keys(auth?.headers ?? {}).length,
+          cookies_count: Object.keys(auth?.cookies ?? {}).length,
+          updated_at: auth?.updatedAt ?? null,
         };
       });
 
-      return { success: true, count: skills.length, skills: details };
+      return withContent({ success: true, count: skills.length, skills });
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_auth
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_auth",
-    description: `Extract auth from current browser session.
-
-Captures cookies, localStorage, and request headers from the browser.`,
+    description: `Get stored auth for a domain/service and optionally seed from browser cookies.`,
     parameters: {
       type: "object",
       properties: {
-        domain: {
-          type: "string",
-          description: "Domain to extract auth for",
-        },
+        domain: { type: "string", description: "Domain or service name." },
       },
       required: ["domain"],
     },
     async execute(args: { domain: string }) {
-      const authJson = await native.extractBrowserAuth(args.domain, undefined);
+      const service = toServiceName(args.domain);
+      let auth = getAuth(service);
 
-      await native.vaultStore(
-        authJson.service,
-        authJson.baseUrl,
-        authJson.authMethod,
-        authJson.headers || {},
-        authJson.cookies || {}
-      );
+      if (!auth) {
+        try {
+          const cookies = await fetchBrowserCookies();
+          if (Object.keys(cookies).length) {
+            auth = upsertVault(service, {
+              baseUrl: `https://${args.domain.replace(/^https?:\/\//, "").split("/")[0]}`,
+              authMethod: detectAuthMethod({}, cookies),
+              cookies,
+              headers: {},
+            });
+          }
+        } catch {
+          // no-op
+        }
+      }
 
-      return {
+      if (!auth) {
+        return withContent({ success: false, error: `No auth found for ${args.domain}` });
+      }
+
+      return withContent({
         success: true,
-        service: authJson.service,
-        auth_method: authJson.authMethod,
-        base_url: authJson.baseUrl,
-        headers: Object.keys(authJson.headers || {}),
-        cookies: Object.keys(authJson.cookies || {}),
-      };
+        service,
+        base_url: auth.baseUrl,
+        auth_method: auth.authMethod,
+        headers: Object.keys(auth.headers ?? {}),
+        cookies: Object.keys(auth.cookies ?? {}),
+      });
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_publish
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_publish",
-    description: `Publish a skill to the marketplace.
-
-Shares your API skill for others to use. Credentials are stripped before publishing.`,
+    description: `Publish a local skill package to marketplace (JS runtime path).`,
     parameters: {
       type: "object",
       properties: {
-        service: {
-          type: "string",
-          description: "Service name to publish",
-        },
-        description: {
-          type: "string",
-          description: "Description of the skill",
-        },
-        tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "Tags for discoverability",
-        },
-        price_usdc: {
-          type: "number",
-          description: "Price in USDC (0 for free)",
-        },
+        service: { type: "string", description: "Service/skill name to publish." },
+        description: { type: "string", description: "Optional description override." },
+        tags: { type: "array", items: { type: "string" }, description: "Optional tags." },
+        price_usdc: { type: "number", description: "Optional price in USDC." },
       },
       required: ["service"],
     },
     async execute(args: { service: string; description?: string; tags?: string[]; price_usdc?: number }) {
-      const fs = await import("node:fs");
-      const path = await import("node:path");
-      const os = await import("node:os");
+      const skillDir = join(SKILLS_DIR, args.service);
+      const skillMdPath = join(skillDir, "SKILL.md");
+      if (!existsSync(skillMdPath)) return withContent({ success: false, error: `Skill not found: ${args.service}` });
 
-      const skillDir = path.join(os.homedir(), ".openclaw", "skills", args.service);
-      const skillMdPath = path.join(skillDir, "SKILL.md");
-      const apiTsPath = path.join(skillDir, "scripts", "api.ts");
-      const authJsonPath = path.join(skillDir, "auth.json");
+      const skillMd = readFileSync(skillMdPath, "utf-8");
+      const apiTsPath = join(skillDir, "scripts", "api.ts");
+      const refPath = join(skillDir, "references", "REFERENCE.md");
+      const auth = getAuth(args.service);
 
-      if (!fs.existsSync(skillMdPath)) {
-        return { success: false, error: `Skill not found: ${args.service}` };
+      const payload: Record<string, unknown> = {
+        name: args.service,
+        description: args.description ?? `Unofficial API skill for ${args.service}`,
+        skillMd,
+        scripts: existsSync(apiTsPath) ? { "api.ts": readFileSync(apiTsPath, "utf-8") } : undefined,
+        references: existsSync(refPath) ? { "REFERENCE.md": readFileSync(refPath, "utf-8") } : undefined,
+        serviceName: args.service,
+        domain: auth?.baseUrl ? new URL(auth.baseUrl).hostname : args.service.replace(/-/g, "."),
+        authType: auth?.authMethod ?? "unknown",
+        category: "api",
+        priceUsdc: typeof args.price_usdc === "number" ? String(args.price_usdc) : "0",
+        tags: args.tags ?? [],
+      };
+
+      const resp = await fetch(`${INDEX_URL}/marketplace/skills`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "");
+        return withContent({ success: false, status: resp.status, error: trimText(text, 3000) });
       }
 
-      const skillMd = fs.readFileSync(skillMdPath, "utf-8");
-      const apiTs = fs.existsSync(apiTsPath) ? fs.readFileSync(apiTsPath, "utf-8") : undefined;
-      const authJson = fs.existsSync(authJsonPath) ? fs.readFileSync(authJsonPath, "utf-8") : "{}";
-
-      const payload = native.prepareForPublish(skillMd, apiTs, authJson);
-      payload.description = args.description;
-      payload.tags = args.tags;
-      payload.priceUsdc = args.price_usdc;
-
-      const wallet = native.walletGetOrCreate();
-      const message = JSON.stringify({ service: args.service, timestamp: Date.now() });
-      const signature = native.walletSign(message);
-
-      const result = await native.marketplacePublish(payload, wallet.pubkey, signature, undefined);
-
-      return {
+      const data = await resp.json();
+      const skill = data?.skill ?? {};
+      return withContent({
         success: true,
-        id: result.id,
-        name: result.name,
-        service: result.service,
-      };
+        id: skill.skillId ?? skill.id ?? null,
+        name: skill.name ?? args.service,
+        service: skill.serviceName ?? args.service,
+      });
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_search
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_search",
-    description: `Search the skill marketplace.
-
-Find API skills others have created and shared.`,
+    description: `Search skill marketplace by query.`,
     parameters: {
       type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "Search query",
-        },
-      },
+      properties: { query: { type: "string", description: "Search query." } },
       required: ["query"],
     },
     async execute(args: { query: string }) {
-      const results = await native.marketplaceSearch(args.query, undefined);
+      const url = new URL(`${INDEX_URL}/marketplace/skills`);
+      url.searchParams.set("q", args.query);
+      url.searchParams.set("limit", "50");
 
-      return {
-        success: true,
-        count: results.length,
-        skills: results.map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          service: s.service,
-          description: s.description,
-          author: s.author,
-          endpoints: s.endpointsCount,
-          installs: s.installs,
-          price_usdc: s.priceUsdc,
-          badge: s.badge,
-        })),
-      };
+      const resp = await fetch(url.toString(), {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "");
+        return withContent({ success: false, status: resp.status, error: trimText(text, 3000) });
+      }
+
+      const data = await resp.json();
+      const skills = (data?.skills ?? []).map((s: any) => ({
+        id: s.skillId ?? s.id,
+        name: s.name,
+        service: s.serviceName ?? s.service,
+        description: s.description,
+        author: s.creatorWallet ?? s.author,
+        endpoints: s.endpointCount ?? s.endpointsCount ?? null,
+        installs: s.downloadCount ?? s.installs ?? 0,
+        price_usdc: s.priceUsdc ?? "0",
+        badge: s.badge ?? null,
+      }));
+
+      return withContent({ success: true, count: skills.length, skills });
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_download
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_download",
-    description: `Download a skill from the marketplace.
-
-Install a skill locally. May require x402 payment for paid skills.`,
+    description: `Download and install a marketplace skill locally.`,
     parameters: {
       type: "object",
-      properties: {
-        skill_id: {
-          type: "string",
-          description: "Skill ID to download",
-        },
-      },
+      properties: { skill_id: { type: "string", description: "Marketplace skill id." } },
       required: ["skill_id"],
     },
     async execute(args: { skill_id: string }) {
-      const fs = await import("node:fs");
-      const path = await import("node:path");
-      const os = await import("node:os");
+      const summary = await readMarketplaceSkillSummary(args.skill_id);
+      if (!summary) return withContent({ success: false, error: `Skill not found: ${args.skill_id}` });
 
-      const skillInfo = await native.marketplaceGetSkill(args.skill_id, undefined);
-      if (!skillInfo) {
-        return { success: false, error: `Skill not found: ${args.skill_id}` };
+      const resp = await fetch(`${INDEX_URL}/marketplace/skill-downloads/${encodeURIComponent(args.skill_id)}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(20000),
+      });
+
+      if (resp.status === 402) {
+        return withContent({
+          success: false,
+          status: 402,
+          error: "Paid skill requires x402 wallet flow. JS-only runtime does not perform payment signing.",
+        });
       }
 
-      let paymentSig: string | undefined;
-      if (skillInfo.priceUsdc && skillInfo.priceUsdc > 0 && skillInfo.authorWallet) {
-        paymentSig = native.walletSignPayment(args.skill_id, skillInfo.priceUsdc, skillInfo.authorWallet);
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "");
+        return withContent({ success: false, status: resp.status, error: trimText(text, 3000) });
       }
 
-      const pkg = await native.marketplaceDownload(args.skill_id, paymentSig, undefined);
+      const data = await resp.json();
+      const skill = data?.skill;
+      if (!skill) return withContent({ success: false, error: "Malformed marketplace response." });
 
-      const skillDir = path.join(os.homedir(), ".openclaw", "skills", pkg.id);
-      fs.mkdirSync(path.join(skillDir, "scripts"), { recursive: true });
-      fs.mkdirSync(path.join(skillDir, "references"), { recursive: true });
+      const service = toServiceName(skill.serviceName ?? skill.name ?? args.skill_id);
+      const skillDir = join(SKILLS_DIR, service);
+      ensureDir(join(skillDir, "scripts"));
+      ensureDir(join(skillDir, "references"));
 
-      fs.writeFileSync(path.join(skillDir, "SKILL.md"), pkg.skillMd);
-      if (pkg.apiTs) {
-        fs.writeFileSync(path.join(skillDir, "scripts", "api.ts"), pkg.apiTs);
+      writeFileSync(join(skillDir, "SKILL.md"), skill.skillMd ?? "", "utf-8");
+
+      const scripts = (skill.scripts ?? {}) as Record<string, string>;
+      for (const [filename, content] of Object.entries(scripts)) {
+        writeFileSync(join(skillDir, "scripts", filename), content, "utf-8");
       }
-      if (pkg.referenceMd) {
-        fs.writeFileSync(path.join(skillDir, "references", "REFERENCE.md"), pkg.referenceMd);
+
+      const refs = (skill.references ?? {}) as Record<string, string>;
+      for (const [filename, content] of Object.entries(refs)) {
+        writeFileSync(join(skillDir, "references", filename), content, "utf-8");
       }
 
-      await native.marketplaceTrackInstall(args.skill_id, undefined);
-
-      return {
+      return withContent({
         success: true,
-        id: pkg.id,
+        id: skill.skillId ?? args.skill_id,
+        service,
         skill_dir: skillDir,
-        endpoints: pkg.endpoints.length,
-        auth_method: pkg.authMethod,
-      };
+        price_usdc: summary.priceUsdc ?? "0",
+      });
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_wallet
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_wallet",
-    description: `Manage your marketplace wallet.
-
-Create or view your Ed25519 wallet for x402 payments.`,
+    description: `Wallet operations are disabled in JS-only mode.`,
     parameters: {
       type: "object",
-      properties: {
-        action: {
-          type: "string",
-          enum: ["get", "create"],
-          description: "Action to perform",
-        },
-      },
+      properties: { action: { type: "string", enum: ["get", "create"], description: "Action." } },
       required: ["action"],
     },
-    async execute(args: { action: "get" | "create" }) {
-      if (args.action === "create") {
-        const existing = native.walletGet();
-        if (existing) {
-          return { success: true, pubkey: existing.pubkey, created_at: existing.createdAt, message: "Wallet already exists" };
-        }
-        const wallet = native.walletCreate();
-        return { success: true, pubkey: wallet.pubkey, created_at: wallet.createdAt, message: "Created new wallet" };
-      } else {
-        const wallet = native.walletGet();
-        if (!wallet) {
-          return { success: false, error: "No wallet found. Use action: create" };
-        }
-        return { success: true, pubkey: wallet.pubkey, created_at: wallet.createdAt };
-      }
+    async execute() {
+      return withContent({
+        success: false,
+        error: "Wallet functions removed from plugin runtime. Use external wallet flow for x402.",
+      });
     },
   });
 
-  // =========================================================================
-  // Tool: unbrowse_record
-  // =========================================================================
   api.registerTool({
     name: "unbrowse_record",
-    description: `Record a workflow session.
-
-Start/stop recording browser interactions to learn multi-step workflows.`,
+    description: `Workflow recording is disabled in JS-only mode.`,
     parameters: {
       type: "object",
-      properties: {
-        action: {
-          type: "string",
-          enum: ["start", "stop", "status"],
-          description: "Recording action",
-        },
-      },
+      properties: { action: { type: "string", enum: ["start", "stop", "status"], description: "Action." } },
       required: ["action"],
     },
-    async execute(args: { action: "start" | "stop" | "status" }) {
-      if (args.action === "start") {
-        const id = native.recordingStart();
-        return { success: true, session_id: id, message: "Recording started" };
-      } else if (args.action === "stop") {
-        const session = native.recordingStop();
-        if (!session) {
-          return { success: false, error: "No active recording" };
-        }
-        const workflow = native.workflowLearn(session);
-        return {
-          success: true,
-          session_id: session.id,
-          steps: session.steps.length,
-          domains: session.domains,
-          workflow_id: workflow.id,
-          workflow_name: workflow.name,
-        };
-      } else {
-        const isActive = native.recordingIsActive();
-        const current = native.recordingCurrent();
-        return {
-          success: true,
-          is_active: isActive,
-          session: current ? { id: current.id, steps: current.steps.length, domains: current.domains } : null,
-        };
-      }
+    async execute() {
+      return withContent({
+        success: false,
+        error: "Recording functions removed from plugin runtime.",
+      });
     },
   });
 
   return {
     name: "unbrowse",
-    version: native.getVersion(),
-    native: native.isNative(),
+    version: "0.5.1-js-only",
+    native: false,
   };
 }
