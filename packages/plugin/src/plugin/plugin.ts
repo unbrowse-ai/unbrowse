@@ -113,6 +113,14 @@ function deriveBrowserControlPort(gatewayPort: number): number {
   return gatewayPort + 2;
 }
 
+function hasGatewayAuth(rootConfig: any): boolean {
+  const auth = rootConfig?.gateway?.auth;
+  if (!auth || typeof auth !== "object") return false;
+  const token = typeof auth.token === "string" ? auth.token.trim() : "";
+  const password = typeof auth.password === "string" ? auth.password.trim() : "";
+  return token.length > 0 || password.length > 0;
+}
+
 // ── Plugin ────────────────────────────────────────────────────────────────────
 
 const plugin = {
@@ -237,6 +245,13 @@ const plugin = {
     }
     if (publishValidationWithAuth) {
       logger.info("[unbrowse] Publish-time auth validation ENABLED (opt-in)");
+    }
+
+    if (!isDiagnosticMode && !hasGatewayAuth(rootConfig)) {
+      logger.warn(
+        "[unbrowse] Gateway auth is not configured. Browser control APIs may be reachable by other local processes. " +
+        "Set gateway.auth.token (recommended) or gateway.auth.password in OpenClaw config.",
+      );
     }
     if (!autoContributeEnabled) {
       logger.info("[unbrowse] Auto-contribute DISABLED — skills will stay local only. Set autoContribute: true to earn revenue from contributions.");
