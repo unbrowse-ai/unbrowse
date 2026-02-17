@@ -37,6 +37,10 @@ describe("Plugin tools (marketplace e2e)", () => {
           "This skill is intentionally verbose so it passes backend validation rules (min lengths).",
           "It is published during automated integration tests and should be deleted afterwards.",
           "",
+          "## Endpoints",
+          "",
+          "- `GET /api/users`",
+          "",
         ].join("\n"),
         "utf-8",
       );
@@ -122,6 +126,10 @@ describe("Plugin tools (marketplace e2e)", () => {
           "It is intentionally verbose so it passes backend validation rules (min lengths).",
           "Safe to delete.",
           "",
+          "## Endpoints",
+          "",
+          "- `GET /api/users`",
+          "",
         ].join("\n"),
         priceUsdc: "0",
         scripts: { "api.ts": "export class E2EInstallClient {}\n" },
@@ -162,7 +170,9 @@ describe("Plugin tools (marketplace e2e)", () => {
       const installedDir = join(skillsDir, name);
       expect(existsSync(join(installedDir, "SKILL.md"))).toBe(true);
       expect(existsSync(join(installedDir, "scripts", "api.ts"))).toBe(true);
-      expect(existsSync(join(installedDir, "references", "README.md"))).toBe(true);
+      // Marketplace may serve a proxy-only abstraction that only includes canonical reference artifacts.
+      expect(existsSync(join(installedDir, "references", "REFERENCE.md"))).toBe(true);
+      expect(existsSync(join(installedDir, "references", "ENDPOINTS.json"))).toBe(true);
 
       const md = readFileSync(join(installedDir, "SKILL.md"), "utf-8");
       expect(md.includes(name)).toBe(true);

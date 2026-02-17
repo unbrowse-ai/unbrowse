@@ -133,9 +133,15 @@ async execute(_toolCallId: string, params: unknown) {
             '                          unbrowse_wallet action="set_payer" privateKey="<key>"',
           ].join("\n");
         }
-        return { content: [{ type: "text", text: `Install failed: ${msg}${walletHint}` }] };
+        const detail = `Install failed: ${msg}${walletHint}`;
+        logger.warn(detail);
+        // Throw so gateway marks the tool call as failed (ok=false).
+        throw new Error(detail);
       }
-      return { content: [{ type: "text", text: `Install failed: ${msg}` }] };
+      const detail = `Install failed: ${msg}`;
+      logger.warn(detail);
+      // Throw so gateway marks the tool call as failed (ok=false).
+      throw new Error(detail);
     }
   }
 

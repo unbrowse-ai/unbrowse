@@ -216,10 +216,6 @@ async execute(_toolCallId: string, params: unknown) {
     }
   }
 
-  function toCookieHeader(c: Record<string, string>): string {
-    return Object.entries(c).map(([k, v]) => `${k}=${v}`).join("; ");
-  }
-
   async function execViaBackend(
     ep: { method: string; path: string },
     body?: string,
@@ -239,27 +235,25 @@ async execute(_toolCallId: string, params: unknown) {
       return { status: 0, ok: false, data: "backend mode requires marketplace skillId. Publish first (unbrowse_publish) or pass skillId." };
     }
 
-    let endpointId: string | null = null;
-    const endpointsPath = join(skillDir, "references", "ENDPOINTS.json");
-    if (existsSync(endpointsPath)) {
-      try {
-        const list = loadJsonOr<any[]>(endpointsPath, []);
-        if (Array.isArray(list)) {
-          for (const item of list) {
-            if (!item) continue;
-            const m = String(item.method || "").toUpperCase();
-            const np = String(item.normalizedPath || item.normalized_path || "");
-            const id = item.endpointId ?? item.endpoint_id;
-            if (m === ep.method.toUpperCase() && np === ep.path && typeof id === "string" && id.length > 0) {
-              endpointId = id;
-              break;
+    const resolveEndpointId = async (): Promise<string | null> => {
+      const endpointsPath = join(skillDir, "references", "ENDPOINTS.json");
+      if (existsSync(endpointsPath)) {
+        try {
+          const list = loadJsonOr<any[]>(endpointsPath, []);
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              if (!item) continue;
+              const m = String(item.method || "").toUpperCase();
+              const np = String(item.normalizedPath || item.normalized_path || "");
+              const id = item.endpointId ?? item.endpoint_id;
+              if (m === ep.method.toUpperCase() && np === ep.path && typeof id === "string" && id.length > 0) {
+                return id;
+              }
             }
           }
-        }
-      } catch { /* ignore */ }
-    }
+        } catch { /* ignore */ }
+      }
 
-    if (!endpointId) {
       try {
         const list = await indexClient.getSkillEndpoints(skillId);
         for (const item of list) {
@@ -267,23 +261,15 @@ async execute(_toolCallId: string, params: unknown) {
           const np = String(item.normalizedPath || "");
           const id = item.endpointId;
           if (m === ep.method.toUpperCase() && np === ep.path && typeof id === "string" && id.length > 0) {
-            endpointId = id;
-            break;
+            return id;
           }
         }
       } catch (err) {
         logger.warn(`[unbrowse] Failed to fetch canonical endpoint list for ${skillId}: ${(err as Error).message}`);
       }
-    }
 
-    if (!endpointId) {
-      return { status: 0, ok: false, data: `No canonical endpointId for ${ep.method} ${ep.path}. Re-publish skill or refresh marketplace mapping.` };
-    }
-
-    let parsedBody: any = undefined;
-    if (body && ["POST", "PUT", "PATCH"].includes(ep.method)) {
-      try { parsedBody = JSON.parse(body); } catch { parsedBody = body; }
-    }
+      return null;
+    };
 
     const traceId =
       p.traceId && p.traceId.trim().length > 0
@@ -293,38 +279,128 @@ async execute(_toolCallId: string, params: unknown) {
     const storeRaw = typeof p.storeRaw === "boolean" ? p.storeRaw : false;
     const autoChain = typeof p.autoChain === "boolean" ? p.autoChain : true;
     const intent = typeof p.intent === "string" && p.intent.trim().length > 0 ? p.intent.trim() : undefined;
+    const targetUrl = new URL(ep.path, baseUrl).toString();
     const wantRawResponse = Boolean(p.endpoint) || storeRaw;
 
+    // Backward compatibility: older injected clients in tests/custom setups may only expose executeEndpoint().
+    const hasGateFlow =
+      typeof (indexClient as any)?.requestExecutionGate === "function" &&
+      typeof (indexClient as any)?.submitExecutionReceipt === "function";
+
     try {
-      const resp: any = await indexClient.executeEndpoint(endpointId, {
-        params: {},
-        body: parsedBody,
-        auth: {
-          cookies: Object.keys(cookies).length > 0 ? toCookieHeader(cookies) : undefined,
-          headers: filterPseudoHeaders(authHeaders),
-        },
+      if (!hasGateFlow) {
+        const endpointId = await resolveEndpointId();
+        if (!endpointId) {
+          return { status: 0, ok: false, data: `No canonical endpointId for ${ep.method} ${ep.path}. Re-publish skill or refresh marketplace mapping.` };
+        }
+        const resp: any = await indexClient.executeEndpoint(endpointId, {
+          params: {},
+          body: body && ["POST", "PUT", "PATCH"].includes(ep.method) ? (() => {
+            try { return JSON.parse(body); } catch { return body; }
+          })() : undefined,
+          auth: {
+            cookies: Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; "),
+            headers: filterPseudoHeaders(authHeaders),
+          },
+          context: {
+            traceId,
+            sessionId: p.service,
+            autoChain,
+            intent,
+            responseMode: wantRawResponse ? "raw" : "summary",
+          },
+          privacy: {
+            storeTrace,
+            storeRaw,
+          },
+        });
+        const ok = Boolean(resp?.ok);
+        const status = typeof resp?.statusCode === "number" ? resp.statusCode : (ok ? 200 : 0);
+        const raw = resp?.data;
+        const data = (() => {
+          if (typeof raw === "string") return raw.slice(0, 2000);
+          try { return JSON.stringify(raw).slice(0, 2000); } catch { return String(raw ?? "").slice(0, 2000); }
+        })();
+        return { status, ok, endpointId, raw, data };
+      }
+
+      // Backend gate: policy/payment/tracing token minting (no auth material forwarded).
+      const gate = await indexClient.requestExecutionGate({
+        skillId,
+        method: ep.method,
+        url: targetUrl,
         context: {
           traceId,
           sessionId: p.service,
           autoChain,
-          intent,
-          responseMode: wantRawResponse ? "raw" : "summary",
-        },
-        privacy: {
           storeTrace,
-          storeRaw,
+          intent,
         },
       });
 
-      const ok = Boolean(resp?.ok);
-      const status = typeof resp?.statusCode === "number" ? resp.statusCode : (ok ? 200 : 0);
-      const raw = resp?.data;
+      if (!gate?.allowed || !gate?.executeUrl || !gate?.runToken) {
+        return { status: 0, ok: false, data: gate?.error || "Execution gate rejected request." };
+      }
+
+      if (gate?.payment?.required) {
+        return {
+          status: 402,
+          ok: false,
+          endpointId: gate.endpointId,
+          data: `Execution requires payment (${gate.payment.priceUsdc ?? "unknown"} USDC).`,
+        };
+      }
+
+      // Client browser execution (auth/cookies stay local).
+      const startedAt = Date.now();
+      const browserResult = await execInChrome(
+        { method: String(gate.method || ep.method).toUpperCase(), path: gate.executeUrl },
+        body,
+        Math.max(previewChars, p.storeRaw ? 20_000 : 4_000),
+      );
+      const executionTimeMs = Date.now() - startedAt;
+
+      if (!browserResult) {
+        return {
+          status: 0,
+          ok: false,
+          endpointId: gate.endpointId,
+          data: "No browser available for gated execution. Start OpenClaw browser (profile=openclaw) and retry.",
+        };
+      }
+
+      const ok = Boolean(browserResult.ok);
+      const status = typeof browserResult.status === "number" ? browserResult.status : (ok ? 200 : 0);
+      const raw = browserResult.contentType?.includes("application/json")
+        ? parseMaybeJson(browserResult.data ?? "", browserResult.contentType)
+        : (browserResult.data ?? "");
       const data = (() => {
         if (typeof raw === "string") return raw.slice(0, 2000);
         try { return JSON.stringify(raw).slice(0, 2000); } catch { return String(raw ?? "").slice(0, 2000); }
       })();
 
-      return { status, ok, endpointId, raw, data };
+      // Best-effort telemetry settle for trust + workflow learning.
+      try {
+        await indexClient.submitExecutionReceipt({
+          runToken: gate.runToken,
+          success: ok,
+          statusCode: status,
+          executionTimeMs,
+          errorMessage: ok ? undefined : data,
+          endpoint: `${ep.method} ${ep.path}`,
+          metadata: {
+            source: "unbrowse_replay",
+            browserSource,
+            contentType: browserResult.contentType ?? null,
+            outputSummary: data,
+            storeRaw,
+          },
+        });
+      } catch (settleErr) {
+        logger.warn(`[unbrowse] Failed to settle execution receipt: ${(settleErr as Error).message}`);
+      }
+
+      return { status, ok, endpointId: gate.endpointId, raw, data };
     } catch (err) {
       return { status: 0, ok: false, data: String((err as Error).message ?? err) };
     }
@@ -953,12 +1029,12 @@ async execute(_toolCallId: string, params: unknown) {
   const toTest = endpoints.slice(0, p.endpoint ? 1 : 10);
   results.push(`Executing ${p.service} (${toTest.length} endpoint${toTest.length > 1 ? "s" : ""})`, `Base: ${baseUrl}`, "");
 
-  // Default: marketplace-installed skills run via backend executor so we trace workflows (LAM training).
-  // Wallet is not required for execution; it is only used for paid flows / creator attribution elsewhere.
+  // Default: marketplace-installed skills run via backend gate + client browser execution.
+  // Backend handles policy/tracing/payment gate; browser handles the actual request.
   const hasMarketplaceMeta = existsSync(marketplaceMetaPath);
   const executionMode = p.executionMode ?? (hasMarketplaceMeta ? "backend" : "browser");
   if (executionMode === "backend") {
-    results.push(`Using backend executor (marketplace) for trace capture`);
+    results.push(`Using backend gate + client browser executor (marketplace)`);
     if (p.intent) results.push(`Intent: ${p.intent}`);
     if (p.traceId) results.push(`TraceId: ${p.traceId}`);
     results.push("");

@@ -122,6 +122,60 @@ export interface ExecuteEndpointResult {
   meta?: any;
 }
 
+export interface ExecutionGateRequest {
+  skillId: string;
+  method: string;
+  url: string;
+  context?: {
+    traceId?: string;
+    sessionId?: string;
+    stepId?: string;
+    parentStepId?: string;
+    autoChain?: boolean;
+    storeTrace?: boolean;
+    intent?: string;
+  };
+}
+
+export interface ExecutionGateResponse {
+  success: boolean;
+  ok?: boolean;
+  allowed?: boolean;
+  status?: number;
+  skillId?: string;
+  endpointId?: string;
+  method?: string;
+  path?: string;
+  executePath?: string;
+  executeUrl?: string;
+  traceId?: string;
+  stepId?: string;
+  parentStepId?: string;
+  sessionId?: string;
+  autoChain?: boolean;
+  storeTrace?: boolean;
+  intent?: string;
+  runToken?: string;
+  expiresAt?: string;
+  payment?: {
+    required?: boolean;
+    priceUsdc?: string;
+    mode?: string;
+  };
+  error?: string;
+}
+
+export interface ExecutionReceiptRequest {
+  runToken: string;
+  success: boolean;
+  statusCode?: number;
+  executionTimeMs?: number;
+  errorMessage?: string;
+  endpoint?: string;
+  metadata?: Record<string, any>;
+  payment?: Record<string, any>;
+}
+
 export interface PublishPayload {
   name: string;
   description: string;
@@ -510,7 +564,7 @@ export class SkillIndexClient {
     return resp.json() as Promise<PublishResult>;
   }
 
-  /** Execute an endpoint through the backend executor (no login/auth required). */
+  /** Legacy execute route call. Returns deprecation guidance when server execution is disabled. */
   async executeEndpoint(endpointId: string, req: ExecuteEndpointRequest): Promise<ExecuteEndpointResult> {
     if (!endpointId) throw new Error("endpointId is required");
 
@@ -526,10 +580,61 @@ export class SkillIndexClient {
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
+      let parsed: any = null;
+      try { parsed = text ? JSON.parse(text) : null; } catch { /* non-json error body */ }
+      if (resp.status === 410 || parsed?.code === "EXECUTION_DEPRECATED") {
+        const action = typeof parsed?.update?.action === "string" ? parsed.update.action : "";
+        throw new Error(
+          action ||
+          "Server-side execution was removed. Install the latest OpenClaw extension and use execution-gate + client browser execution."
+        );
+      }
       throw new Error(`Execute failed (${resp.status}): ${text}`);
     }
 
     return resp.json() as Promise<ExecuteEndpointResult>;
+  }
+
+  /** Gate an execution intent. Backend policy/payment gate; browser executes using returned executeUrl. */
+  async requestExecutionGate(req: ExecutionGateRequest): Promise<ExecutionGateResponse> {
+    const resp = await fetch(`${this.indexUrl}/marketplace/execution-gate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req ?? {}),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    const text = await resp.text().catch(() => "");
+    let parsed: any = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { /* non-json response */ }
+
+    if (!resp.ok) {
+      const errorMessage = typeof parsed?.error === "string" ? parsed.error : text || `Gate failed (${resp.status})`;
+      throw new Error(errorMessage);
+    }
+
+    return (parsed ?? {}) as ExecutionGateResponse;
+  }
+
+  /** Submit client-browser execution receipt tied to runToken for trust/tracing/payment settlement. */
+  async submitExecutionReceipt(req: ExecutionReceiptRequest): Promise<any> {
+    const resp = await fetch(`${this.indexUrl}/marketplace/executions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req ?? {}),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    const text = await resp.text().catch(() => "");
+    let parsed: any = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { /* non-json response */ }
+
+    if (!resp.ok) {
+      const errorMessage = typeof parsed?.error === "string" ? parsed.error : text || `Receipt failed (${resp.status})`;
+      throw new Error(errorMessage);
+    }
+
+    return parsed;
   }
 
   /** List all published versions for a skill (free). */
