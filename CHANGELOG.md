@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- HAR parser: GraphQL operation extraction — each `operationName` gets its own endpoint instead of lumping all operations under a single `/graphql` path (supports `/graphql`, `/gql`, `/query` patterns)
+- HAR parser: stem-based telemetry detection — uses keyword stems (track, metric, beacon, collect, telemetry, impression, logging, analytics) to generalize across vendors instead of hardcoding paths
+- HAR parser: `data:` and `blob:` URI filtering — inline resources no longer leak as endpoints
+
+### Fixed
+- HAR parser: OPTIONS preflight requests no longer leak as captured endpoints
+- HAR parser: telemetry infrastructure domains (metrics, beacon, rum, collector, reporting subdomains) now filtered via pattern matching
+- HAR parser: first-party tracking endpoints (sensorcollect, trackobserve, impressionevents, etc.) caught by generalized stem matching
+
 ## [0.7.4] - 2026-02-17
 
 ### Added
