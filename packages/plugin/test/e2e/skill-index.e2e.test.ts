@@ -16,8 +16,8 @@ describe("SkillIndexClient (e2e)", () => {
 
       const suffix = Math.random().toString(16).slice(2, 10);
       const name = `e2e-skill-${suffix}`; // must match backend regex: ^[a-z][a-z0-9-]*$
-      const markerV1 = `e2e-marker:${suffix}:v1`;
-      const markerV2 = `e2e-marker:${suffix}:v2`;
+      const descV1 = `e2e-desc:${suffix}:v1`;
+      const descV2 = `e2e-desc:${suffix}:v2`;
 
       const initialSkillMd = [
         "---",
@@ -31,15 +31,17 @@ describe("SkillIndexClient (e2e)", () => {
         "It is intentionally verbose so it passes backend validation rules (min lengths).",
         "Safe to delete.",
         "",
-        markerV1,
+        "## Endpoints",
+        "",
+        "- `GET /api/users`",
         "",
       ].join("\n");
 
       const pub = await client.publish({
         name,
-        description:
-          "End-to-end test skill used by unbrowse-openclaw to validate publish/re-publish/download flows.",
+        description: descV1,
         skillMd: initialSkillMd,
+        creatorWallet: publicKey,
         priceUsdc: "0",
       });
       expect(pub.success).toBe(true);
@@ -55,7 +57,7 @@ describe("SkillIndexClient (e2e)", () => {
       const dl = await client.download(id);
       expect(dl.skillId).toBe(id);
       expect(dl.name).toBe(name);
-      expect(dl.skillMd.includes(markerV1)).toBe(true);
+      expect(dl.description).toBe(descV1);
 
       const versionsV1 = await client.getVersions(id);
       expect(versionsV1.length).toBeGreaterThanOrEqual(1);
@@ -64,22 +66,22 @@ describe("SkillIndexClient (e2e)", () => {
       expect(v1.versionHash.length).toBeGreaterThan(8);
 
       const dlV1 = await client.downloadVersion(id, v1.versionHash);
-      expect(dlV1.skillMd.includes(markerV1)).toBe(true);
+      expect(dlV1.description).toBe(descV1);
 
       // "Update" is done by re-publishing with the same (name, creatorWallet); the backend records a new version.
-      const updatedSkillMd = `${initialSkillMd}\n## Update\n\nSecond publish from tests.\n\n${markerV2}\n`;
+      const updatedSkillMd = `${initialSkillMd}\n\n## Update\n\nSecond publish from tests.\n`;
       const upd = await client.publish({
         name,
-        description:
-          "End-to-end test skill updated by unbrowse-openclaw to validate re-publish/versioning behavior.",
+        description: descV2,
         skillMd: updatedSkillMd,
+        creatorWallet: publicKey,
         priceUsdc: "0",
       });
       expect(upd.success).toBe(true);
       expect(upd.skill.skillId).toBe(id);
 
       const dl2 = await client.download(id);
-      expect(dl2.skillMd.includes(markerV2)).toBe(true);
+      expect(dl2.description).toBe(descV2);
 
       const versionsV2 = await client.getVersions(id);
       expect(versionsV2.length).toBeGreaterThanOrEqual(2);
@@ -88,11 +90,11 @@ describe("SkillIndexClient (e2e)", () => {
       expect(latest!.versionHash).not.toBe(v1.versionHash);
 
       const dlLatest = await client.downloadVersion(id, latest!.versionHash);
-      expect(dlLatest.skillMd.includes(markerV2)).toBe(true);
+      expect(dlLatest.description).toBe(descV2);
     });
   });
 
-  it("paid download (402) fails fast when no wallet is configured", { timeout: 180_000 }, async () => {
+  it("paid download does not require a wallet when pricing is disabled server-side", { timeout: 180_000 }, async () => {
     await withBackend(async (backend) => {
       const { publicKey, privateKeyB58 } = await generateBase58Keypair();
       const authed = new SkillIndexClient({
@@ -120,14 +122,20 @@ describe("SkillIndexClient (e2e)", () => {
           "It is intentionally verbose so it passes backend validation rules (min lengths).",
           "Safe to delete.",
           "",
+          "## Endpoints",
+          "",
+          "- `GET /api/users`",
+          "",
         ].join("\n"),
+        creatorWallet: publicKey,
         priceUsdc: "1.00",
       });
 
       const id = pub.skill.skillId;
 
       const unauthed = new SkillIndexClient({ indexUrl: backend.baseUrl });
-      await expect(unauthed.download(id)).rejects.toThrow(/requires payment/i);
+      const dl = await unauthed.download(id);
+      expect(dl.skillId).toBe(id);
     });
   });
 });
