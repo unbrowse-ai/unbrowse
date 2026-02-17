@@ -9,8 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.4] - 2026-02-17
 
+### Added
+- Docs: added contributor and architecture docs (`docs/PURPOSE.md`, `docs/INTEGRATION_BOUNDARIES.md`, `docs/CONTRIBUTOR_PLAYBOOK.md`, `docs/AGENTIC_WEB.md`).
+- Plugin: added CDP WebSocket client + network traffic capture (`packages/plugin/src/cdp-ws.ts`) and wired it into capture/login flows.
+- Plugin: added regression test coverage for session-login auth header capture (`packages/plugin/test/session-login-auth-headers.test.ts`).
+
 ### Changed
-- Bump plugin package version to `0.7.4`.
+- Web UI: switched marketplace UX from "downloads/installs" to "executions" (list/search/detail) and added `/analytics` route.
+- Web/Vercel: switched web build/install to Bun and updated monorepo build commands (`vercel.json`, `packages/web/vercel.json`).
+- Web dev proxy: moved analytics proxy path from `/analytics` to `/admin/analytics` (`packages/web/vite.config.js`).
+- CLI: replaced unsupported `workspace:*` dependency with local `file:../plugin` (`packages/cli/package.json`).
+- CI/publish: publishing runs only on `stable` (or manual), skips if no `packages/plugin/**` changes, and never auto-bumps versions (`.github/workflows/publish.yml`).
+- CI: fixed `npm pack --dry-run` step to run inside `packages/plugin` (`.github/workflows/ci.yml`).
+- Plugin capture: HAR capture now prefers attaching to a running OpenClaw browser via CDP (auto `http://127.0.0.1:18800`) with fallback to local `recordHar` (`packages/plugin/src/har-capture.ts`).
+- Plugin session login: captures cookies plus client-side tokens (localStorage/sessionStorage/meta) for later replay (`packages/plugin/src/session-login.ts`).
+- Plugin replay: filters HTTP/2 pseudo-headers and promotes captured tokens/CSRF context into replay headers (`packages/plugin/src/plugin/tools/unbrowse_replay.ts`).
+
+### Fixed
+- Plugin E2E harness: improved backend detection/health-check behavior (prefers `:4113` when present) (`packages/plugin/test/e2e/backend-harness.ts`, `third_party/openclaw-test-suite/lib/health.sh`).
 
 ## [0.5.13] - 2026-02-13
 
