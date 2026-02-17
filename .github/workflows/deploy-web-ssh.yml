@@ -64,6 +64,15 @@ jobs:
           test -n "${DEPLOY_USER}" || { echo "Missing DEPLOY_USER secret"; exit 1; }
           test -n "${{ secrets.DEPLOY_SSH_KEY }}" || { echo "Missing DEPLOY_SSH_KEY secret"; exit 1; }
 
+      # Optional: if your VM is only reachable on a tailnet (private IPs), set
+      # `TAILSCALE_AUTHKEY` as an Environment secret to allow GitHub-hosted runners
+      # to reach `DEPLOY_HOST` over Tailscale.
+      - name: Setup Tailscale (optional)
+        if: ${{ secrets.TAILSCALE_AUTHKEY != '' }}
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
       - name: Build web image
         id: image
         run: |
