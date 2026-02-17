@@ -149,7 +149,15 @@ const plugin = {
       return title.includes("doctor") || title.includes("audit");
     })();
 
-    const defaultOutputDir = (cfg.skillsOutputDir as string) ?? join(homedir(), ".openclaw", "skills");
+    const isDevProfile = process.argv.some((a) => a === "--dev" || a.startsWith("--dev="));
+    const defaultSkillsDir = isDevProfile
+      ? join(homedir(), ".openclaw-dev", "skills")
+      : join(homedir(), ".openclaw", "skills");
+    const envSkillsDir =
+      getEnv("UNBROWSE_SKILLS_DIR") ??
+      getEnv("OPENCLAW_SKILLS_DIR") ??
+      getEnv("OCT_SKILLS_DIR");
+    const defaultOutputDir = (cfg.skillsOutputDir as string) ?? envSkillsDir ?? defaultSkillsDir;
     const autoDiscoverEnabled = (cfg.autoDiscover as boolean) ?? true;
     const autoContributeEnabled = (cfg.autoContribute as boolean) ?? true;
     const enableAgentContextHints = (cfg.enableAgentContextHints as boolean) ?? false;

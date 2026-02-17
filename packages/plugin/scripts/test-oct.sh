@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Repo root is two levels up from packages/plugin/.
+REPO_ROOT="$(cd "${PLUGIN_ROOT}/../.." && pwd)"
 
 export OCT_LIB_DIR="${REPO_ROOT}/third_party/openclaw-test-suite/lib"
 export PATH="${REPO_ROOT}/third_party/openclaw-test-suite/bin:${PATH}"
 
 export OCT_PLUGIN_ID="unbrowse-openclaw"
-export OCT_PLUGIN_DIR="${REPO_ROOT}"
+export OCT_PLUGIN_DIR="${PLUGIN_ROOT}"
+# Default: existing gateway (service-managed).
 export OCT_GATEWAY_URL="${OCT_GATEWAY_URL:-http://127.0.0.1:18789}"
 export OCT_GATEWAY_TOKEN="${OCT_GATEWAY_TOKEN:-}"
 
@@ -17,29 +20,23 @@ if [ "$MODE" = "docker" ] || [ "${OCT_CAN_START_GATEWAY:-}" = "1" ]; then
   export OCT_CAN_START_GATEWAY=1
   export OCT_GATEWAY_TOKEN="${OCT_GATEWAY_TOKEN:-oct_test_token_$(date +%s)}"
   export OPENCLAW_GATEWAY_TOKEN="$OCT_GATEWAY_TOKEN"
-
-  # Ensure a minimal config exists so `openclaw gateway run` doesn't abort.
-  mkdir -p "${HOME}/.openclaw"
-  CFG="${HOME}/.openclaw/openclaw.json"
-  if [ ! -f "$CFG" ]; then
-    cat >"$CFG" <<EOF
-{
-  "gateway": {
-    "mode": "local",
-    "bind": "loopback",
-    "port": 18789,
-    "auth": { "mode": "token", "token": "${OCT_GATEWAY_TOKEN}" },
-    "tailscale": { "mode": "off", "resetOnExit": false }
-  }
-}
-EOF
-  fi
+  export OCT_SKILLS_DIR="${OCT_SKILLS_DIR:-${HOME}/.openclaw-dev/skills}"
+  export OPENCLAW_SKILLS_DIR="${OCT_SKILLS_DIR}"
 
   # Generate an ephemeral Solana keypair for signed marketplace requests.
   eval "$(node --input-type=module -e 'import {Keypair} from "@solana/web3.js"; import bs58 from "bs58"; const kp=Keypair.generate(); console.log(`export UNBROWSE_CREATOR_WALLET=${kp.publicKey.toBase58()}`); console.log(`export UNBROWSE_SOLANA_PRIVATE_KEY=${bs58.encode(kp.secretKey)}`);')"
 
   # Install this plugin into OpenClaw so `gateway run` loads it.
-  openclaw plugins install --link "${REPO_ROOT}" >/tmp/oct-install.log 2>&1 || {
+  # Note: OCT lifecycle uses `openclaw ... --dev gateway run ...`, so install into the dev profile too.
+  DEV_EXT_DIR="${HOME}/.openclaw-dev/extensions/${OCT_PLUGIN_ID}"
+  if [ -e "${DEV_EXT_DIR}" ]; then
+    if command -v trash >/dev/null 2>&1; then
+      trash "${DEV_EXT_DIR}" >/dev/null 2>&1 || true
+    else
+      mv "${DEV_EXT_DIR}" "/tmp/${OCT_PLUGIN_ID}-oct-backup-$(date +%s)" >/dev/null 2>&1 || true
+    fi
+  fi
+  openclaw --dev plugins install --link "${PLUGIN_ROOT}" >/tmp/oct-install.log 2>&1 || {
     echo "openclaw plugin install failed. Log:"
     tail -200 /tmp/oct-install.log || true
     exit 1
@@ -58,4 +55,4 @@ else
   fi
 fi
 
-oct "${REPO_ROOT}/test/oct"
+oct "${PLUGIN_ROOT}/test/oct"
