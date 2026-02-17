@@ -217,6 +217,87 @@ const SITES: TestSite[] = [
       return false;
     },
   },
+  // ── Browser-use agent target sites ─────────────────────────────────────
+  {
+    name: "Instacart",
+    startUrl: "https://www.instacart.com/store/search?search_term=organic+milk",
+    captureTimeout: 15,
+    actions: async (page) => {
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(4000);
+      await page.evaluate(() => window.scrollBy(0, 600));
+      await page.waitForTimeout(2000);
+    },
+    isApiCall: (url, _method, resourceType) => {
+      if (url.includes("instacart.com/graphql")) return true;
+      if (url.includes("instacart.com/rpc/")) return true;
+      if (url.includes("instacart.com") && (resourceType === "xhr" || resourceType === "fetch")) {
+        if (url.includes(".js") || url.includes(".css") || url.includes(".png") || url.includes(".svg")) return false;
+        return true;
+      }
+      return false;
+    },
+  },
+  {
+    name: "DoorDash",
+    startUrl: "https://www.doordash.com/food-delivery/new-york-ny-restaurants/",
+    captureTimeout: 15,
+    actions: async (page) => {
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(4000);
+      await page.evaluate(() => window.scrollBy(0, 500));
+      await page.waitForTimeout(2000);
+    },
+    isApiCall: (url, _method, resourceType) => {
+      if (url.includes("doordash.com/graphql")) return true;
+      if (url.includes("doordash.com/api/")) return true;
+      if (url.includes("doordash.com") && (resourceType === "xhr" || resourceType === "fetch")) {
+        if (url.includes(".js") || url.includes(".css") || url.includes(".png") || url.includes(".svg")) return false;
+        return true;
+      }
+      return false;
+    },
+  },
+  {
+    name: "Expedia",
+    startUrl: "https://www.expedia.com/Hotel-Search?destination=New+York",
+    captureTimeout: 15,
+    actions: async (page) => {
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(4000);
+      await page.evaluate(() => window.scrollBy(0, 500));
+      await page.waitForTimeout(2000);
+    },
+    isApiCall: (url, _method, resourceType) => {
+      if (url.includes("expedia.com/api/")) return true;
+      if (url.includes("expedia.com/graphql")) return true;
+      if (url.includes("expedia.com") && (resourceType === "xhr" || resourceType === "fetch")) {
+        if (url.includes(".js") || url.includes(".css") || url.includes(".png") || url.includes(".svg") || url.includes(".woff")) return false;
+        return true;
+      }
+      return false;
+    },
+  },
+  {
+    name: "Zillow",
+    startUrl: "https://www.zillow.com/homes/for_sale/",
+    captureTimeout: 15,
+    actions: async (page) => {
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(4000);
+      await page.evaluate(() => window.scrollBy(0, 500));
+      await page.waitForTimeout(2000);
+    },
+    isApiCall: (url, _method, resourceType) => {
+      if (url.includes("zillow.com/graphql")) return true;
+      if (url.includes("zillow.com/async-create-search-page-state")) return true;
+      if (url.includes("zillow.com") && (resourceType === "xhr" || resourceType === "fetch")) {
+        if (url.includes(".js") || url.includes(".css") || url.includes(".png") || url.includes(".svg")) return false;
+        return true;
+      }
+      return false;
+    },
+  },
 ];
 
 // ── Capture ─────────────────────────────────────────────────────────────────
