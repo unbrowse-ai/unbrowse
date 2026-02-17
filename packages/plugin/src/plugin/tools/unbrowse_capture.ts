@@ -5,6 +5,8 @@ import { enrichApiData } from "../../har-parser.js";
 import { generateSkill } from "../../skill-generator.js";
 import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
 import { selectEndpointGroupsForIntent } from "../../intent-endpoint-selector.js";
+import { writeCaptureSessionFile } from "../../capture-store.js";
+import { inferCorrelationGraphV1 } from "../../correlation-engine.js";
 import { CAPTURE_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 import { normalizeUrlList, coalesceDir } from "./input-normalizers.js";
@@ -155,6 +157,23 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
           pagesCrawled: crawlResult?.pagesCrawled,
         });
         discovery.markLearned(result.service);
+
+        // Persist full capture exchanges (with bodies) locally for replay-v2 correlation + chaining.
+        try {
+          const { mkdirSync, writeFileSync } = await import("node:fs");
+          const { session } = writeCaptureSessionFile(result.skillDir, har.log?.entries ?? [], { seedUrl: urls[0] });
+          const graph = inferCorrelationGraphV1(session.exchanges);
+          const refsDir = join(result.skillDir, "references");
+          mkdirSync(refsDir, { recursive: true });
+          writeFileSync(join(refsDir, "CORRELATIONS.json"), JSON.stringify(graph, null, 2), "utf-8");
+          const sequences = graph.chains.map((chain, i) => ({
+            name: `chain_${i + 1}`,
+            steps: chain.map((idx) => graph.requests.find((r) => r.index === idx)),
+          }));
+          writeFileSync(join(refsDir, "SEQUENCES.json"), JSON.stringify(sequences, null, 2), "utf-8");
+        } catch {
+          // Non-critical: skill still generated successfully
+        }
 
         // Detect and save refresh token config
         detectAndSaveRefreshConfig(har.log?.entries ?? [], join(result.skillDir, "auth.json"), logger);

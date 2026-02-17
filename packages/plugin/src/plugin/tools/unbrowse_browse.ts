@@ -9,6 +9,8 @@ import {
   generateSkill,
 } from "./shared.js";
 import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
+import { writeCaptureSessionFile } from "../../capture-store.js";
+import { inferCorrelationGraphV1 } from "../../correlation-engine.js";
 import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
 import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
 import { buildPublishPromptLines } from "./publish-prompts.js";
@@ -787,6 +789,20 @@ async execute(_toolCallId: string, params: unknown) {
           if (result.endpointCount <= 0) {
             reverseEngineeringFailure = "Reverse-engineering failed: generated skill has 0 usable endpoints.";
           }
+
+          // Persist full capture exchanges (with bodies) locally for replay-v2 correlation + chaining.
+          try {
+            const { session } = writeCaptureSessionFile(result.skillDir, apiHarEntries as any, { seedUrl: p.url });
+            const graph = inferCorrelationGraphV1(session.exchanges);
+            const refsDir = join(result.skillDir, "references");
+            mkdirSync(refsDir, { recursive: true });
+            writeFileSync(join(refsDir, "CORRELATIONS.json"), JSON.stringify(graph, null, 2), "utf-8");
+            const sequences = graph.chains.map((chain, i) => ({
+              name: `chain_${i + 1}`,
+              steps: chain.map((idx) => graph.requests.find((r) => r.index === idx)),
+            }));
+            writeFileSync(join(refsDir, "SEQUENCES.json"), JSON.stringify(sequences, null, 2), "utf-8");
+          } catch { /* non-critical */ }
 
           // Best-effort: infer a dependency DAG from the captured request/response bodies.
           // Stored as references/DAG.json so it can be published + merged server-side.
