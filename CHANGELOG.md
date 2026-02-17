@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-02-17
+
+### Fixed
+- NPM packaging now ships prebuilt plugin artifacts from `dist/` instead of TypeScript source-only files.
+- Plugin manifest now points to `dist/index.js` so installed packages run without requiring source-time TypeScript loading.
+- Publish guard now verifies `npm pack --dry-run --json` includes `dist/index.js`.
+
+## [0.7.5] - 2026-02-17
+
+### Fixed
+- Plugin marketplace search compatibility: accept alternate index response envelopes (`results`, `items`, nested `data.*`) and trim incoming search query values.
+- Plugin install/download compatibility: fallback from `GET /marketplace/skill-downloads/:id` to `GET /marketplace/skills/:id/download` when the legacy route returns 404.
+
 ## [0.7.4] - 2026-02-17
 
 ### Added

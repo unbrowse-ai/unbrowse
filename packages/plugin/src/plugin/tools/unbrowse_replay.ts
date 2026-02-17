@@ -13,9 +13,14 @@ import {
 } from "./shared.js";
 import type { HeaderProfileFile, PrimeResult } from "./shared.js";
 import type { CsrfProvenance } from "../../types.js";
+import type { CaptureSessionFileV1, CapturedExchange } from "../../types.js";
 import { applyCsrfProvenance, inferCsrfProvenance } from "../../auth-provenance.js";
+import { inferCorrelationGraphV1, planChainForTarget } from "../../correlation-engine.js";
+import { prepareRequestForStep, type StepResponseRuntime } from "../../sequence-executor.js";
+import { fetchViaNodeStealth } from "../../transport.js";
 import { loadJsonOr, loadText } from "../../disk-io.js";
 import { summarizeHtmlContent } from "../../html-structurer.js";
+import { safeParseJson } from "../../schema-inferrer.js";
 
 export function makeUnbrowseReplayTool(deps: ToolDeps) {
   const {
@@ -44,6 +49,7 @@ async execute(_toolCallId: string, params: unknown) {
     body?: string;
     skillsDir?: string;
     executionMode?: "browser" | "node" | "backend";
+    useStealth?: boolean;
     traceId?: string;
     intent?: string;
     storeTrace?: boolean;
@@ -449,6 +455,50 @@ async execute(_toolCallId: string, params: unknown) {
     return { content: [{ type: "text", text: "No endpoints found. Provide endpoint param or check SKILL.md." }] };
   }
 
+  // ── Replay-v2: capture-backed correlation + chaining ──────────────────
+  const loadLatestCaptureSession = async (): Promise<CaptureSessionFileV1 | null> => {
+    try {
+      const { readdirSync, readFileSync } = await import("node:fs");
+      const capturesDir = join(skillDir, "captures");
+      if (!existsSync(capturesDir)) return null;
+      const files = readdirSync(capturesDir)
+        .filter((f) => f.startsWith("session-") && f.endsWith(".json"))
+        .sort();
+      const latest = files[files.length - 1];
+      if (!latest) return null;
+      const raw = readFileSync(join(capturesDir, latest), "utf-8");
+      const parsed = JSON.parse(raw) as CaptureSessionFileV1;
+      if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.exchanges)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const captureSession = await loadLatestCaptureSession();
+  const capturedExchanges: CapturedExchange[] | null = captureSession?.exchanges ?? null;
+  const correlationGraph = (() => {
+    if (!capturedExchanges || capturedExchanges.length === 0) return null;
+    const refsDir = join(skillDir, "references");
+    const path = join(refsDir, "CORRELATIONS.json");
+    if (existsSync(path)) {
+      try {
+        const g = loadJsonOr<any>(path, null as any);
+        if (g && g.version === 1 && Array.isArray(g.links)) return g;
+      } catch { /* ignore */ }
+    }
+    try {
+      return inferCorrelationGraphV1(capturedExchanges);
+    } catch {
+      return null;
+    }
+  })();
+
+  const autoChainLocal =
+    typeof p.autoChain === "boolean"
+      ? p.autoChain
+      : Boolean(p.endpoint); // default: chain only for single-endpoint runs
+
   // ── Execution strategies ────────────────────────────────────
   //
   // IMPORTANT: Always prefer browser-based fetch over Node.js fetch.
@@ -568,7 +618,8 @@ async execute(_toolCallId: string, params: unknown) {
     ep: { method: string; path: string },
     body: string | undefined,
     limit: number,
-  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string } | null> {
+    extraHeaders?: Record<string, string>,
+  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string; headers?: Record<string, string> } | null> {
     const page = await getChromePage();
     if (!page) return null;
 
@@ -590,6 +641,9 @@ async execute(_toolCallId: string, params: unknown) {
       } else {
         resolvedHeaders = { "Content-Type": "application/json", ...cleanHeaders };
       }
+      if (extraHeaders && Object.keys(extraHeaders).length > 0) {
+        for (const [k, v] of Object.entries(extraHeaders)) resolvedHeaders[k] = v;
+      }
 
       const fetchOpts: Record<string, unknown> = {
         method: ep.method,
@@ -607,7 +661,11 @@ async execute(_toolCallId: string, params: unknown) {
           const ct = resp.headers.get("content-type") ?? "";
           const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
           const data = limit > 0 ? text.slice(0, limit) : text;
-          return { status: resp.status, ok: resp.ok, data, isHtml, contentType: ct };
+          const headers: Record<string, string> = {};
+          try {
+            resp.headers.forEach((value, key) => { headers[key] = value; });
+          } catch { /* ignore */ }
+          return { status: resp.status, ok: resp.ok, data, isHtml, contentType: ct, headers };
         } catch (err) {
           return { status: 0, ok: false, data: String(err) };
         }
@@ -629,7 +687,9 @@ async execute(_toolCallId: string, params: unknown) {
     ep: { method: string; path: string },
     body: string | undefined,
     limit: number,
-  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string }> {
+    extraHeaders?: Record<string, string>,
+    opts?: { useStealth?: boolean },
+  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string; headers?: Record<string, string>; usedStealth?: boolean }> {
     const url = new URL(ep.path, baseUrl).toString();
 
     // Prime headers + cookies from browser on first Node.js fetch (one-time)
@@ -684,6 +744,38 @@ async execute(_toolCallId: string, params: unknown) {
         reqHeaders["Cookie"] = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join("; ");
       }
     }
+
+    if (extraHeaders && Object.keys(extraHeaders).length > 0) {
+      for (const [k, v] of Object.entries(extraHeaders)) {
+        reqHeaders[k] = v;
+      }
+    }
+
+    // Optional: stealth transport (JA3/TLS impersonation) when available.
+    if (opts?.useStealth !== false) {
+      const stealth = await fetchViaNodeStealth(url, {
+        method: ep.method,
+        headers: reqHeaders,
+        bodyText: body && ["POST", "PUT", "PATCH"].includes(ep.method) ? body : undefined,
+        timeoutMs: 10_000,
+        profile: "Chrome",
+      });
+      if (stealth) {
+        const ct = stealth.headers["content-type"] ?? stealth.headers["Content-Type"] ?? "";
+        const isHtml = ct.toLowerCase().includes("text/html") || ct.toLowerCase().includes("application/xhtml");
+        const data = limit > 0 ? stealth.bodyText.slice(0, limit) : stealth.bodyText;
+        return {
+          status: stealth.status,
+          ok: stealth.ok,
+          data,
+          isHtml,
+          contentType: ct,
+          headers: stealth.headers,
+          usedStealth: true,
+        };
+      }
+    }
+
     const resp = await fetch(url, {
       method: ep.method,
       headers: reqHeaders,
@@ -736,7 +828,9 @@ async execute(_toolCallId: string, params: unknown) {
     const isHtml = ct.includes("text/html") || ct.includes("application/xhtml");
     // HTML responses can still be a successful "endpoint" for SSR/scraping-style skills.
     const data = limit > 0 ? text.slice(0, limit) : text;
-    return { status: resp.status, ok: resp.ok, data, isHtml, contentType: ct };
+    const headers: Record<string, string> = {};
+    for (const [k, v] of resp.headers.entries()) headers[k] = v;
+    return { status: resp.status, ok: resp.ok, data, isHtml, contentType: ct, headers, usedStealth: false };
   }
 
   // ── Credential refresh on 401/403 ──────────────────────────
@@ -917,6 +1011,45 @@ async execute(_toolCallId: string, params: unknown) {
 
   function toMethodPathKey(method: string, path: string): string {
     return `${String(method || "GET").toUpperCase()} ${normalizePathForKey(path)}`;
+  }
+
+  function toTemplateRegex(pathTemplate: string): RegExp | null {
+    const pth = normalizePathForKey(pathTemplate);
+    // Escape regex then replace {param} with a single-segment wildcard.
+    const escaped = pth.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = escaped.replace(/\\\{[^}]+\\\}/g, "[^/]+");
+    try {
+      return new RegExp(`^${pattern}$`);
+    } catch {
+      return null;
+    }
+  }
+
+  function capturedPathname(urlStr: string): string {
+    try { return new URL(urlStr).pathname || "/"; } catch { return normalizePathForKey(urlStr); }
+  }
+
+  function findBestCapturedTargetIndex(ep: { method: string; path: string }): number | null {
+    if (!capturedExchanges || capturedExchanges.length === 0) return null;
+    const wantMethod = ep.method.toUpperCase();
+    const wantPath = normalizePathForKey(ep.path);
+    const re = wantPath.includes("{") ? toTemplateRegex(wantPath) : null;
+
+    let best: { idx: number; score: number; ts: number } | null = null;
+    for (const ex of capturedExchanges) {
+      if (ex.request.method.toUpperCase() !== wantMethod) continue;
+      const gotPath = capturedPathname(ex.request.url);
+      let score = 0;
+      if (gotPath === wantPath) score = 3;
+      else if (re && re.test(gotPath)) score = 2;
+      else continue;
+
+      const ts = typeof ex.timestamp === "number" ? ex.timestamp : 0;
+      if (!best || score > best.score || (score === best.score && ts > best.ts)) {
+        best = { idx: ex.index, score, ts };
+      }
+    }
+    return best?.idx ?? null;
   }
 
   function extractTransformCode(entry: Record<string, unknown>): string | undefined {
@@ -1131,6 +1264,19 @@ async execute(_toolCallId: string, params: unknown) {
   }
   results.push("");
 
+  const useStealth = typeof p.useStealth === "boolean" ? p.useStealth : true;
+
+  const execPreparedRequest = async (
+    prepared: { method: string; url: string; headers: Record<string, string>; bodyText?: string },
+    limit: number,
+  ): Promise<{ status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string; headers?: Record<string, string>; usedStealth?: boolean } | null> => {
+    const ep2 = { method: prepared.method, path: prepared.url };
+    if (hasBrowser) {
+      return await execInChrome(ep2, prepared.bodyText, limit, prepared.headers);
+    }
+    return await execViaFetch(ep2, prepared.bodyText, limit, prepared.headers, { useStealth });
+  };
+
   for (const ep of toTest) {
     const body = p.body ?? (["POST", "PUT", "PATCH"].includes(ep.method) ? "{}" : undefined);
     const transformCode = transformsByMethodPath.get(toMethodPathKey(ep.method, ep.path));
@@ -1138,10 +1284,71 @@ async execute(_toolCallId: string, params: unknown) {
     const limit = wantsFull ? 0 : maxResponseChars;
     let result: { status: number; ok: boolean; data?: string; isHtml?: boolean; contentType?: string } | null = null;
 
+    // Replay-v2 chain execution (captures + correlations).
+    const targetIdx = autoChainLocal && correlationGraph ? findBestCapturedTargetIndex(ep) : null;
+    if (targetIdx != null && capturedExchanges && correlationGraph) {
+      const chain = planChainForTarget(correlationGraph as any, targetIdx);
+      const runtimeByIndex = new Map<number, StepResponseRuntime>();
+      let final: StepResponseRuntime | null = null;
+
+      for (const stepIdx of chain) {
+        const prepared = prepareRequestForStep(
+          capturedExchanges,
+          correlationGraph as any,
+          stepIdx,
+          runtimeByIndex,
+          {
+            sessionHeaders: filterPseudoHeaders(authHeaders),
+            bodyOverrideText: (stepIdx === targetIdx && typeof p.body === "string") ? p.body : undefined,
+          },
+        );
+        if (!prepared) continue;
+        if (!prepared.bodyText && ["POST", "PUT", "PATCH"].includes(prepared.method)) {
+          prepared.bodyText = "{}";
+        }
+
+        const internalLimit = stepIdx === targetIdx ? limit : 100_000;
+        const stepResult = await execPreparedRequest(prepared, internalLimit);
+        const stepHeaders = stepResult?.headers ?? {};
+        const bodyText = String(stepResult?.data ?? "");
+        const ct = stepResult?.contentType ?? "";
+
+        // Promote session headers (CSRF/auth refresh) into the running header set.
+        for (const [name, value] of Object.entries(stepHeaders)) {
+          if (SESSION_HEADER_NAMES.has(name.toLowerCase())) {
+            authHeaders[name.toLowerCase()] = value;
+          }
+        }
+
+        const runtime: StepResponseRuntime = {
+          status: stepResult?.status ?? 0,
+          headers: stepHeaders,
+          bodyText,
+          contentType: ct,
+          bodyJson: undefined,
+        };
+        runtime.bodyJson = (() => {
+          const parsed = (ct.includes("json") || bodyText.trim().startsWith("{") || bodyText.trim().startsWith("["))
+            ? safeParseJson(bodyText)
+            : null;
+          return parsed !== null ? parsed : undefined;
+        })();
+
+        runtimeByIndex.set(stepIdx, runtime);
+        if (stepIdx === targetIdx) final = runtime;
+      }
+
+      if (final) {
+        const ok = final.status >= 200 && final.status < 300;
+        const isHtml = /<!doctype html|<html\b|<body\b/i.test(final.bodyText) || String(final.contentType ?? "").includes("text/html");
+        result = { status: final.status, ok, data: final.bodyText, isHtml, contentType: final.contentType };
+      }
+    }
+
     // Strategy: Always use browser if available (authentic fingerprint)
     // Only fall back to Node.js fetch if no browser at all
     if (hasBrowser) {
-      result = await execInChrome(ep, body, limit);
+      result = result ?? await execInChrome(ep, body, limit);
       if (result && result.ok) {
         const saved = maybePersistLocalReplay(ep, result);
         if (transformCode && typeof result.data === "string") {
@@ -1220,7 +1427,7 @@ async execute(_toolCallId: string, params: unknown) {
       // No browser available - fall back to Node.js fetch
       // This will likely be blocked by sophisticated bot detection
       try {
-        result = await execViaFetch(ep, body, limit);
+        result = result ?? await execViaFetch(ep, body, limit, undefined, { useStealth });
         if (result.ok) {
           const saved = maybePersistLocalReplay(ep, result);
           if (transformCode && typeof result.data === "string") {
@@ -1251,7 +1458,7 @@ async execute(_toolCallId: string, params: unknown) {
           results.push(`  ${ep.method} ${ep.path} → ${status} — refreshing credentials...`);
           const refreshed = await refreshCreds();
           if (refreshed) {
-            result = await execViaFetch(ep, body, limit);
+            result = await execViaFetch(ep, body, limit, undefined, { useStealth });
             if (result.ok) {
               results.push(`  ${ep.method} ${ep.path} → ${result.status} OK (refreshed)`);
               if (p.endpoint && result.data) {
