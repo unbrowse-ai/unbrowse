@@ -41,6 +41,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Plugin E2E harness: improved backend detection/health-check behavior (prefers `:4113` when present) (`packages/plugin/test/e2e/backend-harness.ts`, `third_party/openclaw-test-suite/lib/health.sh`).
 
+## [0.7.2] - 2026-02-17
+
+### Added
+- Client-execution release train from the `0.7.0` baseline, including marketplace execution UX and endpoint execution metrics support.
+
+### Changed
+- Finalized the initial `0.7.x` packaging/release flow for plugin distribution.
+
+## [0.7.1] - 2026-02-17
+
+### Changed
+- Follow-up stabilization release for the first `0.7.0` cut.
+
+## [0.7.0] - 2026-02-17
+
+### Added
+- Marketplace/UI execution-oriented experience replacing install/download emphasis.
+
+### Changed
+- Transitioned from `0.5.x` feature train to the `0.7.x` line, including monorepo and plugin release flow consolidation.
+
 ## [0.5.13] - 2026-02-13
 
 ### Fixed
@@ -113,6 +134,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed staging backend request timeouts caused by session auth lookups during request middleware/ingestion paths
 - Production benchmark: exclude `kemono.party` from fetched production skill set
 
+## [0.5.11] - 2026-02-13
+
+### Added
+- Introduced a project changelog and started formal release-note tracking.
+
+## [0.5.10] - 2026-02-13
+
+### Fixed
+- Web marketplace endpoint detail UX and API-base handling improvements.
+
+## [0.5.9] - 2026-02-13
+
+### Fixed
+- Made agent context hints opt-in to reduce prompt/context noise.
+
+## [0.5.8] - 2026-02-13
+
+### Changed
+- Updated licensing docs during AGPL transition work.
+
+## [0.5.7] - 2026-02-13
+
+### Changed
+- Hardened publish CI with trusted publish path, npm version guards, and lockfile/cache resilience improvements.
+
+### Fixed
+- Gated internal API context injection by user intent.
+
+## [0.5.6] - 2026-02-12
+
+### Fixed
+- Node runtime compatibility improvements (diagnostic mode process-title checks and guarded Solana native imports).
+- Reliability fixes to avoid hanging processes on shutdown/CLI exit (`unref` timers/sockets).
+
+### Changed
+- NPM publish pipeline updated for public releases with provenance metadata.
+
 ## [0.5.5] - 2026-02-13
 
 ### Added
@@ -150,10 +208,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OOP refactor of HAR parser with route generalization and schema capture
 - Integrated LLM describer for rich endpoint documentation in skill generation
 
-[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.4...HEAD
-[0.7.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.13...v0.7.4
+[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.6...HEAD
+[0.7.6]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.5...v0.7.6
+[0.7.5]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.4...v0.7.5
+[0.7.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.2...v0.7.4
+[0.7.2]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.13...v0.7.0
 [0.5.13]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.12...v0.5.13
-[0.5.12]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.7...v0.5.12
+[0.5.12]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.11...v0.5.12
+[0.5.11]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.10...v0.5.11
+[0.5.10]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.9...v0.5.10
+[0.5.9]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.8...v0.5.9
+[0.5.8]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.7...v0.5.8
+[0.5.7]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.6...v0.5.7
+[0.5.6]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.2...v0.5.3
