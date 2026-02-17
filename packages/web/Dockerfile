@@ -3,8 +3,13 @@ WORKDIR /app
 
 RUN corepack enable
 
-COPY package.json ./
-RUN pnpm install --no-frozen-lockfile
+# Compile-time env for Vite (optional). Prefer passing via `--build-arg`.
+ARG VITE_API_BASE
+ENV VITE_API_BASE=${VITE_API_BASE}
+
+# Install deps with lockfile for reproducible CI builds + better caching.
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build
