@@ -7,18 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Release note drafting guidance
+- Keep entries user-outcome first (what users can now do), then implementation detail.
+- Group major updates under **Added / Changed / Fixed** with feature-level headings.
+- Save low-level internals (exact routes, CI mechanics, file paths) for PRs/commit history unless they directly affect users/operators.
+- For each release tag, publish a matching GitHub Release with a short highlights section and migration notes when relevant.
+
 ## [0.7.6] - 2026-02-17
 
 ### Fixed
-- NPM packaging now ships prebuilt plugin artifacts from `dist/` instead of TypeScript source-only files.
-- Plugin manifest now points to `dist/index.js` so installed packages run without requiring source-time TypeScript loading.
-- Publish guard now verifies `npm pack --dry-run --json` includes `dist/index.js`.
+- Plugin installs from npm now run out-of-the-box without requiring source-time TypeScript loading.
+- Packaging and CI now enforce shipping prebuilt plugin artifacts so broken release bundles are blocked before publish.
 
 ## [0.7.5] - 2026-02-17
 
 ### Fixed
-- Plugin marketplace search compatibility: accept alternate index response envelopes (`results`, `items`, nested `data.*`) and trim incoming search query values.
-- Plugin install/download compatibility: fallback from `GET /marketplace/skill-downloads/:id` to `GET /marketplace/skills/:id/download` when the legacy route returns 404.
+- Marketplace skill search is now more resilient to backend response variations.
+- Skill download/install is more reliable across legacy and current marketplace route shapes.
 
 ## [0.7.4] - 2026-02-17
 
