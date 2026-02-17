@@ -30,11 +30,23 @@ gateway_start() {
   local timeout_s="${OCT_GATEWAY_START_TIMEOUT:-60}"
 
   echo "  Starting OpenClaw gateway..."
-  openclaw gateway run --allow-unconfigured --dev --force "$@" > "$log_file" 2>&1 &
+  # Keep OCT isolated (`--dev`), but bind to the port implied by OCT_GATEWAY_URL
+  # so we can run alongside any already-running gateway service.
+  local port
+  port="$(echo "${OCT_GATEWAY_URL:-http://127.0.0.1:18789}" | sed -n 's#.*:\\([0-9][0-9]*\\).*#\\1#p')"
+  [ -z "${port:-}" ] && port="18789"
+
+  # NOTE: `--dev` is a global flag; it must appear before the subcommand.
+  # Some OpenClaw builds do not expose a `gateway run` subcommand; `openclaw gateway` runs the gateway.
+  openclaw --dev gateway --allow-unconfigured --force --port "$port" "$@" > "$log_file" 2>&1 &
   _OCT_GATEWAY_PID=$!
 
   if wait_for_health "${OCT_GATEWAY_URL}/health" "$timeout_s"; then
     assert "Gateway started and healthy" "true"
+    if [ -n "${OCT_VERBOSE:-}" ]; then
+      warn "Gateway log (last 50 lines):"
+      tail -50 "$log_file" 2>/dev/null | sed 's/^/    /' || echo "    (no log)"
+    fi
     return 0
   else
     # Don't let `set -e` abort before we can print the log tail.

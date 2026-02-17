@@ -1,29 +1,27 @@
 /**
- * HAR Capture — Playwright-native HAR recording with full headers.
+ * HAR Capture
  *
- * Uses Playwright's built-in `recordHar` option which captures complete
- * request/response headers, cookies, timing, and content. No patches needed.
- *
- * This is the preferred capture method as it gets FULL headers including:
- * - Authorization headers (Bearer tokens, API keys)
- * - Cookies (auto-attached by browser)
- * - CSRF tokens
- * - All auto-added headers (User-Agent, Origin, etc.)
+ * Modes:
+ * - `playwright-har`: local browser + Playwright `recordHar` (full HAR file).
+ * - `playwright-cdp`: attach to running OpenClaw browser over CDP (default :18800)
+ *   and manually collect request/response events because `recordHar` is not
+ *   supported on CDP-attached contexts.
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
+import { chromium, type Browser, type BrowserContext } from "playwright-core";
 import { readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { HarEntry } from "./types.js";
 import type { CrawlResult } from "./site-crawler.js";
+import { captureCdpNetworkTraffic } from "./cdp-ws.js";
 
 export interface HarCaptureResult {
   har: { log: { entries: HarEntry[] } };
   cookies: Record<string, string>;
   requestCount: number;
-  method: "playwright-har";
+  method: "playwright-har" | "playwright-cdp";
   crawlResult?: CrawlResult;
 }
 
@@ -47,6 +45,31 @@ export interface HarCaptureOptions {
   headers?: Record<string, string>;
   /** User data dir for persistent profile (optional) */
   userDataDir?: string;
+  /** Attach to existing browser CDP endpoint (default auto: http://127.0.0.1:18800). Set `false` to disable. */
+  cdpEndpoint?: string | false;
+}
+
+function buildCookiesForUrls(
+  urls: string[],
+  cookies: Record<string, string>
+): Array<{ name: string; value: string; domain: string; path: string }> {
+  const cookiesToSet: Array<{ name: string; value: string; domain: string; path: string }> = [];
+  for (const url of urls) {
+    try {
+      const parsed = new URL(url);
+      for (const [name, value] of Object.entries(cookies)) {
+        cookiesToSet.push({
+          name,
+          value,
+          domain: parsed.hostname,
+          path: "/",
+        });
+      }
+    } catch {
+      // Invalid URL, skip
+    }
+  }
+  return cookiesToSet;
 }
 
 /**
@@ -54,6 +77,34 @@ export interface HarCaptureOptions {
  * Launches a fresh browser, visits URLs, and captures everything.
  */
 export async function captureWithHar(
+  urls: string[],
+  opts: HarCaptureOptions = {}
+): Promise<HarCaptureResult> {
+  const requestedCdpEndpoint = opts.cdpEndpoint;
+  const autoCdpEndpoint = "http://127.0.0.1:18800";
+  const cdpEndpoint = typeof requestedCdpEndpoint === "string"
+    ? requestedCdpEndpoint.trim()
+    : requestedCdpEndpoint === false
+      ? ""
+      : autoCdpEndpoint;
+
+  // Preferred for authenticated capture: attach to running OpenClaw browser.
+  // If auto mode fails, fall back to local recordHar.
+  if (cdpEndpoint) {
+    const shouldFallbackToRecordHar = requestedCdpEndpoint === undefined;
+    try {
+      return await captureWithCdp(urls, { ...opts, cdpEndpoint });
+    } catch (err) {
+      if (!shouldFallbackToRecordHar) {
+        throw err;
+      }
+    }
+  }
+
+  return captureWithPlaywrightHar(urls, opts);
+}
+
+async function captureWithPlaywrightHar(
   urls: string[],
   opts: HarCaptureOptions = {}
 ): Promise<HarCaptureResult> {
@@ -67,9 +118,9 @@ export async function captureWithHar(
   let browser: Browser;
   let context: BrowserContext;
 
-  // Launch browser
+  // Launch browser with native HAR recording.
   if (opts.userDataDir) {
-    // Persistent context (keeps login state)
+    // Persistent context (keeps login state).
     context = await chromium.launchPersistentContext(opts.userDataDir, {
       headless,
       recordHar: { path: harPath, mode: "full" },
@@ -83,24 +134,9 @@ export async function captureWithHar(
     });
   }
 
-  // Inject cookies if provided
+  // Inject cookies if provided.
   if (opts.cookies && Object.keys(opts.cookies).length > 0) {
-    const cookiesToSet = [];
-    for (const url of urls) {
-      try {
-        const parsed = new URL(url);
-        for (const [name, value] of Object.entries(opts.cookies)) {
-          cookiesToSet.push({
-            name,
-            value,
-            domain: parsed.hostname,
-            path: "/",
-          });
-        }
-      } catch {
-        // Invalid URL, skip
-      }
-    }
+    const cookiesToSet = buildCookiesForUrls(urls, opts.cookies);
     if (cookiesToSet.length > 0) {
       await context.addCookies(cookiesToSet);
     }
@@ -177,6 +213,71 @@ export async function captureWithHar(
       crawlResult,
     };
   }
+}
+
+async function captureWithCdp(
+  urls: string[],
+  opts: HarCaptureOptions
+): Promise<HarCaptureResult> {
+  const waitMs = opts.waitMs ?? 5000;
+  const shouldCrawl = opts.crawl !== false;
+  const cdpHttpBase = typeof opts.cdpEndpoint === "string" && opts.cdpEndpoint.trim().length > 0
+    ? opts.cdpEndpoint.trim().replace(/\/$/, "")
+    : "http://127.0.0.1:18800";
+
+  const cookiesToSet = opts.cookies && Object.keys(opts.cookies).length > 0
+    ? buildCookiesForUrls(urls, opts.cookies)
+    : [];
+
+  const { captured, cookies: browserCookies } = await captureCdpNetworkTraffic({
+    cdpHttpBase,
+    urls,
+    waitMs,
+    extraHeaders: opts.headers,
+    cookies: cookiesToSet,
+    keepTypes: new Set(["xhr", "fetch"]),
+  });
+
+  const harEntries: HarEntry[] = captured.map((entry) => ({
+    request: {
+      method: entry.method,
+      url: entry.url,
+      headers: Object.entries(entry.requestHeaders ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+      cookies: [],
+      postData: entry.postData ? { text: entry.postData } : undefined,
+    },
+    response: {
+      status: entry.status ?? 0,
+      headers: Object.entries(entry.responseHeaders ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+      content: entry.responseBody != null
+        ? { mimeType: entry.mimeType, text: entry.responseBody, size: entry.responseBody.length }
+        : undefined,
+    },
+    time: entry.timestamp,
+  }));
+
+  const har = { log: { entries: harEntries } };
+  const cookieArray = (browserCookies ?? []).map((c: any) => ({ name: c.name, value: c.value }));
+  for (const entry of har.log.entries) entry.request.cookies = cookieArray;
+
+  const cookies: Record<string, string> = {};
+  for (const c of browserCookies as any[]) {
+    if (c?.name && typeof c?.value === "string") cookies[c.name] = c.value;
+  }
+
+  // Crawl is only supported in recordHar mode (needs a Page object).
+  let crawlResult: CrawlResult | undefined = undefined;
+  if (shouldCrawl) {
+    crawlResult = undefined;
+  }
+
+  return {
+    har,
+    cookies,
+    requestCount: har.log.entries.length,
+    method: "playwright-cdp",
+    crawlResult,
+  };
 }
 
 /**
