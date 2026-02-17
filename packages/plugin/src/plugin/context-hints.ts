@@ -1,4 +1,5 @@
 const API_INTENT_PATTERNS = [
+  /\bunbrowse\b/i,
   /\binternal\s+api\b/i,
   /\bprivate\s+api\b/i,
   /\breverse[-\s]?engineer\b.*\bapi\b/i,
