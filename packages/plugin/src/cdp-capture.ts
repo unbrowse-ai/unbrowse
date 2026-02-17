@@ -382,7 +382,55 @@ export async function captureFromBrowser(port = DEFAULT_PORT): Promise<{
     fetchBrowserCookies(port),
   ]);
 
+  // Best-effort: attach response bodies for correlation/DAG inference.
+  // This is bounded and filtered to avoid pulling huge assets.
+  const maxBodies = 120;
+  const responseBodies = new Map<string, { body: string; mimeType?: string }>();
+
+  const candidates = entries
+    .filter((e) => (e.resourceType === "xhr" || e.resourceType === "fetch") && (e.status ?? 0) >= 200 && (e.status ?? 0) < 400)
+    .slice(0, maxBodies);
+
+  const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
+    const out: R[] = [];
+    let i = 0;
+    const workers = Array.from({ length: Math.max(1, limit) }, async () => {
+      while (i < items.length) {
+        const idx = i++;
+        out[idx] = await fn(items[idx]);
+      }
+    });
+    await Promise.all(workers);
+    return out;
+  };
+
+  await mapLimit(candidates, 8, async (e) => {
+    const body = await fetchResponseBody(e.id, port);
+    if (!body) return null;
+    if (body.length > 100_000) return null;
+
+    const ct =
+      e.responseHeaders?.["content-type"] ??
+      e.responseHeaders?.["Content-Type"] ??
+      getCachedResponseHeaders(e.url)?.["content-type"] ??
+      getCachedResponseHeaders(e.url)?.["Content-Type"];
+    const ctLower = String(ct ?? "").toLowerCase();
+    if (ctLower && !(ctLower.includes("json") || ctLower.includes("text") || ctLower.includes("xml"))) return null;
+
+    responseBodies.set(e.url, { body, mimeType: String(ct ?? "") });
+    return null;
+  });
+
   const har = requestsToHar(entries);
+  for (const entry of har.log.entries) {
+    const b = responseBodies.get(entry.request.url);
+    if (!b) continue;
+    entry.response.content = {
+      mimeType: b.mimeType ?? "",
+      text: b.body,
+      size: b.body.length,
+    };
+  }
 
   // Inject cookies into every HAR entry so the parser picks them up as auth
   const cookieArray = Object.entries(cookies).map(([name, value]) => ({ name, value }));

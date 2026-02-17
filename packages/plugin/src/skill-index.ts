@@ -255,7 +255,8 @@ export class SkillIndexClient {
     opts?: { limit?: number },
   ): Promise<SearchResult> {
     const url = new URL(`${this.indexUrl}/marketplace/skills`);
-    if (query) url.searchParams.set("q", query);
+    const trimmedQuery = query.trim();
+    if (trimmedQuery) url.searchParams.set("q", trimmedQuery);
     if (opts?.limit) url.searchParams.set("limit", String(opts.limit));
 
     let resp: Response;
@@ -281,9 +282,24 @@ export class SkillIndexClient {
     }
 
     const data = await resp.json();
+    const skills =
+      (Array.isArray(data?.skills) ? data.skills : null) ??
+      (Array.isArray(data?.results) ? data.results : null) ??
+      (Array.isArray(data?.items) ? data.items : null) ??
+      (Array.isArray(data?.data?.skills) ? data.data.skills : null) ??
+      (Array.isArray(data?.data?.results) ? data.data.results : null) ??
+      (Array.isArray(data?.data?.items) ? data.data.items : null) ??
+      [];
+    const total =
+      (typeof data?.count === "number" ? data.count : null) ??
+      (typeof data?.total === "number" ? data.total : null) ??
+      (typeof data?.data?.count === "number" ? data.data.count : null) ??
+      (typeof data?.data?.total === "number" ? data.data.total : null) ??
+      skills.length;
+
     return {
-      skills: data.skills || [],
-      total: data.count || 0,
+      skills,
+      total,
     };
   }
 
@@ -310,15 +326,32 @@ export class SkillIndexClient {
    * Free skills download directly; paid skills require x402 payment.
    */
   async download(id: string): Promise<SkillPackage> {
-    const downloadUrl = `${this.indexUrl}/marketplace/skill-downloads/${encodeURIComponent(id)}`;
+    const encodedId = encodeURIComponent(id);
+    const downloadUrls = [
+      `${this.indexUrl}/marketplace/skill-downloads/${encodedId}`,
+      `${this.indexUrl}/marketplace/skills/${encodedId}/download`,
+    ];
 
-    // First request - may succeed directly (free) or return 402 (paid)
-    const initialResp = await fetch(downloadUrl, {
-      headers: {
-        "Accept": "application/json",
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
+    let initialResp: Response | null = null;
+    let selectedUrl = downloadUrls[0]!;
+    for (const candidateUrl of downloadUrls) {
+      const resp = await fetch(candidateUrl, {
+        headers: {
+          "Accept": "application/json",
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (resp.status !== 404) {
+        initialResp = resp;
+        selectedUrl = candidateUrl;
+        break;
+      }
+      initialResp = resp;
+    }
+
+    if (!initialResp) {
+      throw new Error("Skill download failed: no response from marketplace.");
+    }
 
     // Free skill - returns content directly
     if (initialResp.ok) {
@@ -347,7 +380,7 @@ export class SkillIndexClient {
       const paymentHeader = await this.buildAndSignPayment(accepts);
 
       // Retry with payment
-      const paidResp = await fetch(downloadUrl, {
+      const paidResp = await fetch(selectedUrl, {
         headers: {
           "Accept": "application/json",
           "X-Payment": paymentHeader,

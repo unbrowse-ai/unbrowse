@@ -27,4 +27,7 @@ jobs:
         run: npm run build --prefix packages/plugin
 
       # Ensures packaging works and the tarball includes dist/.
-      - run: cd packages/plugin && npm pack --dry-run
+      - run: |
+          cd packages/plugin
+          npm pack --dry-run --json > /tmp/npm-pack.json
+          node -e "const fs=require('fs');const out=JSON.parse(fs.readFileSync('/tmp/npm-pack.json','utf8'));const files=out[0]?.files?.map(f=>f.path)||[];if(!files.includes('dist/index.js')){console.error('dist/index.js missing from npm pack output');process.exit(1);}console.log('npm pack contains dist/index.js');"

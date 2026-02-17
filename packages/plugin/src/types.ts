@@ -23,6 +23,8 @@ export interface ParsedRequest {
   path: string;
   domain: string;
   status: number;
+  /** Query string keys observed on the request URL (order not guaranteed). */
+  queryKeys?: string[];
   /** Whether this endpoint was verified by auto-test */
   verified?: boolean;
   /** From OpenAPI spec rather than traffic capture */
@@ -35,6 +37,52 @@ export interface ParsedRequest {
   normalizedPath?: string;
   /** Extracted path parameters with types and example values */
   pathParams?: { name: string; type: string; example: string }[];
+}
+
+// ---------------------------------------------------------------------------
+// Replay v2 capture types (local-only, not published to marketplace)
+// ---------------------------------------------------------------------------
+
+export type CaptureBodyFormat = "json" | "text" | "form" | "unknown";
+
+export interface CapturedHttpRequest {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  cookies: Record<string, string>;
+  queryParams: Record<string, string>;
+  /** Parsed request body when available (JSON or form). */
+  body?: unknown;
+  /** Raw request body text (bounded). */
+  bodyRaw?: string;
+  bodyFormat?: CaptureBodyFormat;
+  contentType?: string;
+}
+
+export interface CapturedHttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  cookies: Record<string, string>;
+  /** Parsed response body when available (JSON). */
+  body?: unknown;
+  /** Raw response body text (bounded). */
+  bodyRaw?: string;
+  bodyFormat?: CaptureBodyFormat;
+  contentType?: string;
+}
+
+export interface CapturedExchange {
+  index: number;
+  timestamp?: number;
+  request: CapturedHttpRequest;
+  response: CapturedHttpResponse;
+}
+
+export interface CaptureSessionFileV1 {
+  version: 1;
+  capturedAt: string;
+  seedUrl?: string;
+  exchanges: CapturedExchange[];
 }
 
 /** Auth credentials extracted from traffic. */
