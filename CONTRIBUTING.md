@@ -98,6 +98,13 @@ bun run test:oct:docker
 4. Run `npx tsc --noEmit` to verify types
 5. Submit a PR with a clear description
 
+## Release communication
+
+- Keep `CHANGELOG.md` as the canonical record of changes.
+- For each release tag, publish a GitHub Release with user-facing highlights (not just internal implementation notes).
+- Use `.github/release-template.md` to keep release announcements consistent.
+- Follow `docs/RELEASE_COMMUNICATION.md` for the full checklist and writing guidance.
+
 ## License
 
 MIT
