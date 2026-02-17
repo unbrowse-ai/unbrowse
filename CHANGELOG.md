@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.2] - 2026-02-17
+## [0.7.4] - 2026-02-17
 
 ### Changed
-- Bump plugin package version to `0.7.2`.
+- Bump plugin package version to `0.7.4`.
 
 ## [0.5.13] - 2026-02-13
 
@@ -121,8 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OOP refactor of HAR parser with route generalization and schema capture
 - Integrated LLM describer for rich endpoint documentation in skill generation
 
-[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.2...HEAD
-[0.7.2]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.13...v0.7.2
+[Unreleased]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.13...v0.7.4
 [0.5.13]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.7...v0.5.12
 [0.5.5]: https://github.com/lekt9/unbrowse-openclaw/compare/v0.5.4...v0.5.5
