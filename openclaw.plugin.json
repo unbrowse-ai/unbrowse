@@ -24,7 +24,7 @@
       },
       "skillIndexUrl": {
         "type": "string",
-        "default": "https://staging-index.unbrowse.ai",
+        "default": "https://index.unbrowse.ai",
         "description": "Cloud skill marketplace API URL"
       },
       "marketplace": {
