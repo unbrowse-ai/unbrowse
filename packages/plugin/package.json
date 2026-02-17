@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "index.ts",
