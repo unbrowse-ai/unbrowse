@@ -45,6 +45,14 @@ export class WorkflowLearner {
 
   /** Analyze a recorded session and generate a skill */
   learnFromSession(session: RecordedSession): LearningResult {
+    if (!session.entries || session.entries.length === 0) {
+      throw new Error(
+        "Session has no recorded entries. Make sure to use unbrowse_browse " +
+        "(agent-driven browsing) during the recording — manual browser navigation " +
+        "is not captured by the recorder."
+      );
+    }
+
     // Determine category based on domain count and patterns
     const category = this.categorize(session);
 
@@ -57,7 +65,7 @@ export class WorkflowLearner {
 
   /** Categorize session as api-package or workflow */
   private categorize(session: RecordedSession): SkillCategory {
-    const domains = new Set(session.entries.map((e) => e.domain));
+    const domains = new Set(session.entries.map((e) => e.domain || this.safeDomain(e.url)).filter(Boolean));
     const apiCalls = session.entries.filter((e) => e.type === "api-call");
     const navigations = session.entries.filter((e) => e.type === "navigation" || e.type === "page-load");
     const actions = session.entries.filter((e) => e.type === "action");
@@ -118,7 +126,7 @@ export class WorkflowLearner {
       return this.learnWorkflow(session);
     }
 
-    const domain = session.domains[0] || new URL(apiCalls[0].url).hostname;
+    const domain = session.domains?.[0] || this.safeDomain(apiCalls[0]?.url) || "unknown";
     const baseUrl = this.detectBaseUrl(apiCalls);
     const auth = this.detectAuth(apiCalls, domain);
     const endpoints = this.extractEndpoints(apiCalls, baseUrl);
@@ -154,13 +162,25 @@ export class WorkflowLearner {
 
   /** Learn a workflow from a multi-site or complex session */
   private learnWorkflow(session: RecordedSession): LearningResult {
-    const domains = Array.from(new Set(session.entries.map((e) => e.domain)));
+    // Collect domains from entries, falling back to URL parsing if domain field is missing
+    const domainSet = new Set<string>();
+    for (const e of session.entries) {
+      const d = e.domain || this.safeDomain(e.url);
+      if (d) domainSet.add(d);
+    }
+    // Also include any domains already on the session object
+    if (session.domains) {
+      for (const d of session.domains) {
+        if (d) domainSet.add(d);
+      }
+    }
+    const domains = Array.from(domainSet);
     const auth = domains.map((d) => this.detectAuthForDomain(session.entries, d));
     const steps = this.extractWorkflowSteps(session);
     const inputs = this.detectInputs(session, steps);
     const outputs = this.detectOutputs(session, steps);
     const triggers = this.generateTriggers(session);
-    const name = this.generateName(domains[0], "workflow", session.detectedIntent);
+    const name = this.generateName(domains[0] || "unknown", "workflow", session.detectedIntent);
 
     const skill: WorkflowSkill = {
       name,
@@ -448,6 +468,9 @@ export class WorkflowLearner {
 
   /** Convert session entry to workflow step */
   private entryToStep(entry: RecordedEntry, id: string): WorkflowStep | null {
+    const domain = entry.domain || this.safeDomain(entry.url) || "unknown";
+    const pathname = this.safePath(entry.url) || entry.url || "/";
+
     switch (entry.type) {
       case "navigation":
       case "page-load":
@@ -455,8 +478,8 @@ export class WorkflowLearner {
           id,
           type: "navigate",
           target: entry.url,
-          domain: entry.domain,
-          description: `Navigate to ${new URL(entry.url).pathname}`,
+          domain,
+          description: `Navigate to ${pathname}`,
         };
 
       case "api-call":
@@ -465,8 +488,8 @@ export class WorkflowLearner {
           type: "api-call",
           target: entry.url,
           method: entry.method,
-          domain: entry.domain,
-          description: `${entry.method} ${new URL(entry.url).pathname}`,
+          domain,
+          description: `${entry.method} ${pathname}`,
           extracts: this.detectExtractions(entry),
         };
 
@@ -475,7 +498,7 @@ export class WorkflowLearner {
           id,
           type: "action",
           target: entry.url,
-          domain: entry.domain,
+          domain,
           description: `${entry.action?.type || "Action"} on page`,
           action: entry.action,
         };
@@ -616,7 +639,8 @@ export class WorkflowLearner {
     }
 
     // Generate from domains
-    for (const domain of session.domains) {
+    for (const domain of session.domains || []) {
+      if (!domain) continue;
       const cleanDomain = domain.replace(/^(www|api|app)\./, "").split(".")[0];
       triggers.push(`use ${cleanDomain}`);
       triggers.push(`interact with ${cleanDomain}`);
@@ -632,8 +656,29 @@ export class WorkflowLearner {
     return [...new Set(triggers)];
   }
 
+  /** Safely extract hostname from a URL string, returning undefined on failure */
+  private safeDomain(url?: string): string | undefined {
+    if (!url) return undefined;
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Safely extract pathname from a URL string */
+  private safePath(url?: string): string | undefined {
+    if (!url) return undefined;
+    try {
+      return new URL(url).pathname;
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Generate name for skill */
   private generateName(domain: string, type: string, intent?: string): string {
+    if (!domain) domain = "unknown";
     const cleanDomain = domain.replace(/^(www|api|app)\./, "").split(".")[0];
 
     if (intent) {
