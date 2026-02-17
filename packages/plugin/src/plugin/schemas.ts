@@ -99,6 +99,12 @@ export const REPLAY_SCHEMA = {
         "Execution mode. browser/node = direct call. backend = marketplace execution-gate + client browser execute " +
         "(backend authorizes, browser sends request; requires published skill).",
     },
+    useStealth: {
+      type: "boolean" as const,
+      description:
+        "When executionMode=\"node\" and no browser is available, attempt a stealth transport (JA3/TLS impersonation) " +
+        "if available, then fall back to native fetch. Default: true.",
+    },
     traceId: {
       type: "string" as const,
       description: "Optional traceId to group multiple endpoint calls into one sequence (backend-gated mode).",
@@ -132,7 +138,9 @@ export const REPLAY_SCHEMA = {
     },
     autoChain: {
       type: "boolean" as const,
-      description: "Auto-chain parentStepId to previous step in the same trace (backend-gated mode, default: true).",
+      description:
+        "Auto-chain multi-step flows using captured correlations when available (local) or parentStepId (backend). " +
+        "Default: true for single-endpoint runs, false for batch runs.",
     },
     skillId: {
       type: "string" as const,
@@ -141,6 +149,11 @@ export const REPLAY_SCHEMA = {
     skillsDir: {
       type: "string" as const,
       description: "Skills directory (default: ~/.openclaw/skills)",
+    },
+    debugReplayV2: {
+      type: "boolean" as const,
+      description:
+        "Debug: print replay-v2 capture/correlation/chaining diagnostics into tool output (default: false).",
     },
   },
   required: ["service"],

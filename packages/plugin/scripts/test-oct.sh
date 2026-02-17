@@ -20,6 +20,10 @@ if [ "$MODE" = "docker" ] || [ "${OCT_CAN_START_GATEWAY:-}" = "1" ]; then
   export OCT_CAN_START_GATEWAY=1
   export OCT_GATEWAY_TOKEN="${OCT_GATEWAY_TOKEN:-oct_test_token_$(date +%s)}"
   export OPENCLAW_GATEWAY_TOKEN="$OCT_GATEWAY_TOKEN"
+  # Avoid colliding with any service-managed gateway already bound to 18789.
+  if [ "${OCT_GATEWAY_URL}" = "http://127.0.0.1:18789" ]; then
+    export OCT_GATEWAY_URL="http://127.0.0.1:19001"
+  fi
   export OCT_SKILLS_DIR="${OCT_SKILLS_DIR:-${HOME}/.openclaw-dev/skills}"
   export OPENCLAW_SKILLS_DIR="${OCT_SKILLS_DIR}"
 
@@ -62,4 +66,6 @@ else
   fi
 fi
 
-oct "${PLUGIN_ROOT}/test/oct"
+# Pass through oct runner flags (e.g. --run suite-replay-v2.sh) while keeping suite dir pinned.
+# NOTE: Do not pass a positional suite dir argument to this wrapper.
+oct "$@" "${PLUGIN_ROOT}/test/oct"
