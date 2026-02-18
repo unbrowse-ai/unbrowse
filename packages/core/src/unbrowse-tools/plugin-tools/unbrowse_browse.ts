@@ -15,7 +15,6 @@ import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-packag
 import { loadJsonOr } from "../../disk-io.js";
 import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
 import { buildPublishPromptLines } from "./publish-prompts.js";
-import { browseWithAgentBrowser } from "../agent-browser/browse-flow.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
   const {
@@ -184,6 +183,15 @@ async execute(_toolCallId: string, params: unknown) {
   // Standalone backend: agent-browser ref/snapshot flow.
   if (backend === "agent-browser") {
     try {
+      const agentBrowserPkg = "@getfoundry/unbrowse-agent-browser";
+      const mod: any = await import(agentBrowserPkg);
+      const browseWithAgentBrowser: (opts: {
+        url: string;
+        actions: Array<any>;
+        captureTraffic?: boolean;
+        learnOnFly?: boolean;
+      }) => Promise<any> = mod.browseWithAgentBrowser;
+
       const res = await browseWithAgentBrowser({
         url: p.url,
         actions: p.actions ?? [],
@@ -196,8 +204,8 @@ async execute(_toolCallId: string, params: unknown) {
       if (res.capture && res.capture.requestCount > 0) {
         try {
           let apiData = parseHar(res.capture.har as any, p.url);
-          for (const [name, value] of Object.entries(res.capture.cookies ?? {})) {
-            if (!apiData.cookies[name]) apiData.cookies[name] = value;
+          for (const [name, value] of (Object.entries(res.capture.cookies ?? {}) as Array<[string, string]>)) {
+            if (!apiData.cookies[name]) apiData.cookies[name] = String(value);
           }
 
           // Best-effort verification (GET pruning).

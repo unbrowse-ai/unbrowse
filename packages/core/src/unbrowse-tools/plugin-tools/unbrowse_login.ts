@@ -15,7 +15,6 @@ import {
 } from "./shared.js";
 import { inferCsrfProvenance } from "../../auth-provenance.js";
 import { buildPublishPromptLines, isPayerPrivateKeyValid } from "./publish-prompts.js";
-import { loginWithAgentBrowser } from "../agent-browser/login-flow.js";
 
 export function makeUnbrowseLoginTool(deps: ToolDeps) {
   const {
@@ -26,6 +25,7 @@ export function makeUnbrowseLoginTool(deps: ToolDeps) {
     credentialProvider,
     detectAndSaveRefreshConfig,
     discovery,
+    getOrCreateBrowserSession,
   } = deps;
 
   return {
@@ -102,6 +102,15 @@ async execute(_toolCallId: string, params: unknown) {
 
   try {
     if (backend === "agent-browser") {
+      const agentBrowserPkg = "@getfoundry/unbrowse-agent-browser";
+      const mod: any = await import(agentBrowserPkg);
+      const loginWithAgentBrowser: (opts: {
+        loginUrl: string;
+        formFields?: Record<string, string>;
+        submitSelector?: string;
+        captureUrls?: string[];
+      }) => Promise<any> = mod.loginWithAgentBrowser;
+
       const cap = await loginWithAgentBrowser({
         loginUrl: p.loginUrl,
         formFields: credentials.formFields,
@@ -137,8 +146,8 @@ async execute(_toolCallId: string, params: unknown) {
       if (cap.requestCount > 5) {
         try {
           const apiData = parseHar(cap.har, p.loginUrl);
-          for (const [name, value] of Object.entries(cap.cookies)) {
-            if (!apiData.cookies[name]) apiData.cookies[name] = value;
+          for (const [name, value] of (Object.entries(cap.cookies ?? {}) as Array<[string, string]>)) {
+            if (!apiData.cookies[name]) apiData.cookies[name] = String(value);
           }
           const skillResult = await generateSkill(apiData, defaultOutputDir);
           discovery.markLearned(service);
@@ -176,11 +185,211 @@ async execute(_toolCallId: string, params: unknown) {
       return { content: [{ type: "text", text: summary.join("\n") }] };
     }
 
-    const result = await loginAndCapture(p.loginUrl, credentials, {
-      captureUrls: p.captureUrls,
-      waitMs: 5000,
-      browserPort,
-    });
+    let backendLabel = "OpenClaw browser";
+    let result: any;
+
+    if (backend === "playwright") {
+      backendLabel = "Playwright";
+      if (!getOrCreateBrowserSession) {
+        return {
+          content: [{
+            type: "text",
+            text: `Playwright backend unavailable in this runtime (missing browser session manager).`,
+          }],
+        };
+      }
+
+      const cookieSeed: Record<string, string> = {};
+      for (const c of (credentials.cookies ?? [])) {
+        if (c?.name && typeof c.value === "string") cookieSeed[c.name] = c.value;
+      }
+      const headerSeed: Record<string, string> = {};
+      for (const [k, v] of Object.entries(credentials.headers ?? {})) {
+        if (typeof v === "string") headerSeed[String(k).toLowerCase()] = v;
+      }
+
+      const session = await getOrCreateBrowserSession(service, p.loginUrl, cookieSeed, headerSeed);
+      const page = session.page;
+      const context = session.context;
+
+      // Capture XHR/fetch as HAR-like entries for skill generation.
+      const harEntries: any[] = [];
+      const captureTypes = new Set(["xhr", "fetch"]);
+      const onResponse = async (resp: any) => {
+        try {
+          const req = resp.request?.();
+          const rt = req?.resourceType?.();
+          if (!rt || !captureTypes.has(rt)) return;
+
+          const url = req.url();
+          const method = req.method();
+
+          const reqHeaders = Object.entries(req.headers() ?? {}).map(([name, value]) => ({
+            name,
+            value: String(value),
+          }));
+          const respHeaders = Object.entries(resp.headers() ?? {}).map(([name, value]) => ({
+            name,
+            value: String(value),
+          }));
+
+          const queryString: Array<{ name: string; value: string }> = [];
+          try {
+            const u = new URL(url);
+            u.searchParams.forEach((value, name) => queryString.push({ name, value }));
+          } catch { /* ignore */ }
+
+          let postData: { mimeType: string; text: string } | undefined;
+          if (method !== "GET" && method !== "HEAD") {
+            try {
+              const pd = req.postData?.();
+              if (pd) {
+                const ct = (req.headers?.() ?? {})["content-type"] ?? "application/octet-stream";
+                postData = { mimeType: String(ct), text: String(pd) };
+              }
+            } catch { /* ignore */ }
+          }
+
+          let responseText: string | undefined;
+          try {
+            const ct = resp.headers?.()["content-type"] ?? "";
+            if (String(ct).includes("json") || String(ct).includes("text") || String(ct).includes("xml")) {
+              const body = await resp.text().catch(() => "");
+              if (body && body.length < 50_000) responseText = body;
+            }
+          } catch { /* ignore */ }
+
+          const cookies = Object.entries(cookieSeed).map(([name, value]) => ({ name, value }));
+
+          harEntries.push({
+            request: { method, url, headers: reqHeaders, cookies, queryString, postData },
+            response: {
+              status: resp.status?.() ?? 0,
+              statusText: resp.statusText?.() ?? "",
+              headers: respHeaders,
+              content: {
+                mimeType: resp.headers?.()["content-type"] ?? "",
+                text: responseText,
+              },
+            },
+          });
+        } catch { /* never block */ }
+      };
+
+      page.on("response", onResponse);
+
+      const waitMs = 5000;
+      await page.goto(p.loginUrl, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(500);
+
+      if (credentials.formFields && Object.keys(credentials.formFields).length > 0) {
+        for (const [selector, value] of Object.entries(credentials.formFields)) {
+          await page.fill(selector, value);
+          await page.waitForTimeout(200);
+        }
+
+        if (credentials.submitSelector) {
+          await page.click(credentials.submitSelector);
+        } else {
+          // Best-effort defaults
+          await page.click('button[type="submit"]').catch(() => {});
+          await page.click('input[type="submit"]').catch(() => {});
+          await page.keyboard.press("Enter").catch(() => {});
+        }
+      }
+
+      await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+
+      for (const url of (p.captureUrls ?? [])) {
+        await page.goto(url, { waitUntil: "domcontentloaded" });
+        await page.waitForTimeout(waitMs);
+      }
+
+      await page.waitForTimeout(800);
+      page.off("response", onResponse);
+
+      const baseUrl = new URL(p.loginUrl).origin;
+      const host = new URL(p.loginUrl).hostname;
+      const allCookies = await context.cookies().catch(() => [] as any[]);
+
+      const cookies: Record<string, string> = {};
+      const domainMatches = (cookieDomain: string, hostname: string) => {
+        const d = String(cookieDomain || "").replace(/^\./, "");
+        if (!d) return false;
+        return hostname === d || hostname.endsWith(`.${d}`);
+      };
+      for (const c of allCookies as any[]) {
+        if (!c?.name || typeof c.value !== "string") continue;
+        if (domainMatches(String(c.domain ?? ""), host)) cookies[String(c.name)] = c.value;
+      }
+
+      const storage = await page.evaluate(() => {
+        const authKeywords = /token|auth|session|jwt|access|refresh|csrf|xsrf|key|cred|user|login|bearer/i;
+        const ls: Record<string, string> = {};
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const key = window.localStorage.key(i);
+          if (key && authKeywords.test(key)) {
+            const val = window.localStorage.getItem(key);
+            if (val) ls[key] = val;
+          }
+        }
+        const ss: Record<string, string> = {};
+        for (let i = 0; i < window.sessionStorage.length; i++) {
+          const key = window.sessionStorage.key(i);
+          if (key && authKeywords.test(key)) {
+            const val = window.sessionStorage.getItem(key);
+            if (val) ss[key] = val;
+          }
+        }
+        const metaTokens: Record<string, string> = {};
+        for (const el of Array.from(document.querySelectorAll("meta[name], meta[property]"))) {
+          const name = (el.getAttribute("name") || el.getAttribute("property") || "").trim();
+          const content = (el.getAttribute("content") || "").trim();
+          if (!name || !content) continue;
+          const ln = name.toLowerCase();
+          if (ln.includes("csrf") || ln.includes("xsrf")) metaTokens[name] = content;
+        }
+        return { localStorage: ls, sessionStorage: ss, metaTokens };
+      });
+
+      // Minimal auth header inference (JWT + CSRF).
+      const authHeaders: Record<string, string> = {};
+      for (const val of [...Object.values(storage.localStorage ?? {}), ...Object.values(storage.sessionStorage ?? {})]) {
+        if (typeof val === "string" && val.startsWith("eyJ")) {
+          authHeaders["authorization"] = `Bearer ${val}`;
+          break;
+        }
+        if (typeof val === "string" && /^Bearer\s/i.test(val)) {
+          authHeaders["authorization"] = val;
+          break;
+        }
+      }
+      for (const [k, v] of Object.entries(storage.metaTokens ?? {})) {
+        const lk = k.toLowerCase();
+        if ((lk.includes("csrf") || lk.includes("xsrf")) && typeof v === "string") {
+          authHeaders["x-csrf-token"] = v;
+          break;
+        }
+      }
+
+      result = {
+        cookies,
+        authHeaders,
+        baseUrl,
+        requestCount: harEntries.length,
+        har: { log: { entries: harEntries } },
+        localStorage: storage.localStorage ?? {},
+        sessionStorage: storage.sessionStorage ?? {},
+        metaTokens: storage.metaTokens ?? {},
+      };
+    } else {
+      result = await loginAndCapture(p.loginUrl, credentials, {
+        captureUrls: p.captureUrls,
+        waitMs: 5000,
+        browserPort,
+      });
+    }
 
     // Save auth.json
     const { mkdirSync, writeFileSync } = await import("node:fs");
@@ -228,7 +437,7 @@ async execute(_toolCallId: string, params: unknown) {
         const apiData = parseHar(result.har, p.loginUrl);
         // Merge captured cookies into apiData
         for (const [name, value] of Object.entries(result.cookies)) {
-          if (!apiData.cookies[name]) apiData.cookies[name] = value;
+          if (!apiData.cookies[name]) apiData.cookies[name] = String(value);
         }
         const skillResult = await generateSkill(apiData, defaultOutputDir);
         discovery.markLearned(service);
@@ -253,7 +462,6 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
-	    const backendLabel = "OpenClaw browser";
     const cookieCount = Object.keys(result.cookies).length;
     const authHeaderCount = Object.keys(result.authHeaders).length;
     const lsCount = Object.keys(result.localStorage).length;
@@ -330,14 +538,16 @@ async execute(_toolCallId: string, params: unknown) {
     return { content: [{ type: "text", text: summary }] };
   } catch (err) {
     const msg = (err as Error).message;
-    if (msg.includes("playwright-core")) {
+    if (msg === "PLAYWRIGHT_MISSING" || msg.includes("playwright-core")) {
       return {
         content: [
           {
             type: "text",
             text:
-              `Browser runtime unavailable: ${msg}\n` +
-              `Start native browser first: openclaw browser start --browser-profile openclaw`,
+              `Browser runtime unavailable: ${msg}\n\n` +
+              `Fix:\n` +
+              `- Ensure the plugin installed its dependencies (inside ~/.openclaw/extensions/unbrowse-openclaw: npm install)\n` +
+              `- Or set plugin config playwright.executablePath to a local Chrome/Chromium binary`,
           },
         ],
       };

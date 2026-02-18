@@ -56,8 +56,6 @@ export * from "./src/workflow-types.js";
 
 export * from "./src/runtime-env.js";
 
-export * from "./src/agent-browser/index.js";
-
 export * from "./src/solana/solana-helpers.js";
 export * from "./src/wallet/keychain-wallet.js";
 export * from "./src/wallet/wallet-tool.js";
