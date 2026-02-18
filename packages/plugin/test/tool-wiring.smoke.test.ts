@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 
-import { createTools } from "../src/plugin/tools/index.js";
+import { createTools } from "../src/plugin/tools.js";
 
 describe("tool wiring", () => {
   it("tool names are unique and non-empty", () => {

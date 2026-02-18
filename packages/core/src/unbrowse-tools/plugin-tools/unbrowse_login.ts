@@ -13,8 +13,9 @@ import {
   parseHar,
   generateSkill,
 } from "./shared.js";
-import { inferCsrfProvenance } from "@getfoundry/unbrowse-core";
+import { inferCsrfProvenance } from "../../auth-provenance.js";
 import { buildPublishPromptLines, isPayerPrivateKeyValid } from "./publish-prompts.js";
+import { loginWithAgentBrowser } from "../agent-browser/login-flow.js";
 
 export function makeUnbrowseLoginTool(deps: ToolDeps) {
   const {
@@ -48,6 +49,8 @@ async execute(_toolCallId: string, params: unknown) {
     autoFillFromProvider?: boolean;
     saveCredentials?: boolean;
   };
+
+  const backend = deps.browserBackend ?? "openclaw";
 
   // Derive service name from URL if not provided
   let service = p.service;
@@ -98,6 +101,81 @@ async execute(_toolCallId: string, params: unknown) {
   };
 
   try {
+    if (backend === "agent-browser") {
+      const cap = await loginWithAgentBrowser({
+        loginUrl: p.loginUrl,
+        formFields: credentials.formFields,
+        submitSelector: credentials.submitSelector,
+        captureUrls: p.captureUrls,
+      });
+
+      const { mkdirSync, writeFileSync } = await import("node:fs");
+      const skillDir = join(defaultOutputDir, service);
+      mkdirSync(join(skillDir, "scripts"), { recursive: true });
+
+      const authPath = join(skillDir, "auth.json");
+      writeFileSync(authPath, JSON.stringify({
+        service,
+        baseUrl: cap.baseUrl,
+        authMethod: Object.keys(cap.cookies).length > 0 ? "cookie" : "Unknown",
+        timestamp: new Date().toISOString(),
+        headers: {},
+        cookies: cap.cookies,
+        localStorage: cap.localStorage,
+        sessionStorage: cap.sessionStorage,
+        metaTokens: {},
+        csrfProvenance: inferCsrfProvenance({
+          authHeaders: {},
+          cookies: cap.cookies,
+          localStorage: cap.localStorage,
+          sessionStorage: cap.sessionStorage,
+          metaTokens: {},
+        }),
+      }, null, 2), "utf-8");
+
+      // Optionally generate a skill if we captured enough traffic.
+      if (cap.requestCount > 5) {
+        try {
+          const apiData = parseHar(cap.har, p.loginUrl);
+          for (const [name, value] of Object.entries(cap.cookies)) {
+            if (!apiData.cookies[name]) apiData.cookies[name] = value;
+          }
+          const skillResult = await generateSkill(apiData, defaultOutputDir);
+          discovery.markLearned(service);
+          detectAndSaveRefreshConfig(cap.har.log?.entries ?? [], join(skillResult.skillDir, "auth.json"), logger);
+        } catch {
+          // Optional.
+        }
+      }
+
+      // Store in vault (best-effort).
+      if (p.saveCredentials !== false) {
+        try {
+          const { Vault } = await import("../../vault.js");
+          const vault = new Vault(vaultDbPath);
+          vault.store(service, {
+            baseUrl: cap.baseUrl,
+            authMethod: Object.keys(cap.cookies).length > 0 ? "cookie" : "unknown",
+            headers: {},
+            cookies: cap.cookies,
+            extra: { ...cap.localStorage, ...cap.sessionStorage },
+            notes: `Captured via agent-browser at ${new Date().toISOString()}`,
+          });
+          vault.close();
+        } catch { /* ignore */ }
+      }
+
+      const summary = [
+        `Session captured via agent-browser`,
+        `Service: ${service}`,
+        `Cookies: ${Object.keys(cap.cookies).length}`,
+        `Requests: ${cap.requestCount}`,
+        `Installed: ${skillDir}`,
+      ];
+
+      return { content: [{ type: "text", text: summary.join("\n") }] };
+    }
+
     const result = await loginAndCapture(p.loginUrl, credentials, {
       captureUrls: p.captureUrls,
       waitMs: 5000,
@@ -175,7 +253,7 @@ async execute(_toolCallId: string, params: unknown) {
       }
     }
 
-    const backend = "OpenClaw browser";
+	    const backendLabel = "OpenClaw browser";
     const cookieCount = Object.keys(result.cookies).length;
     const authHeaderCount = Object.keys(result.authHeaders).length;
     const lsCount = Object.keys(result.localStorage).length;
@@ -187,7 +265,7 @@ async execute(_toolCallId: string, params: unknown) {
     // This stores cookies/headers/tokens for API replay even without login credentials
     if (p.saveCredentials !== false && hasAnyAuth) {
       try {
-        const { Vault } = await import("@getfoundry/unbrowse-core");
+        const { Vault } = await import("../../vault.js");
         const vault = new Vault(vaultDbPath);
         vault.store(service, {
           baseUrl: result.baseUrl,
@@ -214,7 +292,7 @@ async execute(_toolCallId: string, params: unknown) {
       : false;
 
     const summary = [
-      `Session captured via ${backend}`,
+	      `Session captured via ${backendLabel}`,
       `Service: ${service}`,
       credentialUsed ? `Credentials: auto-filled from ${credentialUsed.source} (${credentialUsed.label})` : "",
       `Cookies: ${cookieCount}`,

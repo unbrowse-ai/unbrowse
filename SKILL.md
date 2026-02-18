@@ -10,28 +10,54 @@ description: >-
 Dependency: `agent-browser` (required)
 
 ```bash
-./scripts/ensure-agent-browser.sh --install
-```
-
-Repo build (this project, from repo root):
-
-```bash
-npm run build
-```
-
-## Package (.skill)
-
-```bash
-./scripts/package-skill.sh
+agent-browser --version
+# if missing:
+#   npm install -g agent-browser
+#   agent-browser install
+./scripts/ensure-agent-browser.sh --install # (if this helper exists in your checkout/skill install)
 ```
 
 ## Commands
 
-This repo provides a standalone `unbrowse` CLI:
+This repo provides a standalone `unbrowse` CLI (no OpenClaw):
 
 ```bash
 node packages/cli/unbrowse.js --help
 ```
+
+## Default Algorithm (Use This)
+
+1) **Search marketplace**
+
+Standalone CLI:
+
+```bash
+node packages/cli/unbrowse.js search --index-url "https://index.unbrowse.ai" --q "<domain> <task>"
+```
+
+OpenClaw plugin:
+
+```text
+unbrowse_search { "query": "<domain> <task>" }
+```
+
+2) **If a skill exists: install + use it**
+
+- Install:
+  - CLI: `node packages/cli/unbrowse.js install --index-url "https://index.unbrowse.ai" --skill-id "<skillId>"`
+  - Plugin: `unbrowse_search { "install": "<skillId>" }`
+- Capture your auth: `unbrowse_login` (or `unbrowse_auth` if already logged in)
+- Execute endpoints: `unbrowse_replay` (use `executionMode="backend"` for proxy-only skills)
+
+3) **If no skill exists: reverse-engineer**
+
+- Login/browse with traffic capture: `unbrowse_login` or `unbrowse_browse` (agent-browser)
+- Learn and write a local skill dir: `unbrowse_browse` with learn-on-the-fly (or `unbrowse_capture` + `unbrowse_learn`)
+
+4) **Publish + execute**
+
+- Publish: `unbrowse_publish` (optional if you want it in marketplace)
+- Execute: `unbrowse_replay` (local) and optionally `executionMode="backend"` to validate via marketplace executor.
 
 Core workflows:
 

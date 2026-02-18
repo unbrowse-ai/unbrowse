@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Plugin: `@getfoundry/unbrowse-openclaw` now depends on `@getfoundry/unbrowse-core` for shared capture/learn/replay logic.
 - CLI: `@getfoundry/unbrowse-cli` now depends on core (no longer imports plugin `dist/`).
+- Tools: centralized tool implementations in core (`packages/core/src/unbrowse-tools`) so plugin + standalone CLI share the same prompts/logic.
 
 ### Fixed
 - HAR parser: OPTIONS preflight requests no longer leak as captured endpoints

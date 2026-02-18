@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { makeUnbrowseReplayTool } from "../src/plugin/tools/unbrowse_replay.js";
+import { createToolList } from "@getfoundry/unbrowse-core";
 
 describe("unbrowse_replay", () => {
   let root: string;
@@ -67,7 +67,8 @@ describe("unbrowse_replay", () => {
       browserSessions: new Map(),
     };
 
-    const tool = makeUnbrowseReplayTool(deps);
+    const tool = createToolList(deps).find((t: any) => t?.name === "unbrowse_replay");
+    if (!tool) throw new Error("unbrowse_replay tool not found");
     const res = await tool.execute("toolcall", {
       service,
       skillsDir: root,
@@ -149,7 +150,8 @@ describe("unbrowse_replay", () => {
       browserSessions: new Map(),
     };
 
-    const tool = makeUnbrowseReplayTool(deps);
+    const tool = createToolList(deps).find((t: any) => t?.name === "unbrowse_replay");
+    if (!tool) throw new Error("unbrowse_replay tool not found");
     const res = await tool.execute("toolcall", {
       service,
       skillsDir: root,

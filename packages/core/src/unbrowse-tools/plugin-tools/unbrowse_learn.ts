@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 
-import { parseHar, generateSkill, writeCaptureSessionFile, inferCorrelationGraphV1 } from "@getfoundry/unbrowse-core";
+import { parseHar } from "../../har-parser.js";
+import { generateSkill } from "../../skill-generator.js";
+import { writeCaptureSessionFile } from "../../capture-store.js";
+import { inferCorrelationGraphV1 } from "../../correlation-engine.js";
 import { toPascalCase } from "../naming.js";
 import { LEARN_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";

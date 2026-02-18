@@ -1,4 +1,4 @@
-import { keypairFromBase58PrivateKey } from "@getfoundry/unbrowse-core";
+import { keypairFromBase58PrivateKey } from "../../solana/solana-helpers.js";
 
 function escapeForDoubleQuotes(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');

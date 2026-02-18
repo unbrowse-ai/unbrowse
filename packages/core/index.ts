@@ -20,6 +20,7 @@ export * from "./src/dependency-dag.js";
 export * from "./src/desktop-automation.js";
 export * from "./src/disk-io.js";
 export * from "./src/dom-service.js";
+export * from "./src/openclaw-browser.js";
 export * from "./src/endpoint-tester.js";
 export * from "./src/endpoint-verification.js";
 export * from "./src/har-parser.js";
@@ -47,6 +48,7 @@ export * from "./src/refresh-config-detector.js";
 export * from "./src/replay-v2.js";
 export * from "./src/schema-inferrer.js";
 export * from "./src/sequence-executor.js";
+export * from "./src/session-login.js";
 export * from "./src/workflow-executor.js";
 export * from "./src/workflow-learner.js";
 export * from "./src/workflow-recorder.js";
@@ -59,3 +61,6 @@ export * from "./src/agent-browser/index.js";
 export * from "./src/solana/solana-helpers.js";
 export * from "./src/wallet/keychain-wallet.js";
 export * from "./src/wallet/wallet-tool.js";
+
+// Tool layer (used by OpenClaw plugin + standalone CLI).
+export * from "./src/unbrowse-tools/index.js";

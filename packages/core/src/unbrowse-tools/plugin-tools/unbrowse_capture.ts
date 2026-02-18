@@ -4,13 +4,13 @@ import {
   parseHar,
   mergeOpenApiEndpoints,
   enrichApiData,
-  generateSkill,
-  verifyAndPruneGetEndpoints,
-  selectEndpointGroupsForIntent,
-  writeCaptureSessionFile,
-  inferCorrelationGraphV1,
-  captureWithHar,
-} from "@getfoundry/unbrowse-core";
+} from "../../har-parser.js";
+import { generateSkill } from "../../skill-generator.js";
+import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
+import { selectEndpointGroupsForIntent } from "../../intent-endpoint-selector.js";
+import { writeCaptureSessionFile } from "../../capture-store.js";
+import { inferCorrelationGraphV1 } from "../../correlation-engine.js";
+import { captureWithHar } from "../../har-capture.js";
 import { CAPTURE_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 import { normalizeUrlList, coalesceDir } from "./input-normalizers.js";

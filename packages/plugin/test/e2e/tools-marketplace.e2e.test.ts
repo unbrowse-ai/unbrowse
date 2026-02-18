@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createTools } from "../../src/plugin/tools/index.js";
+import { createTools } from "../../src/plugin/tools.js";
 import { SkillIndexClient } from "../../src/skill-index.js";
 import { generateBase58Keypair } from "../../src/solana/solana-helpers.js";
 import { withBackend } from "./backend-harness.js";
