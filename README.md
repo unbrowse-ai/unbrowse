@@ -326,6 +326,20 @@ No namespace setup needed -- unbrowse creates namespaces automatically on first 
 
 ---
 
+## Claude Code integration
+
+unbrowse ships as a [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code/skills). If you clone this repo and use Claude Code, you can invoke it directly:
+
+```
+/unbrowse https://kalshi.com get market data
+/unbrowse list
+/unbrowse search trending
+```
+
+Claude will also auto-invoke it when you say things like "capture this site's API" or "learn how this website works".
+
+---
+
 ## License
 
 MIT
