@@ -61,13 +61,21 @@ Install the skill into your coding agent (Codex/Claude Code/Cursor/etc):
 npx skills add lekt9/unbrowse-openclaw
 ```
 
+Offline install (single `.skill` file):
+
+```bash
+./scripts/package-skill.sh
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills/unbrowse"
+unzip -o dist/unbrowse.skill -d "${CODEX_HOME:-$HOME/.codex}/skills/unbrowse"
+```
+
 Install the browser backend used by the standalone skill (`agent-browser`):
 
 ```bash
 ./scripts/ensure-agent-browser.sh --install
 ```
 
-Build core + plugin (the standalone CLI imports the built core bundle):
+Repo dev: build core + plugin (the standalone CLI imports the built core bundle):
 
 ```bash
 npm run build
@@ -128,6 +136,7 @@ Optional: offline packaging into a single `.skill` file:
 ## System layout
 
 - `packages/core`: browser-agnostic capture/learn/replay/publish logic shared by everything.
+- `packages/core/src/unbrowse-tools`: single-source tool implementations used by both plugin + CLI.
 - `packages/plugin`: OpenClaw integration (tools + hooks).
 - `packages/cli`: standalone CLI wrapper (uses `packages/core` build output).
 - `SKILL.md` + `agents/openai.yaml`: skill packaging/metadata for `npx skills add ...` installs.

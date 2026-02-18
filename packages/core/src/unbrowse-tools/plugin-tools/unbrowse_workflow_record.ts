@@ -20,7 +20,7 @@ const p = params as {
   noteType?: "intent" | "decision" | "important" | "skip";
 };
 
-const { getWorkflowRecorder } = await import("@getfoundry/unbrowse-core");
+const { getWorkflowRecorder } = await import("../../workflow-recorder.js");
 const recorder = getWorkflowRecorder();
 
 switch (p.action) {
