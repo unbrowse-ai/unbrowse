@@ -284,6 +284,48 @@ CMD ["bun", "start"]
 
 ---
 
+## How EmergentDB fits in
+
+[EmergentDB](https://emergentdb.com) is the vector database that powers skill discovery. Here's how it works in the pipeline:
+
+### Indexing (when a skill is learned)
+
+1. The intent string (e.g., "get trending searches") is embedded using **Gemini `gemini-embedding-001`** at 1536 dimensions
+2. The vector is **normalized** (required for inner product similarity)
+3. Inserted into two EmergentDB namespaces:
+   - `unbrowse--{domain}` (e.g., `unbrowse--trends-google-com`) for domain-scoped search
+   - `unbrowse--global` for cross-domain discovery
+4. Metadata (skill_id, domain, description) is stored alongside the vector
+
+### Searching (when an intent comes in)
+
+1. The new intent is embedded with Gemini using `RETRIEVAL_QUERY` task type
+2. If the caller provided a URL, search the **domain namespace** first (precise)
+3. Otherwise search the **global namespace** (broad)
+4. Results above score **0.30** are considered a match
+5. Matched skill is loaded from local `./skills/` and executed directly
+
+### Why domain-scoped namespaces?
+
+Without them, "get market data" (Kalshi) would match "get trending searches" (Google Trends) at ~0.60 similarity -- semantically related but completely wrong domain. Domain scoping eliminates cross-domain false positives.
+
+```
+unbrowse--kalshi-com        → only Kalshi skills
+unbrowse--trends-google-com → only Google Trends skills
+unbrowse--global            → all skills (for broad discovery)
+```
+
+### Getting your EmergentDB key
+
+1. Sign up at [emergentdb.com](https://emergentdb.com)
+2. Create a project
+3. Copy the API key (starts with `emdb_`)
+4. Add it to your `.env` as `EMERGENTDB_API_KEY`
+
+No namespace setup needed -- unbrowse creates namespaces automatically on first insert.
+
+---
+
 ## License
 
 MIT
