@@ -11,11 +11,15 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseHar } from "../src/har-parser.js";
-import { generateSkill } from "../src/skill-generator.js";
-import { resolveHeaders, buildHeaderProfiles, classifyHeader } from "../src/header-profiler.js";
-import { enrichApiData } from "../src/har-parser.js";
-import type { HarEntry, HeaderProfileFile, ApiData } from "../src/types.js";
+import {
+  parseHar,
+  enrichApiData,
+  generateSkill,
+  resolveHeaders,
+  buildHeaderProfiles,
+  classifyHeader,
+} from "@getfoundry/unbrowse-core";
+import type { HarEntry, HeaderProfileFile, ApiData } from "@getfoundry/unbrowse-core";
 
 // ── Test Data Builders ───────────────────────────────────────────────────────
 

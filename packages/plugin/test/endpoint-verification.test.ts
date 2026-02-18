@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { verifyAndPruneGetEndpoints } from "../src/endpoint-verification.js";
-import type { ApiData } from "../src/types.js";
+import { verifyAndPruneGetEndpoints } from "@getfoundry/unbrowse-core";
+import type { ApiData } from "@getfoundry/unbrowse-core";
 
 describe("verifyAndPruneGetEndpoints", () => {
   it("prunes failing tested GET endpoints and keeps verified GET + non-GET", async () => {
@@ -84,4 +84,3 @@ describe("verifyAndPruneGetEndpoints", () => {
     }
   });
 });
-

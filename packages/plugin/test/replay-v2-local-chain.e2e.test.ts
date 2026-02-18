@@ -2,9 +2,8 @@ import { describe, it, expect } from "bun:test";
 
 import { serve } from "bun";
 
-import { inferCorrelationGraphV1 } from "../src/correlation-engine.js";
-import { executeCaptureChainForTarget } from "../src/replay-v2.js";
-import type { CapturedExchange } from "../src/types.js";
+import { inferCorrelationGraphV1, executeCaptureChainForTarget } from "@getfoundry/unbrowse-core";
+import type { CapturedExchange } from "@getfoundry/unbrowse-core";
 
 describe("replay-v2: local chain execution via correlations", () => {
   it("executes multi-step flow (csrf -> submit -> data) using captured correlations", { timeout: 30_000 }, async () => {
@@ -131,4 +130,3 @@ describe("replay-v2: local chain execution via correlations", () => {
     server.stop(true);
   });
 });
-

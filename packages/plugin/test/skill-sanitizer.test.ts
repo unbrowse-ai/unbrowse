@@ -11,8 +11,8 @@ import {
   extractEndpoints,
   extractPublishableAuth,
   sanitizeHeaderProfile,
-} from "../src/skill-sanitizer.js";
-import type { HeaderProfileFile } from "../src/types.js";
+} from "@getfoundry/unbrowse-core";
+import type { HeaderProfileFile } from "@getfoundry/unbrowse-core";
 
 // ── sanitizeHeaderProfile ───────────────────────────────────────────────────
 
