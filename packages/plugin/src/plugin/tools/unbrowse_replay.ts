@@ -12,15 +12,24 @@ import {
   primeHeaders,
 } from "./shared.js";
 import type { HeaderProfileFile, PrimeResult } from "./shared.js";
-import type { CsrfProvenance } from "../../types.js";
-import type { CaptureSessionFileV1, CapturedExchange } from "../../types.js";
-import { applyCsrfProvenance, inferCsrfProvenance } from "../../auth-provenance.js";
-import { inferCorrelationGraphV1, planChainForTarget } from "../../correlation-engine.js";
-import { prepareRequestForStep, type StepResponseRuntime } from "../../sequence-executor.js";
-import { fetchViaNodeStealth } from "../../transport.js";
-import { loadJsonOr, loadText } from "../../disk-io.js";
-import { summarizeHtmlContent } from "../../html-structurer.js";
-import { safeParseJson } from "../../schema-inferrer.js";
+import {
+  applyCsrfProvenance,
+  inferCsrfProvenance,
+  inferCorrelationGraphV1,
+  planChainForTarget,
+  prepareRequestForStep,
+  fetchViaNodeStealth,
+  loadJsonOr,
+  loadText,
+  summarizeHtmlContent,
+  safeParseJson,
+} from "@getfoundry/unbrowse-core";
+import type {
+  CsrfProvenance,
+  CaptureSessionFileV1,
+  CapturedExchange,
+  StepResponseRuntime,
+} from "@getfoundry/unbrowse-core";
 
 export function makeUnbrowseReplayTool(deps: ToolDeps) {
   const {
@@ -182,7 +191,7 @@ async execute(_toolCallId: string, params: unknown) {
 
     // Fallback: try loading from vault
     try {
-      const { Vault } = await import("../../vault.js");
+      const { Vault } = await import("@getfoundry/unbrowse-core");
       const vault = new Vault(vaultDbPath);
       const entry = vault.get(p.service);
       vault.close();
@@ -213,7 +222,7 @@ async execute(_toolCallId: string, params: unknown) {
     // Fallback: try loading cookies from Chrome's cookie database (opt-in only)
     if (Object.keys(cookies).length === 0 && enableChromeCookies) {
       try {
-        const { readChromeCookies, chromeCookiesAvailable } = await import("../../chrome-cookies.js");
+        const { readChromeCookies, chromeCookiesAvailable } = await import("@getfoundry/unbrowse-core");
         if (chromeCookiesAvailable()) {
           const domain = new URL(baseUrl).hostname.replace(/^www\./, "");
           const chromeCookies = readChromeCookies(domain);

@@ -15,7 +15,7 @@ parameters: WORKFLOW_STATS_SCHEMA,
 async execute(_toolCallId: string, params: unknown) {
 const p = params as { skillName?: string; category?: "api-package" | "workflow" };
 
-const { getSuccessTracker } = await import("../../success-tracker.js");
+const { getSuccessTracker } = await import("@getfoundry/unbrowse-core");
 const tracker = getSuccessTracker();
 
 if (p.skillName) {

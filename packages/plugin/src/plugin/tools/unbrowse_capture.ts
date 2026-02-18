@@ -1,12 +1,16 @@
 import { join } from "node:path";
 
-import { parseHar } from "../../har-parser.js";
-import { enrichApiData } from "../../har-parser.js";
-import { generateSkill } from "../../skill-generator.js";
-import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
-import { selectEndpointGroupsForIntent } from "../../intent-endpoint-selector.js";
-import { writeCaptureSessionFile } from "../../capture-store.js";
-import { inferCorrelationGraphV1 } from "../../correlation-engine.js";
+import {
+  parseHar,
+  mergeOpenApiEndpoints,
+  enrichApiData,
+  generateSkill,
+  verifyAndPruneGetEndpoints,
+  selectEndpointGroupsForIntent,
+  writeCaptureSessionFile,
+  inferCorrelationGraphV1,
+  captureWithHar,
+} from "@getfoundry/unbrowse-core";
 import { CAPTURE_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 import { normalizeUrlList, coalesceDir } from "./input-normalizers.js";
@@ -51,8 +55,6 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         : false;
 
       try {
-        const { captureWithHar } = await import("../../har-capture.js");
-
         const shouldCrawl = p.crawl === true;
         const shouldTest = p.testEndpoints !== false;
         const maxPages = p.maxPages ?? 15;
@@ -106,7 +108,6 @@ export function makeUnbrowseCaptureTool(deps: ToolDeps) {
         // Merge OpenAPI spec endpoints if found
         const openApiSpec = crawlResult?.openApiSpec ?? null;
         if (openApiSpec) {
-          const { mergeOpenApiEndpoints } = await import("../../har-parser.js");
           const specBaseUrl = openApiSpec.baseUrl ?? apiData.baseUrl;
           apiData = mergeOpenApiEndpoints(apiData, openApiSpec.endpoints, specBaseUrl);
         }

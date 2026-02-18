@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { TrafficFilter } from "../src/har-parser.js";
+import { TrafficFilter } from "@getfoundry/unbrowse-core";
 
 const tf = new TrafficFilter();
 

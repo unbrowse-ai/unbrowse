@@ -28,37 +28,52 @@ import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { parseHar } from "../har-parser.js";
-import { generateSkill } from "../skill-generator.js";
-import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener, stopCdpHeaderListener } from "../cdp-capture.js";
-import { AutoDiscovery } from "../auto-discover.js";
-import { SkillIndexClient, type PublishPayload } from "../skill-index.js";
-import { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth } from "../skill-sanitizer.js";
-import { writeMarketplaceMeta, writeSkillPackageToDir } from "../skill-package-writer.js";
 import { loginAndCapture, type LoginCredentials } from "../session-login.js";
 import {
+  fetchBrowserCookies,
+  fetchCapturedRequests,
+  startCdpHeaderListener,
+  stopCdpHeaderListener,
+  parseHar,
+  generateSkill,
+  AutoDiscovery,
+  SkillIndexClient,
+  sanitizeApiTemplate,
+  extractEndpoints,
+  extractPublishableAuth,
+  writeMarketplaceMeta,
+  writeSkillPackageToDir,
   createCredentialProvider,
   lookupCredentials,
   buildFormFields,
-  type CredentialProvider,
-  type LoginCredential,
-} from "../credential-providers.js";
-import {
   TokenRefreshScheduler,
-  type RefreshConfig,
-} from "../token-refresh.js";
-import { TaskWatcher, type TaskIntent, type FailureInfo } from "../task-watcher.js";
-import { CapabilityResolver, type Resolution } from "../capability-resolver.js";
-import { loadWallet, migrateToKeychain, saveWallet } from "../wallet/keychain-wallet.js";
-import type { WalletState } from "../wallet/wallet-tool.js";
-import { DesktopAutomation } from "../desktop-automation.js";
+  TaskWatcher,
+  CapabilityResolver,
+  loadWallet,
+  migrateToKeychain,
+  saveWallet,
+  DesktopAutomation,
+  createTelemetryClient,
+  loadTelemetryConfig,
+  hashDomain,
+  getEnv,
+  loadJsonOr,
+  loadText,
+  detectAndSaveRefreshConfig,
+} from "@getfoundry/unbrowse-core";
+import type {
+  PublishPayload,
+  CredentialProvider,
+  LoginCredential,
+  RefreshConfig,
+  TaskIntent,
+  FailureInfo,
+  Resolution,
+  WalletState,
+} from "@getfoundry/unbrowse-core";
 import { createTools } from "./tools.js";
 import { createBrowserSessionManager } from "./browser-session-manager.js";
 import { hasApiIntent } from "./context-hints.js";
-import { createTelemetryClient, loadTelemetryConfig, hashDomain } from "../telemetry-client.js";
-import { getEnv } from "../runtime-env.js";
-import { loadJsonOr, loadText } from "../disk-io.js";
-import { detectAndSaveRefreshConfig } from "../refresh-config-detector.js";
 
 function parsePositiveInt(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {

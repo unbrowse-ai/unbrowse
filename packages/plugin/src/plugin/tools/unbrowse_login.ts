@@ -13,7 +13,7 @@ import {
   parseHar,
   generateSkill,
 } from "./shared.js";
-import { inferCsrfProvenance } from "../../auth-provenance.js";
+import { inferCsrfProvenance } from "@getfoundry/unbrowse-core";
 import { buildPublishPromptLines, isPayerPrivateKeyValid } from "./publish-prompts.js";
 
 export function makeUnbrowseLoginTool(deps: ToolDeps) {
@@ -187,7 +187,7 @@ async execute(_toolCallId: string, params: unknown) {
     // This stores cookies/headers/tokens for API replay even without login credentials
     if (p.saveCredentials !== false && hasAnyAuth) {
       try {
-        const { Vault } = await import("../../vault.js");
+        const { Vault } = await import("@getfoundry/unbrowse-core");
         const vault = new Vault(vaultDbPath);
         vault.store(service, {
           baseUrl: result.baseUrl,

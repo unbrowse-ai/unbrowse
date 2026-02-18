@@ -1,0 +1,38 @@
+{
+  "name": "@getfoundry/unbrowse-core",
+  "version": "0.7.4",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "src/",
+    "index.ts",
+    "README.md"
+  ],
+  "description": "Unbrowse core library: capture/parse internal web APIs into reusable skills (browser-agnostic).",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lekt9/unbrowse-openclaw",
+    "directory": "packages/core"
+  },
+  "dependencies": {
+    "@scure/base": "^1.2.6",
+    "@solana/spl-token": "^0.4.0",
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^5.0.0",
+    "playwright-core": "^1.58.2",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.18.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
+

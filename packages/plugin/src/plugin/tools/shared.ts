@@ -7,25 +7,38 @@ export { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 
 export { resolve, join } from "node:path";
 export { homedir } from "node:os";
 
-export { parseHar } from "../../har-parser.js";
-export { generateSkill } from "../../skill-generator.js";
-export { fetchBrowserCookies, fetchCapturedRequests } from "../../cdp-capture.js";
-export { SkillIndexClient } from "../../skill-index.js";
-export type { PublishPayload } from "../../skill-index.js";
-export { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth, sanitizeHeaderProfile } from "../../skill-sanitizer.js";
+export { fetchBrowserCookies, fetchCapturedRequests } from "@getfoundry/unbrowse-core";
+export {
+  parseHar,
+  generateSkill,
+  SkillIndexClient,
+  sanitizeApiTemplate,
+  extractEndpoints,
+  extractPublishableAuth,
+  sanitizeHeaderProfile,
+  resolveHeaders,
+  primeHeaders,
+  TokenRefreshScheduler,
+  extractRefreshConfig,
+  TaskWatcher,
+  CapabilityResolver,
+  DesktopAutomation,
+  lookupCredentials,
+  buildFormFields,
+} from "@getfoundry/unbrowse-core";
+export type {
+  PublishPayload,
+  HeaderProfileFile,
+  RefreshConfig,
+  TaskIntent,
+  FailureInfo,
+  Resolution,
+  CredentialProvider,
+  LoginCredential,
+  PrimeResult,
+} from "@getfoundry/unbrowse-core";
 export { loginAndCapture } from "../../session-login.js";
-export { resolveHeaders, primeHeaders, type PrimeResult } from "../../header-profiler.js";
-export type { HeaderProfileFile } from "../../types.js";
 export type { LoginCredentials } from "../../session-login.js";
-export { lookupCredentials, buildFormFields } from "../../credential-providers.js";
-export type { CredentialProvider, LoginCredential } from "../../credential-providers.js";
-export { TokenRefreshScheduler, extractRefreshConfig } from "../../token-refresh.js";
-export type { RefreshConfig } from "../../token-refresh.js";
-export { TaskWatcher } from "../../task-watcher.js";
-export type { TaskIntent, FailureInfo } from "../../task-watcher.js";
-export { CapabilityResolver } from "../../capability-resolver.js";
-export type { Resolution } from "../../capability-resolver.js";
-export { DesktopAutomation } from "../../desktop-automation.js";
 
 export {
   LEARN_SCHEMA,
@@ -45,4 +58,3 @@ export {
 } from "../schemas.js";
 
 export { toPascalCase } from "../naming.js";
-

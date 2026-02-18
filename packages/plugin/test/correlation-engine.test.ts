@@ -1,8 +1,7 @@
 import { describe, it, expect } from "bun:test";
 
-import { inferCorrelationGraphV1, planChainForTarget } from "../src/correlation-engine.js";
-import { prepareRequestForStep, type StepResponseRuntime } from "../src/sequence-executor.js";
-import type { CapturedExchange } from "../src/types.js";
+import { inferCorrelationGraphV1, planChainForTarget, prepareRequestForStep } from "@getfoundry/unbrowse-core";
+import type { StepResponseRuntime, CapturedExchange } from "@getfoundry/unbrowse-core";
 
 describe("correlation-engine: value links + chain planning", () => {
   it("links response.body -> request.header/query and plans prerequisites", () => {
