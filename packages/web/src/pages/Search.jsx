@@ -211,7 +211,15 @@ export default function Search() {
                     </p>
 
                     <div className="result-meta">
-                      <span className="result-domain">
+                      <span
+                        className="result-domain result-domain-link"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const d = skill.domain || skill.serviceName;
+                          if (d) navigate(`/domain/${encodeURIComponent(d)}`);
+                        }}
+                      >
                         {skill.domain || skill.serviceName || 'API'}
                       </span>
                       {endpointCount > 0 && (

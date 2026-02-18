@@ -607,7 +607,15 @@ export default function Skills() {
                     </p>
 
                     <div className="ub-card-footer">
-                      <span className="ub-card-domain">
+                      <span
+                        className="ub-card-domain ub-card-domain-link"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const d = skill.domain || skill.serviceName;
+                          if (d) navigate(`/domain/${encodeURIComponent(d)}`);
+                        }}
+                      >
                         {skill.domain || skill.serviceName || 'API'}
                       </span>
                       <div className="ub-card-stats">

@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Skills from './pages/Skills';
 import SkillDetail from './pages/SkillDetail';
+import DomainPage from './pages/DomainPage';
 import Search from './pages/Search';
 import Docs from './pages/Docs';
 import Analytics from './pages/Analytics';
@@ -14,6 +15,7 @@ function App() {
         <Route path="/" element={<Skills />} />
         <Route path="/search" element={<Search />} />
         <Route path="/skill/:id" element={<SkillDetail />} />
+        <Route path="/domain/:domain" element={<DomainPage />} />
         <Route path="/docs" element={<Docs />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/earnings" element={<Earnings />} />
