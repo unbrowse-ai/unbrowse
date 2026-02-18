@@ -19,6 +19,12 @@ Repo build (this project, from repo root):
 npm run build
 ```
 
+## Package (.skill)
+
+```bash
+./scripts/package-skill.sh
+```
+
 ## Commands
 
 This repo provides a standalone `unbrowse` CLI:
