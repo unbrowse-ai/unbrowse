@@ -1,6 +1,6 @@
-import { runAgentBrowser } from "../../agent-browser/runner.js";
-import { snapshotInteractive } from "../../agent-browser/snapshot.js";
-import { captureHarFromAgentBrowser } from "../../agent-browser/har.js";
+import { runAgentBrowser } from "./runner.js";
+import { snapshotInteractive } from "./snapshot.js";
+import { captureHarFromAgentBrowser } from "./har.js";
 
 export async function browseWithAgentBrowser(opts: {
   url: string;

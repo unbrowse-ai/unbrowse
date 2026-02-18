@@ -1,5 +1,19 @@
-import type { HarEntry } from "../types.js";
 import { runAgentBrowserJson } from "./runner.js";
+
+export interface HarEntry {
+  startedDateTime?: string;
+  request: {
+    method: string;
+    url: string;
+    headers: Array<{ name: string; value: string }>;
+    postData?: { mimeType?: string; text?: string };
+  };
+  response: {
+    status: number;
+    headers: Array<{ name: string; value: string }>;
+    content?: { mimeType?: string; text?: string };
+  };
+}
 
 export interface AgentBrowserHarOptions {
   session: string;

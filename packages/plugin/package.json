@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.7.6",
+  "version": "0.7.9",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "dist/index.js",
@@ -54,9 +54,12 @@
     ]
   },
   "dependencies": {
-    "@getfoundry/unbrowse-core": "0.7.4",
+    "@getfoundry/unbrowse-core": "0.7.9",
     "playwright-core": "^1.58.2"
   },
+  "bundledDependencies": [
+    "@getfoundry/unbrowse-core"
+  ],
   "peerDependencies": {
     "clawdbot": "*",
     "moltbot": "*",

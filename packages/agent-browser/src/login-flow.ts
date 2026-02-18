@@ -1,5 +1,5 @@
-import { runAgentBrowser } from "../../agent-browser/runner.js";
-import { captureHarFromAgentBrowser } from "../../agent-browser/har.js";
+import { runAgentBrowser } from "./runner.js";
+import { captureHarFromAgentBrowser } from "./har.js";
 
 export async function loginWithAgentBrowser(opts: {
   loginUrl: string;

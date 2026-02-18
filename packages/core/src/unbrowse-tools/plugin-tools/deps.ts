@@ -3,13 +3,23 @@ export type ToolDeps = {
   logger: any;
   pluginConfig?: any;
   /** Browser backend selector. Default: "openclaw" */
-  browserBackend?: "openclaw" | "agent-browser";
+  browserBackend?: "openclaw" | "playwright" | "agent-browser";
   /** OpenClaw browser control port (only used when browserBackend="openclaw"). */
   browserPort: number;
   browserProfile?: string;
   allowLegacyPlaywrightFallback: boolean;
   defaultOutputDir: string;
   autoDiscoverEnabled: boolean;
+  /**
+   * Playwright config for browserBackend="playwright".
+   * Keep this minimal and serializable (plugin config passes through OpenClaw).
+   */
+  playwright?: {
+    channel?: string;
+    headless?: boolean;
+    userDataDir?: string;
+    executablePath?: string;
+  };
 
   // Feature flags
   enableChromeCookies: boolean;
