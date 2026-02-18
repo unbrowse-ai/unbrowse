@@ -18,8 +18,8 @@
  * Requires OpenClaw browser to be running (no local Playwright fallback).
  */
 
-import type { HarEntry } from "./types.js";
-import { captureCdpNetworkTraffic } from "./cdp-ws.js";
+import type { HarEntry } from "@getfoundry/unbrowse-core";
+import { captureCdpNetworkTraffic } from "@getfoundry/unbrowse-core";
 
 const DEFAULT_PORT = 18791;
 

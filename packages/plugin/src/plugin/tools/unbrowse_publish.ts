@@ -14,7 +14,7 @@ import {
   sanitizeApiTemplate,
   sanitizeHeaderProfile,
 } from "./shared.js";
-import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
+import { writeMarketplaceMeta, writeSkillPackageToDir } from "@getfoundry/unbrowse-core";
 
 function toCookieHeader(raw: unknown): string | undefined {
   if (typeof raw === "string" && raw.trim().length > 0) return raw.trim();

@@ -1,14 +1,16 @@
 import type { ToolDeps } from "../deps.js";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ApiData, ParsedRequest } from "../../../types.js";
-import { guessAuthMethod } from "../../../auth-extractor.js";
-import { inferCsrfProvenance } from "../../../auth-provenance.js";
-import { enrichApiData } from "../../../har-parser.js";
-import { generateSkill } from "../../../skill-generator.js";
-import { verifyAndPruneGetEndpoints } from "../../../endpoint-verification.js";
+import {
+  guessAuthMethod,
+  inferCsrfProvenance,
+  enrichApiData,
+  generateSkill,
+  verifyAndPruneGetEndpoints,
+  loadJsonOr,
+} from "@getfoundry/unbrowse-core";
+import type { ApiData, ParsedRequest } from "@getfoundry/unbrowse-core";
 import { buildPublishPromptLines, isPayerPrivateKeyValid } from "../publish-prompts.js";
-import { loadJsonOr } from "../../../disk-io.js";
 
 type ToolResponse = { content: Array<{ type: "text"; text: string }> };
 

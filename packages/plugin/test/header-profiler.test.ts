@@ -12,9 +12,9 @@ import {
   resolveHeaders,
   primeHeaders,
   type BrowserCapturer,
-} from "../src/header-profiler.js";
-import { sanitizeHeaderProfile } from "../src/skill-sanitizer.js";
-import type { HarEntry, HeaderProfileFile } from "../src/types.js";
+} from "@getfoundry/unbrowse-core";
+import { sanitizeHeaderProfile } from "@getfoundry/unbrowse-core";
+import type { HarEntry, HeaderProfileFile } from "@getfoundry/unbrowse-core";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

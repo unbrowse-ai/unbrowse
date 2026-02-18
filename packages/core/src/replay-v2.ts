@@ -4,7 +4,7 @@ import { planChainForTarget } from "./correlation-engine.js";
 import { prepareRequestForStep, type StepResponseRuntime } from "./sequence-executor.js";
 import { safeParseJson } from "./schema-inferrer.js";
 
-export type PreparedRequest = {
+export type ReplayPreparedRequest = {
   method: string;
   url: string;
   headers: Record<string, string>;
@@ -18,7 +18,7 @@ export type TransportResult = {
   contentType?: string;
 };
 
-export type TransportFn = (req: PreparedRequest) => Promise<TransportResult>;
+export type TransportFn = (req: ReplayPreparedRequest) => Promise<TransportResult>;
 
 export const DEFAULT_SESSION_HEADER_NAMES = new Set([
   "x-csrf-token", "x-xsrf-token", "csrf-token",
@@ -148,4 +148,3 @@ export async function executeCaptureChainForTarget(
 
   return { chain, final, perStep, sessionHeaders };
 }
-

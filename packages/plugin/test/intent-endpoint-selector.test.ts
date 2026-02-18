@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { selectEndpointGroupsForIntent } from "../src/intent-endpoint-selector.js";
+import { selectEndpointGroupsForIntent } from "@getfoundry/unbrowse-core";
 
 describe("selectEndpointGroupsForIntent", () => {
   it("prefers relevant endpoints and drops auth by default", () => {
@@ -26,4 +26,3 @@ describe("selectEndpointGroupsForIntent", () => {
     expect(selected.some((g) => g.category === "auth")).toBe(true);
   });
 });
-
