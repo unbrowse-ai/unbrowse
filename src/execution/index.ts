@@ -1,4 +1,8 @@
 import { executeInBrowser } from "../capture/index.js";
+import { captureSession } from "../capture/index.js";
+import { extractEndpoints } from "../reverse-engineer/index.js";
+import { validateSkillManifest } from "../validator/index.js";
+import { publishSkill } from "../marketplace/index.js";
 import { getCredential } from "../vault/index.js";
 import type { EndpointDescriptor, ExecutionTrace, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
@@ -6,14 +10,70 @@ import { nanoid } from "nanoid";
 export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
+  learned_skill?: SkillManifest;
 }
 
 export async function executeSkill(
   skill: SkillManifest,
   params: Record<string, unknown> = {}
 ): Promise<ExecutionResult> {
+  if (skill.execution_type === "browser-capture") {
+    return executeBrowserCapture(skill, params);
+  }
   const endpoint = skill.endpoints.find((e) => e.idempotency === "safe") ?? skill.endpoints[0];
   return executeEndpoint(skill, endpoint, params);
+}
+
+async function executeBrowserCapture(
+  skill: SkillManifest,
+  params: Record<string, unknown>
+): Promise<ExecutionResult> {
+  const url = String(params.url ?? "");
+  const intent = String(params.intent ?? skill.intent_signature);
+  if (!url) throw new Error("browser-capture skill requires params.url");
+
+  const startedAt = new Date().toISOString();
+  const traceId = nanoid();
+
+  const captured = await captureSession(url);
+  const endpoints = extractEndpoints(captured.requests);
+
+  if (endpoints.length === 0) {
+    throw new Error(`No API endpoints discovered at ${url}`);
+  }
+
+  const domain = captured.domain;
+  const draft = {
+    version: "1.0.0",
+    schema_version: "1",
+    lifecycle: "active" as const,
+    execution_type: "http" as const,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    name: `${domain} -- ${intent}`,
+    intent_signature: intent,
+    domain,
+    description: `Auto-discovered skill for: ${intent}`,
+    owner_type: "agent" as const,
+    endpoints,
+  };
+
+  const validation = validateSkillManifest({ ...draft, skill_id: "__validate__" });
+  if (!validation.valid) throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
+
+  const learned = await publishSkill(draft);
+
+  const trace: ExecutionTrace = {
+    trace_id: traceId,
+    skill_id: skill.skill_id,
+    endpoint_id: "browser-capture",
+    started_at: startedAt,
+    completed_at: new Date().toISOString(),
+    success: true,
+    result: { learned_skill_id: learned.skill_id, endpoints_discovered: endpoints.length },
+  };
+
+  return { trace, result: trace.result, learned_skill: learned };
 }
 
 export async function executeEndpoint(
