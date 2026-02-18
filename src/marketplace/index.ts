@@ -15,13 +15,20 @@ export function listSkills(): SkillManifest[] {
   ensureDir();
   return readdirSync(SKILLS_DIR)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => JSON.parse(readFileSync(join(SKILLS_DIR, f), "utf8")) as SkillManifest);
+    .map((f) => {
+      const skill = JSON.parse(readFileSync(join(SKILLS_DIR, f), "utf8")) as SkillManifest;
+      if (!skill.execution_type) skill.execution_type = "http";
+      return skill;
+    });
 }
 
 export function getSkill(skillId: string): SkillManifest | null {
   const file = join(SKILLS_DIR, `${skillId}.json`);
   if (!existsSync(file)) return null;
-  return JSON.parse(readFileSync(file, "utf8")) as SkillManifest;
+  const skill = JSON.parse(readFileSync(file, "utf8")) as SkillManifest;
+  // backfill execution_type for skills created before this field existed
+  if (!skill.execution_type) skill.execution_type = "http";
+  return skill;
 }
 
 export async function publishSkill(
