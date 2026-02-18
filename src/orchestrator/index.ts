@@ -1,12 +1,10 @@
-import { searchIntent } from "../discovery/index.js";
-import { captureSession } from "../capture/index.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
-import { validateSkillManifest } from "../validator/index.js";
+import { searchIntent, searchIntentInDomain } from "../discovery/index.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { executeSkill } from "../execution/index.js";
 import type { ExecutionTrace, SkillManifest } from "../types/index.js";
 
-const CONFIDENCE_THRESHOLD = 0.30; // Gemini RETRIEVAL_QUERY vs RETRIEVAL_DOCUMENT cosine typically 0.35-0.50
+const CONFIDENCE_THRESHOLD = 0.30;
+const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 
 export interface OrchestratorResult {
   result: unknown;
@@ -20,8 +18,12 @@ export async function resolveAndExecute(
   params: Record<string, unknown> = {},
   context?: { url?: string; domain?: string }
 ): Promise<OrchestratorResult> {
-  // 1. Discovery -- search EmergentDB for matching skill
-  const candidates = await searchIntent(intent, 5).catch(() => []);
+  // 1. Domain-scoped search first, fallback to global
+  const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
+  const candidates = await (requestedDomain
+    ? searchIntentInDomain(intent, requestedDomain, 5)
+    : searchIntent(intent, 5)
+  ).catch(() => []);
   const top = candidates[0];
 
   if (top && top.score >= CONFIDENCE_THRESHOLD) {
@@ -33,49 +35,51 @@ export async function resolveAndExecute(
     }
   }
 
-  // 2. No match -- live capture required
+  // 2. No match -- invoke browser-capture skill
   if (!context?.url) {
     throw new Error(
       "No matching skill found. Pass context.url to trigger live capture and discovery."
     );
   }
 
-  const captured = await captureSession(context.url);
-  const endpoints = extractEndpoints(captured.requests);
+  const captureSkill = getOrCreateBrowserCaptureSkill();
+  const { trace, result, learned_skill } = await executeSkill(captureSkill, {
+    ...params,
+    url: context.url,
+    intent,
+  });
 
-  if (endpoints.length === 0) {
-    throw new Error(`No API endpoints discovered at ${context.url}`);
-  }
+  if (!learned_skill) throw new Error("Browser capture did not produce a skill");
 
-  const domain = context.domain ?? captured.domain;
+  // 3. Execute the newly learned skill immediately
+  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params);
 
-  const draftFull = {
+  return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill };
+}
+
+function getOrCreateBrowserCaptureSkill(): SkillManifest {
+  const existing = getSkill(BROWSER_CAPTURE_SKILL_ID);
+  if (existing) return existing;
+
+  const now = new Date().toISOString();
+  const skill: SkillManifest = {
+    skill_id: BROWSER_CAPTURE_SKILL_ID,
     version: "1.0.0",
     schema_version: "1",
-    lifecycle: "active" as const,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    name: `${domain} -- ${intent}`,
-    intent_signature: intent,
-    domain,
-    description: `Auto-discovered skill for: ${intent}`,
-    owner_type: "agent" as const,
-    endpoints,
+    name: "Browser Capture",
+    intent_signature: "capture and learn API endpoints from a URL",
+    domain: "agent",
+    description: "Meta-skill: launches a headless browser, records HAR, reverse-engineers API endpoints, and publishes a new skill to the marketplace.",
+    owner_type: "agent",
+    execution_type: "browser-capture",
+    endpoints: [],
+    lifecycle: "active",
+    created_at: now,
+    updated_at: now,
   };
 
-  // validate with a temp id; publishSkill generates the real nanoid
-  const validation = validateSkillManifest({ ...draftFull, skill_id: "__validate__" });
-  if (!validation.valid) {
-    throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
-  }
-
-  // 3. Publish to marketplace + index
-  const skill = await publishSkill(draftFull);
-
-  // 4. Execute
-  const { trace, result } = await executeSkill(skill, params);
-
-  return { result, trace, source: "live-capture", skill };
+  publishSkill(skill).catch(() => {});
+  return skill;
 }
 
 function extractSkillId(metadata: Record<string, unknown>): string | null {
