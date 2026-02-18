@@ -1,5 +1,4 @@
 import { describe, it, expect } from "bun:test";
-
 import { inferCorrelationGraphV1, planChainForTarget, prepareRequestForStep } from "@getfoundry/unbrowse-core";
 import type { StepResponseRuntime, CapturedExchange } from "@getfoundry/unbrowse-core";
 
@@ -119,7 +118,6 @@ describe("correlation-engine: value links + chain planning", () => {
     const prepared2 = prepareRequestForStep(exchanges, graph, 2, runtime, { sessionHeaders: {} });
     expect(prepared2?.url).toContain("sessionId=sess_12345678");
   });
-
   it("links response array -> request url path segment (preserves .json suffix)", () => {
     const PLACEHOLDER = "hn_id_placeholder_for_replay_v2_0123456789";
     const exchanges: CapturedExchange[] = [

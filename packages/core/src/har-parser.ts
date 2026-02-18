@@ -798,7 +798,7 @@ export class HarParser {
         }
       }
 
-      // Normalize path
+      // Normalize path (use effectivePath so GraphQL opName path suffixes remain distinct)
       const { normalizedPath, pathParams } = this.routeNormalizer.normalizePath(effectivePath);
       const queryKeys = Array.from(new Set((entry.request.queryString ?? []).map((q) => q.name))).sort();
 
