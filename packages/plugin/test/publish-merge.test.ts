@@ -19,7 +19,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { writeSkillPackageToDir } from "../src/skill-package-writer.js";
+import { writeSkillPackageToDir } from "@getfoundry/unbrowse-core";
 
 // ── Helper: simulate the merge-back write logic ─────────────────────────────
 // Extracted from unbrowse_publish.ts lines 175-203 and plugin.ts lines 262-284.

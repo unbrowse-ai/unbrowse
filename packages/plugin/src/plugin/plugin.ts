@@ -28,64 +28,50 @@ import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { parseHar } from "../har-parser.js";
-import { generateSkill } from "../skill-generator.js";
-import { fetchBrowserCookies, fetchCapturedRequests, startCdpHeaderListener, stopCdpHeaderListener } from "../cdp-capture.js";
-import { AutoDiscovery } from "../auto-discover.js";
-import { SkillIndexClient, type PublishPayload } from "../skill-index.js";
-import { sanitizeApiTemplate, extractEndpoints, extractPublishableAuth } from "../skill-sanitizer.js";
-import { writeMarketplaceMeta, writeSkillPackageToDir } from "../skill-package-writer.js";
-import { loginAndCapture, type LoginCredentials } from "../session-login.js";
+import { loginAndCapture, type LoginCredentials } from "@getfoundry/unbrowse-core";
 import {
+  fetchBrowserCookies,
+  fetchCapturedRequests,
+  parseHar,
+  generateSkill,
+  AutoDiscovery,
+  SkillIndexClient,
+  sanitizeApiTemplate,
+  extractEndpoints,
+  extractPublishableAuth,
+  writeMarketplaceMeta,
+  writeSkillPackageToDir,
   createCredentialProvider,
   lookupCredentials,
   buildFormFields,
-  type CredentialProvider,
-  type LoginCredential,
-} from "../credential-providers.js";
-import {
   TokenRefreshScheduler,
-  extractRefreshConfig,
-  type RefreshConfig,
-} from "../token-refresh.js";
-import { TaskWatcher, type TaskIntent, type FailureInfo } from "../task-watcher.js";
-import { CapabilityResolver, type Resolution } from "../capability-resolver.js";
-import { loadWallet, migrateToKeychain, saveWallet } from "../wallet/keychain-wallet.js";
-import type { WalletState } from "../wallet/wallet-tool.js";
-import { DesktopAutomation } from "../desktop-automation.js";
+  TaskWatcher,
+  CapabilityResolver,
+  loadWallet,
+  migrateToKeychain,
+  saveWallet,
+  DesktopAutomation,
+  createTelemetryClient,
+  loadTelemetryConfig,
+  hashDomain,
+  getEnv,
+  loadJsonOr,
+  loadText,
+  detectAndSaveRefreshConfig,
+} from "@getfoundry/unbrowse-core";
+import type {
+  PublishPayload,
+  CredentialProvider,
+  LoginCredential,
+  RefreshConfig,
+  TaskIntent,
+  FailureInfo,
+  Resolution,
+  WalletState,
+} from "@getfoundry/unbrowse-core";
 import { createTools } from "./tools.js";
 import { createBrowserSessionManager } from "./browser-session-manager.js";
 import { hasApiIntent } from "./context-hints.js";
-import { createTelemetryClient, loadTelemetryConfig, hashDomain } from "../telemetry-client.js";
-import { getEnv } from "../runtime-env.js";
-import { loadJsonOr, loadText } from "../disk-io.js";
-
-/** Scan HAR entries for refresh token endpoints and save config to auth.json */
-function detectAndSaveRefreshConfig(
-  harEntries: Array<{
-    request: { method: string; url: string; headers: Array<{ name: string; value: string }>; postData?: { text?: string } };
-    response: { status: number; content?: { text?: string } };
-  }>,
-  authPath: string,
-  logger: { info: (msg: string) => void },
-): void {
-  for (const entry of harEntries) {
-    const refreshConfig = extractRefreshConfig(entry);
-    if (refreshConfig) {
-      // Found a refresh endpoint — save to auth.json
-      try {
-        let auth: Record<string, any> = {};
-        if (existsSync(authPath)) {
-          auth = loadJsonOr<Record<string, any>>(authPath, {});
-        }
-        auth.refreshConfig = refreshConfig;
-        writeFileSync(authPath, JSON.stringify(auth, null, 2), "utf-8");
-        logger.info(`[unbrowse] Detected refresh endpoint: ${refreshConfig.url}`);
-        break; // Only need one
-      } catch { /* skip */ }
-    }
-  }
-}
 
 function parsePositiveInt(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
@@ -113,6 +99,13 @@ function deriveBrowserControlPort(gatewayPort: number): number {
   return gatewayPort + 2;
 }
 
+function parseBrowserBackend(raw: unknown): "playwright" | "openclaw" | "agent-browser" | null {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return null;
+  if (v === "playwright" || v === "openclaw" || v === "agent-browser") return v;
+  return null;
+}
+
 // ── Plugin ────────────────────────────────────────────────────────────────────
 
 const plugin = {
@@ -138,6 +131,21 @@ const plugin = {
       "",
     ).trim() || undefined;
     const allowLegacyPlaywrightFallback = (cfg.allowLegacyPlaywrightFallback as boolean) ?? false;
+
+    // Hard-lock plugin browser backend to Playwright (no OpenClaw extension browser dependency).
+    const cfgBackend = parseBrowserBackend(cfg.browserBackend);
+    if (cfgBackend && cfgBackend !== "playwright") {
+      logger.warn(`[unbrowse] Ignoring unsupported browserBackend="${cfgBackend}" (plugin is Playwright-only).`);
+    }
+    const browserBackend = "playwright" as const;
+
+    const playwrightCfg = (cfg.playwright as any) ?? {};
+    const playwright = {
+      channel: typeof playwrightCfg.channel === "string" ? playwrightCfg.channel : undefined,
+      headless: typeof playwrightCfg.headless === "boolean" ? playwrightCfg.headless : undefined,
+      userDataDir: typeof playwrightCfg.userDataDir === "string" ? playwrightCfg.userDataDir : undefined,
+      executablePath: typeof playwrightCfg.executablePath === "string" ? playwrightCfg.executablePath : undefined,
+    };
 
     // Detect diagnostic mode (doctor, audit, help, version) — skip all background tasks
     const isDiagnosticMode = (() => {
@@ -242,13 +250,16 @@ const plugin = {
       logger.info("[unbrowse] Auto-contribute DISABLED — skills will stay local only. Set autoContribute: true to earn revenue from contributions.");
     }
     logger.info(
-      `[unbrowse] Browser integration: OpenClaw control on :${browserPort}` +
-      `${browserProfile ? ` (profile=${browserProfile})` : ""}` +
-      `${allowLegacyPlaywrightFallback ? ", Playwright fallback=enabled" : ", Playwright fallback=disabled"}`,
+      `[unbrowse] Browser backend: playwright` +
+      ` (channel=${String(playwright.channel ?? "chrome")}, headless=${Boolean(playwright.headless)})`,
     );
 
     // ── Long-Lived Managers ───────────────────────────────────────────────
-    const sessionManager = createBrowserSessionManager({ logger, browserPort });
+    const sessionManager = createBrowserSessionManager({
+      logger,
+      browserPort,
+      playwright,
+    });
     const {
       browserSessions,
       getOrCreateBrowserSession,
@@ -461,9 +472,11 @@ const plugin = {
     const tools = createTools({
       logger,
       pluginConfig: cfg,
+      browserBackend,
       browserPort,
       browserProfile,
       allowLegacyPlaywrightFallback,
+      playwright,
       defaultOutputDir,
       autoDiscoverEnabled,
       enableChromeCookies,
@@ -601,11 +614,8 @@ const plugin = {
 
       // Start background tasks only in long-lived agent contexts (not for one-shot CLI commands).
       ensureTokenRefreshScheduler();
-      startCdpHeaderListener(9222).then((started) => {
-        if (started) {
-          logger.info("[unbrowse] CDP header listener active (Chrome port 9222)");
-        }
-      }).catch(() => { /* Chrome remote debugging not available */ });
+      // CDP header listener is only useful when attaching to an existing Chrome via CDP.
+      // This plugin build is Playwright-only, so skip it to avoid noisy startup logs.
 
       if (autoDiscoverEnabled) {
         logger.info("[unbrowse] Auto-discovery hook active");
@@ -649,7 +659,6 @@ const plugin = {
     // Register cleanup on process exit signals
     const handleExit = () => {
       tokenRefreshScheduler?.stop();
-      stopCdpHeaderListener();
       cleanupAllSessions().catch(() => {});
       telemetry.flush().catch(() => {});
     };

@@ -307,10 +307,10 @@ export default function SkillDetail() {
           </div>
         )}
         {skill.domain && (
-          <div className="meta-card">
+          <Link to={`/domain/${encodeURIComponent(skill.domain)}`} className="meta-card meta-card-link">
             <div className="meta-label">Domain</div>
             <div className="meta-value">{skill.domain}</div>
-          </div>
+          </Link>
         )}
         {skill.authType && (
           <div className="meta-card">

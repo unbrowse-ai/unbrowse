@@ -8,6 +8,7 @@ dist/
 out/
 build/
 .tsbuildinfo
+*.tgz
 *.js
 *.js.map
 *.d.ts
@@ -16,15 +17,15 @@ build/
 # Keep these declaration files
 !packages/plugin/openclaw.d.ts
 
-# Keep frontend files
-!packages/web/**/*.js
-!packages/web/pnpm-lock.yaml
-
 # Lockfiles (let users generate their own)
 package-lock.json
 bun.lock
 yarn.lock
 pnpm-lock.yaml
+
+# Keep frontend files
+!packages/web/**/*.js
+!packages/web/pnpm-lock.yaml
 
 # Database files
 *.db

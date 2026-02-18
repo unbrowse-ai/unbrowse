@@ -69,6 +69,18 @@ docker run --rm -p 3000:80 unbrowse-web:local
 
 App is available at [http://localhost:3000](http://localhost:3000).
 
+### Setting the API base (recommended)
+
+Vite reads `VITE_API_BASE` at build time.
+
+```bash
+docker build \
+  --build-arg VITE_API_BASE=https://staging-index.unbrowse.ai \
+  -f packages/web/Dockerfile \
+  -t unbrowse-web:local \
+  packages/web
+```
+
 ## GitHub Actions SSH Deploy
 
 Workflow: `/Users/lekt9/Projects/unbrowse-openclaw/.github/workflows/deploy-web-ssh.yml`
@@ -82,6 +94,7 @@ Configure GitHub Environment secrets (`staging` / `production`):
 - `DEPLOY_HOST` - SSH host (e.g. `1.2.3.4`)
 - `DEPLOY_USER` - SSH user
 - `DEPLOY_SSH_KEY` - private key for deploy user
+- `VITE_API_BASE` - (recommended) backend base URL for marketplace/admin/FDRY calls (Vite build-time env)
 - `DEPLOY_PORT` - optional, default `22`
 - `DEPLOY_PATH` - optional, default `/opt/unbrowse-web`
 - `DEPLOY_CONTAINER` - optional, default `unbrowse-web`

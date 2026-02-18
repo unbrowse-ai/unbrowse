@@ -4,3 +4,6 @@ dist
 .env.*
 *.log
 .DS_Store
+.git
+.github
+*.tgz
