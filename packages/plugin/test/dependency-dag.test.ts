@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { inferDependencyDagFromHarEntries } from "../src/dependency-dag.js";
-import type { HarEntry } from "../src/types.js";
+import { inferDependencyDagFromHarEntries } from "@getfoundry/unbrowse-core";
+import type { HarEntry } from "@getfoundry/unbrowse-core";
 
 function harEntry(init: {
   method: string;
@@ -83,4 +83,3 @@ describe("dependency-dag", () => {
     expect(dag.edges.length).toBe(0);
   });
 });
-

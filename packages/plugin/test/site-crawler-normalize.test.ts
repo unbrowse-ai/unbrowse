@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 
-import { normalizeCrawlUrl } from "../src/site-crawler.js";
+import { normalizeCrawlUrl } from "@getfoundry/unbrowse-core";
 
 describe("site-crawler normalizeCrawlUrl", () => {
   it("strips hashes, trims trailing slash, sorts query params", () => {
@@ -25,4 +25,3 @@ describe("site-crawler normalizeCrawlUrl", () => {
     expect(u).toBe("https://example.com/page?ref=invite&source=app");
   });
 });
-

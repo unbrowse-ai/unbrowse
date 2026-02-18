@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { SkillIndexClient } from "../src/skill-index.js";
+import { SkillIndexClient } from "@getfoundry/unbrowse-core";
 
 type FetchType = typeof fetch;
 const originalFetch: FetchType = globalThis.fetch;

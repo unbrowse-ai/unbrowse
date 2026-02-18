@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createTools } from "../../src/plugin/tools/index.js";
+import { createTools } from "../../src/plugin/tools.js";
 
 function makeTmpDir(prefix: string) {
   return mkdtempSync(join(tmpdir(), prefix));
