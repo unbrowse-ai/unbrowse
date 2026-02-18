@@ -13,8 +13,8 @@ import {
   HarParser,
   RouteNormalizer,
   enrichApiData,
-} from "../src/har-parser.js";
-import type { HarEntry, ParsedRequest, ApiData } from "../src/types.js";
+} from "@getfoundry/unbrowse-core";
+import type { HarEntry, ParsedRequest, ApiData } from "@getfoundry/unbrowse-core";
 
 // ---------------------------------------------------------------------------
 // Helpers — build mock HAR entries for testing

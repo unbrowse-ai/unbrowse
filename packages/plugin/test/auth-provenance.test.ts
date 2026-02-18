@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { applyCsrfProvenance, inferCsrfProvenance } from "../src/auth-provenance.js";
+import { applyCsrfProvenance, inferCsrfProvenance } from "@getfoundry/unbrowse-core";
 
 describe("auth-provenance", () => {
   it("infers csrf header source from matching cookie value", () => {

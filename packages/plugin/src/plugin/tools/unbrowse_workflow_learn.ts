@@ -15,8 +15,7 @@ parameters: WORKFLOW_LEARN_SCHEMA,
 async execute(_toolCallId: string, params: unknown) {
 const p = params as { sessionId: string; outputDir?: string };
 
-const { getWorkflowRecorder } = await import("../../workflow-recorder.js");
-const { getWorkflowLearner } = await import("../../workflow-learner.js");
+const { getWorkflowRecorder, getWorkflowLearner } = await import("@getfoundry/unbrowse-core");
 
 const recorder = getWorkflowRecorder();
 const learner = getWorkflowLearner(p.outputDir ?? defaultOutputDir);

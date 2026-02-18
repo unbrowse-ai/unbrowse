@@ -8,13 +8,16 @@ import {
   parseHar,
   generateSkill,
 } from "./shared.js";
-import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
-import { writeCaptureSessionFile } from "../../capture-store.js";
-import { inferCorrelationGraphV1 } from "../../correlation-engine.js";
-import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
+import {
+  verifyAndPruneGetEndpoints,
+  writeCaptureSessionFile,
+  inferCorrelationGraphV1,
+  writeMarketplaceMeta,
+  writeSkillPackageToDir,
+  loadJsonOr,
+} from "@getfoundry/unbrowse-core";
 import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
 import { buildPublishPromptLines } from "./publish-prompts.js";
-import { loadJsonOr } from "../../disk-io.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
   const {
@@ -215,9 +218,7 @@ async execute(_toolCallId: string, params: unknown) {
     }
   }
 
-  const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import(
-    "../../dom-service.js"
-  );
+  const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import("@getfoundry/unbrowse-core");
   const service = p.service;
 
   // Load auth from skill's auth.json (with vault fallback)
@@ -245,7 +246,7 @@ async execute(_toolCallId: string, params: unknown) {
   // Fallback: try loading from vault if auth.json is missing or empty
   if (Object.keys(authCookies).length === 0 && Object.keys(authHeaders).length === 0) {
     try {
-      const { Vault } = await import("../../vault.js");
+      const { Vault } = await import("@getfoundry/unbrowse-core");
       const vault = new Vault(vaultDbPath);
       const entry = vault.get(service);
       vault.close();
@@ -266,7 +267,7 @@ async execute(_toolCallId: string, params: unknown) {
   // Fallback: try loading cookies from Chrome's cookie database (opt-in only)
   if (Object.keys(authCookies).length === 0 && enableChromeCookies) {
     try {
-      const { readChromeCookies, chromeCookiesAvailable } = await import("../../chrome-cookies.js");
+      const { readChromeCookies, chromeCookiesAvailable } = await import("@getfoundry/unbrowse-core");
       if (chromeCookiesAvailable()) {
         const domain = new URL(p.url).hostname.replace(/^www\./, "");
         const chromeCookies = readChromeCookies(domain);
@@ -807,7 +808,7 @@ async execute(_toolCallId: string, params: unknown) {
           // Best-effort: infer a dependency DAG from the captured request/response bodies.
           // Stored as references/DAG.json so it can be published + merged server-side.
           try {
-            const { inferDependencyDagFromHarEntries } = await import("../../dependency-dag.js");
+            const { inferDependencyDagFromHarEntries } = await import("@getfoundry/unbrowse-core");
             const dag = inferDependencyDagFromHarEntries(apiHarEntries as any, { skillName: result.service });
             if (dag.edges.length > 0) {
               const { mkdirSync, writeFileSync } = await import("node:fs");

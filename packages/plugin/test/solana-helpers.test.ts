@@ -4,7 +4,7 @@ import {
   generateBase58Keypair,
   keypairFromBase58PrivateKey,
   signEd25519MessageBase58,
-} from "../src/solana/solana-helpers.js";
+} from "@getfoundry/unbrowse-core";
 
 describe("solana helpers", () => {
   it("generates and decodes base58 keypairs without web3 runtime", async () => {
