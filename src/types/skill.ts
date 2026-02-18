@@ -59,6 +59,8 @@ export interface EndpointDescriptor {
   signature?: string;
 }
 
+export type ExecutionType = "http" | "browser-capture";
+
 export interface SkillManifest {
   skill_id: string;
   version: string;
@@ -69,6 +71,7 @@ export interface SkillManifest {
   subdomain?: string;
   description: string;
   owner_type: OwnerType;
+  execution_type: ExecutionType;
   auth_profile_ref?: string;
   endpoints: EndpointDescriptor[];
   transform_ref?: string;
