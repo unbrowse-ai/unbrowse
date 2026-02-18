@@ -45,7 +45,6 @@ import {
 } from "../credential-providers.js";
 import {
   TokenRefreshScheduler,
-  extractRefreshConfig,
   type RefreshConfig,
 } from "../token-refresh.js";
 import { TaskWatcher, type TaskIntent, type FailureInfo } from "../task-watcher.js";
@@ -59,33 +58,7 @@ import { hasApiIntent } from "./context-hints.js";
 import { createTelemetryClient, loadTelemetryConfig, hashDomain } from "../telemetry-client.js";
 import { getEnv } from "../runtime-env.js";
 import { loadJsonOr, loadText } from "../disk-io.js";
-
-/** Scan HAR entries for refresh token endpoints and save config to auth.json */
-function detectAndSaveRefreshConfig(
-  harEntries: Array<{
-    request: { method: string; url: string; headers: Array<{ name: string; value: string }>; postData?: { text?: string } };
-    response: { status: number; content?: { text?: string } };
-  }>,
-  authPath: string,
-  logger: { info: (msg: string) => void },
-): void {
-  for (const entry of harEntries) {
-    const refreshConfig = extractRefreshConfig(entry);
-    if (refreshConfig) {
-      // Found a refresh endpoint — save to auth.json
-      try {
-        let auth: Record<string, any> = {};
-        if (existsSync(authPath)) {
-          auth = loadJsonOr<Record<string, any>>(authPath, {});
-        }
-        auth.refreshConfig = refreshConfig;
-        writeFileSync(authPath, JSON.stringify(auth, null, 2), "utf-8");
-        logger.info(`[unbrowse] Detected refresh endpoint: ${refreshConfig.url}`);
-        break; // Only need one
-      } catch { /* skip */ }
-    }
-  }
-}
+import { detectAndSaveRefreshConfig } from "../refresh-config-detector.js";
 
 function parsePositiveInt(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {

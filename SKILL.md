@@ -1,0 +1,74 @@
+---
+name: unbrowse
+description: >-
+  Standalone Unbrowse (no OpenClaw). Use agent-browser for deterministic browsing (refs/snapshots),
+  capture internal API traffic, and generate reusable Unbrowse skills (SKILL.md + scripts/api.ts).
+---
+
+## Install
+
+Browser backend:
+
+```bash
+npm install -g agent-browser
+agent-browser install
+```
+
+Repo (this project, from repo root):
+
+```bash
+npm run build
+```
+
+## Commands
+
+This repo provides a standalone `unbrowse` CLI:
+
+```bash
+node packages/cli/unbrowse.js --help
+```
+
+Core workflows:
+
+1) Login (captures cookies/storage, tries to generate a skill if there’s traffic)
+
+```bash
+node packages/cli/unbrowse.js login \
+  --login-url "https://example.com/login" \
+  --field "#email=me@example.com" \
+  --field "#password=..." \
+  --submit "text=Sign in"
+```
+
+2) Browse (do a task, then learn-on-the-fly from captured XHR/fetch)
+
+Create `actions.json`:
+
+```json
+[
+  { "action": "click_element", "index": 1 },
+  { "action": "input_text", "index": 2, "text": "hello" },
+  { "action": "click_element", "index": 3 }
+]
+```
+
+Run:
+
+```bash
+node packages/cli/unbrowse.js browse \
+  --url "https://example.com" \
+  --actions-json ./actions.json \
+  --learn-on-fly
+```
+
+3) Capture -> Learn (non-interactive; best for public pages)
+
+```bash
+node packages/cli/unbrowse.js capture --url "https://example.com" --out /tmp/example.har
+node packages/cli/unbrowse.js learn --har /tmp/example.har --out ~/.openclaw/skills
+```
+
+## Notes
+
+- `browse` prints an `interactive` list (indexed) based on `agent-browser snapshot -i` output.
+- Indices are session-local. After navigation, resnapshot (the command does this automatically after actions).
