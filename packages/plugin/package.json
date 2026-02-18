@@ -1,16 +1,17 @@
 {
   "name": "@getfoundry/unbrowse-openclaw",
-  "version": "0.7.4",
+  "version": "0.7.6",
   "license": "AGPL-3.0-only",
   "type": "module",
-  "main": "index.ts",
+  "main": "dist/index.js",
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
   "files": [
-    "index.ts",
-    "src/",
+    "dist/",
     "hooks/",
     "openclaw.plugin.json",
-    "README.md"
+    "clawdbot.plugin.json",
+    "README.md",
+    "skills/"
   ],
   "repository": {
     "type": "git",
@@ -30,7 +31,7 @@
   ],
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "hooks": [
       "./hooks/auto-discover"
@@ -38,7 +39,7 @@
   },
   "clawdbot": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "hooks": [
       "./hooks/auto-discover"
@@ -46,7 +47,7 @@
   },
   "moltbot": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "hooks": [
       "./hooks/auto-discover"
@@ -79,10 +80,11 @@
     "test:oct:docker": "bash scripts/test-oct-docker.sh",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "cp ../../README.md ."
+    "prepublishOnly": "npm run build && cp ../../README.md ."
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "types": "dist/index.d.ts"
 }
