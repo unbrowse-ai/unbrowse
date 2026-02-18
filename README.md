@@ -25,13 +25,32 @@ Result: faster execution and fewer UI-shape failures in action-heavy workflows.
 
 This is the practical “agentic web” move: agents should execute capability contracts, not scrape screen pixels.
 
-## Quick Start (works without config)
+## Quick Start
+
+Pick an entrypoint:
+
+| Entrypoint | Best for | Install | Run |
+|---|---|---|---|
+| OpenClaw plugin | agents already in OpenClaw | `openclaw plugins install @getfoundry/unbrowse-openclaw` | OpenClaw tools: `unbrowse_capture`, `unbrowse_browse`, `unbrowse_replay`, ... |
+| Standalone skill + CLI | no OpenClaw; local capture/learn/replay | `npx skills add lekt9/unbrowse-openclaw` | `node packages/cli/unbrowse.js ...` |
 
 ### Option A: OpenClaw plugin (recommended if you use OpenClaw)
 
 ```bash
 openclaw plugins install @getfoundry/unbrowse-openclaw
 openclaw gateway restart
+```
+
+Capture:
+
+```text
+unbrowse_capture { "urls": ["https://example.com"] }
+```
+
+Replay:
+
+```text
+unbrowse_replay { "service": "example" }
 ```
 
 ### Option B: Standalone skill (no OpenClaw)
@@ -42,7 +61,7 @@ Install the skill into your coding agent (Codex/Claude Code/Cursor/etc):
 npx skills add lekt9/unbrowse-openclaw
 ```
 
-Install the browser backend used by the standalone skill:
+Install the browser backend used by the standalone skill (`agent-browser`):
 
 ```bash
 ./scripts/ensure-agent-browser.sh --install
@@ -60,22 +79,36 @@ Sanity check:
 node packages/cli/unbrowse.js --help
 ```
 
+Example: login + capture auth (agent-browser):
+
+```bash
+node packages/cli/unbrowse.js login \
+  --login-url "https://example.com/login" \
+  --field "#email=me@example.com" \
+  --field "#password=..." \
+  --submit "text=Sign in"
+```
+
+Example: browse + learn-on-the-fly (agent-browser):
+
+```bash
+node packages/cli/unbrowse.js browse \
+  --url "https://example.com" \
+  --actions-json ./actions.json \
+  --learn-on-fly
+```
+
+Example: capture -> learn (non-interactive):
+
+```bash
+node packages/cli/unbrowse.js capture --url "https://example.com" --out /tmp/example.har
+node packages/cli/unbrowse.js learn --har /tmp/example.har --out ~/.openclaw/skills
+```
+
 Optional: offline packaging into a single `.skill` file:
 
 ```bash
 ./scripts/package-skill.sh
-```
-
-### Capture a local skill (plugin tools)
-
-```text
-unbrowse_capture { "urls": ["https://example.com"] }
-```
-
-### Replay immediately (plugin tools)
-
-```text
-unbrowse_replay { "service": "example" }
 ```
 
 ### What’s needed for each feature
@@ -94,8 +127,11 @@ unbrowse_replay { "service": "example" }
 
 ## System layout
 
-- `packages/plugin`: local capture, inference, local replay, local artifact writes.
-- `server` + `packages/web`: optional publish/search/install contracts, shared execution routes, validation merge surface.
+- `packages/core`: browser-agnostic capture/learn/replay/publish logic shared by everything.
+- `packages/plugin`: OpenClaw integration (tools + hooks).
+- `packages/cli`: standalone CLI wrapper (uses `packages/core` build output).
+- `SKILL.md` + `agents/openai.yaml`: skill packaging/metadata for `npx skills add ...` installs.
+- `server` + `packages/web`: optional publish/search/install contracts + UI.
 
 The same command line can stay local-only indefinitely; marketplace participation is opt-in.
 
