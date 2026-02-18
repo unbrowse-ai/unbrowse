@@ -135,7 +135,6 @@ GET /health  →  { "status": "ok" }
 
 ## Skill manifest
 
-## Skill manifest
 
 Skills are stored as JSON in `./skills/`. The schema:
 
@@ -160,7 +159,7 @@ interface SkillManifest {
 }
 ```
 
-**Meta-skills**: `execution_type="browser-capture"` means the skill handles learning, not direct API calls. The `browser-capture` meta-skill is auto-created and learns other skills.
+**Normal skills**: `execution_type="http"` have endpoints that are called directly.
 
 **Normal skills**: `execution_type="http"` have endpoints that are called directly.
 ---
@@ -207,6 +206,80 @@ bun start      # production
 bun run typecheck  # tsc --noEmit
 bun run lint   # biome check
 bun run format # biome format --write
+```
+
+---
+
+## Deployment
+
+unbrowse is a pure backend -- no frontend is included. Any frontend can plug into the REST API at `localhost:3000`. The server is fully self-hostable.
+
+### Prerequisites
+
+- [Bun](https://bun.sh) v1.3+
+- A browser runtime (Chromium/Chrome) for agent-browser's headless sessions
+- [EmergentDB](https://emergentdb.com) API key (free tier works)
+- [Google AI Studio](https://aistudio.google.com) API key for Gemini embeddings
+
+### Local setup
+
+```bash
+# clone
+git clone https://github.com/justrach/unbrowse34.git
+cd unbrowse34
+
+# install dependencies
+bun install
+
+# configure environment
+cp .env.example .env
+```
+
+Edit `.env` with your keys:
+
+```env
+EMERGENTDB_API_KEY=emdb_your_key_here
+GEMINI_API_KEY=AIza_your_key_here
+PORT=3000
+```
+
+```bash
+# start the server
+bun dev
+```
+
+### Self-hosting (VPS / VM)
+
+```bash
+# on your server
+git clone https://github.com/justrach/unbrowse34.git
+cd unbrowse34
+bun install
+cp .env.example .env
+# edit .env with production keys
+
+# run with process manager
+bun start  # or use pm2, systemd, etc.
+```
+
+Requirements for the host:
+- Chromium installed (agent-browser needs it for headless capture)
+- Outbound HTTPS to `api.emergentdb.com` and `generativelanguage.googleapis.com`
+- No inbound ports needed unless exposing the API externally
+
+### Docker (optional)
+
+```dockerfile
+FROM oven/bun:1.3
+WORKDIR /app
+COPY package.json bun.lockb ./
+RUN bun install --production
+COPY src/ src/
+COPY .env.example .env
+# Install chromium for agent-browser
+RUN apt-get update && apt-get install -y chromium
+EXPOSE 3000
+CMD ["bun", "start"]
 ```
 
 ---
