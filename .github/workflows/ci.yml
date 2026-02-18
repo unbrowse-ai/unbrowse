@@ -20,6 +20,12 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install core dependencies
+        run: npm install --prefix packages/core
+
+      - name: Build core package
+        run: npm run build --prefix packages/core
+
       - name: Install plugin dependencies
         run: npm install --prefix packages/plugin
 
