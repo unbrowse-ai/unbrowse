@@ -27,20 +27,52 @@ This is the practical “agentic web” move: agents should execute capability c
 
 ## Quick Start (works without config)
 
-### 1) Install
+### Option A: OpenClaw plugin (recommended if you use OpenClaw)
 
 ```bash
 openclaw plugins install @getfoundry/unbrowse-openclaw
 openclaw gateway restart
 ```
 
-### 2) Capture a local skill
+### Option B: Standalone skill (no OpenClaw)
+
+Install the skill into your coding agent (Codex/Claude Code/Cursor/etc):
+
+```bash
+npx skills add lekt9/unbrowse-openclaw
+```
+
+Install the browser backend used by the standalone skill:
+
+```bash
+./scripts/ensure-agent-browser.sh --install
+```
+
+Build core + plugin (the standalone CLI imports the built core bundle):
+
+```bash
+npm run build
+```
+
+Sanity check:
+
+```bash
+node packages/cli/unbrowse.js --help
+```
+
+Optional: offline packaging into a single `.skill` file:
+
+```bash
+./scripts/package-skill.sh
+```
+
+### Capture a local skill (plugin tools)
 
 ```text
 unbrowse_capture { "urls": ["https://example.com"] }
 ```
 
-### 3) Replay immediately
+### Replay immediately (plugin tools)
 
 ```text
 unbrowse_replay { "service": "example" }
