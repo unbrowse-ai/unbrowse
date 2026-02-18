@@ -39,15 +39,15 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             BEFORE="${{ github.event.before }}"
             if [[ -n "${BEFORE}" && "${BEFORE}" != "0000000000000000000000000000000000000000" ]]; then
-              CHANGED_FILES="$(git diff --name-only "${BEFORE}" "${GITHUB_SHA}" -- packages/plugin)"
+              CHANGED_FILES="$(git diff --name-only "${BEFORE}" "${GITHUB_SHA}" -- packages/core packages/plugin)"
             else
-              CHANGED_FILES="$(git show --name-only --pretty="" "${GITHUB_SHA}" -- packages/plugin)"
+              CHANGED_FILES="$(git show --name-only --pretty="" "${GITHUB_SHA}" -- packages/core packages/plugin)"
             fi
           else
             if git rev-parse "${GITHUB_SHA}^" >/dev/null 2>&1; then
-              CHANGED_FILES="$(git diff --name-only "${GITHUB_SHA}^" "${GITHUB_SHA}" -- packages/plugin)"
+              CHANGED_FILES="$(git diff --name-only "${GITHUB_SHA}^" "${GITHUB_SHA}" -- packages/core packages/plugin)"
             else
-              CHANGED_FILES="$(git show --name-only --pretty="" "${GITHUB_SHA}" -- packages/plugin)"
+              CHANGED_FILES="$(git show --name-only --pretty="" "${GITHUB_SHA}" -- packages/core packages/plugin)"
             fi
           fi
 
@@ -91,6 +91,12 @@ jobs:
           echo "name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
           echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
+
+      - run: npm install --prefix packages/core
+        if: steps.npm_check.outputs.should_publish == 'true'
+
+      - run: npm run build --prefix packages/core
+        if: steps.npm_check.outputs.should_publish == 'true'
 
       - run: npm install --prefix "${PKG_DIR}"
         if: steps.npm_check.outputs.should_publish == 'true'
