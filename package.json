@@ -9,9 +9,10 @@
     "test:e2e": "E2E_BACKEND_START=docker bun test packages/plugin/test/e2e",
     "test:evals": "cd packages/plugin && bun test/evals/run-replay-v2-suite.ts --suite ./test/evals/replay-v2-suite.example.json",
     "test:oct": "bash packages/plugin/scripts/test-oct.sh",
-    "build": "cd packages/core && npx tsc && cd ../plugin && npx tsc",
+    "clean:dist": "node ./scripts/clean-dist.mjs",
+    "build": "npm run clean:dist && cd packages/core && npx tsc && cd ../agent-browser && npx tsc && cd ../plugin && npx tsc",
     "build:web": "cd packages/web && pnpm build",
-    "typecheck": "cd packages/core && npx tsc --noEmit && cd ../plugin && npx tsc --noEmit"
+    "typecheck": "cd packages/core && npx tsc --noEmit && cd ../agent-browser && npx tsc --noEmit && cd ../plugin && npx tsc --noEmit"
   },
   "packageManager": "pnpm@9.15.5",
   "license": "AGPL-3.0-only",

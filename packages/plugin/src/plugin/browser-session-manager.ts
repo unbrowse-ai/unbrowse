@@ -6,49 +6,84 @@ export type BrowserSession = {
   page: any;
   service: string;
   lastUsed: Date;
-  method: "cdp-openclaw" | "cdp-chrome";
+  method: "playwright-persistent";
 };
 
 /**
- * Browser session manager
+ * Playwright-only browser session manager.
  *
- * Provides a single shared browser (CDP cascade) and a per-service tab map.
- * Tools call `getOrCreateBrowserSession` to reuse tabs and preserve logged-in state.
+ * Uses a single persistent Playwright context (profile dir) and a per-service tab map.
+ * This avoids OpenClaw's extension browser entirely.
  */
 export function createBrowserSessionManager(opts: {
   logger: Logger;
+  /**
+   * Deprecated. Kept for backwards-compat in the plugin constructor signature,
+   * but unused in the Playwright-only build.
+   */
   browserPort: number;
+  playwright?: {
+    channel?: string;
+    headless?: boolean;
+    userDataDir?: string;
+    executablePath?: string;
+  };
   sessionTtlMs?: number;
 }) {
-  const { logger, browserPort } = opts;
+  const { logger } = opts;
   const sessionTtlMs = opts.sessionTtlMs ?? 5 * 60 * 1000;
-  const legacyCdpPorts = Array.from(new Set([browserPort, 9222, 9229]))
-    .filter((port) => Number.isInteger(port) && port > 0 && port !== 18800 && port !== 18792);
 
-  let sharedBrowser: any = null;
   let sharedContext: any = null;
-  let sharedBrowserMethod: "cdp-openclaw" | "cdp-chrome" = "cdp-openclaw";
+  let launching: Promise<any> | null = null;
   const browserSessions = new Map<string, BrowserSession>();
 
-  async function tryCdpConnect(chromium: any, port: number): Promise<any | null> {
-    try {
-      const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
-        signal: AbortSignal.timeout(2000),
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json() as { webSocketDebuggerUrl?: string };
-      const wsUrl = data.webSocketDebuggerUrl ?? `http://127.0.0.1:${port}`;
-      const browser = await chromium.connectOverCDP(wsUrl, { timeout: 5000 });
-      logger.info(`[unbrowse] Connected to CDP at port ${port}`);
-      return browser;
-    } catch {
-      return null;
-    }
-  }
+  async function ensureContext(): Promise<any> {
+    if (sharedContext) return sharedContext;
+    if (launching) return launching;
 
-  async function closeChrome(): Promise<boolean> {
-    logger.warn("[unbrowse] closeChrome is disabled in this build (shell execution blocked).");
-    return false;
+    launching = (async () => {
+      let chromium: any;
+      try {
+        ({ chromium } = await import("playwright-core"));
+      } catch {
+        throw new Error("PLAYWRIGHT_MISSING");
+      }
+
+      const { join } = await import("node:path");
+      const { homedir } = await import("node:os");
+
+      const userDataDir =
+        (opts.playwright?.userDataDir && String(opts.playwright.userDataDir).trim()) ||
+        join(homedir(), ".openclaw", "unbrowse", "playwright-profile");
+
+      const channel = opts.playwright?.channel && String(opts.playwright.channel).trim()
+        ? String(opts.playwright.channel).trim()
+        : "chrome";
+
+      const headless = Boolean(opts.playwright?.headless);
+      const executablePath = opts.playwright?.executablePath && String(opts.playwright.executablePath).trim()
+        ? String(opts.playwright.executablePath).trim()
+        : undefined;
+
+      sharedContext = await chromium.launchPersistentContext(userDataDir, {
+        headless,
+        channel: executablePath ? undefined : channel,
+        executablePath,
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      });
+
+      logger.info(
+        `[unbrowse] Playwright persistent context ready (channel=${executablePath ? "executablePath" : channel}, headless=${headless})`,
+      );
+      return sharedContext;
+    })();
+
+    try {
+      return await launching;
+    } finally {
+      launching = null;
+    }
   }
 
   function cleanupStaleSessions() {
@@ -81,63 +116,7 @@ export function createBrowserSessionManager(opts: {
       }
     }
 
-    let chromium: any;
-    try {
-      ({ chromium } = await import("playwright-core"));
-    } catch {
-      // Should not be fatal for the whole agent; caller can fall back to node/backend execution.
-      throw new Error("PLAYWRIGHT_MISSING");
-    }
-
-    if (sharedBrowser) {
-      try {
-        const contexts = sharedBrowser.contexts();
-        if (contexts.length === 0) throw new Error("No contexts");
-      } catch {
-        sharedBrowser = null;
-        sharedContext = null;
-      }
-    }
-
-    if (!sharedBrowser) {
-      // Prefer OpenClaw-managed Chrome profile first (preserves logins via ~/.openclaw/browser/openclaw).
-      sharedBrowser = await tryCdpConnect(chromium, 18800);
-      sharedBrowserMethod = "cdp-openclaw";
-
-      if (!sharedBrowser) {
-        // "chrome" relay profile (requires the OpenClaw Chrome extension to be attached).
-        sharedBrowser = await tryCdpConnect(chromium, 18792);
-        sharedBrowserMethod = "cdp-chrome";
-      }
-
-      if (!sharedBrowser) {
-        // Legacy/local Chrome debugging ports.
-        for (const port of legacyCdpPorts) {
-          sharedBrowser = await tryCdpConnect(chromium, port);
-          if (sharedBrowser) {
-            sharedBrowserMethod = "cdp-chrome";
-            break;
-          }
-        }
-      }
-
-      if (!sharedBrowser) {
-        throw new Error("NO_BROWSER");
-      }
-    }
-
-    let context = sharedContext;
-    if (!context) {
-      context = sharedBrowser.contexts()[0];
-    }
-    if (!context) {
-      context = await sharedBrowser.newContext({
-        userAgent:
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      });
-    }
-
-    sharedContext = context;
+    const context = await ensureContext();
 
     if (Object.keys(authCookies).length > 0) {
       try {
@@ -159,45 +138,48 @@ export function createBrowserSessionManager(opts: {
     }
 
     const page = await context.newPage();
+    const browser = context.browser?.() ?? null;
     const session: BrowserSession = {
-      browser: sharedBrowser,
+      browser,
       context,
       page,
       service,
       lastUsed: new Date(),
-      method: sharedBrowserMethod,
+      method: "playwright-persistent",
     };
     browserSessions.set(service, session);
-    logger.info(`[unbrowse] Created tab for ${service} in shared browser (${sharedBrowserMethod})`);
+    logger.info(`[unbrowse] Created tab for ${service} in Playwright persistent context`);
     return session;
   }
 
-  async function cleanupAllSessions() {
-    if (sharedBrowser) {
-      try {
-        if (sharedContext) await sharedContext.close();
-        await sharedBrowser.close();
-        logger.info("[unbrowse] Closed shared browser");
-      } catch { /* ignore */ }
-      sharedBrowser = null;
-      sharedContext = null;
-    }
+  async function closeChrome(): Promise<boolean> {
+    // Legacy API; kept so core tool deps shape stays stable.
+    return false;
+  }
 
+  async function cleanupAllSessions() {
     for (const [service, session] of browserSessions) {
       try {
-        if (session.context) await session.context.close();
-        if (session.browser) await session.browser.close();
-        logger.info(`[unbrowse] Closed browser session: ${service}`);
+        await session.page?.close();
       } catch { /* ignore */ }
+      browserSessions.delete(service);
     }
-    browserSessions.clear();
+
+    if (sharedContext) {
+      try {
+        await sharedContext.close();
+        logger.info("[unbrowse] Closed Playwright persistent context");
+      } catch { /* ignore */ }
+      sharedContext = null;
+    }
   }
 
   return {
     browserSessions,
     getOrCreateBrowserSession,
-    getSharedBrowser: () => sharedBrowser,
+    getSharedBrowser: () => (sharedContext?.browser?.() ?? null),
     closeChrome,
     cleanupAllSessions,
   };
 }
+
