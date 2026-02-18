@@ -1,4 +1,4 @@
-import { fetchBrowserCookies, fetchCapturedRequests } from "@getfoundry/unbrowse-core";
+import { fetchBrowserCookies, fetchCapturedRequests } from "../../cdp-capture.js";
 import { AUTH_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 

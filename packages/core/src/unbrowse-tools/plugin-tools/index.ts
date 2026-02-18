@@ -1,5 +1,3 @@
-import type { OpenClawPluginToolContext } from "openclaw/plugin-sdk";
-
 import type { ToolDeps } from "./deps.js";
 
 import { makeUnbrowseLearnTool } from "./unbrowse_learn.js";
@@ -23,7 +21,7 @@ import { makeUnbrowseWorkflowStatsTool } from "./unbrowse_workflow_stats.js";
 export type { ToolDeps } from "./deps.js";
 
 export function createTools(deps: ToolDeps) {
-  return (_ctx: OpenClawPluginToolContext) => {
+  return (_ctx: any) => {
     const toolList = [
       makeUnbrowseLearnTool(deps),
       makeUnbrowseCaptureTool(deps),

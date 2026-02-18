@@ -1,4 +1,4 @@
-import { createWalletTool } from "@getfoundry/unbrowse-core";
+import { createWalletTool } from "../../wallet/wallet-tool.js";
 import { WALLET_SCHEMA } from "../schemas.js";
 import type { ToolDeps } from "./deps.js";
 

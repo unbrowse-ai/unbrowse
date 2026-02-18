@@ -8,16 +8,14 @@ import {
   parseHar,
   generateSkill,
 } from "./shared.js";
-import {
-  verifyAndPruneGetEndpoints,
-  writeCaptureSessionFile,
-  inferCorrelationGraphV1,
-  writeMarketplaceMeta,
-  writeSkillPackageToDir,
-  loadJsonOr,
-} from "@getfoundry/unbrowse-core";
+import { verifyAndPruneGetEndpoints } from "../../endpoint-verification.js";
+import { writeCaptureSessionFile } from "../../capture-store.js";
+import { inferCorrelationGraphV1 } from "../../correlation-engine.js";
+import { writeMarketplaceMeta, writeSkillPackageToDir } from "../../skill-package-writer.js";
+import { loadJsonOr } from "../../disk-io.js";
 import { runOpenClawBrowse } from "./browse/openclaw-flow.js";
 import { buildPublishPromptLines } from "./publish-prompts.js";
+import { browseWithAgentBrowser } from "../agent-browser/browse-flow.js";
 
 export function makeUnbrowseBrowseTool(deps: ToolDeps) {
   const {
@@ -65,6 +63,8 @@ async execute(_toolCallId: string, params: unknown) {
     captureTraffic?: boolean;
     closeChromeIfNeeded?: boolean;
   };
+
+  const backend = deps.browserBackend ?? "openclaw";
 
   // Derive service name from URL if not provided (used across OpenClaw + Playwright flows).
   if (!p.service) {
@@ -181,6 +181,78 @@ async execute(_toolCallId: string, params: unknown) {
     p.captureTraffic = true;
   }
 
+  // Standalone backend: agent-browser ref/snapshot flow.
+  if (backend === "agent-browser") {
+    try {
+      const res = await browseWithAgentBrowser({
+        url: p.url,
+        actions: p.actions ?? [],
+        captureTraffic: p.captureTraffic,
+        learnOnFly: (p as any).learnOnFly,
+      });
+
+      let learned: { skillDir: string; endpointCount: number } | null = null;
+
+      if (res.capture && res.capture.requestCount > 0) {
+        try {
+          let apiData = parseHar(res.capture.har as any, p.url);
+          for (const [name, value] of Object.entries(res.capture.cookies ?? {})) {
+            if (!apiData.cookies[name]) apiData.cookies[name] = value;
+          }
+
+          // Best-effort verification (GET pruning).
+          try {
+            await verifyAndPruneGetEndpoints(apiData as any, res.capture.cookies ?? {});
+          } catch { /* ignore */ }
+
+          const result = await generateSkill(apiData as any, defaultOutputDir);
+          discovery.markLearned(result.service);
+          learned = { skillDir: result.skillDir, endpointCount: result.endpointCount };
+
+          // Persist correlations/sequences for replay-v2 chaining.
+          try {
+            const { session } = writeCaptureSessionFile(result.skillDir, (res.capture.har as any).log?.entries ?? [], { seedUrl: p.url });
+            const graph = inferCorrelationGraphV1(session.exchanges);
+            const refsDir = join(result.skillDir, "references");
+            mkdirSync(refsDir, { recursive: true });
+            writeFileSync(join(refsDir, "CORRELATIONS.json"), JSON.stringify(graph, null, 2), "utf-8");
+            const sequences = graph.chains.map((chain, i) => ({
+              name: `chain_${i + 1}`,
+              steps: chain.map((idx) => graph.requests.find((r) => r.index === idx)),
+            }));
+            writeFileSync(join(refsDir, "SEQUENCES.json"), JSON.stringify(sequences, null, 2), "utf-8");
+          } catch { /* ignore */ }
+
+          // Merge storage into auth.json (best-effort).
+          try {
+            const authPath = join(result.skillDir, "auth.json");
+            const auth = loadJsonOr<Record<string, any>>(authPath, {});
+            auth.localStorage = res.capture.localStorage ?? {};
+            auth.sessionStorage = res.capture.sessionStorage ?? {};
+            writeFileSync(authPath, JSON.stringify(auth, null, 2), "utf-8");
+            detectAndSaveRefreshConfig((res.capture.har as any).log?.entries ?? [], authPath, logger);
+          } catch { /* ignore */ }
+        } catch (err) {
+          logger.warn(`[unbrowse] agent-browser learn failed: ${(err as Error).message}`);
+        }
+      }
+
+      const lines = [
+        `Browser: agent-browser`,
+        `URL: ${p.url}`,
+        `Service: ${p.service}`,
+        learned ? `Learned: ${learned.endpointCount} endpoints (${learned.skillDir})` : "",
+        "",
+        "Interactive elements:",
+        ...(res.interactive ?? []).slice(0, 120),
+      ].filter(Boolean);
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `agent-browser browse failed: ${(err as Error).message}` }] };
+    }
+  }
+
   // OpenClaw-native traversal first (plugin-integrated browser API).
   const nativeResult = await runOpenClawBrowse(deps, {
     url: p.url,
@@ -218,7 +290,7 @@ async execute(_toolCallId: string, params: unknown) {
     }
   }
 
-  const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import("@getfoundry/unbrowse-core");
+  const { extractPageState, getElementByIndex, formatPageStateForLLM } = await import("../../dom-service.js");
   const service = p.service;
 
   // Load auth from skill's auth.json (with vault fallback)
@@ -246,7 +318,7 @@ async execute(_toolCallId: string, params: unknown) {
   // Fallback: try loading from vault if auth.json is missing or empty
   if (Object.keys(authCookies).length === 0 && Object.keys(authHeaders).length === 0) {
     try {
-      const { Vault } = await import("@getfoundry/unbrowse-core");
+      const { Vault } = await import("../../vault.js");
       const vault = new Vault(vaultDbPath);
       const entry = vault.get(service);
       vault.close();
@@ -267,7 +339,7 @@ async execute(_toolCallId: string, params: unknown) {
   // Fallback: try loading cookies from Chrome's cookie database (opt-in only)
   if (Object.keys(authCookies).length === 0 && enableChromeCookies) {
     try {
-      const { readChromeCookies, chromeCookiesAvailable } = await import("@getfoundry/unbrowse-core");
+      const { readChromeCookies, chromeCookiesAvailable } = await import("../../chrome-cookies.js");
       if (chromeCookiesAvailable()) {
         const domain = new URL(p.url).hostname.replace(/^www\./, "");
         const chromeCookies = readChromeCookies(domain);
@@ -808,7 +880,7 @@ async execute(_toolCallId: string, params: unknown) {
           // Best-effort: infer a dependency DAG from the captured request/response bodies.
           // Stored as references/DAG.json so it can be published + merged server-side.
           try {
-            const { inferDependencyDagFromHarEntries } = await import("@getfoundry/unbrowse-core");
+            const { inferDependencyDagFromHarEntries } = await import("../../dependency-dag.js");
             const dag = inferDependencyDagFromHarEntries(apiHarEntries as any, { skillName: result.service });
             if (dag.edges.length > 0) {
               const { mkdirSync, writeFileSync } = await import("node:fs");

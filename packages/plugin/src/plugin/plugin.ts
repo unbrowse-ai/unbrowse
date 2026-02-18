@@ -28,7 +28,7 @@ import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { loginAndCapture, type LoginCredentials } from "../session-login.js";
+import { loginAndCapture, type LoginCredentials } from "@getfoundry/unbrowse-core";
 import {
   fetchBrowserCookies,
   fetchCapturedRequests,

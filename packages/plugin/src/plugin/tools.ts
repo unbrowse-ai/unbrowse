@@ -1,6 +1,13 @@
-// Backwards-compatible re-export so the plugin can keep importing `./tools.js`
-// while the actual implementation lives under `src/plugin/tools/`.
+// Backwards-compatible export so plugin code keeps importing `./tools.js`,
+// while the actual tool implementations live in `@getfoundry/unbrowse-core`.
 
-export { createTools } from "./tools/index.js";
-export type { ToolDeps } from "./tools/deps.js";
+import type { OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import { createToolList, type ToolDeps } from "@getfoundry/unbrowse-core";
 
+export type { ToolDeps } from "@getfoundry/unbrowse-core";
+
+export function createTools(deps: ToolDeps) {
+  return (_ctx: OpenClawPluginToolContext) => {
+    return createToolList(deps as any) as any;
+  };
+}

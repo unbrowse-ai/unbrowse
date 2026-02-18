@@ -20,7 +20,9 @@ const p = params as {
   body?: string;
 };
 
-const { getWorkflowExecutor, getSuccessTracker, isWorkflowSkill } = await import("@getfoundry/unbrowse-core");
+const { getWorkflowExecutor } = await import("../../workflow-executor.js");
+const { getSuccessTracker } = await import("../../success-tracker.js");
+const { isWorkflowSkill } = await import("../../workflow-types.js");
 
 const skillDir = join(defaultOutputDir, p.skillName);
 const skillJsonPath = join(skillDir, "skill.json");

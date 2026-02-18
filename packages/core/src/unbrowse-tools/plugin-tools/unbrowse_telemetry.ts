@@ -1,4 +1,4 @@
-import { setTelemetryConfigFile, loadTelemetryConfig, type TelemetryLevel } from "@getfoundry/unbrowse-core";
+import { setTelemetryConfigFile, loadTelemetryConfig, type TelemetryLevel } from "../../telemetry-client.js";
 
 export const TELEMETRY_SCHEMA = {
   type: "object" as const,

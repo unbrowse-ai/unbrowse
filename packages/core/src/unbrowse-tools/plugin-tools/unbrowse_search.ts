@@ -1,6 +1,6 @@
 import type { ToolDeps } from "./deps.js";
 import { SEARCH_SCHEMA, join, extractEndpoints } from "./shared.js";
-import { writeMarketplaceMeta } from "@getfoundry/unbrowse-core";
+import { writeMarketplaceMeta } from "../../skill-package-writer.js";
 
 export function makeUnbrowseSearchTool(deps: ToolDeps) {
   const { logger, defaultOutputDir, indexClient, discovery } = deps;

@@ -5,7 +5,7 @@ import {
   join,
   SKILLS_SCHEMA,
 } from "./shared.js";
-import { loadJsonOr, loadText } from "@getfoundry/unbrowse-core";
+import { loadJsonOr, loadText } from "../../disk-io.js";
 
 export function makeUnbrowseSkillsTool(deps: ToolDeps) {
   const { logger, defaultOutputDir, autoDiscoverEnabled } = deps;

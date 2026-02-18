@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { extractAuthHeaders } from "../src/session-login.js";
+import { extractAuthHeaders } from "@getfoundry/unbrowse-core";
 
 describe("session-login auth header extraction", () => {
   it("captures non-standard request headers via blocklist filtering", () => {

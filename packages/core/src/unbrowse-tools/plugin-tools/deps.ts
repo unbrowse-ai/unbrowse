@@ -2,6 +2,9 @@ export type ToolDeps = {
   // Core
   logger: any;
   pluginConfig?: any;
+  /** Browser backend selector. Default: "openclaw" */
+  browserBackend?: "openclaw" | "agent-browser";
+  /** OpenClaw browser control port (only used when browserBackend="openclaw"). */
   browserPort: number;
   browserProfile?: string;
   allowLegacyPlaywrightFallback: boolean;
@@ -32,11 +35,12 @@ export type ToolDeps = {
   autoPublishSkill: (service: string, skillDir: string) => Promise<string | null>;
   detectAndSaveRefreshConfig: (...args: any[]) => void;
 
-  // Browser/session helpers provided by plugin runtime
-  getOrCreateBrowserSession: (...args: any[]) => Promise<any>;
+  // Browser/session helpers (OpenClaw + Playwright fallback).
+  // Optional for non-OpenClaw runtimes.
+  getOrCreateBrowserSession?: (...args: any[]) => Promise<any>;
 
   // Shared browser/session state (needed for Playwright fallback behavior).
-  getSharedBrowser: () => any;
-  closeChrome: () => Promise<void>;
-  browserSessions: Map<string, any>;
+  getSharedBrowser?: () => any;
+  closeChrome?: () => Promise<void>;
+  browserSessions?: Map<string, any>;
 };
