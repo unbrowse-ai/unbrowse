@@ -688,6 +688,9 @@ async execute(_toolCallId: string, params: unknown) {
           resolvedHeaders["Content-Type"] = "application/json";
         }
       }
+      if (extraHeaders && Object.keys(extraHeaders).length > 0) {
+        for (const [k, v] of Object.entries(extraHeaders)) resolvedHeaders[k] = v;
+      }
 
       const fetchOpts: Record<string, unknown> = {
         method: ep.method,
@@ -1401,7 +1404,7 @@ async execute(_toolCallId: string, params: unknown) {
         if (stepIdx === targetIdx) final = runtime;
 
         // Rate limit intelligence (minimal): respect Retry-After and/or common JSON `backoff`.
-        // This prevents false negatives on APIs like StackExchange which return 400 throttle violations if you ignore backoff.
+        // Prevent false negatives on APIs that require waiting between chained calls.
         if (stepIdx !== chain[chain.length - 1]) {
           const retryAfterRaw = stepHeaders["retry-after"] ?? stepHeaders["Retry-After"];
           const retryAfterSec = (() => {

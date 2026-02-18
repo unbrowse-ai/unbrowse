@@ -1,11 +1,13 @@
 {
   "id": "unbrowse-openclaw",
   "name": "Unbrowse",
-  "main": "index.ts",
+  "main": "dist/index.js",
   "description": "Open source API reverse engineering for OpenClaw. Capture any API and turn it into monetizable skills for AI agents.",
-  "version": "0.5.13",
+  "version": "0.7.6",
   "repository": "github:lekt9/unbrowse-openclaw",
-  "skills": ["skills/unbrowse"],
+  "skills": [
+    "skills/unbrowse"
+  ],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -78,7 +80,13 @@
       },
       "credentialSource": {
         "type": "string",
-        "enum": ["none", "auto", "keychain", "1password", "vault"],
+        "enum": [
+          "none",
+          "auto",
+          "keychain",
+          "1password",
+          "vault"
+        ],
         "default": "none",
         "description": "Where to look up login passwords for auto-login"
       },
@@ -99,7 +107,11 @@
       },
       "telemetryLevel": {
         "type": "string",
-        "enum": ["minimal", "standard", "debug"],
+        "enum": [
+          "minimal",
+          "standard",
+          "debug"
+        ],
         "default": "standard",
         "description": "Telemetry detail level (minimal recommended for privacy)."
       }
