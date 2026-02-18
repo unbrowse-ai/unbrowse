@@ -12,33 +12,28 @@ unbrowse watches a browser session, reverse-engineers the API calls being made, 
 intent + url
      │
      ▼
- EmergentDB search  ──(score ≥ 0.30)──▶  execute from marketplace  ──▶  result
+EmergentDB search (domain-scoped or global)
      │
-  (no match)
+     ├─ match found (score ≥ 0.30)
+     │   ├─ execute matched skill  ──▶  result
      │
-     ▼
- agent-browser (Playwright)
-  launches headless session
-  navigates to url, records HAR
-     │
-     ▼
- reverse-engineer
-  scores & deduplicates requests
-  filters JS bundles, trackers
-     │
-     ▼
- AJV validation
-     │
-     ▼
- publish to marketplace
-  writes skills/{id}.json
-  indexes into EmergentDB (1536-dim Gemini embeddings)
-     │
-     ▼
- executeSkill  ──▶  result + ExecutionTrace
+     └─ no match
+         │
+         ▼
+      invoke browser-capture skill (meta-skill)
+         │
+         ├─ launch agent-browser
+         ├─ record HAR
+         ├─ reverse-engineer endpoints
+         ├─ validate + publish new skill
+         │
+         ▼
+      execute newly learned skill  ──▶  result
 ```
 
-Second call for the same intent hits **marketplace** (no browser launch).
+**Skills are first-class**: the system includes a `browser-capture` meta-skill that learns other skills. Skills can be composed — `browser-capture` learns, indexes, and returns a new skill that's immediately executed.
+
+Second call for the same intent hits marketplace (no browser launch). Domain-scoped indexing ensures Kalshi skills don't match Google Trends intents.
 
 ---
 
@@ -140,6 +135,8 @@ GET /health  →  { "status": "ok" }
 
 ## Skill manifest
 
+## Skill manifest
+
 Skills are stored as JSON in `./skills/`. The schema:
 
 ```ts
@@ -149,11 +146,13 @@ interface SkillManifest {
   schema_version: string;
   name: string;
   intent_signature: string;  // natural-language intent used for embedding
-  domain: string;            // e.g. "trends.google.com"
+  domain: string;            // e.g. "trends.google.com" or "agent" for meta-skills
+  execution_type: "http" | "browser-capture"; // http=normal skill, browser-capture=meta
   subdomain?: string;
   description: string;
   owner_type: "agent" | "marketplace" | "user";
-  endpoints: EndpointDescriptor[];
+  auth_profile_ref?: string;
+  endpoints: EndpointDescriptor[]; // empty for browser-capture meta-skill
   lifecycle: "active" | "deprecated" | "disabled";
   created_at: string;
   updated_at: string;
@@ -161,8 +160,9 @@ interface SkillManifest {
 }
 ```
 
-Each endpoint carries its own auth plan (CSRF / OAuth), transform rules, reliability score, and idempotency hint.
+**Meta-skills**: `execution_type="browser-capture"` means the skill handles learning, not direct API calls. The `browser-capture` meta-skill is auto-created and learns other skills.
 
+**Normal skills**: `execution_type="http"` have endpoints that are called directly.
 ---
 
 ## Project structure
@@ -191,12 +191,12 @@ traces/          execution traces + feedback (gitignored)
 | Variable | Required | Description |
 |---|---|---|
 | `EMERGENTDB_API_KEY` | yes | EmergentDB data plane key |
-| `EMERGENTDB_NAMESPACE` | no | namespace for skill vectors (default: `unbrowse-skills`) |
 | `GEMINI_API_KEY` | yes | Google AI Studio key for Gemini embeddings |
 | `PORT` | no | HTTP port (default: `3000`) |
 | `SKILLS_DIR` | no | path to skill store (default: `./skills`) |
 | `TRACES_DIR` | no | path to trace store (default: `./traces`) |
 
+**Note**: Skills are indexed in domain-scoped namespaces (`unbrowse--{domain}`) and a global namespace (`unbrowse--global`). No configuration needed.
 ---
 
 ## Scripts
