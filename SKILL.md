@@ -7,14 +7,13 @@ description: >-
 
 ## Install
 
-Browser backend:
+Dependency: `agent-browser` (required)
 
 ```bash
-npm install -g agent-browser
-agent-browser install
+./scripts/ensure-agent-browser.sh --install
 ```
 
-Repo (this project, from repo root):
+Repo build (this project, from repo root):
 
 ```bash
 npm run build
