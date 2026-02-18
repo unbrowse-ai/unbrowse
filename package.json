@@ -1,0 +1,17 @@
+{
+  "name": "unbrowse",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/",
+    "format": "biome format --write src/"
+  },
+  "dev": "bun --watch src/index.ts",
+  "start": "bun src/index.ts",
+  "typecheck": "tsc --noEmit",
+  "dependencies": {
+    "@google/genai": "^1.41.0"
+  }
+}
