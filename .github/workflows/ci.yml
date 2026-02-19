@@ -31,8 +31,13 @@ jobs:
 
       - name: Stage bundled core dependency into plugin
         run: |
+          set -euo pipefail
           CORE_TGZ="$(npm pack --pack-destination /tmp ./packages/core | tail -n 1)"
-          npm install --prefix packages/plugin --no-save "/tmp/${CORE_TGZ}"
+          STAGE_DIR="$(mktemp -d /tmp/unbrowse-core-stage.XXXXXX)"
+          tar -xzf "/tmp/${CORE_TGZ}" -C "${STAGE_DIR}"
+          rm -rf packages/plugin/node_modules/@getfoundry/unbrowse-core
+          mkdir -p packages/plugin/node_modules/@getfoundry
+          cp -R "${STAGE_DIR}/package" packages/plugin/node_modules/@getfoundry/unbrowse-core
 
       # Ensures packaging works and the tarball includes dist/ + bundled core.
       - run: |
