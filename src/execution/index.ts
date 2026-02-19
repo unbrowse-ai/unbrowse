@@ -34,12 +34,45 @@ async function executeBrowserCapture(
 
   const startedAt = new Date().toISOString();
   const traceId = nanoid();
+  const targetDomain = new URL(url).hostname;
 
   const captured = await captureSession(url);
+
+  // Detect auth redirect: final URL domain differs from target
+  const finalDomain = (() => {
+    try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
+  })();
+  const AUTH_PROVIDERS = /accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com|facebook\.com/i;
+  if (finalDomain !== targetDomain && AUTH_PROVIDERS.test(finalDomain)) {
+    const trace: ExecutionTrace = {
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "auth_required",
+    };
+    return {
+      trace,
+      result: {
+        error: "auth_required",
+        provider: finalDomain.split(".").slice(-2).join("."),
+        login_url: captured.final_url,
+        message: `Site redirected to ${finalDomain} for authentication. Provide auth cookies or headers to capture authenticated endpoints.`,
+      },
+    };
+  }
+
   const endpoints = extractEndpoints(captured.requests);
 
-  if (endpoints.length === 0) {
-    throw new Error(`No API endpoints discovered at ${url}`);
+  // Also filter out any endpoints that point to auth provider domains
+  const cleanEndpoints = endpoints.filter((ep) => {
+    try { return !AUTH_PROVIDERS.test(new URL(ep.url_template).hostname); } catch { return true; }
+  });
+
+  if (cleanEndpoints.length === 0) {
+    throw new Error(`No API endpoints discovered at ${url}. The site may require authentication.`);
   }
 
   const domain = captured.domain;
@@ -55,7 +88,7 @@ async function executeBrowserCapture(
     domain,
     description: `Auto-discovered skill for: ${intent}`,
     owner_type: "agent" as const,
-    endpoints,
+    endpoints: cleanEndpoints,
   };
 
   const validation = validateSkillManifest({ ...draft, skill_id: "__validate__" });
@@ -70,7 +103,7 @@ async function executeBrowserCapture(
     started_at: startedAt,
     completed_at: new Date().toISOString(),
     success: true,
-    result: { learned_skill_id: learned.skill_id, endpoints_discovered: endpoints.length },
+    result: { learned_skill_id: learned.skill_id, endpoints_discovered: cleanEndpoints.length },
   };
 
   return { trace, result: trace.result, learned_skill: learned };
