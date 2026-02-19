@@ -2,6 +2,12 @@ name: Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      force_publish:
+        description: "Publish even when no changes are detected in packages/core or packages/plugin"
+        required: false
+        default: false
+        type: boolean
   push:
     branches:
       - stable
@@ -68,9 +74,10 @@ jobs:
         run: |
           PKG_NAME=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').name")
           PKG_VERSION=$(node -p "require('./' + '${PKG_DIR}' + '/package.json').version")
+          FORCE_PUBLISH="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_publish || 'false' }}"
           SHOULD_PUBLISH=false
 
-          if [[ "${{ steps.extension_changes.outputs.has_changes }}" != "true" ]]; then
+          if [[ "${{ steps.extension_changes.outputs.has_changes }}" != "true" && "${FORCE_PUBLISH}" != "true" ]]; then
             echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
             echo "name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
             echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
@@ -79,6 +86,9 @@ jobs:
           fi
 
           SHOULD_PUBLISH=true
+          if [[ "${FORCE_PUBLISH}" == "true" ]]; then
+            echo "force_publish=true (manual override via workflow_dispatch input)"
+          fi
 
           version_exists() {
             npm view "${PKG_NAME}@${1}" version >/dev/null 2>&1
