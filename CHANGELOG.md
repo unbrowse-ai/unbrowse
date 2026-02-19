@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI: `@getfoundry/unbrowse-cli` now depends on core (no longer imports plugin `dist/`).
 
 ### Fixed
+- Release packaging: plugin tarballs now explicitly stage and bundle `@getfoundry/unbrowse-core` before `npm pack`/`npm publish`, preventing install-time dependency resolution failures.
+- Release management: deprecated broken npm release `@getfoundry/unbrowse-openclaw@0.7.10` (missing bundled core dependency).
 - HAR parser: OPTIONS preflight requests no longer leak as captured endpoints
 - HAR parser: telemetry infrastructure domains (metrics, beacon, rum, collector, reporting subdomains) now filtered via pattern matching
 - HAR parser: first-party tracking endpoints (sensorcollect, trackobserve, impressionevents, etc.) caught by generalized stem matching
