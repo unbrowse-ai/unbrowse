@@ -114,27 +114,44 @@ jobs:
       - name: Stage bundled core dependency into plugin
         if: steps.npm_check.outputs.should_publish == 'true'
         run: |
+          set -euo pipefail
           CORE_TGZ="$(npm pack --pack-destination /tmp ./packages/core | tail -n 1)"
-          npm install --prefix "${PKG_DIR}" --no-save "/tmp/${CORE_TGZ}"
+          STAGE_DIR="$(mktemp -d /tmp/unbrowse-core-stage.XXXXXX)"
+          tar -xzf "/tmp/${CORE_TGZ}" -C "${STAGE_DIR}"
+          rm -rf "${PKG_DIR}/node_modules/@getfoundry/unbrowse-core"
+          mkdir -p "${PKG_DIR}/node_modules/@getfoundry"
+          cp -R "${STAGE_DIR}/package" "${PKG_DIR}/node_modules/@getfoundry/unbrowse-core"
 
       - name: Validate npm tarball contents
+        id: pack_plugin
         if: steps.npm_check.outputs.should_publish == 'true'
         run: |
           cd "${PKG_DIR}"
-          npm pack --dry-run --json > /tmp/npm-pack.json
+          npm pack --json > /tmp/npm-pack.json
+          PKG_TGZ="$(node -e "const fs=require('fs');const out=JSON.parse(fs.readFileSync('/tmp/npm-pack.json','utf8'));process.stdout.write(out[0]?.filename||'');")"
+          if [[ -z "${PKG_TGZ}" ]]; then
+            echo "Failed to resolve packed tarball filename"
+            exit 1
+          fi
           node -e "const fs=require('fs');const out=JSON.parse(fs.readFileSync('/tmp/npm-pack.json','utf8'));const files=out[0]?.files?.map(f=>f.path)||[];if(!files.includes('dist/index.js')){console.error('dist/index.js missing from npm pack output');process.exit(1);}const hasBundledCore=files.some(f=>f.startsWith('node_modules/@getfoundry/unbrowse-core/'));if(!hasBundledCore){console.error('bundled @getfoundry/unbrowse-core missing from npm pack output');process.exit(1);}console.log('npm pack contains dist/index.js and bundled core');"
+          if tar -tvf "${PKG_TGZ}" | awk '$1 ~ /^h/ { print; found=1 } END { exit found ? 0 : 1 }'; then
+            echo "Hard links detected in ${PKG_TGZ}; refusing publish."
+            exit 1
+          fi
+          echo "No hard links in ${PKG_TGZ}"
+          echo "tgz=${PKG_TGZ}" >> "$GITHUB_OUTPUT"
 
       - name: Publish package (trusted publishing)
         id: publish_trusted
         if: steps.npm_check.outputs.should_publish == 'true'
         continue-on-error: true
-        run: cd "${PKG_DIR}" && npm publish --provenance --access public
+        run: cd "${PKG_DIR}" && npm publish "${{ steps.pack_plugin.outputs.tgz }}" --provenance --access public
         env:
           NODE_AUTH_TOKEN: ""
 
       - name: Publish package (token fallback)
         if: steps.npm_check.outputs.should_publish == 'true' && steps.publish_trusted.outcome == 'failure'
-        run: cd "${PKG_DIR}" && npm publish --provenance --access public
+        run: cd "${PKG_DIR}" && npm publish "${{ steps.pack_plugin.outputs.tgz }}" --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
