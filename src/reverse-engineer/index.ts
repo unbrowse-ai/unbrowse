@@ -6,6 +6,7 @@ const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|m
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_HOSTS = /(cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com)/i;
 const RPC_HINTS = /(\/$rpc\/|\/rpc\/|graphql|\/api\/|\/v\d+\/|trending|search|data|query|feed|results)/i;
+const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
 // Score a request: higher = more likely to be a real data API
 function scoreRequest(req: RawRequest): number {
@@ -53,6 +54,7 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
 }
 
 function isApiLike(req: RawRequest): boolean {
+  if (!ALLOWED_METHODS.has(req.method.toUpperCase())) return false;
   if (SKIP_EXTENSIONS.test(req.url)) return false;
   if (SKIP_JS_BUNDLES.test(req.url)) return false;
   try {

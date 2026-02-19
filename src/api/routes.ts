@@ -3,6 +3,7 @@ import { resolveAndExecute } from "../orchestrator/index.js";
 import { publishSkill, getSkill, listSkills } from "../marketplace/index.js";
 import { validateSkillManifest } from "../validator/index.js";
 import { executeSkill } from "../execution/index.js";
+import { storeCredential } from "../vault/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -70,6 +71,31 @@ export async function registerRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
+  });
+
+  // POST /v1/skills/:skill_id/auth -- store credentials (cookies/headers) for a skill
+  app.post("/v1/skills/:skill_id/auth", async (req, reply) => {
+    const { skill_id } = req.params as { skill_id: string };
+    const skill = getSkill(skill_id);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    const body = req.body as {
+      cookies?: Array<{ name: string; value: string; domain: string; path?: string }>;
+      headers?: Record<string, string>;
+    };
+    if (!body.cookies && !body.headers) {
+      return reply.code(400).send({ error: "Provide cookies or headers" });
+    }
+
+    const ref = `${skill.domain}-session`;
+    await storeCredential(ref, JSON.stringify({ cookies: body.cookies ?? [], headers: body.headers ?? {} }));
+
+    // Patch the skill manifest to reference the stored credentials
+    if (!skill.auth_profile_ref) {
+      await publishSkill({ ...skill, auth_profile_ref: ref });
+    }
+
+    return reply.send({ ok: true, auth_profile_ref: ref });
   });
 
   // POST /v1/feedback
