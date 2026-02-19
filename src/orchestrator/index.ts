@@ -1,7 +1,7 @@
 import { searchIntent, searchIntentInDomain } from "../discovery/index.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { executeSkill } from "../execution/index.js";
-import type { ExecutionTrace, SkillManifest } from "../types/index.js";
+import type { ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 
 const CONFIDENCE_THRESHOLD = 0.30;
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
@@ -16,7 +16,8 @@ export interface OrchestratorResult {
 export async function resolveAndExecute(
   intent: string,
   params: Record<string, unknown> = {},
-  context?: { url?: string; domain?: string }
+  context?: { url?: string; domain?: string },
+  projection?: ProjectionOptions
 ): Promise<OrchestratorResult> {
   // 1. Domain-scoped search first, fallback to global
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
@@ -30,7 +31,7 @@ export async function resolveAndExecute(
     const skillId = extractSkillId(top.metadata);
     const skill = skillId ? getSkill(skillId) : null;
     if (skill && skill.lifecycle === "active") {
-      const { trace, result } = await executeSkill(skill, params);
+      const { trace, result } = await executeSkill(skill, params, projection);
       return { result, trace, source: "marketplace", skill };
     }
   }
@@ -54,7 +55,7 @@ export async function resolveAndExecute(
   }
 
   // 3. Execute the newly learned skill immediately
-  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params);
+  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params, projection);
 
   return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill };
 }
