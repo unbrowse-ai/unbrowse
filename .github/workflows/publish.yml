@@ -111,12 +111,18 @@ jobs:
       - run: npm run build --prefix "${PKG_DIR}"
         if: steps.npm_check.outputs.should_publish == 'true'
 
+      - name: Stage bundled core dependency into plugin
+        if: steps.npm_check.outputs.should_publish == 'true'
+        run: |
+          CORE_TGZ="$(npm pack --pack-destination /tmp ./packages/core | tail -n 1)"
+          npm install --prefix "${PKG_DIR}" --no-save "/tmp/${CORE_TGZ}"
+
       - name: Validate npm tarball contents
         if: steps.npm_check.outputs.should_publish == 'true'
         run: |
           cd "${PKG_DIR}"
           npm pack --dry-run --json > /tmp/npm-pack.json
-          node -e "const fs=require('fs');const out=JSON.parse(fs.readFileSync('/tmp/npm-pack.json','utf8'));const files=out[0]?.files?.map(f=>f.path)||[];if(!files.includes('dist/index.js')){console.error('dist/index.js missing from npm pack output');process.exit(1);}console.log('npm pack contains dist/index.js');"
+          node -e "const fs=require('fs');const out=JSON.parse(fs.readFileSync('/tmp/npm-pack.json','utf8'));const files=out[0]?.files?.map(f=>f.path)||[];if(!files.includes('dist/index.js')){console.error('dist/index.js missing from npm pack output');process.exit(1);}const hasBundledCore=files.some(f=>f.startsWith('node_modules/@getfoundry/unbrowse-core/'));if(!hasBundledCore){console.error('bundled @getfoundry/unbrowse-core missing from npm pack output');process.exit(1);}console.log('npm pack contains dist/index.js and bundled core');"
 
       - name: Publish package (trusted publishing)
         id: publish_trusted
