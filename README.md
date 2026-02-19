@@ -13,10 +13,10 @@ intent + url
      │
      ▼
 EmergentDB search (domain-scoped or global)
-      ├─ match found (composite score ≥ 0.25)
-      │   ├─ trust-weighted ranking (embedding + reliability + freshness + verification)
-      │   ├─ execute matched skill  ──▶  result
-     │   ├─ execute matched skill  ──▶  result
+     │
+     ├─ match found (composite score ≥ 0.25)
+     │   ├─ trust-weighted ranking (embedding + reliability + freshness + verification)
+     │   └─ execute matched skill  ──▶  result
      │
      └─ no match
          │
@@ -24,9 +24,9 @@ EmergentDB search (domain-scoped or global)
       invoke browser-capture skill (meta-skill)
          │
          ├─ launch agent-browser
-         ├─ record HAR
-         ├─ reverse-engineer endpoints
-         ├─ validate + publish new skill
+         ├─ record HAR + capture JSON response bodies
+         ├─ reverse-engineer endpoints (filter noise, score by API likelihood)
+         ├─ validate + publish new skill (indexed in EmergentDB)
          │
          ▼
       execute newly learned skill  ──▶  result
@@ -115,15 +115,124 @@ Execute supports `confirm_unsafe` and `dry_run` in the request body for mutation
 
 ### Authentication
 
-```http
-POST /v1/auth/login
+Most public sites work without auth. But if a site is behind a login wall, unbrowse detects it automatically and returns an `auth_required` error with the login URL. Here's the full flow:
+
+#### Step 1: Try the site normally
+
+```bash
+curl -s -X POST http://localhost:3000/v1/intent/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "get my dashboard data", "context": {"url": "https://app.example.com"}}'
 ```
+
+If the site requires login, the response includes:
 
 ```json
-{ "url": "https://example.com/login" }
+{
+  "trace": { "success": false, "error": "auth_required" },
+  "result": {
+    "error": "auth_required",
+    "provider": "example.com",
+    "login_url": "https://accounts.example.com/login",
+    "message": "Site requires authentication. Pass auth cookies via params.cookies or auth headers via params.auth_headers."
+  }
+}
 ```
 
-Opens a visible browser for the user to complete login. Cookies are captured and stored in the vault, then automatically loaded on subsequent captures and executions for that domain.
+#### Step 2: Interactive login
+
+Call the login endpoint — this opens a **visible** (non-headless) Chromium window:
+
+```bash
+curl -s -X POST http://localhost:3000/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://app.example.com/login"}'
+```
+
+Complete the login in the browser (OAuth, username/password, MFA — whatever the site needs). unbrowse watches for navigation away from the login page. Once you're logged in, it captures all cookies and stores them encrypted in the local vault (`.vault/credentials.enc` or OS keychain).
+
+Response:
+
+```json
+{
+  "success": true,
+  "domain": "app.example.com",
+  "cookies_stored": 12
+}
+```
+
+#### Step 3: Retry — auth is automatic now
+
+```bash
+curl -s -X POST http://localhost:3000/v1/intent/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "get my dashboard data", "context": {"url": "https://app.example.com"}}'
+```
+
+unbrowse automatically loads stored cookies from the vault for matching domains. This works for:
+- Exact domain matches (`app.example.com`)
+- Parent domain matches (`example.com` cookies apply to `api.example.com`)
+- ccTLD domains (`.co.uk`, `.com.br`, etc.)
+
+#### How the vault works
+
+```
+┌─────────────────────────────────────────────────────┐
+│  POST /v1/auth/login                                │
+│    → opens visible browser                          │
+│    → user completes login                           │
+│    → captures cookies                               │
+│    → encrypts + stores in vault (AES-256-CBC)       │
+└──────────────────────┬──────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│  Any subsequent request to that domain              │
+│    → vault lookup by domain (+ parent domain)       │
+│    → cookies injected into browser context           │
+│    → auth headers applied if stored                 │
+│    → if 401/403: stale credential auto-deleted      │
+└─────────────────────────────────────────────────────┘
+```
+
+Credentials support expiry (`expires_at`, `max_age_ms`) and are auto-pruned on read. The vault uses an async mutex to prevent races on concurrent writes.
+
+#### Alternative: Pass auth manually
+
+You can also pass cookies or headers directly without using the login flow:
+
+```bash
+# Via auth headers
+curl -s -X POST http://localhost:3000/v1/intent/resolve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "intent": "get my data",
+    "params": {
+      "url": "https://api.example.com",
+      "auth_headers": {"Authorization": "Bearer eyJ..."}
+    }
+  }'
+
+# Via cookies
+curl -s -X POST http://localhost:3000/v1/intent/resolve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "intent": "get my data",
+    "params": {
+      "url": "https://app.example.com",
+      "cookies": [
+        {"name": "session_id", "value": "abc123", "domain": ".example.com"}
+      ]
+    }
+  }'
+```
+
+#### Cloudflare-protected sites
+
+Sites behind Cloudflare challenges are handled automatically:
+- CF challenge pages are detected and excluded from learned skills
+- Clearance cookies (`__cf_bm`, `cf_clearance`) are shared across subdomains during capture
+- If Cloudflare blocks the headless browser, use interactive login to get clearance cookies first
 
 ### Feedback
 
@@ -229,8 +338,9 @@ Safe (GET) endpoints are automatically retried on transient failures (500, 502, 
 - Clearance cookies (`__cf_bm`, `cf_clearance`) are shared across subdomains during capture
 - ccTLD-aware domain parsing (`.co.uk`, `.com.br`, etc.) for proper cookie scoping
 
-## Skill manifest
+---
 
+## Skill manifest
 
 Skills are stored as JSON in `./skills/`. The schema:
 
@@ -288,8 +398,6 @@ SKILL.md            OpenClaw agent skill definition
 
 ---
 
----
-
 ## Environment variables
 
 | Variable | Required | Description |
@@ -301,6 +409,7 @@ SKILL.md            OpenClaw agent skill definition
 | `TRACES_DIR` | no | path to trace store (default: `./traces`) |
 
 **Note**: Skills are indexed in domain-scoped namespaces (`unbrowse--{domain}`) and a global namespace (`unbrowse--global`). No configuration needed.
+
 ---
 
 ## Scripts
@@ -407,7 +516,7 @@ CMD ["bun", "start"]
 1. The new intent is embedded with Gemini using `RETRIEVAL_QUERY` task type
 2. If the caller provided a URL, search the **domain namespace** first (precise)
 3. Otherwise search the **global namespace** (broad)
-4. Results above score **0.30** are considered a match
+4. Results above the composite score threshold (**0.25**) are considered a match
 5. Matched skill is loaded from local `./skills/` and executed directly
 
 ### Why domain-scoped namespaces?
