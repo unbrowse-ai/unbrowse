@@ -29,6 +29,15 @@ function getOrCreateKey(): Buffer {
   return key;
 }
 
+// Async mutex to prevent concurrent read-modify-write races
+let vaultLock: Promise<void> = Promise.resolve();
+function withVaultLock<T>(fn: () => T | Promise<T>): Promise<T> {
+  const prev = vaultLock;
+  let release: () => void;
+  vaultLock = new Promise<void>((r) => { release = r; });
+  return prev.then(fn).finally(() => release!());
+}
+
 function readVaultFile(): Record<string, string> {
   if (!existsSync(VAULT_FILE)) return {};
   try {
@@ -65,9 +74,11 @@ export async function storeCredential(
   };
   const serialized = JSON.stringify(wrapped);
   if (keytar) { await keytar.setPassword(SERVICE, account, serialized); return; }
-  const data = readVaultFile();
-  data[account] = serialized;
-  writeVaultFile(data);
+  await withVaultLock(() => {
+    const data = readVaultFile();
+    data[account] = serialized;
+    writeVaultFile(data);
+  });
 }
 
 function isExpired(cred: StoredCredential): boolean {
@@ -109,7 +120,9 @@ export async function getCredential(account: string): Promise<string | null> {
 
 export async function deleteCredential(account: string): Promise<void> {
   if (keytar) { await keytar.deletePassword(SERVICE, account); return; }
-  const data = readVaultFile();
-  delete data[account];
-  writeVaultFile(data);
+  await withVaultLock(() => {
+    const data = readVaultFile();
+    delete data[account];
+    writeVaultFile(data);
+  });
 }

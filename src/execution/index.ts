@@ -12,6 +12,7 @@ import { recordExecution } from "../scoring/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
+import { getRegistrableDomain } from "../domain.js";
 
 export interface ExecutionResult {
   trace: ExecutionTrace;
@@ -59,7 +60,7 @@ async function executeBrowserCapture(
     if (!cookies || cookies.length === 0) {
       const parts = targetDomain.split(".");
       if (parts.length > 2) {
-        const parentDomain = parts.slice(-2).join(".");
+        const parentDomain = getRegistrableDomain(targetDomain);
         const parentCookies = await getStoredAuth(parentDomain);
         if (parentCookies && parentCookies.length > 0) {
           cookies = parentCookies;
@@ -93,7 +94,7 @@ async function executeBrowserCapture(
       trace,
       result: {
         error: "auth_required",
-        provider: finalDomain.split(".").slice(-2).join("."),
+        provider: getRegistrableDomain(finalDomain),
         login_url: captured.final_url,
         message: `Site requires authentication. Pass auth cookies via params.cookies or auth headers via params.auth_headers.`,
       },
@@ -248,7 +249,7 @@ export async function executeEndpoint(
       if (cookies.length === 0) {
         const parts = epDomain.split(".");
         if (parts.length > 2) {
-          const parentCookies = await getStoredAuth(parts.slice(-2).join("."));
+          const parentCookies = await getStoredAuth(getRegistrableDomain(epDomain));
           if (parentCookies && parentCookies.length > 0) {
             cookies.push(...parentCookies);
           }

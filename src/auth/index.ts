@@ -2,6 +2,7 @@ import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 import { storeCredential, getCredential } from "../vault/index.js";
 import { nanoid } from "nanoid";
+import { isDomainMatch } from "../domain.js";
 
 const LOGIN_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 1_000;
@@ -35,7 +36,7 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
       try {
         const currentUrl = page.url();
         const currentDomain = new URL(currentUrl).hostname;
-        if (currentDomain.includes(targetDomain) || targetDomain.includes(currentDomain)) {
+        if (isDomainMatch(currentDomain, targetDomain) || isDomainMatch(targetDomain, currentDomain)) {
           // Also check we are NOT on a login/auth path anymore
           const path = new URL(currentUrl).pathname;
           const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth)/.test(path);
@@ -57,7 +58,7 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
     const context = browser.getContext();
     const cookies = context ? await context.cookies() : [];
     const domainCookies = cookies.filter(
-      (c) => c.domain.includes(targetDomain) || targetDomain.includes(c.domain.replace(/^\./, ""))
+      (c) => isDomainMatch(c.domain, targetDomain)
     );
 
     if (domainCookies.length === 0) {
@@ -126,3 +127,4 @@ export async function getStoredAuth(
     return null;
   }
 }
+

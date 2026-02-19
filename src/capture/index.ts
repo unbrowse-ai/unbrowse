@@ -1,6 +1,7 @@
 import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 import { nanoid } from "nanoid";
+import { getRegistrableDomain } from "../domain.js";
 
 // Browser launch semaphore: max 3 concurrent browsers
 const MAX_CONCURRENT_BROWSERS = 3;
@@ -53,9 +54,9 @@ export async function captureSession(
 
   if (authHeaders && Object.keys(authHeaders).length > 0) {
     await browser.setExtraHeaders(authHeaders);
+  }
   if (cookies && cookies.length > 0) {
     await injectCookies(browser, cookies);
-  }
   }
 
   await browser.startHarRecording();
@@ -95,7 +96,7 @@ export async function captureSession(
         (c) => c.name === "__cf_bm" || c.name === "cf_clearance" || c.name.startsWith("__cf")
       );
       if (cfCookies.length > 0) {
-        const baseDomain = new URL(url).hostname.split(".").slice(-2).join(".");
+        const baseDomain = getRegistrableDomain(new URL(url).hostname);
         const subdomainCookies = cfCookies.map((c) => ({
           ...c,
           domain: `.${baseDomain}`,
