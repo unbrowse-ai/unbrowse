@@ -1,5 +1,6 @@
 import type { RawRequest } from "../capture/index.js";
 import type { EndpointDescriptor } from "../types/index.js";
+import { inferSchema } from "../transform/index.js";
 import { nanoid } from "nanoid";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html)$/i;
@@ -36,6 +37,17 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
 
     const isGet = req.method === "GET";
 
+    // Infer response schema from captured body
+    let response_schema = undefined;
+    if (req.response_body) {
+      try {
+        const parsed = JSON.parse(req.response_body);
+        response_schema = inferSchema([parsed]);
+      } catch {
+        // not valid JSON — skip schema inference
+      }
+    }
+
     endpoints.push({
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
@@ -46,6 +58,7 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: "unverified",
       reliability_score: 0,
+      response_schema,
     });
   }
 
