@@ -85,6 +85,28 @@ export async function captureSession(
 
   // Wait for XHR/fetch calls to settle
   await new Promise((r) => setTimeout(r, 2500));
+
+  // BUG-008: Share Cloudflare clearance cookies across subdomains
+  try {
+    const context = browser.getContext();
+    if (context) {
+      const allCookies = await context.cookies();
+      const cfCookies = allCookies.filter(
+        (c) => c.name === "__cf_bm" || c.name === "cf_clearance" || c.name.startsWith("__cf")
+      );
+      if (cfCookies.length > 0) {
+        const baseDomain = new URL(url).hostname.split(".").slice(-2).join(".");
+        const subdomainCookies = cfCookies.map((c) => ({
+          ...c,
+          domain: `.${baseDomain}`,
+        }));
+        try {
+          await context.addCookies(subdomainCookies);
+        } catch { /* CF cookie sharing is best-effort */ }
+      }
+    }
+  } catch { /* context unavailable */ }
+
   const trackedRequests = browser.getRequests();
   const domain = new URL(url).hostname;
   const har_lineage_id = nanoid();

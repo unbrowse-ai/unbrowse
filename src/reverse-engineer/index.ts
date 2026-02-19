@@ -35,6 +35,9 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
     if (seen.has(key)) continue;
     seen.add(key);
 
+    // BUG-008: Detect Cloudflare challenge responses — exclude from skill
+    if (isCloudflareChallenge(req.response_body)) continue;
+
     const isGet = req.method === "GET";
 
     // Infer response schema from captured body
@@ -48,6 +51,9 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
       }
     }
 
+    // BUG-008: mark endpoints with no response body as potentially CF-blocked
+    const verificationStatus = req.response_body ? "unverified" as const : "pending" as const;
+
     endpoints.push({
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
@@ -56,7 +62,7 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
       query: isGet ? extractQueryParams(req.url) : undefined,
       body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
       idempotency: isGet ? "safe" : "unsafe",
-      verification_status: "unverified",
+      verification_status: verificationStatus,
       reliability_score: 0.5,
       response_schema,
     });
@@ -114,4 +120,24 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * BUG-008: Detect Cloudflare challenge/block responses.
+ * CF challenge pages contain distinctive markers in the HTML body.
+ */
+function isCloudflareChallenge(responseBody?: string): boolean {
+  if (!responseBody) return false;
+  const CF_MARKERS = [
+    "cf-error",
+    "challenge-platform",
+    "cf-chl-bypass",
+    "Checking if the site connection is secure",
+    "Enable JavaScript and cookies to continue",
+    "cf_chl_opt",
+    "jschl-answer",
+    "_cf_chl_tk",
+  ];
+  const bodyLower = responseBody.toLowerCase();
+  return CF_MARKERS.some((marker) => bodyLower.includes(marker.toLowerCase()));
 }
