@@ -44,7 +44,7 @@ export interface Transform {
 
 export interface EndpointDescriptor {
   endpoint_id: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
   url_template: string;
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;

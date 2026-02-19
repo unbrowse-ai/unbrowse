@@ -44,7 +44,7 @@ export interface RawRequest {
 export async function captureSession(
   url: string,
   authHeaders?: Record<string, string>,
-  cookies?: Array<{ name: string; value: string; domain: string; path?: string }>
+  cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<CaptureResult> {
   await acquireBrowserSlot();
   try {
@@ -118,7 +118,7 @@ export async function executeInBrowser(
   requestHeaders: Record<string, string>,
   body?: unknown,
   authHeaders?: Record<string, string>,
-  cookies?: Array<{ name: string; value: string; domain: string; path?: string }>
+  cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
   await acquireBrowserSlot();
   try {
@@ -170,7 +170,16 @@ export async function executeInBrowser(
  */
 async function injectCookies(
   browser: InstanceType<typeof BrowserManager>,
-  cookies: Array<{ name: string; value: string; domain: string; path?: string }>
+  cookies: Array<{
+    name: string;
+    value: string;
+    domain: string;
+    path?: string;
+    secure?: boolean;
+    httpOnly?: boolean;
+    sameSite?: string;
+    expires?: number;
+  }>
 ): Promise<void> {
   const context = browser.getContext();
   if (!context) return;
@@ -180,12 +189,15 @@ async function injectCookies(
     value: c.value,
     domain: c.domain.startsWith(".") ? c.domain : `.${c.domain}`,
     path: c.path ?? "/",
+    ...(c.secure != null ? { secure: c.secure } : {}),
+    ...(c.httpOnly != null ? { httpOnly: c.httpOnly } : {}),
+    ...(c.sameSite != null ? { sameSite: c.sameSite as "Strict" | "Lax" | "None" } : {}),
+    ...(c.expires != null && c.expires > 0 ? { expires: c.expires } : {}),
   }));
 
   try {
     await context.addCookies(sanitized);
   } catch {
-    // Batch failed — try one-by-one with individual error swallowing
     for (const cookie of sanitized) {
       try {
         await context.addCookies([cookie]);

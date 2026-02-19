@@ -28,8 +28,8 @@ export async function executeSkill(
   if (skill.execution_type === "browser-capture") {
     return executeBrowserCapture(skill, params);
   }
-  // BUG-004 fix: prefer endpoints with richer response schemas over bare GET-first
-  const endpoint = selectBestEndpoint(skill.endpoints);
+  // BUG-004/007 fix: select endpoint by schema richness + intent relevance
+  const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature);
   return executeEndpoint(skill, endpoint, params, projection, options);
 }
 
@@ -236,6 +236,29 @@ export async function executeEndpoint(
     }
   }
 
+  // BUG-006 fix: fallback to domain vault cookies when auth_profile_ref is absent or yields nothing
+  if (cookies.length === 0) {
+    try {
+      const epDomain = new URL(endpoint.url_template).hostname;
+      const domainCookies = await getStoredAuth(epDomain);
+      if (domainCookies && domainCookies.length > 0) {
+        cookies.push(...domainCookies);
+      }
+      // Also try parent domain
+      if (cookies.length === 0) {
+        const parts = epDomain.split(".");
+        if (parts.length > 2) {
+          const parentCookies = await getStoredAuth(parts.slice(-2).join("."));
+          if (parentCookies && parentCookies.length > 0) {
+            cookies.push(...parentCookies);
+          }
+        }
+      }
+    } catch {
+      // URL parse failure — skip vault fallback
+    }
+  }
+
   const url = interpolate(endpoint.url_template, params);
   const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
 
@@ -320,26 +343,59 @@ function interpolateObj(
  * BUG-004 fix: select best endpoint by schema richness, not just "first safe GET".
  * Prefers: safe endpoints with object/array response_schema > safe without > unsafe.
  */
-function selectBestEndpoint(endpoints: EndpointDescriptor[]): EndpointDescriptor {
+function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string): EndpointDescriptor {
   if (endpoints.length === 0) throw new Error("No endpoints available");
   if (endpoints.length === 1) return endpoints[0];
 
-  const scored = endpoints.map((ep) => {
+  // Filter out noise endpoints (HEAD, OPTIONS, tracking, CSP, static assets)
+  const NOISE_PATTERNS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts)/i;
+  const filtered = endpoints.filter((ep) => {
+    if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
+    if (NOISE_PATTERNS.test(ep.url_template)) return false;
+    return true;
+  });
+
+  // Fall back to unfiltered if filtering removed everything
+  const candidates = filtered.length > 0 ? filtered : endpoints;
+
+  // Extract intent keywords for relevance matching
+  const intentWords = intent
+    ? intent.toLowerCase().split(/\s+/).filter((w) => w.length > 2)
+    : [];
+
+  const scored = candidates.map((ep) => {
     let score = 0;
+
     // Prefer safe (GET) endpoints
     if (ep.idempotency === "safe") score += 10;
+
     // Prefer endpoints with response schemas
     if (ep.response_schema) {
       score += 5;
-      // Prefer richer schemas (object with properties, or arrays)
       if (ep.response_schema.type === "object" && ep.response_schema.properties) {
-        score += Object.keys(ep.response_schema.properties).length;
+        score += Math.min(Object.keys(ep.response_schema.properties).length, 15);
       } else if (ep.response_schema.type === "array") {
         score += 8;
       }
     }
+
     // Factor in reliability
     score += ep.reliability_score * 5;
+
+    // Intent relevance: match intent keywords against URL path
+    if (intentWords.length > 0) {
+      const urlLower = ep.url_template.toLowerCase();
+      for (const word of intentWords) {
+        if (urlLower.includes(word)) score += 3;
+      }
+    }
+
+    // Penalize endpoints with very short or no URL paths (often config/init endpoints)
+    try {
+      const path = new URL(ep.url_template).pathname;
+      if (path.length <= 2) score -= 5;
+    } catch { /* skip */ }
+
     return { ep, score };
   });
 

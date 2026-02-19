@@ -64,12 +64,16 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
       return { success: false, domain: targetDomain, cookies_stored: 0, error: "No cookies captured for domain" };
     }
 
-    // Store cookies in vault under auth:{domain}
+    // Store cookies in vault under auth:{domain} — preserve all security attributes
     const storableCookies = domainCookies.map((c) => ({
       name: c.name,
       value: c.value,
       domain: c.domain,
       path: c.path,
+      secure: c.secure,
+      httpOnly: c.httpOnly,
+      sameSite: c.sameSite,
+      expires: c.expires,
     }));
     await storeCredential(
       `auth:${targetDomain}`,
@@ -92,11 +96,31 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
  */
 export async function getStoredAuth(
   domain: string
-): Promise<Array<{ name: string; value: string; domain: string; path?: string }> | null> {
+): Promise<Array<{
+  name: string;
+  value: string;
+  domain: string;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: string;
+  expires?: number;
+}> | null> {
   const stored = await getCredential(`auth:${domain}`);
   if (!stored) return null;
   try {
-    const parsed = JSON.parse(stored) as { cookies?: Array<{ name: string; value: string; domain: string; path?: string }> };
+    const parsed = JSON.parse(stored) as {
+      cookies?: Array<{
+        name: string;
+        value: string;
+        domain: string;
+        path?: string;
+        secure?: boolean;
+        httpOnly?: boolean;
+        sameSite?: string;
+        expires?: number;
+      }>;
+    };
     return parsed.cookies ?? null;
   } catch {
     return null;
