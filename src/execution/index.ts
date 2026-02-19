@@ -4,7 +4,9 @@ import { extractEndpoints } from "../reverse-engineer/index.js";
 import { validateSkillManifest } from "../validator/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { getCredential } from "../vault/index.js";
-import type { EndpointDescriptor, ExecutionTrace, SkillManifest } from "../types/index.js";
+import { applyProjection } from "../transform/index.js";
+import { detectSchemaDrift } from "../transform/drift.js";
+import type { EndpointDescriptor, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 
 export interface ExecutionResult {
@@ -15,13 +17,14 @@ export interface ExecutionResult {
 
 export async function executeSkill(
   skill: SkillManifest,
-  params: Record<string, unknown> = {}
+  params: Record<string, unknown> = {},
+  projection?: ProjectionOptions
 ): Promise<ExecutionResult> {
   if (skill.execution_type === "browser-capture") {
     return executeBrowserCapture(skill, params);
   }
   const endpoint = skill.endpoints.find((e) => e.idempotency === "safe") ?? skill.endpoints[0];
-  return executeEndpoint(skill, endpoint, params);
+  return executeEndpoint(skill, endpoint, params, projection);
 }
 
 async function executeBrowserCapture(
@@ -142,7 +145,8 @@ async function executeBrowserCapture(
 export async function executeEndpoint(
   skill: SkillManifest,
   endpoint: EndpointDescriptor,
-  params: Record<string, unknown> = {}
+  params: Record<string, unknown> = {},
+  projection?: ProjectionOptions
 ): Promise<ExecutionResult> {
   const startedAt = new Date().toISOString();
   const authHeaders: Record<string, string> = {};
@@ -192,7 +196,21 @@ export async function executeEndpoint(
     trace.result = data;
   }
 
-  return { trace, result: data };
+  // Schema drift detection on re-execution
+  if (trace.success && endpoint.response_schema && data != null) {
+    const drift = detectSchemaDrift(endpoint.response_schema, data);
+    if (drift.drifted) {
+      trace.drift = drift;
+    }
+  }
+
+  // Apply field projection if requested
+  let resultData = data;
+  if (projection && trace.success) {
+    resultData = applyProjection(data, projection);
+  }
+
+  return { trace, result: resultData };
 }
 
 function interpolate(template: string, params: Record<string, unknown>): string {
