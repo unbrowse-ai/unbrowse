@@ -67,12 +67,22 @@ export async function publishSkill(
 
   writeFileSync(join(SKILLS_DIR, `${skill.skill_id}.json`), JSON.stringify(skill, null, 2));
 
-  // Index into EmergentDB (non-fatal)
+  // Index into EmergentDB (non-fatal) — enrich with trust signals
+  const reliabilities = skill.endpoints.map((e) => e.reliability_score);
+  const avgReliability = reliabilities.length > 0
+    ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
+    : 0.5;
+  const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
+  const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
+
   await indexSkill(skill.skill_id, skill.intent_signature, {
     domain: skill.domain,
     subdomain: skill.subdomain,
     name: skill.name,
     description: skill.description,
+    avg_reliability: avgReliability,
+    verified_ratio: verifiedRatio,
+    updated_at: skill.updated_at,
   }).catch(() => {});
 
   return skill;
@@ -107,6 +117,22 @@ export function mergeEndpoints(
     if (!dupe) merged.push(ep);
   }
   return merged;
+}
+
+export function updateEndpointScore(
+  skillId: string,
+  endpointId: string,
+  score: number,
+  status?: import("../types/index.js").VerificationStatus
+): void {
+  const skill = getSkill(skillId);
+  if (!skill) return;
+  const endpoint = skill.endpoints.find((e) => e.endpoint_id === endpointId);
+  if (!endpoint) return;
+  endpoint.reliability_score = score;
+  if (status) endpoint.verification_status = status;
+  skill.updated_at = new Date().toISOString();
+  writeFileSync(join(SKILLS_DIR, `${skillId}.json`), JSON.stringify(skill, null, 2));
 }
 
 function normalizeTemplate(t: string): string {

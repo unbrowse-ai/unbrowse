@@ -2,6 +2,27 @@ import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 import { nanoid } from "nanoid";
 
+// Browser launch semaphore: max 3 concurrent browsers
+const MAX_CONCURRENT_BROWSERS = 3;
+let activeBrowsers = 0;
+const waitQueue: Array<() => void> = [];
+
+async function acquireBrowserSlot(): Promise<void> {
+  if (activeBrowsers < MAX_CONCURRENT_BROWSERS) {
+    activeBrowsers++;
+    return;
+  }
+  return new Promise<void>((resolve) => {
+    waitQueue.push(() => { activeBrowsers++; resolve(); });
+  });
+}
+
+function releaseBrowserSlot(): void {
+  activeBrowsers--;
+  const next = waitQueue.shift();
+  if (next) next();
+}
+
 export interface CaptureResult {
   requests: RawRequest[];
   har_lineage_id: string;
@@ -25,14 +46,16 @@ export async function captureSession(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string }>
 ): Promise<CaptureResult> {
+  await acquireBrowserSlot();
+  try {
   const browser = new BrowserManager();
   await browser.launch({ action: "launch", id: nanoid(), headless: true });
 
   if (authHeaders && Object.keys(authHeaders).length > 0) {
     await browser.setExtraHeaders(authHeaders);
-  }
   if (cookies && cookies.length > 0) {
-    await browser.getContext()?.addCookies(cookies);
+    await injectCookies(browser, cookies);
+  }
   }
 
   await browser.startHarRecording();
@@ -84,6 +107,9 @@ export async function captureSession(
   }));
 
   return { requests, har_lineage_id, domain, final_url };
+  } finally {
+    releaseBrowserSlot();
+  }
 }
 
 export async function executeInBrowser(
@@ -94,6 +120,8 @@ export async function executeInBrowser(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string }>
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
+  await acquireBrowserSlot();
+  try {
   const browser = new BrowserManager();
   await browser.launch({ action: "launch", id: nanoid(), headless: true });
 
@@ -102,7 +130,7 @@ export async function executeInBrowser(
     await browser.setExtraHeaders(allHeaders);
   }
   if (cookies && cookies.length > 0) {
-    await browser.getContext()?.addCookies(cookies);
+    await injectCookies(browser, cookies);
   }
 
   browser.startRequestTracking();
@@ -129,4 +157,41 @@ export async function executeInBrowser(
   );
 
   return { ...result, trace_id: nanoid() };
+  } finally {
+    releaseBrowserSlot();
+  }
+}
+
+/**
+ * Sanitize and inject cookies into browser context.
+ * Strips all fields except { name, value, domain, path } to avoid
+ * Playwright CDP protocol errors from unexpected cookie properties.
+ * Falls back to per-cookie injection if batch fails.
+ */
+async function injectCookies(
+  browser: InstanceType<typeof BrowserManager>,
+  cookies: Array<{ name: string; value: string; domain: string; path?: string }>
+): Promise<void> {
+  const context = browser.getContext();
+  if (!context) return;
+
+  const sanitized = cookies.map((c) => ({
+    name: c.name,
+    value: c.value,
+    domain: c.domain.startsWith(".") ? c.domain : `.${c.domain}`,
+    path: c.path ?? "/",
+  }));
+
+  try {
+    await context.addCookies(sanitized);
+  } catch {
+    // Batch failed — try one-by-one with individual error swallowing
+    for (const cookie of sanitized) {
+      try {
+        await context.addCookies([cookie]);
+      } catch {
+        // Skip malformed individual cookie
+      }
+    }
+  }
 }

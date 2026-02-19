@@ -1,9 +1,9 @@
 import { searchIntent, searchIntentInDomain } from "../discovery/index.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { executeSkill } from "../execution/index.js";
-import type { ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
+import type { ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 
-const CONFIDENCE_THRESHOLD = 0.30;
+const CONFIDENCE_THRESHOLD = 0.25;
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 
 export interface OrchestratorResult {
@@ -13,11 +13,42 @@ export interface OrchestratorResult {
   skill: SkillManifest;
 }
 
+function computeCompositeScore(
+  embeddingScore: number,
+  skill: SkillManifest
+): number {
+  // Average reliability across endpoints
+  const reliabilities = skill.endpoints.map((e) => e.reliability_score);
+  const avgReliability = reliabilities.length > 0
+    ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
+    : 0.5;
+
+  // Freshness: 1 / (1 + daysSinceUpdate / 30)
+  const daysSinceUpdate = (Date.now() - new Date(skill.updated_at).getTime()) / (1000 * 60 * 60 * 24);
+  const freshnessScore = 1 / (1 + daysSinceUpdate / 30);
+
+  // Verification bonus: 1.0 if all verified, 0.5 if some, 0.0 if none
+  const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
+  const verificationBonus = skill.endpoints.length > 0
+    ? verifiedCount === skill.endpoints.length ? 1.0
+      : verifiedCount > 0 ? 0.5
+      : 0.0
+    : 0.0;
+
+  return (
+    0.40 * embeddingScore +
+    0.30 * avgReliability +
+    0.15 * freshnessScore +
+    0.15 * verificationBonus
+  );
+}
+
 export async function resolveAndExecute(
   intent: string,
   params: Record<string, unknown> = {},
   context?: { url?: string; domain?: string },
-  projection?: ProjectionOptions
+  projection?: ProjectionOptions,
+  options?: ExecutionOptions
 ): Promise<OrchestratorResult> {
   // 1. Domain-scoped search first, fallback to global
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
@@ -25,15 +56,27 @@ export async function resolveAndExecute(
     ? searchIntentInDomain(intent, requestedDomain, 5)
     : searchIntent(intent, 5)
   ).catch(() => []);
-  const top = candidates[0];
 
-  if (top && top.score >= CONFIDENCE_THRESHOLD) {
-    const skillId = extractSkillId(top.metadata);
+  // Rank all candidates by composite score, pick the best
+  type RankedCandidate = { candidate: typeof candidates[0]; skill: SkillManifest; composite: number };
+  const ranked: RankedCandidate[] = [];
+  for (const c of candidates) {
+    const skillId = extractSkillId(c.metadata);
     const skill = skillId ? getSkill(skillId) : null;
     if (skill && skill.lifecycle === "active") {
-      const { trace, result } = await executeSkill(skill, params, projection);
-      return { result, trace, source: "marketplace", skill };
+      ranked.push({
+        candidate: c,
+        skill,
+        composite: computeCompositeScore(c.score, skill),
+      });
     }
+  }
+  ranked.sort((a, b) => b.composite - a.composite);
+
+  const top = ranked[0];
+  if (top && top.composite >= CONFIDENCE_THRESHOLD) {
+    const { trace, result } = await executeSkill(top.skill, params, projection, options);
+    return { result, trace, source: "marketplace", skill: top.skill };
   }
 
   // 2. No match -- invoke browser-capture skill
@@ -55,7 +98,7 @@ export async function resolveAndExecute(
   }
 
   // 3. Execute the newly learned skill immediately
-  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params, projection);
+  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params, projection, options);
 
   return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill };
 }

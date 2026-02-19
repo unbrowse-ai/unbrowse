@@ -9,6 +9,13 @@ try {
   // keytar unavailable -- use encrypted file fallback
 }
 
+export interface StoredCredential {
+  value: string;
+  stored_at: string;
+  expires_at?: string;
+  max_age_ms?: number;
+}
+
 const SERVICE = "unbrowse";
 const VAULT_DIR = join(process.cwd(), ".vault");
 const VAULT_FILE = join(VAULT_DIR, "credentials.enc");
@@ -45,17 +52,59 @@ function writeVaultFile(data: Record<string, string>): void {
   writeFileSync(VAULT_FILE, Buffer.concat([iv, enc]), { mode: 0o600 });
 }
 
-export async function storeCredential(account: string, value: string): Promise<void> {
-  if (keytar) { await keytar.setPassword(SERVICE, account, value); return; }
+export async function storeCredential(
+  account: string,
+  value: string,
+  opts?: { expires_at?: string; max_age_ms?: number }
+): Promise<void> {
+  const wrapped: StoredCredential = {
+    value,
+    stored_at: new Date().toISOString(),
+    expires_at: opts?.expires_at,
+    max_age_ms: opts?.max_age_ms,
+  };
+  const serialized = JSON.stringify(wrapped);
+  if (keytar) { await keytar.setPassword(SERVICE, account, serialized); return; }
   const data = readVaultFile();
-  data[account] = value;
+  data[account] = serialized;
   writeVaultFile(data);
 }
 
+function isExpired(cred: StoredCredential): boolean {
+  if (cred.expires_at) {
+    return new Date(cred.expires_at).getTime() <= Date.now();
+  }
+  if (cred.max_age_ms) {
+    return new Date(cred.stored_at).getTime() + cred.max_age_ms <= Date.now();
+  }
+  return false;
+}
+
 export async function getCredential(account: string): Promise<string | null> {
-  if (keytar) return keytar.getPassword(SERVICE, account);
-  const data = readVaultFile();
-  return data[account] ?? null;
+  let raw: string | null;
+  if (keytar) {
+    raw = await keytar.getPassword(SERVICE, account);
+  } else {
+    const data = readVaultFile();
+    raw = data[account] ?? null;
+  }
+  if (!raw) return null;
+
+  // Try to parse as StoredCredential; backward-compat: raw strings are legacy (no expiry)
+  try {
+    const parsed = JSON.parse(raw) as StoredCredential;
+    if (parsed.value && parsed.stored_at) {
+      // It's a wrapped credential — check expiry
+      if (isExpired(parsed)) {
+        await deleteCredential(account);
+        return null;
+      }
+      return parsed.value;
+    }
+  } catch {
+    // Not JSON — legacy raw string, return as-is
+  }
+  return raw;
 }
 
 export async function deleteCredential(account: string): Promise<void> {

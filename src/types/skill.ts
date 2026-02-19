@@ -128,3 +128,20 @@ export interface DriftResult {
   removed_fields: string[];
   type_changes: Array<{ path: string; was: string; now: string }>;
 }
+
+export interface EndpointStats {
+  total_executions: number;
+  successful_executions: number;
+  consecutive_failures: number;
+  avg_latency_ms: number;
+  feedback_sum: number;
+  feedback_count: number;
+  drift_count: number;
+  last_execution_at?: string;
+  last_success_at?: string;
+}
+
+export interface ExecutionOptions {
+  confirm_unsafe?: boolean;
+  dry_run?: boolean;
+}

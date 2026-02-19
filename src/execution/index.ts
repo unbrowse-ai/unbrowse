@@ -3,10 +3,14 @@ import { captureSession } from "../capture/index.js";
 import { extractEndpoints } from "../reverse-engineer/index.js";
 import { validateSkillManifest } from "../validator/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { getCredential } from "../vault/index.js";
+import { updateEndpointScore } from "../marketplace/index.js";
+import { getCredential, deleteCredential } from "../vault/index.js";
+import { getStoredAuth } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import type { EndpointDescriptor, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
+import { recordExecution } from "../scoring/index.js";
+import { withRetry, isRetryableStatus } from "./retry.js";
+import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 
 export interface ExecutionResult {
@@ -18,13 +22,15 @@ export interface ExecutionResult {
 export async function executeSkill(
   skill: SkillManifest,
   params: Record<string, unknown> = {},
-  projection?: ProjectionOptions
+  projection?: ProjectionOptions,
+  options?: ExecutionOptions
 ): Promise<ExecutionResult> {
   if (skill.execution_type === "browser-capture") {
     return executeBrowserCapture(skill, params);
   }
-  const endpoint = skill.endpoints.find((e) => e.idempotency === "safe") ?? skill.endpoints[0];
-  return executeEndpoint(skill, endpoint, params, projection);
+  // BUG-004 fix: prefer endpoints with richer response schemas over bare GET-first
+  const endpoint = selectBestEndpoint(skill.endpoints);
+  return executeEndpoint(skill, endpoint, params, projection, options);
 }
 
 async function executeBrowserCapture(
@@ -39,22 +45,38 @@ async function executeBrowserCapture(
   const traceId = nanoid();
   const targetDomain = new URL(url).hostname;
 
-  // Pass credentials through to capture if provided
-  const authHeaders = params.auth_headers as Record<string, string> | undefined;
-  const cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
+  // BUG-002/003 fix: auto-load vault cookies for the target domain
+  let authHeaders = params.auth_headers as Record<string, string> | undefined;
+  let cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
+
+  // Check vault for stored auth (from prior interactiveLogin)
+  if (!cookies || cookies.length === 0) {
+    const vaultCookies = await getStoredAuth(targetDomain);
+    if (vaultCookies && vaultCookies.length > 0) {
+      cookies = vaultCookies;
+    }
+    // Also try parent domain (e.g. mail.google.com → google.com)
+    if (!cookies || cookies.length === 0) {
+      const parts = targetDomain.split(".");
+      if (parts.length > 2) {
+        const parentDomain = parts.slice(-2).join(".");
+        const parentCookies = await getStoredAuth(parentDomain);
+        if (parentCookies && parentCookies.length > 0) {
+          cookies = parentCookies;
+        }
+      }
+    }
+  }
 
   const captured = await captureSession(url, authHeaders, cookies);
 
-  // Detect auth redirect: final URL domain differs from target
   const finalDomain = (() => {
     try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
   })();
   const AUTH_PROVIDERS = /accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com|facebook\.com/i;
   const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
 
-  // Case 1: Redirected to a different auth provider domain
   const redirectedToAuth = finalDomain !== targetDomain && AUTH_PROVIDERS.test(finalDomain);
-  // Case 2: Same domain but redirected to a login path (LinkedIn-style)
   const redirectedToLogin = captured.final_url !== url && LOGIN_PATHS.test(new URL(captured.final_url).pathname);
 
   if (redirectedToAuth || redirectedToLogin) {
@@ -80,7 +102,6 @@ async function executeBrowserCapture(
 
   const endpoints = extractEndpoints(captured.requests);
 
-  // Filter out auth provider endpoints
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
       const host = new URL(ep.url_template).hostname;
@@ -88,7 +109,6 @@ async function executeBrowserCapture(
     } catch { return true; }
   });
 
-  // BUG-002 fix: don't publish skills where all endpoints are zero-scored noise
   if (cleanEndpoints.length === 0) {
     const trace: ExecutionTrace = {
       trace_id: traceId,
@@ -109,6 +129,12 @@ async function executeBrowserCapture(
   }
 
   const domain = captured.domain;
+
+  // BUG-004 fix: set auth_profile_ref when vault has stored auth for this domain
+  const vaultKey = `auth:${targetDomain}`;
+  const hasStoredAuth = (await getCredential(vaultKey)) != null;
+  const authProfileRef = hasStoredAuth ? vaultKey : undefined;
+
   const draft = {
     version: "1.0.0",
     schema_version: "1",
@@ -122,6 +148,7 @@ async function executeBrowserCapture(
     description: `Auto-discovered skill for: ${intent}`,
     owner_type: "agent" as const,
     endpoints: cleanEndpoints,
+    auth_profile_ref: authProfileRef,
   };
 
   const validation = validateSkillManifest({ ...draft, skill_id: "__validate__" });
@@ -146,8 +173,49 @@ export async function executeEndpoint(
   skill: SkillManifest,
   endpoint: EndpointDescriptor,
   params: Record<string, unknown> = {},
-  projection?: ProjectionOptions
+  projection?: ProjectionOptions,
+  options?: ExecutionOptions
 ): Promise<ExecutionResult> {
+  // Mutation safety gate
+  if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
+    if (options?.dry_run) {
+      const url = interpolate(endpoint.url_template, params);
+      const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
+      return {
+        trace: {
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "dry_run",
+        },
+        result: {
+          dry_run: true,
+          would_execute: { method: endpoint.method, url, body },
+        },
+      };
+    }
+    if (!options?.confirm_unsafe) {
+      return {
+        trace: {
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "confirmation_required",
+        },
+        result: {
+          error: "confirmation_required",
+          message: `This endpoint (${endpoint.method} ${endpoint.url_template}) is marked as unsafe. Pass confirm_unsafe: true to proceed.`,
+        },
+      };
+    }
+  }
+
   const startedAt = new Date().toISOString();
   const authHeaders: Record<string, string> = {};
   const cookies: Array<{ name: string; value: string; domain: string }> = [];
@@ -171,7 +239,9 @@ export async function executeEndpoint(
   const url = interpolate(endpoint.url_template, params);
   const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
 
-  const { status, data, trace_id } = await executeInBrowser(
+  // Wrap in retry for safe (GET) endpoints
+  const isSafe = endpoint.method === "GET";
+  const browserCall = () => executeInBrowser(
     url,
     endpoint.method,
     endpoint.headers_template ?? {},
@@ -179,6 +249,13 @@ export async function executeEndpoint(
     authHeaders,
     cookies
   );
+
+  const { status, data, trace_id } = isSafe
+    ? await withRetry(
+        browserCall,
+        (r) => isRetryableStatus(r.status),
+      )
+    : await browserCall();
 
   const trace: ExecutionTrace = {
     trace_id,
@@ -196,6 +273,12 @@ export async function executeEndpoint(
     trace.result = data;
   }
 
+  // Stale credential detection: on 401/403, delete credential and flag
+  if ((status === 401 || status === 403) && skill.auth_profile_ref) {
+    await deleteCredential(skill.auth_profile_ref);
+    trace.error = `${trace.error} (stale credential deleted)`;
+  }
+
   // Schema drift detection on re-execution
   if (trace.success && endpoint.response_schema && data != null) {
     const drift = detectSchemaDrift(endpoint.response_schema, data);
@@ -203,6 +286,9 @@ export async function executeEndpoint(
       trace.drift = drift;
     }
   }
+
+  // Record execution for reliability scoring
+  recordExecution(skill.skill_id, endpoint.endpoint_id, trace, updateEndpointScore);
 
   // Apply field projection if requested
   let resultData = data;
@@ -228,4 +314,35 @@ function interpolateObj(
       params[k] != null ? JSON.stringify(params[k]) : `"{${k}}"`
     )
   ) as Record<string, unknown>;
+}
+
+/**
+ * BUG-004 fix: select best endpoint by schema richness, not just "first safe GET".
+ * Prefers: safe endpoints with object/array response_schema > safe without > unsafe.
+ */
+function selectBestEndpoint(endpoints: EndpointDescriptor[]): EndpointDescriptor {
+  if (endpoints.length === 0) throw new Error("No endpoints available");
+  if (endpoints.length === 1) return endpoints[0];
+
+  const scored = endpoints.map((ep) => {
+    let score = 0;
+    // Prefer safe (GET) endpoints
+    if (ep.idempotency === "safe") score += 10;
+    // Prefer endpoints with response schemas
+    if (ep.response_schema) {
+      score += 5;
+      // Prefer richer schemas (object with properties, or arrays)
+      if (ep.response_schema.type === "object" && ep.response_schema.properties) {
+        score += Object.keys(ep.response_schema.properties).length;
+      } else if (ep.response_schema.type === "array") {
+        score += 8;
+      }
+    }
+    // Factor in reliability
+    score += ep.reliability_score * 5;
+    return { ep, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].ep;
 }

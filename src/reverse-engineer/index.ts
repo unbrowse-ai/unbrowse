@@ -57,7 +57,7 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
       body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: "unverified",
-      reliability_score: 0,
+      reliability_score: 0.5,
       response_schema,
     });
   }
