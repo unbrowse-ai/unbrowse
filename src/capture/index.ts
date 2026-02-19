@@ -40,6 +40,26 @@ export async function captureSession(
 
   await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
 
+  // Hook page.on('response') to capture JSON response bodies
+  const responseBodies = new Map<string, string>();
+  const MAX_BODY_SIZE = 512 * 1024; // 512KB
+  try {
+    const page = browser.getPage();
+    page.on("response", async (response) => {
+      try {
+        const ct = response.headers()["content-type"] ?? "";
+        if (!ct.includes("application/json") && !ct.includes("+json")) return;
+        const body = await response.body();
+        if (body.length > MAX_BODY_SIZE) return;
+        responseBodies.set(response.url(), body.toString("utf8"));
+      } catch {
+        // Response body may be unavailable for redirects/aborted
+      }
+    });
+  } catch {
+    // page not available — skip body capture
+  }
+
   // Wait for XHR/fetch calls to settle
   await new Promise((r) => setTimeout(r, 2500));
   const trackedRequests = browser.getRequests();
@@ -59,6 +79,7 @@ export async function captureSession(
     request_headers: r.headers,
     response_status: 0,
     response_headers: {},
+    response_body: responseBodies.get(r.url),
     timestamp: new Date(r.timestamp).toISOString(),
   }));
 
