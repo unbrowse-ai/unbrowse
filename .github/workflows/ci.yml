@@ -20,14 +20,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install core dependencies
-        run: npm install --prefix packages/core
+      - name: Install workspace dependencies
+        run: npm install --workspaces --include-workspace-root
 
       - name: Build core package
         run: npm run build --prefix packages/core
-
-      - name: Install plugin dependencies
-        run: npm install --prefix packages/plugin
 
       - name: Build plugin package
         run: npm run build --prefix packages/plugin
