@@ -13,8 +13,9 @@ intent + url
      │
      ▼
 EmergentDB search (domain-scoped or global)
-     │
-     ├─ match found (score ≥ 0.30)
+      ├─ match found (composite score ≥ 0.25)
+      │   ├─ trust-weighted ranking (embedding + reliability + freshness + verification)
+      │   ├─ execute matched skill  ──▶  result
      │   ├─ execute matched skill  ──▶  result
      │
      └─ no match
@@ -102,28 +103,48 @@ Response:
 ### Skills
 
 ```http
-GET  /v1/skills                   # list all skills
-GET  /v1/skills/:skill_id         # get one skill
-POST /v1/skills                   # publish a skill manually
-POST /v1/skills/:skill_id/execute # execute a skill directly
+GET  /v1/skills                                          # list all skills
+GET  /v1/skills/:skill_id                                # get one skill
+POST /v1/skills                                          # publish a skill manually
+POST /v1/skills/:skill_id/execute                        # execute a skill directly
+POST /v1/skills/:skill_id/verify                         # verify skill endpoints
+GET  /v1/skills/:skill_id/endpoints/:endpoint_id/schema  # get endpoint response schema
 ```
+
+Execute supports `confirm_unsafe` and `dry_run` in the request body for mutation safety.
+
+### Authentication
+
+```http
+POST /v1/auth/login
+```
+
+```json
+{ "url": "https://example.com/login" }
+```
+
+Opens a visible browser for the user to complete login. Cookies are captured and stored in the vault, then automatically loaded on subsequent captures and executions for that domain.
 
 ### Feedback
 
 ```http
 POST /v1/feedback
+GET  /v1/feedback/:target_id
 ```
 
 ```json
 {
   "target_type": "skill",
   "target_id": "<skill_id>",
+  "endpoint_id": "<endpoint_id>",
   "execution_trace_id": "<trace_id>",
   "outcome": "success",
   "rating": 5,
   "notes": "worked first try"
 }
 ```
+
+Feedback ratings (1-5) feed into the reliability scoring engine and affect skill ranking.
 
 ### Health
 
@@ -132,6 +153,81 @@ GET /health  →  { "status": "ok" }
 ```
 
 ---
+
+## Trust & Security
+
+### Reliability Scoring
+
+Every endpoint tracks execution statistics (success rate, latency, drift count, consecutive failures). The reliability score is computed using an EMA-based formula:
+
+- **Base**: Success ratio over last 20 executions (alpha=0.15)
+- **Verification bonus**: +0.10 for verified, -0.20 for failed
+- **Feedback adjustment**: `(avg_rating - 3) * 0.05`
+- **Drift penalty**: `-0.05 * min(drift_count, 3)`
+- **Failure penalty**: `-0.10 * min(consecutive_failures, 3)`
+- Clamped to [0, 1]
+
+New endpoints start at 0.5 reliability.
+
+### Trust-Weighted Ranking
+
+When multiple skills match an intent, they're ranked by composite score:
+
+| Weight | Signal | Description |
+|--------|--------|-------------|
+| 40% | Embedding similarity | Semantic match from EmergentDB |
+| 30% | Avg reliability | Mean reliability across endpoints |
+| 15% | Freshness | `1 / (1 + daysSinceUpdate / 30)` |
+| 15% | Verification | 1.0 all verified, 0.5 some, 0.0 none |
+
+### Endpoint Verification
+
+- `POST /v1/skills/:id/verify` — test-execute all safe (GET) endpoints, check 2xx + schema match
+- Periodic verification runs every 6 hours for endpoints not verified in 24h
+- Status: `unverified` → `verified` or `failed`
+
+### Rate Limiting
+
+Per-IP rate limits (in-memory):
+
+| Route | Limit |
+|-------|-------|
+| Global | 100 req/min |
+| `/v1/intent/resolve` | 20/min |
+| `/v1/skills/:id/execute` | 30/min |
+| `POST /v1/skills` | 5/min |
+| `/v1/auth/login` | 3/5min |
+| `/v1/feedback` | 60/min |
+
+Browser launch semaphore: max 3 concurrent browsers.
+
+### Mutation Safety
+
+Non-GET endpoints marked as `unsafe` require explicit confirmation:
+
+```json
+{ "params": {}, "dry_run": true }         // preview what would execute
+{ "params": {}, "confirm_unsafe": true }   // actually execute
+```
+
+Without `confirm_unsafe`, mutations return a `confirmation_required` error.
+
+### Retry Policy
+
+Safe (GET) endpoints are automatically retried on transient failures (500, 502, 503, 504, 429) with exponential backoff (base 1s, max 10s, jitter, max 2 retries).
+
+### Credential Lifecycle
+
+- Credentials stored with `expires_at` / `max_age_ms` — auto-pruned on read
+- On 401/403 during execution, stale credentials are deleted and flagged in the trace
+- Vault uses async mutex to prevent concurrent write races
+- Supports OS keychain (keytar) with AES-256-CBC file fallback
+
+### Cloudflare Detection
+
+- CF challenge pages are detected by HTML markers and excluded from learned skills
+- Clearance cookies (`__cf_bm`, `cf_clearance`) are shared across subdomains during capture
+- ccTLD-aware domain parsing (`.co.uk`, `.com.br`, etc.) for proper cookie scoping
 
 ## Skill manifest
 
@@ -161,27 +257,36 @@ interface SkillManifest {
 
 **Normal skills**: `execution_type="http"` have endpoints that are called directly.
 
-**Normal skills**: `execution_type="http"` have endpoints that are called directly.
 ---
 
 ## Project structure
 
 ```
 src/
-  api/           Fastify routes
-  capture/       agent-browser wrapper (HAR recording, request tracking)
-  discovery/     EmergentDB + Gemini embedding (index & search)
-  execution/     hydrate auth, interpolate templates, call executeInBrowser
-  marketplace/   local JSON skill store, semver versioning, dedup
-  orchestrator/  main flow: search → execute or capture → publish → execute
+  api/              Fastify routes + rate limit config
+  auth/             Interactive browser login + cookie vault
+  capture/          agent-browser wrapper (HAR, request tracking, CF bypass)
+  discovery/        EmergentDB + Gemini embedding (index & search)
+  execution/        auth hydration, interpolation, retry, mutation safety
+  marketplace/      local JSON skill store, semver versioning, dedup
+  orchestrator/     intent resolution: search → execute or capture → learn → execute
+  ratelimit/        per-route rate limiting (@fastify/rate-limit)
   reverse-engineer/ score + filter HAR requests → EndpointDescriptors
-  types/         shared TypeScript types
-  validator/     AJV schema validation (hard errors vs soft warnings)
-  vault/         keytar keychain + AES-256 file fallback
-  index.ts       server entrypoint
-skills/          published skill manifests (gitignored)
-traces/          execution traces + feedback (gitignored)
+  scoring/          reliability scoring engine (EMA-based, stats persistence)
+  transform/        schema inference, projection, drift detection
+  types/            shared TypeScript types
+  validator/        AJV schema validation (hard errors vs soft warnings)
+  vault/            keytar keychain + AES-256 file fallback + async mutex
+  verification/     endpoint health checks + periodic scheduler
+  domain.ts         shared ccTLD-aware domain utilities
+  index.ts          server entrypoint
+skills/             published skill manifests (gitignored)
+stats/              endpoint execution statistics (gitignored)
+traces/             execution traces + feedback (gitignored)
+SKILL.md            OpenClaw agent skill definition
 ```
+
+---
 
 ---
 
@@ -337,6 +442,35 @@ unbrowse ships as a [Claude Code skill](https://docs.anthropic.com/en/docs/claud
 ```
 
 Claude will also auto-invoke it when you say things like "capture this site's API" or "learn how this website works".
+
+---
+
+## OpenClaw integration
+
+unbrowse includes a `SKILL.md` for [OpenClaw](https://github.com/openclaw/openclaw) agent integration. To install:
+
+```bash
+# auto-installed to ~/.openclaw/skills/unbrowse/ on first run
+mkdir -p ~/.openclaw/skills/unbrowse
+cp SKILL.md ~/.openclaw/skills/unbrowse/SKILL.md
+```
+
+Or place the `SKILL.md` in your workspace `skills/` directory. OpenClaw agents can then discover and use unbrowse's REST API to reverse-engineer websites, manage auth, and execute learned skills.
+
+---
+
+## Changelog
+
+### Recent fixes
+
+- **Cookie injection bug**: Cookies were silently dropped when no auth headers were present (nested if-block). Fixed by separating the cookie and header injection code paths.
+- **Domain matching**: Replaced naive `string.includes()` domain matching with proper suffix matching (`isDomainMatch`). `notgoogle.com` no longer matches `google.com`.
+- **ccTLD support**: Parent domain lookups now handle country-code TLDs (`.co.uk`, `.com.br`, etc.) via `getRegistrableDomain()`.
+- **Vault race condition**: Added async mutex to prevent concurrent read-modify-write races on the encrypted credentials file.
+- **Cloudflare detection**: CF challenge pages are detected and excluded from learned skills. CF clearance cookies are shared across subdomains.
+- **Endpoint selection**: Skills now select the best endpoint by intent relevance + schema richness, not just "first safe GET".
+- **Cookie attributes**: Full cookie attributes (secure, httpOnly, sameSite, expires) are preserved through the vault and injected correctly into Playwright.
+- **Stale credentials**: 401/403 responses auto-delete stale vault credentials and flag in the execution trace.
 
 ---
 
