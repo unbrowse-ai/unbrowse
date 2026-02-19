@@ -1,6 +1,6 @@
 {
   "name": "@getfoundry/unbrowse-core",
-  "version": "0.7.10",
+  "version": "0.7.11",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "./dist/index.js",
