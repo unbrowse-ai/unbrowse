@@ -28,6 +28,9 @@ jobs:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
 
+      - name: Install workspace dependencies
+        run: npm install --workspaces --include-workspace-root
+
       - name: Detect extension changes
         id: extension_changes
         shell: bash
@@ -92,13 +95,7 @@ jobs:
           echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
           echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
 
-      - run: npm install --prefix packages/core
-        if: steps.npm_check.outputs.should_publish == 'true'
-
       - run: npm run build --prefix packages/core
-        if: steps.npm_check.outputs.should_publish == 'true'
-
-      - run: npm install --prefix "${PKG_DIR}"
         if: steps.npm_check.outputs.should_publish == 'true'
 
       - run: npm run build --prefix "${PKG_DIR}"
