@@ -6,6 +6,7 @@ export interface CaptureResult {
   requests: RawRequest[];
   har_lineage_id: string;
   domain: string;
+  cookies?: Array<{ name: string; value: string; domain: string; path?: string; httpOnly?: boolean; secure?: boolean }>;
 }
 
 export interface RawRequest {
@@ -55,7 +56,19 @@ export async function captureSession(
     timestamp: new Date(r.timestamp).toISOString(),
   }));
 
-  return { requests, har_lineage_id, domain };
+  // Extract session cookies so callers can persist auth for future executions
+  const ctx = browser.getContext();
+  const rawCookies = ctx ? await ctx.cookies().catch(() => []) : [];
+  const sessionCookies = rawCookies.map((c) => ({
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    path: c.path,
+    httpOnly: c.httpOnly,
+    secure: c.secure,
+  }));
+
+  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined };
 }
 
 export async function executeInBrowser(

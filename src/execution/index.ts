@@ -3,7 +3,7 @@ import { captureSession } from "../capture/index.js";
 import { extractEndpoints } from "../reverse-engineer/index.js";
 import { validateSkillManifest } from "../validator/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { getCredential } from "../vault/index.js";
+import { getCredential, storeCredential } from "../vault/index.js";
 import type { EndpointDescriptor, ExecutionTrace, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 
@@ -43,6 +43,14 @@ async function executeBrowserCapture(
   }
 
   const domain = captured.domain;
+
+  // Persist session cookies so future executions of this skill stay authenticated
+  let auth_profile_ref: string | undefined;
+  if (captured.cookies && captured.cookies.length > 0) {
+    auth_profile_ref = `${domain}-session`;
+    await storeCredential(auth_profile_ref, JSON.stringify({ cookies: captured.cookies }));
+  }
+
   const draft = {
     version: "1.0.0",
     schema_version: "1",
@@ -56,6 +64,7 @@ async function executeBrowserCapture(
     description: `Auto-discovered skill for: ${intent}`,
     owner_type: "agent" as const,
     endpoints,
+    ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
 
   const validation = validateSkillManifest({ ...draft, skill_id: "__validate__" });
