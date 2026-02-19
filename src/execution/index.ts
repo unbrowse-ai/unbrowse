@@ -36,14 +36,25 @@ async function executeBrowserCapture(
   const traceId = nanoid();
   const targetDomain = new URL(url).hostname;
 
-  const captured = await captureSession(url);
+  // Pass credentials through to capture if provided
+  const authHeaders = params.auth_headers as Record<string, string> | undefined;
+  const cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
+
+  const captured = await captureSession(url, authHeaders, cookies);
 
   // Detect auth redirect: final URL domain differs from target
   const finalDomain = (() => {
     try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
   })();
   const AUTH_PROVIDERS = /accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com|facebook\.com/i;
-  if (finalDomain !== targetDomain && AUTH_PROVIDERS.test(finalDomain)) {
+  const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
+
+  // Case 1: Redirected to a different auth provider domain
+  const redirectedToAuth = finalDomain !== targetDomain && AUTH_PROVIDERS.test(finalDomain);
+  // Case 2: Same domain but redirected to a login path (LinkedIn-style)
+  const redirectedToLogin = captured.final_url !== url && LOGIN_PATHS.test(new URL(captured.final_url).pathname);
+
+  if (redirectedToAuth || redirectedToLogin) {
     const trace: ExecutionTrace = {
       trace_id: traceId,
       skill_id: skill.skill_id,
@@ -59,20 +70,39 @@ async function executeBrowserCapture(
         error: "auth_required",
         provider: finalDomain.split(".").slice(-2).join("."),
         login_url: captured.final_url,
-        message: `Site redirected to ${finalDomain} for authentication. Provide auth cookies or headers to capture authenticated endpoints.`,
+        message: `Site requires authentication. Pass auth cookies via params.cookies or auth headers via params.auth_headers.`,
       },
     };
   }
 
   const endpoints = extractEndpoints(captured.requests);
 
-  // Also filter out any endpoints that point to auth provider domains
+  // Filter out auth provider endpoints
   const cleanEndpoints = endpoints.filter((ep) => {
-    try { return !AUTH_PROVIDERS.test(new URL(ep.url_template).hostname); } catch { return true; }
+    try {
+      const host = new URL(ep.url_template).hostname;
+      return !AUTH_PROVIDERS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
+    } catch { return true; }
   });
 
+  // BUG-002 fix: don't publish skills where all endpoints are zero-scored noise
   if (cleanEndpoints.length === 0) {
-    throw new Error(`No API endpoints discovered at ${url}. The site may require authentication.`);
+    const trace: ExecutionTrace = {
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "no_endpoints",
+    };
+    return {
+      trace,
+      result: {
+        error: "no_endpoints",
+        message: `No API endpoints discovered at ${url}. The site may require authentication or only renders server-side.`,
+      },
+    };
   }
 
   const domain = captured.domain;

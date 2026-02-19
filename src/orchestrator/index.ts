@@ -41,7 +41,6 @@ export async function resolveAndExecute(
       "No matching skill found. Pass context.url to trigger live capture and discovery."
     );
   }
-
   const captureSkill = getOrCreateBrowserCaptureSkill();
   const { trace, result, learned_skill } = await executeSkill(captureSkill, {
     ...params,
@@ -49,7 +48,10 @@ export async function resolveAndExecute(
     intent,
   });
 
-  if (!learned_skill) throw new Error("Browser capture did not produce a skill");
+  // Auth-gated site: pass through structured error
+  if (!learned_skill) {
+    return { result, trace, source: "live-capture", skill: captureSkill };
+  }
 
   // 3. Execute the newly learned skill immediately
   const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params);
