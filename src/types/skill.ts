@@ -57,6 +57,7 @@ export interface EndpointDescriptor {
   reliability_score: number;
   last_verified_at?: string;
   signature?: string;
+  response_schema?: ResponseSchema;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -93,6 +94,7 @@ export interface ExecutionTrace {
   error?: string;
   result?: unknown;
   har_lineage_id?: string;
+  drift?: DriftResult;
 }
 
 export interface DiscoveryCandidate {
@@ -101,4 +103,28 @@ export interface DiscoveryCandidate {
   confidence: "high" | "medium" | "low";
   predicted_risk: "safe" | "needs_confirmation";
   skill: SkillManifest;
+}
+
+// --- Response Schema & Projection Types ---
+
+export interface ResponseSchema {
+  type: string;
+  properties?: Record<string, ResponseSchema>;
+  items?: ResponseSchema;
+  required?: string[];
+  anyOf?: ResponseSchema[];
+  inferred_from_samples: number;
+}
+
+export interface ProjectionOptions {
+  fields?: string[];
+  compact?: boolean;
+  max_depth?: number;
+}
+
+export interface DriftResult {
+  drifted: boolean;
+  added_fields: string[];
+  removed_fields: string[];
+  type_changes: Array<{ path: string; was: string; now: string }>;
 }
