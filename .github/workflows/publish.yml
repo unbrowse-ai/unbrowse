@@ -71,7 +71,7 @@ jobs:
             echo "should_publish=${SHOULD_PUBLISH}" >> "$GITHUB_OUTPUT"
             echo "name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
             echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
-            echo "Skipping publish. No changes under packages/plugin."
+            echo "Skipping publish. No changes under packages/core or packages/plugin."
             exit 0
           fi
 
