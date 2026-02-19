@@ -6,6 +6,7 @@ export interface CaptureResult {
   requests: RawRequest[];
   har_lineage_id: string;
   domain: string;
+  final_url: string;
 }
 
 export interface RawRequest {
@@ -41,21 +42,27 @@ export async function captureSession(
 
   // Wait for XHR/fetch calls to settle
   await new Promise((r) => setTimeout(r, 2500));
-
   const trackedRequests = browser.getRequests();
   const domain = new URL(url).hostname;
   const har_lineage_id = nanoid();
+
+  // Detect final URL after redirects (auth walls redirect to login pages)
+  let final_url = url;
+  try {
+    const page = browser.getPage();
+    final_url = page.url();
+  } catch {}
 
   const requests: RawRequest[] = trackedRequests.map((r) => ({
     url: r.url,
     method: r.method,
     request_headers: r.headers,
-    response_status: 0, // TrackedRequest doesn't include response — enriched by HAR
+    response_status: 0,
     response_headers: {},
     timestamp: new Date(r.timestamp).toISOString(),
   }));
 
-  return { requests, har_lineage_id, domain };
+  return { requests, har_lineage_id, domain, final_url };
 }
 
 export async function executeInBrowser(
