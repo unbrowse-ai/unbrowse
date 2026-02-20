@@ -1,1 +1,2 @@
 # Security Policy
+## Reporting Vulnerabilities
