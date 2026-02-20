@@ -1,10 +1,11 @@
 import type { RawRequest } from "../capture/index.js";
 import type { EndpointDescriptor } from "../types/index.js";
+import { inferSchema } from "../transform/index.js";
 import { nanoid } from "nanoid";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html)$/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
-const SKIP_HOSTS = /(cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com)/i;
+const SKIP_HOSTS = /(cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com\/login|facebook\.com\/login|protechts\.net|demdex\.net|litms|platform-telemetry)/i;
 const RPC_HINTS = /(\/$rpc\/|\/rpc\/|graphql|\/api\/|\/v\d+\/|trending|search|data|query|feed|results)/i;
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
@@ -35,7 +36,24 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
     if (seen.has(key)) continue;
     seen.add(key);
 
+    // BUG-008: Detect Cloudflare challenge responses — exclude from skill
+    if (isCloudflareChallenge(req.response_body)) continue;
+
     const isGet = req.method === "GET";
+
+    // Infer response schema from captured body
+    let response_schema = undefined;
+    if (req.response_body) {
+      try {
+        const parsed = JSON.parse(req.response_body);
+        response_schema = inferSchema([parsed]);
+      } catch {
+        // not valid JSON — skip schema inference
+      }
+    }
+
+    // BUG-008: mark endpoints with no response body as potentially CF-blocked
+    const verificationStatus = req.response_body ? "unverified" as const : "pending" as const;
 
     endpoints.push({
       endpoint_id: nanoid(),
@@ -45,8 +63,9 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
       query: isGet ? extractQueryParams(req.url) : undefined,
       body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
       idempotency: isGet ? "safe" : "unsafe",
-      verification_status: "unverified",
-      reliability_score: 0,
+      verification_status: verificationStatus,
+      reliability_score: 0.5,
+      response_schema,
     });
   }
 
@@ -103,4 +122,24 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * BUG-008: Detect Cloudflare challenge/block responses.
+ * CF challenge pages contain distinctive markers in the HTML body.
+ */
+function isCloudflareChallenge(responseBody?: string): boolean {
+  if (!responseBody) return false;
+  const CF_MARKERS = [
+    "cf-error",
+    "challenge-platform",
+    "cf-chl-bypass",
+    "Checking if the site connection is secure",
+    "Enable JavaScript and cookies to continue",
+    "cf_chl_opt",
+    "jschl-answer",
+    "_cf_chl_tk",
+  ];
+  const bodyLower = responseBody.toLowerCase();
+  return CF_MARKERS.some((marker) => bodyLower.includes(marker.toLowerCase()));
 }

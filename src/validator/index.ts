@@ -30,7 +30,7 @@ const ENDPOINT_SCHEMA = {
   required: ["endpoint_id", "method", "url_template", "idempotency", "verification_status", "reliability_score"],
   properties: {
     endpoint_id: { type: "string", minLength: 1 },
-    method: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+    method: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] },
     url_template: { type: "string", minLength: 1, pattern: "^https?://" },
     idempotency: { type: "string", enum: ["safe", "unsafe"] },
     verification_status: { type: "string", enum: ["verified", "unverified", "failed", "pending"] },
