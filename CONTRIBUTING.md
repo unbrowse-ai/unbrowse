@@ -1,1 +1,2 @@
 # Contributing
+## Code Style
