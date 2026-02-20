@@ -44,7 +44,7 @@ export interface Transform {
 
 export interface EndpointDescriptor {
   endpoint_id: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
   url_template: string;
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;
@@ -57,6 +57,7 @@ export interface EndpointDescriptor {
   reliability_score: number;
   last_verified_at?: string;
   signature?: string;
+  response_schema?: ResponseSchema;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -93,6 +94,7 @@ export interface ExecutionTrace {
   error?: string;
   result?: unknown;
   har_lineage_id?: string;
+  drift?: DriftResult;
 }
 
 export interface DiscoveryCandidate {
@@ -101,4 +103,45 @@ export interface DiscoveryCandidate {
   confidence: "high" | "medium" | "low";
   predicted_risk: "safe" | "needs_confirmation";
   skill: SkillManifest;
+}
+
+// --- Response Schema & Projection Types ---
+
+export interface ResponseSchema {
+  type: string;
+  properties?: Record<string, ResponseSchema>;
+  items?: ResponseSchema;
+  required?: string[];
+  anyOf?: ResponseSchema[];
+  inferred_from_samples: number;
+}
+
+export interface ProjectionOptions {
+  fields?: string[];
+  compact?: boolean;
+  max_depth?: number;
+}
+
+export interface DriftResult {
+  drifted: boolean;
+  added_fields: string[];
+  removed_fields: string[];
+  type_changes: Array<{ path: string; was: string; now: string }>;
+}
+
+export interface EndpointStats {
+  total_executions: number;
+  successful_executions: number;
+  consecutive_failures: number;
+  avg_latency_ms: number;
+  feedback_sum: number;
+  feedback_count: number;
+  drift_count: number;
+  last_execution_at?: string;
+  last_success_at?: string;
+}
+
+export interface ExecutionOptions {
+  confirm_unsafe?: boolean;
+  dry_run?: boolean;
 }

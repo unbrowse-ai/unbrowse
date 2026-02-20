@@ -13,6 +13,7 @@
   "typecheck": "tsc --noEmit",
   "dependencies": {
     "@fastify/cors": "^11.2.0",
+    "@fastify/rate-limit": "^10.3.0",
     "@google/genai": "^1.41.0",
     "agent-browser": "^0.11.1",
     "dotenv": "^17.3.1",
