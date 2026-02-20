@@ -1,2 +1,3 @@
 # Getting Started
 ## Installation
+## Configuration
