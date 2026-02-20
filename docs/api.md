@@ -1,1 +1,2 @@
 # API Documentation
+## Authentication
