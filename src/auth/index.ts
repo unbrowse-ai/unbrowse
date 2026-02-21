@@ -20,30 +20,117 @@ export function getProfilePath(domain: string): string {
   return path.join(os.homedir(), ".unbrowse", "profiles", getRegistrableDomain(domain));
 }
 /** Known auth provider hostnames — these are valid mid-flight redirect destinations. */
-const AUTH_PROVIDER_RE = /accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com\/login|facebook\.com\/login/i;
+const AUTH_PROVIDER_RE = /accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com\/login|facebook\.com\/login|login\.salesforce\.com|okta\.com\/login|ping.*\.com\/as\/authorization/i;
+
+/**
+ * Lookup table of known services that redirect unauthenticated users to a
+ * marketing or product page instead of a login flow. Each entry matches on
+ * the redirected hostname OR the target hostname, and returns the direct
+ * sign-in URL to navigate to instead.
+ *
+ * To add a new provider: append an entry with a `match` predicate and a
+ * `signIn` function that returns the correct login URL.
+ */
+const SIGN_IN_PROVIDERS: Array<{
+  match: (redirectedHost: string, targetHost: string) => boolean;
+  signIn: (targetUrl: string) => string;
+}> = [
+  // Google (Calendar, Drive, Gmail, Docs, etc.)
+  {
+    match: (r, t) => r.endsWith("google.com") || t.endsWith("google.com"),
+    signIn: (t) => `https://accounts.google.com/ServiceLogin?continue=${encodeURIComponent(t)}`,
+  },
+  // Microsoft / Office 365 / Teams / Outlook
+  {
+    match: (r, t) =>
+      r.endsWith("microsoft.com") || r.endsWith("microsoftonline.com") ||
+      t.endsWith("microsoft.com") || t.endsWith("office.com") || t.endsWith("live.com"),
+    signIn: (t) => `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?redirect_uri=${encodeURIComponent(t)}`,
+  },
+  // GitHub
+  {
+    match: (r, t) => r.endsWith("github.com") || t.endsWith("github.com"),
+    signIn: (t) => `https://github.com/login?return_to=${encodeURIComponent(new URL(t).pathname)}`,
+  },
+  // Notion
+  {
+    match: (r, t) => r.endsWith("notion.so") || t.endsWith("notion.so"),
+    signIn: () => "https://www.notion.so/login",
+  },
+  // LinkedIn
+  {
+    match: (r, t) => r.endsWith("linkedin.com") || t.endsWith("linkedin.com"),
+    signIn: () => "https://www.linkedin.com/login",
+  },
+  // Twitter / X
+  {
+    match: (r, t) =>
+      r.endsWith("twitter.com") || r.endsWith("x.com") ||
+      t.endsWith("twitter.com") || t.endsWith("x.com"),
+    signIn: () => "https://x.com/i/flow/login",
+  },
+  // Slack
+  {
+    match: (r, t) => r.endsWith("slack.com") || t.endsWith("slack.com"),
+    signIn: () => "https://slack.com/signin",
+  },
+  // Atlassian (Jira, Confluence)
+  {
+    match: (r, t) =>
+      r.endsWith("atlassian.com") || r.endsWith("atlassian.net") ||
+      t.endsWith("atlassian.com") || t.endsWith("atlassian.net"),
+    signIn: () => "https://id.atlassian.com/login",
+  },
+  // Salesforce
+  {
+    match: (r, t) => r.endsWith("salesforce.com") || t.endsWith("salesforce.com"),
+    signIn: () => "https://login.salesforce.com",
+  },
+  // Figma
+  {
+    match: (r, t) => r.endsWith("figma.com") || t.endsWith("figma.com"),
+    signIn: () => "https://www.figma.com/login",
+  },
+  // Airtable
+  {
+    match: (r, t) => r.endsWith("airtable.com") || t.endsWith("airtable.com"),
+    signIn: () => "https://airtable.com/login",
+  },
+  // Dropbox
+  {
+    match: (r, t) => r.endsWith("dropbox.com") || t.endsWith("dropbox.com"),
+    signIn: () => "https://www.dropbox.com/login",
+  },
+  // HubSpot
+  {
+    match: (r, t) => r.endsWith("hubspot.com") || t.endsWith("hubspot.com"),
+    signIn: () => "https://app.hubspot.com/login",
+  },
+];
 
 /**
  * When a site redirects unauthenticated users to a marketing page instead of
- * a login flow (e.g. calendar.google.com → workspace.google.com/products/…),
- * derive the correct direct sign-in URL so the user sees the login prompt.
+ * a login flow, derive the correct direct sign-in URL.
+ * Falls back to probing common login paths on the original target origin.
  */
 function resolveSignInUrl(targetUrl: string, redirectedUrl: string): string {
-  const target = new URL(targetUrl);
-  const redirected = new URL(redirectedUrl);
+  const targetHost = new URL(targetUrl).hostname.toLowerCase();
+  const redirectedHost = new URL(redirectedUrl).hostname.toLowerCase();
 
-  // Google family: any *.google.com redirect → accounts sign-in with continue param
-  if (redirected.hostname.endsWith("google.com") || target.hostname.endsWith("google.com")) {
-    return `https://accounts.google.com/ServiceLogin?continue=${encodeURIComponent(targetUrl)}`;
+  for (const provider of SIGN_IN_PROVIDERS) {
+    if (provider.match(redirectedHost, targetHost)) {
+      return provider.signIn(targetUrl);
+    }
   }
 
-  // Microsoft family: any *.microsoft.com / *.microsoftonline.com redirect
-  if (redirected.hostname.endsWith("microsoft.com") || redirected.hostname.endsWith("microsoftonline.com")) {
-    return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?redirect_uri=${encodeURIComponent(targetUrl)}`;
-  }
-
-  // Generic fallback: try <target-origin>/login
-  return `${target.origin}/login`;
+  // Generic fallback: try common login paths on the original target.
+  // We return the first one; if it's wrong the user can pass the login
+  // URL directly to /v1/auth/login instead of the target URL.
+  const origin = new URL(targetUrl).origin;
+  const commonPaths = ["/login", "/signin", "/sign-in", "/auth/login", "/account/login", "/user/login"];
+  return `${origin}${commonPaths[0]}`; // navigate to /login and let the user correct if needed
 }
+
 
 export interface LoginResult {
   success: boolean;
