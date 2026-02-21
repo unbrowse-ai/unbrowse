@@ -1,4 +1,4 @@
-import { searchIntent, searchIntentInDomain } from "../discovery/index.js";
+import { searchIntent, searchIntentInDomain } from "../client/index.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { executeSkill } from "../execution/index.js";
 import type { ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -62,7 +62,7 @@ export async function resolveAndExecute(
   const ranked: RankedCandidate[] = [];
   for (const c of candidates) {
     const skillId = extractSkillId(c.metadata);
-    const skill = skillId ? getSkill(skillId) : null;
+    const skill = skillId ? await getSkill(skillId) : null;
     if (skill && skill.lifecycle === "active") {
       ranked.push({
         candidate: c,
@@ -85,7 +85,7 @@ export async function resolveAndExecute(
       "No matching skill found. Pass context.url to trigger live capture and discovery."
     );
   }
-  const captureSkill = getOrCreateBrowserCaptureSkill();
+  const captureSkill = await getOrCreateBrowserCaptureSkill();
   const { trace, result, learned_skill } = await executeSkill(captureSkill, {
     ...params,
     url: context.url,
@@ -103,8 +103,8 @@ export async function resolveAndExecute(
   return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill };
 }
 
-function getOrCreateBrowserCaptureSkill(): SkillManifest {
-  const existing = getSkill(BROWSER_CAPTURE_SKILL_ID);
+async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
+  const existing = await getSkill(BROWSER_CAPTURE_SKILL_ID);
   if (existing) return existing;
 
   const now = new Date().toISOString();
@@ -124,7 +124,7 @@ function getOrCreateBrowserCaptureSkill(): SkillManifest {
     updated_at: now,
   };
 
-  publishSkill(skill).catch(() => {});
+  await publishSkill(skill).catch(() => {});
   return skill;
 }
 
