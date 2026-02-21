@@ -13,10 +13,10 @@ Unbrowse is a local service that captures browser network traffic, reverse-engin
 
 ## Server
 
-The unbrowse engine is installed at `~/.agents/skills/unbrowse`. If the server is not running, start it:
+The unbrowse engine is installed at `~/.agents/skills/unbrowse`. If the server is not running, install dependencies and start it:
 
 ```bash
-cd ~/.agents/skills/unbrowse && PORT=6969 bun src/index.ts &
+cd ~/.agents/skills/unbrowse && bun install && PORT=6969 bun src/index.ts &
 ```
 
 Wait 2 seconds for startup, then set the base URL:
