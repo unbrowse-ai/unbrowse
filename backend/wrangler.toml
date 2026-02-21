@@ -1,0 +1,21 @@
+name = "unbrowse-backend"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[vars]
+ENVIRONMENT = "production"
+
+[[kv_namespaces]]
+binding = "SKILLS_KV"
+id = "PLACEHOLDER_SKILLS_KV_ID"
+preview_id = "PLACEHOLDER_SKILLS_KV_PREVIEW_ID"
+
+[[kv_namespaces]]
+binding = "STATS_KV"
+id = "PLACEHOLDER_STATS_KV_ID"
+preview_id = "PLACEHOLDER_STATS_KV_PREVIEW_ID"
+
+# Secrets (set via `wrangler secret put`):
+# - API_KEY
+# - EMERGENTDB_API_KEY
+# - GEMINI_API_KEY
