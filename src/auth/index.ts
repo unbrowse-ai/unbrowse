@@ -31,17 +31,37 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
 
     // Wait for user to complete login — detect navigation back to target domain
     let loggedIn = false;
+    let lastLoggedUrl = "";
+    let pollCount = 0;
+    console.log(`[auth] waiting for login — target domain: ${targetDomain}`);
     while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      pollCount++;
       try {
         const currentUrl = page.url();
-        const currentDomain = new URL(currentUrl).hostname;
-        if (isDomainMatch(currentDomain, targetDomain) || isDomainMatch(targetDomain, currentDomain)) {
+        const currentDomain = new URL(currentUrl).hostname.toLowerCase();
+        const targetNorm = targetDomain.toLowerCase();
+
+        // Log every URL change (not every poll) so output stays readable
+        if (currentUrl !== lastLoggedUrl) {
+          console.log(`[auth] navigated to: ${currentUrl}`);
+          lastLoggedUrl = currentUrl;
+        }
+
+        // Strict check: only match when we are ON the target domain (or a subdomain of
+        // it), NOT when we are on a parent domain (e.g. google.com while target is
+        // calendar.google.com). isDomainMatch is bidirectional and designed for cookie
+        // scope matching — it would fire prematurely on parent domains.
+        const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
+        if (isOnTarget) {
           // Also check we are NOT on a login/auth path anymore
           const path = new URL(currentUrl).pathname;
           const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth)/.test(path);
-          if (!isStillLogin) {
+          if (isStillLogin) {
+            console.log(`[auth] on target domain but path looks like login page: ${path} — still waiting`);
+          } else {
             loggedIn = true;
+            console.log(`[auth] login detected — captured at: ${currentUrl}`);
             break;
           }
         }
@@ -51,8 +71,10 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
     }
 
     if (!loggedIn) {
+      console.log(`[auth] login timeout after ${pollCount} polls — last url: ${lastLoggedUrl}`);
       return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login timeout (120s)" };
     }
+
 
     // Extract cookies from the browser context
     const context = browser.getContext();
