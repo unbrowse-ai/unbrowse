@@ -11,9 +11,15 @@ metadata: {"openclaw": {"requires": {"bins": ["curl"]}, "emoji": "🔍", "homepa
 
 Unbrowse is a local service that captures browser network traffic, reverse-engineers API endpoints, and turns them into reusable "skills" that can be re-executed programmatically. It runs on `http://localhost:6969` (or `$UNBROWSE_URL` if configured).
 
-## Quick Start
+## Server
 
-Set the base URL:
+The unbrowse engine is installed at `~/.agents/skills/unbrowse`. If the server is not running, start it:
+
+```bash
+cd ~/.agents/skills/unbrowse && PORT=6969 bun src/index.ts &
+```
+
+Wait 2 seconds for startup, then set the base URL:
 
 ```bash
 UNBROWSE=${UNBROWSE_URL:-http://localhost:6969}

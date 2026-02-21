@@ -4,21 +4,19 @@ Reverse-engineer any website into reusable API skills. Captures browser traffic,
 
 ## Install
 
+Clone to `~/.agents/skills/unbrowse` (the default location the skill expects):
+
 ```bash
+git clone <repo-url> ~/.agents/skills/unbrowse
+cd ~/.agents/skills/unbrowse
 bun install
-```
-
-## Configure
-
-Copy `.env.example` to `.env` and fill in your keys:
-
-```bash
-cp .env.example .env
+cp .env.example .env  # fill in your API keys
 ```
 
 ## Run
 
 ```bash
+cd ~/.agents/skills/unbrowse
 PORT=6969 bun src/index.ts
 ```
 
@@ -26,7 +24,7 @@ The server starts on `http://localhost:6969`.
 
 ## Usage with Claude Code
 
-Install as a Claude Code skill — the `SKILL.md` provides the interface definition. Claude Code will call the local server's API to capture sites, discover endpoints, and execute learned skills.
+Install the `SKILL.md` as a Claude Code skill. It tells Claude how to call the local server's API to capture sites, discover endpoints, and execute learned skills. The skill expects the engine at `~/.agents/skills/unbrowse`.
 
 ## How it works
 
