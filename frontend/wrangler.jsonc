@@ -34,7 +34,13 @@
 	],
 	"observability": {
 		"enabled": true
-	}
+	},
+	"routes": [
+		{
+			"pattern": "beta.unbrowse.ai/*",
+			"zone_id": "73934a4d815fde770167414fc3ead04b"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

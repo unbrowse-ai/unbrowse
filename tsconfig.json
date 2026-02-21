@@ -16,5 +16,4 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
-}strict: true
-// TypeScript config
+}
