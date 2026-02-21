@@ -153,7 +153,7 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
   try {
     fs.mkdirSync(profileDir, { recursive: true });
     log("auth", `launching headless:false browser with persistent profile`);
-    await browser.launch({ action: "launch", id: nanoid(), headless: false, profile: profileDir });
+    await browser.launch({ action: "launch", id: nanoid(), headless: false, profile: profileDir, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" });
     log("auth", `browser launched — navigating to ${url}`);
     await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
     log("auth", `initial navigation complete`);
@@ -178,10 +178,6 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
     const startTime = Date.now();
 
     // Wait for user to complete login — detect navigation back to target domain
-    let loggedIn = false;
-    let lastLoggedUrl = "";
-    let pollCount = 0;
-    log("auth", `polling every ${POLL_INTERVAL_MS}ms for up to ${LOGIN_TIMEOUT_MS / 1000}s — waiting for target domain: ${targetDomain}`);
     let loggedIn = false;
     let lastLoggedUrl = "";
     let pollCount = 0;

@@ -6,6 +6,9 @@ import { getProfilePath } from "../auth/index.js";
 import { log } from "./logger.js";
 import fs from "node:fs";
 
+// BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
+const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 // Browser launch semaphore: max 3 concurrent browsers
 const MAX_CONCURRENT_BROWSERS = 3;
 let activeBrowsers = 0;
@@ -61,15 +64,13 @@ export async function captureSession(
   if (hasProfile && (!cookies || cookies.length === 0)) {
     try {
       log("capture", `launching with persistent profile: ${profileDir}`);
-      await browser.launch({ action: "launch", id: nanoid(), headless: true, profile: profileDir });
+      await browser.launch({ action: "launch", id: nanoid(), headless: true, profile: profileDir, userAgent: CHROME_UA });
     } catch (err) {
       log("capture", `profile launch failed (${err}), falling back to ephemeral`);
-      await browser.launch({ action: "launch", id: nanoid(), headless: true });
-    }
-      await browser.launch({ action: "launch", id: nanoid(), headless: true });
+      await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
     }
   } else {
-    await browser.launch({ action: "launch", id: nanoid(), headless: true });
+    await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
   }
 
   if (authHeaders && Object.keys(authHeaders).length > 0) {
@@ -132,7 +133,6 @@ export async function captureSession(
   const har_lineage_id = nanoid();
   const har_lineage_id = nanoid();
 
-  // Detect final URL after redirects (auth walls redirect to login pages)
   let final_url = url;
   try {
     const page = browser.getPage();
@@ -178,7 +178,7 @@ export async function executeInBrowser(
   await acquireBrowserSlot();
   try {
   const browser = new BrowserManager();
-  await browser.launch({ action: "launch", id: nanoid(), headless: true });
+  await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
 
   const allHeaders = { ...authHeaders, ...requestHeaders };
   if (Object.keys(allHeaders).length > 0) {
