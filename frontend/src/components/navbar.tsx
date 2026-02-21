@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useTheme } from "@/components/theme-provider";
 
 export function Navbar() {
@@ -10,13 +11,14 @@ export function Navbar() {
     <nav className="glass fixed top-0 inset-x-0 z-50 border-b border-border">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative w-8 h-8">
-            <div className="absolute inset-0 bg-orange-500 rounded-lg rotate-3 group-hover:rotate-6 transition-transform" />
-            <div className="absolute inset-0.5 bg-surface rounded-[5px] flex items-center justify-center">
-              <span className="text-orange-500 font-bold text-sm font-mono">un</span>
-            </div>
-          </div>
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <Image
+            src="/logo.png"
+            alt="unbrowse"
+            width={32}
+            height={32}
+            className="group-hover:scale-105 transition-transform"
+          />
           <span className="font-semibold text-lg tracking-tight">
             unbrowse
           </span>
