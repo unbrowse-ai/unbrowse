@@ -145,3 +145,9 @@ export interface ExecutionOptions {
   confirm_unsafe?: boolean;
   dry_run?: boolean;
 }
+
+export interface ValidationResult {
+  valid: boolean;
+  hardErrors: string[];
+  softWarnings: string[];
+}
