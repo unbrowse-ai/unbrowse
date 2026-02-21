@@ -3,6 +3,7 @@ import { executeCommand } from "agent-browser/dist/actions.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { getProfilePath } from "../auth/index.js";
+import { log } from "./logger.js";
 import fs from "node:fs";
 
 // Browser launch semaphore: max 3 concurrent browsers
@@ -58,13 +59,13 @@ export async function captureSession(
   const hasProfile = fs.existsSync(profileDir);
 
   if (hasProfile && (!cookies || cookies.length === 0)) {
-    // Use persistent profile — auth cookies are already on disk, no injection needed.
-    // Fall back to ephemeral if the profile is locked (concurrent access).
     try {
-      console.log(`[capture] launching with persistent profile: ${profileDir}`);
+      log("capture", `launching with persistent profile: ${profileDir}`);
       await browser.launch({ action: "launch", id: nanoid(), headless: true, profile: profileDir });
     } catch (err) {
-      console.log(`[capture] profile launch failed (${err}), falling back to ephemeral`);
+      log("capture", `profile launch failed (${err}), falling back to ephemeral`);
+      await browser.launch({ action: "launch", id: nanoid(), headless: true });
+    }
       await browser.launch({ action: "launch", id: nanoid(), headless: true });
     }
   } else {
