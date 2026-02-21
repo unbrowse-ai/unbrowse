@@ -1,14 +1,14 @@
 import { executeInBrowser } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import { extractEndpoints } from "../reverse-engineer/index.js";
-import { validateSkillManifest } from "../validator/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import { recordExecution } from "../scoring/index.js";
+import { recordExecution } from "../client/index.js";
+import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
@@ -161,7 +161,7 @@ async function executeBrowserCapture(
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
 
-  const validation = validateSkillManifest({ ...draft, skill_id: "__validate__" });
+  const validation = await validateManifest({ ...draft, skill_id: "__validate__" });
   if (!validation.valid) throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
 
   const learned = await publishSkill(draft);
@@ -320,8 +320,8 @@ export async function executeEndpoint(
     }
   }
 
-  // Record execution for reliability scoring
-  recordExecution(skill.skill_id, endpoint.endpoint_id, trace, updateEndpointScore);
+  // Record execution for reliability scoring (backend handles score update atomically)
+  await recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
   // Apply field projection if requested
   let resultData = data;
