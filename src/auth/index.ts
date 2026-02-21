@@ -2,10 +2,23 @@ import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 import { storeCredential, getCredential } from "../vault/index.js";
 import { nanoid } from "nanoid";
-import { isDomainMatch } from "../domain.js";
+import { isDomainMatch, getRegistrableDomain } from "../domain.js";
+import path from "node:path";
+import os from "node:os";
+import fs from "node:fs";
 
 const LOGIN_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 1_000;
+
+/**
+ * Returns the persistent profile directory for a given domain.
+ * Stored under ~/.unbrowse/profiles/<registrableDomain>.
+ * Exporting so capture/execute can also launch with the profile if needed.
+ */
+export function getProfilePath(domain: string): string {
+  return path.join(os.homedir(), ".unbrowse", "profiles", getRegistrableDomain(domain));
+}
+
 
 export interface LoginResult {
   success: boolean;
@@ -20,16 +33,20 @@ export interface LoginResult {
  */
 export async function interactiveLogin(url: string, domain?: string): Promise<LoginResult> {
   const targetDomain = domain ?? new URL(url).hostname;
+  const profileDir = getProfilePath(targetDomain);
   const browser = new BrowserManager();
 
   console.log(`[auth] interactiveLogin called — url: ${url}, targetDomain: ${targetDomain}`);
+  console.log(`[auth] persistent profile dir: ${profileDir}`);
 
   try {
-    console.log(`[auth] launching headless:false browser`);
-    await browser.launch({ action: "launch", id: nanoid(), headless: false });
+    fs.mkdirSync(profileDir, { recursive: true });
+    console.log(`[auth] launching headless:false browser with persistent profile`);
+    await browser.launch({ action: "launch", id: nanoid(), headless: false, profile: profileDir });
     console.log(`[auth] browser launched — navigating to ${url}`);
     await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
     console.log(`[auth] initial navigation complete`);
+
 
     const page = browser.getPage();
     const startTime = Date.now();

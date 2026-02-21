@@ -2,6 +2,8 @@ import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
+import { getProfilePath } from "../auth/index.js";
+import fs from "node:fs";
 
 // Browser launch semaphore: max 3 concurrent browsers
 const MAX_CONCURRENT_BROWSERS = 3;
@@ -51,7 +53,23 @@ export async function captureSession(
   await acquireBrowserSlot();
   try {
   const browser = new BrowserManager();
-  await browser.launch({ action: "launch", id: nanoid(), headless: true });
+  const domain = new URL(url).hostname;
+  const profileDir = getProfilePath(domain);
+  const hasProfile = fs.existsSync(profileDir);
+
+  if (hasProfile && (!cookies || cookies.length === 0)) {
+    // Use persistent profile — auth cookies are already on disk, no injection needed.
+    // Fall back to ephemeral if the profile is locked (concurrent access).
+    try {
+      console.log(`[capture] launching with persistent profile: ${profileDir}`);
+      await browser.launch({ action: "launch", id: nanoid(), headless: true, profile: profileDir });
+    } catch (err) {
+      console.log(`[capture] profile launch failed (${err}), falling back to ephemeral`);
+      await browser.launch({ action: "launch", id: nanoid(), headless: true });
+    }
+  } else {
+    await browser.launch({ action: "launch", id: nanoid(), headless: true });
+  }
 
   if (authHeaders && Object.keys(authHeaders).length > 0) {
     await browser.setExtraHeaders(authHeaders);
@@ -110,7 +128,7 @@ export async function captureSession(
   } catch { /* context unavailable */ }
 
   const trackedRequests = browser.getRequests();
-  const domain = new URL(url).hostname;
+  const har_lineage_id = nanoid();
   const har_lineage_id = nanoid();
 
   // Detect final URL after redirects (auth walls redirect to login pages)
