@@ -107,7 +107,15 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
   } finally {
     try {
       const context = browser.getContext();
-      if (context) await context.close();
+      if (context) {
+        // context.close() can hang indefinitely when the browser has pending
+        // navigations or in-flight network requests (common after OAuth flows).
+        // Race against a 4s timeout so the HTTP response always returns.
+        await Promise.race([
+          context.close(),
+          new Promise<void>((r) => setTimeout(r, 4000)),
+        ]);
+      }
     } catch {
       // browser may already be closed
     }
