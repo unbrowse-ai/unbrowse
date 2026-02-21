@@ -24,8 +24,7 @@ export function Navbar() {
 
         {/* Nav links */}
         <div className="flex items-center gap-1">
-          <NavLink href="/skills">Skills</NavLink>
-          <NavLink href="/search">Search</NavLink>
+          <NavLink href="/search">Registry</NavLink>
 
           <div className="w-px h-5 bg-border mx-3" />
 

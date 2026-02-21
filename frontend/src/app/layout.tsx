@@ -11,8 +11,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "unbrowse — Skill Registry",
-  description: "Reverse-engineer any website into reusable API skills. Search, discover, and execute learned endpoints.",
+  title: "unbrowse — Collective API intelligence for AI agents",
+  description: "Every website runs on hidden APIs. When one agent discovers an endpoint, every agent can replay it. Search the skill registry or browse to discover new ones.",
 };
 
 export default function RootLayout({
