@@ -96,7 +96,7 @@ async function executeBrowserCapture(
         error: "auth_required",
         provider: getRegistrableDomain(finalDomain),
         login_url: captured.final_url,
-        message: `Site requires authentication. Pass auth cookies via params.cookies or auth headers via params.auth_headers.`,
+        message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
       },
     };
   }

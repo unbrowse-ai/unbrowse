@@ -46,6 +46,38 @@ curl -s -X POST http://localhost:6969/v1/intent/resolve \
   -d '{"intent": "get my upcoming events", "params": {"url": "https://calendar.google.com"}}'
 ```
 
+### How marketing-page redirects are handled
+
+Many sites redirect unauthenticated users to a marketing or product page (e.g. `calendar.google.com` → `workspace.google.com/products/calendar`) instead of a login form. Unbrowse detects this after the initial navigation and automatically redirects the browser to the correct sign-in URL.
+
+Built-in providers:
+
+| Service | Sign-in URL used |
+|---------|-----------------|
+| Google (Calendar, Drive, Gmail…) | `accounts.google.com/ServiceLogin?continue=<target>` |
+| Microsoft / Office 365 / Teams | `login.microsoftonline.com/…` |
+| GitHub | `github.com/login?return_to=<path>` |
+| Notion | `notion.so/login` |
+| LinkedIn | `linkedin.com/login` |
+| Twitter / X | `x.com/i/flow/login` |
+| Slack | `slack.com/signin` |
+| Atlassian (Jira, Confluence) | `id.atlassian.com/login` |
+| Salesforce | `login.salesforce.com` |
+| Figma | `figma.com/login` |
+| Airtable | `airtable.com/login` |
+| Dropbox | `dropbox.com/login` |
+| HubSpot | `app.hubspot.com/login` |
+
+For anything not in this table, unbrowse falls back to `<origin>/login`. If that's wrong, pass the login URL directly instead of the app URL:
+
+```bash
+curl -s -X POST http://localhost:6969/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://app.example.com/auth/sso"}'
+```
+
+To add a new provider, append an entry to `SIGN_IN_PROVIDERS` in `src/auth/index.ts`.
+
 ## Debug logs
 
 All auth and capture activity is logged to:
