@@ -104,6 +104,27 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // POST /v1/feedback — submit execution feedback (proxies to backend)
+  app.post("/v1/feedback", async (req, reply) => {
+    const { skill_id, target_id, endpoint_id, rating, outcome } = req.body as {
+      skill_id?: string;
+      target_id?: string;
+      endpoint_id?: string;
+      rating?: number;
+      outcome?: string;
+    };
+    const resolvedSkillId = skill_id ?? target_id;
+    if (!resolvedSkillId || !endpoint_id || rating == null) {
+      return reply.code(400).send({ error: "skill_id, endpoint_id, and rating required" });
+    }
+    try {
+      const avg_rating = await recordFeedback(resolvedSkillId, endpoint_id, rating);
+      return reply.send({ ok: true, avg_rating });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
   // GET /health
   app.get("/health", async (_req, reply) => reply.send({ status: "ok" }));
 }

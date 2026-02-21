@@ -3,7 +3,7 @@ import { executeCommand } from "agent-browser/dist/actions.js";
 import { storeCredential, getCredential } from "../vault/index.js";
 import { nanoid } from "nanoid";
 import { isDomainMatch, getRegistrableDomain } from "../domain.js";
-import { log } from "./logger.js";
+import { log } from "../logger.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
@@ -274,7 +274,6 @@ export async function interactiveLogin(url: string, domain?: string): Promise<Lo
       log("auth", `error closing browser context: ${err}`);
     }
     log("auth", `done`);
-  }
   }
 }
 

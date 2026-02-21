@@ -3,7 +3,7 @@ import { executeCommand } from "agent-browser/dist/actions.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { getProfilePath } from "../auth/index.js";
-import { log } from "./logger.js";
+import { log } from "../logger.js";
 import fs from "node:fs";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
@@ -130,7 +130,6 @@ export async function captureSession(
   } catch { /* context unavailable */ }
 
   const trackedRequests = browser.getRequests();
-  const har_lineage_id = nanoid();
   const har_lineage_id = nanoid();
 
   let final_url = url;
