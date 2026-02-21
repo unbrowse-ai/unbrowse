@@ -26,25 +26,25 @@ export default function Home() {
                            bg-orange-50 border border-orange-200 rounded-full mb-8">
               <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
               <span className="text-xs font-mono font-medium text-orange-600 tracking-wide uppercase">
-                Skill Registry v0.1
+                Claude Code Skill
               </span>
             </div>
 
             {/* Headline */}
             <h1 className="animate-fade-up stagger-1 text-5xl sm:text-6xl lg:text-7xl
                           font-bold leading-[1.05] tracking-tight">
-              Reverse-engineer
+              One agent browses.
               <br />
-              <span className="gradient-text">any website</span>
-              <br />
-              into API skills
+              <span className="gradient-text">Every agent</span> knows.
             </h1>
 
             {/* Sub */}
             <p className="animate-fade-up stagger-2 mt-6 text-lg sm:text-xl text-text-secondary
                           max-w-xl leading-relaxed">
-              Capture endpoints from live sites, learn their schemas, and replay them
-              on demand. Your credentials never leave your machine.
+              Every website runs on hidden APIs. When one agent discovers an
+              endpoint, it becomes a skill every other agent can replay. No scrapers.
+              No browser automation. Just the actual API calls, shared across
+              every agent on the network.
             </p>
 
             {/* CTAs */}
@@ -59,16 +59,16 @@ export default function Home() {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                Search Skills
+                Search the Registry
               </Link>
               <Link
-                href="/skills"
+                href="#how-it-works"
                 className="inline-flex items-center gap-2 px-7 py-3.5
                            border border-border-strong text-text-primary font-semibold rounded-2xl
                            hover:border-orange-300 hover:bg-orange-50
                            active:scale-[0.98] transition-all"
               >
-                Browse Registry
+                See How It Works
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
@@ -78,38 +78,38 @@ export default function Home() {
 
           {/* Stats row */}
           <div className="animate-fade-up stagger-4 mt-24 grid grid-cols-3 gap-6 max-w-lg">
-            <Stat label="Endpoints" value="API" />
-            <Stat label="Auth" value="Local" />
-            <Stat label="Search" value="Vector" />
+            <Stat label="Not scraped HTML" value="API-level" />
+            <Stat label="Credentials stay yours" value="Local auth" />
+            <Stat label="Grows with every agent" value="Collective" />
           </div>
         </div>
       </section>
 
       {/* How it works */}
-      <section className="relative py-32 bg-surface-sunken border-y border-border">
+      <section id="how-it-works" className="relative py-32 bg-surface-sunken border-y border-border">
         <div className="max-w-7xl mx-auto px-6">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
             How it works
           </h2>
           <p className="text-text-secondary text-lg mb-16 max-w-xl">
-            Three steps from URL to reusable API skill.
+            No scraper to write. No automation to maintain.
           </p>
 
           <div className="grid md:grid-cols-3 gap-8">
             <Step
               n="01"
-              title="Capture"
-              desc="Point unbrowse at any URL. A headless browser loads the page, records all network traffic, and extracts API endpoints."
+              title="Browse"
+              desc="An agent opens any site in a headless browser. Unbrowse captures the real API calls behind every page load, click, and search — the same endpoints the site's own frontend uses."
             />
             <Step
               n="02"
               title="Learn"
-              desc="Endpoints are reverse-engineered into typed skill manifests with schemas, auth profiles, and reliability scores."
+              desc="Each discovered endpoint becomes a typed, versioned skill — with request schemas, auth patterns, and a reliability score. Published to the shared registry for every agent to use."
             />
             <Step
               n="03"
-              title="Execute"
-              desc="Search by natural language intent. The best-matching skill is selected and executed with your local credentials."
+              title="Replay"
+              desc="Any agent searches the registry by intent. If the skill exists, it executes the actual API call directly — no browser needed. If not, an agent browses to discover it, and now everyone has it."
             />
           </div>
         </div>
@@ -119,23 +119,23 @@ export default function Home() {
       <section className="py-32">
         <div className="max-w-7xl mx-auto px-6">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-            Built for privacy
+            Skills are collective. Credentials are not.
           </h2>
           <p className="text-text-secondary text-lg mb-16 max-w-xl">
-            Your credentials never leave your machine. Skills are stored and searched in the cloud.
+            The registry is shared across every agent on the network. Your auth never leaves your machine.
           </p>
 
           <div className="grid md:grid-cols-2 gap-6">
             <ArchCard
-              title="unbrowse backend"
+              title="Shared registry"
               subtitle="Cloud"
-              items={["Skill storage & versioning", "Intent-based search", "Reliability scoring", "Manifest validation"]}
+              items={["Collective skill library", "Semantic intent search", "Community reliability scores", "Typed schema validation"]}
               accent
             />
             <ArchCard
-              title="Local agent"
-              subtitle="Your machine"
-              items={["Browser capture", "Encrypted credential vault", "Cookie & header auth", "Endpoint execution"]}
+              title="Your machine"
+              subtitle="Local"
+              items={["Headless browser capture", "Encrypted credential vault", "Cookie, header & token auth", "Local-only execution"]}
             />
           </div>
         </div>
