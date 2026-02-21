@@ -9,14 +9,14 @@ metadata: {"openclaw": {"requires": {"bins": ["curl"]}, "emoji": "🔍", "homepa
 
 ## Overview
 
-Unbrowse is a local service that captures browser network traffic, reverse-engineers API endpoints, and turns them into reusable "skills" that can be re-executed programmatically. It runs on `http://localhost:3000` (or `$UNBROWSE_URL` if configured).
+Unbrowse is a local service that captures browser network traffic, reverse-engineers API endpoints, and turns them into reusable "skills" that can be re-executed programmatically. It runs on `http://localhost:6969` (or `$UNBROWSE_URL` if configured).
 
 ## Quick Start
 
 Set the base URL:
 
 ```bash
-UNBROWSE=${UNBROWSE_URL:-http://localhost:3000}
+UNBROWSE=${UNBROWSE_URL:-http://localhost:6969}
 ```
 
 ## Core Workflow
