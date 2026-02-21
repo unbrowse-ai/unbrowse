@@ -26,7 +26,7 @@ export async function verifyEndpoint(
     );
 
     if (status < 200 || status >= 300) {
-      updateEndpointScore(skill.skill_id, endpoint.endpoint_id, endpoint.reliability_score, "failed");
+      await updateEndpointScore(skill.skill_id, endpoint.endpoint_id, endpoint.reliability_score, "failed");
       return "failed";
     }
 
@@ -40,16 +40,16 @@ export async function verifyEndpoint(
     }
 
     const newStatus: VerificationStatus = hasCriticalDrift ? "pending" : "verified";
-    updateEndpointScore(skill.skill_id, endpoint.endpoint_id, endpoint.reliability_score, newStatus);
+    await updateEndpointScore(skill.skill_id, endpoint.endpoint_id, endpoint.reliability_score, newStatus);
     // Update last_verified_at
-    const fullSkill = getSkill(skill.skill_id);
+    const fullSkill = await getSkill(skill.skill_id);
     if (fullSkill) {
       const ep = fullSkill.endpoints.find((e) => e.endpoint_id === endpoint.endpoint_id);
       if (ep) ep.last_verified_at = new Date().toISOString();
     }
     return newStatus;
   } catch {
-    updateEndpointScore(skill.skill_id, endpoint.endpoint_id, endpoint.reliability_score, "failed");
+    await updateEndpointScore(skill.skill_id, endpoint.endpoint_id, endpoint.reliability_score, "failed");
     return "failed";
   }
 }
@@ -76,7 +76,7 @@ const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
  */
 export function schedulePeriodicVerification(): ReturnType<typeof setInterval> {
   return setInterval(async () => {
-    const skills = listSkills();
+    const skills = await listSkills();
     const now = Date.now();
     for (const skill of skills) {
       if (skill.lifecycle !== "active") continue;
