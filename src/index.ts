@@ -11,7 +11,7 @@ await app.register(cors, { origin: true });
 await registerRateLimiter(app);
 await registerRoutes(app);
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 6969);
 const host = process.env.HOST ?? "0.0.0.0";
 
 try {
