@@ -55,7 +55,8 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
     endpointCount = Math.round(avgEndpoints * skillCount);
   }
 
-  c.header("Cache-Control", "public, max-age=300");
+  c.header("Cache-Control", "public, max-age=60");
+  c.header("Access-Control-Allow-Origin", "*");
   return c.json({
     skills: skillCount,
     endpoints: endpointCount,
