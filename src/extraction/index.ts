@@ -275,10 +275,10 @@ function getElementSignature($: cheerio.CheerioAPI, $el: cheerio.Cheerio<Cheerio
 function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl>): Record<string, string> {
   const fields: Record<string, string> = {};
 
-  // Extract text from headings
-  $el.find("h1, h2, h3, h4, h5, h6").each((i, h) => {
+  // Extract text from headings (semantic tags + Bootstrap heading classes)
+  $el.find("h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6, [class*='title'], [class*='header-text'], [class*='hearder']").each((i, h) => {
     const text = $(h).text().trim();
-    if (text) fields[i === 0 ? "title" : `heading_${i}`] = text;
+    if (text && text.length < 300) fields[i === 0 ? "title" : `heading_${i}`] = text;
   });
 
   // Extract links
@@ -314,6 +314,17 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
       .text().trim();
     if (priceText) fields["price"] = priceText;
   }
+
+  // Extract metadata spans (dates, citations, info text)
+  $el.find("[class*='date'], [class*='info'], [class*='meta'], [class*='citation'], [class*='addinfo'], time").each((_, s) => {
+    const text = $(s).text().trim();
+    if (text && text.length > 3 && text.length < 200) {
+      // Derive a key from the class name
+      const cls = ($(s).attr("class") ?? "").toLowerCase();
+      const key = cls.match(/(date|citation|info|meta|time|author|category)/)?.[1] ?? "info";
+      if (!fields[key]) fields[key] = text;
+    }
+  });
 
   // Fallback: capture the element's direct text if nothing else matched
   if (Object.keys(fields).length === 0) {
