@@ -171,11 +171,30 @@ All routes go through `localhost:6969`. Local routes are handled directly; marke
 | POST | `/v1/search` | Semantic search for skills (proxied to beta API) |
 | GET | `/health` | Health check |
 
+## Endpoint Selection
+
+When `intent/resolve` returns, the response includes an `available_endpoints` array listing all discovered endpoints. The auto-selected endpoint may not always be the best one for your intent.
+
+**If the result looks wrong** (e.g. you got a config blob, tracking data, or the wrong page), look at `available_endpoints` and re-execute with the correct one:
+
+```bash
+curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
+  -H "Content-Type: application/json" \
+  -d '{"params": {"endpoint_id": "{correct_endpoint_id}"}}'
+```
+
+**How to pick the right endpoint:**
+- Prefer endpoints whose URL path matches your intent (e.g. `/quotes` for quotes, `/api/products` for products)
+- Endpoints with `dom_extraction: true` return structured data extracted from HTML pages
+- Endpoints with `has_schema: true` return structured JSON
+- Avoid endpoints with `/cdn-cgi/`, `/collect`, `/tr/` — these are tracking/infra
+
 ## Rules
 
 1. Always try `intent/resolve` first — it handles the full discover→learn→execute pipeline
-2. If a site returns `auth_required`, use `/v1/auth/login` then retry
-3. Always `dry_run` before executing mutations (non-GET endpoints)
-4. Submit feedback after executions to improve skill reliability scores
-5. Use `jq` to parse JSON responses for clean output
-6. Replace `{skill_id}` and `{endpoint_id}` with actual IDs from previous responses
+2. **Check the result** — if it looks wrong, inspect `available_endpoints` and retry with a specific `endpoint_id`
+3. If a site returns `auth_required`, use `/v1/auth/login` then retry
+4. Always `dry_run` before executing mutations (non-GET endpoints)
+5. Submit feedback after executions to improve skill reliability scores
+6. Use `jq` to parse JSON responses for clean output
+7. Replace `{skill_id}` and `{endpoint_id}` with actual IDs from previous responses
