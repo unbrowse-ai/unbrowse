@@ -16,7 +16,7 @@ const SKIP_TELEMETRY_HOSTS = /(waa-pa\.|signaler-pa\.|appsgrowthpromo-pa\.|ogads
 const SKIP_TELEMETRY_PATHS = /\/(log|logging|telemetry|analytics|beacon|ping|heartbeat|metrics)(\/|$)/i;
 
 // RPC/API path hints — tightened to avoid false positives (BUG-GC-004)
-const RPC_HINTS = /(\/$rpc\/|\/rpc\/|graphql|trending|search|feed|results)/i;
+const RPC_HINTS = /(\/$rpc\/|\/rpc\/|graphql|trending|search|feed|results|batchexecute|\/api\/)/i;
 
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
@@ -83,7 +83,8 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
     let response_schema = undefined;
     if (req.response_body) {
       try {
-        const parsed = JSON.parse(req.response_body);
+        const cleaned = stripJsonPrefix(req.response_body);
+        const parsed = JSON.parse(cleaned);
         response_schema = inferSchema([parsed]);
       } catch {
         // not valid JSON — skip schema inference
@@ -92,6 +93,9 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
 
     // BUG-008: mark endpoints with no response body as potentially CF-blocked
     const verificationStatus = req.response_body ? "unverified" as const : "pending" as const;
+
+    // Skip endpoints with invalid URL templates
+    if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) continue;
 
     endpoints.push({
       endpoint_id: nanoid(),
@@ -134,6 +138,11 @@ function normalizeUrl(rawUrl: string): string {
       .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{id}")
       .replace(/\/\d{4,}/g, "/{id}")
       .replace(/\/[a-f0-9]{24,}/gi, "/{id}");
+    // Preserve queryId param for GraphQL endpoints so different queries aren't deduplicated
+    const queryId = u.searchParams.get("queryId");
+    if (queryId && path.includes("graphql")) {
+      return `${u.origin}${path}?queryId=${queryId}`;
+    }
     return `${u.origin}${path}`;
   } catch {
     return rawUrl;
@@ -169,7 +178,12 @@ function sanitizeHeaders(headers: Record<string, string>): Record<string, string
 
 function isJsonParseable(body?: string): boolean {
   if (!body) return false;
-  try { JSON.parse(body); return true; } catch { return false; }
+  try { JSON.parse(stripJsonPrefix(body)); return true; } catch { return false; }
+}
+
+/** Strip Google/common API JSON prefixes like )]}'\n or )]}\n */
+function stripJsonPrefix(body: string): string {
+  return body.replace(/^\)?\]?\}?'?\s*\n/, "");
 }
 
 function tryParseBody(body: string): Record<string, unknown> | undefined {

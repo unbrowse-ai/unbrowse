@@ -61,12 +61,12 @@ export async function captureSession(
   const profileDir = getProfilePath(domain);
   const hasProfile = fs.existsSync(profileDir);
 
-  if (hasProfile && (!cookies || cookies.length === 0)) {
+  if (hasProfile) {
     try {
-      log("capture", `launching with persistent profile: ${profileDir}`);
-      await browser.launch({ action: "launch", id: nanoid(), headless: true, profile: profileDir, userAgent: CHROME_UA });
+      log("capture", `launching with persistent profile (headed): ${profileDir}`);
+      await browser.launch({ action: "launch", id: nanoid(), headless: false, profile: profileDir, userAgent: CHROME_UA });
     } catch (err) {
-      log("capture", `profile launch failed (${err}), falling back to ephemeral`);
+      log("capture", `profile launch failed (${err}), falling back to headless ephemeral`);
       await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
     }
   } else {
@@ -83,9 +83,8 @@ export async function captureSession(
   await browser.startHarRecording();
   browser.startRequestTracking();
 
-  await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
-
-  // Hook page.on('response') to capture JSON response bodies
+  // Hook page.on('response') BEFORE navigation to capture all response bodies
+  // including XHR/fetch calls made during initial page load
   const responseBodies = new Map<string, string>();
   const MAX_BODY_SIZE = 512 * 1024; // 512KB
   try {
@@ -93,10 +92,21 @@ export async function captureSession(
     page.on("response", async (response) => {
       try {
         const ct = response.headers()["content-type"] ?? "";
-        if (!ct.includes("application/json") && !ct.includes("+json")) return;
+        const respUrl = response.url();
+        // Capture JSON, protobuf, and batch RPC responses (Google batchexecute etc.)
+        const isDataResponse =
+          ct.includes("application/json") ||
+          ct.includes("+json") ||
+          ct.includes("application/x-protobuf") ||
+          ct.includes("text/plain") ||
+          respUrl.includes("batchexecute") ||
+          respUrl.includes("/api/");
+        if (!isDataResponse) return;
+        // Skip static assets
+        if (/\.(js|css|woff2?|png|jpg|svg|ico)(\?|$)/.test(respUrl)) return;
         const body = await response.body();
         if (body.length > MAX_BODY_SIZE) return;
-        responseBodies.set(response.url(), body.toString("utf8"));
+        responseBodies.set(respUrl, body.toString("utf8"));
       } catch {
         // Response body may be unavailable for redirects/aborted
       }
@@ -105,8 +115,10 @@ export async function captureSession(
     // page not available — skip body capture
   }
 
-  // Wait for XHR/fetch calls to settle
-  await new Promise((r) => setTimeout(r, 2500));
+  await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
+
+  // Wait longer for SPA XHR/fetch calls to settle (SPAs like Google Trends need more time)
+  await new Promise((r) => setTimeout(r, 5000));
 
   // BUG-008: Share Cloudflare clearance cookies across subdomains
   try {
@@ -131,6 +143,12 @@ export async function captureSession(
 
   const trackedRequests = browser.getRequests();
   const har_lineage_id = nanoid();
+
+  // Debug: log all captured request URLs and response body map keys
+  log("capture", `tracked ${trackedRequests.length} requests, ${responseBodies.size} response bodies`);
+  for (const [bodyUrl] of responseBodies) {
+    log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
+  }
 
   let final_url = url;
   try {

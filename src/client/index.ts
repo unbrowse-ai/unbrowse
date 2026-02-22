@@ -1,6 +1,6 @@
 import type { EndpointStats, ExecutionTrace, SkillManifest, ValidationResult } from "../types/index.js";
 
-const API_URL = process.env.UNBROWSE_API_URL ?? "http://localhost:8787";
+const API_URL = "https://beta-api.unbrowse.ai";
 const API_KEY = process.env.UNBROWSE_API_KEY ?? "";
 
 async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
