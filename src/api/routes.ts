@@ -29,6 +29,19 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
       const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run });
+
+      // Surface available endpoints so the calling agent can pick a better one
+      const endpoints = result.skill?.endpoints;
+      if (endpoints && endpoints.length > 1) {
+        (result as unknown as Record<string, unknown>).available_endpoints = endpoints.map((ep) => ({
+          endpoint_id: ep.endpoint_id,
+          method: ep.method,
+          url: ep.url_template.length > 120 ? ep.url_template.slice(0, 120) + "..." : ep.url_template,
+          has_schema: !!ep.response_schema,
+          dom_extraction: !!ep.dom_extraction,
+        }));
+      }
+
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });

@@ -44,6 +44,7 @@ export interface CaptureResult {
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; httpOnly?: boolean; secure?: boolean }>;
   final_url: string;
   ws_messages?: CapturedWsMessage[];
+  html?: string;
 }
 
 export interface RawRequest {
@@ -211,9 +212,11 @@ export async function captureSession(
   }
 
   let final_url = url;
+  let html: string | undefined;
   try {
     const page = browser.getPage();
     final_url = page.url();
+    html = await page.content();
   } catch {}
 
   const requests: RawRequest[] = trackedRequests.map((r) => ({
@@ -238,7 +241,7 @@ export async function captureSession(
     secure: c.secure,
   }));
 
-  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined };
+  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html };
   } finally {
     releaseBrowserSlot();
   }
