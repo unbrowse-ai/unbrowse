@@ -3,7 +3,7 @@ import { publishSkill, getSkill } from "../marketplace/index.js";
 import { executeSkill } from "../execution/index.js";
 import type { ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 
-const CONFIDENCE_THRESHOLD = 0.25;
+const CONFIDENCE_THRESHOLD = 0.5;
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 
 export interface OrchestratorResult {
