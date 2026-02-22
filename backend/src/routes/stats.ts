@@ -3,6 +3,7 @@ import type { Env } from "../types.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { incrementAgentExecutions, incrementAgentFeedback, countAgents } from "../services/agents.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
@@ -69,8 +70,10 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
   });
 });
 
-// Public validation — no auth required
+// Public validation — no auth required, rate limited
 export const publicValidateRoutes = new Hono<{ Bindings: Env }>();
+
+publicValidateRoutes.use("/validate", rateLimit({ limit: 20, window: 60, prefix: "validate" }));
 
 publicValidateRoutes.post("/validate", async (c) => {
   const body = await c.req.json();

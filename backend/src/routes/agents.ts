@@ -2,9 +2,13 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { registerAgent, getAgent, listAgents } from "../services/agents.js";
 import { bearerAuth } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 
 // Public agent routes — no auth required
 export const publicAgentRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
+
+// Rate limit: 3 registrations per 5 minutes per IP
+publicAgentRoutes.use("/agents/register", rateLimit({ limit: 3, window: 300, prefix: "register" }));
 
 // POST /v1/agents/register — self-register and get an API key
 publicAgentRoutes.post("/agents/register", async (c) => {

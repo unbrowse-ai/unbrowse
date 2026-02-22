@@ -3,9 +3,13 @@ import type { Env } from "../types.js";
 import { publishSkill, getSkill, listSkills, updateEndpointScore, getEndpointSchema } from "../services/marketplace.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered } from "../services/agents.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 
 // Public read routes — no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
+
+// Rate limit: 10 list requests per 60s, 30 individual skill reads per 60s
+publicSkillRoutes.use("/skills", rateLimit({ limit: 10, window: 60, prefix: "skills-list" }));
 
 // GET /v1/skills — list all
 publicSkillRoutes.get("/skills", async (c) => {
