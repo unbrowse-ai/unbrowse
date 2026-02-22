@@ -5,11 +5,13 @@ import { executeSkill } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, yoloExtract } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback } from "../client/index.js";
+import { recordFeedback, getApiKey } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
+
+const BETA_API_URL = "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
@@ -134,6 +136,26 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // GET /health
   app.get("/health", async (_req, reply) => reply.send({ status: "ok" }));
+
+  // Catch-all proxy: forward unmatched /v1/* routes to beta-api.unbrowse.ai
+  app.all("/v1/*", async (req, reply) => {
+    const key = getApiKey();
+    const upstream = `${BETA_API_URL}${req.url}`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (key) headers["Authorization"] = `Bearer ${key}`;
+
+    try {
+      const res = await fetch(upstream, {
+        method: req.method,
+        headers,
+        body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
+      });
+      const data = await res.json();
+      return reply.code(res.status).send(data);
+    } catch (err) {
+      return reply.code(502).send({ error: `Proxy to beta-api failed: ${(err as Error).message}` });
+    }
+  });
 }
 
 function saveTrace(trace: unknown) {

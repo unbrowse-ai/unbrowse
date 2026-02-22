@@ -29,7 +29,7 @@ function saveConfig(config: UnbrowseConfig): void {
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
-function getApiKey(): string {
+export function getApiKey(): string {
   // Env var takes priority, then cached config
   if (process.env.UNBROWSE_API_KEY) return process.env.UNBROWSE_API_KEY;
   const config = loadConfig();
