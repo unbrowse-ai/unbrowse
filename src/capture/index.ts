@@ -30,12 +30,20 @@ function releaseBrowserSlot(): void {
   if (next) next();
 }
 
+export interface CapturedWsMessage {
+  url: string;
+  direction: "sent" | "received";
+  data: string;
+  timestamp: string;
+}
+
 export interface CaptureResult {
   requests: RawRequest[];
   har_lineage_id: string;
   domain: string;
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; httpOnly?: boolean; secure?: boolean }>;
   final_url: string;
+  ws_messages?: CapturedWsMessage[];
 }
 
 export interface RawRequest {
@@ -115,6 +123,39 @@ export async function captureSession(
     // page not available — skip body capture
   }
 
+  // CDP-based WebSocket capture
+  const wsMessages: CapturedWsMessage[] = [];
+  const wsUrlMap = new Map<string, string>(); // requestId -> url
+  try {
+    const page = browser.getPage();
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Network.enable");
+
+    cdp.on("Network.webSocketCreated", (params: { requestId: string; url: string }) => {
+      wsUrlMap.set(params.requestId, params.url);
+    });
+
+    cdp.on("Network.webSocketFrameReceived", (params: { requestId: string; timestamp: number; response: { payloadData: string } }) => {
+      wsMessages.push({
+        url: wsUrlMap.get(params.requestId) ?? params.requestId,
+        direction: "received",
+        data: params.response.payloadData,
+        timestamp: new Date(params.timestamp * 1000).toISOString(),
+      });
+    });
+
+    cdp.on("Network.webSocketFrameSent", (params: { requestId: string; timestamp: number; response: { payloadData: string } }) => {
+      wsMessages.push({
+        url: wsUrlMap.get(params.requestId) ?? params.requestId,
+        direction: "sent",
+        data: params.response.payloadData,
+        timestamp: new Date(params.timestamp * 1000).toISOString(),
+      });
+    });
+  } catch {
+    // CDP session unavailable — skip WS capture
+  }
+
   await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
 
   // Wait longer for SPA XHR/fetch calls to settle (SPAs like Google Trends need more time)
@@ -178,7 +219,7 @@ export async function captureSession(
     secure: c.secure,
   }));
 
-  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url };
+  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined };
   } finally {
     releaseBrowserSlot();
   }

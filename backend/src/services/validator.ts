@@ -1,12 +1,12 @@
 import type { SkillManifest, ValidationResult } from "../types.js";
 
-const VALID_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+const VALID_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "WS"];
 const VALID_OWNER_TYPES = ["agent", "marketplace", "user"];
 const VALID_LIFECYCLES = ["active", "deprecated", "disabled"];
 const VALID_IDEMPOTENCY = ["safe", "unsafe"];
 const VALID_VERIFICATION = ["verified", "unverified", "failed", "pending"];
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
-const URL_RE = /^https?:\/\//;
+const URL_RE = /^(https?|wss?):\/\//;
 
 export function validateSkillManifest(manifest: unknown): ValidationResult {
   const hardErrors: string[] = [];

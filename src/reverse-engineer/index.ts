@@ -1,13 +1,14 @@
-import type { RawRequest } from "../capture/index.js";
-import type { EndpointDescriptor } from "../types/index.js";
+import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
+import type { EndpointDescriptor, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
 import { nanoid } from "nanoid";
 
-const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html)$/i;
+const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
+const SKIP_PATHS = /\/_next\/static\/|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
 
 // Known infrastructure/auth hosts — never useful as skill endpoints
-const SKIP_HOSTS = /(cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com\/login|facebook\.com\/login|protechts\.net|demdex\.net|litms|platform-telemetry)/i;
+const SKIP_HOSTS = /(cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com\/login|facebook\.com\/login|protechts\.net|demdex\.net|litms|platform-telemetry|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|privy\.io|mypinata\.cloud|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|imagedelivery\.net|cloudflareinsights\.com)/i;
 
 // Google-specific telemetry, ads, and infrastructure subdomains (BUG-GC-004)
 const SKIP_TELEMETRY_HOSTS = /(waa-pa\.|signaler-pa\.|appsgrowthpromo-pa\.|ogads-pa\.|peoplestackwebexperiments-pa\.)/i;
@@ -55,7 +56,7 @@ function scoreRequest(req: RawRequest): number {
   return score;
 }
 
-export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
+export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[]): EndpointDescriptor[] {
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
 
@@ -111,6 +112,48 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
     });
   }
 
+  // Create endpoints from WebSocket messages
+  if (wsMessages && wsMessages.length > 0) {
+    const wsByUrl = new Map<string, CapturedWsMessage[]>();
+    for (const msg of wsMessages) {
+      const arr = wsByUrl.get(msg.url) ?? [];
+      arr.push(msg);
+      wsByUrl.set(msg.url, arr);
+    }
+
+    for (const [wsUrl, msgs] of wsByUrl) {
+      const received = msgs.filter((m) => m.direction === "received");
+      const wsMsgList: WsMessage[] = msgs.map((m) => ({
+        direction: m.direction,
+        data: m.data,
+        timestamp: m.timestamp,
+      }));
+
+      // Try to infer response schema from first few received JSON messages
+      let response_schema = undefined;
+      const jsonSamples: unknown[] = [];
+      for (const m of received.slice(0, 5)) {
+        try {
+          jsonSamples.push(JSON.parse(m.data));
+        } catch { /* not JSON */ }
+      }
+      if (jsonSamples.length > 0) {
+        response_schema = inferSchema(jsonSamples);
+      }
+
+      endpoints.push({
+        endpoint_id: nanoid(),
+        method: "WS",
+        url_template: wsUrl,
+        idempotency: "safe",
+        verification_status: "unverified",
+        reliability_score: jsonSamples.length > 0 ? 0.7 : 0.3,
+        response_schema,
+        ws_messages: wsMsgList,
+      });
+    }
+  }
+
   return endpoints;
 }
 
@@ -118,6 +161,7 @@ function isApiLike(req: RawRequest): boolean {
   if (!ALLOWED_METHODS.has(req.method.toUpperCase())) return false;
   if (SKIP_EXTENSIONS.test(req.url)) return false;
   if (SKIP_JS_BUNDLES.test(req.url)) return false;
+  if (SKIP_PATHS.test(req.url)) return false;
   try {
     const { hostname, pathname } = new URL(req.url);
     if (SKIP_HOSTS.test(hostname)) return false;
@@ -125,6 +169,8 @@ function isApiLike(req: RawRequest): boolean {
     if (SKIP_TELEMETRY_PATHS.test(pathname)) return false;  // BUG-GC-004
     // play.google.com/log is telemetry, not calendar data
     if (hostname === "play.google.com" && pathname.startsWith("/log")) return false;
+    // Skip image CDN paths (coin images, avatars, etc.)
+    if (/\/(coin-image|avatar|profile-image)\//.test(pathname)) return false;
   } catch {
     return false;
   }
