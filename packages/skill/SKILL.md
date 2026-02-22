@@ -77,6 +77,20 @@ curl -s -X POST "$UNBROWSE/v1/auth/login" \
 
 The user completes login in the browser. Cookies are stored in the vault and automatically used for subsequent captures and executions on that domain.
 
+### Yolo Login (use existing Chrome sessions)
+
+If the user is already logged into a site in their main Chrome browser, yolo mode opens Chrome with their real profile — no need to re-login.
+
+**Important: Always ask the user before using yolo mode.** Say: "I'll open your main Chrome browser with all your existing sessions. You'll need to close Chrome first. OK to proceed?"
+
+```bash
+curl -s -X POST "$UNBROWSE/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "yolo": true}'
+```
+
+If the response contains `"Chrome is running"` error, tell the user to close Chrome and retry.
+
 ### After Login, Re-capture
 
 ```bash

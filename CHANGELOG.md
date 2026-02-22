@@ -1,5 +1,14 @@
 # Changelog
 
+## Yolo Mode: Use Main Chrome Profile for Login
+
+- **Yolo login:** `POST /v1/auth/login` now accepts `"yolo": true` to open the user's real Chrome browser with their existing sessions — no re-login needed for sites they're already authenticated on
+- **Chrome detection helpers:** Cross-platform (macOS/Windows/Linux) helpers to find Chrome's profile path, executable, and check if Chrome is running via `SingletonLock`
+- **Safety checks:** Returns clear errors if Chrome isn't installed or is currently running (Playwright can't share the profile lock)
+- **Skill docs updated:** All three SKILL.md files updated with yolo login instructions and the required user consent prompt
+
+---
+
 ## WebSocket Capture, Endpoint Filtering & Validator Fixes
 
 ### WebSocket Support

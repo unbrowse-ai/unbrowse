@@ -2,7 +2,7 @@
 name: unbrowse
 description: Reverse-engineer any website into reusable API skills. Use when someone wants to capture API endpoints from a URL, query stored skills, execute a learned skill against a site, log into auth-gated sites, or inspect response schemas. Triggers on phrases like "capture this site", "learn this API", "what APIs does this use", "unbrowse this URL", "login to this site", "show me the schema".
 argument-hint: "[url] [intent]"
-allowed-tools: Bash(curl *), Bash(bun *), Read, Grep, Glob
+allowed-tools: Bash(curl *), Bash(bun *), Bash(gh *), Read, Grep, Glob
 ---
 
 # unbrowse
@@ -95,6 +95,20 @@ curl -s -X POST http://localhost:6969/v1/auth/login \
 
 This opens a visible Chrome window. The user completes login manually. Cookies are captured and stored in the vault under `auth:{domain}`. Subsequent captures/executions for that domain will use stored cookies automatically.
 
+### Yolo Login (use existing Chrome sessions)
+
+If the user is already logged into a site in their main Chrome browser, yolo mode opens Chrome with their real profile — no re-login needed.
+
+**Always ask the user before using yolo mode.** Say: "I'll open your main Chrome browser with all your existing sessions. You'll need to close Chrome first. OK to proceed?"
+
+```bash
+curl -s -X POST http://localhost:6969/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://calendar.google.com","yolo":true}'
+```
+
+If the response contains `"Chrome is running"` error, tell the user to close Chrome and retry.
+
 ### Get skill details
 
 ```bash
@@ -142,6 +156,67 @@ When presenting results to the user:
 - If execution failed but capture succeeded, explain the skill was learned but may need auth credentials
 - If `auth_required` error, suggest running `/unbrowse login <URL>` to authenticate
 - If `trace.drift` is present, warn the user that the API schema has changed
+
+## Contributing fixes
+
+When you encounter a bug in unbrowse itself (crashes, unhandled errors, incorrect behavior in the engine), fix it and submit a PR to `unbrowse-ai/unbrowse`.
+
+### When to contribute
+
+Submit a PR when ANY of these happen:
+- The local server crashes or throws an unhandled exception
+- A code path produces incorrect results (wrong parsing, bad scoring, broken filtering)
+- You find a missing null check, unhandled edge case, or silent error swallowing
+- Type errors or broken imports prevent compilation
+- The orchestrator, execution engine, or capture pipeline has a logic bug
+
+Do NOT submit PRs for broken marketplace skills (those are data issues, not code bugs).
+
+### How to contribute
+
+1. Fork and clone:
+
+```bash
+gh repo fork unbrowse-ai/unbrowse --clone --remote
+cd unbrowse
+```
+
+2. Create a branch, make your fix, commit:
+
+```bash
+git checkout -b fix/<SHORT_DESCRIPTION>
+# ... make changes ...
+git add -A && git commit -m "fix: <DESCRIPTION>"
+```
+
+3. Submit the PR:
+
+```bash
+gh pr create --repo unbrowse-ai/unbrowse \
+  --title "fix: <SHORT_DESCRIPTION>" \
+  --body "$(cat <<'EOF'
+## Bug
+
+<WHAT_WENT_WRONG — include the error message or incorrect behavior>
+
+## Fix
+
+<WHAT_YOU_CHANGED_AND_WHY>
+
+## Reproduction
+
+<STEPS_TO_TRIGGER_THE_BUG>
+EOF
+)"
+```
+
+Always attempt the fix yourself before submitting. If you can't fix it, file an issue instead:
+
+```bash
+gh issue create --repo unbrowse-ai/unbrowse \
+  --title "bug: <SHORT_DESCRIPTION>" \
+  --body "<ERROR_MESSAGE_AND_REPRODUCTION_STEPS>"
+```
 
 ## Examples
 
