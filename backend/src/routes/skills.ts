@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
-import { publishSkill, getSkill, listSkills, deprecateSkill, updateEndpointScore, getEndpointSchema } from "../services/marketplace.js";
+import { publishSkill, getSkill, listSkills, updateEndpointScore, getEndpointSchema } from "../services/marketplace.js";
 import { validateSkillManifest } from "../services/validator.js";
 
 export const skillRoutes = new Hono<{ Bindings: Env }>();
@@ -31,13 +31,6 @@ skillRoutes.get("/skills/:id", async (c) => {
   const skill = await getSkill(c.env, c.req.param("id"));
   if (!skill) return c.json({ error: "Skill not found" }, 404);
   return c.json(skill);
-});
-
-// DELETE /v1/skills/:id — deprecate
-skillRoutes.delete("/skills/:id", async (c) => {
-  const skill = await deprecateSkill(c.env, c.req.param("id"));
-  if (!skill) return c.json({ error: "Skill not found" }, 404);
-  return c.json({ ok: true, skill_id: skill.skill_id, lifecycle: skill.lifecycle });
 });
 
 // PATCH /v1/skills/:id/endpoints/:eid — update endpoint score/status

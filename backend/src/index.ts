@@ -12,7 +12,7 @@ const app = new Hono<{ Bindings: Env }>();
 // CORS for all routes
 app.use("*", cors({
   origin: "*",
-  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization"],
   maxAge: 86400,
 }));
