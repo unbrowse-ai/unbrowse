@@ -9,7 +9,7 @@ const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 export interface OrchestratorResult {
   result: unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture";
+  source: "marketplace" | "live-capture" | "dom-fallback";
   skill: SkillManifest;
 }
 
@@ -92,15 +92,21 @@ export async function resolveAndExecute(
     intent,
   });
 
-  // Auth-gated site: pass through structured error
-  if (!learned_skill) {
+  // Auth-gated or no data: pass through error
+  if (!learned_skill && !trace.success) {
     return { result, trace, source: "live-capture", skill: captureSkill };
   }
 
-  // 3. Execute the newly learned skill immediately
-  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params, projection, options);
+  // DOM-extracted skill: data already extracted during capture, skip re-execution
+  const isDomSkill = learned_skill?.endpoints.some((ep) => ep.dom_extraction);
+  if (isDomSkill || (!learned_skill && trace.success)) {
+    return { result, trace, source: "dom-fallback", skill: learned_skill ?? captureSkill };
+  }
 
-  return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill };
+  // 3. Execute the newly learned API skill immediately
+  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill!, params, projection, options);
+
+  return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill! };
 }
 
 async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
