@@ -1,5 +1,31 @@
 # Changelog
 
+## Chrome Cookie Extraction, Direct HTTP Execution & CSRF Support
+
+### Chrome Cookie Extraction (macOS)
+- **`extractChromeCookies(domain)`:** Reads cookies directly from Chrome's SQLite database at `~/Library/Application Support/Google/Chrome/Default/Cookies`, decrypts using the Chrome Safe Storage key from macOS Keychain (PBKDF2 + AES-128-CBC)
+- **`yoloExtract(domain)`:** One-call auth — extracts and stores cookies in the vault with yolo flag. No browser launch, no profile locks, instant
+- **Clean filtering:** Only extracts exact domain matches (`.x.com`, `x.com`), rejects cookies with non-printable characters from incomplete decryption
+- **Wired into `/v1/auth/login`:** When `yolo: true` on macOS, uses cookie extraction first before falling back to browser-based login
+
+### Direct HTTP Execution
+- **Skip browser for API calls:** When auth cookies exist and the endpoint URL contains `/api/`, uses `fetch()` directly instead of launching a browser. Eliminates headless detection issues (HeadlessChrome in sec-ch-ua)
+- **Cookie header construction:** Builds cookie header from vault cookies for direct HTTP requests
+
+### CSRF Auto-Injection
+- **`csrf_plan` support:** If an endpoint has a `csrf_plan`, extracts the named cookie and sets it as `x-csrf-token` header
+- **x.com heuristic:** Automatically injects `ct0` cookie as `x-csrf-token` when endpoint uses `x-twitter-auth-type`
+
+### Other Improvements
+- **Fixed vault location:** Changed from `process.cwd()/.vault/` to `~/.unbrowse/vault/` so vault works regardless of server CWD
+- **Endpoint targeting:** Added `endpoint_id` param to `executeSkill` to bypass auto-endpoint selection
+- **URL-safe interpolation:** Query string params are now `encodeURIComponent`-encoded during URL template interpolation
+- **Exported Chrome helpers:** `getMainChromeProfilePath`, `getChromeUserDataDir`, `getChromeExecutablePath` now exported for use by capture module
+- **Yolo flag in vault:** Stored alongside cookies so capture module can detect yolo-authenticated domains
+- **`isYoloAuth(domain)`:** Checks if a domain was authenticated via yolo mode
+
+---
+
 ## Yolo Mode: Use Main Chrome Profile for Login
 
 - **Yolo login:** `POST /v1/auth/login` now accepts `"yolo": true` to open the user's real Chrome browser with their existing sessions — no re-login needed for sites they're already authenticated on

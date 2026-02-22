@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+import { homedir } from "os";
 
 let keytar: typeof import("keytar") | null = null;
 try {
@@ -17,7 +18,8 @@ export interface StoredCredential {
 }
 
 const SERVICE = "unbrowse";
-const VAULT_DIR = join(process.cwd(), ".vault");
+// Use a fixed location so the vault works regardless of server CWD
+const VAULT_DIR = join(homedir(), ".unbrowse", "vault");
 const VAULT_FILE = join(VAULT_DIR, "credentials.enc");
 const KEY_FILE = join(VAULT_DIR, ".key");
 
