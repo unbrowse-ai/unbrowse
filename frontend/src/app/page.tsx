@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
+import { StatsStrip } from "@/components/stats-strip";
 
 export default function Home() {
   return (
@@ -105,72 +106,75 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══ How It Works ═══ */}
-      <section id="how-it-works" className="relative py-28">
-        <div className="max-w-7xl mx-auto px-6">
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-            Browse. Learn. Replay.
-          </h2>
-          <p className="text-text-secondary text-lg mb-14 max-w-lg leading-relaxed">
-            No scraper to write. No automation to maintain. No API docs to read.
-          </p>
-
-          <div className="grid md:grid-cols-3 gap-5">
-            <Step
-              n="01"
-              title="Browse"
-              desc="An agent opens any site in a headless browser. Unbrowse captures every API call — the same endpoints the site's own frontend uses."
-              icon={<EyeIcon />}
-            />
-            <Step
-              n="02"
-              title="Learn"
-              desc="Each endpoint automatically becomes a typed, versioned skill with request schemas and auth patterns. Instantly indexed for every agent."
-              icon={<SparkleIcon />}
-            />
-            <Step
-              n="03"
-              title="Replay"
-              desc="Any agent searches by intent. Found a match? Execute the API directly — no browser. No match? Browse to discover it, and now every agent has it."
-              icon={<BoltIcon />}
-              featured
-            />
-          </div>
+      {/* ═══ Live Stats ═══ */}
+      <section className="py-14 border-b border-border">
+        <div className="max-w-4xl mx-auto px-6">
+          <StatsStrip />
         </div>
       </section>
 
-      {/* ═══ Architecture ═══ */}
-      <section className="py-24 border-y border-border">
+      {/* ═══ Save Money, Save Time, Make More Money ═══ */}
+      <section id="how-it-works" className="relative py-28">
         <div className="max-w-7xl mx-auto px-6">
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-            Skills are collective. Credentials are not.
-          </h2>
-          <p className="text-text-secondary text-lg mb-12 max-w-lg leading-relaxed">
-            The index is shared across every agent. Your auth never leaves your machine.
-          </p>
+          <div className="grid lg:grid-cols-3 gap-5">
 
-          <div className="grid md:grid-cols-2 gap-5">
-            <ArchCard
-              title="Shared index"
-              subtitle="Cloud"
-              items={[
-                "Collective skill library",
-                "Semantic intent search",
-                "Community reliability scores",
-                "Typed schema validation",
-              ]}
-              accent
-            />
-            <ArchCard
-              title="Your machine"
-              subtitle="Local"
-              items={[
-                "Headless browser capture",
-                "Encrypted credential vault",
-                "Cookie, header & token auth",
-                "Local-only execution",
-              ]}
-            />
+            {/* Save Money */}
+            <div className="group relative p-7 rounded-2xl border border-border bg-surface hover:border-orange-300 transition-all">
+              <div className="font-mono text-xs text-orange-500/70 font-bold mb-5">01</div>
+              <h3 className="text-xl font-bold mb-3">Slash your AI costs</h3>
+              <p className="text-text-secondary text-sm leading-relaxed mb-6">
+                Browser automation feeds entire pages of HTML to your LLM. Unbrowse
+                feeds it a clean JSON response. Same data, fraction of the tokens.
+              </p>
+              <div className="flex items-baseline gap-3 pt-5 border-t border-border">
+                <span className="text-3xl font-bold font-mono gradient-text">40x</span>
+                <span className="text-sm text-text-muted">fewer tokens per action</span>
+              </div>
+              <div className="mt-3 text-xs text-text-muted leading-relaxed">
+                <span className="text-red-400/80 line-through">~8,000 tokens</span> parsing DOM
+                <span className="mx-1.5 text-text-muted">&rarr;</span>
+                <span className="text-emerald-400">~200 tokens</span> structured JSON
+              </div>
+            </div>
+
+            {/* Save Time */}
+            <div className="group relative p-7 rounded-2xl border border-orange-500/25 bg-gradient-to-br from-orange-500/5 to-surface shadow-lg shadow-glow">
+              <div className="font-mono text-xs text-orange-500/70 font-bold mb-5">02</div>
+              <h3 className="text-xl font-bold text-orange-500 mb-3">Ship agents 100x faster</h3>
+              <p className="text-text-secondary text-sm leading-relaxed mb-6">
+                A headless browser takes 5–30 seconds per page. A direct API call takes
+                50–200ms. Your agents stop waiting and start doing.
+              </p>
+              <div className="flex items-baseline gap-3 pt-5 border-t border-orange-500/15">
+                <span className="text-3xl font-bold font-mono gradient-text">100x</span>
+                <span className="text-sm text-text-muted">faster execution</span>
+              </div>
+              <div className="mt-3 text-xs text-text-muted leading-relaxed">
+                <span className="text-red-400/80 line-through">5–30s</span> browser render
+                <span className="mx-1.5 text-text-muted">&rarr;</span>
+                <span className="text-emerald-400">50–200ms</span> API call
+              </div>
+            </div>
+
+            {/* Make More Money */}
+            <div className="group relative p-7 rounded-2xl border border-border bg-surface hover:border-orange-300 transition-all">
+              <div className="font-mono text-xs text-orange-500/70 font-bold mb-5">03</div>
+              <h3 className="text-xl font-bold mb-3">Build what wasn&apos;t possible</h3>
+              <p className="text-text-secondary text-sm leading-relaxed mb-6">
+                When your agent can call any website&apos;s API in milliseconds, you can build
+                products that orchestrate dozens of services in a single workflow.
+              </p>
+              <div className="flex items-baseline gap-3 pt-5 border-t border-border">
+                <span className="text-3xl font-bold font-mono gradient-text">Any</span>
+                <span className="text-sm text-text-muted">website becomes an API</span>
+              </div>
+              <div className="mt-3 text-xs text-text-muted leading-relaxed">
+                No API docs needed. No partnerships.
+                <br />
+                If a site has a frontend, you have its API.
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -198,7 +202,7 @@ export default function Home() {
               Search the Registry
             </Link>
             <a
-              href="https://github.com/anthropics/unbrowse"
+              href="https://github.com/getfoundry/unbrowse"
               target="_blank"
               rel="noopener"
               className="inline-flex items-center gap-2 px-8 py-4
@@ -218,12 +222,25 @@ export default function Home() {
       {/* ═══ Footer ═══ */}
       <footer className="border-t border-border py-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5 text-text-muted text-sm">
-            <Image src="/logo.png" alt="unbrowse" width={20} height={20} />
-            <span className="font-semibold text-text-secondary">unbrowse</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5 text-text-muted text-sm">
+              <Image src="/logo.png" alt="unbrowse" width={20} height={20} />
+              <span className="font-semibold text-text-secondary">unbrowse</span>
+            </div>
+            <div className="w-px h-5 bg-border" />
+            <a href="https://www.nvidia.com/en-us/startups/" target="_blank" rel="noopener"
+               className="inline-block rounded-md bg-white px-2 py-1 hover:opacity-80 transition-opacity">
+              <Image
+                src="/nvidia-inception.png"
+                alt="NVIDIA Inception Program"
+                width={88}
+                height={34}
+                className="block"
+              />
+            </a>
           </div>
           <div className="flex items-center gap-6 text-sm text-text-muted">
-            <a href="https://github.com/anthropics/unbrowse" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">GitHub</a>
+            <a href="https://github.com/getfoundry/unbrowse" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">GitHub</a>
             <Link href="/search" className="hover:text-orange-500 transition-colors">Registry</Link>
             <Link href="/privacy" className="hover:text-orange-500 transition-colors">Privacy</Link>
             <a href="https://x.com/getFoundry" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">@getFoundry</a>
@@ -234,85 +251,3 @@ export default function Home() {
   );
 }
 
-/* ═══ Components ═══ */
-
-function Step({ n, title, desc, icon, featured }: {
-  n: string; title: string; desc: string; icon: React.ReactNode; featured?: boolean;
-}) {
-  return (
-    <div className={`group relative p-7 rounded-2xl border transition-all duration-300 cursor-pointer
-      ${featured
-        ? "bg-gradient-to-br from-orange-500/8 to-surface border-orange-500/25 shadow-lg shadow-glow"
-        : "bg-surface border-border hover:border-orange-300 hover:shadow-lg hover:shadow-glow"
-      }`}
-    >
-      <div className="flex items-center justify-between mb-5">
-        <span className="font-mono text-xs text-orange-500/70 font-bold">{n}</span>
-        <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500">
-          {icon}
-        </div>
-      </div>
-      <h3 className={`text-lg font-bold mb-2 transition-colors
-        ${featured ? "text-orange-500" : "group-hover:text-orange-500"}`}>
-        {title}
-      </h3>
-      <p className="text-text-secondary text-sm leading-relaxed">{desc}</p>
-    </div>
-  );
-}
-
-function ArchCard({ title, subtitle, items, accent }: {
-  title: string; subtitle: string; items: string[]; accent?: boolean;
-}) {
-  return (
-    <div className={`relative p-7 rounded-2xl border overflow-hidden
-      ${accent
-        ? "bg-gradient-to-br from-orange-500/5 to-surface border-orange-500/20"
-        : "bg-surface border-border"}
-    `}>
-      {accent && (
-        <div className="absolute -top-16 -right-16 w-48 h-48 bg-orange-500/5 rounded-full blur-2xl" />
-      )}
-      <div className="relative">
-        <span className="font-mono text-[11px] text-text-muted uppercase tracking-wider">{subtitle}</span>
-        <h3 className="text-lg font-bold mt-1 mb-5">{title}</h3>
-        <ul className="space-y-2.5">
-          {items.map((item) => (
-            <li key={item} className="flex items-center gap-3 text-sm text-text-secondary">
-              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0
-                ${accent ? "bg-orange-500" : "bg-border-strong"}`} />
-              {item}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-/* ═══ Icons ═══ */
-
-function EyeIcon() {
-  return (
-    <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-    </svg>
-  );
-}
-
-function SparkleIcon() {
-  return (
-    <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-    </svg>
-  );
-}
-
-function BoltIcon() {
-  return (
-    <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-    </svg>
-  );
-}

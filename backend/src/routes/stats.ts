@@ -3,6 +3,68 @@ import type { Env } from "../types.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { validateSkillManifest } from "../services/validator.js";
 
+// Public stats — no auth required
+export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
+
+// GET /v1/stats/summary — aggregated counts for the landing page
+publicStatsRoutes.get("/stats/summary", async (c) => {
+  let skillCount = 0;
+  let endpointCount = 0;
+  const domainSet = new Set<string>();
+  let cursor: string | undefined;
+
+  do {
+    const list = await c.env.SKILLS_KV.list({ prefix: "skill:", limit: 1000, cursor });
+    skillCount += list.keys.length;
+
+    const samplesToRead = list.keys.slice(0, 50);
+    const reads = await Promise.all(
+      samplesToRead.map((k) => c.env.SKILLS_KV.get(k.name, "json"))
+    );
+    for (const skill of reads) {
+      if (skill && typeof skill === "object") {
+        const s = skill as { endpoints?: unknown[]; domain?: string };
+        endpointCount += s.endpoints?.length ?? 0;
+        if (s.domain) domainSet.add(s.domain);
+      }
+    }
+
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+
+  // Count total executions
+  let totalExecutions = 0;
+  let statsCursor: string | undefined;
+  do {
+    const list = await c.env.STATS_KV.list({ prefix: "stats:", limit: 1000, cursor: statsCursor });
+    const reads = await Promise.all(
+      list.keys.slice(0, 100).map((k) => c.env.STATS_KV.get(k.name, "json"))
+    );
+    for (const stat of reads) {
+      if (stat && typeof stat === "object") {
+        totalExecutions += (stat as { total_executions?: number }).total_executions ?? 0;
+      }
+    }
+    statsCursor = list.list_complete ? undefined : list.cursor;
+  } while (statsCursor);
+
+  // Extrapolate endpoint count if we only sampled a subset
+  const sampledSkills = Math.min(skillCount, 50);
+  if (sampledSkills > 0 && sampledSkills < skillCount) {
+    const avgEndpoints = endpointCount / sampledSkills;
+    endpointCount = Math.round(avgEndpoints * skillCount);
+  }
+
+  c.header("Cache-Control", "public, max-age=300");
+  return c.json({
+    skills: skillCount,
+    endpoints: endpointCount,
+    domains: domainSet.size,
+    executions: totalExecutions,
+  });
+});
+
+// Protected stats — require auth
 export const statsRoutes = new Hono<{ Bindings: Env }>();
 
 // POST /v1/stats/execution — record execution + recompute score

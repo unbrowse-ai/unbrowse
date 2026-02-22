@@ -59,6 +59,18 @@ export async function getSkill(id: string): Promise<SkillManifest | null> {
   }
 }
 
+export interface StatsSummary {
+  skills: number;
+  endpoints: number;
+  domains: number;
+  executions: number;
+}
+
+export async function getStatsSummary(): Promise<StatsSummary> {
+  const data = await api<StatsSummary>("GET", "/v1/stats/summary");
+  return data;
+}
+
 export async function searchSkills(intent: string, domain?: string): Promise<SearchResult[]> {
   const path = domain ? "/v1/search/domain" : "/v1/search";
   const body = domain ? { intent, domain } : { intent };
