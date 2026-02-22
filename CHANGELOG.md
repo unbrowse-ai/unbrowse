@@ -1,5 +1,33 @@
 # Changelog
 
+## Documentation: Surface Marketplace & Community Features
+
+SKILL.md, README.md, and packages/skill/README.md previously described unbrowse as a local-only tool. Updated all docs to surface the shared marketplace architecture.
+
+### SKILL.md
+- Rewrote overview to describe marketplace-first architecture
+- Added "How Intent Resolution Works" section (orchestrator priority chain, composite scoring)
+- Added "Reporting Issues" section with API example and category list
+- Added "Endpoint Selection" section (merged from packages/skill variant)
+- Added `/v1/search/domain` and issue routes to API reference table
+- Removed "(proxied to beta API)" noise from route table
+- Expanded feedback section to explain auto-deprecation consequences
+- Added rule about issue reporting
+
+### README.md
+- Added "How it works" section explaining local + marketplace hybrid architecture
+- Added "Architecture" section covering backend components (KV, EmergentDB, Gemini, Unkey, scoring)
+- Added "Marketplace" section covering discovery, lifecycle, reliability scoring, issues, agents
+- Added `~/.unbrowse/config.json` to data directories
+- Added `UNBROWSE_API_KEY` to environment variables
+
+### packages/skill/
+- Updated README.md opening description and "How it works" to mention shared marketplace
+- Added "Marketplace" section with auto-registration details
+- Converted SKILL.md to symlink pointing to root SKILL.md (single source of truth)
+
+---
+
 ## DOM Fallback Extraction
 
 When no API endpoints are discovered (SSR sites, static pages, JS-rendered content with no XHR), unbrowse now automatically falls back to extracting structured data from the rendered DOM.
