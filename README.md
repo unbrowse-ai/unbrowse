@@ -1,6 +1,6 @@
 # unbrowse-skill
 
-Reverse-engineer any website into reusable API skills, backed by a shared marketplace. Skills discovered by any agent are available to all.
+Analyze any website's network traffic and turn it into reusable API skills, backed by a shared marketplace. Skills discovered by any agent are available to all.
 
 ## Install
 

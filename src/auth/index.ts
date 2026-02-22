@@ -361,20 +361,17 @@ export async function interactiveLogin(
 
     return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
   } finally {
-    log("auth", `closing browser context (4s timeout)`);
+    log("auth", `closing browser (4s timeout)`);
     try {
-      const context = browser.getContext();
-      if (context) {
-        // context.close() can hang indefinitely when the browser has pending
-        // navigations or in-flight network requests (common after OAuth flows).
-        // Race against a 4s timeout so the HTTP response always returns.
-        await Promise.race([
-          context.close(),
-          new Promise<void>((r) => setTimeout(r, 4000)),
-        ]);
-      }
+      // browser.close() shuts down the entire browser process (all contexts + pages).
+      // context.close() alone leaves the Chromium process orphaned, holding the
+      // profile SingletonLock and preventing subsequent launches.
+      await Promise.race([
+        browser.close(),
+        new Promise<void>((r) => setTimeout(r, 4000)),
+      ]);
     } catch (err) {
-      log("auth", `error closing browser context: ${err}`);
+      log("auth", `error closing browser: ${err}`);
     }
     log("auth", `done`);
   }

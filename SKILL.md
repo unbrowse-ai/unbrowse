@@ -1,6 +1,6 @@
 ---
 name: unbrowse
-description: Reverse-engineer any website into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents. Capture network traffic, discover endpoints, learn API patterns, execute learned skills, and manage auth for gated sites. Use when someone wants to scrape structured data from a website, discover hidden APIs, automate web interactions, or bypass the need for official API documentation.
+description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents. Capture network traffic, discover API endpoints, learn patterns, execute learned skills, and manage auth for gated sites. Use when someone wants to extract structured data from a website, discover API endpoints, automate web interactions, or work without official API documentation.
 user-invocable: true
 metadata: {"openclaw": {"requires": {"bins": ["curl"]}, "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
 ---

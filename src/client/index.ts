@@ -154,10 +154,12 @@ export async function recordExecution(
   endpointId: string,
   trace: ExecutionTrace
 ): Promise<void> {
+  // Strip actual API response data — only send metadata for scoring
+  const { result: _result, ...metadata } = trace;
   await api("POST", "/v1/stats/execution", {
     skill_id: skillId,
     endpoint_id: endpointId,
-    trace,
+    trace: metadata,
   }, true);
 }
 
