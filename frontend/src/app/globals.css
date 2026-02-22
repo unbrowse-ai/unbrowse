@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* ═══ Fonetika Font ═══ */
+@font-face {
+  font-family: 'Fonetika';
+  src: url('/fonts/Fonetika-Regular.otf') format('opentype'),
+       url('/fonts/Fonetika-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ═══ Orange/White Theme ═══ */
 :root {
   --orange-50: #FFF8F0;
@@ -68,6 +78,7 @@
   --color-glow: var(--glow);
   --font-sans: var(--font-google-sans);
   --font-mono: var(--font-jetbrains-mono);
+  --font-display: 'Fonetika', var(--font-google-sans);
 }
 
 /* ═══ Base ═══ */
@@ -143,6 +154,11 @@ body::before {
 .stagger-4 { animation-delay: 0.4s; }
 .stagger-5 { animation-delay: 0.5s; }
 .stagger-6 { animation-delay: 0.6s; }
+
+/* ═══ Display Font ═══ */
+h1, h2, .font-display {
+  font-family: var(--font-display, 'Fonetika'), system-ui, sans-serif;
+}
 
 /* ═══ Utility ═══ */
 .gradient-text {
