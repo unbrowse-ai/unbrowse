@@ -1,7 +1,7 @@
 export type SkillLifecycle = "active" | "deprecated" | "disabled";
 export type OwnerType = "agent" | "marketplace" | "user";
 export type Idempotency = "safe" | "unsafe";
-export type VerificationStatus = "verified" | "unverified" | "failed" | "pending";
+export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
 
 export interface AuthProfile {
   oauth_type?: string;
