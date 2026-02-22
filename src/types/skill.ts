@@ -65,6 +65,11 @@ export interface EndpointDescriptor {
   last_verified_at?: string;
   signature?: string;
   response_schema?: ResponseSchema;
+  /** When set, endpoint returns HTML — apply DOM extraction with this config */
+  dom_extraction?: {
+    extraction_method: string;
+    confidence: number;
+  };
 }
 
 export type ExecutionType = "http" | "browser-capture";

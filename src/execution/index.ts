@@ -13,6 +13,7 @@ import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
+import { extractFromDOM } from "../extraction/index.js";
 
 export interface ExecutionResult {
   trace: ExecutionTrace;
@@ -133,25 +134,6 @@ async function executeBrowserCapture(
     } catch { return true; }
   });
 
-  if (cleanEndpoints.length === 0) {
-    const trace: ExecutionTrace = {
-      trace_id: traceId,
-      skill_id: skill.skill_id,
-      endpoint_id: "browser-capture",
-      started_at: startedAt,
-      completed_at: new Date().toISOString(),
-      success: false,
-      error: "no_endpoints",
-    };
-    return {
-      trace,
-      result: {
-        error: "no_endpoints",
-        message: `No API endpoints discovered at ${url}. The site may require authentication or only renders server-side.`,
-      },
-    };
-  }
-
   const domain = captured.domain;
 
   // Persist session cookies so future executions of this skill stay authenticated
@@ -166,6 +148,92 @@ async function executeBrowserCapture(
     const vaultKey = `auth:${targetDomain}`;
     const hasStoredAuth = (await getCredential(vaultKey)) != null;
     if (hasStoredAuth) auth_profile_ref = vaultKey;
+  }
+
+  if (cleanEndpoints.length === 0) {
+    // DOM fallback: extract structured data from rendered page, learn a DOM skill
+    if (captured.html) {
+      const extracted = extractFromDOM(captured.html, intent);
+      if (extracted.data && extracted.confidence > 0.2) {
+        // Build a DOM skill: a GET endpoint for the page URL with extraction mapping
+        const domEndpoint: EndpointDescriptor = {
+          endpoint_id: nanoid(),
+          method: "GET",
+          url_template: url,
+          idempotency: "safe" as const,
+          verification_status: "verified" as const,
+          reliability_score: extracted.confidence,
+          dom_extraction: {
+            extraction_method: extracted.extraction_method,
+            confidence: extracted.confidence,
+          },
+        };
+
+        const domDraft = {
+          skill_id: nanoid(),
+          version: "1.0.0",
+          schema_version: "1",
+          lifecycle: "active" as const,
+          execution_type: "http" as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          name: `${domain} -- ${intent}`,
+          intent_signature: intent,
+          domain,
+          description: `DOM-extracted skill for: ${intent}`,
+          owner_type: "agent" as const,
+          endpoints: [domEndpoint],
+          ...(auth_profile_ref ? { auth_profile_ref } : {}),
+        };
+
+        let learned: SkillManifest | undefined;
+        try {
+          const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
+          if (validation.valid) {
+            learned = await publishSkill(domDraft);
+          }
+        } catch { /* publish failure is non-fatal */ }
+
+        const trace: ExecutionTrace = {
+          trace_id: traceId,
+          skill_id: learned?.skill_id ?? skill.skill_id,
+          endpoint_id: domEndpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: true,
+          result: extracted.data,
+        };
+        return {
+          trace,
+          result: {
+            data: extracted.data,
+            _extraction: {
+              method: extracted.extraction_method,
+              confidence: extracted.confidence,
+              source: "dom-fallback",
+            },
+          },
+          learned_skill: learned,
+        };
+      }
+    }
+
+    const trace: ExecutionTrace = {
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "no_endpoints",
+    };
+    return {
+      trace,
+      result: {
+        error: "no_endpoints",
+        message: `No API endpoints or structured DOM data found at ${url}. The site may require authentication.`,
+      },
+    };
   }
 
   // Strip WS endpoints — backend validator/publisher doesn't support WS method yet
@@ -439,6 +507,23 @@ export async function executeEndpoint(
     }
   }
 
+  // HTML→JSON post-processing: if the endpoint returned HTML instead of JSON,
+  // pipe it through DOM extraction to produce structured data
+  if (trace.success && typeof data === "string" && isHtml(data)) {
+    const extracted = extractFromDOM(data, skill.intent_signature);
+    if (extracted.data && extracted.confidence > 0.2) {
+      data = {
+        data: extracted.data,
+        _extraction: {
+          method: extracted.extraction_method,
+          confidence: extracted.confidence,
+          source: "html-postprocess",
+        },
+      };
+      trace.result = data;
+    }
+  }
+
   // Record execution for reliability scoring (backend handles score update atomically)
   await recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
@@ -497,10 +582,12 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
 
   // Filter out noise endpoints (HEAD, OPTIONS, tracking, CSP, static assets)
   const NOISE_PATTERNS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts)/i;
+  const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|png|jpg|jpeg|gif|svg|ico|webp|avif)(\?|$)/i;
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
     if (NOISE_PATTERNS.test(ep.url_template)) return false;
+    if (STATIC_ASSET_PATTERNS.test(ep.url_template)) return false;
     return true;
   });
 
@@ -516,6 +603,9 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
 
   const scored = candidates.map((ep) => {
     let score = 0;
+
+    // DOM extraction endpoints already have a proven mapping — prefer them
+    if (ep.dom_extraction) score += 25;
 
     // Prefer safe (GET) endpoints
     if (ep.idempotency === "safe") score += 10;
@@ -566,4 +656,12 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
 
   scored.sort((a, b) => b.score - a.score);
   return scored[0].ep;
+}
+
+/** Detect if a string response is HTML rather than JSON/plaintext */
+function isHtml(text: string): boolean {
+  const trimmed = text.trimStart().slice(0, 200).toLowerCase();
+  return trimmed.startsWith("<!doctype html") ||
+    trimmed.startsWith("<html") ||
+    (trimmed.includes("<head") && trimmed.includes("<body"));
 }
