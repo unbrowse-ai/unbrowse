@@ -1,5 +1,29 @@
 # Changelog
 
+## Security & Legal Hardening
+
+### Marketing language
+- Removed "bypass the need for official API documentation" and "discover hidden APIs" from all docs
+- Replaced with neutral language: "discover API endpoints", "work without official API documentation"
+
+### Data privacy
+- `recordExecution()` no longer sends `trace.result` (actual API response data) to the backend — only metadata (success, status_code, latency, drift) is transmitted for scoring
+
+### Network security
+- Default bind address changed from `0.0.0.0` to `127.0.0.1` — server is localhost-only by default
+
+### Credential sanitization
+- Added `x-api-key`, `api-key`, `x-auth-token`, `x-app-key`, `x-app-secret` to header strip list
+- Added prefix stripping for `x-auth-*`, `x-amz-security-*`, `x-stripe-*`, `x-firebase-*`
+- Added catch-all: any header containing `token`, `key`, `secret`, `credential`, or `password` is stripped (unless on the safe-header allowlist)
+- New: query parameters with sensitive names (`api_key`, `access_token`, `secret`, etc.) are stripped from URL templates before publishing
+
+### Licensing
+- Expanded LICENSE to full MIT text with copyright notice
+- Added LICENSE file to packages/skill/ for the published repo
+
+---
+
 ## Documentation: Surface Marketplace & Community Features
 
 SKILL.md, README.md, and packages/skill/README.md previously described unbrowse as a local-only tool. Updated all docs to surface the shared marketplace architecture.

@@ -27,6 +27,11 @@ const STRIP_HEADERS = new Set([
   "cookie",
   "authorization",
   "x-csrf-token",
+  "x-api-key",
+  "api-key",
+  "x-auth-token",
+  "x-app-key",
+  "x-app-secret",
   "content-length",
   "host",
   // Google credential headers
@@ -37,7 +42,29 @@ const STRIP_HEADERS = new Set([
   "x-javascript-user-agent",
 ]);
 // Also strip any header matching these prefixes
-const STRIP_HEADER_PREFIXES = ["x-goog-auth", "x-goog-spatula"];
+const STRIP_HEADER_PREFIXES = [
+  "x-goog-auth", "x-goog-spatula",
+  "x-auth-",          // generic auth headers
+  "x-amz-security-",  // AWS security tokens
+  "x-stripe-",        // Stripe API headers
+  "x-firebase-",      // Firebase auth headers
+];
+
+// Headers known to be safe (non-sensitive) — used by the catch-all filter below
+const SAFE_HEADERS = new Set([
+  "accept", "accept-encoding", "accept-language", "cache-control",
+  "content-type", "origin", "referer", "user-agent", "pragma",
+  "if-none-match", "if-modified-since", "range", "dnt", "connection",
+  "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+  "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
+  "x-requested-with",
+]);
+
+// Patterns that indicate a header contains credentials — catch-all safety net
+const SENSITIVE_HEADER_PATTERN = /token|key|secret|credential|password|session/i;
+
+// Query param names that likely contain credentials and must be stripped from URL templates
+const SENSITIVE_QUERY_PARAMS = /^(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|secret|password|key|token|session[_-]?id|client[_-]?secret|private[_-]?key|bearer)$/i;
 
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
@@ -101,9 +128,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     endpoints.push({
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
-      url_template: normalized,
+      url_template: sanitizeUrlTemplate(normalized),
       headers_template: sanitizeHeaders(req.request_headers),
-      query: isGet ? extractQueryParams(req.url) : undefined,
+      query: isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined,
       body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: verificationStatus,
@@ -211,15 +238,37 @@ function sanitizeHeaders(headers: Record<string, string>): Record<string, string
     Object.entries(headers ?? {}).filter(([k]) => {
       const lower = k.toLowerCase();
       if (STRIP_HEADERS.has(lower)) return false;
-      // Strip all x-goog-auth* and x-goog-spatula* prefixes (BUG-GC-005)
       if (STRIP_HEADER_PREFIXES.some((p) => lower.startsWith(p))) return false;
       // Strip all x-goog-api-* variants (catches x-goog-api-key and siblings)
       if (lower.startsWith("x-goog-api")) return false;
       // Strip server-side token headers
       if (lower.startsWith("x-server-")) return false;
+      // Catch-all: strip any non-safe header whose name contains sensitive patterns
+      if (!SAFE_HEADERS.has(lower) && SENSITIVE_HEADER_PATTERN.test(lower)) return false;
       return true;
     })
   );
+}
+
+function sanitizeQueryParams(params: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(params).filter(([k]) => !SENSITIVE_QUERY_PARAMS.test(k))
+  );
+}
+
+function sanitizeUrlTemplate(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.search.length <= 1) return url;
+    const cleaned = new URLSearchParams();
+    for (const [key, val] of u.searchParams) {
+      if (!SENSITIVE_QUERY_PARAMS.test(key)) cleaned.set(key, val);
+    }
+    const qs = cleaned.toString();
+    return qs ? `${u.origin}${u.pathname}?${qs}` : `${u.origin}${u.pathname}`;
+  } catch {
+    return url;
+  }
 }
 
 function isJsonParseable(body?: string): boolean {
