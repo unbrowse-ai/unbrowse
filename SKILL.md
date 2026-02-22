@@ -155,18 +155,20 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/verify" | jq .
 
 ## API Reference
 
+All routes go through `localhost:6969`. Local routes are handled directly; marketplace/search routes are proxied to the beta API automatically.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/v1/intent/resolve` | Resolve intent → find/learn/execute skill |
-| GET | `/v1/skills` | List all learned skills |
-| GET | `/v1/skills/:id` | Get skill details |
-| POST | `/v1/skills` | Publish a new skill |
+| GET | `/v1/skills` | List all learned skills (proxied to beta API) |
+| GET | `/v1/skills/:id` | Get skill details (proxied to beta API) |
+| POST | `/v1/skills` | Publish a new skill (proxied to beta API) |
 | POST | `/v1/skills/:id/execute` | Execute a learned skill |
 | POST | `/v1/skills/:id/verify` | Verify skill endpoints |
-| GET | `/v1/skills/:id/endpoints/:eid/schema` | Get endpoint response schema |
+| GET | `/v1/skills/:id/endpoints/:eid/schema` | Get endpoint response schema (proxied to beta API) |
 | POST | `/v1/auth/login` | Interactive browser login |
 | POST | `/v1/feedback` | Submit execution feedback |
-| GET | `/v1/feedback/:id` | Get feedback for a skill |
+| POST | `/v1/search` | Semantic search for skills (proxied to beta API) |
 | GET | `/health` | Health check |
 
 ## Rules
