@@ -6,7 +6,7 @@ const EMERGENTDB_BASE = "https://api.emergentdb.com";
 function domainNamespace(domain: string): string {
   return `unbrowse--${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
 }
-const GLOBAL_NS = "unbrowse--global";
+const GLOBAL_NS = "unbrowse-skill";
 
 async function edbRequest(
   env: Env,
@@ -87,12 +87,20 @@ export async function searchIntentInDomain(
   domain: string,
   k = 5
 ): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
-  const vector = await embedIntent(env, intent, "query");
-  const ns = domainNamespace(domain);
-  const data = (await edbRequest(env, "POST", "/vectors/search", {
-    vector, k, include_metadata: true, namespace: ns,
-  })) as { results?: Array<{ id: number; score: number; metadata: Record<string, unknown> }> };
-  return data.results ?? [];
+  // Try vector search first
+  try {
+    const vector = await embedIntent(env, intent, "query");
+    const ns = domainNamespace(domain);
+    const data = (await edbRequest(env, "POST", "/vectors/search", {
+      vector, k, include_metadata: true, namespace: ns,
+    })) as { results?: Array<{ id: number; score: number; metadata: Record<string, unknown> }> };
+    if (data.results && data.results.length > 0) return data.results;
+  } catch (e) {
+    console.log(`[search] vector domain search failed: ${e}`);
+  }
+
+  // Fallback: keyword search over KV skills filtered by domain
+  return kvFallbackSearch(env, intent, k, domain);
 }
 
 export async function searchIntent(
@@ -100,11 +108,19 @@ export async function searchIntent(
   intent: string,
   k = 5
 ): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
-  const vector = await embedIntent(env, intent, "query");
-  const data = (await edbRequest(env, "POST", "/vectors/search", {
-    vector, k, include_metadata: true, namespace: GLOBAL_NS,
-  })) as { results?: Array<{ id: number; score: number; metadata: Record<string, unknown> }> };
-  return data.results ?? [];
+  // Try vector search first
+  try {
+    const vector = await embedIntent(env, intent, "query");
+    const data = (await edbRequest(env, "POST", "/vectors/search", {
+      vector, k, include_metadata: true, namespace: GLOBAL_NS,
+    })) as { results?: Array<{ id: number; score: number; metadata: Record<string, unknown> }> };
+    if (data.results && data.results.length > 0) return data.results;
+  } catch (e) {
+    console.log(`[search] vector search failed: ${e}`);
+  }
+
+  // Fallback: keyword search over KV skills
+  return kvFallbackSearch(env, intent, k);
 }
 
 export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {
@@ -114,6 +130,44 @@ export async function removeSkillFromIndex(env: Env, skillId: string, domain: st
     edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: ns }),
     edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: GLOBAL_NS }),
   ]);
+}
+
+async function kvFallbackSearch(
+  env: Env,
+  intent: string,
+  k: number,
+  domain?: string
+): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
+  const keys = await env.SKILLS_KV.list({ prefix: "skill:", limit: 200 });
+  const terms = intent.toLowerCase().split(/\s+/);
+  const results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> = [];
+
+  for (const key of keys.keys) {
+    const raw = await env.SKILLS_KV.get(key.name);
+    if (!raw) continue;
+    const skill = JSON.parse(raw) as {
+      skill_id: string; name: string; domain: string; description?: string;
+      intent_signature: string; lifecycle?: string;
+    };
+    if (skill.lifecycle && skill.lifecycle !== "active") continue;
+    if (domain && skill.domain !== domain) continue;
+
+    const haystack = `${skill.name} ${skill.intent_signature} ${skill.description ?? ""} ${skill.domain}`.toLowerCase();
+    const matched = terms.filter((t) => haystack.includes(t)).length;
+    if (matched === 0) continue;
+
+    const score = matched / terms.length;
+    results.push({
+      id: hashToInt(skill.skill_id),
+      score,
+      metadata: {
+        title: skill.intent_signature,
+        content: JSON.stringify({ skill_id: skill.skill_id, domain: skill.domain, name: skill.name }),
+      },
+    });
+  }
+
+  return results.sort((a, b) => b.score - a.score).slice(0, k);
 }
 
 function hashToInt(str: string): number {

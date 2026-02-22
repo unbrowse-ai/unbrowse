@@ -3,6 +3,30 @@ import type { Env } from "../types.js";
 import { publishSkill, getSkill, listSkills, updateEndpointScore, getEndpointSchema } from "../services/marketplace.js";
 import { validateSkillManifest } from "../services/validator.js";
 
+// Public read routes — no auth required
+export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
+
+// GET /v1/skills — list all
+publicSkillRoutes.get("/skills", async (c) => {
+  const skills = await listSkills(c.env);
+  return c.json({ skills });
+});
+
+// GET /v1/skills/:id — get by ID
+publicSkillRoutes.get("/skills/:id", async (c) => {
+  const skill = await getSkill(c.env, c.req.param("id"));
+  if (!skill) return c.json({ error: "Skill not found" }, 404);
+  return c.json(skill);
+});
+
+// GET /v1/skills/:id/endpoints/:eid/schema — get response schema
+publicSkillRoutes.get("/skills/:id/endpoints/:eid/schema", async (c) => {
+  const schema = await getEndpointSchema(c.env, c.req.param("id"), c.req.param("eid"));
+  if (!schema) return c.json({ error: "No schema available" }, 404);
+  return c.json(schema);
+});
+
+// Protected write routes — auth required
 export const skillRoutes = new Hono<{ Bindings: Env }>();
 
 // POST /v1/skills — publish/update
@@ -20,29 +44,9 @@ skillRoutes.post("/skills", async (c) => {
   }, 201);
 });
 
-// GET /v1/skills — list all
-skillRoutes.get("/skills", async (c) => {
-  const skills = await listSkills(c.env);
-  return c.json({ skills });
-});
-
-// GET /v1/skills/:id — get by ID
-skillRoutes.get("/skills/:id", async (c) => {
-  const skill = await getSkill(c.env, c.req.param("id"));
-  if (!skill) return c.json({ error: "Skill not found" }, 404);
-  return c.json(skill);
-});
-
 // PATCH /v1/skills/:id/endpoints/:eid — update endpoint score/status
 skillRoutes.patch("/skills/:id/endpoints/:eid", async (c) => {
   const { score, status } = await c.req.json<{ score: number; status?: string }>();
   await updateEndpointScore(c.env, c.req.param("id"), c.req.param("eid"), score, status as any);
   return c.json({ ok: true });
-});
-
-// GET /v1/skills/:id/endpoints/:eid/schema — get response schema
-skillRoutes.get("/skills/:id/endpoints/:eid/schema", async (c) => {
-  const schema = await getEndpointSchema(c.env, c.req.param("id"), c.req.param("eid"));
-  if (!schema) return c.json({ error: "No schema available" }, 404);
-  return c.json(schema);
 });
