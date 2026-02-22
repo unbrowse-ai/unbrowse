@@ -1,3 +1,30 @@
+# Changelog
+
+## WebSocket Capture, Endpoint Filtering & Validator Fixes
+
+### WebSocket Support
+- **CDP-based WebSocket capture:** Hook `Network.webSocketCreated`, `webSocketFrameReceived`, `webSocketFrameSent` via Chrome DevTools Protocol to capture real-time WS traffic during browser sessions
+- **WS endpoint extraction:** Group captured messages by URL, infer response schemas from received JSON frames, create `method: "WS"` endpoints with `ws_messages` array
+- **WS execution:** Connect to WebSocket endpoints, collect messages for 7s, parse JSON, apply projection
+- **Type updates:** Added `"WS"` to `EndpointDescriptor.method` union and `WsMessage` interface in both `src/types/skill.ts` and `backend/src/types.ts`
+
+### Backend Validator Fixes
+- **Accept WS method:** Added `"WS"` to `VALID_METHODS` in `backend/src/services/validator.ts`
+- **Accept wss:// URLs:** Changed `URL_RE` from `/^https?:\/\//` to `/^(https?|wss?):\/\//`
+- **Local workaround:** Strip WS endpoints before publishing to remote backend (pending deployment) — keeps WS endpoints for local execution
+
+### Endpoint Filtering Improvements
+- **Fixed SKIP_EXTENSIONS regex:** Changed `$` anchor to `([?#]|$)` so URLs with query strings are properly filtered (`.js?v=hash`, `.css?t=123`)
+- **Added SKIP_PATHS:** Filter `/_next/static/`, `/static/chunks/`, `/static/media/`, `/cdn-cgi/` paths
+- **Added CDN image path filter:** Skip `/coin-image/`, `/avatar/`, `/profile-image/` paths
+- **Expanded SKIP_HOSTS:** Added 16 new infrastructure/telemetry domains: datadoghq, fullstory, launchdarkly, intercom, privy, mypinata, sentry, segment, amplitude, mixpanel, hotjar, clarity, googletagmanager, walletconnect, imagedelivery, cloudflareinsights
+
+### Endpoint Selection Improvements
+- **Domain affinity scoring:** `selectBestEndpoint` now takes `skillDomain` param and adds +15 score for endpoints on the skill's own domain (prevents selecting third-party CDN/analytics endpoints)
+- **WS schema bonus:** WS endpoints with response schemas get +3 score
+
+---
+
 # Changelog: Changes since Rach's last commit
 
 **Base commit:** `f1bd8e3` — Rach: "fix: resolve GC-001 through GC-008 and GC-012"

@@ -76,7 +76,7 @@ export interface ResponseSchema {
 
 export interface EndpointDescriptor {
   endpoint_id: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
   url_template: string;
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;

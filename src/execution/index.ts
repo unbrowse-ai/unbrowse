@@ -30,7 +30,7 @@ export async function executeSkill(
     return executeBrowserCapture(skill, params);
   }
   // BUG-004/007 fix: select endpoint by schema richness + intent relevance
-  const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature);
+  const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature, skill.domain);
   return executeEndpoint(skill, endpoint, params, projection, options);
 }
 
@@ -100,7 +100,7 @@ async function executeBrowserCapture(
     };
   }
 
-  const endpoints = extractEndpoints(captured.requests);
+  const endpoints = extractEndpoints(captured.requests, captured.ws_messages);
 
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
@@ -144,6 +144,13 @@ async function executeBrowserCapture(
     if (hasStoredAuth) auth_profile_ref = vaultKey;
   }
 
+  // Strip WS endpoints — backend validator/publisher doesn't support WS method yet
+  const publishableEndpoints = cleanEndpoints.filter((ep) => ep.method !== "WS");
+
+  if (publishableEndpoints.length === 0) {
+    throw new Error("No valid HTTP endpoints discovered (WebSocket-only sites not yet supported for publishing)");
+  }
+
   const draft = {
     skill_id: nanoid(),
     version: "1.0.0",
@@ -157,7 +164,7 @@ async function executeBrowserCapture(
     domain,
     description: `Auto-discovered skill for: ${intent}`,
     owner_type: "agent" as const,
-    endpoints: cleanEndpoints,
+    endpoints: publishableEndpoints,
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
 
@@ -186,6 +193,40 @@ export async function executeEndpoint(
   projection?: ProjectionOptions,
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
+  // WebSocket endpoint: connect, collect messages, return
+  if (endpoint.method === "WS") {
+    const startedAt = new Date().toISOString();
+    const traceId = nanoid();
+    try {
+      const { WebSocket } = await import("ws");
+      const messages: string[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(endpoint.url_template);
+        const timeout = setTimeout(() => { ws.close(); resolve(); }, 7000);
+        ws.on("message", (data: Buffer | string) => {
+          messages.push(data.toString());
+        });
+        ws.on("error", (err: Error) => { clearTimeout(timeout); reject(err); });
+        ws.on("close", () => { clearTimeout(timeout); resolve(); });
+      });
+      const parsed = messages.map((m) => { try { return JSON.parse(m); } catch { return m; } });
+      const trace: ExecutionTrace = {
+        trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
+        started_at: startedAt, completed_at: new Date().toISOString(), success: true, result: parsed,
+      };
+      let resultData: unknown = parsed;
+      if (projection) resultData = applyProjection(parsed, projection);
+      return { trace, result: resultData };
+    } catch (err) {
+      const trace: ExecutionTrace = {
+        trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
+        started_at: startedAt, completed_at: new Date().toISOString(), success: false,
+        error: String(err),
+      };
+      return { trace, result: { error: String(err) } };
+    }
+  }
+
   // Mutation safety gate
   if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
     if (options?.dry_run) {
@@ -353,7 +394,7 @@ function interpolateObj(
  * BUG-004 fix: select best endpoint by schema richness, not just "first safe GET".
  * Prefers: safe endpoints with object/array response_schema > safe without > unsafe.
  */
-function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string): EndpointDescriptor {
+function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string): EndpointDescriptor {
   if (endpoints.length === 0) throw new Error("No endpoints available");
   if (endpoints.length === 1) return endpoints[0];
 
@@ -379,6 +420,9 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string): E
     // Prefer safe (GET) endpoints
     if (ep.idempotency === "safe") score += 10;
 
+    // WS endpoints with response schemas get a bonus
+    if (ep.method === "WS" && ep.response_schema) score += 3;
+
     // Prefer endpoints with response schemas
     if (ep.response_schema) {
       score += 5;
@@ -398,6 +442,17 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string): E
       for (const word of intentWords) {
         if (urlLower.includes(word)) score += 3;
       }
+    }
+
+    // Strongly prefer endpoints on the skill's own domain over third-party
+    // resources (e.g. Google Maps, CDN, analytics) that the page also loads
+    if (skillDomain) {
+      try {
+        const epHost = new URL(ep.url_template).hostname;
+        if (epHost === skillDomain || epHost.endsWith(`.${skillDomain}`)) {
+          score += 15;
+        }
+      } catch { /* skip */ }
     }
 
     // Penalize endpoints with very short or no URL paths (often config/init endpoints)
