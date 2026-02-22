@@ -68,7 +68,6 @@ async function executeBrowserCapture(
       }
     }
   }
-
   const captured = await captureSession(url, authHeaders, cookies);
 
   const finalDomain = (() => {
@@ -146,6 +145,7 @@ async function executeBrowserCapture(
   }
 
   const draft = {
+    skill_id: nanoid(),
     version: "1.0.0",
     schema_version: "1",
     lifecycle: "active" as const,
