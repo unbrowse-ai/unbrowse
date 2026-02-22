@@ -6,8 +6,8 @@ import { rateLimit } from "../middleware/rate-limit.js";
 export const searchRoutes = new Hono<{ Bindings: Env }>();
 
 // Rate limit: 6 searches per 60 seconds per IP
-searchRoutes.use("/search", rateLimit({ limit: 6, window: 60, prefix: "search" }));
-searchRoutes.use("/search/domain", rateLimit({ limit: 6, window: 60, prefix: "search" }));
+searchRoutes.use("/search", rateLimit({ limit: 30, window: 60, prefix: "search" }));
+searchRoutes.use("/search/domain", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 
 // POST /v1/search — global intent search
 searchRoutes.post("/search", async (c) => {

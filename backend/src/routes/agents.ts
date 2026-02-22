@@ -8,7 +8,7 @@ import { rateLimit } from "../middleware/rate-limit.js";
 export const publicAgentRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 // Rate limit: 3 registrations per 5 minutes per IP
-publicAgentRoutes.use("/agents/register", rateLimit({ limit: 3, window: 300, prefix: "register" }));
+publicAgentRoutes.use("/agents/register", rateLimit({ limit: 10, window: 300, prefix: "register" }));
 
 // POST /v1/agents/register — self-register and get an API key
 publicAgentRoutes.post("/agents/register", async (c) => {
