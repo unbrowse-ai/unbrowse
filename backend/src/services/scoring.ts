@@ -37,7 +37,7 @@ export function computeReliabilityScore(
   let score = Math.max(0, emaRatio);
 
   if (verificationStatus === "verified") score += 0.10;
-  else if (verificationStatus === "failed") score -= 0.20;
+  else if (verificationStatus === "failed" || verificationStatus === "disabled") score -= 0.20;
 
   if (stats.feedback_count > 0) {
     const avgRating = stats.feedback_sum / stats.feedback_count;
@@ -82,7 +82,8 @@ export async function recordExecution(
   await saveStats(env, skillId, endpointId, stats);
 
   const score = computeReliabilityScore(stats);
-  await updateEndpointScore(env, skillId, endpointId, score);
+  const shouldDisable = stats.consecutive_failures >= 5 && score < 0.2;
+  await updateEndpointScore(env, skillId, endpointId, score, shouldDisable ? "disabled" : undefined);
 }
 
 export async function recordFeedback(

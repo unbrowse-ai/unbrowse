@@ -126,6 +126,16 @@ export async function updateEndpointScore(
   if (status) endpoint.verification_status = status;
   skill.updated_at = new Date().toISOString();
   await env.SKILLS_KV.put(kvKey(skillId), JSON.stringify(skill));
+
+  // Auto-deprecate if all endpoints are disabled or failed
+  if (status === "disabled" || status === "failed") {
+    const allDead = skill.endpoints.every(
+      (e) => e.verification_status === "disabled" || e.verification_status === "failed"
+    );
+    if (allDead && skill.lifecycle === "active") {
+      await deprecateSkill(env, skillId);
+    }
+  }
 }
 
 export async function getEndpointSchema(

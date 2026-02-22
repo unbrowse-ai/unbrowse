@@ -402,12 +402,15 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
   const NOISE_PATTERNS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts)/i;
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
+    if (ep.verification_status === "disabled") return false;
     if (NOISE_PATTERNS.test(ep.url_template)) return false;
     return true;
   });
 
-  // Fall back to unfiltered if filtering removed everything
-  const candidates = filtered.length > 0 ? filtered : endpoints;
+  // Fall back to unfiltered but never re-include disabled endpoints
+  const nonDisabled = endpoints.filter((ep) => ep.verification_status !== "disabled");
+  const candidates = filtered.length > 0 ? filtered : nonDisabled;
+  if (candidates.length === 0) throw new Error("All endpoints are disabled");
 
   // Extract intent keywords for relevance matching
   const intentWords = intent
