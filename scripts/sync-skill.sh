@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync packages/skill/ into the unbrowse-skill repo (getfoundry/unbrowse)
+# Sync packages/skill/ into the unbrowse-skill repo (unbrowse-ai/unbrowse)
 # Resolves the src/ symlink so the target repo gets real files.
 #
 # Usage: bash scripts/sync-skill.sh [commit message]

@@ -235,7 +235,7 @@ export default function Home() {
               Get Started
             </Link>
             <a
-              href="https://github.com/getfoundry/unbrowse"
+              href="https://github.com/unbrowse-ai/unbrowse"
               target="_blank"
               rel="noopener"
               className="inline-flex items-center gap-2 px-8 py-4
@@ -273,7 +273,7 @@ export default function Home() {
             </a>
           </div>
           <div className="flex items-center gap-6 text-sm text-text-muted">
-            <a href="https://github.com/getfoundry/unbrowse" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">GitHub</a>
+            <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">GitHub</a>
             <Link href="/search" className="hover:text-orange-500 transition-colors">Registry</Link>
             <Link href="/dashboard" className="hover:text-orange-500 transition-colors">Dashboard</Link>
             <Link href="/privacy" className="hover:text-orange-500 transition-colors">Privacy</Link>

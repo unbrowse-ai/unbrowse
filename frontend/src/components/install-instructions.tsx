@@ -7,7 +7,7 @@ const tabs = [
     id: "claude",
     label: "Claude Code",
     code: `# Install the unbrowse skill
-npx skills add https://github.com/getfoundry/unbrowse --skill unbrowse
+npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
 
 # Set your API key
 export UNBROWSE_API_KEY="ubr_your_key_here"
@@ -18,7 +18,7 @@ export UNBROWSE_API_KEY="ubr_your_key_here"
     id: "cursor",
     label: "Cursor",
     code: `# Install as an MCP skill in Cursor
-npx skills add https://github.com/getfoundry/unbrowse --skill unbrowse
+npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
 
 # Add to your .cursor/mcp.json or set env
 UNBROWSE_API_KEY="ubr_your_key_here"`,
