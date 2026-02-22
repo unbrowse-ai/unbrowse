@@ -25,9 +25,9 @@
 
 ---
 
-# Changelog: Changes since Rach's last commit
+# Previous Changes
 
-**Base commit:** `f1bd8e3` — Rach: "fix: resolve GC-001 through GC-008 and GC-012"
+**Base commit:** `f1bd8e3` — "fix: resolve GC-001 through GC-008 and GC-012"
 **Current:** `334bf51` + uncommitted changes
 **Files changed:** 32 files, +987 / -205 lines (committed) + ~113 lines uncommitted
 
@@ -138,7 +138,7 @@
 - Changed global namespace from `unbrowse--global` to `unbrowse-skill`
 
 ### 10. Confidence Threshold Tuned Down
-- Lowered confidence threshold from 0.5 to 0.3 (was originally 0.25 before Rach's commits)
+- Lowered confidence threshold from 0.5 to 0.3 (was originally 0.25 before previous commits)
 
 ---
 
