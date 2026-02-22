@@ -46,7 +46,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
         <style>{`
-          :root { --font-google-sans: 'Google Sans', 'Google Sans Display', system-ui, sans-serif; }
+          :root {
+            --font-google-sans: 'Google Sans', 'Google Sans Display', system-ui, sans-serif;
+            --font-fonetika: 'Fonetika', 'Google Sans', system-ui, sans-serif;
+          }
         `}</style>
       </head>
       <body className={`${jetbrainsMono.variable} antialiased`}>
