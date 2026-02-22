@@ -1,14 +1,1 @@
-node_modules/
-dist/
-*.tsbuildinfo
-.env
-.env.local
-.env.*.local
-.vault/
-skills/
-traces/
-*.log
-.DS_Store
-.idea/
-.vscode/
-coverage/
+../unbrowse/.gitignore
