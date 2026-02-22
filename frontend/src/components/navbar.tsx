@@ -3,9 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "@/components/theme-provider";
+import { useAuth } from "@/lib/auth-context";
 
 export function Navbar() {
   const { theme, toggle } = useTheme();
+  const { isAuthenticated } = useAuth();
 
   return (
     <nav className="glass fixed top-0 inset-x-0 z-50 border-b border-border">
@@ -27,6 +29,7 @@ export function Navbar() {
         {/* Nav links */}
         <div className="flex items-center gap-1">
           <NavLink href="/search">Registry</NavLink>
+          {isAuthenticated && <NavLink href="/dashboard">Dashboard</NavLink>}
 
           <div className="w-px h-5 bg-border mx-3" />
 

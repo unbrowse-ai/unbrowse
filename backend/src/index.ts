@@ -6,6 +6,8 @@ import { skillRoutes, publicSkillRoutes } from "./routes/skills.js";
 import { searchRoutes } from "./routes/search.js";
 import { statsRoutes, publicStatsRoutes, publicValidateRoutes } from "./routes/stats.js";
 import { healthRoutes } from "./routes/health.js";
+import { publicAgentRoutes } from "./routes/agents.js";
+import { publicIssueRoutes, issueRoutes } from "./routes/issues.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -17,12 +19,17 @@ app.use("*", cors({
   maxAge: 86400,
 }));
 
-// Public routes (reads, search, validation)
+// Public routes (reads, search, validation, agent registration, issues list)
 app.route("/", healthRoutes);
 app.route("/v1", publicStatsRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", publicSkillRoutes);
 app.route("/v1", publicValidateRoutes);
+app.route("/v1", publicAgentRoutes);
+app.route("/v1", publicIssueRoutes);
+
+// Issue routes with inline auth (POST/PATCH require auth, GET is public above)
+app.route("/v1", issueRoutes);
 
 // Protected routes (writes only)
 const api = new Hono<{ Bindings: Env }>();

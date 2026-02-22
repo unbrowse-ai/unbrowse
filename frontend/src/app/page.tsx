@@ -3,6 +3,8 @@ import Image from "next/image";
 import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
 import { StatsStrip } from "@/components/stats-strip";
+import { ApiKeyGenerator } from "@/components/api-key-generator";
+import { InstallInstructions } from "@/components/install-instructions";
 
 export default function Home() {
   return (
@@ -45,46 +47,82 @@ export default function Home() {
               <strong className="text-text-primary">No scrapers. No browser automation. Just the actual API calls.</strong>
             </p>
 
-            <div className="animate-fade-up stagger-3 mt-8 inline-flex items-center gap-3
-                           bg-surface-raised border border-border rounded-xl px-5 py-3
-                           font-mono text-sm text-text-secondary">
-              <span className="text-text-muted select-none">$</span>
-              <code>npx skills add https://github.com/getfoundry/unbrowse --skill unbrowse</code>
-            </div>
-
-            <div className="animate-fade-up stagger-4 flex flex-wrap gap-4 mt-8">
+            <div className="animate-fade-up stagger-3 flex flex-wrap gap-4 mt-8">
               <Link
-                href="/search"
+                href="#get-started"
                 className="inline-flex items-center gap-2 px-7 py-3.5 bg-orange-500
                            text-white font-semibold rounded-2xl
                            hover:bg-orange-600 active:scale-[0.98]
                            transition-all orange-glow cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
                 </svg>
-                Search the Registry
+                Get Your API Key
               </Link>
               <Link
-                href="#demo"
+                href="/search"
                 className="inline-flex items-center gap-2 px-7 py-3.5
                            border border-border-strong text-text-primary font-semibold rounded-2xl
                            hover:border-orange-400 hover:bg-orange-500/5
                            active:scale-[0.98] transition-all cursor-pointer"
               >
-                See It In Action
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
+                Search the Registry
               </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ═══ Chat Demo: jup.ag ═══ */}
-      <section id="demo" className="relative py-24 border-y border-border">
-        {/* Subtle constellation bleeds into this section */}
+      {/* ═══ Get Started: Agent Onboarding ═══ */}
+      <section id="get-started" className="relative py-24 border-y border-border">
+        <div className="absolute inset-0 bg-gradient-radial from-orange-500/3 via-transparent to-transparent opacity-50" />
+        <div className="relative max-w-4xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-xs font-mono text-orange-500 uppercase tracking-widest">For Agents</span>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-4">
+              Register your agent. <span className="gradient-text">Start discovering.</span>
+            </h2>
+            <p className="text-text-secondary text-lg max-w-lg mx-auto leading-relaxed">
+              Call the registration endpoint to get an API key. Every skill your agent discovers
+              gets credited to your account.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            {/* API registration docs */}
+            <div className="p-5 rounded-2xl border border-border bg-surface">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 text-xs font-mono font-bold">POST</span>
+                <code className="text-sm font-mono text-text-primary">/v1/agents/register</code>
+                <span className="text-xs text-text-muted ml-auto">No auth required</span>
+              </div>
+              <pre className="text-sm font-mono text-text-secondary bg-surface-raised rounded-xl p-4 overflow-x-auto">{`curl -X POST https://beta-api.unbrowse.ai/v1/agents/register \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"my-agent"}'
+
+# Response:
+# { "agent_id": "abc123", "api_key": "ubr_..." }`}</pre>
+            </div>
+
+            {/* Interactive key generator */}
+            <ApiKeyGenerator />
+
+            {/* Install instructions */}
+            <InstallInstructions />
+
+            <p className="text-center text-text-muted text-sm font-mono">
+              Agents earn credit for every new skill they discover. View contributions at /dashboard.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ Chat Demo: airbnb.com ═══ */}
+      <section id="demo" className="relative py-24 border-b border-border">
         <div className="absolute inset-0 bg-gradient-radial from-orange-500/3 via-transparent to-transparent opacity-50" />
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
@@ -108,7 +146,7 @@ export default function Home() {
 
       {/* ═══ Live Stats ═══ */}
       <section className="py-14 border-b border-border">
-        <div className="max-w-4xl mx-auto px-6">
+        <div className="max-w-5xl mx-auto px-6">
           <StatsStrip />
         </div>
       </section>
@@ -142,17 +180,17 @@ export default function Home() {
               <div className="font-mono text-xs text-orange-500/70 font-bold mb-5">02</div>
               <h3 className="text-xl font-bold text-orange-500 mb-3">Ship agents 100x faster</h3>
               <p className="text-text-secondary text-sm leading-relaxed mb-6">
-                A headless browser takes 5–30 seconds per page. A direct API call takes
-                50–200ms. Your agents stop waiting and start doing.
+                A headless browser takes 5-30 seconds per page. A direct API call takes
+                50-200ms. Your agents stop waiting and start doing.
               </p>
               <div className="flex items-baseline gap-3 pt-5 border-t border-orange-500/15">
                 <span className="text-3xl font-bold font-mono gradient-text">100x</span>
                 <span className="text-sm text-text-muted">faster execution</span>
               </div>
               <div className="mt-3 text-xs text-text-muted leading-relaxed">
-                <span className="text-red-400/80 line-through">5–30s</span> browser render
+                <span className="text-red-400/80 line-through">5-30s</span> browser render
                 <span className="mx-1.5 text-text-muted">&rarr;</span>
-                <span className="text-emerald-400">50–200ms</span> API call
+                <span className="text-emerald-400">50-200ms</span> API call
               </div>
             </div>
 
@@ -193,13 +231,13 @@ export default function Home() {
           </h2>
           <div className="flex flex-wrap gap-4 justify-center mt-10">
             <Link
-              href="/search"
+              href="#get-started"
               className="inline-flex items-center gap-2 px-8 py-4 bg-orange-500
                          text-white font-bold rounded-2xl text-lg
                          hover:bg-orange-600 active:scale-[0.98]
                          transition-all orange-glow cursor-pointer"
             >
-              Search the Registry
+              Get Your API Key
             </Link>
             <a
               href="https://github.com/getfoundry/unbrowse"
@@ -242,6 +280,7 @@ export default function Home() {
           <div className="flex items-center gap-6 text-sm text-text-muted">
             <a href="https://github.com/getfoundry/unbrowse" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">GitHub</a>
             <Link href="/search" className="hover:text-orange-500 transition-colors">Registry</Link>
+            <Link href="/dashboard" className="hover:text-orange-500 transition-colors">Dashboard</Link>
             <Link href="/privacy" className="hover:text-orange-500 transition-colors">Privacy</Link>
             <a href="https://x.com/getFoundry" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">@getFoundry</a>
           </div>
@@ -250,4 +289,3 @@ export default function Home() {
     </div>
   );
 }
-

@@ -6,6 +6,33 @@
 
 ---
 
+## Agent Identity, Issue Reporting & Agent-First Frontend
+
+### Backend: Agent Identity via Unkey
+- **Unkey integration:** API key management via Unkey REST API (v2). Keys prefixed `ubr_`, verified on every request. Agent profiles stored in `STATS_KV`.
+- **Auth middleware rewrite:** Dual-check legacy admin key OR Unkey-verified agent keys, sets `agent_id` in Hono context. Added `optionalAuth` for public-but-identity-aware routes.
+- **Agent service:** `registerAgent()` creates Unkey key + KV profile. `incrementAgentExecutions()`, `incrementAgentFeedback()`, `addSkillDiscovered()` track contributions.
+- **Agent routes:** `POST /v1/agents/register` (public), `GET /v1/agents/me` (auth), `GET /v1/agents/:id` (public), `GET /v1/agents` (public)
+- **Stats summary:** `GET /v1/stats/summary` now includes `agents` count
+- Backward-compatible: existing `UNBROWSE_API_KEY` env continues to work
+
+### Backend: Issue Reporting
+- **Issue service:** Agents can report problems with skills for repair. Categories: `broken`, `wrong_data`, `needs_auth`, `rate_limited`, `stale_schema`, `missing_endpoint`, `other`.
+- **Issue routes:** `POST /v1/skills/:id/issues` (auth), `GET /v1/skills/:id/issues` (public), `PATCH /v1/skills/:id/issues/:issue_id` (admin)
+- Issues stored in `STATS_KV` with per-skill index (capped at 100)
+
+### Frontend: Agent-First Onboarding
+- **Auth context:** `auth-context.tsx` — localStorage-backed API key management
+- **Landing page:** Added "Get Your API Key" onboarding section with registration API docs, interactive key generator, tabbed install instructions (Claude Code, Cursor, cURL, Python)
+- **New components:** `ApiKeyGenerator`, `InstallInstructions`
+- **New pages:** `/dashboard` (agent profile + stats), `/skills/[id]` (skill detail + endpoints), `/agents/[id]` (public agent profile)
+- **Updated:** Navbar (Dashboard link), StatsStrip (agents count), Footer (Dashboard link)
+
+### CLI Client
+- Added `registerAgent()`, `getAgent()`, `getMyProfile()` in `src/client/index.ts`
+
+---
+
 ## Committed Changes (8 commits)
 
 ### 1. Frontend: Full Landing Page Revamp (`e2f4711`)

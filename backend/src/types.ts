@@ -2,8 +2,21 @@ export interface Env {
   SKILLS_KV: KVNamespace;
   STATS_KV: KVNamespace;
   API_KEY: string;
+  UNKEY_ROOT_KEY: string;
+  UNKEY_API_ID: string;
   EMERGENTDB_API_KEY: string;
   GEMINI_API_KEY: string;
+}
+
+// --- Agent identity ---
+
+export interface AgentProfile {
+  agent_id: string;       // Unkey keyId
+  name: string;
+  created_at: string;
+  skills_discovered: string[];
+  total_executions: number;
+  total_feedback_given: number;
 }
 
 // --- Shared types (mirrored from src/types/skill.ts) ---
