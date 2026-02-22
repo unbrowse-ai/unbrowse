@@ -30,7 +30,7 @@ export async function executeSkill(
     return executeBrowserCapture(skill, params);
   }
   // BUG-004/007 fix: select endpoint by schema richness + intent relevance
-  const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature);
+  const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature, skill.domain);
   return executeEndpoint(skill, endpoint, params, projection, options);
 }
 
@@ -353,7 +353,7 @@ function interpolateObj(
  * BUG-004 fix: select best endpoint by schema richness, not just "first safe GET".
  * Prefers: safe endpoints with object/array response_schema > safe without > unsafe.
  */
-function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string): EndpointDescriptor {
+function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string): EndpointDescriptor {
   if (endpoints.length === 0) throw new Error("No endpoints available");
   if (endpoints.length === 1) return endpoints[0];
 
@@ -398,6 +398,17 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string): E
       for (const word of intentWords) {
         if (urlLower.includes(word)) score += 3;
       }
+    }
+
+    // Strongly prefer endpoints on the skill's own domain over third-party
+    // resources (e.g. Google Maps, CDN, analytics) that the page also loads
+    if (skillDomain) {
+      try {
+        const epHost = new URL(ep.url_template).hostname;
+        if (epHost === skillDomain || epHost.endsWith(`.${skillDomain}`)) {
+          score += 15;
+        }
+      } catch { /* skip */ }
     }
 
     // Penalize endpoints with very short or no URL paths (often config/init endpoints)
