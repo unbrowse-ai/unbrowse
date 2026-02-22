@@ -1,5 +1,5 @@
-import type { RawRequest } from "../capture/index.js";
-import type { EndpointDescriptor } from "../types/index.js";
+import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
+import type { EndpointDescriptor, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
 import { nanoid } from "nanoid";
 
@@ -55,7 +55,7 @@ function scoreRequest(req: RawRequest): number {
   return score;
 }
 
-export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
+export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[]): EndpointDescriptor[] {
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
 
@@ -109,6 +109,48 @@ export function extractEndpoints(requests: RawRequest[]): EndpointDescriptor[] {
       reliability_score: 0.5,
       response_schema,
     });
+  }
+
+  // Create endpoints from WebSocket messages
+  if (wsMessages && wsMessages.length > 0) {
+    const wsByUrl = new Map<string, CapturedWsMessage[]>();
+    for (const msg of wsMessages) {
+      const arr = wsByUrl.get(msg.url) ?? [];
+      arr.push(msg);
+      wsByUrl.set(msg.url, arr);
+    }
+
+    for (const [wsUrl, msgs] of wsByUrl) {
+      const received = msgs.filter((m) => m.direction === "received");
+      const wsMsgList: WsMessage[] = msgs.map((m) => ({
+        direction: m.direction,
+        data: m.data,
+        timestamp: m.timestamp,
+      }));
+
+      // Try to infer response schema from first few received JSON messages
+      let response_schema = undefined;
+      const jsonSamples: unknown[] = [];
+      for (const m of received.slice(0, 5)) {
+        try {
+          jsonSamples.push(JSON.parse(m.data));
+        } catch { /* not JSON */ }
+      }
+      if (jsonSamples.length > 0) {
+        response_schema = inferSchema(jsonSamples);
+      }
+
+      endpoints.push({
+        endpoint_id: nanoid(),
+        method: "WS",
+        url_template: wsUrl,
+        idempotency: "safe",
+        verification_status: "unverified",
+        reliability_score: jsonSamples.length > 0 ? 0.7 : 0.3,
+        response_schema,
+        ws_messages: wsMsgList,
+      });
+    }
   }
 
   return endpoints;

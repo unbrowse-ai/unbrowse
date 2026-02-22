@@ -100,7 +100,7 @@ async function executeBrowserCapture(
     };
   }
 
-  const endpoints = extractEndpoints(captured.requests);
+  const endpoints = extractEndpoints(captured.requests, captured.ws_messages);
 
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
@@ -186,6 +186,40 @@ export async function executeEndpoint(
   projection?: ProjectionOptions,
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
+  // WebSocket endpoint: connect, collect messages, return
+  if (endpoint.method === "WS") {
+    const startedAt = new Date().toISOString();
+    const traceId = nanoid();
+    try {
+      const { WebSocket } = await import("ws");
+      const messages: string[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(endpoint.url_template);
+        const timeout = setTimeout(() => { ws.close(); resolve(); }, 7000);
+        ws.on("message", (data: Buffer | string) => {
+          messages.push(data.toString());
+        });
+        ws.on("error", (err: Error) => { clearTimeout(timeout); reject(err); });
+        ws.on("close", () => { clearTimeout(timeout); resolve(); });
+      });
+      const parsed = messages.map((m) => { try { return JSON.parse(m); } catch { return m; } });
+      const trace: ExecutionTrace = {
+        trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
+        started_at: startedAt, completed_at: new Date().toISOString(), success: true, result: parsed,
+      };
+      let resultData: unknown = parsed;
+      if (projection) resultData = applyProjection(parsed, projection);
+      return { trace, result: resultData };
+    } catch (err) {
+      const trace: ExecutionTrace = {
+        trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
+        started_at: startedAt, completed_at: new Date().toISOString(), success: false,
+        error: String(err),
+      };
+      return { trace, result: { error: String(err) } };
+    }
+  }
+
   // Mutation safety gate
   if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
     if (options?.dry_run) {
@@ -378,6 +412,9 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
 
     // Prefer safe (GET) endpoints
     if (ep.idempotency === "safe") score += 10;
+
+    // WS endpoints with response schemas get a bonus
+    if (ep.method === "WS" && ep.response_schema) score += 3;
 
     // Prefer endpoints with response schemas
     if (ep.response_schema) {

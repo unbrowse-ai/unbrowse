@@ -42,10 +42,17 @@ export interface Transform {
   };
 }
 
+export interface WsMessage {
+  direction: "sent" | "received";
+  data: string;
+  timestamp: string;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
   url_template: string;
+  ws_messages?: WsMessage[];
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;
   body?: Record<string, unknown>;
