@@ -4,7 +4,7 @@ import { extractEndpoints } from "../reverse-engineer/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
-import { getStoredAuth, isYoloAuth } from "../auth/index.js";
+import { getStoredAuth } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution } from "../client/index.js";
@@ -79,21 +79,7 @@ async function executeBrowserCapture(
       }
     }
   }
-  // Check if this domain was authenticated via yolo mode (real Chrome profile)
-  let useYolo = false;
-  const yoloCheck = await isYoloAuth(targetDomain);
-  if (yoloCheck) {
-    useYolo = true;
-  } else {
-    // Also check parent domain
-    const parts = targetDomain.split(".");
-    if (parts.length > 2) {
-      const parentYolo = await isYoloAuth(getRegistrableDomain(targetDomain));
-      if (parentYolo) useYolo = true;
-    }
-  }
-
-  const captured = await captureSession(url, authHeaders, cookies, { yolo: useYolo });
+  const captured = await captureSession(url, authHeaders, cookies);
 
   const finalDomain = (() => {
     try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
@@ -406,80 +392,28 @@ export async function executeEndpoint(
     }
   }
 
-  // Auto-inject CSRF token from cookies if csrf_plan specifies it,
-  // or heuristically if the endpoint has an x-csrf-token header template
-  if (endpoint.csrf_plan) {
-    const csrfCookie = cookies.find((c) => c.name === endpoint.csrf_plan!.param_name);
-    if (csrfCookie) {
-      authHeaders["x-csrf-token"] = csrfCookie.value;
-    }
-  } else if (endpoint.headers_template?.["x-twitter-auth-type"]) {
-    // x.com heuristic: if endpoint uses Twitter auth, inject ct0 as x-csrf-token
-    const ct0 = cookies.find((c) => c.name === "ct0");
-    if (ct0) {
-      authHeaders["x-csrf-token"] = ct0.value;
-    }
-  }
-
   const url = interpolate(endpoint.url_template, params);
   const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
 
-  // Direct HTTP execution: skip browser when we have auth cookies
-  // Browser execution is only needed for sites requiring JS rendering
-  const useDirectHttp = cookies.length > 0 && endpoint.url_template.includes("/api/");
+  // Wrap in retry for safe (GET) endpoints
+  const isSafe = endpoint.method === "GET";
+  const browserCall = () => executeInBrowser(
+    url,
+    endpoint.method,
+    endpoint.headers_template ?? {},
+    body,
+    authHeaders,
+    cookies
+  );
 
-  let status: number;
-  let data: unknown;
-  let trace_id: string;
-
-  if (useDirectHttp) {
-    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-    const allHeaders: Record<string, string> = {
-      ...(endpoint.headers_template ?? {}),
-      ...authHeaders,
-      cookie: cookieHeader,
-    };
-
-    const fetchOpts: RequestInit = {
-      method: endpoint.method,
-      headers: allHeaders,
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    };
-
-    const directCall = async () => {
-      const res = await fetch(url, fetchOpts);
-      const text = await res.text();
-      let parsed: unknown;
-      try { parsed = JSON.parse(text); } catch { parsed = text; }
-      return { status: res.status, data: parsed, trace_id: nanoid() };
-    };
-
-    const isSafe = endpoint.method === "GET";
-    const result = isSafe
-      ? await withRetry(directCall, (r) => isRetryableStatus(r.status))
-      : await directCall();
-    status = result.status;
-    data = result.data;
-    trace_id = result.trace_id;
-  } else {
-    // Fallback: browser-based execution
-    const isSafe = endpoint.method === "GET";
-    const browserCall = () => executeInBrowser(
-      url,
-      endpoint.method,
-      endpoint.headers_template ?? {},
-      body,
-      authHeaders,
-      cookies
-    );
-
-    const result = isSafe
-      ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
-      : await browserCall();
-    status = result.status;
-    data = result.data;
-    trace_id = result.trace_id;
-  }
+  const result = isSafe
+    ? await withRetry(
+        browserCall,
+        (r) => isRetryableStatus(r.status),
+      )
+    : await browserCall();
+  const { status, trace_id } = result;
+  let data = result.data;
 
   const trace: ExecutionTrace = {
     trace_id,
