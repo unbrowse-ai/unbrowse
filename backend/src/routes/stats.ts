@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { validateSkillManifest } from "../services/validator.js";
+import { incrementAgentExecutions, incrementAgentFeedback, countAgents } from "../services/agents.js";
 
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
@@ -55,6 +56,8 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
     endpointCount = Math.round(avgEndpoints * skillCount);
   }
 
+  const agentCount = await countAgents(c.env);
+
   c.header("Cache-Control", "public, max-age=60");
   c.header("Access-Control-Allow-Origin", "*");
   return c.json({
@@ -62,6 +65,7 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
     endpoints: endpointCount,
     domains: domainSet.size,
     executions: totalExecutions,
+    agents: agentCount,
   });
 });
 
@@ -75,7 +79,7 @@ publicValidateRoutes.post("/validate", async (c) => {
 });
 
 // Protected stats — require auth
-export const statsRoutes = new Hono<{ Bindings: Env }>();
+export const statsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 // POST /v1/stats/execution — record execution + recompute score
 statsRoutes.post("/stats/execution", async (c) => {
@@ -88,6 +92,11 @@ statsRoutes.post("/stats/execution", async (c) => {
     return c.json({ error: "skill_id, endpoint_id, and trace required" }, 400);
   }
   await recordExecution(c.env, skill_id, endpoint_id, trace);
+  // Track agent contribution (non-blocking)
+  const agentId = c.get("agent_id");
+  if (agentId) {
+    c.executionCtx.waitUntil(incrementAgentExecutions(c.env, agentId));
+  }
   return c.json({ ok: true });
 });
 
@@ -102,6 +111,11 @@ statsRoutes.post("/stats/feedback", async (c) => {
     return c.json({ error: "skill_id, endpoint_id, and rating required" }, 400);
   }
   const avgRating = await recordFeedback(c.env, skill_id, endpoint_id, rating);
+  // Track agent contribution (non-blocking)
+  const agentId = c.get("agent_id");
+  if (agentId) {
+    c.executionCtx.waitUntil(incrementAgentFeedback(c.env, agentId));
+  }
   return c.json({ ok: true, avg_rating: avgRating });
 });
 

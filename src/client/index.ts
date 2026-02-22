@@ -120,3 +120,21 @@ export async function recordFeedback(
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {
   return api<ValidationResult>("POST", "/v1/validate", manifest);
 }
+
+// --- Agent Registration ---
+
+export async function registerAgent(name: string): Promise<{ agent_id: string; api_key: string }> {
+  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name });
+}
+
+export async function getAgent(agentId: string): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number } | null> {
+  try {
+    return await api("GET", `/v1/agents/${agentId}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
+  return api("GET", "/v1/agents/me", undefined, true);
+}

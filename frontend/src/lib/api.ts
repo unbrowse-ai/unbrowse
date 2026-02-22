@@ -32,6 +32,25 @@ export interface SearchResult {
   metadata: Record<string, unknown>;
 }
 
+export interface AgentProfile {
+  agent_id: string;
+  name: string;
+  created_at: string;
+  skills_discovered: string[];
+  total_executions: number;
+  total_feedback_given: number;
+}
+
+export interface StatsSummary {
+  skills: number;
+  endpoints: number;
+  domains: number;
+  executions: number;
+  agents: number;
+}
+
+// --- Unauthenticated API helper ---
+
 async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method,
@@ -46,6 +65,32 @@ async function api<T = unknown>(method: string, path: string, body?: unknown): P
   return res.json() as Promise<T>;
 }
 
+// --- Authenticated API helper (client-side only) ---
+
+export async function authApi<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+  let apiKey: string | null = null;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("unbrowse_auth");
+      if (stored) apiKey = (JSON.parse(stored) as { apiKey?: string }).apiKey ?? null;
+    } catch { /* ignore */ }
+  }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+// --- Skills ---
+
 export async function listSkills(): Promise<SkillManifest[]> {
   const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
   return data.skills;
@@ -59,16 +104,8 @@ export async function getSkill(id: string): Promise<SkillManifest | null> {
   }
 }
 
-export interface StatsSummary {
-  skills: number;
-  endpoints: number;
-  domains: number;
-  executions: number;
-}
-
 export async function getStatsSummary(): Promise<StatsSummary> {
-  const data = await api<StatsSummary>("GET", "/v1/stats/summary");
-  return data;
+  return api<StatsSummary>("GET", "/v1/stats/summary");
 }
 
 export async function searchSkills(intent: string, domain?: string): Promise<SearchResult[]> {
@@ -76,4 +113,23 @@ export async function searchSkills(intent: string, domain?: string): Promise<Sea
   const body = domain ? { intent, domain } : { intent };
   const data = await api<{ results: SearchResult[] }>("POST", path, body);
   return data.results;
+}
+
+// --- Agents ---
+
+export async function registerAgent(name: string): Promise<{ agent_id: string; api_key: string }> {
+  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name });
+}
+
+export async function getAgent(agentId: string): Promise<AgentProfile> {
+  return api<AgentProfile>("GET", `/v1/agents/${agentId}`);
+}
+
+export async function listAgents(limit = 20): Promise<AgentProfile[]> {
+  const data = await api<{ agents: AgentProfile[] }>("GET", `/v1/agents?limit=${limit}`);
+  return data.agents;
+}
+
+export async function getMyProfile(): Promise<AgentProfile> {
+  return authApi<AgentProfile>("GET", "/v1/agents/me");
 }

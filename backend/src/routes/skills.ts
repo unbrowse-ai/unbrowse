@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { publishSkill, getSkill, listSkills, updateEndpointScore, getEndpointSchema } from "../services/marketplace.js";
 import { validateSkillManifest } from "../services/validator.js";
+import { addSkillDiscovered } from "../services/agents.js";
 
 // Public read routes — no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -27,7 +28,7 @@ publicSkillRoutes.get("/skills/:id/endpoints/:eid/schema", async (c) => {
 });
 
 // Protected write routes — auth required
-export const skillRoutes = new Hono<{ Bindings: Env }>();
+export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 // POST /v1/skills — publish/update
 skillRoutes.post("/skills", async (c) => {
@@ -37,6 +38,11 @@ skillRoutes.post("/skills", async (c) => {
     return c.json({ error: "Validation failed", details: validation.hardErrors }, 422);
   }
   const skill = await publishSkill(c.env, body);
+  // Track agent contribution (non-blocking)
+  const agentId = c.get("agent_id");
+  if (agentId) {
+    c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));
+  }
   return c.json({
     skill_id: skill.skill_id,
     version: skill.version,

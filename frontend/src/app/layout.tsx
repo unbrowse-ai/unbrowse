@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
 import "./globals.css";
 
@@ -50,10 +51,12 @@ export default function RootLayout({
       </head>
       <body className={`${jetbrainsMono.variable} antialiased`}>
         <ThemeProvider>
-          <Navbar />
-          <main className="min-h-screen">
-            {children}
-          </main>
+          <AuthProvider>
+            <Navbar />
+            <main className="min-h-screen">
+              {children}
+            </main>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

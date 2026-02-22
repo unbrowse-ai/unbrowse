@@ -4,6 +4,7 @@ compatibility_date = "2024-12-01"
 
 [vars]
 ENVIRONMENT = "production"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 [[kv_namespaces]]
 binding = "SKILLS_KV"
@@ -21,5 +22,6 @@ zone_id = "73934a4d815fde770167414fc3ead04b"
 
 # Secrets (set via `wrangler secret put`):
 # - API_KEY
+# - UNKEY_ROOT_KEY
 # - EMERGENTDB_API_KEY
 # - GEMINI_API_KEY
