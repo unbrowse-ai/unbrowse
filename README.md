@@ -1,6 +1,6 @@
 # Unbrowse
 
-Reverse-engineer any website into reusable API skills, backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
+Analyze any website's network traffic and turn it into reusable API skills, backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
 
 ## How it works
 
@@ -173,6 +173,6 @@ Log files are plain text and safe to share when reporting issues (cookie values 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `6969` | Server port |
-| `HOST` | `0.0.0.0` | Server bind address |
+| `HOST` | `127.0.0.1` | Server bind address (localhost only by default) |
 | `UNBROWSE_URL` | `http://localhost:6969` | Base URL used by the skill |
 | `UNBROWSE_API_KEY` | (auto-generated) | Marketplace API key (auto-registered on first startup) |
