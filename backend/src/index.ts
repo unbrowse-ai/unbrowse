@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env } from "./types.js";
 import { bearerAuth } from "./middleware/auth.js";
-import { skillRoutes } from "./routes/skills.js";
+import { skillRoutes, publicSkillRoutes } from "./routes/skills.js";
 import { searchRoutes } from "./routes/search.js";
-import { statsRoutes, publicStatsRoutes } from "./routes/stats.js";
+import { statsRoutes, publicStatsRoutes, publicValidateRoutes } from "./routes/stats.js";
 import { healthRoutes } from "./routes/health.js";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -17,12 +17,14 @@ app.use("*", cors({
   maxAge: 86400,
 }));
 
-// Public routes
+// Public routes (reads, search, validation)
 app.route("/", healthRoutes);
 app.route("/v1", publicStatsRoutes);
 app.route("/v1", searchRoutes);
+app.route("/v1", publicSkillRoutes);
+app.route("/v1", publicValidateRoutes);
 
-// Protected routes
+// Protected routes (writes only)
 const api = new Hono<{ Bindings: Env }>();
 api.use("*", bearerAuth);
 api.route("/v1", skillRoutes);

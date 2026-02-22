@@ -3,12 +3,12 @@ import type { EndpointStats, ExecutionTrace, SkillManifest, ValidationResult } f
 const API_URL = "https://beta-api.unbrowse.ai";
 const API_KEY = process.env.UNBROWSE_API_KEY ?? "";
 
-async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+async function api<T = unknown>(method: string, path: string, body?: unknown, auth = false): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+      ...(auth && API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -38,11 +38,11 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<{ skill_id: string; version: string; warnings: string[] }> {
-  return api("POST", "/v1/skills", draft);
+  return api("POST", "/v1/skills", draft, true);
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
-  await api("DELETE", `/v1/skills/${skillId}`);
+  await api("DELETE", `/v1/skills/${skillId}`, undefined, true);
 }
 
 export async function updateEndpointScore(
@@ -51,7 +51,7 @@ export async function updateEndpointScore(
   score: number,
   status?: string
 ): Promise<void> {
-  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status });
+  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status }, true);
 }
 
 export async function getEndpointSchema(
@@ -99,7 +99,7 @@ export async function recordExecution(
     skill_id: skillId,
     endpoint_id: endpointId,
     trace,
-  });
+  }, true);
 }
 
 export async function recordFeedback(
@@ -111,7 +111,7 @@ export async function recordFeedback(
     skill_id: skillId,
     endpoint_id: endpointId,
     rating,
-  });
+  }, true);
   return data.avg_rating;
 }
 

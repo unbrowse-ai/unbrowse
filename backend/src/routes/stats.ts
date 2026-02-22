@@ -65,6 +65,15 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
   });
 });
 
+// Public validation — no auth required
+export const publicValidateRoutes = new Hono<{ Bindings: Env }>();
+
+publicValidateRoutes.post("/validate", async (c) => {
+  const body = await c.req.json();
+  const result = validateSkillManifest(body);
+  return c.json(result);
+});
+
 // Protected stats — require auth
 export const statsRoutes = new Hono<{ Bindings: Env }>();
 
@@ -96,9 +105,3 @@ statsRoutes.post("/stats/feedback", async (c) => {
   return c.json({ ok: true, avg_rating: avgRating });
 });
 
-// POST /v1/validate — validate skill manifest
-statsRoutes.post("/validate", async (c) => {
-  const body = await c.req.json();
-  const result = validateSkillManifest(body);
-  return c.json(result);
-});
