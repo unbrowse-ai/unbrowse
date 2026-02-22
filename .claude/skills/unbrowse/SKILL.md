@@ -11,10 +11,10 @@ You are the unbrowse skill. You reverse-engineer websites into reusable API skil
 
 ## Server
 
-The unbrowse server runs at `http://localhost:3000`. If it is not running, start it:
+The unbrowse server runs at `http://localhost:6969`. If it is not running, start it:
 
 ```bash
-cd /Users/rachpradhan/unbrowse && bun src/index.ts &
+cd /Users/lekt9/Projects/unbrowse && bun src/index.ts &
 ```
 
 Wait 2 seconds for startup before making requests.
@@ -26,7 +26,7 @@ Wait 2 seconds for startup before making requests.
 When the user provides a URL and intent (e.g., `/unbrowse https://kalshi.com get market data`):
 
 ```bash
-curl -s -X POST http://localhost:3000/v1/intent/resolve \
+curl -s -X POST http://localhost:6969/v1/intent/resolve \
 ```
 
 Parse `$ARGUMENTS`: first argument is the URL, remaining arguments are the intent string.
@@ -34,7 +34,7 @@ Parse `$ARGUMENTS`: first argument is the URL, remaining arguments are the inten
 Optionally include `projection` to select specific fields from the response:
 
 ```bash
-curl -s -X POST http://localhost:3000/v1/intent/resolve \
+curl -s -X POST http://localhost:6969/v1/intent/resolve \
   -H "Content-Type: application/json" \
   -d '{"intent":"<INTENT>","context":{"url":"<URL>"},"projection":{"fields":["elements[].title","elements[].score"],"compact":true}}'
 ```
@@ -55,7 +55,7 @@ This will:
 ### List all learned skills
 
 ```bash
-curl -s http://localhost:3000/v1/skills
+curl -s http://localhost:6969/v1/skills
 ```
 
 Present as a table with columns: skill_id, domain, intent, execution_type, endpoint count.
@@ -63,14 +63,14 @@ Present as a table with columns: skill_id, domain, intent, execution_type, endpo
 ### Search for a skill by intent
 
 ```bash
-curl -s "http://localhost:3000/v1/debug/search?intent=<QUERY>"
+curl -s "http://localhost:6969/v1/debug/search?intent=<QUERY>"
 ```
 
 ### Execute a specific skill
 
 ```bash
 ```bash
-curl -s -X POST http://localhost:3000/v1/skills/<SKILL_ID>/execute \
+curl -s -X POST http://localhost:6969/v1/skills/<SKILL_ID>/execute \
   -H "Content-Type: application/json" \
   -d '{"params":{},"projection":{"fields":["data[].name"],"compact":true,"max_depth":5}}'
 ```
@@ -78,7 +78,7 @@ curl -s -X POST http://localhost:3000/v1/skills/<SKILL_ID>/execute \
 ### Get endpoint response schema
 
 ```bash
-curl -s http://localhost:3000/v1/skills/<SKILL_ID>/endpoints/<ENDPOINT_ID>/schema
+curl -s http://localhost:6969/v1/skills/<SKILL_ID>/endpoints/<ENDPOINT_ID>/schema
 ```
 
 Returns the inferred JSON Schema (draft-07 subset) for the endpoint's response, including types, required fields, and sample count.
@@ -88,7 +88,7 @@ Returns the inferred JSON Schema (draft-07 subset) for the endpoint's response, 
 When a site requires authentication (returns `auth_required` error):
 
 ```bash
-curl -s -X POST http://localhost:3000/v1/auth/login \
+curl -s -X POST http://localhost:6969/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"url":"https://calendar.google.com"}'
 ```
@@ -98,7 +98,7 @@ This opens a visible Chrome window. The user completes login manually. Cookies a
 ### Get skill details
 
 ```bash
-curl -s http://localhost:3000/v1/skills/<SKILL_ID>
+curl -s http://localhost:6969/v1/skills/<SKILL_ID>
 ```
 
 ## Architecture

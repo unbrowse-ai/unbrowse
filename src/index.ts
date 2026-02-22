@@ -4,6 +4,10 @@ import cors from "@fastify/cors";
 import { registerRoutes } from "./api/routes.js";
 import { registerRateLimiter } from "./ratelimit/index.js";
 import { schedulePeriodicVerification } from "./verification/index.js";
+import { ensureRegistered } from "./client/index.js";
+
+// Auto-register with backend if no API key is configured
+await ensureRegistered();
 
 const app = Fastify({ logger: true });
 
