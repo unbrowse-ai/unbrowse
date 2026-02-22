@@ -73,7 +73,7 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
 // Public validation — no auth required, rate limited
 export const publicValidateRoutes = new Hono<{ Bindings: Env }>();
 
-publicValidateRoutes.use("/validate", rateLimit({ limit: 20, window: 60, prefix: "validate" }));
+publicValidateRoutes.use("/validate", rateLimit({ limit: 60, window: 60, prefix: "validate" }));
 
 publicValidateRoutes.post("/validate", async (c) => {
   const body = await c.req.json();

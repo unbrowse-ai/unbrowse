@@ -9,7 +9,7 @@ import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
 
 // Rate limit: 10 list requests per 60s, 30 individual skill reads per 60s
-publicSkillRoutes.use("/skills", rateLimit({ limit: 10, window: 60, prefix: "skills-list" }));
+publicSkillRoutes.use("/skills", rateLimit({ limit: 60, window: 60, prefix: "skills-list" }));
 
 // GET /v1/skills — list all
 publicSkillRoutes.get("/skills", async (c) => {

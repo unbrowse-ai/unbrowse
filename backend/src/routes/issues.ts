@@ -9,7 +9,7 @@ const VALID_CATEGORIES: IssueCategory[] = ["broken", "wrong_data", "needs_auth",
 // Public issue routes
 export const publicIssueRoutes = new Hono<{ Bindings: Env }>();
 
-publicIssueRoutes.use("/skills/:id/issues", rateLimit({ limit: 20, window: 60, prefix: "issues-list" }));
+publicIssueRoutes.use("/skills/:id/issues", rateLimit({ limit: 60, window: 60, prefix: "issues-list" }));
 
 // GET /v1/skills/:id/issues — list issues for a skill
 publicIssueRoutes.get("/skills/:id/issues", async (c) => {
