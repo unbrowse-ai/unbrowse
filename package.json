@@ -1,1 +1,5 @@
-{ "name": "unbrowse" }
+{
+  "name": "unbrowse",
+  "private": true,
+  "workspaces": ["packages/*", "backend", "frontend"]
+}
