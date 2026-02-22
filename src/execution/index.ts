@@ -4,7 +4,7 @@ import { extractEndpoints } from "../reverse-engineer/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
-import { getStoredAuth } from "../auth/index.js";
+import { getStoredAuth, isYoloAuth } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution } from "../client/index.js";
@@ -29,6 +29,16 @@ export async function executeSkill(
   if (skill.execution_type === "browser-capture") {
     return executeBrowserCapture(skill, params);
   }
+
+  // Allow targeting a specific endpoint by ID
+  if (params.endpoint_id) {
+    const target = skill.endpoints.find((e) => e.endpoint_id === params.endpoint_id);
+    if (target) {
+      const { endpoint_id: _, ...cleanParams } = params;
+      return executeEndpoint(skill, target, cleanParams, projection, options);
+    }
+  }
+
   // BUG-004/007 fix: select endpoint by schema richness + intent relevance
   const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature, skill.domain);
   return executeEndpoint(skill, endpoint, params, projection, options);
@@ -68,7 +78,21 @@ async function executeBrowserCapture(
       }
     }
   }
-  const captured = await captureSession(url, authHeaders, cookies);
+  // Check if this domain was authenticated via yolo mode (real Chrome profile)
+  let useYolo = false;
+  const yoloCheck = await isYoloAuth(targetDomain);
+  if (yoloCheck) {
+    useYolo = true;
+  } else {
+    // Also check parent domain
+    const parts = targetDomain.split(".");
+    if (parts.length > 2) {
+      const parentYolo = await isYoloAuth(getRegistrableDomain(targetDomain));
+      if (parentYolo) useYolo = true;
+    }
+  }
+
+  const captured = await captureSession(url, authHeaders, cookies, { yolo: useYolo });
 
   const finalDomain = (() => {
     try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
@@ -310,26 +334,80 @@ export async function executeEndpoint(
     }
   }
 
+  // Auto-inject CSRF token from cookies if csrf_plan specifies it,
+  // or heuristically if the endpoint has an x-csrf-token header template
+  if (endpoint.csrf_plan) {
+    const csrfCookie = cookies.find((c) => c.name === endpoint.csrf_plan!.param_name);
+    if (csrfCookie) {
+      authHeaders["x-csrf-token"] = csrfCookie.value;
+    }
+  } else if (endpoint.headers_template?.["x-twitter-auth-type"]) {
+    // x.com heuristic: if endpoint uses Twitter auth, inject ct0 as x-csrf-token
+    const ct0 = cookies.find((c) => c.name === "ct0");
+    if (ct0) {
+      authHeaders["x-csrf-token"] = ct0.value;
+    }
+  }
+
   const url = interpolate(endpoint.url_template, params);
   const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
 
-  // Wrap in retry for safe (GET) endpoints
-  const isSafe = endpoint.method === "GET";
-  const browserCall = () => executeInBrowser(
-    url,
-    endpoint.method,
-    endpoint.headers_template ?? {},
-    body,
-    authHeaders,
-    cookies
-  );
+  // Direct HTTP execution: skip browser when we have auth cookies
+  // Browser execution is only needed for sites requiring JS rendering
+  const useDirectHttp = cookies.length > 0 && endpoint.url_template.includes("/api/");
 
-  const { status, data, trace_id } = isSafe
-    ? await withRetry(
-        browserCall,
-        (r) => isRetryableStatus(r.status),
-      )
-    : await browserCall();
+  let status: number;
+  let data: unknown;
+  let trace_id: string;
+
+  if (useDirectHttp) {
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    const allHeaders: Record<string, string> = {
+      ...(endpoint.headers_template ?? {}),
+      ...authHeaders,
+      cookie: cookieHeader,
+    };
+
+    const fetchOpts: RequestInit = {
+      method: endpoint.method,
+      headers: allHeaders,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    };
+
+    const directCall = async () => {
+      const res = await fetch(url, fetchOpts);
+      const text = await res.text();
+      let parsed: unknown;
+      try { parsed = JSON.parse(text); } catch { parsed = text; }
+      return { status: res.status, data: parsed, trace_id: nanoid() };
+    };
+
+    const isSafe = endpoint.method === "GET";
+    const result = isSafe
+      ? await withRetry(directCall, (r) => isRetryableStatus(r.status))
+      : await directCall();
+    status = result.status;
+    data = result.data;
+    trace_id = result.trace_id;
+  } else {
+    // Fallback: browser-based execution
+    const isSafe = endpoint.method === "GET";
+    const browserCall = () => executeInBrowser(
+      url,
+      endpoint.method,
+      endpoint.headers_template ?? {},
+      body,
+      authHeaders,
+      cookies
+    );
+
+    const result = isSafe
+      ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
+      : await browserCall();
+    status = result.status;
+    data = result.data;
+    trace_id = result.trace_id;
+  }
 
   const trace: ExecutionTrace = {
     trace_id,
@@ -374,9 +452,28 @@ export async function executeEndpoint(
 }
 
 function interpolate(template: string, params: Record<string, unknown>): string {
-  return template.replace(/\{(\w+)\}/g, (_, k) =>
+  // Split URL into base and query string to properly encode query params
+  const qIdx = template.indexOf("?");
+  if (qIdx === -1) {
+    return template.replace(/\{(\w+)\}/g, (_, k) =>
+      params[k] != null ? String(params[k]) : `{${k}}`
+    );
+  }
+
+  const base = template.substring(0, qIdx);
+  const query = template.substring(qIdx + 1);
+
+  // Interpolate base path without encoding
+  const interpolatedBase = base.replace(/\{(\w+)\}/g, (_, k) =>
     params[k] != null ? String(params[k]) : `{${k}}`
   );
+
+  // Interpolate query params with URL encoding
+  const interpolatedQuery = query.replace(/\{(\w+)\}/g, (_, k) =>
+    params[k] != null ? encodeURIComponent(String(params[k])) : `{${k}}`
+  );
+
+  return `${interpolatedBase}?${interpolatedQuery}`;
 }
 
 function interpolateObj(
