@@ -80,10 +80,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/auth/login — interactive OAuth flow
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
-    const { url } = req.body as { url: string };
+    const { url, yolo } = req.body as { url: string; yolo?: boolean };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
-      const result = await interactiveLogin(url);
+      const result = await interactiveLogin(url, undefined, { yolo });
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
