@@ -40,7 +40,11 @@ export async function verifyEndpoint(
     }
 
     const newStatus: VerificationStatus = hasCriticalDrift ? "pending" : "verified";
-    await updateEndpointScore(skill.skill_id, endpoint.endpoint_id, endpoint.reliability_score, newStatus);
+    // Reset score for recovered disabled endpoints so they become usable again
+    const newScore = endpoint.verification_status === "disabled" && newStatus === "verified"
+      ? 0.5
+      : endpoint.reliability_score;
+    await updateEndpointScore(skill.skill_id, endpoint.endpoint_id, newScore, newStatus);
     // Update last_verified_at
     const fullSkill = await getSkill(skill.skill_id);
     if (fullSkill) {
@@ -82,10 +86,11 @@ export function schedulePeriodicVerification(): ReturnType<typeof setInterval> {
       if (skill.lifecycle !== "active") continue;
       for (const endpoint of skill.endpoints) {
         if (endpoint.method !== "GET") continue;
+        const isDisabled = endpoint.verification_status === "disabled";
         const lastVerified = endpoint.last_verified_at
           ? new Date(endpoint.last_verified_at).getTime()
           : 0;
-        if (now - lastVerified > STALE_THRESHOLD_MS) {
+        if (isDisabled || now - lastVerified > STALE_THRESHOLD_MS) {
           await verifyEndpoint(skill, endpoint).catch(() => {});
         }
       }

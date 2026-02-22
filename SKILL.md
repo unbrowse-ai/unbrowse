@@ -11,15 +11,9 @@ metadata: {"openclaw": {"requires": {"bins": ["curl"]}, "emoji": "🔍", "homepa
 
 Unbrowse is a local service that captures browser network traffic, reverse-engineers API endpoints, and turns them into reusable "skills" that can be re-executed programmatically. It runs on `http://localhost:6969` (or `$UNBROWSE_URL` if configured).
 
-## Server
+## Quick Start
 
-The unbrowse engine is installed at `~/.agents/skills/unbrowse`. If the server is not running, install dependencies and start it:
-
-```bash
-cd ~/.agents/skills/unbrowse && bun install && PORT=6969 bun src/index.ts &
-```
-
-Wait 2 seconds for startup, then set the base URL:
+Set the base URL:
 
 ```bash
 UNBROWSE=${UNBROWSE_URL:-http://localhost:6969}
@@ -82,6 +76,20 @@ curl -s -X POST "$UNBROWSE/v1/auth/login" \
 ```
 
 The user completes login in the browser. Cookies are stored in the vault and automatically used for subsequent captures and executions on that domain.
+
+### Yolo Login (use existing Chrome sessions)
+
+If the user is already logged into a site in their main Chrome browser, yolo mode opens Chrome with their real profile — no need to re-login.
+
+**Important: Always ask the user before using yolo mode.** Say: "I'll open your main Chrome browser with all your existing sessions. You'll need to close Chrome first. OK to proceed?"
+
+```bash
+curl -s -X POST "$UNBROWSE/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "yolo": true}'
+```
+
+If the response contains `"Chrome is running"` error, tell the user to close Chrome and retry.
 
 ### After Login, Re-capture
 

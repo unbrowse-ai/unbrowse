@@ -12,6 +12,72 @@ const LOGIN_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 1_000;
 
 /**
+ * Returns the main Chrome profile path for the current platform.
+ * Returns null if the path doesn't exist.
+ */
+function getMainChromeProfilePath(): string | null {
+  const platform = process.platform;
+  let profilePath: string;
+  if (platform === "darwin") {
+    profilePath = path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome", "Default");
+  } else if (platform === "win32") {
+    profilePath = path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), "Google", "Chrome", "User Data", "Default");
+  } else {
+    profilePath = path.join(os.homedir(), ".config", "google-chrome", "Default");
+  }
+  return fs.existsSync(profilePath) ? profilePath : null;
+}
+
+/**
+ * Returns the Chrome user data dir (parent of Default profile).
+ */
+function getChromeUserDataDir(): string {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    return path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome");
+  } else if (platform === "win32") {
+    return path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), "Google", "Chrome", "User Data");
+  }
+  return path.join(os.homedir(), ".config", "google-chrome");
+}
+
+/**
+ * Check if Chrome is currently running by looking for the SingletonLock file
+ * in Chrome's user data directory.
+ */
+function isChromeRunning(): boolean {
+  const userDataDir = getChromeUserDataDir();
+  const lockPath = path.join(userDataDir, "SingletonLock");
+  try {
+    // On macOS/Linux, SingletonLock is a symlink created when Chrome launches
+    const stat = fs.lstatSync(lockPath);
+    return stat.isSymbolicLink() || stat.isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns the Chrome executable path for the current platform.
+ */
+function getChromeExecutablePath(): string | null {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    const p = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    return fs.existsSync(p) ? p : null;
+  } else if (platform === "win32") {
+    const candidates = [
+      path.join(process.env["PROGRAMFILES"] ?? "C:\\Program Files", "Google", "Chrome", "Application", "chrome.exe"),
+      path.join(process.env["PROGRAMFILES(X86)"] ?? "C:\\Program Files (x86)", "Google", "Chrome", "Application", "chrome.exe"),
+    ];
+    return candidates.find((p) => fs.existsSync(p)) ?? null;
+  }
+  // Linux
+  const candidates = ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"];
+  return candidates.find((p) => fs.existsSync(p)) ?? null;
+}
+
+/**
  * Returns the persistent profile directory for a given domain.
  * Stored under ~/.unbrowse/profiles/<registrableDomain>.
  * Exporting so capture/execute can also launch with the profile if needed.
@@ -143,17 +209,52 @@ export interface LoginResult {
  * Open a visible (non-headless) browser for the user to complete login.
  * Waits up to 120s for navigation back to the target domain, then captures cookies.
  */
-export async function interactiveLogin(url: string, domain?: string): Promise<LoginResult> {
+export async function interactiveLogin(
+  url: string,
+  domain?: string,
+  options?: { yolo?: boolean }
+): Promise<LoginResult> {
   const targetDomain = domain ?? new URL(url).hostname;
-  const profileDir = getProfilePath(targetDomain);
+
+  // Yolo mode: use the user's main Chrome profile instead of an isolated one
+  let profileDir: string;
+  let executablePath: string | undefined;
+  if (options?.yolo) {
+    const chromePath = getMainChromeProfilePath();
+    if (!chromePath) {
+      return { success: false, domain: targetDomain, cookies_stored: 0, error: "Chrome profile not found. Is Google Chrome installed?" };
+    }
+    if (isChromeRunning()) {
+      return { success: false, domain: targetDomain, cookies_stored: 0, error: "Chrome is running. Please close Chrome and try again." };
+    }
+    const chromeExe = getChromeExecutablePath();
+    if (!chromeExe) {
+      return { success: false, domain: targetDomain, cookies_stored: 0, error: "Chrome executable not found. Is Google Chrome installed?" };
+    }
+    // Use the parent dir (User Data dir) as the profile root, with "Default" as the profile
+    profileDir = getChromeUserDataDir();
+    executablePath = chromeExe;
+    log("auth", `yolo mode — using main Chrome profile: ${chromePath}`);
+    log("auth", `yolo mode — Chrome executable: ${executablePath}`);
+  } else {
+    profileDir = getProfilePath(targetDomain);
+  }
+
   const browser = new BrowserManager();
-  log("auth", `interactiveLogin called — url: ${url}, targetDomain: ${targetDomain}`);
+  log("auth", `interactiveLogin called — url: ${url}, targetDomain: ${targetDomain}, yolo: ${!!options?.yolo}`);
   log("auth", `persistent profile dir: ${profileDir}`);
 
   try {
     fs.mkdirSync(profileDir, { recursive: true });
-    log("auth", `launching headless:false browser with persistent profile`);
-    await browser.launch({ action: "launch", id: nanoid(), headless: false, profile: profileDir, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" });
+    log("auth", `launching headless:false browser with ${options?.yolo ? "main Chrome" : "persistent"} profile`);
+    await browser.launch({
+      action: "launch",
+      id: nanoid(),
+      headless: false,
+      profile: profileDir,
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      ...(executablePath ? { executablePath } : {}),
+    });
     log("auth", `browser launched — navigating to ${url}`);
     await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
     log("auth", `initial navigation complete`);

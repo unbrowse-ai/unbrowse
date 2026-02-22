@@ -1,20 +1,79 @@
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
+import { homedir, hostname } from "os";
+import { randomBytes } from "crypto";
 import type { EndpointStats, ExecutionTrace, SkillManifest, ValidationResult } from "../types/index.js";
 
 const API_URL = "https://beta-api.unbrowse.ai";
-const API_KEY = process.env.UNBROWSE_API_KEY ?? "";
+const CONFIG_DIR = join(homedir(), ".unbrowse");
+const CONFIG_PATH = join(CONFIG_DIR, "config.json");
+
+interface UnbrowseConfig {
+  api_key: string;
+  agent_id: string;
+  agent_name: string;
+  registered_at: string;
+}
+
+function loadConfig(): UnbrowseConfig | null {
+  try {
+    if (existsSync(CONFIG_PATH)) {
+      return JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+    }
+  } catch { /* corrupt file, re-register */ }
+  return null;
+}
+
+function saveConfig(config: UnbrowseConfig): void {
+  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), { mode: 0o600 });
+}
+
+function getApiKey(): string {
+  // Env var takes priority, then cached config
+  if (process.env.UNBROWSE_API_KEY) return process.env.UNBROWSE_API_KEY;
+  const config = loadConfig();
+  if (config?.api_key) {
+    process.env.UNBROWSE_API_KEY = config.api_key;
+    return config.api_key;
+  }
+  return "";
+}
 
 async function api<T = unknown>(method: string, path: string, body?: unknown, auth = false): Promise<T> {
+  const key = getApiKey();
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...(auth && API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+      ...(auth && key ? { Authorization: `Bearer ${key}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json() as T & { error?: string };
   if (!res.ok) throw new Error((data as { error?: string }).error ?? `API HTTP ${res.status}`);
   return data;
+}
+
+/** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
+export async function ensureRegistered(): Promise<void> {
+  if (getApiKey()) return;
+
+  const name = `${hostname()}-${randomBytes(3).toString("hex")}`;
+  console.log(`No UNBROWSE_API_KEY found — auto-registering as "${name}"...`);
+
+  try {
+    const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
+      "POST", "/v1/agents/register", { name }
+    );
+
+    process.env.UNBROWSE_API_KEY = api_key;
+    saveConfig({ api_key, agent_id, agent_name: name, registered_at: new Date().toISOString() });
+
+    console.log(`Registered! API key cached in ~/.unbrowse/config.json`);
+  } catch (err) {
+    console.warn(`Auto-registration failed: ${(err as Error).message}. Marketplace features will be unavailable.`);
+  }
 }
 
 // --- Skill CRUD ---
@@ -119,4 +178,22 @@ export async function recordFeedback(
 
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {
   return api<ValidationResult>("POST", "/v1/validate", manifest);
+}
+
+// --- Agent Registration ---
+
+export async function registerAgent(name: string): Promise<{ agent_id: string; api_key: string }> {
+  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name });
+}
+
+export async function getAgent(agentId: string): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number } | null> {
+  try {
+    return await api("GET", `/v1/agents/${agentId}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
+  return api("GET", "/v1/agents/me", undefined, true);
 }
