@@ -156,10 +156,14 @@ async function executeBrowserCapture(
       const extracted = extractFromDOM(captured.html, intent);
       if (extracted.data && extracted.confidence > 0.2) {
         // Build a DOM skill: a GET endpoint for the page URL with extraction mapping
+        // Templatize query params so the skill supports re-execution with different values
+        // e.g. /search?q=books&page=1 → /search?q={q}&page={page}
+        const templatizedUrl = templatizeQueryParams(url);
+
         const domEndpoint: EndpointDescriptor = {
           endpoint_id: nanoid(),
           method: "GET",
-          url_template: url,
+          url_template: templatizedUrl,
           idempotency: "safe" as const,
           verification_status: "verified" as const,
           reliability_score: extracted.confidence,
@@ -534,6 +538,26 @@ export async function executeEndpoint(
   }
 
   return { trace, result: resultData };
+}
+
+/**
+ * Convert query params in a URL to template variables.
+ * e.g. /search?q=books&page=1 → /search?q={q}&page={page}
+ * Path stays untouched — only query string is templatized.
+ */
+function templatizeQueryParams(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.search.length <= 1) return url; // no query params
+    const params = new URLSearchParams(u.search);
+    const templated = new URLSearchParams();
+    for (const [key] of params) {
+      templated.set(key, `{${key}}`);
+    }
+    return `${u.origin}${u.pathname}?${templated.toString().replace(/%7B/g, "{").replace(/%7D/g, "}")}`;
+  } catch {
+    return url;
+  }
 }
 
 function interpolate(template: string, params: Record<string, unknown>): string {
