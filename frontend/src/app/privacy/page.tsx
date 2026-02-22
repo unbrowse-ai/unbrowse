@@ -23,6 +23,11 @@ export default function PrivacyPage() {
       </h1>
       <p className="text-text-secondary text-lg mb-12 animate-fade-up stagger-1">
         The short version: we share <em>website structure</em>, never <em>your stuff</em>.
+        <br />
+        <span className="text-sm text-text-muted mt-2 inline-block">
+          Unbrowse is operated by <strong className="text-text-primary">Unreel AI Pte Ltd</strong> (Singapore).
+          See our <Link href="/terms" className="text-orange-500 hover:underline">Terms of Service</Link>.
+        </span>
       </p>
 
       <div className="space-y-12 animate-fade-up stagger-2">
@@ -120,6 +125,9 @@ export default function PrivacyPage() {
             If you have questions about what data unbrowse handles, reach out
             at <a href="https://x.com/getFoundry" target="_blank" rel="noopener" className="text-orange-500 hover:underline">@getFoundry</a> or
             open an issue on <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="text-orange-500 hover:underline">GitHub</a>.
+          </p>
+          <p className="text-sm text-text-muted mt-2">
+            Unreel AI Pte Ltd &middot; Singapore
           </p>
         </Section>
 

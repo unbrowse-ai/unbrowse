@@ -1,5 +1,12 @@
 # Changelog
 
+## Legal Entity & Terms of Service
+
+- Added Terms of Service page (`/terms`) establishing Unreel AI Pte Ltd as the legal entity operating unbrowse
+- Updated Privacy & Data Sharing page to reference Unreel AI Pte Ltd
+- Added copyright notice and entity attribution to site footer
+- Added Terms link to footer navigation
+
 ## Security & Legal Hardening
 
 ### Marketing language
