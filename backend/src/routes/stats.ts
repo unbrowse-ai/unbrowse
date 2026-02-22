@@ -3,7 +3,7 @@ import type { Env } from "../types.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { incrementAgentExecutions, incrementAgentFeedback, countAgents } from "../services/agents.js";
-import { rateLimit } from "../middleware/rate-limit.js";
+import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
@@ -83,6 +83,10 @@ publicValidateRoutes.post("/validate", async (c) => {
 
 // Protected stats — require auth
 export const statsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
+
+// Rate limit: 120 executions per 60s, 60 feedback per 60s per agent
+statsRoutes.use("/stats/execution", agentRateLimit({ limit: 120, window: 60, prefix: "execution" }));
+statsRoutes.use("/stats/feedback", agentRateLimit({ limit: 60, window: 60, prefix: "feedback" }));
 
 // POST /v1/stats/execution — record execution + recompute score
 statsRoutes.post("/stats/execution", async (c) => {

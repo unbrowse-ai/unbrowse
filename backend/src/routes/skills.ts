@@ -3,7 +3,7 @@ import type { Env } from "../types.js";
 import { publishSkill, getSkill, listSkills, updateEndpointScore, getEndpointSchema } from "../services/marketplace.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered } from "../services/agents.js";
-import { rateLimit } from "../middleware/rate-limit.js";
+import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 
 // Public read routes — no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -33,6 +33,11 @@ publicSkillRoutes.get("/skills/:id/endpoints/:eid/schema", async (c) => {
 
 // Protected write routes — auth required
 export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
+
+// Rate limit: 30 publishes per 60s per agent
+skillRoutes.use("/skills", agentRateLimit({ limit: 30, window: 60, prefix: "publish" }));
+// Rate limit: 60 endpoint updates per 60s per agent
+skillRoutes.use("/skills/:id/endpoints/:eid", agentRateLimit({ limit: 60, window: 60, prefix: "ep-update" }));
 
 // POST /v1/skills — publish/update
 skillRoutes.post("/skills", async (c) => {
