@@ -1,8 +1,13 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain } from "../services/discovery.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 
 export const searchRoutes = new Hono<{ Bindings: Env }>();
+
+// Rate limit: 6 searches per 60 seconds per IP
+searchRoutes.use("/search", rateLimit({ limit: 6, window: 60, prefix: "search" }));
+searchRoutes.use("/search/domain", rateLimit({ limit: 6, window: 60, prefix: "search" }));
 
 // POST /v1/search — global intent search
 searchRoutes.post("/search", async (c) => {
