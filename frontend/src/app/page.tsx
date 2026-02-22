@@ -259,6 +259,8 @@ export default function Home() {
             <div className="flex items-center gap-2.5 text-text-muted text-sm">
               <Image src="/logo.png" alt="unbrowse" width={20} height={20} />
               <span className="font-semibold text-text-secondary">unbrowse</span>
+              <span className="text-text-muted">&middot;</span>
+              <span className="text-text-muted text-xs">&copy; {new Date().getFullYear()} Unreel AI Pte Ltd</span>
             </div>
             <div className="w-px h-5 bg-border" />
             <a href="https://www.nvidia.com/en-us/startups/" target="_blank" rel="noopener"
@@ -276,6 +278,7 @@ export default function Home() {
             <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">GitHub</a>
             <Link href="/search" className="hover:text-orange-500 transition-colors">Registry</Link>
             <Link href="/dashboard" className="hover:text-orange-500 transition-colors">Dashboard</Link>
+            <Link href="/terms" className="hover:text-orange-500 transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-orange-500 transition-colors">Privacy</Link>
             <a href="https://x.com/getFoundry" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">@getFoundry</a>
           </div>
