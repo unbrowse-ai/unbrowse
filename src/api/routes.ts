@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill } from "../execution/index.js";
+import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, yoloExtract } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
@@ -30,15 +30,17 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run });
 
-      // Surface available endpoints so the calling agent can pick a better one
-      const endpoints = result.skill?.endpoints;
-      if (endpoints && endpoints.length > 1) {
-        (result as unknown as Record<string, unknown>).available_endpoints = endpoints.map((ep) => ({
-          endpoint_id: ep.endpoint_id,
-          method: ep.method,
-          url: ep.url_template.length > 120 ? ep.url_template.slice(0, 120) + "..." : ep.url_template,
-          has_schema: !!ep.response_schema,
-          dom_extraction: !!ep.dom_extraction,
+      // Surface ranked endpoints so the calling agent can pick a better one
+      const skill = result.skill;
+      if (skill?.endpoints && skill.endpoints.length > 1) {
+        const ranked = rankEndpoints(skill.endpoints, intent, skill.domain);
+        (result as unknown as Record<string, unknown>).available_endpoints = ranked.slice(0, 5).map((r) => ({
+          endpoint_id: r.endpoint.endpoint_id,
+          method: r.endpoint.method,
+          url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
+          score: Math.round(r.score * 10) / 10,
+          has_schema: !!r.endpoint.response_schema,
+          dom_extraction: !!r.endpoint.dom_extraction,
         }));
       }
 

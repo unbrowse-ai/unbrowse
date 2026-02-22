@@ -576,13 +576,68 @@ function interpolateObj(
  * BUG-004 fix: select best endpoint by schema richness, not just "first safe GET".
  * Prefers: safe endpoints with object/array response_schema > safe without > unsafe.
  */
-function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string): EndpointDescriptor {
-  if (endpoints.length === 0) throw new Error("No endpoints available");
-  if (endpoints.length === 1) return endpoints[0];
+// --- BM25 scoring for intent→endpoint relevance ---
 
-  // Filter out noise endpoints (HEAD, OPTIONS, tracking, CSP, static assets)
+const BM25_K1 = 1.2;
+const BM25_B = 0.75;
+const STOPWORDS = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "for", "on", "with", "from", "get", "all", "this", "that", "is", "are", "was", "be"]);
+
+function tokenize(text: string): string[] {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
+}
+
+/** Build a "document" from an endpoint: URL path segments + query params + schema property names */
+function endpointToTokens(ep: EndpointDescriptor): string[] {
+  const tokens: string[] = [];
+  try {
+    const u = new URL(ep.url_template);
+    // Path segments only (not hostname — that's handled by domain affinity)
+    tokens.push(...u.pathname.split(/[/\-_.]/).filter((s) => s.length > 1 && !/^v\d+$/.test(s)));
+    // Query param names and values
+    for (const [key, val] of u.searchParams.entries()) {
+      tokens.push(key);
+      if (val.length > 1 && val.length < 50) tokens.push(...val.split(/[/\-_.]/).filter((s) => s.length > 1));
+    }
+  } catch { /* skip */ }
+  // Schema property names
+  if (ep.response_schema?.properties) {
+    tokens.push(...Object.keys(ep.response_schema.properties));
+  }
+  return tokens.map((t) => t.toLowerCase());
+}
+
+function bm25Score(query: string[], doc: string[], avgDl: number): number {
+  const dl = doc.length;
+  // Term frequency map for this document
+  const tf = new Map<string, number>();
+  for (const t of doc) tf.set(t, (tf.get(t) ?? 0) + 1);
+
+  let score = 0;
+  for (const term of query) {
+    const freq = tf.get(term) ?? 0;
+    if (freq === 0) continue;
+    // Simplified IDF (no corpus-wide stats, just presence bonus)
+    const idf = 1;
+    const num = freq * (BM25_K1 + 1);
+    const denom = freq + BM25_K1 * (1 - BM25_B + BM25_B * (dl / avgDl));
+    score += idf * (num / denom);
+  }
+  return score;
+}
+
+export interface RankedEndpoint {
+  endpoint: EndpointDescriptor;
+  score: number;
+}
+
+/**
+ * Rank endpoints by relevance to intent using BM25 + structural bonuses.
+ * Exported so routes.ts can surface the ranked list to the agent.
+ */
+export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string): RankedEndpoint[] {
+  // Filter out noise
   const NOISE_PATTERNS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts)/i;
-  const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|png|jpg|jpeg|gif|svg|ico|webp|avif)(\?|$)/i;
+  const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|png|jpg|jpeg|gif|svg|ico|webp|avif)(\?|%3F|$)/i;
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
@@ -591,71 +646,63 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
     return true;
   });
 
-  // Fall back to unfiltered but never re-include disabled endpoints
   const nonDisabled = endpoints.filter((ep) => ep.verification_status !== "disabled");
   const candidates = filtered.length > 0 ? filtered : nonDisabled;
-  if (candidates.length === 0) throw new Error("All endpoints are disabled");
+  if (candidates.length === 0) return [];
 
-  // Extract intent keywords for relevance matching
-  const intentWords = intent
-    ? intent.toLowerCase().split(/\s+/).filter((w) => w.length > 2)
-    : [];
+  // Tokenize intent and all endpoint documents
+  const queryTokens = intent ? tokenize(intent) : [];
+  const docs = candidates.map((ep) => endpointToTokens(ep));
+  const avgDl = docs.reduce((sum, d) => sum + d.length, 0) / docs.length || 1;
 
-  const scored = candidates.map((ep) => {
+  const scored = candidates.map((ep, i) => {
     let score = 0;
 
-    // DOM extraction endpoints already have a proven mapping — prefer them
+    // BM25 relevance to intent
+    if (queryTokens.length > 0) {
+      score += bm25Score(queryTokens, docs[i], avgDl) * 10;
+    }
+
+    // Structural bonuses
     if (ep.dom_extraction) score += 25;
-
-    // Prefer safe (GET) endpoints
     if (ep.idempotency === "safe") score += 10;
-
-    // WS endpoints with response schemas get a bonus
-    if (ep.method === "WS" && ep.response_schema) score += 3;
-
-    // Prefer endpoints with response schemas
     if (ep.response_schema) {
       score += 5;
-      if (ep.response_schema.type === "object" && ep.response_schema.properties) {
+      if (ep.response_schema.type === "array") score += 8;
+      else if (ep.response_schema.type === "object" && ep.response_schema.properties) {
         score += Math.min(Object.keys(ep.response_schema.properties).length, 15);
-      } else if (ep.response_schema.type === "array") {
-        score += 8;
       }
     }
-
-    // Factor in reliability
     score += ep.reliability_score * 5;
+    if (ep.method === "WS" && ep.response_schema) score += 3;
 
-    // Intent relevance: match intent keywords against URL path
-    if (intentWords.length > 0) {
-      const urlLower = ep.url_template.toLowerCase();
-      for (const word of intentWords) {
-        if (urlLower.includes(word)) score += 3;
-      }
-    }
-
-    // Strongly prefer endpoints on the skill's own domain over third-party
-    // resources (e.g. Google Maps, CDN, analytics) that the page also loads
+    // Domain affinity
     if (skillDomain) {
       try {
         const epHost = new URL(ep.url_template).hostname;
-        if (epHost === skillDomain || epHost.endsWith(`.${skillDomain}`)) {
-          score += 15;
-        }
+        if (epHost === skillDomain || epHost.endsWith(`.${skillDomain}`)) score += 15;
       } catch { /* skip */ }
     }
 
-    // Penalize endpoints with very short or no URL paths (often config/init endpoints)
+    // Penalize root/short paths (config/init endpoints)
     try {
-      const path = new URL(ep.url_template).pathname;
-      if (path.length <= 2) score -= 5;
+      if (new URL(ep.url_template).pathname.length <= 2) score -= 5;
     } catch { /* skip */ }
 
-    return { ep, score };
+    return { endpoint: ep, score };
   });
 
   scored.sort((a, b) => b.score - a.score);
-  return scored[0].ep;
+  return scored;
+}
+
+function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string): EndpointDescriptor {
+  if (endpoints.length === 0) throw new Error("No endpoints available");
+  if (endpoints.length === 1) return endpoints[0];
+
+  const ranked = rankEndpoints(endpoints, intent, skillDomain);
+  if (ranked.length === 0) throw new Error("All endpoints are disabled");
+  return ranked[0].endpoint;
 }
 
 /** Detect if a string response is HTML rather than JSON/plaintext */
