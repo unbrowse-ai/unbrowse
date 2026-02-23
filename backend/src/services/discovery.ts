@@ -1,13 +1,25 @@
 import type { Env } from "../types.js";
-import { skillsKV } from "./kv.js";
+import { skillsKV, EdbKV } from "./kv.js";
 
 const DIMS = 1536;
 const EMERGENTDB_BASE = "https://api.emergentdb.com";
+const SEARCH_CACHE_TTL = 300; // 5 minutes
 
 function domainNamespace(domain: string): string {
   return `unbrowse--${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
 }
 const GLOBAL_NS = "unbrowse-skill";
+
+type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+
+function searchCacheKV(env: Env): EdbKV {
+  return new EdbKV(env.EMERGENTDB_API_KEY, "search-cache");
+}
+
+function searchCacheKey(intent: string, k: number, domain?: string): string {
+  const base = `${intent.toLowerCase().trim()}:${k}`;
+  return domain ? `${base}:${domain}` : base;
+}
 
 async function edbRequest(
   env: Env,
@@ -87,7 +99,35 @@ export async function searchIntentInDomain(
   intent: string,
   domain: string,
   k = 5
-): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
+): Promise<SearchResult> {
+  const kv = searchCacheKV(env);
+  const ckey = searchCacheKey(intent, k, domain);
+
+  // Cache hit — skip Gemini + vector entirely
+  const hit = await kv.get(ckey) as string | null;
+  if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
+
+  let results: SearchResult = [];
+  try {
+    const vector = await embedIntent(env, intent, "query");
+    const ns = domainNamespace(domain);
+    const data = (await edbRequest(env, "POST", "/vectors/search", {
+      vector, k, include_metadata: true, namespace: ns,
+    })) as { results?: SearchResult };
+    if (data.results?.length) results = data.results;
+  } catch (e) {
+    console.log(`[search] vector domain search failed: ${e}`);
+  }
+
+  if (results.length === 0) results = await kvFallbackSearch(env, intent, k, domain);
+
+  // Cache fire-and-forget
+  if (results.length > 0) {
+    kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
+  }
+
+  return results;
+}
   // Try vector search first
   try {
     const vector = await embedIntent(env, intent, "query");
@@ -108,7 +148,34 @@ export async function searchIntent(
   env: Env,
   intent: string,
   k = 5
-): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
+): Promise<SearchResult> {
+  const kv = searchCacheKV(env);
+  const ckey = searchCacheKey(intent, k);
+
+  // Cache hit — skip Gemini + vector entirely
+  const hit = await kv.get(ckey) as string | null;
+  if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
+
+  let results: SearchResult = [];
+  try {
+    const vector = await embedIntent(env, intent, "query");
+    const data = (await edbRequest(env, "POST", "/vectors/search", {
+      vector, k, include_metadata: true, namespace: GLOBAL_NS,
+    })) as { results?: SearchResult };
+    if (data.results?.length) results = data.results;
+  } catch (e) {
+    console.log(`[search] vector search failed: ${e}`);
+  }
+
+  if (results.length === 0) results = await kvFallbackSearch(env, intent, k);
+
+  // Cache fire-and-forget
+  if (results.length > 0) {
+    kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
+  }
+
+  return results;
+}
   // Try vector search first
   try {
     const vector = await embedIntent(env, intent, "query");
