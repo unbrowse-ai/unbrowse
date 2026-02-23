@@ -8,7 +8,7 @@ const SEARCH_CACHE_TTL = 300; // 5 minutes
 function domainNamespace(domain: string): string {
   return `unbrowse--${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
 }
-const GLOBAL_NS = "unbrowse-skill";
+const GLOBAL_NS = "unbrowse--global";
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
 
@@ -111,7 +111,7 @@ export async function searchIntentInDomain(
   const data = (await edbRequest(env, "POST", "/vectors/search", {
     vector, k, include_metadata: true, namespace: ns,
   })) as { results?: SearchResult };
-  const results = data.results ?? [];
+  const results = (data.results ?? []).filter(r => r.metadata);
 
   if (results.length > 0) {
     kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
@@ -135,13 +135,36 @@ export async function searchIntent(
   const data = (await edbRequest(env, "POST", "/vectors/search", {
     vector, k, include_metadata: true, namespace: GLOBAL_NS,
   })) as { results?: SearchResult };
-  const results = data.results ?? [];
+  const results = (data.results ?? []).filter(r => r.metadata);
 
   if (results.length > 0) {
     kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
   }
 
   return results;
+}
+
+/** Re-index a single skill into both vector namespaces. */
+export async function reindexSkill(
+  env: Env,
+  skill: { skill_id: string; intent_signature: string; domain: string; subdomain?: string; name: string; description: string; endpoints: Array<{ reliability_score: number; verification_status: string }>; updated_at: string }
+): Promise<void> {
+  const reliabilities = skill.endpoints.map((e) => e.reliability_score);
+  const avgReliability = reliabilities.length > 0
+    ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
+    : 0.5;
+  const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
+  const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
+
+  await indexSkill(env, skill.skill_id, skill.intent_signature, {
+    domain: skill.domain,
+    subdomain: skill.subdomain,
+    name: skill.name,
+    description: skill.description,
+    avg_reliability: avgReliability,
+    verified_ratio: verifiedRatio,
+    updated_at: skill.updated_at,
+  });
 }
 
 export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {

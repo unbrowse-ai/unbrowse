@@ -15,6 +15,8 @@ export interface AgentProfile {
   skills_discovered: string[];
   total_executions: number;
   total_feedback_given: number;
+  tos_accepted_version: string | null;
+  tos_accepted_at: string | null;
 }
 
 // --- Shared types (mirrored from src/types/skill.ts) ---

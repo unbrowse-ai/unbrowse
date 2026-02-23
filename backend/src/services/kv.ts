@@ -86,10 +86,11 @@ export class EdbKV {
       const toIndex = pairs.filter(({ key }) => !key.startsWith("_idx"));
       if (toIndex.length > 0) {
         const entries = await this._idxLoad();
-        for (const { key, value } of toIndex) {
+        for (const { key } of toIndex) {
           const i = entries.findIndex(e => e.k === key);
-          if (i >= 0) entries[i].v = value;
-          else entries.push({ k: key, v: value });
+          // Store empty v in idx — actual values are fetched via direct qdkv/get.
+          // Storing full values caused the idx to exceed EmergentDB's value size limit.
+          if (i < 0) entries.push({ k: key, v: "" });
         }
         await this._idxSave(entries);
       }
@@ -113,7 +114,18 @@ export class EdbKV {
 
   async listWithValues(prefix: string): Promise<ValuedEntry[]> {
     const all = await this._idxLoad();
-    return all.filter(e => e.k.startsWith(prefix) && e.v).map(e => ({ name: e.k, value: e.v }));
+    const matching = all.filter(e => e.k.startsWith(prefix));
+    const results: ValuedEntry[] = [];
+    for (const e of matching) {
+      if (e.v) {
+        results.push({ name: e.k, value: e.v });
+      } else {
+        // Fetch actual value for entries with empty v (idx stores keys only)
+        const val = await this.get(e.k) as string | null;
+        if (val) results.push({ name: e.k, value: val });
+      }
+    }
+    return results;
   }
 
   // --- index helpers ---
@@ -153,11 +165,11 @@ export class EdbKV {
     _cache.set(this.ns, { entries, expires: Date.now() + IDX_TTL_MS });
   }
 
-  private async _idxUpsert(key: string, value: string): Promise<void> {
+  private async _idxUpsert(key: string, _value: string): Promise<void> {
     const entries = await this._idxLoad();
     const i = entries.findIndex(e => e.k === key);
-    if (i >= 0) entries[i].v = value;
-    else entries.push({ k: key, v: value });
+    // Only add key to idx — don't store full value to keep idx small.
+    if (i < 0) entries.push({ k: key, v: "" });
     await this._idxSave(entries);
   }
 
