@@ -4,8 +4,6 @@ import { storeCredential, getCredential } from "../vault/index.js";
 import { nanoid } from "nanoid";
 import { isDomainMatch, getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
-import { createDecipheriv, pbkdf2Sync } from "crypto";
-import { execSync } from "child_process";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
@@ -17,7 +15,7 @@ const POLL_INTERVAL_MS = 1_000;
  * Returns the main Chrome profile path for the current platform.
  * Returns null if the path doesn't exist.
  */
-export function getMainChromeProfilePath(): string | null {
+function getMainChromeProfilePath(): string | null {
   const platform = process.platform;
   let profilePath: string;
   if (platform === "darwin") {
@@ -33,7 +31,7 @@ export function getMainChromeProfilePath(): string | null {
 /**
  * Returns the Chrome user data dir (parent of Default profile).
  */
-export function getChromeUserDataDir(): string {
+function getChromeUserDataDir(): string {
   const platform = process.platform;
   if (platform === "darwin") {
     return path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome");
@@ -62,7 +60,7 @@ function isChromeRunning(): boolean {
 /**
  * Returns the Chrome executable path for the current platform.
  */
-export function getChromeExecutablePath(): string | null {
+function getChromeExecutablePath(): string | null {
   const platform = process.platform;
   if (platform === "darwin") {
     const p = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -352,42 +350,31 @@ export async function interactiveLogin(
       expires: c.expires,
     }));
 
-    log("auth", `storing ${storableCookies.length} cookies under vault key auth:${targetDomain} (yolo: ${!!options?.yolo})`);
+    log("auth", `storing ${storableCookies.length} cookies under vault key auth:${targetDomain}`);
     await storeCredential(
       `auth:${targetDomain}`,
-      JSON.stringify({ cookies: storableCookies, yolo: !!options?.yolo })
+      JSON.stringify({ cookies: storableCookies })
     );
     log("auth", `vault write complete — login successful`);
 
     return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
   } finally {
-    log("auth", `closing browser (4s timeout)`);
+    log("auth", `closing browser context (4s timeout)`);
     try {
-      // browser.close() shuts down the entire browser process (all contexts + pages).
-      // context.close() alone leaves the Chromium process orphaned, holding the
-      // profile SingletonLock and preventing subsequent launches.
-      await Promise.race([
-        browser.close(),
-        new Promise<void>((r) => setTimeout(r, 4000)),
-      ]);
+      const context = browser.getContext();
+      if (context) {
+        // context.close() can hang indefinitely when the browser has pending
+        // navigations or in-flight network requests (common after OAuth flows).
+        // Race against a 4s timeout so the HTTP response always returns.
+        await Promise.race([
+          context.close(),
+          new Promise<void>((r) => setTimeout(r, 4000)),
+        ]);
+      }
     } catch (err) {
-      log("auth", `error closing browser: ${err}`);
+      log("auth", `error closing browser context: ${err}`);
     }
     log("auth", `done`);
-  }
-}
-
-/**
- * Check if a domain was authenticated via yolo mode (real Chrome profile).
- */
-export async function isYoloAuth(domain: string): Promise<boolean> {
-  const stored = await getCredential(`auth:${domain}`);
-  if (!stored) return false;
-  try {
-    const parsed = JSON.parse(stored) as { yolo?: boolean };
-    return !!parsed.yolo;
-  } catch {
-    return false;
   }
 }
 
@@ -427,137 +414,4 @@ export async function getStoredAuth(
   }
 }
 
-/**
- * Extract cookies for a domain directly from Chrome's SQLite database on macOS.
- * Decrypts using the Chrome Safe Storage key from the macOS Keychain.
- * This bypasses all browser automation issues — reads cookies at rest.
- */
-export async function extractChromeCookies(
-  domainFilter: string
-): Promise<Array<{
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  secure: boolean;
-  httpOnly: boolean;
-  sameSite: string;
-  expires?: number;
-}>> {
-  if (process.platform !== "darwin") {
-    log("auth", "Chrome cookie extraction only supported on macOS");
-    return [];
-  }
-
-  const cookieDbPath = path.join(
-    os.homedir(),
-    "Library",
-    "Application Support",
-    "Google",
-    "Chrome",
-    "Default",
-    "Cookies"
-  );
-  if (!fs.existsSync(cookieDbPath)) {
-    log("auth", `Chrome cookie DB not found: ${cookieDbPath}`);
-    return [];
-  }
-
-  // Get Chrome Safe Storage key from Keychain
-  let chromeKey: string;
-  try {
-    chromeKey = execSync('security find-generic-password -s "Chrome Safe Storage" -w', {
-      encoding: "utf-8",
-    }).trim();
-  } catch {
-    log("auth", "Could not read Chrome Safe Storage key from Keychain");
-    return [];
-  }
-
-  // Derive AES key via PBKDF2
-  const derivedKey = pbkdf2Sync(chromeKey, "saltysalt", 1003, 16, "sha1");
-  const iv = Buffer.alloc(16, " ");
-
-  function decrypt(encrypted: Buffer): string | null {
-    if (encrypted.length < 3) return null;
-    if (encrypted[0] !== 0x76 || encrypted[1] !== 0x31 || encrypted[2] !== 0x30) return null;
-    try {
-      const decipher = createDecipheriv("aes-128-cbc", derivedKey, iv);
-      const decrypted = Buffer.concat([decipher.update(encrypted.slice(3)), decipher.final()]);
-      const str = decrypted.toString("utf8");
-      // Strip any leading non-printable bytes (CBC first-block artifacts)
-      const match = str.match(/[\x20-\x7e]{2,}$/);
-      return match ? match[0] : str;
-    } catch {
-      return null;
-    }
-  }
-
-  try {
-    // bun:sqlite for reading the DB
-    const { default: Database } = await import("bun:sqlite" as string);
-    const db = new Database(cookieDbPath, { readonly: true });
-    // Match exact domain and .domain (e.g. 'x.com' and '.x.com')
-    const rows = db
-      .query(
-        "SELECT name, host_key, path, is_secure, is_httponly, expires_utc, encrypted_value, samesite FROM cookies WHERE host_key IN (?, ?, ?)"
-      )
-      .all(domainFilter, `.${domainFilter}`, `.${getRegistrableDomain(domainFilter)}`) as Array<{
-      name: string;
-      host_key: string;
-      path: string;
-      is_secure: number;
-      is_httponly: number;
-      expires_utc: number;
-      encrypted_value: Buffer;
-      samesite: number;
-    }>;
-
-    const cookies = [];
-    for (const row of rows) {
-      const value = decrypt(Buffer.from(row.encrypted_value));
-      if (!value) continue;
-      // Skip cookies with non-printable characters (incomplete decryption)
-      if (!/^[\x20-\x7e]+$/.test(value)) continue;
-      cookies.push({
-        name: row.name,
-        value,
-        domain: row.host_key,
-        path: row.path,
-        secure: !!row.is_secure,
-        httpOnly: !!row.is_httponly,
-        sameSite: row.samesite === 2 ? "Strict" : row.samesite === 1 ? "Lax" : "None",
-        expires:
-          row.expires_utc > 0
-            ? Math.floor((row.expires_utc - 11644473600000000) / 1000000)
-            : undefined,
-      });
-    }
-    db.close();
-    log("auth", `extracted ${cookies.length} cookies for ${domainFilter} from Chrome DB`);
-    return cookies;
-  } catch (err) {
-    log("auth", `Chrome cookie extraction failed: ${err}`);
-    return [];
-  }
-}
-
-/**
- * Yolo auth via Chrome cookie extraction — no browser needed.
- * Reads cookies directly from Chrome's encrypted database.
- */
-export async function yoloExtract(domain: string): Promise<LoginResult> {
-  const cookies = await extractChromeCookies(domain);
-  if (cookies.length === 0) {
-    return { success: false, domain, cookies_stored: 0, error: "No cookies found for domain" };
-  }
-
-  await storeCredential(
-    `auth:${domain}`,
-    JSON.stringify({ cookies, yolo: true })
-  );
-
-  log("auth", `yoloExtract: stored ${cookies.length} cookies for ${domain}`);
-  return { success: true, domain, cookies_stored: cookies.length };
-}
 

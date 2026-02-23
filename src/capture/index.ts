@@ -2,7 +2,7 @@ import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
-import { getProfilePath, getChromeUserDataDir, getChromeExecutablePath } from "../auth/index.js";
+import { getProfilePath } from "../auth/index.js";
 import { log } from "../logger.js";
 import fs from "node:fs";
 
@@ -61,8 +61,7 @@ export interface RawRequest {
 export async function captureSession(
   url: string,
   authHeaders?: Record<string, string>,
-  cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
-  options?: { yolo?: boolean }
+  cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<CaptureResult> {
   await acquireBrowserSlot();
   try {
@@ -71,25 +70,7 @@ export async function captureSession(
   const profileDir = getProfilePath(domain);
   const hasProfile = fs.existsSync(profileDir);
 
-  if (options?.yolo) {
-    // Yolo mode: use real Chrome executable with unbrowse's own profile dir
-    // This avoids "HeadlessChrome" in sec-ch-ua that Chrome for Testing exposes
-    // Vault cookies are injected separately, so we don't need the user's live profile
-    const chromeExe = getChromeExecutablePath();
-    if (chromeExe) {
-      try {
-        fs.mkdirSync(profileDir, { recursive: true });
-        log("capture", `yolo capture — launching real Chrome exe: ${chromeExe}, profile: ${profileDir}`);
-        await browser.launch({ action: "launch", id: nanoid(), headless: false, profile: profileDir, userAgent: CHROME_UA, executablePath: chromeExe });
-      } catch (err) {
-        log("capture", `yolo Chrome launch failed (${err}), falling back to headless`);
-        await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
-      }
-    } else {
-      log("capture", `yolo mode requested but Chrome not found, falling back to headless`);
-      await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
-    }
-  } else if (hasProfile) {
+  if (hasProfile) {
     try {
       log("capture", `launching with persistent profile (headed): ${profileDir}`);
       await browser.launch({ action: "launch", id: nanoid(), headless: false, profile: profileDir, userAgent: CHROME_UA });
