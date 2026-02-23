@@ -75,10 +75,8 @@ export async function getAgent(env: Env, agentId: string): Promise<AgentProfile 
 }
 
 export async function listAgents(env: Env, limit = 20): Promise<AgentProfile[]> {
-  const kv = statsKV(env);
-  const result = await kv.list({ prefix: "agent:", limit });
-  const profiles = await Promise.all(result.keys.map((k) => kv.get(k.name, "json")));
-  return profiles.filter(Boolean) as AgentProfile[];
+  const entries = await statsKV(env).listWithValues("agent:");
+  return entries.slice(0, limit).map(e => JSON.parse(e.value) as AgentProfile);
 }
 
 export async function incrementAgentExecutions(env: Env, agentId: string): Promise<void> {
@@ -108,12 +106,6 @@ export async function addSkillDiscovered(env: Env, agentId: string, skillId: str
 }
 
 export async function countAgents(env: Env): Promise<number> {
-  let count = 0;
-  let cursor: string | undefined;
-  do {
-    const result = await statsKV(env).list({ prefix: "agent:", limit: 1000, cursor });
-    count += result.keys.length;
-    cursor = result.list_complete ? undefined : result.cursor;
-  } while (cursor);
-  return count;
+  const entries = await statsKV(env).listWithValues("agent:");
+  return entries.length;
 }

@@ -11,50 +11,27 @@ export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
 
 // GET /v1/stats/summary — aggregated counts for the landing page
 publicStatsRoutes.get("/stats/summary", async (c) => {
-  let skillCount = 0;
+  // Both lists served from index — 2 HTTP calls total instead of 150+
+  const [skillEntries, statEntries] = await Promise.all([
+    skillsKV(c.env).listWithValues("skill:"),
+    statsKV(c.env).listWithValues("stats:"),
+  ]);
+
+  const skillCount = skillEntries.length;
   let endpointCount = 0;
   const domainSet = new Set<string>();
-  let cursor: string | undefined;
-  const skv = skillsKV(c.env);
-
-  do {
-    const list = await skv.list({ prefix: "skill:", limit: 1000, cursor });
-    skillCount += list.keys.length;
-
-    const samplesToRead = list.keys.slice(0, 50);
-    const reads = await Promise.all(samplesToRead.map((k) => skv.get(k.name, "json")));
-    for (const skill of reads) {
-      if (skill && typeof skill === "object") {
-        const s = skill as { endpoints?: unknown[]; domain?: string };
-        endpointCount += s.endpoints?.length ?? 0;
-        if (s.domain) domainSet.add(s.domain);
-      }
-    }
-
-    cursor = list.list_complete ? undefined : list.cursor;
-  } while (cursor);
-
-  // Count total executions
-  let totalExecutions = 0;
-  let statsCursor: string | undefined;
-  const stv = statsKV(c.env);
-  do {
-    const list = await stv.list({ prefix: "stats:", limit: 1000, cursor: statsCursor });
-    const reads = await Promise.all(list.keys.slice(0, 100).map((k) => stv.get(k.name, "json")));
-    for (const stat of reads) {
-      if (stat && typeof stat === "object") {
-        totalExecutions += (stat as { total_executions?: number }).total_executions ?? 0;
-      }
-    }
-    statsCursor = list.list_complete ? undefined : list.cursor;
-  } while (statsCursor);
-
-  // Extrapolate endpoint count if we only sampled a subset
-  const sampledSkills = Math.min(skillCount, 50);
-  if (sampledSkills > 0 && sampledSkills < skillCount) {
-    const avgEndpoints = endpointCount / sampledSkills;
-    endpointCount = Math.round(avgEndpoints * skillCount);
+  for (const { value } of skillEntries) {
+    const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string };
+    endpointCount += s.endpoints?.length ?? 0;
+    if (s.domain) domainSet.add(s.domain);
   }
+
+  let totalExecutions = 0;
+  for (const { value } of statEntries) {
+    const s = JSON.parse(value) as { total_executions?: number };
+    totalExecutions += s.total_executions ?? 0;
+  }
+
 
   const agentCount = await countAgents(c.env);
 
