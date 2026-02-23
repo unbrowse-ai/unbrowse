@@ -158,8 +158,12 @@ export async function registerRoutes(app: FastifyInstance) {
         headers,
         body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
       });
-      const data = await res.json();
-      return reply.code(res.status).send(data);
+      const text = await res.text();
+      try {
+        return reply.code(res.status).send(JSON.parse(text));
+      } catch {
+        return reply.code(res.status).send({ error: text || `Upstream returned ${res.status}` });
+      }
     } catch (err) {
       return reply.code(502).send({ error: `Proxy to beta-api failed: ${(err as Error).message}` });
     }
