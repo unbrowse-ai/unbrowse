@@ -20,18 +20,12 @@ function hashIntent(s: string): string {
 }
 
 export async function listSkills(env: Env): Promise<SkillManifest[]> {
-  const kv = skillsKV(env);
-  const result = await kv.list({ prefix: "skill:" });
-  const skills: SkillManifest[] = [];
-  for (const key of result.keys) {
-    const raw = await kv.get(key.name) as string | null;
-    if (raw) {
-      const skill = JSON.parse(raw) as SkillManifest;
-      if (!skill.execution_type) skill.execution_type = "http";
-      skills.push(skill);
-    }
-  }
-  return skills;
+  const entries = await skillsKV(env).listWithValues("skill:");
+  return entries.map(({ value }) => {
+    const skill = JSON.parse(value) as SkillManifest;
+    if (!skill.execution_type) skill.execution_type = "http";
+    return skill;
+  });
 }
 
 export async function getSkill(env: Env, skillId: string): Promise<SkillManifest | null> {
