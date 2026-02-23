@@ -28,7 +28,8 @@ async function createUnkeyKey(
 
 export async function registerAgent(
   env: Env,
-  name: string
+  name: string,
+  tosVersion: string
 ): Promise<{ agent_id: string; api_key: string }> {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
@@ -44,10 +45,20 @@ export async function registerAgent(
     skills_discovered: [],
     total_executions: 0,
     total_feedback_given: 0,
+    tos_accepted_version: tosVersion,
+    tos_accepted_at: new Date().toISOString(),
   };
   await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));
 
   return { agent_id: data.keyId, api_key: data.key };
+}
+
+export async function acceptTos(env: Env, agentId: string, tosVersion: string): Promise<void> {
+  const profile = await getAgent(env, agentId);
+  if (!profile) throw new Error("Agent not found");
+  profile.tos_accepted_version = tosVersion;
+  profile.tos_accepted_at = new Date().toISOString();
+  await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
 }
 
 export async function getAgent(env: Env, agentId: string): Promise<AgentProfile | null> {

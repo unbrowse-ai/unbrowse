@@ -95,7 +95,7 @@ export async function publishSkill(
     avg_reliability: avgReliability,
     verified_ratio: verifiedRatio,
     updated_at: skill.updated_at,
-  }).catch(() => {});
+  }).catch((err) => console.error(`[indexSkill] failed for ${skill.skill_id}:`, (err as Error).message));
 
   return skill;
 }
