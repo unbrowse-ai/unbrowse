@@ -74,61 +74,6 @@ export async function publishSkill(
   await kv.put(kvKey(skill.skill_id), JSON.stringify(skill));
   await kv.put(intentKey(skill.domain, skill.intent_signature), skill.skill_id);
 
-  // Index into EmergentDB vector search (non-fatal)
-  const reliabilities = skill.endpoints.map((e) => e.reliability_score);
-  const avgReliability = reliabilities.length > 0
-    ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
-    : 0.5;
-  const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
-  const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
-
-  await indexSkill(env, skill.skill_id, skill.intent_signature, {
-    domain: skill.domain,
-    subdomain: skill.subdomain,
-    name: skill.name,
-    description: skill.description,
-    avg_reliability: avgReliability,
-    verified_ratio: verifiedRatio,
-    updated_at: skill.updated_at,
-  }).catch(() => {});
-
-  return skill;
-}
-): Promise<SkillManifest> {
-  const existing = await findExistingByIntent(env, draft.intent_signature, draft.domain);
-  const now = new Date().toISOString();
-  let skill: SkillManifest;
-
-  if (existing) {
-    const newVersion = bumpMinor(existing.version);
-    skill = {
-      ...existing,
-      ...draft,
-      skill_id: existing.skill_id,
-      version: newVersion,
-      prev_version: existing.version,
-      updated_at: now,
-      created_at: existing.created_at,
-    };
-  } else {
-    skill = {
-      ...draft,
-      skill_id: draft.skill_id ?? nanoid(),
-      version: draft.version ?? "1.0.0",
-      schema_version: "1",
-      lifecycle: "active",
-      created_at: now,
-      updated_at: now,
-    } as SkillManifest;
-  }
-
-  // Store skill in KV
-  await env.SKILLS_KV.put(kvKey(skill.skill_id), JSON.stringify(skill));
-
-  // Store intent dedup index
-  await env.SKILLS_KV.put(intentKey(skill.domain, skill.intent_signature), skill.skill_id);
-
-  // Index into EmergentDB (non-fatal)
   const reliabilities = skill.endpoints.map((e) => e.reliability_score);
   const avgReliability = reliabilities.length > 0
     ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
@@ -215,7 +160,6 @@ function bumpMinor(version: string): string {
   return `${parts[0]}.${parts[1] + 1}.0`;
 }
 
-// Pure helper — stays available for local use too
 export function mergeEndpoints(
   existing: EndpointDescriptor[],
   incoming: EndpointDescriptor[]

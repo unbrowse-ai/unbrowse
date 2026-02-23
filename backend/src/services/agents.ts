@@ -49,26 +49,6 @@ export async function registerAgent(
 
   return { agent_id: data.keyId, api_key: data.key };
 }
-  const trimmed = name.trim();
-  if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
-    throw new Error("Name must be 2-64 characters");
-  }
-
-  const data = await createUnkeyKey(env.UNKEY_ROOT_KEY, env.UNKEY_API_ID, trimmed);
-
-  // Store agent profile in STATS_KV
-  const profile: AgentProfile = {
-    agent_id: data.keyId,
-    name: trimmed,
-    created_at: new Date().toISOString(),
-    skills_discovered: [],
-    total_executions: 0,
-    total_feedback_given: 0,
-  };
-  await env.STATS_KV.put(`agent:${data.keyId}`, JSON.stringify(profile));
-
-  return { agent_id: data.keyId, api_key: data.key };
-}
 
 export async function getAgent(env: Env, agentId: string): Promise<AgentProfile | null> {
   return await statsKV(env).get(`agent:${agentId}`, "json") as AgentProfile | null;
