@@ -1,5 +1,5 @@
 import type { Env } from "../types.js";
-import { skillsKV, EdbKV } from "./kv.js";
+import { EdbKV } from "./kv.js";
 
 const DIMS = 1536;
 const EMERGENTDB_BASE = "https://api.emergentdb.com";
@@ -103,45 +103,21 @@ export async function searchIntentInDomain(
   const kv = searchCacheKV(env);
   const ckey = searchCacheKey(intent, k, domain);
 
-  // Cache hit — skip Gemini + vector entirely
   const hit = await kv.get(ckey) as string | null;
   if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
 
-  let results: SearchResult = [];
-  try {
-    const vector = await embedIntent(env, intent, "query");
-    const ns = domainNamespace(domain);
-    const data = (await edbRequest(env, "POST", "/vectors/search", {
-      vector, k, include_metadata: true, namespace: ns,
-    })) as { results?: SearchResult };
-    if (data.results?.length) results = data.results;
-  } catch (e) {
-    console.log(`[search] vector domain search failed: ${e}`);
-  }
+  const vector = await embedIntent(env, intent, "query");
+  const ns = domainNamespace(domain);
+  const data = (await edbRequest(env, "POST", "/vectors/search", {
+    vector, k, include_metadata: true, namespace: ns,
+  })) as { results?: SearchResult };
+  const results = data.results ?? [];
 
-  if (results.length === 0) results = await kvFallbackSearch(env, intent, k, domain);
-
-  // Cache fire-and-forget
   if (results.length > 0) {
     kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
   }
 
   return results;
-}
-  // Try vector search first
-  try {
-    const vector = await embedIntent(env, intent, "query");
-    const ns = domainNamespace(domain);
-    const data = (await edbRequest(env, "POST", "/vectors/search", {
-      vector, k, include_metadata: true, namespace: ns,
-    })) as { results?: Array<{ id: number; score: number; metadata: Record<string, unknown> }> };
-    if (data.results && data.results.length > 0) return data.results;
-  } catch (e) {
-    console.log(`[search] vector domain search failed: ${e}`);
-  }
-
-  // Fallback: keyword search over KV skills filtered by domain
-  return kvFallbackSearch(env, intent, k, domain);
 }
 
 export async function searchIntent(
@@ -152,43 +128,20 @@ export async function searchIntent(
   const kv = searchCacheKV(env);
   const ckey = searchCacheKey(intent, k);
 
-  // Cache hit — skip Gemini + vector entirely
   const hit = await kv.get(ckey) as string | null;
   if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
 
-  let results: SearchResult = [];
-  try {
-    const vector = await embedIntent(env, intent, "query");
-    const data = (await edbRequest(env, "POST", "/vectors/search", {
-      vector, k, include_metadata: true, namespace: GLOBAL_NS,
-    })) as { results?: SearchResult };
-    if (data.results?.length) results = data.results;
-  } catch (e) {
-    console.log(`[search] vector search failed: ${e}`);
-  }
+  const vector = await embedIntent(env, intent, "query");
+  const data = (await edbRequest(env, "POST", "/vectors/search", {
+    vector, k, include_metadata: true, namespace: GLOBAL_NS,
+  })) as { results?: SearchResult };
+  const results = data.results ?? [];
 
-  if (results.length === 0) results = await kvFallbackSearch(env, intent, k);
-
-  // Cache fire-and-forget
   if (results.length > 0) {
     kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
   }
 
   return results;
-}
-  // Try vector search first
-  try {
-    const vector = await embedIntent(env, intent, "query");
-    const data = (await edbRequest(env, "POST", "/vectors/search", {
-      vector, k, include_metadata: true, namespace: GLOBAL_NS,
-    })) as { results?: Array<{ id: number; score: number; metadata: Record<string, unknown> }> };
-    if (data.results && data.results.length > 0) return data.results;
-  } catch (e) {
-    console.log(`[search] vector search failed: ${e}`);
-  }
-
-  // Fallback: keyword search over KV skills
-  return kvFallbackSearch(env, intent, k);
 }
 
 export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {
@@ -198,40 +151,6 @@ export async function removeSkillFromIndex(env: Env, skillId: string, domain: st
     edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: ns }),
     edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: GLOBAL_NS }),
   ]);
-}
-
-async function kvFallbackSearch(
-  env: Env,
-  intent: string,
-  k: number,
-  domain?: string
-): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
-  // Uses the qdkv index cache — zero extra HTTP calls if already warm
-  const entries = await skillsKV(env).listWithValues("skill:");
-  const terms = intent.toLowerCase().split(/\s+/);
-  const results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> = [];
-
-  for (const { value } of entries) {
-    let skill: { skill_id: string; name: string; domain: string; description?: string; intent_signature: string; lifecycle?: string };
-    try { skill = JSON.parse(value); } catch { continue; }
-    if (skill.lifecycle && skill.lifecycle !== "active") continue;
-    if (domain && skill.domain !== domain) continue;
-
-    const haystack = `${skill.name} ${skill.intent_signature} ${skill.description ?? ""} ${skill.domain}`.toLowerCase();
-    const matched = terms.filter((t) => haystack.includes(t)).length;
-    if (matched === 0) continue;
-
-    results.push({
-      id: hashToInt(skill.skill_id),
-      score: matched / terms.length,
-      metadata: {
-        title: skill.intent_signature,
-        content: JSON.stringify({ skill_id: skill.skill_id, domain: skill.domain, name: skill.name }),
-      },
-    });
-  }
-
-  return results.sort((a, b) => b.score - a.score).slice(0, k);
 }
 
 function hashToInt(str: string): number {
