@@ -50,7 +50,13 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, au
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json() as T & { error?: string };
+  let data: T & { error?: string };
+  try {
+    data = await res.json() as T & { error?: string };
+  } catch {
+    // Backend returned a non-JSON response (e.g. CF Worker error page)
+    throw new Error(`API error ${res.status} from ${path}`);
+  }
   if (!res.ok) throw new Error((data as { error?: string }).error ?? `API HTTP ${res.status}`);
   return data;
 }
