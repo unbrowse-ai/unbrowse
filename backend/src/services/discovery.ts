@@ -166,37 +166,6 @@ async function kvFallbackSearch(
 
   return results.sort((a, b) => b.score - a.score).slice(0, k);
 }
-  const keys = await env.SKILLS_KV.list({ prefix: "skill:", limit: 200 });
-  const terms = intent.toLowerCase().split(/\s+/);
-  const results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> = [];
-
-  for (const key of keys.keys) {
-    const raw = await env.SKILLS_KV.get(key.name);
-    if (!raw) continue;
-    const skill = JSON.parse(raw) as {
-      skill_id: string; name: string; domain: string; description?: string;
-      intent_signature: string; lifecycle?: string;
-    };
-    if (skill.lifecycle && skill.lifecycle !== "active") continue;
-    if (domain && skill.domain !== domain) continue;
-
-    const haystack = `${skill.name} ${skill.intent_signature} ${skill.description ?? ""} ${skill.domain}`.toLowerCase();
-    const matched = terms.filter((t) => haystack.includes(t)).length;
-    if (matched === 0) continue;
-
-    const score = matched / terms.length;
-    results.push({
-      id: hashToInt(skill.skill_id),
-      score,
-      metadata: {
-        title: skill.intent_signature,
-        content: JSON.stringify({ skill_id: skill.skill_id, domain: skill.domain, name: skill.name }),
-      },
-    });
-  }
-
-  return results.sort((a, b) => b.score - a.score).slice(0, k);
-}
 
 function hashToInt(str: string): number {
   let hash = 0;
