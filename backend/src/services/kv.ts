@@ -93,7 +93,24 @@ export class EdbKV {
     if (!res.ok) return [];
     const data = await res.json() as { value?: string | null; found?: boolean };
     if (!data.found || !data.value) return [];
-    const entries = safeJson(data.value) as IdxEntry[] ?? [];
+    const raw = safeJson(data.value) as unknown[];
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+
+    // Migrate old string[] format → {k, v}[] by fetching values in parallel
+    if (typeof raw[0] === "string") {
+      const entries: IdxEntry[] = await Promise.all(
+        (raw as string[]).map(async (k) => {
+          const r = await fetch(`${BASE}/qdkv/get/${encodeURIComponent(this.k(k))}`, { headers: this.h });
+          if (!r.ok) return { k, v: "" };
+          const d = await r.json() as { value?: string | null; found?: boolean };
+          return { k, v: d.value ?? "" };
+        })
+      );
+      await this._idxSave(entries); // write migrated index once
+      return entries;
+    }
+
+    const entries = raw as IdxEntry[];
     _cache.set(this.ns, { entries, expires: Date.now() + IDX_TTL_MS });
     return entries;
   }
