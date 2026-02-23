@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir, hostname } from "os";
 import { randomBytes } from "crypto";
+import { createInterface } from "readline";
 import type { EndpointStats, ExecutionTrace, SkillManifest, ValidationResult } from "../types/index.js";
 
 const API_URL = "https://beta-api.unbrowse.ai";
@@ -13,6 +14,8 @@ interface UnbrowseConfig {
   agent_id: string;
   agent_name: string;
   registered_at: string;
+  tos_accepted_version: string | null;
+  tos_accepted_at: string | null;
 }
 
 function loadConfig(): UnbrowseConfig | null {
@@ -50,29 +53,133 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, au
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json() as T & { error?: string };
+  let data: T & { error?: string };
+  try {
+    data = await res.json() as T & { error?: string };
+  } catch {
+    // Backend returned a non-JSON response (e.g. CF Worker error page)
+    throw new Error(`API error ${res.status} from ${path}`);
+  }
+
+  // Handle ToS update required — tell user to restart
+  if (res.status === 403 && (data as Record<string, unknown>).error === "tos_update_required") {
+    console.warn("\n[unbrowse] The Terms of Service have been updated.");
+    console.warn("[unbrowse] Please restart the unbrowse service to accept the new terms.");
+    throw new Error("ToS update required. Restart unbrowse to accept new terms.");
+  }
+
   if (!res.ok) throw new Error((data as { error?: string }).error ?? `API HTTP ${res.status}`);
   return data;
 }
 
+// --- ToS acceptance ---
+
+async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  console.log("\n" + "=".repeat(60));
+  console.log("UNBROWSE TERMS OF SERVICE");
+  console.log("=".repeat(60));
+  console.log(summary);
+  console.log("=".repeat(60));
+
+  return new Promise<boolean>((resolve) => {
+    rl.question("\nDo you accept the Terms of Service? (y/n): ", (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes");
+    });
+  });
+}
+
+async function checkTosStatus(): Promise<void> {
+  const config = loadConfig();
+
+  let tosInfo: { version: string; summary: string; url: string };
+  try {
+    tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
+  } catch {
+    // Offline — allow usage with whatever ToS was previously accepted.
+    // Backend will enforce on next actual API call anyway.
+    return;
+  }
+
+  if (config?.tos_accepted_version === tosInfo.version) {
+    return; // Already accepted current version
+  }
+
+  // Need re-acceptance
+  console.log("\nThe Unbrowse Terms of Service have been updated.");
+  const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
+  if (!accepted) {
+    console.log("You must accept the updated Terms of Service to continue using Unbrowse.");
+    process.exit(1);
+  }
+
+  // Call accept-tos endpoint
+  try {
+    await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version }, true);
+
+    // Update local config
+    if (config) {
+      config.tos_accepted_version = tosInfo.version;
+      config.tos_accepted_at = new Date().toISOString();
+      saveConfig(config);
+    }
+    console.log("Terms of Service accepted.");
+  } catch (err) {
+    console.warn(`Failed to record ToS acceptance: ${(err as Error).message}`);
+    // Don't block — backend will enforce on next call
+  }
+}
+
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(): Promise<void> {
-  if (getApiKey()) return;
+  if (getApiKey()) {
+    // Already have a key — check if ToS re-acceptance is needed
+    await checkTosStatus();
+    return;
+  }
 
+  // Step 1: Fetch current ToS version from backend
+  let tosInfo: { version: string; summary: string; url: string };
+  try {
+    tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
+  } catch {
+    console.warn("Cannot reach unbrowse API. Registration requires internet access.");
+    console.warn("Set UNBROWSE_API_KEY manually or try again when online.");
+    return;
+  }
+
+  // Step 2: Prompt for ToS acceptance
+  const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
+  if (!accepted) {
+    console.log("You must accept the Terms of Service to use Unbrowse.");
+    process.exit(1);
+  }
+
+  // Step 3: Register with ToS version
   const name = `${hostname()}-${randomBytes(3).toString("hex")}`;
-  console.log(`No UNBROWSE_API_KEY found — auto-registering as "${name}"...`);
+  console.log(`Registering as "${name}"...`);
 
   try {
     const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name }
+      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
     );
 
     process.env.UNBROWSE_API_KEY = api_key;
-    saveConfig({ api_key, agent_id, agent_name: name, registered_at: new Date().toISOString() });
+    saveConfig({
+      api_key,
+      agent_id,
+      agent_name: name,
+      registered_at: new Date().toISOString(),
+      tos_accepted_version: tosInfo.version,
+      tos_accepted_at: new Date().toISOString(),
+    });
 
-    console.log(`Registered! API key cached in ~/.unbrowse/config.json`);
+    console.log("Registered! API key cached in ~/.unbrowse/config.json");
   } catch (err) {
-    console.warn(`Auto-registration failed: ${(err as Error).message}. Marketplace features will be unavailable.`);
+    console.warn(`Registration failed: ${(err as Error).message}`);
+    process.exit(1);
   }
 }
 

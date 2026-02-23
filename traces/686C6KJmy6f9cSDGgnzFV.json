@@ -1,0 +1,174 @@
+{
+  "trace_id": "686C6KJmy6f9cSDGgnzFV",
+  "skill_id": "A2rjKL1Lr_mNMe4RoE2-d",
+  "endpoint_id": "QrBGZiO47HYbazN38hpGS",
+  "started_at": "2026-02-23T15:43:24.631Z",
+  "completed_at": "2026-02-23T15:43:26.697Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": [
+      {
+        "Country": "United States",
+        "GDP": "29185",
+        "GDP Growth": "1.40",
+        "Interest Rate": "3.75",
+        "Inflation Rate": "2.40",
+        "Jobless Rate": "4.30",
+        "Gov. Budget": "-6.40",
+        "Debt/GDP": "124.30",
+        "Current Account": "-3.90",
+        "Population": "341.15"
+      },
+      {
+        "Country": "China",
+        "GDP": "18744",
+        "GDP Growth": "1.20",
+        "Interest Rate": "3.00",
+        "Inflation Rate": "0.20",
+        "Jobless Rate": "5.10",
+        "Gov. Budget": "-6.50",
+        "Debt/GDP": "88.30",
+        "Current Account": "2.20",
+        "Population": "1405.00"
+      },
+      {
+        "Country": "Euro Area",
+        "GDP": "16406",
+        "GDP Growth": "0.30",
+        "Interest Rate": "2.15",
+        "Inflation Rate": "1.70",
+        "Jobless Rate": "6.20",
+        "Gov. Budget": "-3.10",
+        "Debt/GDP": "87.10",
+        "Current Account": "1.60",
+        "Population": "351.38"
+      },
+      {
+        "Country": "Germany",
+        "GDP": "4660",
+        "GDP Growth": "0.30",
+        "Interest Rate": "2.15",
+        "Inflation Rate": "2.10",
+        "Jobless Rate": "6.30",
+        "Gov. Budget": "-2.80",
+        "Debt/GDP": "62.20",
+        "Current Account": "5.80",
+        "Population": "83.58"
+      },
+      {
+        "Country": "Japan",
+        "GDP": "4026",
+        "GDP Growth": "0.10",
+        "Interest Rate": "0.75",
+        "Inflation Rate": "1.50",
+        "Jobless Rate": "2.60",
+        "Gov. Budget": "-2.30",
+        "Debt/GDP": "236.70",
+        "Current Account": "4.70",
+        "Population": "123.80"
+      },
+      {
+        "Country": "India",
+        "GDP": "3913",
+        "GDP Growth": "2.00",
+        "Interest Rate": "5.25",
+        "Inflation Rate": "2.75",
+        "Jobless Rate": "5.00",
+        "Gov. Budget": "-4.80",
+        "Debt/GDP": "81.92",
+        "Current Account": "-0.60",
+        "Population": "1398.60"
+      },
+      {
+        "Country": "United Kingdom",
+        "GDP": "3644",
+        "GDP Growth": "0.10",
+        "Interest Rate": "3.75",
+        "Inflation Rate": "3.00",
+        "Jobless Rate": "5.20",
+        "Gov. Budget": "-5.10",
+        "Debt/GDP": "93.60",
+        "Current Account": "-2.20",
+        "Population": "69.28"
+      },
+      {
+        "Country": "France",
+        "GDP": "3162",
+        "GDP Growth": "0.20",
+        "Interest Rate": "2.15",
+        "Inflation Rate": "0.30",
+        "Jobless Rate": "7.90",
+        "Gov. Budget": "-5.80",
+        "Debt/GDP": "113.00",
+        "Current Account": "0.10",
+        "Population": "68.44"
+      },
+      {
+        "Country": "Italy",
+        "GDP": "2373",
+        "GDP Growth": "0.30",
+        "Interest Rate": "2.15",
+        "Inflation Rate": "1.00",
+        "Jobless Rate": "5.60",
+        "Gov. Budget": "-3.40",
+        "Debt/GDP": "135.30",
+        "Current Account": "1.20",
+        "Population": "58.93"
+      },
+      {
+        "Country": "Canada",
+        "GDP": "2241",
+        "GDP Growth": "0.60",
+        "Interest Rate": "2.25",
+        "Inflation Rate": "2.30",
+        "Jobless Rate": "6.50",
+        "Gov. Budget": "-1.20",
+        "Debt/GDP": "110.80",
+        "Current Account": "-1.00",
+        "Population": "41.65"
+      },
+      {
+        "Country": "Brazil",
+        "GDP": "2179",
+        "GDP Growth": "0.10",
+        "Interest Rate": "15.00",
+        "Inflation Rate": "4.44",
+        "Jobless Rate": "5.10",
+        "Gov. Budget": "-8.50",
+        "Debt/GDP": "76.50",
+        "Current Account": "-3.02",
+        "Population": "212.58"
+      },
+      {
+        "Country": "Russia",
+        "GDP": "2174",
+        "GDP Growth": "-0.80",
+        "Interest Rate": "15.50",
+        "Inflation Rate": "6.00",
+        "Jobless Rate": "2.20",
+        "Gov. Budget": "-2.60",
+        "Debt/GDP": "16.40",
+        "Current Account": "2.00",
+        "Population": "146.10"
+      },
+      {
+        "Country": "South Korea",
+        "GDP": "1917",
+        "GDP Growth": "-0.30",
+        "Interest Rate": "2.50",
+        "Inflation Rate": "2.00",
+        "Jobless Rate": "3.00",
+        "Gov. Budget": "-3.90",
+        "Debt/GDP": "46.80",
+        "Current Account": "5.30",
+        "Population": "51.69"
+      }
+    ],
+    "_extraction": {
+      "method": "table",
+      "confidence": 1,
+      "source": "html-postprocess"
+    }
+  }
+}

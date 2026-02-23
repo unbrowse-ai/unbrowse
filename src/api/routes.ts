@@ -16,6 +16,20 @@ const BETA_API_URL = "https://beta-api.unbrowse.ai";
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
 export async function registerRoutes(app: FastifyInstance) {
+  // Auth gate: block all routes except /health when no API key is configured
+  app.addHook("onRequest", async (req, reply) => {
+    if (req.url === "/health") return;
+
+    const key = getApiKey();
+    if (!key) {
+      return reply.code(401).send({
+        error: "api_key_required",
+        message: "No API key configured. Sign up at https://unbrowse.ai or restart the unbrowse service to register.",
+        docs_url: "https://unbrowse.ai",
+      });
+    }
+  });
+
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const { intent, params, context, projection, confirm_unsafe, dry_run } = req.body as {
