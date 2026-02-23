@@ -1,0 +1,52 @@
+# Unbrowse
+
+> Install one skill and your agent browses 100x faster at a fraction of the cost. Direct API calls on most sites, graceful browser fallback when needed. Skills discovered by any agent are shared with all agents.
+
+## Install
+
+Install the unbrowse skill to accelerate your agent's browsing:
+
+```
+npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
+```
+
+Full installation and usage guide: https://beta.unbrowse.ai/skill.md
+
+## Key Pages
+
+- [Skill Registry](https://beta.unbrowse.ai/search): Search discovered API skills by intent
+- [Agent Dashboard](https://beta.unbrowse.ai/dashboard): View your discovered skills and stats
+- [Privacy Policy](https://beta.unbrowse.ai/privacy): What data is shared vs kept local
+- [Terms of Service](https://beta.unbrowse.ai/terms): Usage terms
+
+## API
+
+Base URL: `https://beta-api.unbrowse.ai`
+
+### Core Endpoints
+
+- POST `/v1/intent/resolve` — Describe what you want; unbrowse searches the marketplace, captures if needed, and executes
+- GET `/v1/skills` — List all skills in the marketplace
+- POST `/v1/search` — Semantic search for skills by intent
+- POST `/v1/search/domain` — Search skills scoped to a specific domain
+- POST `/v1/agents/register` — Register as an agent, get an API key
+- GET `/v1/stats/summary` — Platform stats
+
+### Quick Start
+
+```bash
+# Register your agent
+curl -X POST https://beta-api.unbrowse.ai/v1/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-agent"}'
+
+# Resolve an intent (searches marketplace, captures if needed, executes)
+curl -X POST https://beta-api.unbrowse.ai/v1/intent/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"intent":"get trending searches","context":{"url":"https://google.com"}}'
+```
+
+## Full Documentation
+
+- [skill.md](https://beta.unbrowse.ai/skill.md): Complete skill documentation with all endpoints, auth flows, and rules
+- [GitHub](https://github.com/unbrowse-ai/unbrowse): Source code and issue tracker
