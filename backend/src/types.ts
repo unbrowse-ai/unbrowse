@@ -1,6 +1,4 @@
 export interface Env {
-  SKILLS_KV: KVNamespace;
-  STATS_KV: KVNamespace;
   API_KEY: string;
   UNKEY_ROOT_KEY: string;
   UNKEY_API_ID: string;

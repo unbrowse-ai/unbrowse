@@ -1,4 +1,5 @@
 import type { Env, AgentProfile } from "../types.js";
+import { statsKV } from "./kv.js";
 
 async function createUnkeyKey(
   rootKey: string,
@@ -36,6 +37,25 @@ export async function registerAgent(
 
   const data = await createUnkeyKey(env.UNKEY_ROOT_KEY, env.UNKEY_API_ID, trimmed);
 
+  const profile: AgentProfile = {
+    agent_id: data.keyId,
+    name: trimmed,
+    created_at: new Date().toISOString(),
+    skills_discovered: [],
+    total_executions: 0,
+    total_feedback_given: 0,
+  };
+  await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));
+
+  return { agent_id: data.keyId, api_key: data.key };
+}
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
+    throw new Error("Name must be 2-64 characters");
+  }
+
+  const data = await createUnkeyKey(env.UNKEY_ROOT_KEY, env.UNKEY_API_ID, trimmed);
+
   // Store agent profile in STATS_KV
   const profile: AgentProfile = {
     agent_id: data.keyId,
@@ -51,13 +71,13 @@ export async function registerAgent(
 }
 
 export async function getAgent(env: Env, agentId: string): Promise<AgentProfile | null> {
-  const raw = await env.STATS_KV.get(`agent:${agentId}`, "json");
-  return raw as AgentProfile | null;
+  return await statsKV(env).get(`agent:${agentId}`, "json") as AgentProfile | null;
 }
 
 export async function listAgents(env: Env, limit = 20): Promise<AgentProfile[]> {
-  const keys = await env.STATS_KV.list({ prefix: "agent:", limit });
-  const profiles = await Promise.all(keys.keys.map((k) => env.STATS_KV.get(k.name, "json")));
+  const kv = statsKV(env);
+  const result = await kv.list({ prefix: "agent:", limit });
+  const profiles = await Promise.all(result.keys.map((k) => kv.get(k.name, "json")));
   return profiles.filter(Boolean) as AgentProfile[];
 }
 
@@ -66,7 +86,7 @@ export async function incrementAgentExecutions(env: Env, agentId: string): Promi
   const profile = await getAgent(env, agentId);
   if (!profile) return;
   profile.total_executions++;
-  await env.STATS_KV.put(`agent:${agentId}`, JSON.stringify(profile));
+  await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
 }
 
 export async function incrementAgentFeedback(env: Env, agentId: string): Promise<void> {
@@ -74,7 +94,7 @@ export async function incrementAgentFeedback(env: Env, agentId: string): Promise
   const profile = await getAgent(env, agentId);
   if (!profile) return;
   profile.total_feedback_given++;
-  await env.STATS_KV.put(`agent:${agentId}`, JSON.stringify(profile));
+  await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
 }
 
 export async function addSkillDiscovered(env: Env, agentId: string, skillId: string): Promise<void> {
@@ -83,7 +103,7 @@ export async function addSkillDiscovered(env: Env, agentId: string, skillId: str
   if (!profile) return;
   if (!profile.skills_discovered.includes(skillId)) {
     profile.skills_discovered.push(skillId);
-    await env.STATS_KV.put(`agent:${agentId}`, JSON.stringify(profile));
+    await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
   }
 }
 
@@ -91,9 +111,9 @@ export async function countAgents(env: Env): Promise<number> {
   let count = 0;
   let cursor: string | undefined;
   do {
-    const list = await env.STATS_KV.list({ prefix: "agent:", limit: 1000, cursor });
-    count += list.keys.length;
-    cursor = list.list_complete ? undefined : list.cursor;
+    const result = await statsKV(env).list({ prefix: "agent:", limit: 1000, cursor });
+    count += result.keys.length;
+    cursor = result.list_complete ? undefined : result.cursor;
   } while (cursor);
   return count;
 }
