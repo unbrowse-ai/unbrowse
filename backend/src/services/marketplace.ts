@@ -21,10 +21,12 @@ function hashIntent(s: string): string {
 
 export async function listSkills(env: Env): Promise<SkillManifest[]> {
   const entries = await skillsKV(env).listWithValues("skill:");
-  return entries.map(({ value }) => {
-    const skill = JSON.parse(value) as SkillManifest;
-    if (!skill.execution_type) skill.execution_type = "http";
-    return skill;
+  return entries.flatMap(({ value }) => {
+    try {
+      const skill = JSON.parse(value) as SkillManifest;
+      if (!skill.execution_type) skill.execution_type = "http";
+      return [skill];
+    } catch { return []; }
   });
 }
 
