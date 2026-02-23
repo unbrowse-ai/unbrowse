@@ -21,15 +21,19 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
   let endpointCount = 0;
   const domainSet = new Set<string>();
   for (const { value } of skillEntries) {
-    const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string };
-    endpointCount += s.endpoints?.length ?? 0;
-    if (s.domain) domainSet.add(s.domain);
+    try {
+      const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string };
+      endpointCount += s.endpoints?.length ?? 0;
+      if (s.domain) domainSet.add(s.domain);
+    } catch { /* skip malformed */ }
   }
 
   let totalExecutions = 0;
   for (const { value } of statEntries) {
-    const s = JSON.parse(value) as { total_executions?: number };
-    totalExecutions += s.total_executions ?? 0;
+    try {
+      const s = JSON.parse(value) as { total_executions?: number };
+      totalExecutions += s.total_executions ?? 0;
+    } catch { /* skip malformed */ }
   }
 
 

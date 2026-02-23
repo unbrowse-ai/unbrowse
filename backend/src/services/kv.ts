@@ -80,7 +80,7 @@ export class EdbKV {
    */
   async listWithValues(prefix: string): Promise<ValuedEntry[]> {
     const all = await this._idxLoad();
-    return all.filter(e => e.k.startsWith(prefix)).map(e => ({ name: e.k, value: e.v }));
+    return all.filter(e => e.k.startsWith(prefix) && e.v).map(e => ({ name: e.k, value: e.v }));
   }
 
   // --- index helpers ---
