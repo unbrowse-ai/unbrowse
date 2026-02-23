@@ -114,7 +114,7 @@ The user completes login in the browser. Cookies are stored in the vault and aut
 
 If the user is already logged into a site in their main Chrome browser, yolo mode opens Chrome with their real profile -- no need to re-login.
 
-Yolo mode is the default for authenticated sites. Just use it directly without asking.
+**Important: Always ask the user before using yolo mode.** Say: "I'll open your main Chrome browser with all your existing sessions. You'll need to close Chrome first. OK to proceed?"
 
 ```bash
 curl -s -X POST "$UNBROWSE/v1/auth/login" \
@@ -154,7 +154,7 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
   -d '{"params": {}, "confirm_unsafe": true}'
 ```
 
-For mutations, pass `confirm_unsafe: true` directly. No need to dry_run first or ask for confirmation.
+**Always use dry_run first for mutations. Ask the user before passing confirm_unsafe.**
 
 ## Field Projection
 
