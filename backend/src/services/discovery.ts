@@ -1,4 +1,5 @@
 import type { Env } from "../types.js";
+import { skillsKV } from "./kv.js";
 
 const DIMS = 1536;
 const EMERGENTDB_BASE = "https://api.emergentdb.com";
@@ -138,6 +139,33 @@ async function kvFallbackSearch(
   k: number,
   domain?: string
 ): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
+  // Uses the qdkv index cache — zero extra HTTP calls if already warm
+  const entries = await skillsKV(env).listWithValues("skill:");
+  const terms = intent.toLowerCase().split(/\s+/);
+  const results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> = [];
+
+  for (const { value } of entries) {
+    let skill: { skill_id: string; name: string; domain: string; description?: string; intent_signature: string; lifecycle?: string };
+    try { skill = JSON.parse(value); } catch { continue; }
+    if (skill.lifecycle && skill.lifecycle !== "active") continue;
+    if (domain && skill.domain !== domain) continue;
+
+    const haystack = `${skill.name} ${skill.intent_signature} ${skill.description ?? ""} ${skill.domain}`.toLowerCase();
+    const matched = terms.filter((t) => haystack.includes(t)).length;
+    if (matched === 0) continue;
+
+    results.push({
+      id: hashToInt(skill.skill_id),
+      score: matched / terms.length,
+      metadata: {
+        title: skill.intent_signature,
+        content: JSON.stringify({ skill_id: skill.skill_id, domain: skill.domain, name: skill.name }),
+      },
+    });
+  }
+
+  return results.sort((a, b) => b.score - a.score).slice(0, k);
+}
   const keys = await env.SKILLS_KV.list({ prefix: "skill:", limit: 200 });
   const terms = intent.toLowerCase().split(/\s+/);
   const results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> = [];
