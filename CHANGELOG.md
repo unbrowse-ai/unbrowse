@@ -1,5 +1,19 @@
 # Changelog
 
+## Mandatory Signup & ToS Acceptance
+
+### Breaking changes
+- **Registration now requires ToS acceptance**: `POST /v1/agents/register` requires a `tos_version` field matching the current version. Requests without it receive a 400 error with instructions.
+- **All local routes gated behind API key**: The local Fastify server now returns 401 on all routes (except `/health`) when no API key is configured.
+- **Existing agents must re-accept ToS**: Agents registered before this change will receive a 403 `tos_update_required` error on authenticated requests until they accept the current ToS.
+
+### New features
+- **ToS version tracking**: Agent profiles now store `tos_accepted_version` and `tos_accepted_at`. When ToS is updated, agents must re-accept before their key works.
+- **CLI ToS prompt**: On first startup (or when ToS is updated), the CLI displays a ToS summary and prompts for explicit acceptance before proceeding.
+- **`GET /v1/tos/current`**: New public endpoint returning the current ToS version, summary, and URL.
+- **`POST /v1/agents/accept-tos`**: New authenticated endpoint for re-accepting updated ToS.
+- **Frontend ToS checkbox**: The API key generator now requires checking a ToS agreement checkbox before registration.
+
 ## Legal Entity & Terms of Service
 
 - Added Terms of Service page (`/terms`) establishing Unreel AI Pte Ltd as the legal entity operating unbrowse
