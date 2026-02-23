@@ -4,6 +4,7 @@ import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { incrementAgentExecutions, incrementAgentFeedback, countAgents } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
+import { skillsKV, statsKV } from "../services/kv.js";
 
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
@@ -14,15 +15,14 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
   let endpointCount = 0;
   const domainSet = new Set<string>();
   let cursor: string | undefined;
+  const skv = skillsKV(c.env);
 
   do {
-    const list = await c.env.SKILLS_KV.list({ prefix: "skill:", limit: 1000, cursor });
+    const list = await skv.list({ prefix: "skill:", limit: 1000, cursor });
     skillCount += list.keys.length;
 
     const samplesToRead = list.keys.slice(0, 50);
-    const reads = await Promise.all(
-      samplesToRead.map((k) => c.env.SKILLS_KV.get(k.name, "json"))
-    );
+    const reads = await Promise.all(samplesToRead.map((k) => skv.get(k.name, "json")));
     for (const skill of reads) {
       if (skill && typeof skill === "object") {
         const s = skill as { endpoints?: unknown[]; domain?: string };
@@ -37,11 +37,10 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
   // Count total executions
   let totalExecutions = 0;
   let statsCursor: string | undefined;
+  const stv = statsKV(c.env);
   do {
-    const list = await c.env.STATS_KV.list({ prefix: "stats:", limit: 1000, cursor: statsCursor });
-    const reads = await Promise.all(
-      list.keys.slice(0, 100).map((k) => c.env.STATS_KV.get(k.name, "json"))
-    );
+    const list = await stv.list({ prefix: "stats:", limit: 1000, cursor: statsCursor });
+    const reads = await Promise.all(list.keys.slice(0, 100).map((k) => stv.get(k.name, "json")));
     for (const stat of reads) {
       if (stat && typeof stat === "object") {
         totalExecutions += (stat as { total_executions?: number }).total_executions ?? 0;

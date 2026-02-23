@@ -1,12 +1,13 @@
 import type { Env, EndpointStats, ExecutionTrace, VerificationStatus } from "../types.js";
 import { updateEndpointScore } from "./marketplace.js";
+import { statsKV } from "./kv.js";
 
 function statsKey(skillId: string, endpointId: string): string {
   return `stats:${skillId}--${endpointId}`;
 }
 
 export async function getStats(env: Env, skillId: string, endpointId: string): Promise<EndpointStats> {
-  const raw = await env.STATS_KV.get(statsKey(skillId, endpointId));
+  const raw = await statsKV(env).get(statsKey(skillId, endpointId)) as string | null;
   if (raw) {
     try { return JSON.parse(raw) as EndpointStats; } catch { /* fall through */ }
   }
@@ -22,7 +23,7 @@ export async function getStats(env: Env, skillId: string, endpointId: string): P
 }
 
 async function saveStats(env: Env, skillId: string, endpointId: string, stats: EndpointStats): Promise<void> {
-  await env.STATS_KV.put(statsKey(skillId, endpointId), JSON.stringify(stats));
+  await statsKV(env).put(statsKey(skillId, endpointId), JSON.stringify(stats));
 }
 
 export function computeReliabilityScore(

@@ -1,6 +1,6 @@
 import type { Context, Next } from "hono";
 import type { Env } from "../types.js";
-
+import { EdbKV, statsKV } from "../services/kv.js";
 interface RateLimitOptions {
   /** Max requests per window */
   limit: number;
@@ -13,8 +13,8 @@ interface RateLimitOptions {
 type PublicEnv = { Bindings: Env };
 type AuthedEnv = { Bindings: Env; Variables: { agent_id: string } };
 
-async function check(kv: KVNamespace, key: string, limit: number, window: number, c: Context) {
-  const current = await kv.get(key);
+async function check(kv: EdbKV, key: string, limit: number, window: number, c: Context) {
+  const current = await kv.get(key) as string | null;
   const count = current ? parseInt(current, 10) : 0;
 
   if (count >= limit) {
@@ -43,7 +43,7 @@ function getIp(c: Context): string {
 export function rateLimit(opts: RateLimitOptions) {
   return async (c: Context<PublicEnv>, next: Next) => {
     const key = `rl:${opts.prefix}:${getIp(c)}`;
-    const blocked = await check(c.env.STATS_KV, key, opts.limit, opts.window, c);
+    const blocked = await check(statsKV(c.env), key, opts.limit, opts.window, c);
     if (blocked) return blocked;
     await next();
   };
@@ -62,7 +62,7 @@ export function agentRateLimit(opts: RateLimitOptions) {
     }
     const identity = agentId || getIp(c);
     const key = `rl:${opts.prefix}:${identity}`;
-    const blocked = await check(c.env.STATS_KV, key, opts.limit, opts.window, c);
+    const blocked = await check(statsKV(c.env), key, opts.limit, opts.window, c);
     if (blocked) return blocked;
     await next();
   };
