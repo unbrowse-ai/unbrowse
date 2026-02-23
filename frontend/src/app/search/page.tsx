@@ -66,7 +66,7 @@ export default async function SearchPage({
                 {results.length} result{results.length !== 1 ? "s" : ""} for &ldquo;{q}&rdquo;
               </p>
               <div className="space-y-3">
-                {results.map((r, i) => {
+                {results.filter((r) => r.metadata).map((r, i) => {
                   const meta = parseMetadata(r.metadata);
                   return (
                     <Link
@@ -79,7 +79,7 @@ export default async function SearchPage({
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-bold group-hover:text-orange-500 transition-colors">
-                          {r.metadata.title as string ?? "Untitled"}
+                          {(r.metadata?.title as string) ?? meta.name ?? "Untitled"}
                         </h3>
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-12 bg-surface-sunken rounded-full overflow-hidden">
