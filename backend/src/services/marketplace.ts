@@ -73,8 +73,10 @@ export async function publishSkill(
   }
 
   const kv = skillsKV(env);
-  await kv.put(kvKey(skill.skill_id), JSON.stringify(skill));
-  await kv.put(intentKey(skill.domain, skill.intent_signature), skill.skill_id);
+  await Promise.all([
+    kv.put(kvKey(skill.skill_id), JSON.stringify(skill)),
+    kv.put(intentKey(skill.domain, skill.intent_signature), skill.skill_id),
+  ]);
 
   const reliabilities = skill.endpoints.map((e) => e.reliability_score);
   const avgReliability = reliabilities.length > 0
@@ -83,7 +85,8 @@ export async function publishSkill(
   const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
   const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
 
-  await indexSkill(env, skill.skill_id, skill.intent_signature, {
+  // Fire-and-forget — don't block the response on Gemini embed + vector insert
+  indexSkill(env, skill.skill_id, skill.intent_signature, {
     domain: skill.domain,
     subdomain: skill.subdomain,
     name: skill.name,
