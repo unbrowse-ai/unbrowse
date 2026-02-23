@@ -8,7 +8,7 @@ const SEARCH_CACHE_TTL = 300; // 5 minutes
 function domainNamespace(domain: string): string {
   return `unbrowse--${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
 }
-const GLOBAL_NS = "unbrowse-skill";
+const GLOBAL_NS = "unbrowse--global";
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
 
