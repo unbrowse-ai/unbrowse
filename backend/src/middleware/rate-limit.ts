@@ -1,21 +1,22 @@
 import type { Context, Next } from "hono";
 import type { Env } from "../types.js";
-import { EdbKV, statsKV } from "../services/kv.js";
+
 interface RateLimitOptions {
-  /** Max requests per window */
   limit: number;
-  /** Window size in seconds */
-  window: number;
-  /** KV key prefix */
+  window: number; // seconds
   prefix: string;
 }
 
 type PublicEnv = { Bindings: Env };
 type AuthedEnv = { Bindings: Env; Variables: { agent_id: string } };
 
-async function check(kv: EdbKV, key: string, limit: number, window: number, c: Context) {
-  const current = await kv.get(key) as string | null;
-  const count = current ? parseInt(current, 10) : 0;
+// Module-level in-memory store — zero network overhead, resets per isolate restart
+const _rl = new Map<string, { count: number; expires: number }>();
+
+function check(key: string, limit: number, window: number, c: Context) {
+  const now = Date.now();
+  const entry = _rl.get(key);
+  const count = (entry && entry.expires > now) ? entry.count : 0;
 
   if (count >= limit) {
     return c.json(
@@ -24,7 +25,7 @@ async function check(kv: EdbKV, key: string, limit: number, window: number, c: C
     );
   }
 
-  await kv.put(key, String(count + 1), { expirationTtl: window });
+  _rl.set(key, { count: count + 1, expires: now + window * 1_000 });
   c.header("X-RateLimit-Limit", String(limit));
   c.header("X-RateLimit-Remaining", String(limit - count - 1));
   c.header("X-RateLimit-Reset", String(window));
@@ -37,32 +38,20 @@ function getIp(c: Context): string {
     ?? "unknown";
 }
 
-/**
- * IP-based rate limiter for public (unauthenticated) routes.
- */
 export function rateLimit(opts: RateLimitOptions) {
   return async (c: Context<PublicEnv>, next: Next) => {
-    const key = `rl:${opts.prefix}:${getIp(c)}`;
-    const blocked = await check(statsKV(c.env), key, opts.limit, opts.window, c);
+    const blocked = check(`rl:${opts.prefix}:${getIp(c)}`, opts.limit, opts.window, c);
     if (blocked) return blocked;
     await next();
   };
 }
 
-/**
- * Agent-keyed rate limiter for authenticated routes.
- * Uses agent_id from auth context. Admins are exempt.
- */
 export function agentRateLimit(opts: RateLimitOptions) {
   return async (c: Context<AuthedEnv>, next: Next) => {
     const agentId = c.get("agent_id");
-    if (agentId === "__admin__") {
-      await next();
-      return;
-    }
+    if (agentId === "__admin__") { await next(); return; }
     const identity = agentId || getIp(c);
-    const key = `rl:${opts.prefix}:${identity}`;
-    const blocked = await check(statsKV(c.env), key, opts.limit, opts.window, c);
+    const blocked = check(`rl:${opts.prefix}:${identity}`, opts.limit, opts.window, c);
     if (blocked) return blocked;
     await next();
   };
