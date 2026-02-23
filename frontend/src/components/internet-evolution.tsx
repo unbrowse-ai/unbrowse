@@ -2,7 +2,7 @@
 
 export function InternetEvolution() {
   const eras = [
-    { era: "1.0", verb: "READ", examples: "Netscape → Google", color: "text-blue-400", border: "border-blue-500/15", bg: "bg-blue-500/5" },
+    { era: "1.0", verb: "READ", examples: "Google → Chrome", color: "text-blue-400", border: "border-blue-500/15", bg: "bg-blue-500/5" },
     { era: "2.0", verb: "WRITE", examples: "Blogger → YouTube", color: "text-purple-400", border: "border-purple-500/15", bg: "bg-purple-500/5" },
     { era: "3.0", verb: "OWN", examples: "MetaMask → OpenSea", color: "text-cyan-400", border: "border-cyan-500/15", bg: "bg-cyan-500/5" },
     { era: "4.0", verb: "ACT", examples: "Unbrowse", color: "text-orange-400", border: "border-orange-500/25", bg: "bg-orange-500/5" },
@@ -21,7 +21,7 @@ export function InternetEvolution() {
           ))}
         </div>
         <p className="text-center mt-8 text-text-secondary text-sm">
-          Building <strong className="text-text-primary">Netscape + Google</strong> for the agentic internet.
+          Building <strong className="text-text-primary">Chrome + Google</strong> for the agentic internet.
         </p>
       </div>
     </section>
