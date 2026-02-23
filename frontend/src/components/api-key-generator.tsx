@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
 
 export function ApiKeyGenerator() {
   const { apiKey, agentName, register, isAuthenticated } = useAuth();
@@ -10,13 +12,22 @@ export function ApiKeyGenerator() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
+  const [currentTosVersion, setCurrentTosVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/v1/tos/current`)
+      .then(r => r.json() as Promise<{ version: string }>)
+      .then((data) => setCurrentTosVersion(data.version))
+      .catch(() => setCurrentTosVersion("2026-02-22-v1"));
+  }, []);
 
   async function handleRegister() {
-    if (!name.trim()) return;
+    if (!name.trim() || !tosAccepted || !currentTosVersion) return;
     setError(null);
     setLoading(true);
     try {
-      const result = await register(name.trim());
+      const result = await register(name.trim(), currentTosVersion);
       setGeneratedKey(result.api_key);
     } catch (err) {
       setError((err as Error).message);
@@ -92,7 +103,7 @@ export function ApiKeyGenerator() {
         />
         <button
           onClick={handleRegister}
-          disabled={loading || !name.trim()}
+          disabled={loading || !name.trim() || !tosAccepted}
           className="px-6 py-3 rounded-xl bg-orange-500 text-white font-semibold text-sm
                      hover:bg-orange-600 active:scale-[0.98] transition-all
                      disabled:opacity-50 disabled:cursor-not-allowed"
@@ -100,6 +111,20 @@ export function ApiKeyGenerator() {
           {loading ? "..." : "Get API Key"}
         </button>
       </div>
+      <label className="flex items-start gap-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={tosAccepted}
+          onChange={(e) => setTosAccepted(e.target.checked)}
+          className="mt-0.5 w-4 h-4 rounded border-border accent-orange-500"
+        />
+        <span className="text-sm text-text-secondary">
+          I agree to the{" "}
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline">
+            Terms of Service
+          </a>
+        </span>
+      </label>
       {error && (
         <p className="text-sm text-red-400 font-mono">{error}</p>
       )}
