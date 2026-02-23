@@ -156,10 +156,39 @@ const GEMINI_API_KEY = "REMOVED_GOOGLE_API_KEY";
 
 ---
 
-## Summary: Required Fixes (Priority Order)
+## BUG-011: KV `_idx` silently exceeds EmergentDB value size limit
 
-1. **Build `POST /v1/ops/reindex` endpoint** — iterate all KV skills, re-embed, re-insert into both global + domain vector namespaces, purge ghost vectors
-2. **Filter null-metadata results** in `searchIntent()` / `searchIntentInDomain()` before returning to clients
-3. **Log indexing failures** — replace `.catch(() => {})` with error logging in `marketplace.ts`
-4. **Fix `migrate-kv.mjs`** — change `"unbrowse-skill"` to `"unbrowse--global"`, move hardcoded keys to env vars, write `_idx` as `{k,v}[]`
-5. **Auth-gate `/v1/ops`** — require admin key
+**Severity**: Critical — the root cause of publish→search breakage
+
+**Root cause**: `kv.ts` stored the full JSON manifest value in the `_idx` entry's `v` field (e.g. `{k:"skill:abc", v:"<2KB manifest JSON>"}`). As skills accumulated, the `_idx` value grew past ~10KB. EmergentDB's `qdkv/set` returns `{ok: true}` even when the value exceeds its storage limit, but the data is silently lost. This means:
+- `_idxSave()` silently fails when the idx is too large
+- New skills published after the limit are never added to the idx
+- `listSkills()` (which reads from idx) stops returning new skills
+- Reindex doesn't see the new skills → they're never vector-indexed → search can't find them
+
+**Evidence**:
+- Direct `qdkv/get` for individual skill keys works fine
+- `qdkv/set` with 11KB value returns `{ok: true}` but the value reads back as empty
+- `qdkv/set` with <1KB value works correctly
+
+**Fix applied**: Changed `kv.ts` to store only empty `v` strings in the `_idx` (keys-only index). `listWithValues()` now fetches actual values via direct `qdkv/get` calls for entries with empty `v`. This keeps the idx small regardless of how many skills exist.
+
+**Files changed**: `backend/src/services/kv.ts` — `putBatch()`, `_idxUpsert()`, `listWithValues()`
+
+---
+
+## Summary: Fixes Applied
+
+| Fix | Status | File |
+|-----|--------|------|
+| `POST /v1/ops/reindex` endpoint | Done | `backend/src/routes/ops.ts` |
+| Filter null-metadata search results | Done | `backend/src/services/discovery.ts` |
+| Log indexing failures | Done | `backend/src/services/marketplace.ts` |
+| Fix `migrate-kv.mjs` namespace | Done | `backend/migrate-kv.mjs` |
+| KV idx stores keys-only (no full values) | Done | `backend/src/services/kv.ts` |
+
+## Remaining (not fixed yet)
+
+- **Auth-gate `/v1/ops`** — currently public, should require admin key
+- **Ghost vectors in EmergentDB** — old stale vectors from migration still exist in `unbrowse--global`. They'll be pushed down in results by real skills and will eventually be irrelevant. A full purge would require listing all vector IDs in EmergentDB (no API for this exists).
+- **`migrate-kv.mjs` hardcoded API keys** — file is untracked but should use env vars
