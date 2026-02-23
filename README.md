@@ -4,20 +4,28 @@ Analyze any website's network traffic and turn it into reusable API skills, back
 
 ## Install
 
-Clone to `~/.agents/skills/unbrowse` (the default location the skill expects):
+Clone and run the setup script — it installs deps, auto-registers as an agent, accepts ToS, and starts the server. No manual API key configuration needed:
 
 ```bash
 git clone <repo-url> ~/.agents/skills/unbrowse
-cd ~/.agents/skills/unbrowse
-bun install
-cp .env.example .env  # fill in your API keys
+bash ~/.agents/skills/unbrowse/scripts/setup.sh
 ```
+
+Credentials are auto-generated and cached in `~/.unbrowse/config.json`.
 
 ## Run
 
+If the server isn't already running:
+
+```bash
+bash ~/.agents/skills/unbrowse/scripts/setup.sh
+```
+
+Or manually:
+
 ```bash
 cd ~/.agents/skills/unbrowse
-PORT=6969 bun src/index.ts
+UNBROWSE_ACCEPT_TOS=1 bun src/index.ts
 ```
 
 The server starts on `http://localhost:6969`.
