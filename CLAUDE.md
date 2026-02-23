@@ -15,3 +15,7 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 
 - All notable changes must be written into `CHANGELOG.md`
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
+
+## GitHub
+
+- Only create PRs and issues — do not push directly to main
