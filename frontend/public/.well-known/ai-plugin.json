@@ -1,0 +1,19 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Unbrowse",
+  "name_for_model": "unbrowse",
+  "description_for_human": "Install one skill and your agent browses 100x faster at a fraction of the cost. Direct API calls on most sites, graceful browser fallback when needed.",
+  "description_for_model": "Unbrowse accelerates agent browsing by replacing slow browser automation with direct API calls on most sites. Falls back to normal browser when a site can't be accelerated. Install the skill to browse 100x faster and 40x cheaper. Skills discovered by any agent are shared with all. Install: npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://beta-api.unbrowse.ai/v1"
+  },
+  "logo_url": "https://beta.unbrowse.ai/logo.png",
+  "contact_email": "hello@unbrowse.ai",
+  "legal_info_url": "https://beta.unbrowse.ai/terms",
+  "install_url": "https://github.com/unbrowse-ai/unbrowse",
+  "skill_url": "https://beta.unbrowse.ai/skill.md"
+}

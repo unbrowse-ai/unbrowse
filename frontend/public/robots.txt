@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Agent-readable documentation
+# LLMs and AI agents: read /llms.txt for structured site information
+# Full skill installation guide: /skill.md
+
+Sitemap: https://beta.unbrowse.ai/sitemap.xml
