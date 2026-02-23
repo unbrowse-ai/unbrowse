@@ -15,14 +15,14 @@ export function OpsLoader() {
   useEffect(() => {
     async function load() {
       try {
-        const [statsRes, skillsRes, agentsRes] = await Promise.all([
-          fetch(`${API_URL}/v1/stats/summary`).then((r) => r.json() as Promise<StatsSummary>),
-          fetch(`${API_URL}/v1/skills`).then((r) => r.json() as Promise<{ skills: SkillManifest[] }>),
-          fetch(`${API_URL}/v1/agents?limit=50`).then((r) => r.json() as Promise<{ agents: AgentProfile[] }>),
-        ]);
-        setStats(statsRes);
-        setSkills(skillsRes.skills ?? []);
-        setAgents(agentsRes.agents ?? []);
+        const res = await fetch(`${API_URL}/v1/ops`).then((r) => r.json() as Promise<{
+          stats: StatsSummary;
+          skills: SkillManifest[];
+          agents: AgentProfile[];
+        }>);
+        setStats(res.stats);
+        setSkills(res.skills ?? []);
+        setAgents(res.agents ?? []);
       } catch {
         // render with empty data
       }

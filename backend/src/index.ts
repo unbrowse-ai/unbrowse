@@ -8,6 +8,7 @@ import { statsRoutes, publicStatsRoutes, publicValidateRoutes } from "./routes/s
 import { healthRoutes } from "./routes/health.js";
 import { publicAgentRoutes } from "./routes/agents.js";
 import { publicIssueRoutes, issueRoutes } from "./routes/issues.js";
+import { opsRoutes } from "./routes/ops.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -27,6 +28,7 @@ app.route("/v1", publicSkillRoutes);
 app.route("/v1", publicValidateRoutes);
 app.route("/v1", publicAgentRoutes);
 app.route("/v1", publicIssueRoutes);
+app.route("/v1", opsRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
