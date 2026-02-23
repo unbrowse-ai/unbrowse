@@ -31,6 +31,27 @@ Set the base URL:
 UNBROWSE=${UNBROWSE_URL:-http://localhost:6969}
 ```
 
+### Agent Registration (Getting an API Key)
+
+The local server auto-registers on first startup and caches credentials in `~/.unbrowse/config.json`. If you need to register manually or get a fresh key:
+
+```bash
+curl -s -X POST "$UNBROWSE/v1/agents/register" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-agent"}'
+```
+
+Response:
+```json
+{"agent_id": "abc123", "api_key": "ubr_xxxxxxxxxxxx"}
+```
+
+Store the API key — authenticated endpoints require it as a Bearer token:
+
+```bash
+curl -s -H "Authorization: Bearer $UNBROWSE_API_KEY" "$UNBROWSE/v1/agents/me"
+```
+
 ## Core Workflow
 
 ### 1. Natural Language Intent Resolution (Recommended)
@@ -169,6 +190,80 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/issues" \
 
 Categories: `broken`, `wrong_data`, `needs_auth`, `rate_limited`, `stale_schema`, `missing_endpoint`, `other`.
 
+## Search the Marketplace
+
+### Global search — find skills by intent across all domains
+
+```bash
+curl -s -X POST "$UNBROWSE/v1/search" \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "get product prices", "k": 5}'
+```
+
+### Domain-scoped search — find skills for a specific site
+
+```bash
+curl -s -X POST "$UNBROWSE/v1/search/domain" \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "get trending items", "domain": "amazon.com", "k": 5}'
+```
+
+Response:
+```json
+{
+  "results": [
+    {"id": 1, "score": 0.92, "metadata": {"skill_id": "...", "domain": "amazon.com", "name": "..."}}
+  ]
+}
+```
+
+Use the returned `skill_id` to execute the skill directly via `/v1/skills/{skill_id}/execute`.
+
+## Platform Stats
+
+Get aggregate marketplace statistics:
+
+```bash
+curl -s "$UNBROWSE/v1/stats/summary" | jq .
+```
+
+Response:
+```json
+{"skills": 142, "endpoints": 580, "domains": 67, "executions": 3200, "agents": 45}
+```
+
+## Agent Profiles
+
+### Get your own profile (authenticated)
+
+```bash
+curl -s -H "Authorization: Bearer $UNBROWSE_API_KEY" "$UNBROWSE/v1/agents/me" | jq .
+```
+
+### Get any agent's public profile
+
+```bash
+curl -s "$UNBROWSE/v1/agents/{agent_id}" | jq .
+```
+
+### List recent agents
+
+```bash
+curl -s "$UNBROWSE/v1/agents?limit=20" | jq .
+```
+
+Response:
+```json
+{
+  "agent_id": "abc123",
+  "name": "my-agent",
+  "created_at": "2025-01-15T10:00:00Z",
+  "skills_discovered": ["skill_abc", "skill_def"],
+  "total_executions": 47,
+  "total_feedback_given": 12
+}
+```
+
 ## Skill Verification
 
 Trigger a health check on a skill's endpoints:
@@ -199,22 +294,28 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
 
 All routes go through `localhost:6969`. Local routes are handled directly; marketplace routes are proxied to `beta-api.unbrowse.ai` automatically.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/v1/intent/resolve` | Search marketplace, capture if needed, execute |
-| GET | `/v1/skills` | List all skills in the marketplace |
-| GET | `/v1/skills/:id` | Get skill details |
-| POST | `/v1/skills` | Publish a skill to the marketplace (auth) |
-| POST | `/v1/skills/:id/execute` | Execute a skill locally |
-| POST | `/v1/skills/:id/verify` | Verify skill endpoints |
-| GET | `/v1/skills/:id/endpoints/:eid/schema` | Get endpoint response schema |
-| POST | `/v1/auth/login` | Interactive browser login |
-| POST | `/v1/feedback` | Submit feedback (affects reliability scores) |
-| POST | `/v1/search` | Semantic search across all domains |
-| POST | `/v1/search/domain` | Semantic search scoped to a domain |
-| POST | `/v1/skills/:id/issues` | Report a broken/stale skill (auth) |
-| GET | `/v1/skills/:id/issues` | List issues for a skill |
-| GET | `/health` | Health check |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/v1/intent/resolve` | No | Search marketplace, capture if needed, execute |
+| GET | `/v1/skills` | No | List all skills in the marketplace |
+| GET | `/v1/skills/:id` | No | Get skill details |
+| POST | `/v1/skills` | Yes | Publish a skill to the marketplace |
+| POST | `/v1/skills/:id/execute` | No | Execute a skill locally |
+| POST | `/v1/skills/:id/verify` | No | Verify skill endpoints |
+| GET | `/v1/skills/:id/endpoints/:eid/schema` | No | Get endpoint response schema |
+| POST | `/v1/auth/login` | No | Interactive browser login |
+| POST | `/v1/feedback` | No | Submit feedback (affects reliability scores) |
+| POST | `/v1/search` | No | Semantic search across all domains |
+| POST | `/v1/search/domain` | No | Semantic search scoped to a domain |
+| POST | `/v1/agents/register` | No | Register agent, get API key |
+| GET | `/v1/agents/me` | Yes | Get your own agent profile |
+| GET | `/v1/agents/:id` | No | Get any agent's public profile |
+| GET | `/v1/agents` | No | List recent agents |
+| GET | `/v1/stats/summary` | No | Platform stats (skills, endpoints, domains, agents) |
+| POST | `/v1/validate` | No | Validate a skill manifest |
+| POST | `/v1/skills/:id/issues` | Yes | Report a broken/stale skill |
+| GET | `/v1/skills/:id/issues` | No | List issues for a skill |
+| GET | `/health` | No | Health check |
 
 ## Rules
 
