@@ -72,10 +72,11 @@ export async function publishSkill(
     } as SkillManifest;
   }
 
+  // putBatch: N parallel sets + 1 idx load + 1 idx save (vs 2 separate puts = 2 loads + 2 saves)
   const kv = skillsKV(env);
-  await Promise.all([
-    kv.put(kvKey(skill.skill_id), JSON.stringify(skill)),
-    kv.put(intentKey(skill.domain, skill.intent_signature), skill.skill_id),
+  await kv.putBatch([
+    { key: kvKey(skill.skill_id), value: JSON.stringify(skill) },
+    { key: intentKey(skill.domain, skill.intent_signature), value: skill.skill_id },
   ]);
 
   const reliabilities = skill.endpoints.map((e) => e.reliability_score);
