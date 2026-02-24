@@ -43,13 +43,13 @@ export function getApiKey(): string {
   return "";
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, auth = false): Promise<T> {
+async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const key = getApiKey();
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...(auth && key ? { Authorization: `Bearer ${key}` } : {}),
+      ...(key ? { Authorization: `Bearer ${key}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -131,7 +131,7 @@ async function checkTosStatus(): Promise<void> {
 
   // Call accept-tos endpoint
   try {
-    await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version }, true);
+    await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version });
 
     // Update local config
     if (config) {
@@ -218,11 +218,11 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<{ skill_id: string; version: string; warnings: string[] }> {
-  return api("POST", "/v1/skills", draft, true);
+  return api("POST", "/v1/skills", draft);
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
-  await api("DELETE", `/v1/skills/${skillId}`, undefined, true);
+  await api("DELETE", `/v1/skills/${skillId}`, undefined);
 }
 
 export async function updateEndpointScore(
@@ -231,7 +231,7 @@ export async function updateEndpointScore(
   score: number,
   status?: string
 ): Promise<void> {
-  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status }, true);
+  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status });
 }
 
 export async function getEndpointSchema(
@@ -281,7 +281,7 @@ export async function recordExecution(
     skill_id: skillId,
     endpoint_id: endpointId,
     trace: metadata,
-  }, true);
+  });
 }
 
 export async function recordFeedback(
@@ -293,7 +293,7 @@ export async function recordFeedback(
     skill_id: skillId,
     endpoint_id: endpointId,
     rating,
-  }, true);
+  });
   return data.avg_rating;
 }
 
@@ -318,5 +318,5 @@ export async function getAgent(agentId: string): Promise<{ agent_id: string; nam
 }
 
 export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
-  return api("GET", "/v1/agents/me", undefined, true);
+  return api("GET", "/v1/agents/me", undefined);
 }
