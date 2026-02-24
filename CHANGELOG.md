@@ -1,5 +1,13 @@
 # Changelog
 
+## BUG-006: Path segments now parameterized instead of hardcoded
+
+### Bug fix
+- **Dynamic path segments are now templatized**: When a live capture discovers API endpoints like `/api/v3/quote/SPY,QQQ`, the reverse-engineer now detects dynamic segments and replaces them with named template variables (e.g. `{quote}`), storing the original values as defaults in `endpoint.path_params`. Previously, these values were hardcoded, making skills unusable for different inputs (e.g. requesting TSLA data would always return SPY/QQQ).
+- **Two detection strategies**: (1) Comma-separated path segments are always parameterized — a strong signal for lists of identifiers. (2) Context-aware matching — path segments that appear in the captured page URL are detected as entities and parameterized (e.g. capturing `/en/coins/bitcoin` parameterizes `bitcoin` in API paths like `/price_charts/bitcoin/usd/24_hours.json`).
+- **Execution merges path_params as defaults**: `executeEndpoint()` now merges `endpoint.path_params` into the params object before URL interpolation. User-provided params override defaults, so `{quote: "TSLA"}` replaces the captured `SPY,QQQ`.
+- **Improved dedup**: `normalizeUrl()` now collapses comma-separated path segments for deduplication, preventing multiple endpoints from being created for the same API path with different identifier lists.
+
 ## Fix: Endpoint ranking noise filter and data-relevance scoring
 
 ### Bug fix

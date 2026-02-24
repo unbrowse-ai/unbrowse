@@ -55,6 +55,8 @@ export interface EndpointDescriptor {
   ws_messages?: WsMessage[];
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;
+  /** Default values for templatized path segments (e.g. {symbol} → "SPY,QQQ") */
+  path_params?: Record<string, string>;
   body?: Record<string, unknown>;
   csrf_plan?: CsrfPlan;
   oauth_plan?: OAuthPlan;
