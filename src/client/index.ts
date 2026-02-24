@@ -198,13 +198,8 @@ export async function ensureRegistered(): Promise<void> {
 }
 
 // --- Skill CRUD ---
-
-export async function getSkill(skillId: string): Promise<SkillManifest | null> {
-  try {
-    return await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
-  } catch {
-    return null;
-  }
+): Promise<SkillManifest & { warnings: string[] }> {
+  return api("POST", "/v1/skills", draft);
 }
 
 export async function listSkills(): Promise<SkillManifest[]> {
@@ -217,8 +212,13 @@ export async function publishSkill(
     skill_id?: string;
     version?: string;
   }
+<<<<<<< HEAD
 ): Promise<{ skill_id: string; version: string; warnings: string[] }> {
   return api("POST", "/v1/skills", draft);
+=======
+): Promise<SkillManifest & { warnings: string[] }> {
+  return api("POST", "/v1/skills", draft, true);
+>>>>>>> 3647dfb (fix: eliminate read-after-write race in skill publishing)
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {

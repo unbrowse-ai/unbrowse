@@ -77,11 +77,14 @@ export class EdbKV {
    */
   async putBatch(pairs: Array<{ key: string; value: string }>, opts?: { expirationTtl?: number }): Promise<void> {
     const ttl = opts?.expirationTtl;
-    await Promise.all(pairs.map(({ key, value }) => {
+    const results = await Promise.all(pairs.map(({ key, value }) => {
       const body: Record<string, unknown> = { key: this.k(key), value };
       if (ttl) body.ttlMs = ttl * 1000;
       return fetch(`${BASE}/qdkv/set`, { method: "POST", headers: this.h, body: JSON.stringify(body) });
     }));
+    for (const res of results) {
+      if (!res.ok) throw new Error(`KV write failed: ${res.status}`);
+    }
     if (!ttl) {
       const toIndex = pairs.filter(({ key }) => !key.startsWith("_idx"));
       if (toIndex.length > 0) {
