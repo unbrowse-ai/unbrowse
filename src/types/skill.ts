@@ -156,6 +156,8 @@ export interface EndpointStats {
 export interface ExecutionOptions {
   confirm_unsafe?: boolean;
   dry_run?: boolean;
+  /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
+  intent?: string;
 }
 
 export interface ValidationResult {

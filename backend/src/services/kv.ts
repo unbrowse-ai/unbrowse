@@ -96,6 +96,19 @@ export class EdbKV {
           if (i < 0) entries.push({ k: key, v: "" });
         }
         await this._idxSave(entries);
+
+        // Backfill in-memory cache with written values so immediate get() calls
+        // within the same isolate don't need a network round-trip.
+        // This avoids a race where EmergentDB hasn't propagated the write yet.
+        const cached = _cache.get(this.ns);
+        if (cached) {
+          for (const { key, value } of pairs) {
+            if (key.startsWith("_idx")) continue;
+            const i = cached.entries.findIndex(e => e.k === key);
+            if (i >= 0) cached.entries[i].v = value;
+            else cached.entries.push({ k: key, v: value });
+          }
+        }
       }
     }
   }
@@ -168,12 +181,19 @@ export class EdbKV {
     _cache.set(this.ns, { entries, expires: Date.now() + IDX_TTL_MS });
   }
 
-  private async _idxUpsert(key: string, _value: string): Promise<void> {
+  private async _idxUpsert(key: string, value: string): Promise<void> {
     const entries = await this._idxLoad();
     const i = entries.findIndex(e => e.k === key);
     // Only add key to idx — don't store full value to keep idx small.
     if (i < 0) entries.push({ k: key, v: "" });
     await this._idxSave(entries);
+    // Backfill in-memory cache with actual value for immediate reads
+    const cached = _cache.get(this.ns);
+    if (cached) {
+      const ci = cached.entries.findIndex(e => e.k === key);
+      if (ci >= 0) cached.entries[ci].v = value;
+      else cached.entries.push({ k: key, v: value });
+    }
   }
 
   private async _idxRemove(key: string): Promise<void> {
