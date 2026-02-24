@@ -6,6 +6,12 @@ import type { ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest
 const CONFIDENCE_THRESHOLD = 0.3;
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 
+// Per-domain skill cache: after a live capture succeeds, cache the skill for 60s so
+// subsequent requests hit the local cache instead of re-capturing (avoids EmergentDB lag).
+const capturedDomainCache = new Map<string, { skill: SkillManifest; expires: number }>();
+// In-flight lock: prevents parallel captures of the same domain within the same process.
+const captureInFlight = new Set<string>();
+
 export interface OrchestratorResult {
   result: unknown;
   trace: ExecutionTrace;
@@ -85,22 +91,51 @@ export async function resolveAndExecute(
       "No matching skill found. Pass context.url to trigger live capture and discovery."
     );
   }
-  const captureSkill = await getOrCreateBrowserCaptureSkill();
-  const { trace, result, learned_skill } = await executeSkill(captureSkill, {
-    ...params,
-    url: context.url,
-    intent,
-  });
+
+  const captureDomain = new URL(context.url).hostname;
+
+  // Check recently-captured cache: avoids re-capturing when EmergentDB hasn't indexed yet
+  const domainHit = capturedDomainCache.get(captureDomain);
+  if (domainHit && Date.now() < domainHit.expires) {
+    const { trace, result } = await executeSkill(domainHit.skill, params, projection, { ...options, intent });
+    return { result, trace, source: "marketplace", skill: domainHit.skill };
+  }
+
+  // In-flight lock: reject parallel captures of the same domain to prevent thundering herd
+  if (captureInFlight.has(captureDomain)) {
+    throw new Error(
+      `Live capture for ${captureDomain} is already in progress. Retry in a few seconds.`
+    );
+  }
+  captureInFlight.add(captureDomain);
+
+  let learned_skill: SkillManifest | undefined;
+  let trace: import("../types/index.js").ExecutionTrace;
+  let result: unknown;
+  try {
+    const captureSkill = await getOrCreateBrowserCaptureSkill();
+    const out = await executeSkill(captureSkill, { ...params, url: context.url, intent });
+    trace = out.trace;
+    result = out.result;
+    learned_skill = out.learned_skill;
+  } finally {
+    captureInFlight.delete(captureDomain);
+  }
 
   // Auth-gated or no data: pass through error
   if (!learned_skill && !trace.success) {
-    return { result, trace, source: "live-capture", skill: captureSkill };
+    return { result, trace, source: "live-capture", skill: await getOrCreateBrowserCaptureSkill() };
   }
 
   // DOM-extracted skill: data already extracted during capture, skip re-execution
   const isDomSkill = learned_skill?.endpoints?.some((ep) => ep.dom_extraction);
   if (isDomSkill || (!learned_skill && trace.success)) {
-    return { result, trace, source: "dom-fallback", skill: learned_skill ?? captureSkill };
+    return { result, trace, source: "dom-fallback", skill: learned_skill ?? await getOrCreateBrowserCaptureSkill() };
+  }
+
+  // Cache the learned API skill so the next request finds it without re-capturing
+  if (learned_skill) {
+    capturedDomainCache.set(captureDomain, { skill: learned_skill, expires: Date.now() + 60_000 });
   }
 
   // 3. Execute the newly learned API skill immediately

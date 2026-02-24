@@ -634,19 +634,19 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const scored = candidates.map((ep, i) => {
     let score = 0;
 
-    // BM25 relevance to intent
+    // BM25 relevance to intent — weight doubled so intent beats structural bonuses
     if (queryTokens.length > 0) {
-      score += bm25Score(queryTokens, docs[i], avgDl) * 10;
+      score += bm25Score(queryTokens, docs[i], avgDl) * 20;
     }
 
-    // Structural bonuses
-    if (ep.dom_extraction) score += 25;
-    if (ep.idempotency === "safe") score += 10;
+    // Structural bonuses — reduced so BM25 can win when there's a clear intent match
+    if (ep.dom_extraction) score += 8;   // was 25; DOM fallback shouldn't beat API endpoints
+    if (ep.idempotency === "safe") score += 5;  // was 10
     if (ep.response_schema) {
       score += 5;
-      if (ep.response_schema.type === "array") score += 8;
+      if (ep.response_schema.type === "array") score += 4;  // was 8
       else if (ep.response_schema.type === "object" && ep.response_schema.properties) {
-        score += Math.min(Object.keys(ep.response_schema.properties).length, 15);
+        score += Math.min(Object.keys(ep.response_schema.properties).length / 2, 8);  // was min(count, 15)
       }
     }
     score += ep.reliability_score * 5;
