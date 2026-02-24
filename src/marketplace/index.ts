@@ -15,11 +15,9 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<SkillManifest> {
-  const result = await client.publishSkill(draft);
-  // Fetch the full manifest back so callers still get a SkillManifest
-  const skill = await client.getSkill(result.skill_id);
-  if (!skill) throw new Error("Published skill not found in backend");
-  return skill;
+  // Backend returns the full manifest — no read-after-write needed
+  const { warnings: _, ...skill } = await client.publishSkill(draft);
+  return skill as SkillManifest;
 }
 
 export async function updateEndpointScore(

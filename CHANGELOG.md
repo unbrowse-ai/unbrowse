@@ -1,5 +1,11 @@
 # Changelog
 
+## Fix: Skill Publishing Race Condition
+
+- **Backend returns full manifest on publish**: `POST /v1/skills` now returns the complete skill manifest instead of just `{ skill_id, version }`, eliminating the read-after-write round-trip that failed due to EmergentDB eventual consistency.
+- **KV write errors surfaced**: `putBatch()` now checks `qdkv/set` response status and throws on failure instead of silently ignoring write errors.
+- **Client uses returned manifest**: Local `publishSkill()` no longer re-fetches from backend after publishing, fixing "Published skill not found in backend after retries".
+
 ## Mandatory Signup & ToS Acceptance
 
 ### Breaking changes
