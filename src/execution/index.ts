@@ -1,6 +1,6 @@
 import { executeInBrowser } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { extractEndpoints, type ExtractionContext } from "../reverse-engineer/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
@@ -40,8 +40,8 @@ export async function executeSkill(
     }
   }
 
-  // BUG-004/007 fix: select endpoint by schema richness + intent relevance
-  const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature, skill.domain);
+  // Use the caller's intent for ranking when available, fall back to skill's original intent
+  const endpoint = selectBestEndpoint(skill.endpoints, options?.intent ?? skill.intent_signature, skill.domain);
   return executeEndpoint(skill, endpoint, params, projection, options);
 }
 
@@ -111,7 +111,7 @@ async function executeBrowserCapture(
     };
   }
 
-  const endpoints = extractEndpoints(captured.requests, captured.ws_messages);
+  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, intent });
 
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
@@ -312,8 +312,15 @@ export async function executeEndpoint(
   // Mutation safety gate
   if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
     if (options?.dry_run) {
-      const url = interpolate(endpoint.url_template, params);
-      const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
+      // Merge path_params defaults for dry_run preview too
+      const dryParams = { ...params };
+      if (endpoint.path_params) {
+        for (const [k, v] of Object.entries(endpoint.path_params)) {
+          if (dryParams[k] == null) dryParams[k] = v;
+        }
+      }
+      const url = interpolate(endpoint.url_template, dryParams);
+      const body = endpoint.body ? interpolateObj(endpoint.body, dryParams) : undefined;
       return {
         trace: {
           trace_id: nanoid(),
@@ -392,19 +399,61 @@ export async function executeEndpoint(
     }
   }
 
-  // Auto-inject CSRF tokens from cookies (LinkedIn, etc.)
-  const jsessionCookie = cookies.find(c => c.name === "JSESSIONID");
-  if (jsessionCookie) {
-    // LinkedIn's Voyager API requires csrf-token header = JSESSIONID value (without quotes)
-    const csrfValue = jsessionCookie.value.replace(/^"|"$/g, "");
-    authHeaders["csrf-token"] = csrfValue;
+  // BUG-006: Merge path_params defaults — user params override captured defaults
+  let mergedParams = { ...params };
+  if (endpoint.path_params && typeof endpoint.path_params === "object") {
+    for (const [k, v] of Object.entries(endpoint.path_params)) {
+      if (mergedParams[k] == null) {
+        mergedParams[k] = v;
+      }
+    }
   }
 
-  const url = interpolate(endpoint.url_template, params);
-  const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
+  // Merge captured query params into URL — user params override endpoint defaults
+  let urlTemplate = endpoint.url_template;
+  if (endpoint.query && typeof endpoint.query === "object" && Object.keys(endpoint.query).length > 0) {
+    try {
+      const u = new URL(urlTemplate);
+      for (const [k, v] of Object.entries(endpoint.query)) {
+        // User params override captured query defaults
+        if (mergedParams[k] != null) {
+          u.searchParams.set(k, String(mergedParams[k]));
+        } else if (v != null) {
+          u.searchParams.set(k, String(v));
+        }
+      }
+      urlTemplate = u.toString();
+    } catch {
+      // URL parse failure — skip query merge
+    }
+  }
+  const url = interpolate(urlTemplate, mergedParams);
+  const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
-  // Wrap in retry for safe (GET) endpoints
+  // Fast path: server-side fetch for simple JSON endpoints (no browser needed)
+  // Use browser only when cookies/auth are required or endpoint needs page context
   const isSafe = endpoint.method === "GET";
+  const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0 || !!endpoint.dom_extraction;
+  const isJsonEndpoint = /\.(json|xml|csv)(\?|$)|\/api\//i.test(url) || (endpoint.response_schema && !endpoint.dom_extraction);
+
+  const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
+    const headers: Record<string, string> = {
+      ...endpoint.headers_template,
+      "accept": "application/json",
+    };
+    // Strip browser-only headers that cause issues server-side
+    delete headers["sec-ch-ua"];
+    delete headers["sec-ch-ua-mobile"];
+    delete headers["sec-ch-ua-platform"];
+    delete headers["upgrade-insecure-requests"];
+
+    const res = await fetch(url, { method: endpoint.method, headers, body: body ? JSON.stringify(body) : undefined });
+    let data: unknown;
+    const text = await res.text();
+    try { data = JSON.parse(text); } catch { data = text; }
+    return { data, status: res.status, trace_id: nanoid() };
+  };
+
   const browserCall = () => executeInBrowser(
     url,
     endpoint.method,
@@ -414,12 +463,29 @@ export async function executeEndpoint(
     cookies
   );
 
-  const result = isSafe
-    ? await withRetry(
-        browserCall,
-        (r) => isRetryableStatus(r.status),
-      )
-    : await browserCall();
+  let result: { data: unknown; status: number; trace_id: string };
+  if (isJsonEndpoint && !needsBrowser) {
+    // Try server-side first — falls back to browser if it fails
+    try {
+      result = isSafe
+        ? await withRetry(serverFetch, (r) => isRetryableStatus(r.status))
+        : await serverFetch();
+      // If server fetch returned HTML (e.g. Cloudflare challenge), fall back to browser
+      if (typeof result.data === "string" && isHtml(result.data)) {
+        result = isSafe
+          ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
+          : await browserCall();
+      }
+    } catch {
+      result = isSafe
+        ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
+        : await browserCall();
+    }
+  } else {
+    result = isSafe
+      ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
+      : await browserCall();
+  }
   const { status, trace_id } = result;
   let data = result.data;
 
@@ -439,8 +505,8 @@ export async function executeEndpoint(
     trace.result = data;
   }
 
-  // Stale credential detection: on 401 only — 403 may be CSRF, not stale creds
-  if (status === 401 && skill.auth_profile_ref) {
+  // Stale credential detection: on 401/403, delete credential and flag
+  if ((status === 401 || status === 403) && skill.auth_profile_ref) {
     await deleteCredential(skill.auth_profile_ref);
     trace.error = `${trace.error} (stale credential deleted)`;
   }
@@ -454,10 +520,12 @@ export async function executeEndpoint(
   }
 
   // HTML→JSON post-processing: if the endpoint returned HTML instead of JSON,
-  // pipe it through DOM extraction to produce structured data
+  // pipe it through DOM extraction to produce structured data.
+  // Always extract — returning raw HTML to an agent is never useful.
   if (trace.success && typeof data === "string" && isHtml(data)) {
-    const extracted = extractFromDOM(data, skill.intent_signature);
-    if (extracted.data && extracted.confidence > 0.2) {
+    const intent = options?.intent || skill.intent_signature;
+    const extracted = extractFromDOM(data, intent);
+    if (extracted.data) {
       data = {
         data: extracted.data,
         _extraction: {
@@ -546,10 +614,38 @@ function interpolateObj(
 
 const BM25_K1 = 1.2;
 const BM25_B = 0.75;
-const STOPWORDS = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "for", "on", "with", "from", "get", "all", "this", "that", "is", "are", "was", "be"]);
+const STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "of", "to", "in", "for", "on", "with", "from",
+  "get", "all", "this", "that", "is", "are", "was", "be", "it", "at", "by", "not",
+  "com", "www", "https", "http", "html", "htm",
+]);
+
+/** Expand tokens with synonyms/related terms for better recall */
+const SYNONYMS: Record<string, string[]> = {
+  price: ["price", "prices", "pricing", "cost", "usd", "quote", "rate", "value", "market"],
+  token: ["token", "tokens", "coin", "coins", "crypto", "currency", "asset"],
+  search: ["search", "query", "find", "lookup", "filter", "dex"],
+  chart: ["chart", "charts", "graph", "history", "ohlcv", "candle", "candles", "kline"],
+  trade: ["trade", "trades", "swap", "swaps", "order", "orders", "transaction", "transactions"],
+  volume: ["volume", "vol", "liquidity", "tvl"],
+  pair: ["pair", "pairs", "pool", "pools"],
+  trending: ["trending", "top", "hot", "gainers", "losers", "movers"],
+  user: ["user", "users", "account", "accounts", "profile"],
+  list: ["list", "lists", "all", "index", "browse", "catalog"],
+};
 
 function tokenize(text: string): string[] {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
+}
+
+/** Expand intent tokens with synonyms for better matching */
+function expandQuery(tokens: string[]): string[] {
+  const expanded = new Set(tokens);
+  for (const t of tokens) {
+    const syns = SYNONYMS[t];
+    if (syns) for (const s of syns) expanded.add(s);
+  }
+  return [...expanded];
 }
 
 /** Build a "document" from an endpoint: URL path segments + query params + schema property names */
@@ -557,24 +653,30 @@ function endpointToTokens(ep: EndpointDescriptor): string[] {
   const tokens: string[] = [];
   try {
     const u = new URL(ep.url_template);
-    // Path segments only (not hostname — that's handled by domain affinity)
-    tokens.push(...u.pathname.split(/[/\-_.]/).filter((s) => s.length > 1 && !/^v\d+$/.test(s)));
+    // Path segments — split on all delimiters, keep meaningful tokens
+    tokens.push(...u.pathname.split(/[/\-_.{}]/).filter((s) => s.length > 1 && !/^v\d+$/.test(s)));
+    // Hostname subdomains (e.g. "api" from api.dexscreener.com — strong signal)
+    const hostParts = u.hostname.split(".");
+    tokens.push(...hostParts.filter((s) => s.length > 2 && s !== "www" && s !== "com" && s !== "org" && s !== "net" && s !== "io"));
     // Query param names and values
     for (const [key, val] of u.searchParams.entries()) {
       tokens.push(key);
       if (val.length > 1 && val.length < 50) tokens.push(...val.split(/[/\-_.]/).filter((s) => s.length > 1));
     }
   } catch { /* skip */ }
-  // Schema property names
+  // Schema property names (strong signal — these describe the response data)
   if (ep.response_schema?.properties) {
     tokens.push(...Object.keys(ep.response_schema.properties));
+    // Also add nested property names (1 level deep)
+    for (const val of Object.values(ep.response_schema.properties) as Array<{ properties?: Record<string, unknown> }>) {
+      if (val?.properties) tokens.push(...Object.keys(val.properties));
+    }
   }
   return tokens.map((t) => t.toLowerCase());
 }
 
-function bm25Score(query: string[], doc: string[], avgDl: number): number {
+function bm25Score(query: string[], doc: string[], avgDl: number, docCount: number, docFreqs: Map<string, number>): number {
   const dl = doc.length;
-  // Term frequency map for this document
   const tf = new Map<string, number>();
   for (const t of doc) tf.set(t, (tf.get(t) ?? 0) + 1);
 
@@ -582,8 +684,9 @@ function bm25Score(query: string[], doc: string[], avgDl: number): number {
   for (const term of query) {
     const freq = tf.get(term) ?? 0;
     if (freq === 0) continue;
-    // Simplified IDF (no corpus-wide stats, just presence bonus)
-    const idf = 1;
+    // Real IDF: log((N - df + 0.5) / (df + 0.5) + 1) — terms appearing in fewer docs score higher
+    const df = docFreqs.get(term) ?? 0;
+    const idf = Math.log((docCount - df + 0.5) / (df + 0.5) + 1);
     const num = freq * (BM25_K1 + 1);
     const denom = freq + BM25_K1 * (1 - BM25_B + BM25_B * (dl / avgDl));
     score += idf * (num / denom);
@@ -601,14 +704,31 @@ export interface RankedEndpoint {
  * Exported so routes.ts can surface the ranked list to the agent.
  */
 export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string): RankedEndpoint[] {
-  // Filter out noise
-  const NOISE_PATTERNS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts)/i;
-  const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|png|jpg|jpeg|gif|svg|ico|webp|avif)(\?|%3F|$)/i;
+  // --- Hard-filter: hosts that NEVER contain useful data ---
+  const NOISE_HOSTS = /(id5-sync\.com|btloader\.com|presage\.io|onetrust\.com|adsrvr\.org|googlesyndication\.com|adtrafficquality\.google|amazon-adsystem\.com|crazyegg\.com|challenges\.cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|protechts\.net|demdex\.net|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|cloudflareinsights\.com|fonts\.googleapis\.com|recaptcha|waa-pa\.|signaler-pa\.|ogads-pa\.|reddit\.com\/pixels?|pixel-config\.|dns-finder\.com|cookieconsentpub|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|apis\.google\.com|connect\.facebook\.net|bat\.bing\.com|static\.cloudflareinsights\.com|cdn\.mxpnl\.com|js\.hs-analytics\.net|snap\.licdn\.com|px\.ads|t\.co\/i|analytics\.|telemetry\.|stats\.)/i;
+
+  // Noise URL path patterns — tracking, telemetry, logging
+  const NOISE_PATHS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts|collect|tr\/|gen_204|generate_204|log$|logging|heartbeat|metrics|consent|sodar|tag$|event$|events$|impression|pageview|click|__)/i;
+
+  // Auth/session/config — on-domain but not data
+  const AUTH_CONFIG_PATHS = /\/(csrf_meta|logged_in_user|analytics_user_data|onboarding|geolocation|auth|login|logout|register|signup|session|webConfig|config\.json|manifest\.json|robots\.txt|sitemap|favicon|opensearch|service-worker|sw\.js)\b/i;
+
+  // Static assets
+  const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|mjs|png|jpg|jpeg|gif|svg|ico|webp|avif|mp4|mp3|wav|riv|lottie|wasm)(\?|%3F|$)/i;
+
+  // Animation/UI asset paths
+  const UI_ASSET_PATHS = /\/(rive|lottie|animations?|sprites?|assets\/static)\//i;
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
-    if (NOISE_PATTERNS.test(ep.url_template)) return false;
     if (STATIC_ASSET_PATTERNS.test(ep.url_template)) return false;
+    if (UI_ASSET_PATHS.test(ep.url_template)) return false;
+    try {
+      const host = new URL(ep.url_template).hostname;
+      if (NOISE_HOSTS.test(host)) return false;
+    } catch { /* skip */ }
+    if (NOISE_PATHS.test(ep.url_template)) return false;
+    if (AUTH_CONFIG_PATHS.test(ep.url_template)) return false;
     return true;
   });
 
@@ -616,44 +736,98 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const candidates = filtered.length > 0 ? filtered : nonDisabled;
   if (candidates.length === 0) return [];
 
-  // Tokenize intent and all endpoint documents
-  const queryTokens = intent ? tokenize(intent) : [];
+  // Tokenize intent with synonym expansion for better recall
+  const rawTokens = intent ? tokenize(intent) : [];
+  const queryTokens = rawTokens.length > 0 ? expandQuery(rawTokens) : [];
   const docs = candidates.map((ep) => endpointToTokens(ep));
   const avgDl = docs.reduce((sum, d) => sum + d.length, 0) / docs.length || 1;
 
+  // Build corpus-level document frequencies for real IDF
+  const docFreqs = new Map<string, number>();
+  for (const doc of docs) {
+    const seen = new Set(doc);
+    for (const t of seen) docFreqs.set(t, (docFreqs.get(t) ?? 0) + 1);
+  }
+  const docCount = docs.length;
+
+  // Meta/support path patterns — not primary data
+  const META_PATHS = /\/(annotation|insight|sentiment|vote|portfolio|summary_button|summary_card|tagmetric|quick_add|notifications?|preferences|settings|onboarding)/i;
+
+  // Data format indicators
+  const DATA_INDICATORS = /\.(json|xml|csv)(\?|$)|\/api\//i;
+
+  // Currency/time patterns — strong price/financial signal
+  const CURRENCY_TIME_PATTERNS = /\/(usd|eur|gbp|btc|eth|sol|cny|jpy|krw|24_hours|7_days|30_days|1_year|max|hourly|daily|weekly|price|prices|market|markets|ticker|tickers|quote|quotes|ohlcv?|candles?|klines?)\b/i;
+
+  // API subdomain pattern — "api.example.com" or "io.example.com" strongly suggests data endpoint
+  const API_SUBDOMAIN = /^(api|io|data|feed|stream|ws)\./i;
+
   const scored = candidates.map((ep, i) => {
     let score = 0;
+    let pathname = "";
+    let hostname = "";
+    try {
+      const u = new URL(ep.url_template);
+      pathname = u.pathname;
+      hostname = u.hostname;
+    } catch { /* skip */ }
 
-    // BM25 relevance to intent
+    // === BM25 relevance to intent (primary signal, weighted heavily) ===
     if (queryTokens.length > 0) {
-      score += bm25Score(queryTokens, docs[i], avgDl) * 10;
+      score += bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs) * 20;
     }
 
-    // Structural bonuses
+    // === Structural bonuses ===
     if (ep.dom_extraction) score += 25;
-    if (ep.idempotency === "safe") score += 10;
+    if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
+
+    // Rich schema = likely structured data endpoint
     if (ep.response_schema) {
       score += 5;
-      if (ep.response_schema.type === "array") score += 8;
+      if (ep.response_schema.type === "array") score += 10;
       else if (ep.response_schema.type === "object" && ep.response_schema.properties) {
-        score += Math.min(Object.keys(ep.response_schema.properties).length, 15);
+        const propCount = Object.keys(ep.response_schema.properties).length;
+        score += Math.min(propCount * 2, 20);
       }
     }
     score += ep.reliability_score * 5;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
-    // Domain affinity
+    // === Domain affinity ===
     if (skillDomain) {
       try {
-        const epHost = new URL(ep.url_template).hostname;
-        if (epHost === skillDomain || epHost.endsWith(`.${skillDomain}`)) score += 15;
+        if (hostname === skillDomain || hostname.endsWith(`.${skillDomain}`)) {
+          score += 15;
+          // Extra bonus for API subdomains on the skill domain
+          if (API_SUBDOMAIN.test(hostname)) score += 15;
+        } else {
+          // Off-domain = almost never right
+          score -= 30;
+        }
       } catch { /* skip */ }
     }
 
-    // Penalize root/short paths (config/init endpoints)
-    try {
-      if (new URL(ep.url_template).pathname.length <= 2) score -= 5;
-    } catch { /* skip */ }
+    // API subdomain bonus even without skill domain context
+    if (API_SUBDOMAIN.test(hostname)) score += 10;
+
+    // === Data-relevance signals ===
+    if (DATA_INDICATORS.test(ep.url_template)) score += 5;
+    if (CURRENCY_TIME_PATTERNS.test(pathname)) score += 15;
+
+    // Deep paths with meaningful segments = likely data endpoints
+    const pathDepth = pathname.split("/").filter((s) => s.length > 0).length;
+    if (pathDepth >= 3) score += 5;
+
+    // === Penalties ===
+    if (META_PATHS.test(pathname)) score -= 15;
+
+    // Penalize root/short paths (homepage, config, init)
+    if (pathname.length <= 2) score -= 10;
+
+    // Penalize POST endpoints that aren't explicitly API calls (likely tracking/events)
+    if (ep.method === "POST" && !DATA_INDICATORS.test(ep.url_template) && !ep.response_schema) {
+      score -= 15;
+    }
 
     return { endpoint: ep, score };
   });

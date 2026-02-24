@@ -262,6 +262,66 @@ function detectRepeatingPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
     }
   }
 
+  // Sibling-based detection: group child elements by identical class strings.
+  // Handles Tailwind/utility-class sites where class names are non-semantic
+  // (e.g. "h-full cursor-pointer overflow-hidden rounded-lg flex flex-col").
+  if (results.length === 0) {
+    const siblingGroups = detectSiblingPatterns($);
+    results.push(...siblingGroups);
+  }
+
+  return results;
+}
+
+/**
+ * Detect repeating sibling elements that share the same full class string.
+ * Works for Tailwind/utility-class sites where standard selectors fail.
+ */
+function detectSiblingPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
+  const results: ExtractedStructure[] = [];
+  const seenParents = new Set<string>();
+
+  // Scan all elements that could be container parents
+  $("div, section, ul, ol, main").each((_, parent) => {
+    const $parent = $(parent);
+    const children = $parent.children();
+    if (children.length < 3) return;
+
+    // Group children by their full class string
+    const groups = new Map<string, CheerioEl[]>();
+    children.each((_, child) => {
+      const cls = $(child).attr("class") || "";
+      if (cls.length < 3) return; // skip classless or trivially-classed elements
+      const key = `${(child as any).tagName}|${cls}`;
+      const arr = groups.get(key) || [];
+      arr.push(child);
+      groups.set(key, arr);
+    });
+
+    for (const [key, elements] of groups) {
+      if (elements.length < 3) continue;
+
+      // Avoid processing the same parent+class group twice
+      const parentSig = getElementSignature($, $parent) + "|" + key;
+      if (seenParents.has(parentSig)) continue;
+      seenParents.add(parentSig);
+
+      const items: Record<string, string>[] = [];
+      for (const el of elements) {
+        const item = extractCardFields($, $(el));
+        if (Object.keys(item).length >= 2) items.push(item);
+      }
+
+      if (items.length >= 3) {
+        results.push({
+          type: "repeated-elements",
+          data: items,
+          element_count: items.length,
+        });
+      }
+    }
+  });
+
   return results;
 }
 

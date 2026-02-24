@@ -16,8 +16,11 @@ export async function publishSkill(
   }
 ): Promise<SkillManifest> {
   const { warnings: _, ...backendFields } = await client.publishSkill(draft);
-  // Merge draft with backend response — backend may return full manifest or just {skill_id, version}
-  return { ...draft, ...backendFields } as SkillManifest;
+  // Merge draft with backend response — avoids read-after-write race
+  const skill = { ...draft, ...backendFields } as SkillManifest;
+  // Cache locally so the skill is immediately executable despite backend eventual consistency
+  client.cachePublishedSkill(skill);
+  return skill;
 }
 
 export async function updateEndpointScore(

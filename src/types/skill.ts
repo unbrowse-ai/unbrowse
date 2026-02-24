@@ -55,6 +55,8 @@ export interface EndpointDescriptor {
   ws_messages?: WsMessage[];
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;
+  /** Default values for templatized path segments (e.g. {symbol} → "SPY,QQQ") */
+  path_params?: Record<string, string>;
   body?: Record<string, unknown>;
   csrf_plan?: CsrfPlan;
   oauth_plan?: OAuthPlan;
@@ -156,10 +158,33 @@ export interface EndpointStats {
 export interface ExecutionOptions {
   confirm_unsafe?: boolean;
   dry_run?: boolean;
+  /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
+  intent?: string;
 }
 
 export interface ValidationResult {
   valid: boolean;
   hardErrors: string[];
   softWarnings: string[];
+}
+
+/** Orchestrator-level timing breakdown for a single resolve call */
+export interface OrchestrationTiming {
+  search_ms: number;
+  get_skill_ms: number;
+  execute_ms: number;
+  total_ms: number;
+  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache";
+  cache_hit: boolean;
+  candidates_found: number;
+  candidates_tried: number;
+  skill_id?: string;
+  /** Estimated agent context tokens saved vs manual browsing */
+  tokens_saved: number;
+  /** Size of the structured response in bytes */
+  response_bytes: number;
+  /** Percentage time saved vs estimated live capture baseline */
+  time_saved_pct: number;
+  /** Percentage token saved vs estimated full-page browsing cost */
+  tokens_saved_pct: number;
 }

@@ -46,9 +46,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
       // Surface ranked endpoints so the calling agent can pick a better one
       const skill = result.skill;
+      const res = result as unknown as Record<string, unknown>;
       if (skill?.endpoints && skill.endpoints.length > 1) {
         const ranked = rankEndpoints(skill.endpoints, intent, skill.domain);
-        (result as unknown as Record<string, unknown>).available_endpoints = ranked.slice(0, 5).map((r) => ({
+        res.available_endpoints = ranked.slice(0, 5).map((r) => ({
           endpoint_id: r.endpoint.endpoint_id,
           method: r.endpoint.method,
           url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
@@ -56,6 +57,11 @@ export async function registerRoutes(app: FastifyInstance) {
           has_schema: !!r.endpoint.response_schema,
           dom_extraction: !!r.endpoint.dom_extraction,
         }));
+      }
+
+      // Surface timing breakdown
+      if (result.timing) {
+        res.timing = result.timing;
       }
 
       return reply.send(result);
@@ -67,16 +73,17 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/skills/:skill_id/execute
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, dry_run } = req.body as {
+    const { params, projection, confirm_unsafe, dry_run, intent } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
       dry_run?: boolean;
+      intent?: string;
     };
     const skill = await getSkill(skill_id);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     try {
-      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run });
+      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent });
       saveTrace(execResult.trace);
       return reply.send(execResult);
     } catch (err) {

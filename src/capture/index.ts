@@ -64,8 +64,8 @@ export async function captureSession(
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<CaptureResult> {
   await acquireBrowserSlot();
-  try {
   const browser = new BrowserManager();
+  try {
   const domain = new URL(url).hostname;
   const profileDir = getProfilePath(domain);
   const hasProfile = fs.existsSync(profileDir);
@@ -269,7 +269,7 @@ export async function executeInBrowser(
       try { data = JSON.parse(text); } catch { data = text; }
       return { status: res.status, data };
     },
-    { url, method, headers: { ...authHeaders, ...requestHeaders }, body }
+    { url, method, headers: requestHeaders, body }
   );
 
   return { ...result, trace_id: nanoid() };

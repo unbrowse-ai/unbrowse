@@ -1,11 +1,12 @@
 import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
 import type { EndpointDescriptor, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
-const SKIP_PATHS = /\/_next\/static\/|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
+const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
 
 // Known infrastructure/auth hosts — never useful as skill endpoints
 const SKIP_HOSTS = /(cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com\/login|facebook\.com\/login|protechts\.net|demdex\.net|litms|platform-telemetry|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|privy\.io|mypinata\.cloud|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|imagedelivery\.net|cloudflareinsights\.com)/i;
@@ -66,6 +67,12 @@ const SENSITIVE_HEADER_PATTERN = /token|key|secret|credential|password|session/i
 // Query param names that likely contain credentials and must be stripped from URL templates
 const SENSITIVE_QUERY_PARAMS = /^(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|secret|password|key|token|session[_-]?id|client[_-]?secret|private[_-]?key|bearer)$/i;
 
+// Framework-internal query params — noise from Next.js RSC, cache busting, etc.
+const FRAMEWORK_QUERY_PARAMS = /^(_rsc|_next|__next|_t|_hash|__cf_chl_tk|nxtP\[.*\])$/i;
+
+// Ad/tracking hosts that slip through the main SKIP_HOSTS filter
+const AD_HOSTS = /buysellads\.com|carbonads\.com|ethicalads\.io|srv\.buysellads\.com/i;
+
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
   let score = 0;
@@ -80,16 +87,40 @@ function scoreRequest(req: RawRequest): number {
   if (req.url.length > 500) score -= 5;
   // Penalise telemetry paths even if they passed the host filter
   if (SKIP_TELEMETRY_PATHS.test(new URL(req.url).pathname)) score -= 8;
+  // Penalise Next.js RSC navigation requests — framework wire format, not data
+  if (req.url.includes("_rsc=")) score -= 3;
+  if (ct.includes("text/x-component")) score -= 10; // RSC wire format
   return score;
 }
 
-export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[]): EndpointDescriptor[] {
+export interface ExtractionContext {
+  /** The page URL that was captured (used to detect entity values in API paths) */
+  pageUrl?: string;
+  /** The user's intent string */
+  intent?: string;
+}
+
+export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[], context?: ExtractionContext): EndpointDescriptor[] {
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
+
+  // Extract the registrable domain for affinity filtering
+  // e.g. "swaggystocks.com" from "https://swaggystocks.com/dashboard/..."
+  let baseDomain: string | undefined;
+  try { baseDomain = context?.pageUrl ? getRegistrableDomain(new URL(context.pageUrl).hostname) : undefined; } catch { /* bad url */ }
 
   const scored = requests
     .map((r) => ({ req: r, score: scoreRequest(r) }))
     .filter(({ req, score }) => isApiLike(req) && score > 0)
+    .filter(({ req }) => {
+      if (!baseDomain) return true; // no target domain — keep everything
+      try {
+        const reqHost = new URL(req.url).hostname;
+        const reqDomain = getRegistrableDomain(reqHost);
+        // Keep same-domain and API subdomains (e.g. api.swaggystocks.com)
+        return reqDomain === baseDomain;
+      } catch { return false; }
+    })
     .sort((a, b) => b.score - a.score);
 
   for (const { req } of scored) {
@@ -125,12 +156,26 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // Skip endpoints with invalid URL templates
     if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) continue;
 
+    // Build url_template with templatized query params so callers know what to pass.
+    // normalizeUrl strips the query string; we rebuild it with {param} placeholders.
+    // endpoint.query stores the captured defaults for execution-time fallback.
+    const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
+    let pathTemplate = sanitizeUrlTemplate(normalized);
+    const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
+      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${k}}`).join("&")
+      : null;
+
+    // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)
+    const { url: templatizedPath, pathParams } = templatizePathSegments(pathTemplate, req.url, context);
+    pathTemplate = templatizedPath;
+
     endpoints.push({
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
-      url_template: sanitizeUrlTemplate(normalized),
+      url_template: qTemplateStr ? `${pathTemplate}?${qTemplateStr}` : pathTemplate,
       headers_template: sanitizeHeaders(req.request_headers),
-      query: isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined,
+      query: sanitizedQParams,
+      path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
       body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: verificationStatus,
@@ -138,6 +183,12 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       response_schema,
     });
   }
+
+  // Collapse sibling endpoints into templatized ones
+  // e.g. /ticker-sentiment/MSFT + /ticker-sentiment/NVDA → /ticker-sentiment/{ticker}
+  const deduped = collapseEndpoints(endpoints);
+  endpoints.length = 0;
+  endpoints.push(...deduped);
 
   // Create endpoints from WebSocket messages
   if (wsMessages && wsMessages.length > 0) {
@@ -194,6 +245,7 @@ function isApiLike(req: RawRequest): boolean {
     if (SKIP_HOSTS.test(hostname)) return false;
     if (SKIP_TELEMETRY_HOSTS.test(hostname)) return false;  // BUG-GC-004
     if (SKIP_TELEMETRY_PATHS.test(pathname)) return false;  // BUG-GC-004
+    if (AD_HOSTS.test(hostname)) return false;
     // play.google.com/log is telemetry, not calendar data
     if (hostname === "play.google.com" && pathname.startsWith("/log")) return false;
     // Skip image CDN paths (coin images, avatars, etc.)
@@ -210,7 +262,9 @@ function normalizeUrl(rawUrl: string): string {
     const path = u.pathname
       .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{id}")
       .replace(/\/\d{4,}/g, "/{id}")
-      .replace(/\/[a-f0-9]{24,}/gi, "/{id}");
+      .replace(/\/[a-f0-9]{24,}/gi, "/{id}")
+      // BUG-006: Comma-separated values are lists of identifiers (e.g. SPY,QQQ)
+      .replace(/\/([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+)(?=\/|$)/g, "/{list}");
     // Preserve queryId param for GraphQL endpoints so different queries aren't deduplicated
     const queryId = u.searchParams.get("queryId");
     if (queryId && path.includes("graphql")) {
@@ -252,7 +306,9 @@ function sanitizeHeaders(headers: Record<string, string>): Record<string, string
 
 function sanitizeQueryParams(params: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(params).filter(([k]) => !SENSITIVE_QUERY_PARAMS.test(k))
+    Object.entries(params).filter(([k]) =>
+      !SENSITIVE_QUERY_PARAMS.test(k) && !FRAMEWORK_QUERY_PARAMS.test(k)
+    )
   );
 }
 
@@ -262,12 +318,123 @@ function sanitizeUrlTemplate(url: string): string {
     if (u.search.length <= 1) return url;
     const cleaned = new URLSearchParams();
     for (const [key, val] of u.searchParams) {
-      if (!SENSITIVE_QUERY_PARAMS.test(key)) cleaned.set(key, val);
+      if (!SENSITIVE_QUERY_PARAMS.test(key) && !FRAMEWORK_QUERY_PARAMS.test(key)) {
+        cleaned.set(key, val);
+      }
     }
     const qs = cleaned.toString();
-    return qs ? `${u.origin}${u.pathname}?${qs}` : `${u.origin}${u.pathname}`;
+    // Use the raw URL path (not u.pathname) to preserve {template} braces
+    const pathMatch = url.match(/^https?:\/\/[^/]+(\/[^?]*)/);
+    const rawPath = pathMatch ? pathMatch[1] : u.pathname;
+    return qs ? `${u.origin}${rawPath}?${qs}` : `${u.origin}${rawPath}`;
   } catch {
     return url;
+  }
+}
+
+// ── BUG-006: Path segment parameterization ──────────────────────────────────
+
+/** Extract entity-like values from the page URL that may appear in API paths */
+function extractEntityHints(context?: ExtractionContext): Set<string> {
+  const hints = new Set<string>();
+  if (!context?.pageUrl) return hints;
+  try {
+    const u = new URL(context.pageUrl);
+    for (const seg of u.pathname.split("/").filter(Boolean)) {
+      // Skip structural path parts
+      if (/^(en|es|fr|de|ja|zh|ko|api|v\d+|www|static|assets|public|pages|app)$/i.test(seg)) continue;
+      if (seg.length > 40 || seg.length < 2) continue;
+      hints.add(seg.toLowerCase());
+    }
+  } catch { /* skip */ }
+  return hints;
+}
+
+/**
+ * Infer a meaningful param name from the preceding path segment.
+ * e.g. /quote/{?} → {quote}, /coins/{?} → {coin}, /price_charts/{?} → {price_chart}
+ */
+function inferParamName(segments: string[], index: number, fallback: string, usedNames: Set<string>): string {
+  let name = fallback;
+  const prev = segments[index - 1];
+  if (prev && !prev.startsWith("{") && prev.length > 1) {
+    // Naive singularize: "coins" → "coin", "charts" → "chart"
+    const base = prev.endsWith("s") && prev.length > 3 ? prev.slice(0, -1) : prev;
+    name = base.replace(/[^a-zA-Z0-9_]/g, "_");
+  }
+  // Ensure uniqueness
+  let unique = name;
+  let counter = 2;
+  while (usedNames.has(unique)) {
+    unique = `${name}_${counter++}`;
+  }
+  usedNames.add(unique);
+  return unique;
+}
+
+/**
+ * BUG-006: Parameterize dynamic path segments in API URL templates.
+ *
+ * Two detection strategies:
+ * 1. Comma-separated values (already collapsed to {list} by normalizeUrl) — capture defaults
+ * 2. Context-aware: segments matching entity values from the page URL
+ *
+ * Returns the templatized URL and a map of param names → captured default values.
+ * NOTE: Avoids `new URL()` on the template since it would percent-encode curly braces.
+ */
+function templatizePathSegments(
+  templateUrl: string,
+  originalUrl: string,
+  context?: ExtractionContext,
+): { url: string; pathParams: Record<string, string> } {
+  const pathParams: Record<string, string> = {};
+
+  try {
+    // Parse templateUrl manually to avoid encoding {braces}
+    // Format: "https://host:port/path/segments" (query already stripped by normalizeUrl)
+    const tMatch = templateUrl.match(/^(https?:\/\/[^/]+)(\/.*)?$/);
+    if (!tMatch) return { url: templateUrl, pathParams };
+    const tOrigin = tMatch[1];
+    const tPath = tMatch[2] ?? "/";
+
+    const oPath = new URL(originalUrl).pathname;
+
+    const tSegments = tPath.split("/");
+    const oSegments = oPath.split("/");
+    const hints = extractEntityHints(context);
+    const usedNames = new Set<string>();
+
+    for (let i = 0; i < tSegments.length; i++) {
+      const tSeg = tSegments[i];
+      const oSeg = oSegments[i] ?? tSeg;
+
+      if (!tSeg) continue;
+
+      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}) — capture defaults & rename
+      if (tSeg === "{id}" || tSeg === "{list}") {
+        const paramName = inferParamName(tSegments, i, tSeg === "{list}" ? "list" : "id", usedNames);
+        tSegments[i] = `{${paramName}}`;
+        pathParams[paramName] = oSeg;
+        continue;
+      }
+
+      // Skip segments that are already template vars, file extensions, or structural
+      if (tSeg.startsWith("{")) continue;
+      if (tSeg.includes(".")) continue; // e.g. "24_hours.json"
+      if (/^(api|v\d+|www|en|es|fr|de|latest|dex|search)$/i.test(tSeg)) continue;
+
+      // Pattern 2: Segment matches a page URL entity hint (case-insensitive)
+      if (hints.size > 0 && hints.has(tSeg.toLowerCase())) {
+        const paramName = inferParamName(tSegments, i, "slug", usedNames);
+        tSegments[i] = `{${paramName}}`;
+        pathParams[paramName] = oSeg;
+        continue;
+      }
+    }
+
+    return { url: `${tOrigin}${tSegments.join("/")}`, pathParams };
+  } catch {
+    return { url: templateUrl, pathParams };
   }
 }
 
@@ -298,6 +465,84 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
   return undefined;
 }
 
+
+/**
+ * Collapse sibling endpoints that share the same base path into a single
+ * templatized endpoint.  e.g.:
+ *   GET /sentiment/MSFT  +  GET /sentiment/NVDA  +  GET /sentiment/HIMS
+ *   → GET /sentiment/{ticker}
+ *
+ * Strategy: group endpoints by (method, origin, pathPrefix) where pathPrefix is
+ * all path segments except the last.  If a group has 3+ members whose last
+ * segment varies, replace the last segment with a template variable.
+ * Keep the first endpoint's metadata (headers, schema, etc.) as representative.
+ */
+function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
+  // Group by method + origin + all-but-last path segment
+  const groups = new Map<string, EndpointDescriptor[]>();
+  const ungrouped: EndpointDescriptor[] = [];
+
+  for (const ep of endpoints) {
+    try {
+      const u = new URL(ep.url_template);
+      const segments = u.pathname.split("/").filter(Boolean);
+      if (segments.length < 2) {
+        // Root or single-segment paths can't be collapsed
+        ungrouped.push(ep);
+        continue;
+      }
+      const prefix = segments.slice(0, -1).join("/");
+      const key = `${ep.method}:${u.origin}/${prefix}`;
+      const arr = groups.get(key) || [];
+      arr.push(ep);
+      groups.set(key, arr);
+    } catch {
+      ungrouped.push(ep);
+    }
+  }
+
+  const result: EndpointDescriptor[] = [...ungrouped];
+
+  for (const [key, group] of groups) {
+    if (group.length < 3) {
+      // Not enough siblings to justify templatizing — keep as-is
+      result.push(...group);
+      continue;
+    }
+
+    // Check that the last segments actually vary (not all identical)
+    const lastSegments = group.map((ep) => {
+      const u = new URL(ep.url_template);
+      const segs = u.pathname.split("/").filter(Boolean);
+      return segs[segs.length - 1];
+    });
+    const unique = new Set(lastSegments);
+    if (unique.size < 3) {
+      // Last segments don't vary enough — keep as-is
+      result.push(...group);
+      continue;
+    }
+
+    // Infer a template variable name from the path prefix
+    const [, prefixPath] = key.split(":", 2);
+    const u = new URL(group[0].url_template);
+    const prefix = u.pathname.split("/").filter(Boolean).slice(0, -1);
+    const paramName = inferParamName(prefix, prefix.length, "id", new Set<string>());
+    const templatizedPath = "/" + [...prefix, `{${paramName}}`].join("/");
+
+    // Keep the first endpoint as representative, update its URL template
+    const representative = { ...group[0] };
+    representative.url_template = `${u.origin}${templatizedPath}`;
+    // Merge all captured example values as a hint
+    representative.query = {
+      ...(representative.query || {}),
+    };
+
+    result.push(representative);
+  }
+
+  return result;
+}
 
 /**
  * BUG-008: Detect Cloudflare challenge/block responses.

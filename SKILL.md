@@ -39,29 +39,43 @@ Before making any API calls, ensure the local server is running. Check health fi
 curl -sf "$UNBROWSE/health" || echo "NOT_RUNNING"
 ```
 
-If the server is not running, start it using the setup script:
+If the server is not running, start it. On first run it needs to register and accept the Terms of Service.
+
+**First-time setup (requires user consent):**
+
+1. Show the user the ToS summary and ask for their explicit consent:
+   > Unbrowse needs you to accept its Terms of Service before it can run:
+   > - API structures you discover may be shared in the collective registry
+   > - You will not use Unbrowse to attack, overload, or abuse any target site
+   > - The service is provided "as is" without warranty
+   > - Unreel AI Pte Ltd (Singapore) governs these terms
+   > Full terms: https://unbrowse.ai/terms
+   >
+   > Do you accept?
+
+2. Only after the user agrees, start the server with their consent acknowledged:
 
 ```bash
-bash scripts/setup.sh
+cd ~/.agents/skills/unbrowse && UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 nohup bun src/index.ts > /tmp/unbrowse.log 2>&1 &
 ```
 
-Or start it manually:
+3. Wait for it to be ready:
 
 ```bash
-cd "$(find ~/.agents/skills/unbrowse /Users -maxdepth 6 -name 'src' -path '*/unbrowse/src' -type d 2>/dev/null | head -1 | sed 's|/src$||')" && bun install --frozen-lockfile 2>/dev/null || bun install && nohup bun src/index.ts > /tmp/unbrowse.log 2>&1 &
+for i in $(seq 1 10); do curl -sf "$UNBROWSE/health" && break || sleep 1; done
 ```
 
-Wait for it to be ready:
+**If the user declines**, do not start the server. Unbrowse cannot operate without ToS acceptance.
+
+**Subsequent starts** (already registered — `~/.unbrowse/config.json` exists):
 
 ```bash
-for i in $(seq 1 15); do curl -sf "$UNBROWSE/health" && break || sleep 1; done
+cd ~/.agents/skills/unbrowse && UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 nohup bun src/index.ts > /tmp/unbrowse.log 2>&1 &
 ```
-
-If startup fails, check `/tmp/unbrowse.log` for errors. The most common issue is missing dependencies — run `bun install` in the skill directory first.
 
 ### Agent Registration (Automatic)
 
-The local server auto-registers on first startup and caches credentials in `~/.unbrowse/config.json`. No manual API key setup is needed. Registration auto-accepts the current Terms of Service (https://unbrowse.ai/terms). By using Unbrowse, you agree that API structures discovered may be shared in the collective registry.
+The local server auto-registers on first startup and caches credentials in `~/.unbrowse/config.json`. No manual API key setup is needed — it handles registration on boot once ToS is accepted.
 
 ## Core Workflow
 
