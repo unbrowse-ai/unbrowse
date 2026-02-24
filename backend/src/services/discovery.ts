@@ -108,10 +108,16 @@ export async function searchIntentInDomain(
 
   const vector = await embedIntent(env, intent, "query");
   const ns = domainNamespace(domain);
-  const data = (await edbRequest(env, "POST", "/vectors/search", {
-    vector, k, include_metadata: true, namespace: ns,
-  })) as { results?: SearchResult };
-  const results = (data.results ?? []).filter(r => r.metadata);
+  let results: SearchResult;
+  try {
+    const data = (await edbRequest(env, "POST", "/vectors/search", {
+      vector, k, include_metadata: true, namespace: ns,
+    })) as { results?: SearchResult };
+    results = (data.results ?? []).filter(r => r.metadata);
+  } catch (err) {
+    console.error(`[search] domain=${domain} ns=${ns} error:`, (err as Error).message);
+    return [];
+  }
 
   if (results.length > 0) {
     kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
@@ -132,10 +138,16 @@ export async function searchIntent(
   if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
 
   const vector = await embedIntent(env, intent, "query");
-  const data = (await edbRequest(env, "POST", "/vectors/search", {
-    vector, k, include_metadata: true, namespace: GLOBAL_NS,
-  })) as { results?: SearchResult };
-  const results = (data.results ?? []).filter(r => r.metadata);
+  let results: SearchResult;
+  try {
+    const data = (await edbRequest(env, "POST", "/vectors/search", {
+      vector, k, include_metadata: true, namespace: GLOBAL_NS,
+    })) as { results?: SearchResult };
+    results = (data.results ?? []).filter(r => r.metadata);
+  } catch (err) {
+    console.error(`[search] global ns=${GLOBAL_NS} error:`, (err as Error).message);
+    return [];
+  }
 
   if (results.length > 0) {
     kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});

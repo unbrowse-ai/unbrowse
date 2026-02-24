@@ -44,7 +44,7 @@ export async function publishSkill(
     skill_id?: string;
     version?: string;
   }
-): Promise<SkillManifest> {
+): Promise<SkillManifest & { index_status: string }> {
   const existing = await findExistingByIntent(env, draft.intent_signature, draft.domain);
   const now = new Date().toISOString();
   let skill: SkillManifest;
@@ -86,18 +86,24 @@ export async function publishSkill(
   const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
   const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
 
-  // Fire-and-forget — don't block the response on Gemini embed + vector insert
-  indexSkill(env, skill.skill_id, skill.intent_signature, {
-    domain: skill.domain,
-    subdomain: skill.subdomain,
-    name: skill.name,
-    description: skill.description,
-    avg_reliability: avgReliability,
-    verified_ratio: verifiedRatio,
-    updated_at: skill.updated_at,
-  }).catch((err) => console.error(`[indexSkill] failed for ${skill.skill_id}:`, (err as Error).message));
+  let index_status: string;
+  try {
+    await indexSkill(env, skill.skill_id, skill.intent_signature, {
+      domain: skill.domain,
+      subdomain: skill.subdomain,
+      name: skill.name,
+      description: skill.description,
+      avg_reliability: avgReliability,
+      verified_ratio: verifiedRatio,
+      updated_at: skill.updated_at,
+    });
+    index_status = "ok";
+  } catch (err) {
+    index_status = (err as Error).message;
+    console.error(`[indexSkill] failed for ${skill.skill_id}:`, index_status);
+  }
 
-  return skill;
+  return { ...skill, index_status };
 }
 
 export async function deprecateSkill(env: Env, skillId: string): Promise<SkillManifest | null> {

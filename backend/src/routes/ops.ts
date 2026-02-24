@@ -70,7 +70,10 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
     return c.json({ error: "Admin only" }, 403);
   }
 
-  const body = await c.req.json<{ purge_skill_ids?: string[] }>().catch(() => ({} as { purge_skill_ids?: string[] }));
+  const body = await c.req.json<{ purge_skill_ids?: string[]; limit?: number; offset?: number }>().catch(() => ({} as { purge_skill_ids?: string[]; limit?: number; offset?: number }));
+
+  const limit = body.limit ?? 3;
+  const offset = body.offset ?? 0;
 
   const skills = await listSkills(c.env);
   const active = skills.filter((s) => s.lifecycle === "active" && s.intent_signature);
@@ -88,10 +91,11 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
     }
   }
 
+  const batch = active.slice(offset, offset + limit);
   const results: Array<{ skill_id: string; domain: string; ok: boolean; error?: string }> = [];
 
   // Process sequentially to stay within CF Worker limits
-  for (const skill of active) {
+  for (const skill of batch) {
     try {
       await reindexSkill(c.env, skill);
       results.push({ skill_id: skill.skill_id, domain: skill.domain, ok: true });
@@ -102,11 +106,17 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
 
   const succeeded = results.filter((r) => r.ok).length;
   const failed = results.filter((r) => !r.ok).length;
+  const hasMore = offset + limit < active.length;
 
   return c.json({
-    total: active.length,
+    total_active: active.length,
+    batch_offset: offset,
+    batch_limit: limit,
+    processed: batch.length,
     succeeded,
     failed,
+    has_more: hasMore,
+    next_offset: hasMore ? offset + limit : null,
     skipped: skills.length - active.length,
     purged,
     results,
