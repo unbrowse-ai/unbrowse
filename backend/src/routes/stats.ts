@@ -1,6 +1,7 @@
 import { Hono } from "hono";
-import type { Env } from "../types.js";
+import type { Env, OrchestrationTiming } from "../types.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
+import { recordPerf, getPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { incrementAgentExecutions, incrementAgentFeedback, countAgents } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
@@ -39,6 +40,8 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
 
   const agentCount = await countAgents(c.env);
 
+  const perfStats = await getPerf(c.env);
+
   c.header("Cache-Control", "public, max-age=60");
   c.header("Access-Control-Allow-Origin", "*");
   return c.json({
@@ -47,7 +50,28 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
     domains: domainSet.size,
     executions: totalExecutions,
     agents: agentCount,
+    perf: {
+      total_resolves: perfStats.total_resolves,
+      marketplace_hit_rate: perfStats.total_resolves > 0
+        ? Math.round((perfStats.marketplace_hits + perfStats.cache_hits) / perfStats.total_resolves * 100)
+        : 0,
+      avg_resolve_ms: Math.round(perfStats.avg_total_ms),
+      avg_marketplace_ms: Math.round(perfStats.avg_marketplace_ms),
+      avg_cache_ms: Math.round(perfStats.avg_cache_ms),
+      p95_ms: Math.round(perfStats.p95_total_ms),
+      total_tokens_saved: perfStats.total_tokens_saved,
+      avg_time_saved_pct: Math.round(perfStats.avg_time_saved_pct),
+      avg_tokens_saved_pct: Math.round(perfStats.avg_tokens_saved_pct),
+    },
   });
+});
+
+// GET /v1/stats/perf — aggregated orchestration performance
+publicStatsRoutes.get("/stats/perf", async (c) => {
+  const stats = await getPerf(c.env);
+  c.header("Cache-Control", "public, max-age=10");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(stats);
 });
 
 // Public validation — no auth required, rate limited
@@ -67,6 +91,17 @@ export const statsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: stri
 // Rate limit: 120 executions per 60s, 60 feedback per 60s per agent
 statsRoutes.use("/stats/execution", agentRateLimit({ limit: 120, window: 60, prefix: "execution" }));
 statsRoutes.use("/stats/feedback", agentRateLimit({ limit: 60, window: 60, prefix: "feedback" }));
+
+// POST /v1/stats/perf — record orchestration timing
+statsRoutes.use("/stats/perf", agentRateLimit({ limit: 120, window: 60, prefix: "perf" }));
+statsRoutes.post("/stats/perf", async (c) => {
+  const timing = await c.req.json<OrchestrationTiming>();
+  if (!timing || typeof timing.total_ms !== "number") {
+    return c.json({ error: "invalid timing data" }, 400);
+  }
+  await recordPerf(c.env, timing);
+  return c.json({ ok: true });
+});
 
 // POST /v1/stats/execution — record execution + recompute score
 statsRoutes.post("/stats/execution", async (c) => {

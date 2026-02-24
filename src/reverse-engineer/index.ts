@@ -1,11 +1,12 @@
 import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
 import type { EndpointDescriptor, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
-const SKIP_PATHS = /\/_next\/static\/|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
+const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
 
 // Known infrastructure/auth hosts — never useful as skill endpoints
 const SKIP_HOSTS = /(cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com\/login|facebook\.com\/login|protechts\.net|demdex\.net|litms|platform-telemetry|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|privy\.io|mypinata\.cloud|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|imagedelivery\.net|cloudflareinsights\.com)/i;
@@ -66,6 +67,12 @@ const SENSITIVE_HEADER_PATTERN = /token|key|secret|credential|password|session/i
 // Query param names that likely contain credentials and must be stripped from URL templates
 const SENSITIVE_QUERY_PARAMS = /^(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|secret|password|key|token|session[_-]?id|client[_-]?secret|private[_-]?key|bearer)$/i;
 
+// Framework-internal query params — noise from Next.js RSC, cache busting, etc.
+const FRAMEWORK_QUERY_PARAMS = /^(_rsc|_next|__next|_t|_hash|__cf_chl_tk|nxtP\[.*\])$/i;
+
+// Ad/tracking hosts that slip through the main SKIP_HOSTS filter
+const AD_HOSTS = /buysellads\.com|carbonads\.com|ethicalads\.io|srv\.buysellads\.com/i;
+
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
   let score = 0;
@@ -80,16 +87,32 @@ function scoreRequest(req: RawRequest): number {
   if (req.url.length > 500) score -= 5;
   // Penalise telemetry paths even if they passed the host filter
   if (SKIP_TELEMETRY_PATHS.test(new URL(req.url).pathname)) score -= 8;
+  // Penalise Next.js RSC navigation requests — framework wire format, not data
+  if (req.url.includes("_rsc=")) score -= 3;
+  if (ct.includes("text/x-component")) score -= 10; // RSC wire format
   return score;
 }
 
-export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[]): EndpointDescriptor[] {
+export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[], targetDomain?: string): EndpointDescriptor[] {
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
+
+  // Extract the registrable domain for affinity filtering
+  // e.g. "swaggystocks.com" from "https://swaggystocks.com/dashboard/..."
+  const baseDomain = targetDomain ? getRegistrableDomain(targetDomain) : undefined;
 
   const scored = requests
     .map((r) => ({ req: r, score: scoreRequest(r) }))
     .filter(({ req, score }) => isApiLike(req) && score > 0)
+    .filter(({ req }) => {
+      if (!baseDomain) return true; // no target domain — keep everything
+      try {
+        const reqHost = new URL(req.url).hostname;
+        const reqDomain = getRegistrableDomain(reqHost);
+        // Keep same-domain and API subdomains (e.g. api.swaggystocks.com)
+        return reqDomain === baseDomain;
+      } catch { return false; }
+    })
     .sort((a, b) => b.score - a.score);
 
   for (const { req } of scored) {
@@ -148,6 +171,12 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     });
   }
 
+  // Collapse sibling endpoints into templatized ones
+  // e.g. /ticker-sentiment/MSFT + /ticker-sentiment/NVDA → /ticker-sentiment/{ticker}
+  const deduped = collapseEndpoints(endpoints);
+  endpoints.length = 0;
+  endpoints.push(...deduped);
+
   // Create endpoints from WebSocket messages
   if (wsMessages && wsMessages.length > 0) {
     const wsByUrl = new Map<string, CapturedWsMessage[]>();
@@ -203,6 +232,7 @@ function isApiLike(req: RawRequest): boolean {
     if (SKIP_HOSTS.test(hostname)) return false;
     if (SKIP_TELEMETRY_HOSTS.test(hostname)) return false;  // BUG-GC-004
     if (SKIP_TELEMETRY_PATHS.test(pathname)) return false;  // BUG-GC-004
+    if (AD_HOSTS.test(hostname)) return false;
     // play.google.com/log is telemetry, not calendar data
     if (hostname === "play.google.com" && pathname.startsWith("/log")) return false;
     // Skip image CDN paths (coin images, avatars, etc.)
@@ -261,7 +291,9 @@ function sanitizeHeaders(headers: Record<string, string>): Record<string, string
 
 function sanitizeQueryParams(params: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(params).filter(([k]) => !SENSITIVE_QUERY_PARAMS.test(k))
+    Object.entries(params).filter(([k]) =>
+      !SENSITIVE_QUERY_PARAMS.test(k) && !FRAMEWORK_QUERY_PARAMS.test(k)
+    )
   );
 }
 
@@ -271,7 +303,9 @@ function sanitizeUrlTemplate(url: string): string {
     if (u.search.length <= 1) return url;
     const cleaned = new URLSearchParams();
     for (const [key, val] of u.searchParams) {
-      if (!SENSITIVE_QUERY_PARAMS.test(key)) cleaned.set(key, val);
+      if (!SENSITIVE_QUERY_PARAMS.test(key) && !FRAMEWORK_QUERY_PARAMS.test(key)) {
+        cleaned.set(key, val);
+      }
     }
     const qs = cleaned.toString();
     return qs ? `${u.origin}${u.pathname}?${qs}` : `${u.origin}${u.pathname}`;
@@ -307,6 +341,106 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
   return undefined;
 }
 
+
+/**
+ * Collapse sibling endpoints that share the same base path into a single
+ * templatized endpoint.  e.g.:
+ *   GET /sentiment/MSFT  +  GET /sentiment/NVDA  +  GET /sentiment/HIMS
+ *   → GET /sentiment/{ticker}
+ *
+ * Strategy: group endpoints by (method, origin, pathPrefix) where pathPrefix is
+ * all path segments except the last.  If a group has 3+ members whose last
+ * segment varies, replace the last segment with a template variable.
+ * Keep the first endpoint's metadata (headers, schema, etc.) as representative.
+ */
+function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
+  // Group by method + origin + all-but-last path segment
+  const groups = new Map<string, EndpointDescriptor[]>();
+  const ungrouped: EndpointDescriptor[] = [];
+
+  for (const ep of endpoints) {
+    try {
+      const u = new URL(ep.url_template);
+      const segments = u.pathname.split("/").filter(Boolean);
+      if (segments.length < 2) {
+        // Root or single-segment paths can't be collapsed
+        ungrouped.push(ep);
+        continue;
+      }
+      const prefix = segments.slice(0, -1).join("/");
+      const key = `${ep.method}:${u.origin}/${prefix}`;
+      const arr = groups.get(key) || [];
+      arr.push(ep);
+      groups.set(key, arr);
+    } catch {
+      ungrouped.push(ep);
+    }
+  }
+
+  const result: EndpointDescriptor[] = [...ungrouped];
+
+  for (const [key, group] of groups) {
+    if (group.length < 3) {
+      // Not enough siblings to justify templatizing — keep as-is
+      result.push(...group);
+      continue;
+    }
+
+    // Check that the last segments actually vary (not all identical)
+    const lastSegments = group.map((ep) => {
+      const u = new URL(ep.url_template);
+      const segs = u.pathname.split("/").filter(Boolean);
+      return segs[segs.length - 1];
+    });
+    const unique = new Set(lastSegments);
+    if (unique.size < 3) {
+      // Last segments don't vary enough — keep as-is
+      result.push(...group);
+      continue;
+    }
+
+    // Infer a template variable name from the path prefix
+    const [, prefixPath] = key.split(":", 2);
+    const u = new URL(group[0].url_template);
+    const prefix = u.pathname.split("/").filter(Boolean).slice(0, -1);
+    const paramName = inferParamName(prefix[prefix.length - 1] || "id");
+    const templatizedPath = "/" + [...prefix, `{${paramName}}`].join("/");
+
+    // Keep the first endpoint as representative, update its URL template
+    const representative = { ...group[0] };
+    representative.url_template = `${u.origin}${templatizedPath}`;
+    // Merge all captured example values as a hint
+    representative.query = {
+      ...(representative.query || {}),
+    };
+
+    result.push(representative);
+  }
+
+  return result;
+}
+
+/**
+ * Infer a human-readable template parameter name from the preceding path segment.
+ * e.g. "ticker-sentiment" → "ticker", "users" → "user_id", "products" → "product_id"
+ */
+function inferParamName(precedingSegment: string): string {
+  // Strip common prefixes/suffixes
+  const cleaned = precedingSegment
+    .replace(/[-_]?(sentiment|list|detail|info|data|stats|view|page)$/i, "")
+    .replace(/^(get|fetch|load)[-_]?/i, "");
+
+  if (!cleaned || cleaned.length < 2) return "id";
+
+  // Singularize simple plurals
+  const singular = cleaned.endsWith("s") && cleaned.length > 3
+    ? cleaned.slice(0, -1)
+    : cleaned;
+
+  // Convert kebab-case to snake_case and append _id if it looks like an entity
+  const snaked = singular.replace(/-/g, "_").toLowerCase();
+  return snaked;
+}
 
 /**
  * BUG-008: Detect Cloudflare challenge/block responses.

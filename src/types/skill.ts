@@ -165,3 +165,24 @@ export interface ValidationResult {
   hardErrors: string[];
   softWarnings: string[];
 }
+
+/** Orchestrator-level timing breakdown for a single resolve call */
+export interface OrchestrationTiming {
+  search_ms: number;
+  get_skill_ms: number;
+  execute_ms: number;
+  total_ms: number;
+  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache";
+  cache_hit: boolean;
+  candidates_found: number;
+  candidates_tried: number;
+  skill_id?: string;
+  /** Estimated agent context tokens saved vs manual browsing */
+  tokens_saved: number;
+  /** Size of the structured response in bytes */
+  response_bytes: number;
+  /** Percentage time saved vs estimated live capture baseline */
+  time_saved_pct: number;
+  /** Percentage token saved vs estimated full-page browsing cost */
+  tokens_saved_pct: number;
+}
