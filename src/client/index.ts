@@ -3,11 +3,12 @@ import { join } from "path";
 import { homedir, hostname } from "os";
 import { randomBytes } from "crypto";
 import { createInterface } from "readline";
-import type { EndpointStats, ExecutionTrace, SkillManifest, ValidationResult } from "../types/index.js";
+import type { EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
 
 const API_URL = "https://beta-api.unbrowse.ai";
 const CONFIG_DIR = join(homedir(), ".unbrowse");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
+const SKILL_CACHE_DIR = join(CONFIG_DIR, "skill-cache");
 
 interface UnbrowseConfig {
   api_key: string;
@@ -190,29 +191,50 @@ export async function ensureRegistered(): Promise<void> {
       tos_accepted_at: new Date().toISOString(),
     });
 
-    console.log("Registered! API key cached in ~/.unbrowse/config.json");
+    console.log(`Registered as agent ${agent_id}. API key saved to ~/.unbrowse/config.json`);
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
+    console.warn("Set UNBROWSE_API_KEY manually or try again.");
     process.exit(1);
   }
 }
 
 // --- Skill CRUD ---
 
-// Local cache for skills we published — backend has eventual consistency
-// so GET may 404 briefly after POST succeeds
-const recentPublishes = new Map<string, SkillManifest>();
+// Disk-backed skill cache — survives server restarts.
+// Backend has eventual consistency so GET /v1/skills/:id can 404 for
+// recently published skills. This cache is the safety net.
+
+function skillCachePath(skillId: string): string {
+  return join(SKILL_CACHE_DIR, `${skillId}.json`);
+}
+
+function readSkillCache(skillId: string): SkillManifest | null {
+  try {
+    const raw = readFileSync(skillCachePath(skillId), "utf-8");
+    return JSON.parse(raw) as SkillManifest;
+  } catch { return null; }
+}
+
+function writeSkillCache(skill: SkillManifest): void {
+  try {
+    if (!existsSync(SKILL_CACHE_DIR)) mkdirSync(SKILL_CACHE_DIR, { recursive: true });
+    writeFileSync(skillCachePath(skill.skill_id), JSON.stringify(skill), "utf-8");
+  } catch { /* non-critical — best effort */ }
+}
 
 export function cachePublishedSkill(skill: SkillManifest): void {
-  recentPublishes.set(skill.skill_id, skill);
+  writeSkillCache(skill);
 }
 
 export async function getSkill(skillId: string): Promise<SkillManifest | null> {
   try {
-    return await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
+    const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
+    writeSkillCache(skill);
+    return skill;
   } catch {
-    // Fall back to recently-published cache (backend eventual consistency)
-    return recentPublishes.get(skillId) ?? null;
+    // Backend 404 or network error — fall back to disk cache
+    return readSkillCache(skillId);
   }
 }
 
@@ -304,6 +326,12 @@ export async function recordFeedback(
     rating,
   });
   return data.avg_rating;
+}
+
+// --- Orchestration Perf ---
+
+export async function recordOrchestrationPerf(timing: OrchestrationTiming): Promise<void> {
+  await api("POST", "/v1/stats/perf", timing);
 }
 
 // --- Validation ---

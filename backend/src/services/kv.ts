@@ -45,20 +45,27 @@ export class EdbKV {
       return type === "json" ? safeJson(hit.v) : hit.v;
     }
 
-    // Not in idx — direct fetch (TTL keys, migrated entries with empty v, etc.)
-    const res = await fetch(`${BASE}/qdkv/get/${encodeURIComponent(this.k(key))}`, { headers: this.h });
-    if (!res.ok) return null;
-    const data = await res.json() as { value?: string | null; found?: boolean };
-    if (!data.found || data.value == null) return null;
-    const val = data.value;
+    // Direct fetch — key exists in idx with empty v, or is a TTL/migrated entry
+    const keyInIndex = !!hit;
+    const maxAttempts = keyInIndex ? 3 : 1;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 200 * attempt));
+      const res = await fetch(`${BASE}/qdkv/get/${encodeURIComponent(this.k(key))}`, { headers: this.h });
+      if (!res.ok) continue;
+      const data = await res.json() as { value?: string | null; found?: boolean };
+      if (!data.found || data.value == null) continue;
+      const val = data.value;
 
-    // Backfill cache so subsequent gets in this request are free
-    const cached = _cache.get(this.ns);
-    if (cached) {
-      const i = cached.entries.findIndex(e => e.k === key);
-      if (i >= 0) cached.entries[i].v = val;
+      // Backfill cache so subsequent gets in this request are free
+      const cached = _cache.get(this.ns);
+      if (cached) {
+        const i = cached.entries.findIndex(e => e.k === key);
+        if (i >= 0) cached.entries[i].v = val;
+        else cached.entries.push({ k: key, v: val });
+      }
+      return type === "json" ? safeJson(val) : val;
     }
-    return type === "json" ? safeJson(val) : val;
+    return null;
   }
 
   async put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void> {

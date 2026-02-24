@@ -143,3 +143,39 @@ export interface ValidationResult {
   hardErrors: string[];
   softWarnings: string[];
 }
+
+export interface OrchestrationTiming {
+  search_ms: number;
+  get_skill_ms: number;
+  execute_ms: number;
+  total_ms: number;
+  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache";
+  cache_hit: boolean;
+  candidates_found: number;
+  candidates_tried: number;
+  skill_id?: string;
+  tokens_saved: number;
+  response_bytes: number;
+  time_saved_pct: number;
+  tokens_saved_pct: number;
+}
+
+export interface PerfStats {
+  total_resolves: number;
+  marketplace_hits: number;
+  cache_hits: number;
+  live_captures: number;
+  dom_fallbacks: number;
+  avg_total_ms: number;
+  avg_search_ms: number;
+  avg_execute_ms: number;
+  avg_marketplace_ms: number;
+  avg_cache_ms: number;
+  avg_live_capture_ms: number;
+  p95_total_ms: number;
+  total_tokens_saved: number;
+  total_response_bytes: number;
+  avg_time_saved_pct: number;
+  avg_tokens_saved_pct: number;
+  last_updated_at: string;
+}
