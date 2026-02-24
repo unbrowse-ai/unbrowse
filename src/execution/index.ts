@@ -392,6 +392,14 @@ export async function executeEndpoint(
     }
   }
 
+  // Auto-inject CSRF tokens from cookies (LinkedIn, etc.)
+  const jsessionCookie = cookies.find(c => c.name === "JSESSIONID");
+  if (jsessionCookie) {
+    // LinkedIn's Voyager API requires csrf-token header = JSESSIONID value (without quotes)
+    const csrfValue = jsessionCookie.value.replace(/^"|"$/g, "");
+    authHeaders["csrf-token"] = csrfValue;
+  }
+
   const url = interpolate(endpoint.url_template, params);
   const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
 
@@ -431,8 +439,8 @@ export async function executeEndpoint(
     trace.result = data;
   }
 
-  // Stale credential detection: on 401/403, delete credential and flag
-  if ((status === 401 || status === 403) && skill.auth_profile_ref) {
+  // Stale credential detection: on 401 only — 403 may be CSRF, not stale creds
+  if (status === 401 && skill.auth_profile_ref) {
     await deleteCredential(skill.auth_profile_ref);
     trace.error = `${trace.error} (stale credential deleted)`;
   }

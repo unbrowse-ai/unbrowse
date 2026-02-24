@@ -269,7 +269,7 @@ export async function executeInBrowser(
       try { data = JSON.parse(text); } catch { data = text; }
       return { status: res.status, data };
     },
-    { url, method, headers: requestHeaders, body }
+    { url, method, headers: { ...authHeaders, ...requestHeaders }, body }
   );
 
   return { ...result, trace_id: nanoid() };
