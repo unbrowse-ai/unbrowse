@@ -40,8 +40,8 @@ export async function executeSkill(
     }
   }
 
-  // BUG-004/007 fix: select endpoint by schema richness + intent relevance
-  const endpoint = selectBestEndpoint(skill.endpoints, skill.intent_signature, skill.domain);
+  // Use the caller's intent for ranking when available, fall back to skill's original intent
+  const endpoint = selectBestEndpoint(skill.endpoints, options?.intent ?? skill.intent_signature, skill.domain);
   return executeEndpoint(skill, endpoint, params, projection, options);
 }
 
@@ -392,7 +392,25 @@ export async function executeEndpoint(
     }
   }
 
-  const url = interpolate(endpoint.url_template, params);
+  // Merge captured query params into URL — user params override endpoint defaults
+  let urlTemplate = endpoint.url_template;
+  if (endpoint.query && typeof endpoint.query === "object" && Object.keys(endpoint.query).length > 0) {
+    try {
+      const u = new URL(urlTemplate);
+      for (const [k, v] of Object.entries(endpoint.query)) {
+        // User params override captured query defaults
+        if (params[k] != null) {
+          u.searchParams.set(k, String(params[k]));
+        } else if (v != null) {
+          u.searchParams.set(k, String(v));
+        }
+      }
+      urlTemplate = u.toString();
+    } catch {
+      // URL parse failure — skip query merge
+    }
+  }
+  const url = interpolate(urlTemplate, params);
   const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
 
   // Wrap in retry for safe (GET) endpoints

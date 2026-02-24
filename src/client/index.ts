@@ -183,23 +183,46 @@ export async function ensureRegistered(): Promise<void> {
     process.env.UNBROWSE_API_KEY = api_key;
     saveConfig({
       api_key,
-      agent_id,
-      agent_name: name,
-      registered_at: new Date().toISOString(),
-      tos_accepted_version: tosInfo.version,
-      tos_accepted_at: new Date().toISOString(),
-    });
+// --- Skill CRUD ---
 
-    console.log("Registered! API key cached in ~/.unbrowse/config.json");
-  } catch (err) {
-    console.warn(`Registration failed: ${(err as Error).message}`);
-    process.exit(1);
+// Local cache for skills we published — backend has eventual consistency
+// so GET may 404 briefly after POST succeeds
+const recentPublishes = new Map<string, SkillManifest>();
+
+export function cachePublishedSkill(skill: SkillManifest): void {
+  recentPublishes.set(skill.skill_id, skill);
+}
+
+export async function getSkill(skillId: string): Promise<SkillManifest | null> {
+  try {
+    return await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
+  } catch {
+    // Fall back to recently-published cache (backend eventual consistency)
+    return recentPublishes.get(skillId) ?? null;
   }
 }
 
-// --- Skill CRUD ---
+export async function listSkills(): Promise<SkillManifest[]> {
+  const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
+  return data.skills;
+}
+
+export async function publishSkill(
+  draft: Omit<SkillManifest, "skill_id" | "created_at" | "updated_at" | "version"> & {
+    skill_id?: string;
+    version?: string;
+  }
 ): Promise<SkillManifest & { warnings: string[] }> {
   return api("POST", "/v1/skills", draft);
+}
+export async function getSkill(skillId: string): Promise<SkillManifest | null> {
+  try {
+    return await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
+  } catch {
+    // Fall back to recently-published cache (backend eventual consistency)
+    return recentPublishes.get(skillId) ?? null;
+  }
+>>>>>>> 479b819 (fix: backend read-after-write race + skip useless marketplace skills)
 }
 
 export async function listSkills(): Promise<SkillManifest[]> {

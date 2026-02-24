@@ -15,9 +15,18 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<SkillManifest> {
-  // Backend returns the full manifest — no read-after-write needed
-  const { warnings: _, ...skill } = await client.publishSkill(draft);
-  return skill as SkillManifest;
+  const { warnings: _, ...backendFields } = await client.publishSkill(draft);
+  // Merge draft with backend response — avoids read-after-write race
+  const skill = { ...draft, ...backendFields } as SkillManifest;
+  // Cache locally so the skill is immediately executable despite backend eventual consistency
+  client.cachePublishedSkill(skill);
+  return skill;
+}
+  const skill = { ...draft, ...backendFields } as SkillManifest;
+  // Cache locally so the skill is immediately executable despite backend eventual consistency
+  client.cachePublishedSkill(skill);
+  return skill;
+>>>>>>> 479b819 (fix: backend read-after-write race + skip useless marketplace skills)
 }
 
 export async function updateEndpointScore(

@@ -67,16 +67,17 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/skills/:skill_id/execute
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, dry_run } = req.body as {
+    const { params, projection, confirm_unsafe, dry_run, intent } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
       dry_run?: boolean;
+      intent?: string;
     };
     const skill = await getSkill(skill_id);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     try {
-      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run });
+      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent });
       saveTrace(execResult.trace);
       return reply.send(execResult);
     } catch (err) {

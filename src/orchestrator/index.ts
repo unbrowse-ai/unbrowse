@@ -63,7 +63,7 @@ export async function resolveAndExecute(
   for (const c of candidates) {
     const skillId = extractSkillId(c.metadata);
     const skill = skillId ? await getSkill(skillId) : null;
-    if (skill && skill.lifecycle === "active") {
+    if (skill && skill.lifecycle === "active" && hasUsableEndpoints(skill)) {
       ranked.push({
         candidate: c,
         skill,
@@ -75,7 +75,7 @@ export async function resolveAndExecute(
 
   const top = ranked[0];
   if (top && top.composite >= CONFIDENCE_THRESHOLD) {
-    const { trace, result } = await executeSkill(top.skill, params, projection, options);
+    const { trace, result } = await executeSkill(top.skill, params, projection, { ...options, intent });
     return { result, trace, source: "marketplace", skill: top.skill };
   }
 
@@ -98,13 +98,13 @@ export async function resolveAndExecute(
   }
 
   // DOM-extracted skill: data already extracted during capture, skip re-execution
-  const isDomSkill = learned_skill?.endpoints.some((ep) => ep.dom_extraction);
+  const isDomSkill = learned_skill?.endpoints?.some((ep) => ep.dom_extraction);
   if (isDomSkill || (!learned_skill && trace.success)) {
     return { result, trace, source: "dom-fallback", skill: learned_skill ?? captureSkill };
   }
 
   // 3. Execute the newly learned API skill immediately
-  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill!, params, projection, options);
+  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill!, params, projection, { ...options, intent });
 
   return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill! };
 }
@@ -132,6 +132,20 @@ async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
 
   await publishSkill(skill).catch(() => {});
   return skill;
+}
+
+/** Reject skills where no endpoint returns structured data from the skill's domain */
+function hasUsableEndpoints(skill: SkillManifest): boolean {
+  if (!skill.endpoints || skill.endpoints.length === 0) return false;
+  return skill.endpoints.some((ep) => {
+    try {
+      const u = new URL(ep.url_template);
+      const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`);
+      if (!onDomain) return false;
+      // Must have a response schema (JSON) or be an API-style path
+      return !!ep.response_schema || /\/api\//i.test(u.pathname) || !!ep.dom_extraction;
+    } catch { return false; }
+  });
 }
 
 function extractSkillId(metadata: Record<string, unknown>): string | null {
