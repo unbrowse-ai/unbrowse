@@ -51,12 +51,10 @@ skillRoutes.post("/skills", async (c) => {
   const agentId = c.get("agent_id");
   if (agentId) {
     c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));
+  }
   // Return the full manifest so clients don't need a read-after-write round-trip
   return c.json({
     ...skill,
-    warnings: validation.softWarnings,
-  }, 201);
-});
     warnings: validation.softWarnings,
   }, 201);
 });
