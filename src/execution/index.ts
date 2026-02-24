@@ -611,14 +611,27 @@ export interface RankedEndpoint {
  * Exported so routes.ts can surface the ranked list to the agent.
  */
 export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string): RankedEndpoint[] {
-  // Filter out noise
-  const NOISE_PATTERNS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts)/i;
+  // --- Noise patterns: hosts that are never useful as data endpoints ---
+  const NOISE_HOSTS = /(id5-sync\.com|btloader\.com|presage\.io|onetrust\.com|adsrvr\.org|googlesyndication\.com|adtrafficquality\.google|amazon-adsystem\.com|crazyegg\.com|cloudflare\.com|challenges\.cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|protechts\.net|demdex\.net|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|cloudflareinsights\.com|fonts\.googleapis\.com|recaptcha|waa-pa\.|signaler-pa\.|ogads-pa\.|reddit\.com\/pixels?|pixel-config\.|dns-finder\.com|cookieconsentpub)/i;
+
+  // Noise URL path patterns
+  const NOISE_PATHS = /\/(track|pixel|telemetry|beacon|csp-report|litms|demdex|analytics|protechts|collect|tr\/|gen_204|generate_204|log|logging|heartbeat|metrics|consent|sodar|tag$)/i;
+
+  // Auth/session/config path patterns — not useful data endpoints
+  const AUTH_CONFIG_PATHS = /\/(csrf_meta|logged_in_user|analytics_user_data|onboarding|geolocation)\b/i;
+
   const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|png|jpg|jpeg|gif|svg|ico|webp|avif)(\?|%3F|$)/i;
+
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
-    if (NOISE_PATTERNS.test(ep.url_template)) return false;
     if (STATIC_ASSET_PATTERNS.test(ep.url_template)) return false;
+    // Hard-filter noise hosts — these never contain useful data
+    try {
+      const host = new URL(ep.url_template).hostname;
+      if (NOISE_HOSTS.test(host)) return false;
+    } catch { /* skip */ }
+    if (NOISE_PATHS.test(ep.url_template)) return false;
     return true;
   });
 
@@ -631,8 +644,19 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const docs = candidates.map((ep) => endpointToTokens(ep));
   const avgDl = docs.reduce((sum, d) => sum + d.length, 0) / docs.length || 1;
 
+  // Meta/support path patterns — endpoints that supplement data but aren't the data itself
+  const META_PATHS = /\/(annotation|insight|sentiment|vote|portfolio|summary_button|summary_card|tagmetric|quick_add)/i;
+
+  // Data format indicators — paths that look like actual data endpoints
+  const DATA_INDICATORS = /\.(json|xml|csv)(\?|$)|\/api\//i;
+
+  // Currency/time patterns — strong signal the endpoint returns price/financial data
+  const CURRENCY_TIME_PATTERNS = /\/(usd|eur|gbp|btc|eth|cny|jpy|krw|24_hours|7_days|30_days|1_year|max|hourly|daily|weekly)\b/i;
+
   const scored = candidates.map((ep, i) => {
     let score = 0;
+    let pathname = "";
+    try { pathname = new URL(ep.url_template).pathname; } catch { /* skip */ }
 
     // BM25 relevance to intent — weight doubled so intent beats structural bonuses
     if (queryTokens.length > 0) {
@@ -652,18 +676,31 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     score += ep.reliability_score * 5;
     if (ep.method === "WS" && ep.response_schema) score += 3;
 
-    // Domain affinity
+    // Domain affinity: reward on-domain, penalize off-domain
     if (skillDomain) {
       try {
         const epHost = new URL(ep.url_template).hostname;
-        if (epHost === skillDomain || epHost.endsWith(`.${skillDomain}`)) score += 15;
+        if (epHost === skillDomain || epHost.endsWith(`.${skillDomain}`)) {
+          score += 15;
+        } else {
+          // Off-domain endpoints are almost never the right answer
+          score -= 20;
+        }
       } catch { /* skip */ }
     }
 
+    // Data-relevance bonuses: reward endpoints that look like actual data
+    if (DATA_INDICATORS.test(ep.url_template)) score += 5;
+    if (CURRENCY_TIME_PATTERNS.test(pathname)) score += 12;
+
+    // Penalize meta/support endpoints — annotations, sentiment, portfolios, etc.
+    if (META_PATHS.test(pathname)) score -= 10;
+
+    // Penalize auth/config path patterns (on-domain noise)
+    if (AUTH_CONFIG_PATHS.test(ep.url_template)) score -= 15;
+
     // Penalize root/short paths (config/init endpoints)
-    try {
-      if (new URL(ep.url_template).pathname.length <= 2) score -= 5;
-    } catch { /* skip */ }
+    if (pathname.length <= 2) score -= 5;
 
     return { endpoint: ep, score };
   });
