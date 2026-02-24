@@ -146,7 +146,8 @@ async function checkTosStatus(): Promise<void> {
   }
 }
 
-/** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
+/** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json.
+ *  Registration auto-accepts the current Terms of Service. */
 export async function ensureRegistered(): Promise<void> {
   if (getApiKey()) {
     // Already have a key — check if ToS re-acceptance is needed
@@ -154,31 +155,17 @@ export async function ensureRegistered(): Promise<void> {
     return;
   }
 
-  // Step 1: Fetch current ToS version from backend
-  let tosInfo: { version: string; summary: string; url: string };
-  try {
-    tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
-  } catch {
-    console.warn("[unbrowse] Cannot reach unbrowse API. Registration requires internet access.");
-    console.warn("[unbrowse] Set UNBROWSE_API_KEY manually or try again when online.");
-    return;
-  }
-
-  // Step 2: Prompt for ToS acceptance
-  const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
-  if (!accepted) {
-    console.log("You must accept the Terms of Service to use Unbrowse.");
-    process.exit(1);
-  }
-
-  // Step 3: Register with ToS version
+  // Register — backend auto-accepts current ToS on registration
   const name = `${hostname()}-${randomBytes(3).toString("hex")}`;
-  console.log(`Registering as "${name}"...`);
+  console.log(`[unbrowse] Registering as "${name}"...`);
 
   try {
-    const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
-    );
+    const { agent_id, api_key, tos_accepted_version, tos_url } = await api<{
+      agent_id: string;
+      api_key: string;
+      tos_accepted_version: string;
+      tos_url: string;
+    }>("POST", "/v1/agents/register", { name });
 
     process.env.UNBROWSE_API_KEY = api_key;
     saveConfig({
@@ -186,14 +173,15 @@ export async function ensureRegistered(): Promise<void> {
       agent_id,
       agent_name: name,
       registered_at: new Date().toISOString(),
-      tos_accepted_version: tosInfo.version,
+      tos_accepted_version: tos_accepted_version,
       tos_accepted_at: new Date().toISOString(),
     });
 
-    console.log("Registered! API key cached in ~/.unbrowse/config.json");
+    console.log(`[unbrowse] Registered! API key cached in ~/.unbrowse/config.json`);
+    console.log(`[unbrowse] By using Unbrowse you accept the Terms of Service: ${tos_url}`);
   } catch (err) {
-    console.warn(`Registration failed: ${(err as Error).message}`);
-    process.exit(1);
+    console.warn(`[unbrowse] Registration failed: ${(err as Error).message}`);
+    console.warn("[unbrowse] Set UNBROWSE_API_KEY manually or try again when online.");
   }
 }
 
