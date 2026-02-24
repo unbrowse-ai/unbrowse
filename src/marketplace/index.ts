@@ -22,12 +22,6 @@ export async function publishSkill(
   client.cachePublishedSkill(skill);
   return skill;
 }
-  const skill = { ...draft, ...backendFields } as SkillManifest;
-  // Cache locally so the skill is immediately executable despite backend eventual consistency
-  client.cachePublishedSkill(skill);
-  return skill;
->>>>>>> 479b819 (fix: backend read-after-write race + skip useless marketplace skills)
-}
 
 export async function updateEndpointScore(
   skillId: string,

@@ -125,12 +125,21 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // Skip endpoints with invalid URL templates
     if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) continue;
 
+    // Build url_template with templatized query params so callers know what to pass.
+    // normalizeUrl strips the query string; we rebuild it with {param} placeholders.
+    // endpoint.query stores the captured defaults for execution-time fallback.
+    const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
+    const pathTemplate = sanitizeUrlTemplate(normalized);
+    const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
+      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${k}}`).join("&")
+      : null;
+
     endpoints.push({
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
-      url_template: sanitizeUrlTemplate(normalized),
+      url_template: qTemplateStr ? `${pathTemplate}?${qTemplateStr}` : pathTemplate,
       headers_template: sanitizeHeaders(req.request_headers),
-      query: isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined,
+      query: sanitizedQParams,
       body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: verificationStatus,
