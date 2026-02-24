@@ -121,7 +121,24 @@ async function checkTosStatus(): Promise<void> {
     return; // Already accepted current version
   }
 
-  // Need re-acceptance
+  // Non-interactive mode: auto-accept updated ToS (backend enforces on API calls)
+  if (process.env.UNBROWSE_NON_INTERACTIVE === "1") {
+    console.log("[unbrowse] ToS updated — auto-accepting new version.");
+    try {
+      await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version });
+      if (config) {
+        config.tos_accepted_version = tosInfo.version;
+        config.tos_accepted_at = new Date().toISOString();
+        saveConfig(config);
+      }
+      console.log("[unbrowse] ToS accepted. Full terms: https://unbrowse.ai/terms");
+    } catch (err) {
+      console.warn(`[unbrowse] Failed to record ToS acceptance: ${(err as Error).message}`);
+    }
+    return;
+  }
+
+  // Interactive mode: prompt user
   console.log("\nThe Unbrowse Terms of Service have been updated.");
   const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
   if (!accepted) {
@@ -129,11 +146,8 @@ async function checkTosStatus(): Promise<void> {
     process.exit(1);
   }
 
-  // Call accept-tos endpoint
   try {
     await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version });
-
-    // Update local config
     if (config) {
       config.tos_accepted_version = tosInfo.version;
       config.tos_accepted_at = new Date().toISOString();
@@ -142,7 +156,6 @@ async function checkTosStatus(): Promise<void> {
     console.log("Terms of Service accepted.");
   } catch (err) {
     console.warn(`Failed to record ToS acceptance: ${(err as Error).message}`);
-    // Don't block — backend will enforce on next call
   }
 }
 
