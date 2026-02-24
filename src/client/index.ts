@@ -75,6 +75,20 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, au
 // --- ToS acceptance ---
 
 async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
+  // Non-interactive mode: skip the readline prompt, return false.
+  // The calling agent is expected to show the ToS to the user and ask for consent,
+  // then re-run with UNBROWSE_TOS_ACCEPTED=1 after the user agrees.
+  if (process.env.UNBROWSE_NON_INTERACTIVE === "1") {
+    if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
+      console.log("[unbrowse] ToS accepted by user via agent.");
+      return true;
+    }
+    console.log("[unbrowse] ToS acceptance required. Set UNBROWSE_TOS_ACCEPTED=1 after user consents.");
+    console.log(`[unbrowse] ToS summary:\n${summary}`);
+    console.log(`[unbrowse] Full terms: ${tosUrl}`);
+    return false;
+  }
+
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
   console.log("\n" + "=".repeat(60));
@@ -145,8 +159,8 @@ export async function ensureRegistered(): Promise<void> {
   try {
     tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
   } catch {
-    console.warn("Cannot reach unbrowse API. Registration requires internet access.");
-    console.warn("Set UNBROWSE_API_KEY manually or try again when online.");
+    console.warn("[unbrowse] Cannot reach unbrowse API. Registration requires internet access.");
+    console.warn("[unbrowse] Set UNBROWSE_API_KEY manually or try again when online.");
     return;
   }
 

@@ -31,26 +31,51 @@ Set the base URL:
 UNBROWSE=${UNBROWSE_URL:-http://localhost:6969}
 ```
 
-### Agent Registration (Getting an API Key)
+### Server Startup (Auto-handled)
 
-The local server auto-registers on first startup and caches credentials in `~/.unbrowse/config.json`. If you need to register manually or get a fresh key:
-
-```bash
-curl -s -X POST "$UNBROWSE/v1/agents/register" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my-agent"}'
-```
-
-Response:
-```json
-{"agent_id": "abc123", "api_key": "ubr_xxxxxxxxxxxx"}
-```
-
-Store the API key — authenticated endpoints require it as a Bearer token:
+Before making any API calls, ensure the local server is running. Check health first:
 
 ```bash
-curl -s -H "Authorization: Bearer $UNBROWSE_API_KEY" "$UNBROWSE/v1/agents/me"
+curl -sf "$UNBROWSE/health" || echo "NOT_RUNNING"
 ```
+
+If the server is not running, start it. On first run it needs to register and accept the Terms of Service.
+
+**First-time setup (requires user consent):**
+
+1. Show the user the ToS summary and ask for their explicit consent:
+   > Unbrowse needs you to accept its Terms of Service before it can run:
+   > - API structures you discover may be shared in the collective registry
+   > - You will not use Unbrowse to attack, overload, or abuse any target site
+   > - The service is provided "as is" without warranty
+   > - Unreel AI Pte Ltd (Singapore) governs these terms
+   > Full terms: https://unbrowse.ai/terms
+   >
+   > Do you accept?
+
+2. Only after the user agrees, start the server with their consent acknowledged:
+
+```bash
+cd ~/.agents/skills/unbrowse && UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 nohup bun src/index.ts > /tmp/unbrowse.log 2>&1 &
+```
+
+3. Wait for it to be ready:
+
+```bash
+for i in $(seq 1 10); do curl -sf "$UNBROWSE/health" && break || sleep 1; done
+```
+
+**If the user declines**, do not start the server. Unbrowse cannot operate without ToS acceptance.
+
+**Subsequent starts** (already registered — `~/.unbrowse/config.json` exists):
+
+```bash
+cd ~/.agents/skills/unbrowse && UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 nohup bun src/index.ts > /tmp/unbrowse.log 2>&1 &
+```
+
+### Agent Registration (Automatic)
+
+The local server auto-registers on first startup and caches credentials in `~/.unbrowse/config.json`. No manual API key setup is needed — it handles registration on boot once ToS is accepted.
 
 ## Core Workflow
 
