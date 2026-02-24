@@ -15,9 +15,9 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<SkillManifest> {
-  // Backend returns the full manifest — no read-after-write needed
-  const { warnings: _, ...skill } = await client.publishSkill(draft);
-  return skill as SkillManifest;
+  const { warnings: _, ...backendFields } = await client.publishSkill(draft);
+  // Merge draft with backend response — backend may return full manifest or just {skill_id, version}
+  return { ...draft, ...backendFields } as SkillManifest;
 }
 
 export async function updateEndpointScore(

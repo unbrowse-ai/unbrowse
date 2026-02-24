@@ -43,13 +43,13 @@ export function getApiKey(): string {
   return "";
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, auth = false): Promise<T> {
+async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const key = getApiKey();
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...(auth && key ? { Authorization: `Bearer ${key}` } : {}),
+      ...(key ? { Authorization: `Bearer ${key}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -75,6 +75,20 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, au
 // --- ToS acceptance ---
 
 async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
+  // Non-interactive mode: skip the readline prompt, return false.
+  // The calling agent is expected to show the ToS to the user and ask for consent,
+  // then re-run with UNBROWSE_TOS_ACCEPTED=1 after the user agrees.
+  if (process.env.UNBROWSE_NON_INTERACTIVE === "1") {
+    if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
+      console.log("[unbrowse] ToS accepted by user via agent.");
+      return true;
+    }
+    console.log("[unbrowse] ToS acceptance required. Set UNBROWSE_TOS_ACCEPTED=1 after user consents.");
+    console.log(`[unbrowse] ToS summary:\n${summary}`);
+    console.log(`[unbrowse] Full terms: ${tosUrl}`);
+    return false;
+  }
+
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
   console.log("\n" + "=".repeat(60));
@@ -117,7 +131,7 @@ async function checkTosStatus(): Promise<void> {
 
   // Call accept-tos endpoint
   try {
-    await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version }, true);
+    await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version });
 
     // Update local config
     if (config) {
@@ -145,8 +159,8 @@ export async function ensureRegistered(): Promise<void> {
   try {
     tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
   } catch {
-    console.warn("Cannot reach unbrowse API. Registration requires internet access.");
-    console.warn("Set UNBROWSE_API_KEY manually or try again when online.");
+    console.warn("[unbrowse] Cannot reach unbrowse API. Registration requires internet access.");
+    console.warn("[unbrowse] Set UNBROWSE_API_KEY manually or try again when online.");
     return;
   }
 
@@ -204,11 +218,11 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<SkillManifest & { warnings: string[] }> {
-  return api("POST", "/v1/skills", draft, true);
+  return api("POST", "/v1/skills", draft);
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
-  await api("DELETE", `/v1/skills/${skillId}`, undefined, true);
+  await api("DELETE", `/v1/skills/${skillId}`, undefined);
 }
 
 export async function updateEndpointScore(
@@ -217,7 +231,7 @@ export async function updateEndpointScore(
   score: number,
   status?: string
 ): Promise<void> {
-  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status }, true);
+  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status });
 }
 
 export async function getEndpointSchema(
@@ -267,7 +281,7 @@ export async function recordExecution(
     skill_id: skillId,
     endpoint_id: endpointId,
     trace: metadata,
-  }, true);
+  });
 }
 
 export async function recordFeedback(
@@ -279,7 +293,7 @@ export async function recordFeedback(
     skill_id: skillId,
     endpoint_id: endpointId,
     rating,
-  }, true);
+  });
   return data.avg_rating;
 }
 
@@ -304,5 +318,5 @@ export async function getAgent(agentId: string): Promise<{ agent_id: string; nam
 }
 
 export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
-  return api("GET", "/v1/agents/me", undefined, true);
+  return api("GET", "/v1/agents/me", undefined);
 }

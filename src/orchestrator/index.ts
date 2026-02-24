@@ -98,7 +98,7 @@ export async function resolveAndExecute(
   }
 
   // DOM-extracted skill: data already extracted during capture, skip re-execution
-  const isDomSkill = learned_skill?.endpoints.some((ep) => ep.dom_extraction);
+  const isDomSkill = learned_skill?.endpoints?.some((ep) => ep.dom_extraction);
   if (isDomSkill || (!learned_skill && trace.success)) {
     return { result, trace, source: "dom-fallback", skill: learned_skill ?? captureSkill };
   }
