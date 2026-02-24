@@ -55,6 +55,7 @@ skillRoutes.post("/skills", async (c) => {
   return c.json({
     skill_id: skill.skill_id,
     version: skill.version,
+    index_status: skill.index_status,
     warnings: validation.softWarnings,
   }, 201);
 });

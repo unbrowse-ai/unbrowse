@@ -177,6 +177,36 @@ const GEMINI_API_KEY = "REMOVED_GOOGLE_API_KEY";
 
 ---
 
+## BUG-012: Search returns only 2 results; domain search returns 500
+
+**Severity**: Critical — search is nearly useless
+
+**Date**: 2026-02-23
+
+**Symptom**: Global vector namespace (`unbrowse--global`) only contained 2 vectors (opensea.io and dotaprotracker) out of 10+ active skills. Every search query returned the same 2 results regardless of intent. Domain-scoped search (`POST /v1/search/domain`) returned 500 Internal Server Error for all domains.
+
+**Root cause (multi-part)**:
+1. `indexSkill()` was fire-and-forget in `publishSkill()` — failures swallowed by `.catch()`, so most vectors were never written
+2. Search routes had no error handling — EmergentDB errors on empty/non-existent namespaces propagated as 500s
+3. Reindex endpoint processed all skills in one invocation, hitting CF Workers subrequest limits (~50 on free plan), so reindex attempts also silently failed partway through
+
+**Fix applied**:
+1. `backend/src/routes/search.ts` — Added try/catch on both handlers; returns `{ results: [] }` on error instead of 500
+2. `backend/src/routes/ops.ts` — Added `limit`/`offset` batching to `POST /v1/ops/reindex` (default: 3 skills per call) to stay within CF subrequest budgets
+3. `backend/src/services/marketplace.ts` — Changed `indexSkill()` from fire-and-forget to `await`; returns `index_status` field in publish response (`"ok"` or error message)
+4. `backend/src/services/discovery.ts` — Wrapped `edbRequest` calls in `searchIntent`/`searchIntentInDomain` with try/catch; EmergentDB errors return `[]` instead of throwing
+
+**Verification**: Deploy, then reindex in batches:
+```
+POST /v1/ops/reindex {"limit": 3, "offset": 0}
+POST /v1/ops/reindex {"limit": 3, "offset": 3}
+POST /v1/ops/reindex {"limit": 3, "offset": 6}
+...
+```
+Then confirm `POST /v1/search {"intent": "get stock data", "k": 10}` returns stocktwits/optionslam skills, and `POST /v1/search/domain {"intent": "get options data", "domain": "optionslam.com"}` returns results instead of 500.
+
+---
+
 ## Summary: Fixes Applied
 
 | Fix | Status | File |
@@ -186,6 +216,10 @@ const GEMINI_API_KEY = "REMOVED_GOOGLE_API_KEY";
 | Log indexing failures | Done | `backend/src/services/marketplace.ts` |
 | Fix `migrate-kv.mjs` namespace | Done | `backend/migrate-kv.mjs` |
 | KV idx stores keys-only (no full values) | Done | `backend/src/services/kv.ts` |
+| Search route error handling (try/catch) | Done | `backend/src/routes/search.ts` |
+| Batched reindex with limit/offset | Done | `backend/src/routes/ops.ts` |
+| Await indexSkill + return index_status | Done | `backend/src/services/marketplace.ts` |
+| Harden search functions (try/catch in discovery) | Done | `backend/src/services/discovery.ts` |
 
 ## Remaining (not fixed yet)
 
