@@ -93,13 +93,21 @@ function scoreRequest(req: RawRequest): number {
   return score;
 }
 
-export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[], targetDomain?: string): EndpointDescriptor[] {
+export interface ExtractionContext {
+  /** The page URL that was captured (used to detect entity values in API paths) */
+  pageUrl?: string;
+  /** The user's intent string */
+  intent?: string;
+}
+
+export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[], context?: ExtractionContext): EndpointDescriptor[] {
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
 
   // Extract the registrable domain for affinity filtering
   // e.g. "swaggystocks.com" from "https://swaggystocks.com/dashboard/..."
-  const baseDomain = targetDomain ? getRegistrableDomain(targetDomain) : undefined;
+  let baseDomain: string | undefined;
+  try { baseDomain = context?.pageUrl ? getRegistrableDomain(new URL(context.pageUrl).hostname) : undefined; } catch { /* bad url */ }
 
   const scored = requests
     .map((r) => ({ req: r, score: scoreRequest(r) }))
@@ -152,10 +160,14 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // normalizeUrl strips the query string; we rebuild it with {param} placeholders.
     // endpoint.query stores the captured defaults for execution-time fallback.
     const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
-    const pathTemplate = sanitizeUrlTemplate(normalized);
+    let pathTemplate = sanitizeUrlTemplate(normalized);
     const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
       ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${k}}`).join("&")
       : null;
+
+    // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)
+    const { url: templatizedPath, pathParams } = templatizePathSegments(pathTemplate, req.url, context);
+    pathTemplate = templatizedPath;
 
     endpoints.push({
       endpoint_id: nanoid(),
@@ -163,6 +175,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       url_template: qTemplateStr ? `${pathTemplate}?${qTemplateStr}` : pathTemplate,
       headers_template: sanitizeHeaders(req.request_headers),
       query: sanitizedQParams,
+      path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
       body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: verificationStatus,
@@ -249,7 +262,9 @@ function normalizeUrl(rawUrl: string): string {
     const path = u.pathname
       .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{id}")
       .replace(/\/\d{4,}/g, "/{id}")
-      .replace(/\/[a-f0-9]{24,}/gi, "/{id}");
+      .replace(/\/[a-f0-9]{24,}/gi, "/{id}")
+      // BUG-006: Comma-separated values are lists of identifiers (e.g. SPY,QQQ)
+      .replace(/\/([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+)(?=\/|$)/g, "/{list}");
     // Preserve queryId param for GraphQL endpoints so different queries aren't deduplicated
     const queryId = u.searchParams.get("queryId");
     if (queryId && path.includes("graphql")) {
@@ -308,9 +323,118 @@ function sanitizeUrlTemplate(url: string): string {
       }
     }
     const qs = cleaned.toString();
-    return qs ? `${u.origin}${u.pathname}?${qs}` : `${u.origin}${u.pathname}`;
+    // Use the raw URL path (not u.pathname) to preserve {template} braces
+    const pathMatch = url.match(/^https?:\/\/[^/]+(\/[^?]*)/);
+    const rawPath = pathMatch ? pathMatch[1] : u.pathname;
+    return qs ? `${u.origin}${rawPath}?${qs}` : `${u.origin}${rawPath}`;
   } catch {
     return url;
+  }
+}
+
+// ── BUG-006: Path segment parameterization ──────────────────────────────────
+
+/** Extract entity-like values from the page URL that may appear in API paths */
+function extractEntityHints(context?: ExtractionContext): Set<string> {
+  const hints = new Set<string>();
+  if (!context?.pageUrl) return hints;
+  try {
+    const u = new URL(context.pageUrl);
+    for (const seg of u.pathname.split("/").filter(Boolean)) {
+      // Skip structural path parts
+      if (/^(en|es|fr|de|ja|zh|ko|api|v\d+|www|static|assets|public|pages|app)$/i.test(seg)) continue;
+      if (seg.length > 40 || seg.length < 2) continue;
+      hints.add(seg.toLowerCase());
+    }
+  } catch { /* skip */ }
+  return hints;
+}
+
+/**
+ * Infer a meaningful param name from the preceding path segment.
+ * e.g. /quote/{?} → {quote}, /coins/{?} → {coin}, /price_charts/{?} → {price_chart}
+ */
+function inferParamName(segments: string[], index: number, fallback: string, usedNames: Set<string>): string {
+  let name = fallback;
+  const prev = segments[index - 1];
+  if (prev && !prev.startsWith("{") && prev.length > 1) {
+    // Naive singularize: "coins" → "coin", "charts" → "chart"
+    const base = prev.endsWith("s") && prev.length > 3 ? prev.slice(0, -1) : prev;
+    name = base.replace(/[^a-zA-Z0-9_]/g, "_");
+  }
+  // Ensure uniqueness
+  let unique = name;
+  let counter = 2;
+  while (usedNames.has(unique)) {
+    unique = `${name}_${counter++}`;
+  }
+  usedNames.add(unique);
+  return unique;
+}
+
+/**
+ * BUG-006: Parameterize dynamic path segments in API URL templates.
+ *
+ * Two detection strategies:
+ * 1. Comma-separated values (already collapsed to {list} by normalizeUrl) — capture defaults
+ * 2. Context-aware: segments matching entity values from the page URL
+ *
+ * Returns the templatized URL and a map of param names → captured default values.
+ * NOTE: Avoids `new URL()` on the template since it would percent-encode curly braces.
+ */
+function templatizePathSegments(
+  templateUrl: string,
+  originalUrl: string,
+  context?: ExtractionContext,
+): { url: string; pathParams: Record<string, string> } {
+  const pathParams: Record<string, string> = {};
+
+  try {
+    // Parse templateUrl manually to avoid encoding {braces}
+    // Format: "https://host:port/path/segments" (query already stripped by normalizeUrl)
+    const tMatch = templateUrl.match(/^(https?:\/\/[^/]+)(\/.*)?$/);
+    if (!tMatch) return { url: templateUrl, pathParams };
+    const tOrigin = tMatch[1];
+    const tPath = tMatch[2] ?? "/";
+
+    const oPath = new URL(originalUrl).pathname;
+
+    const tSegments = tPath.split("/");
+    const oSegments = oPath.split("/");
+    const hints = extractEntityHints(context);
+    const usedNames = new Set<string>();
+
+    for (let i = 0; i < tSegments.length; i++) {
+      const tSeg = tSegments[i];
+      const oSeg = oSegments[i] ?? tSeg;
+
+      if (!tSeg) continue;
+
+      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}) — capture defaults & rename
+      if (tSeg === "{id}" || tSeg === "{list}") {
+        const paramName = inferParamName(tSegments, i, tSeg === "{list}" ? "list" : "id", usedNames);
+        tSegments[i] = `{${paramName}}`;
+        pathParams[paramName] = oSeg;
+        continue;
+      }
+
+      // Skip segments that are already template vars, file extensions, or structural
+      if (tSeg.startsWith("{")) continue;
+      if (tSeg.includes(".")) continue; // e.g. "24_hours.json"
+      if (/^(api|v\d+|www|en|es|fr|de|latest|dex|search)$/i.test(tSeg)) continue;
+
+      // Pattern 2: Segment matches a page URL entity hint (case-insensitive)
+      if (hints.size > 0 && hints.has(tSeg.toLowerCase())) {
+        const paramName = inferParamName(tSegments, i, "slug", usedNames);
+        tSegments[i] = `{${paramName}}`;
+        pathParams[paramName] = oSeg;
+        continue;
+      }
+    }
+
+    return { url: `${tOrigin}${tSegments.join("/")}`, pathParams };
+  } catch {
+    return { url: templateUrl, pathParams };
   }
 }
 
@@ -403,7 +527,7 @@ function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[
     const [, prefixPath] = key.split(":", 2);
     const u = new URL(group[0].url_template);
     const prefix = u.pathname.split("/").filter(Boolean).slice(0, -1);
-    const paramName = inferParamName(prefix[prefix.length - 1] || "id");
+    const paramName = inferParamName(prefix, prefix.length, "id", new Set<string>());
     const templatizedPath = "/" + [...prefix, `{${paramName}}`].join("/");
 
     // Keep the first endpoint as representative, update its URL template
@@ -418,28 +542,6 @@ function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[
   }
 
   return result;
-}
-
-/**
- * Infer a human-readable template parameter name from the preceding path segment.
- * e.g. "ticker-sentiment" → "ticker", "users" → "user_id", "products" → "product_id"
- */
-function inferParamName(precedingSegment: string): string {
-  // Strip common prefixes/suffixes
-  const cleaned = precedingSegment
-    .replace(/[-_]?(sentiment|list|detail|info|data|stats|view|page)$/i, "")
-    .replace(/^(get|fetch|load)[-_]?/i, "");
-
-  if (!cleaned || cleaned.length < 2) return "id";
-
-  // Singularize simple plurals
-  const singular = cleaned.endsWith("s") && cleaned.length > 3
-    ? cleaned.slice(0, -1)
-    : cleaned;
-
-  // Convert kebab-case to snake_case and append _id if it looks like an entity
-  const snaked = singular.replace(/-/g, "_").toLowerCase();
-  return snaked;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { executeInBrowser } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { extractEndpoints, type ExtractionContext } from "../reverse-engineer/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
@@ -111,7 +111,7 @@ async function executeBrowserCapture(
     };
   }
 
-  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, targetDomain);
+  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, intent });
 
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
@@ -312,8 +312,15 @@ export async function executeEndpoint(
   // Mutation safety gate
   if (endpoint.method !== "GET" && endpoint.idempotency === "unsafe") {
     if (options?.dry_run) {
-      const url = interpolate(endpoint.url_template, params);
-      const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
+      // Merge path_params defaults for dry_run preview too
+      const dryParams = { ...params };
+      if (endpoint.path_params) {
+        for (const [k, v] of Object.entries(endpoint.path_params)) {
+          if (dryParams[k] == null) dryParams[k] = v;
+        }
+      }
+      const url = interpolate(endpoint.url_template, dryParams);
+      const body = endpoint.body ? interpolateObj(endpoint.body, dryParams) : undefined;
       return {
         trace: {
           trace_id: nanoid(),
@@ -392,6 +399,16 @@ export async function executeEndpoint(
     }
   }
 
+  // BUG-006: Merge path_params defaults — user params override captured defaults
+  let mergedParams = { ...params };
+  if (endpoint.path_params && typeof endpoint.path_params === "object") {
+    for (const [k, v] of Object.entries(endpoint.path_params)) {
+      if (mergedParams[k] == null) {
+        mergedParams[k] = v;
+      }
+    }
+  }
+
   // Merge captured query params into URL — user params override endpoint defaults
   let urlTemplate = endpoint.url_template;
   if (endpoint.query && typeof endpoint.query === "object" && Object.keys(endpoint.query).length > 0) {
@@ -399,8 +416,8 @@ export async function executeEndpoint(
       const u = new URL(urlTemplate);
       for (const [k, v] of Object.entries(endpoint.query)) {
         // User params override captured query defaults
-        if (params[k] != null) {
-          u.searchParams.set(k, String(params[k]));
+        if (mergedParams[k] != null) {
+          u.searchParams.set(k, String(mergedParams[k]));
         } else if (v != null) {
           u.searchParams.set(k, String(v));
         }
@@ -410,8 +427,8 @@ export async function executeEndpoint(
       // URL parse failure — skip query merge
     }
   }
-  const url = interpolate(urlTemplate, params);
-  const body = endpoint.body ? interpolateObj(endpoint.body, params) : undefined;
+  const url = interpolate(urlTemplate, mergedParams);
+  const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
   // Fast path: server-side fetch for simple JSON endpoints (no browser needed)
   // Use browser only when cookies/auth are required or endpoint needs page context
