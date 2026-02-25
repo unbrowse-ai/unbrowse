@@ -39,9 +39,9 @@ export default function Home() {
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/4 w-[1000px] h-[800px]
                         bg-gradient-radial from-orange-500/10 via-orange-500/3 to-transparent
                         rounded-full blur-3xl z-[1]" />
-        <div className="absolute top-28 right-[12%] w-72 h-72 border border-orange-500/10 rounded-3xl
+        <div className="hidden sm:block absolute top-28 right-[12%] w-72 h-72 border border-orange-500/10 rounded-3xl
                         rotate-12 z-[1] animate-[spin_120s_linear_infinite]" />
-        <div className="absolute bottom-24 left-[8%] w-56 h-56 border border-orange-400/8 rounded-2xl
+        <div className="hidden sm:block absolute bottom-24 left-[8%] w-56 h-56 border border-orange-400/8 rounded-2xl
                         -rotate-6 z-[1] animate-[spin_90s_linear_infinite_reverse]" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 pt-32 pb-20">
@@ -62,8 +62,8 @@ export default function Home() {
 
             {/* Install one-liner right in the hero */}
             <div className="animate-fade-up stagger-2 mt-8 max-w-2xl">
-              <pre className="text-sm sm:text-base font-mono text-text-primary bg-surface-raised/80 backdrop-blur
-                              border border-border rounded-2xl px-5 py-4 overflow-x-auto select-all cursor-pointer">
+              <pre className="text-[11px] sm:text-sm md:text-base font-mono text-text-primary bg-surface-raised/80 backdrop-blur
+                              border border-border rounded-2xl px-4 sm:px-5 py-4 overflow-x-auto select-all cursor-pointer">
 {`npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse`}
               </pre>
             </div>
@@ -245,8 +245,8 @@ export default function Home() {
             <br />
             <span className="gradient-text">Make it 100x faster.</span>
           </h2>
-          <pre className="inline-block text-sm font-mono text-text-primary bg-surface-raised/80 backdrop-blur
-                          border border-border rounded-xl px-5 py-3 mb-8 select-all cursor-pointer">
+          <pre className="inline-block text-[11px] sm:text-sm font-mono text-text-primary bg-surface-raised/80 backdrop-blur
+                          border border-border rounded-xl px-4 sm:px-5 py-3 mb-8 select-all cursor-pointer max-w-full overflow-x-auto">
 {`npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse`}
           </pre>
           <div className="flex flex-wrap gap-4 justify-center mt-6">
@@ -279,15 +279,15 @@ export default function Home() {
 
       {/* ═══ Footer ═══ */}
       <footer className="border-t border-border py-10">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-2.5 text-text-muted text-sm">
               <Image src="/logo.png" alt="unbrowse" width={20} height={20} />
               <span className="font-semibold text-text-secondary">unbrowse</span>
               <span className="text-text-muted">&middot;</span>
               <span className="text-text-muted text-xs">&copy; {new Date().getFullYear()} Unreel AI Pte Ltd</span>
             </div>
-            <div className="w-px h-5 bg-border" />
+            <div className="hidden sm:block w-px h-5 bg-border" />
             <a href="https://www.nvidia.com/en-us/startups/" target="_blank" rel="noopener"
                className="inline-block rounded-md bg-white px-2 py-1 hover:opacity-80 transition-opacity">
               <Image
@@ -299,7 +299,7 @@ export default function Home() {
               />
             </a>
           </div>
-          <div className="flex items-center gap-6 text-sm text-text-muted">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-text-muted">
             <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-orange-500 transition-colors">GitHub</a>
             <Link href="/search" className="hover:text-orange-500 transition-colors">Registry</Link>
             <Link href="/dashboard" className="hover:text-orange-500 transition-colors">Dashboard</Link>

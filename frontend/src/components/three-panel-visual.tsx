@@ -66,7 +66,7 @@ export function ThreePanelVisual() {
               </div>
               <span className="text-xs text-red-400/80 font-mono ml-2">view-source:travelbooker.com</span>
             </div>
-            <div className="p-4 font-mono text-[10px] leading-[1.6] text-red-400/60 overflow-hidden h-[272px] relative">
+            <div className="p-4 font-mono text-[10px] leading-[1.6] text-red-400/60 overflow-hidden h-[200px] lg:h-[272px] relative">
               <div className="select-none">
                 {`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="w`}
                 <br />

@@ -62,7 +62,7 @@ export default function DashboardPage() {
       {profile && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
             <StatCard value={profile.skills_discovered.length} label="Skills Discovered" />
             <StatCard value={profile.total_executions} label="Total Executions" />
             <StatCard value={profile.total_feedback_given} label="Feedback Given" />
@@ -107,9 +107,9 @@ export default function DashboardPage() {
           <div className="mt-10 p-5 rounded-2xl border border-border bg-surface">
             <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">Agent Info</h3>
             <div className="space-y-2 text-sm font-mono">
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-text-muted">Agent ID</span>
-                <span className="text-text-secondary">{profile.agent_id}</span>
+                <span className="text-text-secondary break-all">{profile.agent_id}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-muted">Registered</span>

@@ -82,7 +82,7 @@ export function InstallInstructions() {
         ))}
       </div>
       {/* Code block */}
-      <pre className="p-5 text-sm font-mono text-text-secondary overflow-x-auto leading-relaxed">
+      <pre className="p-5 text-xs sm:text-sm font-mono text-text-secondary overflow-x-auto leading-relaxed">
         {tab.code}
       </pre>
     </div>
