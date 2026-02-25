@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill, rankEndpoints } from "../execution/index.js";
+import { executeSkill, rankEndpoints, deriveEndpointLabel } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
-import { interactiveLogin } from "../auth/index.js";
+import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { recordFeedback, getApiKey } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
@@ -44,19 +44,30 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run });
 
-      // Surface ranked endpoints so the calling agent can pick a better one
+      // Surface ranked endpoints so the calling agent/LLM can pick the right one.
+      // BM25 does initial ranking; the agent makes the final intelligent selection.
       const skill = result.skill;
       const res = result as unknown as Record<string, unknown>;
-      if (skill?.endpoints && skill.endpoints.length > 1) {
+      if (skill?.endpoints && skill.endpoints.length > 0) {
         const ranked = rankEndpoints(skill.endpoints, intent, skill.domain);
-        res.available_endpoints = ranked.slice(0, 5).map((r) => ({
-          endpoint_id: r.endpoint.endpoint_id,
-          method: r.endpoint.method,
-          url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
-          score: Math.round(r.score * 10) / 10,
-          has_schema: !!r.endpoint.response_schema,
-          dom_extraction: !!r.endpoint.dom_extraction,
-        }));
+        res.available_endpoints = ranked.slice(0, 15).map((r) => {
+          const ep = r.endpoint;
+          // Response schema hints: top-level keys help the agent understand what each endpoint returns
+          let response_hint: string[] | undefined;
+          if (ep.response_schema?.properties) {
+            response_hint = Object.keys(ep.response_schema.properties).slice(0, 8);
+          }
+          return {
+            endpoint_id: ep.endpoint_id,
+            method: ep.method,
+            label: deriveEndpointLabel(ep),
+            url: ep.url_template.length > 150 ? ep.url_template.slice(0, 150) + "..." : ep.url_template,
+            score: Math.round(r.score * 10) / 10,
+            has_schema: !!ep.response_schema,
+            dom_extraction: !!ep.dom_extraction,
+            ...(response_hint ? { response_hint } : {}),
+          };
+        });
       }
 
       // Surface timing breakdown
@@ -85,6 +96,30 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent });
       saveTrace(execResult.trace);
+
+      // Surface ranked endpoints so the agent can pick a different one if needed
+      const res = execResult as unknown as Record<string, unknown>;
+      if (skill.endpoints && skill.endpoints.length > 1) {
+        const ranked = rankEndpoints(skill.endpoints, intent ?? skill.intent_signature, skill.domain);
+        res.available_endpoints = ranked.slice(0, 15).map((r) => {
+          const ep = r.endpoint;
+          let response_hint: string[] | undefined;
+          if (ep.response_schema?.properties) {
+            response_hint = Object.keys(ep.response_schema.properties).slice(0, 8);
+          }
+          return {
+            endpoint_id: ep.endpoint_id,
+            method: ep.method,
+            label: deriveEndpointLabel(ep),
+            url: ep.url_template.length > 150 ? ep.url_template.slice(0, 150) + "..." : ep.url_template,
+            score: Math.round(r.score * 10) / 10,
+            has_schema: !!ep.response_schema,
+            dom_extraction: !!ep.dom_extraction,
+            ...(response_hint ? { response_hint } : {}),
+          };
+        });
+      }
+
       return reply.send(execResult);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
@@ -116,12 +151,33 @@ export async function registerRoutes(app: FastifyInstance) {
     return reply.send({ ok: true, auth_profile_ref: ref });
   });
 
-  // POST /v1/auth/login — interactive OAuth flow
+  // POST /v1/auth/login — interactive OAuth flow or direct browser cookie extraction
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
     const { url, yolo } = req.body as { url: string; yolo?: boolean };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
       const result = await interactiveLogin(url, undefined, { yolo });
+      return reply.send(result);
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // POST /v1/auth/steal — extract cookies from Chrome/Firefox SQLite DBs.
+  // No browser launch, Chrome can stay open. Higher rate limit since it's instant.
+  app.post("/v1/auth/steal", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const { url, chrome_profile, firefox_profile } = req.body as {
+      url: string;
+      chrome_profile?: string;
+      firefox_profile?: string;
+    };
+    if (!url) return reply.code(400).send({ error: "url required" });
+    try {
+      const domain = new URL(url).hostname;
+      const result = await extractBrowserAuth(domain, {
+        chromeProfile: chrome_profile,
+        firefoxProfile: firefox_profile,
+      });
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });

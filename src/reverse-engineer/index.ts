@@ -71,7 +71,51 @@ const SENSITIVE_QUERY_PARAMS = /^(api[_-]?key|apikey|access[_-]?token|auth[_-]?t
 const FRAMEWORK_QUERY_PARAMS = /^(_rsc|_next|__next|_t|_hash|__cf_chl_tk|nxtP\[.*\])$/i;
 
 // Ad/tracking hosts that slip through the main SKIP_HOSTS filter
-const AD_HOSTS = /buysellads\.com|carbonads\.com|ethicalads\.io|srv\.buysellads\.com/i;
+const AD_HOSTS = /buysellads\.com|carbonads\.com|ethicalads\.io|srv\.buysellads\.com|facet-futures\./i;
+
+// Schema-level ad/tracking detection — if a response body's top-level keys
+// match advertising vocabulary, the endpoint is an ad server regardless of host.
+const AD_SCHEMA_KEYS = new Set([
+  "campaignid", "creativeid", "creativetype", "creativecontent",
+  "orderid", "impressionurl", "clickurl", "customerid",
+  "adunitid", "adslot", "adsize", "lineitemid",
+]);
+const AD_SCHEMA_THRESHOLD = 3; // need at least this many ad-like keys to classify
+
+function looksLikeAdResponse(body: string | undefined): boolean {
+  if (!body) return false;
+  try {
+    const parsed = JSON.parse(body);
+    const keys = collectKeysShallow(parsed);
+    let hits = 0;
+    for (const k of keys) {
+      if (AD_SCHEMA_KEYS.has(k.toLowerCase())) hits++;
+    }
+    return hits >= AD_SCHEMA_THRESHOLD;
+  } catch {
+    return false;
+  }
+}
+
+/** Collect top-level + one-level-nested keys from an object/array */
+function collectKeysShallow(obj: unknown): string[] {
+  const keys: string[] = [];
+  if (obj && typeof obj === "object") {
+    const items = Array.isArray(obj) ? obj.slice(0, 3) : [obj];
+    for (const item of items) {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        for (const k of Object.keys(item as Record<string, unknown>)) {
+          keys.push(k);
+          const val = (item as Record<string, unknown>)[k];
+          if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object" && val[0]) {
+            keys.push(...Object.keys(val[0] as Record<string, unknown>));
+          }
+        }
+      }
+    }
+  }
+  return keys;
+}
 
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
@@ -81,7 +125,8 @@ function scoreRequest(req: RawRequest): number {
   if (RPC_HINTS.test(req.url)) score += 3;
   if (SKIP_JS_BUNDLES.test(req.url)) score -= 10;
   const ct = req.response_headers?.["content-type"] ?? "";
-  if (ct.includes("application/json") && !ct.includes("protobuf")) score += 4;
+  // Match both standard JSON and vendor JSON types (e.g. application/vnd.linkedin.normalized+json+2.1)
+  if ((ct.includes("application/json") || ct.includes("+json")) && !ct.includes("protobuf")) score += 4;
   // Protobuf responses are not parseable — score neutral, don't reward (BUG-GC-006)
   if (ct.includes("x-protobuf") || ct.includes("json+protobuf")) score += 0;
   if (req.url.length > 500) score -= 5;
@@ -128,6 +173,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const key = `${req.method}:${normalized}`;
     if (seen.has(key)) continue;
     seen.add(key);
+
+    // Schema-level ad detection: skip endpoints whose response body looks like ad-server data
+    if (looksLikeAdResponse(req.response_body)) continue;
 
     // BUG-008: Detect Cloudflare challenge responses — exclude from skill
     if (isCloudflareChallenge(req.response_body)) continue;
@@ -488,6 +536,19 @@ function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[
       const segments = u.pathname.split("/").filter(Boolean);
       if (segments.length < 2) {
         // Root or single-segment paths can't be collapsed
+        ungrouped.push(ep);
+        continue;
+      }
+      // Never collapse endpoints that use query params as identity (e.g. graphql with queryId).
+      // These share the same path but are completely different operations.
+      if (u.search && (u.searchParams.has("queryId") || u.searchParams.has("query") || u.pathname.includes("graphql"))) {
+        ungrouped.push(ep);
+        continue;
+      }
+      // Never collapse /api/ endpoints with distinct sub-resources.
+      // e.g. /voyager/api/relationships vs /voyager/api/growth are different APIs,
+      // not siblings that should be templatized into /voyager/api/{id}.
+      if (/\/api\//.test(u.pathname) && segments.length >= 3) {
         ungrouped.push(ep);
         continue;
       }

@@ -1,6 +1,7 @@
 import { searchIntent, searchIntentInDomain, recordOrchestrationPerf } from "../client/index.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import { executeSkill } from "../execution/index.js";
+import { executeSkill, rankEndpoints } from "../execution/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import type { ExecutionOptions, ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
@@ -67,14 +68,12 @@ export async function resolveAndExecute(
     tokens_saved: 0, response_bytes: 0, time_saved_pct: 0, tokens_saved_pct: 0,
   };
 
-  // Baselines for percentage calculations
-  // Live capture: browser launch + page load + HAR analysis + skill learning + re-execution
-  const ESTIMATED_LIVE_CAPTURE_MS = 22_000;
-  // Full-page browsing cost: ~100KB HTML → ~25K tokens + ~10K HAR context
-  const ESTIMATED_BROWSE_TOKENS = 30_000;
+  // Fallback baselines when a skill has no discovery_cost (old skills / first capture)
+  const DEFAULT_CAPTURE_MS = 22_000;
+  const DEFAULT_CAPTURE_TOKENS = 30_000;
   const CHARS_PER_TOKEN = 4;
 
-  function finalize(source: OrchestrationTiming["source"], result: unknown, skillId?: string): OrchestrationTiming {
+  function finalize(source: OrchestrationTiming["source"], result: unknown, skillId?: string, skill?: SkillManifest, trace?: ExecutionTrace): OrchestrationTiming {
     timing.total_ms = Date.now() - t0;
     timing.source = source;
     timing.skill_id = skillId;
@@ -84,14 +83,26 @@ export async function resolveAndExecute(
     timing.response_bytes = resultStr.length;
     const responseTokens = Math.ceil(resultStr.length / CHARS_PER_TOKEN);
 
+    // Use real discovery cost from the skill when available, fall back to estimates
+    const cost = skill?.discovery_cost;
+    const baselineTokens = cost?.capture_tokens ?? DEFAULT_CAPTURE_TOKENS;
+    const baselineMs = cost?.capture_ms ?? DEFAULT_CAPTURE_MS;
+
     // Token savings: marketplace/cache returns structured data, skipping full-page browsing
     if (source === "marketplace" || source === "route-cache") {
-      timing.tokens_saved = Math.max(0, ESTIMATED_BROWSE_TOKENS - responseTokens);
-      timing.tokens_saved_pct = Math.round(timing.tokens_saved / ESTIMATED_BROWSE_TOKENS * 100);
-      timing.time_saved_pct = Math.round(Math.max(0, ESTIMATED_LIVE_CAPTURE_MS - timing.total_ms) / ESTIMATED_LIVE_CAPTURE_MS * 100);
+      timing.tokens_saved = Math.max(0, baselineTokens - responseTokens);
+      timing.tokens_saved_pct = baselineTokens > 0 ? Math.round(timing.tokens_saved / baselineTokens * 100) : 0;
+      timing.time_saved_pct = baselineMs > 0 ? Math.round(Math.max(0, baselineMs - timing.total_ms) / baselineMs * 100) : 0;
     }
 
-    console.log(`[perf] ${source}: ${timing.total_ms}ms (time_saved=${timing.time_saved_pct}% tokens_saved=${timing.tokens_saved_pct}%)`);
+    // Stamp trace with token metrics so they persist in trace files
+    if (trace) {
+      trace.tokens_used = responseTokens;
+      trace.tokens_saved = timing.tokens_saved;
+      trace.tokens_saved_pct = timing.tokens_saved_pct;
+    }
+
+    console.log(`[perf] ${source}: ${timing.total_ms}ms (time_saved=${timing.time_saved_pct}% tokens_saved=${timing.tokens_saved_pct}%${cost ? " [real baseline]" : " [estimated]"})`);
     // Fire-and-forget to backend
     recordOrchestrationPerf(timing).catch(() => {});
     return timing;
@@ -110,22 +121,26 @@ export async function resolveAndExecute(
         timing.execute_ms = Date.now() - te0;
         if (trace.success) {
           timing.cache_hit = true;
-          return { result, trace, source: "marketplace", skill, timing: finalize("route-cache", result, cached.skillId) };
+          return { result, trace, source: "marketplace", skill, timing: finalize("route-cache", result, cached.skillId, skill, trace) };
         }
       } catch { timing.execute_ms = Date.now() - te0; }
     }
     skillRouteCache.delete(cacheKey); // stale — remove
   }
 
-  // 1. Search marketplace — domain + global in parallel
+  // 1. Search marketplace — domain-scoped first, global only if no domain specified
   const ts0 = Date.now();
   type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
-  const [domainResults, globalResults] = await Promise.all([
-    requestedDomain
-      ? searchIntentInDomain(intent, requestedDomain, 5).catch(() => [] as SearchResult[])
-      : Promise.resolve([] as SearchResult[]),
-    searchIntent(intent, 10).catch(() => [] as SearchResult[]),
-  ]);
+  let domainResults: SearchResult[] = [];
+  let globalResults: SearchResult[] = [];
+
+  if (requestedDomain) {
+    // When we know the domain, search only that namespace — global adds noise
+    domainResults = await searchIntentInDomain(intent, requestedDomain, 10).catch(() => [] as SearchResult[]);
+  } else {
+    // No domain specified — search globally
+    globalResults = await searchIntent(intent, 10).catch(() => [] as SearchResult[]);
+  }
   timing.search_ms = Date.now() - ts0;
 
   // Merge: domain results first (higher precision), then global (broader recall), deduplicate by skill_id
@@ -138,7 +153,6 @@ export async function resolveAndExecute(
       candidates.push(c);
     }
   }
-
   // Fetch all skills in parallel — don't waste time on serial 404s
   type RankedCandidate = { candidate: typeof candidates[0]; skill: SkillManifest; composite: number };
   const tg0 = Date.now();
@@ -153,10 +167,14 @@ export async function resolveAndExecute(
   timing.candidates_found = skillResults.filter(r => r.skill).length;
 
   const ranked: RankedCandidate[] = [];
+  // When a target domain is specified, only accept skills from that domain.
+  // This prevents the marketplace from matching e.g. beehiiv for a linkedin query.
+  const targetRegDomain = requestedDomain ? getRegistrableDomain(requestedDomain) : null;
   for (const { c, skill } of skillResults) {
     if (!skill) continue;
     if (skill.lifecycle !== "active") continue;
     if (!hasUsableEndpoints(skill)) continue;
+    if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
     ranked.push({ candidate: c, skill, composite: computeCompositeScore(c.score, skill) });
   }
   ranked.sort((a, b) => b.composite - a.composite);
@@ -170,9 +188,18 @@ export async function resolveAndExecute(
       const { trace, result } = await executeSkill(candidate.skill, params, projection, { ...options, intent });
       timing.execute_ms += Date.now() - te0;
       if (trace.success) {
+        // Reject HTML-postprocessed results — SPA shell extraction is unreliable.
+        // When a skill just fetches HTML and the execution pipeline DOM-extracts it,
+        // the result is often framework boilerplate (beehiiv i18n, CMS config, etc.)
+        // rather than actual content. Fall through to live capture instead.
+        const extraction = (result as Record<string, unknown>)?._extraction as
+          { source?: string; confidence?: number } | undefined;
+        if (extraction?.source === "html-postprocess") {
+          continue;
+        }
         // Cache this route for fast repeat lookups
         skillRouteCache.set(cacheKey, { skillId: candidate.skill.skill_id, domain: candidate.skill.domain, ts: Date.now() });
-        return { result, trace, source: "marketplace" as const, skill: candidate.skill, timing: finalize("marketplace", result, candidate.skill.skill_id) };
+        return { result, trace, source: "marketplace" as const, skill: candidate.skill, timing: finalize("marketplace", result, candidate.skill.skill_id, candidate.skill, trace) };
       }
     } catch {
       timing.execute_ms += Date.now() - te0;
@@ -192,7 +219,7 @@ export async function resolveAndExecute(
   const domainHit = capturedDomainCache.get(captureDomain);
   if (domainHit && Date.now() < domainHit.expires) {
     const { trace, result } = await executeSkill(domainHit.skill, params, projection, { ...options, intent });
-    return { result, trace, source: "marketplace", skill: domainHit.skill, timing: finalize("marketplace", result, domainHit.skill.skill_id) };
+    return { result, trace, source: "marketplace", skill: domainHit.skill, timing: finalize("marketplace", result, domainHit.skill.skill_id, domainHit.skill, trace) };
   }
 
   // In-flight lock: reject parallel captures of the same domain to prevent thundering herd
@@ -219,27 +246,69 @@ export async function resolveAndExecute(
   }
   timing.execute_ms = Date.now() - te0;
 
+  // Stamp learned skill with real discovery cost so future cache hits use real baselines
+  if (learned_skill) {
+    const captureResultStr = typeof result === "string" ? result : JSON.stringify(result ?? "");
+    const captureResponseBytes = captureResultStr.length;
+    learned_skill.discovery_cost = {
+      capture_ms: timing.execute_ms,
+      capture_tokens: Math.ceil(captureResponseBytes / CHARS_PER_TOKEN),
+      response_bytes: captureResponseBytes,
+      captured_at: new Date().toISOString(),
+    };
+    // Re-publish with discovery_cost attached (fire-and-forget)
+    publishSkill(learned_skill).catch(() => {});
+  }
+
   // Auth-gated or no data: pass through error
   if (!learned_skill && !trace.success) {
-    return { result, trace, source: "live-capture", skill: captureSkill!, timing: finalize("live-capture", result) };
+    return { result, trace, source: "live-capture", skill: captureSkill!, timing: finalize("live-capture", result, undefined, undefined, trace) };
   }
 
   // DOM-extracted skill: data already extracted during capture, skip re-execution
   const isDomSkill = learned_skill?.endpoints?.some((ep) => ep.dom_extraction);
   if (isDomSkill || (!learned_skill && trace.success)) {
-    return { result, trace, source: "dom-fallback", skill: learned_skill ?? captureSkill!, timing: finalize("dom-fallback", result, learned_skill?.skill_id) };
+    return { result, trace, source: "dom-fallback", skill: learned_skill ?? captureSkill!, timing: finalize("dom-fallback", result, learned_skill?.skill_id, learned_skill, trace) };
   }
 
   // Cache the learned API skill so the next request finds it without re-capturing
   if (learned_skill) {
     capturedDomainCache.set(captureDomain, { skill: learned_skill, expires: Date.now() + 60_000 });
   }
-  // 3. Execute the newly learned API skill immediately
+
+  // 3. Always defer to the agent on fresh captures.
+  // The agent sees the full available_endpoints list (surfaced by the route handler)
+  // and can make an intelligent selection. Auto-execution on capture often picks wrong
+  // (e.g. ad endpoints, tracking, config blobs). Let the agent review first.
+  if (!params.endpoint_id) {
+    const epRanked = rankEndpoints(learned_skill!.endpoints, intent, learned_skill!.domain);
+    const deferTrace: ExecutionTrace = {
+      trace_id: trace.trace_id,
+      skill_id: learned_skill!.skill_id,
+      endpoint_id: "",
+      started_at: trace.started_at,
+      completed_at: new Date().toISOString(),
+      success: true,
+    };
+    return {
+      result: {
+        message: `Discovered ${epRanked.length} endpoint(s). Review available_endpoints and re-execute with the correct endpoint_id.`,
+        hint: "Call POST /v1/skills/{skill_id}/execute with params.endpoint_id set to your chosen endpoint.",
+        skill_id: learned_skill!.skill_id,
+      },
+      trace: deferTrace,
+      source: "live-capture",
+      skill: learned_skill!,
+      timing: finalize("live-capture", null, learned_skill!.skill_id, learned_skill, deferTrace),
+    };
+  }
+
+  // Agent specified an endpoint_id — execute it directly
   const te1 = Date.now();
   const { trace: execTrace, result: execResult } = await executeSkill(learned_skill!, params, projection, { ...options, intent });
   timing.execute_ms += Date.now() - te1;
 
-  return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill!, timing: finalize("live-capture", execResult, learned_skill!.skill_id) };
+  return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill!, timing: finalize("live-capture", execResult, learned_skill!.skill_id, learned_skill, execTrace) };
 }
 
 async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
