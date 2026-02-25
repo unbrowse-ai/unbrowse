@@ -37,7 +37,6 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
     } catch { /* skip malformed */ }
   }
 
-
   const agentCount = await countAgents(c.env);
 
   const perfStats = await getPerf(c.env);

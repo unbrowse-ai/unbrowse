@@ -64,6 +64,26 @@ opsRoutes.get("/ops", async (c) => {
  * to stay within subrequest budgets. For large registries, consider
  * batching with a cursor param.
  */
+/**
+ * POST /v1/ops/migrate-index — reset stale split indexes so the legacy
+ * _idx is re-read and properly migrated with inline values.
+ * One-time use after the split-index migration. Admin-only.
+ */
+opsRoutes.post("/ops/migrate-index", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+
+  // Reset both namespaces
+  await Promise.all([
+    skillsKV(c.env).resetSplitIndex(),
+    statsKV(c.env).resetSplitIndex(),
+  ]);
+
+  return c.json({ ok: true, message: "Split indexes deleted. Next read will re-migrate from legacy _idx." });
+});
+
 opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
   const agentId = c.get("agent_id");
   if (agentId !== "__admin__") {
@@ -122,3 +142,4 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
     results,
   });
 });
+
