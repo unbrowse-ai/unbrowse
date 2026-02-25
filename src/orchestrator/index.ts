@@ -128,19 +128,15 @@ export async function resolveAndExecute(
     skillRouteCache.delete(cacheKey); // stale — remove
   }
 
-  // 1. Search marketplace — domain-scoped first, global only if no domain specified
+  // 1. Search marketplace — domain + global in parallel
   const ts0 = Date.now();
   type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
-  let domainResults: SearchResult[] = [];
-  let globalResults: SearchResult[] = [];
-
-  if (requestedDomain) {
-    // When we know the domain, search only that namespace — global adds noise
-    domainResults = await searchIntentInDomain(intent, requestedDomain, 10).catch(() => [] as SearchResult[]);
-  } else {
-    // No domain specified — search globally
-    globalResults = await searchIntent(intent, 10).catch(() => [] as SearchResult[]);
-  }
+  const [domainResults, globalResults] = await Promise.all([
+    requestedDomain
+      ? searchIntentInDomain(intent, requestedDomain, 5).catch(() => [] as SearchResult[])
+      : Promise.resolve([] as SearchResult[]),
+    searchIntent(intent, 10).catch(() => [] as SearchResult[]),
+  ]);
   timing.search_ms = Date.now() - ts0;
 
   // Merge: domain results first (higher precision), then global (broader recall), deduplicate by skill_id
@@ -153,6 +149,7 @@ export async function resolveAndExecute(
       candidates.push(c);
     }
   }
+
   // Fetch all skills in parallel — don't waste time on serial 404s
   type RankedCandidate = { candidate: typeof candidates[0]; skill: SkillManifest; composite: number };
   const tg0 = Date.now();
@@ -188,15 +185,6 @@ export async function resolveAndExecute(
       const { trace, result } = await executeSkill(candidate.skill, params, projection, { ...options, intent });
       timing.execute_ms += Date.now() - te0;
       if (trace.success) {
-        // Reject HTML-postprocessed results — SPA shell extraction is unreliable.
-        // When a skill just fetches HTML and the execution pipeline DOM-extracts it,
-        // the result is often framework boilerplate (beehiiv i18n, CMS config, etc.)
-        // rather than actual content. Fall through to live capture instead.
-        const extraction = (result as Record<string, unknown>)?._extraction as
-          { source?: string; confidence?: number } | undefined;
-        if (extraction?.source === "html-postprocess") {
-          continue;
-        }
         // Cache this route for fast repeat lookups
         skillRouteCache.set(cacheKey, { skillId: candidate.skill.skill_id, domain: candidate.skill.domain, ts: Date.now() });
         return { result, trace, source: "marketplace" as const, skill: candidate.skill, timing: finalize("marketplace", result, candidate.skill.skill_id, candidate.skill, trace) };

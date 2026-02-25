@@ -125,8 +125,7 @@ function scoreRequest(req: RawRequest): number {
   if (RPC_HINTS.test(req.url)) score += 3;
   if (SKIP_JS_BUNDLES.test(req.url)) score -= 10;
   const ct = req.response_headers?.["content-type"] ?? "";
-  // Match both standard JSON and vendor JSON types (e.g. application/vnd.linkedin.normalized+json+2.1)
-  if ((ct.includes("application/json") || ct.includes("+json")) && !ct.includes("protobuf")) score += 4;
+  if (ct.includes("application/json") && !ct.includes("protobuf")) score += 4;
   // Protobuf responses are not parseable — score neutral, don't reward (BUG-GC-006)
   if (ct.includes("x-protobuf") || ct.includes("json+protobuf")) score += 0;
   if (req.url.length > 500) score -= 5;
@@ -539,19 +538,6 @@ function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[
       const segments = u.pathname.split("/").filter(Boolean);
       if (segments.length < 2) {
         // Root or single-segment paths can't be collapsed
-        ungrouped.push(ep);
-        continue;
-      }
-      // Never collapse endpoints that use query params as identity (e.g. graphql with queryId).
-      // These share the same path but are completely different operations.
-      if (u.search && (u.searchParams.has("queryId") || u.searchParams.has("query") || u.pathname.includes("graphql"))) {
-        ungrouped.push(ep);
-        continue;
-      }
-      // Never collapse /api/ endpoints with distinct sub-resources.
-      // e.g. /voyager/api/relationships vs /voyager/api/growth are different APIs,
-      // not siblings that should be templatized into /voyager/api/{id}.
-      if (/\/api\//.test(u.pathname) && segments.length >= 3) {
         ungrouped.push(ep);
         continue;
       }

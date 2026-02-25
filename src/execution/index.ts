@@ -137,14 +137,9 @@ async function executeBrowserCapture(
   }
 
   if (cleanEndpoints.length === 0) {
-    // DOM fallback: extract structured data from rendered page, learn a DOM skill.
-    // Only publish if the extraction is high-quality — SPA shell pages (LinkedIn, Twitter)
-    // produce garbage extractions from embedded code blocks and framework boilerplate.
+    // DOM fallback: extract structured data from rendered page, learn a DOM skill
     if (captured.html) {
       const extracted = extractFromDOM(captured.html, intent);
-      // Require higher confidence (0.4) to publish DOM skills — prevents polluting
-      // the marketplace with boilerplate i18n/CMS config extracted from SPA shells.
-      const MIN_DOM_PUBLISH_CONFIDENCE = 0.4;
       if (extracted.data && extracted.confidence > 0.2) {
         // Build a DOM skill: a GET endpoint for the page URL with extraction mapping
         // Templatize query params so the skill supports re-execution with different values
@@ -181,17 +176,13 @@ async function executeBrowserCapture(
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
-        // Only publish DOM skills to marketplace if extraction confidence is high enough.
-        // Low-confidence extractions from SPA shells pollute the marketplace with garbage.
         let learned: SkillManifest | undefined;
-        if (extracted.confidence >= MIN_DOM_PUBLISH_CONFIDENCE) {
-          try {
-            const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
-            if (validation.valid) {
-              learned = await publishSkill(domDraft);
-            }
-          } catch { /* publish failure is non-fatal */ }
-        }
+        try {
+          const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
+          if (validation.valid) {
+            learned = await publishSkill(domDraft);
+          }
+        } catch { /* publish failure is non-fatal */ }
 
         const trace: ExecutionTrace = {
           trace_id: traceId,
@@ -440,39 +431,21 @@ export async function executeEndpoint(
   const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
   // Fast path: server-side fetch for simple JSON endpoints (no browser needed)
-  // DOM extraction always needs a browser; API endpoints prefer server-side fetch (even with cookies)
+  // Use browser only when cookies/auth are required or endpoint needs page context
   const isSafe = endpoint.method === "GET";
-  const needsBrowser = !!endpoint.dom_extraction;
-  const isApiEndpoint = /\.(json|xml|csv)(\?|$)|\/api\//i.test(url) || (endpoint.response_schema && !endpoint.dom_extraction);
-  const hasCookies = cookies.length > 0;
+  const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0 || !!endpoint.dom_extraction;
+  const isJsonEndpoint = /\.(json|xml|csv)(\?|$)|\/api\//i.test(url) || (endpoint.response_schema && !endpoint.dom_extraction);
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     const headers: Record<string, string> = {
-      "accept": "application/json",
       ...endpoint.headers_template,
+      "accept": "application/json",
     };
     // Strip browser-only headers that cause issues server-side
     delete headers["sec-ch-ua"];
     delete headers["sec-ch-ua-mobile"];
     delete headers["sec-ch-ua-platform"];
     delete headers["upgrade-insecure-requests"];
-
-    // Inject cookies as Cookie header for server-side fetch
-    if (hasCookies) {
-      headers["cookie"] = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-
-      // Auto-derive CSRF tokens from cookies for known patterns
-      // LinkedIn: JSESSIONID cookie value → csrf-token header
-      const jsessionid = cookies.find((c) => c.name === "JSESSIONID");
-      if (jsessionid && !headers["csrf-token"]) {
-        headers["csrf-token"] = jsessionid.value.replace(/^"|"$/g, "");
-      }
-    }
-
-    // Inject auth headers
-    if (Object.keys(authHeaders).length > 0) {
-      Object.assign(headers, authHeaders);
-    }
 
     const res = await fetch(url, { method: endpoint.method, headers, body: body ? JSON.stringify(body) : undefined });
     let data: unknown;
@@ -491,9 +464,8 @@ export async function executeEndpoint(
   );
 
   let result: { data: unknown; status: number; trace_id: string };
-  if (!needsBrowser && (isApiEndpoint || hasCookies)) {
-    // Server-side fetch for API endpoints and cookie-authenticated requests
-    // Falls back to browser if server fetch fails or returns HTML
+  if (isJsonEndpoint && !needsBrowser) {
+    // Try server-side first — falls back to browser if it fails
     try {
       result = isSafe
         ? await withRetry(serverFetch, (r) => isRetryableStatus(r.status))
@@ -676,36 +648,20 @@ function expandQuery(tokens: string[]): string[] {
   return [...expanded];
 }
 
-/** Split camelCase/PascalCase into individual tokens: "voyagerFeedDashMainFeed" → ["voyager","feed","dash","main","feed"] */
-function splitCamelCase(str: string): string[] {
-  return str.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").toLowerCase().split(/\s+/).filter((s) => s.length > 1);
-}
-
 /** Build a "document" from an endpoint: URL path segments + query params + schema property names */
 function endpointToTokens(ep: EndpointDescriptor): string[] {
   const tokens: string[] = [];
   try {
     const u = new URL(ep.url_template);
-    // Path segments — split on all delimiters AND camelCase boundaries
-    const rawSegments = u.pathname.split(/[/\-_.{}]/).filter((s) => s.length > 1 && !/^v\d+$/.test(s));
-    for (const seg of rawSegments) {
-      tokens.push(seg);
-      // Also split camelCase (e.g. "voyagerFeedDashMainFeed" → "feed", "main")
-      tokens.push(...splitCamelCase(seg));
-    }
+    // Path segments — split on all delimiters, keep meaningful tokens
+    tokens.push(...u.pathname.split(/[/\-_.{}]/).filter((s) => s.length > 1 && !/^v\d+$/.test(s)));
     // Hostname subdomains (e.g. "api" from api.dexscreener.com — strong signal)
     const hostParts = u.hostname.split(".");
     tokens.push(...hostParts.filter((s) => s.length > 2 && s !== "www" && s !== "com" && s !== "org" && s !== "net" && s !== "io"));
-    // Query param names and values — split camelCase for graphql queryId etc.
+    // Query param names and values
     for (const [key, val] of u.searchParams.entries()) {
       tokens.push(key);
-      if (val.length > 1 && val.length < 50) {
-        const parts = val.split(/[/\-_.]/).filter((s) => s.length > 1);
-        for (const part of parts) {
-          tokens.push(part);
-          tokens.push(...splitCamelCase(part));
-        }
-      }
+      if (val.length > 1 && val.length < 50) tokens.push(...val.split(/[/\-_.]/).filter((s) => s.length > 1));
     }
   } catch { /* skip */ }
   // Schema property names (strong signal — these describe the response data)
@@ -887,64 +843,6 @@ function selectBestEndpoint(endpoints: EndpointDescriptor[], intent?: string, sk
   const ranked = rankEndpoints(endpoints, intent, skillDomain);
   if (ranked.length === 0) throw new Error("All endpoints are disabled");
   return ranked[0].endpoint;
-}
-
-/**
- * Derive a human-readable label from an endpoint URL.
- * Graphql: "voyagerFeedDashMainFeed.abc123" → "Feed: Main Feed"
- * REST: "/voyager/api/relationships/dash/connections" → "Relationships: Connections"
- */
-export function deriveEndpointLabel(ep: { url_template: string; endpoint_id: string; method: string }): string {
-  try {
-    const u = new URL(ep.url_template);
-
-    // Graphql: extract queryId param and parse the camelCase identifier
-    const queryId = u.searchParams.get("queryId") ?? u.searchParams.get("query");
-    if (queryId) {
-      // "voyagerFeedDashMainFeed.abc123" → "voyagerFeedDashMainFeed"
-      const id = queryId.split(".")[0];
-      const words = id
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
-        .split(/\s+/)
-        .map((w) => w.toLowerCase());
-
-      // Drop common prefixes: "voyager", "dash", "com", "linkedin"
-      const DROP = new Set(["voyager", "dash", "com", "linkedin", "by", "the", "and", "or", "of"]);
-      const meaningful = words.filter((w) => !DROP.has(w) && w.length > 1);
-      if (meaningful.length === 0) return ep.endpoint_id;
-
-      // Capitalize and join: "feed main feed" → "Feed Main Feed"
-      // De-duplicate consecutive repeats: "feed main feed" → "Feed Main Feed" (keep — distinct positions)
-      return meaningful.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-    }
-
-    // REST: use path segments after /api/ or /v1/ etc.
-    const segments = u.pathname
-      .split("/")
-      .filter((s) => s.length > 0 && !/^v\d+$/.test(s) && !["api", "voyager", "dash"].includes(s.toLowerCase()));
-
-    if (segments.length === 0) return ep.endpoint_id;
-
-    // Expand camelCase in each segment, capitalize
-    const label = segments
-      .slice(-3) // Last 3 segments are most meaningful
-      .map((seg) =>
-        seg
-          .replace(/\{[^}]+\}/g, "") // Drop template vars
-          .replace(/([a-z])([A-Z])/g, "$1 $2")
-          .split(/[\s\-_]+/)
-          .filter((w) => w.length > 0)
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-          .join(" ")
-      )
-      .filter((s) => s.length > 0)
-      .join(": ");
-
-    return label || ep.endpoint_id;
-  } catch {
-    return ep.endpoint_id;
-  }
 }
 
 /** Detect if a string response is HTML rather than JSON/plaintext */

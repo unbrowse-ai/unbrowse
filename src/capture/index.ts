@@ -14,6 +14,12 @@ const MAX_CONCURRENT_BROWSERS = 3;
 let activeBrowsers = 0;
 const waitQueue: Array<() => void> = [];
 
+// Active browser registry — tracked for graceful shutdown
+const activeBrowserRegistry = new Set<InstanceType<typeof BrowserManager>>();
+
+// Hard timeout per capture: 90s prevents stuck browsers from holding slots forever
+const CAPTURE_TIMEOUT_MS = 90_000;
+
 async function acquireBrowserSlot(): Promise<void> {
   if (activeBrowsers < MAX_CONCURRENT_BROWSERS) {
     activeBrowsers++;
@@ -24,10 +30,17 @@ async function acquireBrowserSlot(): Promise<void> {
   });
 }
 
-function releaseBrowserSlot(): void {
+function releaseBrowserSlot(browser?: InstanceType<typeof BrowserManager>): void {
+  if (browser) activeBrowserRegistry.delete(browser);
   activeBrowsers--;
   const next = waitQueue.shift();
   if (next) next();
+}
+
+/** Close all active browser instances — called on server shutdown. */
+export async function shutdownAllBrowsers(): Promise<void> {
+  await Promise.allSettled([...activeBrowserRegistry].map((b) => b.close()));
+  activeBrowserRegistry.clear();
 }
 
 export interface CapturedWsMessage {
@@ -65,6 +78,12 @@ export async function captureSession(
 ): Promise<CaptureResult> {
   await acquireBrowserSlot();
   const browser = new BrowserManager();
+  activeBrowserRegistry.add(browser);
+  let captureTimedOut = false;
+  const timeoutHandle = setTimeout(async () => {
+    captureTimedOut = true;
+    await browser.close().catch(() => {});
+  }, CAPTURE_TIMEOUT_MS);
   try {
   const domain = new URL(url).hostname;
   const profileDir = getProfilePath(domain);
@@ -90,22 +109,19 @@ export async function captureSession(
   }
 
   await browser.startHarRecording();
+  browser.startRequestTracking();
 
-  // Capture request/response pairs directly from page.on("response").
-  // This replaces the old browser.startRequestTracking() + separate body capture approach
-  // which lost most XHR/fetch calls because the tracked request URLs didn't match response URLs.
-  // Capture full request+response pairs directly from page.on("response").
-  // This is the authoritative source — browser.getRequests() misses most XHR/fetch.
-  const capturedPairs: RawRequest[] = [];
+  // Hook page.on('response') BEFORE navigation to capture all response bodies
+  // including XHR/fetch calls made during initial page load
+  const responseBodies = new Map<string, string>();
   const MAX_BODY_SIZE = 512 * 1024; // 512KB
-  let pendingResponses = 0;
-  let lastResponseTime = Date.now();
   try {
     const page = browser.getPage();
     page.on("response", async (response) => {
       try {
         const ct = response.headers()["content-type"] ?? "";
         const respUrl = response.url();
+        // Capture JSON, protobuf, and batch RPC responses (Google batchexecute etc.)
         const isDataResponse =
           ct.includes("application/json") ||
           ct.includes("+json") ||
@@ -114,26 +130,13 @@ export async function captureSession(
           respUrl.includes("batchexecute") ||
           respUrl.includes("/api/");
         if (!isDataResponse) return;
+        // Skip static assets
         if (/\.(js|css|woff2?|png|jpg|svg|ico)(\?|$)/.test(respUrl)) return;
-        pendingResponses++;
         const body = await response.body();
-        pendingResponses--;
-        lastResponseTime = Date.now();
         if (body.length > MAX_BODY_SIZE) return;
-        // Pull request metadata from the response's originating request
-        const req = response.request();
-        capturedPairs.push({
-          url: respUrl,
-          method: req.method(),
-          request_headers: req.headers(),
-          request_body: req.postData() ?? undefined,
-          response_status: response.status(),
-          response_headers: response.headers(),
-          response_body: body.toString("utf8"),
-          timestamp: new Date().toISOString(),
-        });
+        responseBodies.set(respUrl, body.toString("utf8"));
       } catch {
-        pendingResponses = Math.max(0, pendingResponses - 1);
+        // Response body may be unavailable for redirects/aborted
       }
     });
   } catch {
@@ -175,35 +178,8 @@ export async function captureSession(
 
   await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
 
-  // Phase 1: Wait for initial network activity to settle.
-  // Instead of a fixed 5s wait, poll until no new responses arrive for 2s (max 8s).
-  const waitStart = Date.now();
-  const MAX_INITIAL_WAIT = 8000;
-  const IDLE_THRESHOLD = 2000;
-  while (Date.now() - waitStart < MAX_INITIAL_WAIT) {
-    await new Promise((r) => setTimeout(r, 500));
-    if (pendingResponses === 0 && Date.now() - lastResponseTime > IDLE_THRESHOLD) break;
-  }
-
-  // Phase 2: Scroll the page to trigger lazy-loaded content (SPA feeds, infinite scroll).
-  // LinkedIn, Reddit, Twitter etc. fire API calls only when content enters the viewport.
-  try {
-    const page = browser.getPage();
-    const scrollSteps = 3;
-    for (let step = 0; step < scrollSteps; step++) {
-      await page.evaluate(`window.scrollBy(0, window.innerHeight * 0.8)`);
-      // Wait for scroll-triggered API calls to settle
-      const scrollWaitStart = Date.now();
-      while (Date.now() - scrollWaitStart < 3000) {
-        await new Promise((r) => setTimeout(r, 300));
-        if (pendingResponses === 0 && Date.now() - lastResponseTime > 1000) break;
-      }
-    }
-    // Scroll back to top so final DOM state is predictable
-    await page.evaluate(`window.scrollTo(0, 0)`);
-  } catch {
-    // Scroll failed (page navigated away, etc.) — non-fatal
-  }
+  // Wait longer for SPA XHR/fetch calls to settle (SPAs like Google Trends need more time)
+  await new Promise((r) => setTimeout(r, 5000));
 
   // BUG-008: Share Cloudflare clearance cookies across subdomains
   try {
@@ -226,11 +202,13 @@ export async function captureSession(
     }
   } catch { /* context unavailable */ }
 
+  const trackedRequests = browser.getRequests();
   const har_lineage_id = nanoid();
 
-  log("capture", `captured ${capturedPairs.length} request/response pairs directly from page`);
-  for (const pair of capturedPairs) {
-    log("capture", `  ${pair.response_status} ${pair.method} ${pair.url.substring(0, 150)}`);
+  // Debug: log all captured request URLs and response body map keys
+  log("capture", `tracked ${trackedRequests.length} requests, ${responseBodies.size} response bodies`);
+  for (const [bodyUrl] of responseBodies) {
+    log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
   }
 
   let final_url = url;
@@ -241,10 +219,15 @@ export async function captureSession(
     html = await page.content();
   } catch {}
 
-  // Use directly captured request/response pairs as the authoritative source.
-  // browser.getRequests() misses XHR/fetch on many SPAs — the page.on("response")
-  // handler captures the actual API traffic with full request+response metadata.
-  const requests: RawRequest[] = capturedPairs;
+  const requests: RawRequest[] = trackedRequests.map((r) => ({
+    url: r.url,
+    method: r.method,
+    request_headers: r.headers,
+    response_status: 0,
+    response_headers: {},
+    response_body: responseBodies.get(r.url),
+    timestamp: new Date(r.timestamp).toISOString(),
+  }));
 
   // Extract session cookies so callers can persist auth for future executions
   const ctx = browser.getContext();
@@ -258,9 +241,11 @@ export async function captureSession(
     secure: c.secure,
   }));
 
+  if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
   return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html };
   } finally {
-    releaseBrowserSlot();
+    clearTimeout(timeoutHandle);
+    releaseBrowserSlot(browser);
   }
 }
 
@@ -273,8 +258,9 @@ export async function executeInBrowser(
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
   await acquireBrowserSlot();
-  try {
   const browser = new BrowserManager();
+  activeBrowserRegistry.add(browser);
+  try {
   await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
 
   const allHeaders = { ...authHeaders, ...requestHeaders };
@@ -310,7 +296,7 @@ export async function executeInBrowser(
 
   return { ...result, trace_id: nanoid() };
   } finally {
-    releaseBrowserSlot();
+    releaseBrowserSlot(browser);
   }
 }
 
