@@ -153,7 +153,7 @@ export function ChatDemo() {
         </div>
 
         {/* Messages */}
-        <div className="p-5 space-y-4 min-h-[420px] max-h-[560px] overflow-y-auto">
+        <div className="p-5 space-y-4 min-h-[320px] sm:min-h-[420px] max-h-[560px] overflow-y-auto">
           {messages.map((msg, i) => (
             <div
               key={i}
@@ -162,7 +162,7 @@ export function ChatDemo() {
               } ${msg.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
-                className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                className={`max-w-[95%] sm:max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === "user"
                     ? "bg-orange-500 text-white rounded-br-md"
                     : "bg-surface border border-border rounded-bl-md"

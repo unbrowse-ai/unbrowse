@@ -28,7 +28,7 @@ export function StatsStrip() {
   if (stats.skills === 0 && stats.endpoints === 0 && stats.executions === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-6 sm:gap-8">
+    <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 sm:gap-8">
       <Stat value={stats.skills} label="Skills indexed" />
       <Stat value={stats.endpoints} label="Endpoints mapped" />
       <Stat value={stats.domains} label="Domains covered" />
