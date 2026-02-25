@@ -27,7 +27,7 @@ export default function Home() {
           40x fewer tokens. Falls back to normal browser when a site can&apos;t be accelerated.
         </p>
         <p>Install: npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse</p>
-        <p>Full documentation: https://beta.unbrowse.ai/skill.md</p>
+        <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
       </section>
 
       {/* ═══ Hero ═══ */}

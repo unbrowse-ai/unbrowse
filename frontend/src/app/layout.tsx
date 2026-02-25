@@ -23,8 +23,8 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   other: {
-    "ai-skill": "https://beta.unbrowse.ai/skill.md",
-    "ai-plugin": "https://beta.unbrowse.ai/.well-known/ai-plugin.json",
+    "ai-skill": "https://www.unbrowse.ai/skill.md",
+    "ai-plugin": "https://www.unbrowse.ai/.well-known/ai-plugin.json",
   },
 };
 
