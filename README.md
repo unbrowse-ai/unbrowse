@@ -1,209 +1,83 @@
-# Unbrowse (OpenClaw Plugin & Skill Ecosystem)
+# Unbrowse OpenClaw Plugin [DEPRECATED]
+
+> **This OpenClaw plugin is deprecated.** Unbrowse is now a standalone, agent-agnostic skill that works with any coding agent — Claude Code, Cursor, Codex, Windsurf, and more. The plugin-specific approach tied functionality to a single platform; the new skill runs as a local server with a shared marketplace, so every agent benefits from the same discovered APIs.
+>
+> **Migrate to the universal skill:** see the install instructions below.
+
+---
 
 [![Star History Chart](https://api.star-history.com/svg?repos=lekt9/unbrowse-openclaw&type=date&legend=top-left)](https://www.star-history.com/#lekt9/unbrowse-openclaw&type=date&legend=top-left)
 
-Open source API reverse engineering for OpenClaw.
+## Why deprecate the plugin?
 
-Unbrowse captures real browser network traffic and turns it into reusable agent skills.
+The OpenClaw plugin required a specific runtime (`openclaw gateway`), specific tool names (`unbrowse_capture`, `unbrowse_replay`), and OpenClaw-specific config. This locked out every other agent ecosystem.
 
-> Security note: core capture/replay is local by default. Data is kept on your machine unless you explicitly publish. See [`SECURITY.md`](SECURITY.md).
+The replacement is a lightweight local server (`localhost:6969`) that any agent can call via standard HTTP. Skills discovered by one agent are published to a shared marketplace and instantly reusable by all agents on the network. No plugin system, no gateway, no vendor lock-in.
 
-## Why this project exists
+## Migration
 
-Agents that drive websites through browser automation are slow and brittle:
-
-- full browser startup
-- DOM waits and selector drift
-- repeated render/parse loops for every action
-
-Unbrowse short-circuits that path:
-
-- first run: observe with browser to capture real traffic
-- later runs: call the same behavior directly through inferred endpoint contracts
-
-Result: faster execution and fewer UI-shape failures in action-heavy workflows.
-
-This is the practical “agentic web” move: agents should execute capability contracts, not scrape screen pixels.
-
-## Quick Start
-
-Pick an entrypoint:
-
-| Entrypoint | Best for | Install | Run |
-|---|---|---|---|
-| OpenClaw plugin | agents already in OpenClaw | `openclaw plugins install @getfoundry/unbrowse-openclaw` | OpenClaw tools: `unbrowse_capture`, `unbrowse_browse`, `unbrowse_replay`, ... |
-| Standalone skill + CLI | no OpenClaw; local capture/learn/replay | `npx skills add lekt9/unbrowse-openclaw` | `node packages/cli/unbrowse.js ...` |
-
-### Option A: OpenClaw plugin (recommended if you use OpenClaw)
+### Before (OpenClaw plugin)
 
 ```bash
 openclaw plugins install @getfoundry/unbrowse-openclaw
 openclaw gateway restart
+# then use unbrowse_capture, unbrowse_replay, etc.
 ```
 
-Capture:
-
-```text
-unbrowse_capture { "urls": ["https://example.com"] }
-```
-
-Replay:
-
-```text
-unbrowse_replay { "service": "example" }
-```
-
-### Option B: Standalone skill (no OpenClaw)
-
-Install the skill into your coding agent (Codex/Claude Code/Cursor/etc):
+### After (universal skill)
 
 ```bash
-npx skills add lekt9/unbrowse-openclaw
+git clone https://github.com/lekt9/unbrowse-openclaw ~/.agents/skills/unbrowse
+bash ~/.agents/skills/unbrowse/scripts/setup.sh
 ```
 
-Offline install (single `.skill` file):
+The server starts on `http://localhost:6969`. Your agent talks to it via `POST /v1/intent/resolve` — describe what you want in natural language and the skill handles marketplace search, live capture, and execution automatically.
 
-```bash
-./scripts/package-skill.sh
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills/unbrowse"
-unzip -o dist/unbrowse.skill -d "${CODEX_HOME:-$HOME/.codex}/skills/unbrowse"
-```
+For Claude Code, install the `SKILL.md` as a skill. For other agents, point them at the local HTTP API.
 
-Install the browser backend used by the standalone skill (`agent-browser`):
+## How the new skill works
 
-```bash
-./scripts/ensure-agent-browser.sh --install
-```
+1. You provide a URL and intent (e.g. "get trending searches on Google")
+2. The marketplace is searched for an existing skill matching your intent
+3. If found, the skill executes immediately (50-200ms)
+4. If not found, a headless browser navigates to the URL and records all network traffic
+5. API endpoints are extracted, scored, and filtered from the traffic
+6. A reusable skill is published to the shared marketplace
+7. Future calls — from any agent — reuse the learned skill instantly
 
-Repo dev: build core + plugin (the standalone CLI imports the built core bundle):
+## What stays the same
 
-```bash
-npm run build
-```
+- Core idea: capture real browser traffic, infer API contracts, replay without a browser
+- Local-first: credentials and captures stay on your machine unless you explicitly publish
+- Marketplace: shared skill discovery and reuse across agents
+- Security model: see [`SECURITY.md`](SECURITY.md)
 
-Sanity check:
+## What changed
 
-```bash
-node packages/cli/unbrowse.js --help
-```
-
-Example: login + capture auth (agent-browser):
-
-```bash
-node packages/cli/unbrowse.js login \
-  --login-url "https://example.com/login" \
-  --field "#email=me@example.com" \
-  --field "#password=..." \
-  --submit "text=Sign in"
-```
-
-Example: browse + learn-on-the-fly (agent-browser):
-
-```bash
-node packages/cli/unbrowse.js browse \
-  --url "https://example.com" \
-  --actions-json ./actions.json \
-  --learn-on-fly
-```
-
-Example: capture -> learn (non-interactive):
-
-```bash
-node packages/cli/unbrowse.js capture --url "https://example.com" --out /tmp/example.har
-node packages/cli/unbrowse.js learn --har /tmp/example.har --out ~/.openclaw/skills
-```
-
-Optional: offline packaging into a single `.skill` file:
-
-```bash
-./scripts/package-skill.sh
-```
-
-### What’s needed for each feature
-
-| Feature | What you need |
-|---|---|
-| Capture APIs | nothing extra |
-| Generate artifacts | nothing extra |
-| Replay local | nothing extra |
-| Browse/login capture | browser session |
-| Search shared skills | nothing extra |
-| Publish/install sharing | marketplace route (optional) |
-| Wallet payout flows | **inactive in this repo** |
-
-> Payments are not enabled. Wallet tooling and config fields may exist, but settlement remains inactive.
-
-## System layout
-
-- `packages/core`: browser-agnostic capture/learn/replay/publish logic shared by everything.
-- `packages/core/src/unbrowse-tools`: single-source tool implementations used by both plugin + CLI.
-- `packages/plugin`: OpenClaw integration (tools + hooks).
-- `packages/cli`: standalone CLI wrapper (uses `packages/core` build output).
-- `SKILL.md` + `agents/openai.yaml`: skill packaging/metadata for `npx skills add ...` installs.
-- `server` + `packages/web`: optional publish/search/install contracts + UI.
-
-The same command line can stay local-only indefinitely; marketplace participation is opt-in.
-
-## The 100x story (practical framing)
-
-### Browser-automation path
-
-- launch browser
-- render page
-- wait for JS hydration
-- inspect DOM / click and type
-- scrape rendered output
-
-### Unbrowse path after learn
-
-- execute the captured endpoint contract (`GET`, `POST`, etc.)
-- reuse inferred auth/session context
-- run deterministic request/response flows
-
-The gain is not a “small optimization.”
-It is often the difference between workflows that stall and ones that feel immediate.
-
-## How it works
-
-1. **Capture**  
-   `unbrowse_capture` records network traffic from your session.
-2. **Learn / infer**  
-   Endpoints, methods, auth styles, and request shapes are inferred.
-3. **Generate**  
-   Skill artifacts are written locally:
-   - `~/.openclaw/skills/<service>/SKILL.md`
-   - `scripts/`
-   - optional `references/`
-   - optional `auth.json`
-4. **Replay**  
-   `unbrowse_replay` executes locally first via browser/node mode.
-5. **Publish (optional)**  
-   `unbrowse_publish` proposes shareable artifacts; server validates + merges and exposes searchable IDs.
-6. **Install / execute (optional)**  
-   `unbrowse_search` can install discovered IDs into your local flow.
-
-## Core data and runtime boundary
-
-| Area | Local runtime | Remote/runtime contracts |
+| | Old (plugin) | New (skill) |
 |---|---|---|
-| Capture | ✅ local sessions | ❌ not required |
-| Replay | ✅ local artifacts | ⏯️ optional backend path |
-| Auth/session storage | ✅ local-first | ✅ explicit placeholder boundaries |
-| Search/discover | ❌ | ✅ |
-| Execution contracts | local fallback exists | optional through backend endpoint IDs |
+| Runtime | OpenClaw gateway | Standalone local server (Bun) |
+| Agent support | OpenClaw only | Any agent (Claude Code, Cursor, Codex, etc.) |
+| Interface | OpenClaw tool calls | HTTP API (`localhost:6969`) |
+| Install | `openclaw plugins install` | `git clone` + `bash setup.sh` |
+| Marketplace | `index.unbrowse.ai` | `beta-api.unbrowse.ai` (auto-proxied) |
+| Config | OpenClaw plugin JSON block | `~/.unbrowse/config.json` (auto-generated) |
 
-`payments` are intentionally not active in this repository.
+## Legacy documentation
 
-## Why local-first + publish-at-will
+The following docs describe the old plugin architecture and are kept for reference:
 
-- private work should not depend on the index
-- private credentials stay local
-- shareable behavior is still possible after publish
-- reusable ecosystem growth without forcing central lock-in
+- `docs/ARCHITECTURE.md` — original system design
+- `docs/AGENTIC_WEB.md` — vision document
+- `docs/INTEGRATION_BOUNDARIES.md` — security boundaries
+- `PROTOCOL.md` — wire protocol
+- `CONTRIBUTING.md` — contribution guide
+- `GOVERNANCE.md` — project governance
 
-## Plugin configuration
+## Legacy plugin configuration (archived)
 
-Set your plugin block in OpenClaw as `plugins.entries.unbrowse-openclaw.config`.
+<details>
+<summary>OpenClaw plugin config (no longer needed)</summary>
 
 ```json
 {
@@ -234,120 +108,8 @@ Set your plugin block in OpenClaw as `plugins.entries.unbrowse-openclaw.config`.
 }
 ```
 
-| Option | Default | What it does |
-|---|---|---|
-| `browserPort` | `OPENCLAW_GATEWAY_PORT` / `CLAWDBOT_GATEWAY_PORT` / `config.gateway.port` / `18789`, then `+2` | Browser bridge port for session tools |
-| `browserProfile` | open-claw root default profile | Browser context profile selector |
-| `allowLegacyPlaywrightFallback` | `false` | Enable Playwright fallback on direct browser flow |
-| `skillsOutputDir` | `~/.openclaw/skills` | Skill write location |
-| `autoDiscover` | `true` | Reuse previously captured skill hints automatically |
-| `autoContribute` | `true` | Auto-contribute publish flow when enabled |
-| `enableAgentContextHints` | `false` | Add captured-session context hints |
-| `publishValidationWithAuth` | `false` | Validate publish calls with auth context |
-| `skillIndexUrl` | `UNBROWSE_INDEX_URL` / `https://index.unbrowse.ai` | Marketplace/search base URL |
-| `creatorWallet` | saved wallet or `UNBROWSE_CREATOR_WALLET` | Creator payout wallet |
-| `skillIndexSolanaPrivateKey` | `UNBROWSE_SOLANA_PRIVATE_KEY` | Payer private key for marketplace operations |
-| `credentialSource` | `UNBROWSE_CREDENTIAL_SOURCE` or `none` | Credential lookup: `none`, `vault`, `keychain`, `1password` |
-| `enableChromeCookies` | `false` | Allow Chrome cookie read path |
-| `enableDesktopAutomation` | `false` | Enable `unbrowse_desktop` |
-| `telemetryEnabled` | `true` | Send usage telemetry to index |
-| `telemetryLevel` | `standard` | Telemetry payload detail: `minimal`, `standard`, `debug` |
+</details>
 
-Plugin env helpers:
+## License
 
-- `OPENCLAW_GATEWAY_PORT` / `CLAWDBOT_GATEWAY_PORT`
-- `UNBROWSE_INDEX_URL`
-- `UNBROWSE_CREATOR_WALLET`
-- `UNBROWSE_SOLANA_PRIVATE_KEY`
-- `UNBROWSE_CREDENTIAL_SOURCE`
-- `OPENROUTER_API_KEY`
-- `OPENAI_API_KEY`
-
-Local override:
-
-- `~/.openclaw/unbrowse/telemetry.json` with `{ "enabled": boolean, "level": "minimal" | "standard" | "debug" }` takes precedence over `telemetryEnabled` / `telemetryLevel`.
-
-## What isn’t documented (and why)
-
-We intentionally treat these as black-box/internal:
-
-- ranking internals
-- settlement routing internals
-- partner execution topology
-
-The docs focus on:
-
-- tool contracts
-- observable inputs/outputs
-- merge/conflict behavior
-- security boundaries
-
-## Local and shared command map
-
-- **Capture / learn**
-  - `unbrowse_browse`
-  - `unbrowse_capture`
-  - `unbrowse_learn`
-  - `unbrowse_login`
-  - `unbrowse_auth`
-- **Skill/runtime execution**
-  - `unbrowse_replay`
-  - `unbrowse_skills`
-- **Marketplace**
-  - `unbrowse_search`
-  - `unbrowse_publish`
-- **Automation helpers**
-  - `unbrowse_do`
-  - `unbrowse_desktop`
-- **Workflows**
-  - `unbrowse_workflow_record`
-  - `unbrowse_workflow_learn`
-  - `unbrowse_workflow_execute`
-  - `unbrowse_workflow_stats`
-- **Wallet/config**
-  - `unbrowse_wallet` (currently inactive for settlement path in this repo)
-
-## Installation options
-
-### Recommended
-
-`openclaw plugins install @getfoundry/unbrowse-openclaw`
-
-### Manual JSON install
-
-Add to your OpenClaw config (or equivalent runtime config file):
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "unbrowse-openclaw": {
-        "enabled": true
-      }
-    }
-  }
-}
-```
-
-Then:
-
-```bash
-openclaw gateway restart
-```
-
-### Run from source
-
-```bash
-git clone https://github.com/lekt9/unbrowse-openclaw ~/.openclaw/extensions/unbrowse-openclaw
-cd ~/.openclaw/extensions/unbrowse-openclaw
-npm install
-openclaw gateway restart
-```
-
-## Next reads
-
-1. `docs/AGENTIC_WEB.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/INTEGRATION_BOUNDARIES.md`
-4. `docs/CONTRIBUTOR_PLAYBOOK.md`
-5. `docs/PURPOSE.md`
+AGPL-3.0 — see [LICENSE](LICENSE).
