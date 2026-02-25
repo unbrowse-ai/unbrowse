@@ -311,6 +311,8 @@ function normalizeUrl(rawUrl: string): string {
       .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{id}")
       .replace(/\/\d{4,}/g, "/{id}")
       .replace(/\/[a-f0-9]{24,}/gi, "/{id}")
+      // URN identifiers (e.g. urn:li:fsd_profile:ACoAAB3fei4B...)
+      .replace(/\/urn:[a-zA-Z0-9._-]+(?::[a-zA-Z0-9._-]+)+/g, "/{urn}")
       // BUG-006: Comma-separated values are lists of identifiers (e.g. SPY,QQQ)
       .replace(/\/([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+)(?=\/|$)/g, "/{list}");
     // Preserve queryId param for GraphQL endpoints so different queries aren't deduplicated
@@ -458,9 +460,10 @@ function templatizePathSegments(
 
       if (!tSeg) continue;
 
-      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}) — capture defaults & rename
-      if (tSeg === "{id}" || tSeg === "{list}") {
-        const paramName = inferParamName(tSegments, i, tSeg === "{list}" ? "list" : "id", usedNames);
+      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}, {urn}) — capture defaults & rename
+      if (tSeg === "{id}" || tSeg === "{list}" || tSeg === "{urn}") {
+        const fallback = tSeg === "{list}" ? "list" : tSeg === "{urn}" ? "urn" : "id";
+        const paramName = inferParamName(tSegments, i, fallback, usedNames);
         tSegments[i] = `{${paramName}}`;
         pathParams[paramName] = oSeg;
         continue;
