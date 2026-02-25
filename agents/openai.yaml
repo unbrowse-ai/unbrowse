@@ -1,8 +1,0 @@
-interface:
-  display_name: "Unbrowse (Standalone)"
-  short_description: "Capture internal web APIs via agent-browser"
-  default_prompt: "Use $unbrowse to capture a site's internal API traffic and generate a reusable skill."
-
-policy:
-  allow_implicit_invocation: true
-
