@@ -1,5 +1,24 @@
 # Changelog
 
+## fix: sec-ch-ua headless leak + token savings baseline
+
+### `src/capture/index.ts` — sec-ch-ua override
+Chromium 145+ auto-sets `sec-ch-ua: "HeadlessChrome";v="145"` independently of the spoofed `user-agent` string. LinkedIn, Google, and Cloudflare all read this header to detect headless browsers, causing them to return reduced/blocked responses.
+
+Fix: always call `browser.setExtraHeaders()` with the correct Client Hints headers for Chrome 131 before navigation, regardless of whether `authHeaders` are provided. Auth headers are merged on top so they still take precedence.
+
+```
+sec-ch-ua: "Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "macOS"
+```
+
+### `src/orchestrator/index.ts` — token savings baseline
+`discovery_cost.capture_tokens` was being stamped with `ceil(deferralMessage.length / 4) ≈ 18 tokens` (the size of the tiny agent-first deferral JSON) instead of `DEFAULT_CAPTURE_TOKENS = 30_000`. This caused every subsequent marketplace cache hit to compute `tokens_saved = max(0, 18 - responseTokens) = 0`, making `total_tokens_saved` and `avg_tokens_saved_pct` always 0 in the platform stats.
+
+Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which correctly represents the LLM-browsing cost a downstream agent would incur doing this manually.
+
+
 ## fix: graceful browser shutdown + orphan cleanup (fixes #4)
 
 ### `src/capture/index.ts`

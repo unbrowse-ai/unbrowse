@@ -101,9 +101,15 @@ export async function captureSession(
     await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
   }
 
-  if (authHeaders && Object.keys(authHeaders).length > 0) {
-    await browser.setExtraHeaders(authHeaders);
-  }
+  // Override Chromium's auto-set Client Hints headers — without this, Chromium 145+
+  // sends sec-ch-ua: "HeadlessChrome" even when user-agent is spoofed to Chrome 131,
+  // which is how LinkedIn/Google/Cloudflare detect headless browsers.
+  const CLIENT_HINT_HEADERS: Record<string, string> = {
+    "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"macOS"',
+  };
+  await browser.setExtraHeaders({ ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) });
   if (cookies && cookies.length > 0) {
     await injectCookies(browser, cookies);
   }
