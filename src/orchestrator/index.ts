@@ -234,14 +234,15 @@ export async function resolveAndExecute(
   }
   timing.execute_ms = Date.now() - te0;
 
-  // Stamp learned skill with real discovery cost so future cache hits use real baselines
+  // Stamp learned skill with real discovery cost so future cache hits use real baselines.
+  // capture_tokens uses DEFAULT_CAPTURE_TOKENS (not the deferral response size) because
+  // it represents the LLM-browsing cost baseline, not the bytes we sent back to the caller.
   if (learned_skill) {
     const captureResultStr = typeof result === "string" ? result : JSON.stringify(result ?? "");
-    const captureResponseBytes = captureResultStr.length;
     learned_skill.discovery_cost = {
       capture_ms: timing.execute_ms,
-      capture_tokens: Math.ceil(captureResponseBytes / CHARS_PER_TOKEN),
-      response_bytes: captureResponseBytes,
+      capture_tokens: DEFAULT_CAPTURE_TOKENS,
+      response_bytes: captureResultStr.length,
       captured_at: new Date().toISOString(),
     };
     // Re-publish with discovery_cost attached (fire-and-forget)
