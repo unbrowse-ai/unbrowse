@@ -3,7 +3,7 @@ import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
-import { interactiveLogin } from "../auth/index.js";
+import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { recordFeedback, getApiKey } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
@@ -47,7 +47,7 @@ export async function registerRoutes(app: FastifyInstance) {
       // Surface ranked endpoints so the calling agent can pick a better one
       const skill = result.skill;
       const res = result as unknown as Record<string, unknown>;
-      if (skill?.endpoints && skill.endpoints.length > 1) {
+      if (skill?.endpoints && skill.endpoints.length > 0) {
         const ranked = rankEndpoints(skill.endpoints, intent, skill.domain);
         res.available_endpoints = ranked.slice(0, 5).map((r) => ({
           endpoint_id: r.endpoint.endpoint_id,
@@ -116,12 +116,33 @@ export async function registerRoutes(app: FastifyInstance) {
     return reply.send({ ok: true, auth_profile_ref: ref });
   });
 
-  // POST /v1/auth/login — interactive OAuth flow
+  // POST /v1/auth/login — interactive OAuth flow or direct browser cookie extraction
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
     const { url, yolo } = req.body as { url: string; yolo?: boolean };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
       const result = await interactiveLogin(url, undefined, { yolo });
+      return reply.send(result);
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // POST /v1/auth/steal — extract cookies from Chrome/Firefox SQLite DBs.
+  // No browser launch, Chrome can stay open. Higher rate limit since it's instant.
+  app.post("/v1/auth/steal", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const { url, chrome_profile, firefox_profile } = req.body as {
+      url: string;
+      chrome_profile?: string;
+      firefox_profile?: string;
+    };
+    if (!url) return reply.code(400).send({ error: "url required" });
+    try {
+      const domain = new URL(url).hostname;
+      const result = await extractBrowserAuth(domain, {
+        chromeProfile: chrome_profile,
+        firefoxProfile: firefox_profile,
+      });
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });

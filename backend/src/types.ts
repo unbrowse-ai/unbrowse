@@ -92,6 +92,13 @@ export interface EndpointDescriptor {
   response_schema?: ResponseSchema;
 }
 
+export interface DiscoveryCost {
+  capture_ms: number;
+  capture_tokens: number;
+  response_bytes: number;
+  captured_at: string;
+}
+
 export interface SkillManifest {
   skill_id: string;
   version: string;
@@ -111,6 +118,7 @@ export interface SkillManifest {
   created_at: string;
   updated_at: string;
   prev_version?: string;
+  discovery_cost?: DiscoveryCost;
 }
 
 export interface EndpointStats {
@@ -136,6 +144,9 @@ export interface ExecutionTrace {
   error?: string;
   result?: unknown;
   drift?: { drifted: boolean; added_fields: string[]; removed_fields: string[]; type_changes: Array<{ path: string; was: string; now: string }> };
+  tokens_used?: number;
+  tokens_saved?: number;
+  tokens_saved_pct?: number;
 }
 
 export interface ValidationResult {

@@ -379,6 +379,49 @@ export async function interactiveLogin(
 }
 
 /**
+ * Extract cookies directly from Chrome/Firefox SQLite databases.
+ * No browser launch needed, Chrome can stay open.
+ * Stores extracted cookies in the vault for subsequent use.
+ */
+export async function extractBrowserAuth(
+  domain: string,
+  opts?: { chromeProfile?: string; firefoxProfile?: string }
+): Promise<LoginResult> {
+  const { extractBrowserCookies } = await import("./browser-cookies.js");
+
+  const result = extractBrowserCookies(domain, opts);
+
+  if (result.cookies.length === 0) {
+    return {
+      success: false,
+      domain,
+      cookies_stored: 0,
+      error: result.warnings.join("; ") || "No cookies found in any browser",
+    };
+  }
+
+  // Store in vault under same format as interactiveLogin
+  const storableCookies = result.cookies.map((c) => ({
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    path: c.path,
+    secure: c.secure,
+    httpOnly: c.httpOnly,
+    sameSite: c.sameSite,
+    expires: c.expires,
+  }));
+
+  await storeCredential(
+    `auth:${domain}`,
+    JSON.stringify({ cookies: storableCookies })
+  );
+
+  log("auth", `stored ${storableCookies.length} cookies for ${domain} from ${result.source}`);
+  return { success: true, domain, cookies_stored: storableCookies.length };
+}
+
+/**
  * Retrieve stored auth cookies for a domain.
  */
 export async function getStoredAuth(
