@@ -5,4 +5,4 @@ Allow: /
 # LLMs and AI agents: read /llms.txt for structured site information
 # Full skill installation guide: /skill.md
 
-Sitemap: https://beta.unbrowse.ai/sitemap.xml
+Sitemap: https://www.unbrowse.ai/sitemap.xml

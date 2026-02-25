@@ -11,9 +11,9 @@
     "type": "openapi",
     "url": "https://beta-api.unbrowse.ai/v1"
   },
-  "logo_url": "https://beta.unbrowse.ai/logo.png",
+  "logo_url": "https://www.unbrowse.ai/logo.png",
   "contact_email": "hello@unbrowse.ai",
-  "legal_info_url": "https://beta.unbrowse.ai/terms",
+  "legal_info_url": "https://www.unbrowse.ai/terms",
   "install_url": "https://github.com/unbrowse-ai/unbrowse",
-  "skill_url": "https://beta.unbrowse.ai/skill.md"
+  "skill_url": "https://www.unbrowse.ai/skill.md"
 }

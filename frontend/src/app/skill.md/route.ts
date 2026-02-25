@@ -4,7 +4,7 @@ const SKILL_MD = `---
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
 install: npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
-homepage: https://beta.unbrowse.ai
+homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
 ---
 

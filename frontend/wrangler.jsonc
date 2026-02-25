@@ -37,7 +37,7 @@
 	},
 	"routes": [
 		{
-			"pattern": "beta.unbrowse.ai/*",
+			"pattern": "www.unbrowse.ai/*",
 			"zone_id": "73934a4d815fde770167414fc3ead04b"
 		}
 	]
