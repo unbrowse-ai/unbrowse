@@ -14,6 +14,12 @@ const MAX_CONCURRENT_BROWSERS = 3;
 let activeBrowsers = 0;
 const waitQueue: Array<() => void> = [];
 
+// Active browser registry — tracked for graceful shutdown
+const activeBrowserRegistry = new Set<InstanceType<typeof BrowserManager>>();
+
+// Hard timeout per capture: 90s prevents stuck browsers from holding slots forever
+const CAPTURE_TIMEOUT_MS = 90_000;
+
 async function acquireBrowserSlot(): Promise<void> {
   if (activeBrowsers < MAX_CONCURRENT_BROWSERS) {
     activeBrowsers++;
@@ -24,10 +30,17 @@ async function acquireBrowserSlot(): Promise<void> {
   });
 }
 
-function releaseBrowserSlot(): void {
+function releaseBrowserSlot(browser?: InstanceType<typeof BrowserManager>): void {
+  if (browser) activeBrowserRegistry.delete(browser);
   activeBrowsers--;
   const next = waitQueue.shift();
   if (next) next();
+}
+
+/** Close all active browser instances — called on server shutdown. */
+export async function shutdownAllBrowsers(): Promise<void> {
+  await Promise.allSettled([...activeBrowserRegistry].map((b) => b.close()));
+  activeBrowserRegistry.clear();
 }
 
 export interface CapturedWsMessage {
@@ -65,6 +78,12 @@ export async function captureSession(
 ): Promise<CaptureResult> {
   await acquireBrowserSlot();
   const browser = new BrowserManager();
+  activeBrowserRegistry.add(browser);
+  let captureTimedOut = false;
+  const timeoutHandle = setTimeout(async () => {
+    captureTimedOut = true;
+    await browser.close().catch(() => {});
+  }, CAPTURE_TIMEOUT_MS);
   try {
   const domain = new URL(url).hostname;
   const profileDir = getProfilePath(domain);
@@ -222,9 +241,11 @@ export async function captureSession(
     secure: c.secure,
   }));
 
+  if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
   return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html };
   } finally {
-    releaseBrowserSlot();
+    clearTimeout(timeoutHandle);
+    releaseBrowserSlot(browser);
   }
 }
 
@@ -237,8 +258,9 @@ export async function executeInBrowser(
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
   await acquireBrowserSlot();
-  try {
   const browser = new BrowserManager();
+  activeBrowserRegistry.add(browser);
+  try {
   await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
 
   const allHeaders = { ...authHeaders, ...requestHeaders };
@@ -274,7 +296,7 @@ export async function executeInBrowser(
 
   return { ...result, trace_id: nanoid() };
   } finally {
-    releaseBrowserSlot();
+    releaseBrowserSlot(browser);
   }
 }
 
