@@ -103,6 +103,23 @@ describe("path parameterization (BUG-006)", () => {
     expect(Object.values(ep.path_params!)).toContain("550e8400-e29b-41d4-a716-446655440000");
   });
 
+  it("parameterizes URN identifiers in path segments", () => {
+    const reqs = [makeReq("GET", "https://www.linkedin.com/voyager/api/identity/dash/profiles/urn:li:fsd_profile:ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA?decorationId=com.linkedin.voyager.dash.deco.identity.profile.FullProfile-76")];
+    const endpoints = extractEndpoints(reqs);
+
+    expect(endpoints.length).toBe(1);
+    const ep = endpoints[0];
+
+    // URN should be parameterized, not hardcoded
+    expect(ep.url_template).not.toContain("ACoAAB3fei4B1Wp3CkugPS9tSPGriFw7x8dvxvA");
+    expect(ep.url_template).toMatch(/\{[a-z_]+\}/);
+
+    // path_params should capture the URN as default
+    expect(ep.path_params).toBeDefined();
+    const paramValues = Object.values(ep.path_params!);
+    expect(paramValues.some(v => v.includes("urn:li:fsd_profile:"))).toBe(true);
+  });
+
   it("skips file-extension segments from context matching", () => {
     const reqs = [makeReq("GET", "https://api.example.com/data/report.json")];
     const context: ExtractionContext = {

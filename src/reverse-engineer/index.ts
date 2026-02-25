@@ -71,7 +71,51 @@ const SENSITIVE_QUERY_PARAMS = /^(api[_-]?key|apikey|access[_-]?token|auth[_-]?t
 const FRAMEWORK_QUERY_PARAMS = /^(_rsc|_next|__next|_t|_hash|__cf_chl_tk|nxtP\[.*\])$/i;
 
 // Ad/tracking hosts that slip through the main SKIP_HOSTS filter
-const AD_HOSTS = /buysellads\.com|carbonads\.com|ethicalads\.io|srv\.buysellads\.com/i;
+const AD_HOSTS = /buysellads\.com|carbonads\.com|ethicalads\.io|srv\.buysellads\.com|facet-futures\./i;
+
+// Schema-level ad/tracking detection — if a response body's top-level keys
+// match advertising vocabulary, the endpoint is an ad server regardless of host.
+const AD_SCHEMA_KEYS = new Set([
+  "campaignid", "creativeid", "creativetype", "creativecontent",
+  "orderid", "impressionurl", "clickurl", "customerid",
+  "adunitid", "adslot", "adsize", "lineitemid",
+]);
+const AD_SCHEMA_THRESHOLD = 3; // need at least this many ad-like keys to classify
+
+function looksLikeAdResponse(body: string | undefined): boolean {
+  if (!body) return false;
+  try {
+    const parsed = JSON.parse(body);
+    const keys = collectKeysShallow(parsed);
+    let hits = 0;
+    for (const k of keys) {
+      if (AD_SCHEMA_KEYS.has(k.toLowerCase())) hits++;
+    }
+    return hits >= AD_SCHEMA_THRESHOLD;
+  } catch {
+    return false;
+  }
+}
+
+/** Collect top-level + one-level-nested keys from an object/array */
+function collectKeysShallow(obj: unknown): string[] {
+  const keys: string[] = [];
+  if (obj && typeof obj === "object") {
+    const items = Array.isArray(obj) ? obj.slice(0, 3) : [obj];
+    for (const item of items) {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        for (const k of Object.keys(item as Record<string, unknown>)) {
+          keys.push(k);
+          const val = (item as Record<string, unknown>)[k];
+          if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object" && val[0]) {
+            keys.push(...Object.keys(val[0] as Record<string, unknown>));
+          }
+        }
+      }
+    }
+  }
+  return keys;
+}
 
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
@@ -128,6 +172,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const key = `${req.method}:${normalized}`;
     if (seen.has(key)) continue;
     seen.add(key);
+
+    // Schema-level ad detection: skip endpoints whose response body looks like ad-server data
+    if (looksLikeAdResponse(req.response_body)) continue;
 
     // BUG-008: Detect Cloudflare challenge responses — exclude from skill
     if (isCloudflareChallenge(req.response_body)) continue;
@@ -263,6 +310,8 @@ function normalizeUrl(rawUrl: string): string {
       .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{id}")
       .replace(/\/\d{4,}/g, "/{id}")
       .replace(/\/[a-f0-9]{24,}/gi, "/{id}")
+      // URN identifiers (e.g. urn:li:fsd_profile:ACoAAB3fei4B...)
+      .replace(/\/urn:[a-zA-Z0-9._-]+(?::[a-zA-Z0-9._-]+)+/g, "/{urn}")
       // BUG-006: Comma-separated values are lists of identifiers (e.g. SPY,QQQ)
       .replace(/\/([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)+)(?=\/|$)/g, "/{list}");
     // Preserve queryId param for GraphQL endpoints so different queries aren't deduplicated
@@ -410,9 +459,10 @@ function templatizePathSegments(
 
       if (!tSeg) continue;
 
-      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}) — capture defaults & rename
-      if (tSeg === "{id}" || tSeg === "{list}") {
-        const paramName = inferParamName(tSegments, i, tSeg === "{list}" ? "list" : "id", usedNames);
+      // Pattern 1: Already parameterized by normalizeUrl ({id}, {list}, {urn}) — capture defaults & rename
+      if (tSeg === "{id}" || tSeg === "{list}" || tSeg === "{urn}") {
+        const fallback = tSeg === "{list}" ? "list" : tSeg === "{urn}" ? "urn" : "id";
+        const paramName = inferParamName(tSegments, i, fallback, usedNames);
         tSegments[i] = `{${paramName}}`;
         pathParams[paramName] = oSeg;
         continue;

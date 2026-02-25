@@ -1,5 +1,76 @@
 # Changelog
 
+## URN path segment parameterization
+
+### `normalizeUrl()` now detects URN identifiers (`src/reverse-engineer/index.ts`)
+- **URN pattern**: Path segments like `urn:li:fsd_profile:ACoAAB3fei4B...` are now replaced with `/{urn}` during URL normalization, just like UUIDs and numeric IDs.
+- **`templatizePathSegments()`** handles the new `{urn}` placeholder — captures the original URN as a default value and renames the param based on the preceding path segment.
+- Fixes skills for LinkedIn (and other URN-based APIs) hardcoding specific profile/entity URNs instead of parameterizing them.
+
+## Real discovery cost tracking + token savings in traces
+
+### Discovery cost on skills (`src/types/skill.ts`, `backend/src/types.ts`)
+- **`DiscoveryCost` interface**: New optional `discovery_cost` field on `SkillManifest` records `capture_ms`, `capture_tokens`, `response_bytes`, and `captured_at` from the original live capture.
+- **Stamped during live capture** (`src/orchestrator/index.ts`): After a browser capture discovers a skill, the actual capture time and token cost are measured and attached to the skill before publishing. Future marketplace cache hits use these real baselines instead of hardcoded estimates (22s / 30K tokens).
+
+### Token fields in ExecutionTrace (`src/types/skill.ts`, `backend/src/types.ts`)
+- **`tokens_used`**: Estimated tokens consumed by the response.
+- **`tokens_saved`**: Tokens saved vs original capture cost (0 for live captures).
+- **`tokens_saved_pct`**: Percentage tokens saved vs original capture cost.
+- These fields are stamped by the orchestrator and persist in trace files (`traces/*.json`) and backend reporting.
+
+### Real baselines in finalize (`src/orchestrator/index.ts`)
+- **`finalize()` reads `skill.discovery_cost`** when computing token/time savings. Falls back to the old hardcoded estimates (30K tokens, 22s) only for legacy skills without `discovery_cost`.
+- **Console log indicates baseline source**: `[real baseline]` vs `[estimated]` so you can tell at a glance which skills have been re-measured.
+
+## Agent-first endpoint selection + ad schema filtering
+
+### Always defer to agent on fresh captures (`src/orchestrator/index.ts`)
+- **Removed BM25 ambiguity heuristic**: The old logic auto-executed when the top endpoint had a score lead, which often picked wrong (ad endpoints, tracking, config blobs). Now fresh captures always return the endpoint list and let the calling LLM agent choose.
+- **Agent-specified endpoint_id still auto-executes**: When the agent has already picked an endpoint, it executes directly without deferral.
+
+### Schema-based ad endpoint filtering (`src/reverse-engineer/index.ts`)
+- **`looksLikeAdResponse()`**: Detects ad/tracking endpoints by response body vocabulary (campaignId, creativeId, creativeContent, etc.) regardless of hostname. Prevents junk skills from being published.
+- **`facet-futures.` added to AD_HOSTS**: Blocks the betting/odds ad network that Dotabuff uses.
+
+### Always surface available_endpoints (`src/api/routes.ts`)
+- **Removed `length > 1` gate**: `available_endpoints` is now returned even when only 1 endpoint exists, so the agent always sees what was discovered.
+
+## LLM-driven endpoint selection — expose endpoints to the agent
+
+### Endpoint labeling (`src/execution/index.ts`)
+- **`deriveEndpointLabel()` generates human-readable labels**: Extracts meaningful names from endpoint URLs. GraphQL queryIds like `voyagerFeedDashMainFeed.abc123` become "Feed Main Feed". REST paths like `/voyager/api/relationships/dash/connections` become "Relationships: Connections". Labels are derived by splitting camelCase, dropping common prefixes (voyager, dash, com), and capitalizing meaningful words.
+- **Exported for use by routes**: Both `rankEndpoints` and `deriveEndpointLabel` are exported so the API layer can build rich endpoint metadata.
+
+### Enriched `available_endpoints` in API responses (`src/api/routes.ts`)
+- **Labels added**: Each endpoint in `available_endpoints` now includes a `label` field with the human-readable name.
+- **Response hints**: When an endpoint has a response schema, `response_hint` lists the top-level property keys (e.g. `["data", "included"]`).
+- **Limit increased from 5 to 15**: Complex sites (LinkedIn, Facebook) can have 40+ endpoints — surfacing only 5 was insufficient for the agent to find the right one.
+- **Execute route also surfaces endpoints**: `POST /v1/skills/:id/execute` now includes `available_endpoints` so the agent can pick a different endpoint without going back to intent/resolve.
+
+### Ambiguous score deferral (`src/orchestrator/index.ts`)
+- **BM25 ambiguity detection**: When a newly captured skill has 5+ endpoints and the top two scores are within 5 points, the orchestrator does NOT auto-execute. Instead it returns the skill + ranked endpoints with a message telling the agent to pick.
+- **Clear winner auto-executes**: When the top endpoint has a significant score lead, it auto-executes as before.
+
+## Fix: SPA capture rewrite — direct request/response pair capture
+
+### Capture rewrite (`src/capture/index.ts`)
+- **Direct request/response pair capture**: Replaced the broken two-source approach with a single `page.on("response")` handler that captures the full request+response pair. Now captures 40+ endpoints from LinkedIn vs 3 before.
+- **Network idle detection replaces fixed 5s wait**: Polls until no new responses arrive for 2s (max 8s).
+- **Scroll simulation triggers lazy-loaded content**: 3 scroll steps with network idle waits between.
+
+### Endpoint collapse fix (`src/reverse-engineer/index.ts`)
+- **GraphQL endpoints exempt from collapse**: Endpoints with `queryId` or `query` params, or paths containing `graphql`, are never collapsed.
+- **API sub-resource endpoints exempt from collapse**: Paths matching `/api/` with 3+ segments are kept separate.
+- **Vendor JSON types scored correctly**: `scoreRequest()` now awards the +4 content-type bonus for `+json` types.
+
+### Orchestrator quality gate (`src/orchestrator/index.ts`)
+- **HTML-postprocessed results rejected**: When a marketplace skill returns HTML that gets DOM-extracted, the orchestrator rejects it and falls through to the next candidate or live capture.
+
+### DOM skill publishing gate (`src/execution/index.ts`)
+- **Low-confidence DOM skills not published**: DOM-extracted skills below 0.4 confidence are no longer published.
+- **CamelCase tokenization in BM25 endpoint selection**: `endpointToTokens()` now splits camelCase identifiers.
+
 ## BUG-006: Path segments now parameterized instead of hardcoded
 
 ### Bug fix

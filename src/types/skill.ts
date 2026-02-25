@@ -76,6 +76,14 @@ export interface EndpointDescriptor {
 
 export type ExecutionType = "http" | "browser-capture";
 
+/** Cost of the original live capture that discovered this skill */
+export interface DiscoveryCost {
+  capture_ms: number;
+  capture_tokens: number;
+  response_bytes: number;
+  captured_at: string;
+}
+
 export interface SkillManifest {
   skill_id: string;
   version: string;
@@ -95,6 +103,7 @@ export interface SkillManifest {
   created_at: string;
   updated_at: string;
   prev_version?: string;
+  discovery_cost?: DiscoveryCost;
 }
 
 export interface ExecutionTrace {
@@ -109,6 +118,12 @@ export interface ExecutionTrace {
   result?: unknown;
   har_lineage_id?: string;
   drift?: DriftResult;
+  /** Estimated tokens consumed by the response */
+  tokens_used?: number;
+  /** Tokens saved vs original capture cost (0 for live captures) */
+  tokens_saved?: number;
+  /** Percentage tokens saved vs original capture cost */
+  tokens_saved_pct?: number;
 }
 
 export interface DiscoveryCandidate {
