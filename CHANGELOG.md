@@ -1,5 +1,19 @@
 # Changelog
 
+## fix: graceful browser shutdown + orphan cleanup (fixes #4)
+
+### `src/capture/index.ts`
+- **Browser registry**: `activeBrowserRegistry: Set<BrowserManager>` tracks every live browser instance. Registered on creation, removed in `releaseBrowserSlot()`.
+- **`shutdownAllBrowsers()`** exported — calls `browser.close()` on all active instances in parallel via `Promise.allSettled`. Used by shutdown handlers in `src/index.ts`.
+- **Per-capture hard timeout** (`CAPTURE_TIMEOUT_MS = 90_000`): each `captureSession()` race includes a 90-second wall-clock kill. If triggered, `browser.close()` is called before throwing a timeout error, freeing the slot and the process.
+- `releaseBrowserSlot(browser?)` now accepts the browser instance and removes it from the registry on release.
+- `executeInBrowser()` updated with the same registry pattern.
+
+### `src/index.ts`
+- **Startup orphan cleanup**: `pkill -f chrome-headless-shell` runs before `app.listen()` to kill leftover browser processes from previous crashed sessions.
+- **`SIGTERM` / `SIGINT` handlers**: call `shutdownAllBrowsers()` then `app.close()` before exiting — ensures in-flight captures close cleanly on Ctrl-C or container stop.
+
+
 ## URN path segment parameterization
 
 ### `normalizeUrl()` now detects URN identifiers (`src/reverse-engineer/index.ts`)
