@@ -1,5 +1,33 @@
 # Changelog
 
+## fix: stale skill auto-recovery + playwright auto-install
+
+### `src/index.ts` + `scripts/setup.sh` — auto-install browser engine
+`agent-browser` depends on `playwright-core` for browser automation, but browser binaries
+are NOT bundled — users had to manually run `npx agent-browser install` after
+`bun install`, which was undocumented and broke first-run experience.
+
+Fix: the server now checks for Chromium on startup via `playwright-core`'s `executablePath()`
+and auto-runs `npx agent-browser install` if missing. `setup.sh` also runs the install step
+after dependency installation. Both fall back gracefully with a warning if the install fails.
+
+### `src/api/routes.ts` — auto-recovery on stale 404
+When executing a marketplace skill via `POST /v1/skills/:id/execute`, if the remote endpoint
+returns HTTP 404 (stale/changed API), the handler now automatically falls through to
+`resolveAndExecute()` to re-capture the site and get fresh endpoints. The response includes
+a `_recovery` field explaining what happened.
+
+Previously, agents received the raw 404 from the remote API with no context or recovery path.
+
+### `src/execution/index.ts` — improved 404 error messages
+When an endpoint returns 404, the error message now explains that the endpoint may be stale
+and suggests re-running via `/v1/intent/resolve` to get fresh endpoints. Previously, the error
+was just `"HTTP 404"` with the raw remote response body forwarded verbatim.
+
+### `SKILL.md` — browser setup documentation
+Added playwright chromium install step to the server startup section so users know the
+browser engine needs to be installed on first run.
+
 ## fix: sec-ch-ua headless leak + token savings baseline
 
 ### `src/capture/index.ts` — sec-ch-ua override

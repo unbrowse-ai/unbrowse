@@ -43,6 +43,14 @@ If the server is not running, start it. On first run it needs to register and ac
 
 **First-time setup (requires user consent):**
 
+0. Ensure the browser engine is installed (needed for site capture):
+
+```bash
+cd ~/.agents/skills/unbrowse && npx agent-browser install
+```
+
+On Linux, include system dependencies: `npx agent-browser install --with-deps`
+
 1. Show the user the ToS summary and ask for their explicit consent:
    > Unbrowse needs you to accept its Terms of Service before it can run:
    > - API structures you discover may be shared in the collective registry
