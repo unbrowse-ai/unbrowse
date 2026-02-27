@@ -30,6 +30,13 @@ if [ ! -d node_modules ]; then
   bun install --frozen-lockfile 2>/dev/null || bun install
 fi
 
+# Install browser engine — idempotent, skips if already present
+echo "[unbrowse] Ensuring browser engine is installed..."
+./node_modules/.bin/agent-browser install 2>/dev/null || bunx agent-browser install 2>/dev/null || {
+  echo "[unbrowse] WARNING: Could not install browser engine automatically."
+  echo "[unbrowse] Run manually: npx agent-browser install"
+}
+
 # Start in background — auto-registers on first run
 echo "[unbrowse] Starting server on $UNBROWSE..."
 UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 PORT="$PORT" HOST="$HOST" nohup bun src/index.ts > /tmp/unbrowse.log 2>&1 &
