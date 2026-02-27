@@ -279,11 +279,19 @@ export async function resolveAndExecute(
       completed_at: new Date().toISOString(),
       success: true,
     };
+    const captureResult = result as Record<string, unknown> | null;
+    const authRecommended = captureResult?.auth_recommended === true;
     return {
       result: {
-        message: `Discovered ${epRanked.length} endpoint(s). Review available_endpoints and re-execute with the correct endpoint_id.`,
+        message: authRecommended
+          ? `Captured ${epRanked.length} endpoint(s) but no data endpoints found — authentication likely required.`
+          : `Discovered ${epRanked.length} endpoint(s). Review available_endpoints and re-execute with the correct endpoint_id.`,
         hint: "Call POST /v1/skills/{skill_id}/execute with params.endpoint_id set to your chosen endpoint.",
         skill_id: learned_skill!.skill_id,
+        ...(authRecommended ? {
+          auth_recommended: true,
+          auth_hint: captureResult!.auth_hint,
+        } : {}),
       },
       trace: deferTrace,
       source: "live-capture",
