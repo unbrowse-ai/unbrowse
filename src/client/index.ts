@@ -228,13 +228,21 @@ export function cachePublishedSkill(skill: SkillManifest): void {
 }
 
 export async function getSkill(skillId: string): Promise<SkillManifest | null> {
+  // Cache-first: return disk cache immediately, async-refresh from backend
+  const cached = readSkillCache(skillId);
+  if (cached) {
+    api<SkillManifest>("GET", `/v1/skills/${skillId}`)
+      .then(skill => writeSkillCache(skill))
+      .catch(() => {});
+    return cached;
+  }
+  // No cache — must fetch from backend
   try {
     const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
     writeSkillCache(skill);
     return skill;
   } catch {
-    // Backend 404 or network error — fall back to disk cache
-    return readSkillCache(skillId);
+    return null;
   }
 }
 
