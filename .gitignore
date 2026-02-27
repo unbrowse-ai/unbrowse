@@ -39,6 +39,9 @@ pids/
 coverage/
 .nyc_output/
 
+# Eval history (local per-machine)
+evals/history.jsonl
+
 # IDEs and editors
 .idea/
 .vscode/

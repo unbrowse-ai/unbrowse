@@ -13,15 +13,8 @@ const capturedDomainCache = new Map<string, { skill: SkillManifest; expires: num
 // In-flight lock: prevents parallel captures of the same domain within the same process.
 const captureInFlight = new Set<string>();
 // Route cache: intent+domain → skill_id, skips search+getSkill on repeat queries.
-const skillRouteCache = new Map<string, { skillId: string; endpointId: string; domain: string; ts: number }>();
+const skillRouteCache = new Map<string, { skillId: string; domain: string; ts: number }>();
 const ROUTE_CACHE_TTL = 5 * 60_000; // 5 minutes
-
-/** Called by the execute route after a successful agent-picked execution.
- *  Caches the intent→endpoint mapping so the next identical resolve auto-executes. */
-export function cacheRoute(intent: string, domain: string | null, skillId: string, endpointId: string): void {
-  const key = `${domain || "global"}:${intent}`;
-  skillRouteCache.set(key, { skillId, endpointId, domain: domain || "", ts: Date.now() });
-}
 
 export interface OrchestratorResult {
   result: unknown;
@@ -115,7 +108,7 @@ export async function resolveAndExecute(
     return timing;
   }
 
-  // Fast path: if the agent previously picked an endpoint for this intent+domain, replay it
+  // Fast path: if we've successfully executed this intent+domain before, skip search entirely
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
   const cacheKey = `${requestedDomain || "global"}:${intent}`;
   const cached = skillRouteCache.get(cacheKey);
@@ -124,7 +117,7 @@ export async function resolveAndExecute(
     if (skill) {
       const te0 = Date.now();
       try {
-        const { trace, result } = await executeSkill(skill, { ...params, endpoint_id: cached.endpointId }, projection, { ...options, intent });
+        const { trace, result } = await executeSkill(skill, params, projection, { ...options, intent });
         timing.execute_ms = Date.now() - te0;
         if (trace.success) {
           timing.cache_hit = true;
@@ -175,39 +168,30 @@ export async function resolveAndExecute(
   // This prevents the marketplace from matching e.g. beehiiv for a linkedin query.
   const targetRegDomain = requestedDomain ? getRegistrableDomain(requestedDomain) : null;
   for (const { c, skill } of skillResults) {
-    if (!skill) { timing.filter_reasons ??= []; timing.filter_reasons.push(`${extractSkillId(c.metadata)}: skill not found`); continue; }
-    if (skill.lifecycle !== "active") { timing.filter_reasons ??= []; timing.filter_reasons.push(`${skill.skill_id}: lifecycle=${skill.lifecycle}`); continue; }
-    if (!hasUsableEndpoints(skill)) { timing.filter_reasons ??= []; timing.filter_reasons.push(`${skill.skill_id}: no usable endpoints`); continue; }
-    if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) { timing.filter_reasons ??= []; timing.filter_reasons.push(`${skill.skill_id}: domain mismatch (${skill.domain} vs ${targetRegDomain})`); continue; }
+    if (!skill) continue;
+    if (skill.lifecycle !== "active") continue;
+    if (!hasUsableEndpoints(skill)) continue;
+    if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
     ranked.push({ candidate: c, skill, composite: computeCompositeScore(c.score, skill) });
   }
   ranked.sort((a, b) => b.composite - a.composite);
 
-  // Marketplace hit — return skill + endpoints for the agent to pick, don't auto-execute.
-  // The agent calls POST /v1/skills/{id}/execute with the chosen endpoint_id.
-  // On success, cacheRoute() remembers the pick for instant replay next time.
-  if (ranked.length > 0 && ranked[0].composite >= CONFIDENCE_THRESHOLD) {
-    const best = ranked[0];
-    timing.candidates_tried = 0;
-    const trace: ExecutionTrace = {
-      trace_id: `resolve-${Date.now()}`,
-      skill_id: best.skill.skill_id,
-      endpoint_id: "",
-      started_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      success: true,
-    };
-    return {
-      result: {
-        message: `Found skill with ${best.skill.endpoints.length} endpoint(s). Pick an endpoint_id and call POST /v1/skills/${best.skill.skill_id}/execute.`,
-        hint: "Call POST /v1/skills/{skill_id}/execute with params.endpoint_id set to your chosen endpoint.",
-        skill_id: best.skill.skill_id,
-      },
-      trace,
-      source: "marketplace" as const,
-      skill: best.skill,
-      timing: finalize("marketplace", null, best.skill.skill_id, best.skill, trace),
-    };
+  // Try marketplace skills — if execution fails, fall through to live capture
+  for (const candidate of ranked) {
+    if (candidate.composite < CONFIDENCE_THRESHOLD) break;
+    timing.candidates_tried++;
+    const te0 = Date.now();
+    try {
+      const { trace, result } = await executeSkill(candidate.skill, params, projection, { ...options, intent });
+      timing.execute_ms += Date.now() - te0;
+      if (trace.success) {
+        // Cache this route for fast repeat lookups
+        skillRouteCache.set(cacheKey, { skillId: candidate.skill.skill_id, domain: candidate.skill.domain, ts: Date.now() });
+        return { result, trace, source: "marketplace" as const, skill: candidate.skill, timing: finalize("marketplace", result, candidate.skill.skill_id, candidate.skill, trace) };
+      }
+    } catch {
+      timing.execute_ms += Date.now() - te0;
+    }
   }
 
   // 2. No match -- invoke browser-capture skill
@@ -349,8 +333,8 @@ function hasUsableEndpoints(skill: SkillManifest): boolean {
       const u = new URL(ep.url_template);
       const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`);
       if (!onDomain) return false;
-      // Must have a response schema (JSON) or be an API-like path
-      return !!ep.response_schema || /\/(api|v\d+)\//i.test(u.pathname) || !!ep.dom_extraction;
+      // Must have a response schema (JSON) or be an API-style path
+      return !!ep.response_schema || /\/api\//i.test(u.pathname) || !!ep.dom_extraction;
     } catch { return false; }
   });
 }

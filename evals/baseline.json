@@ -1,0 +1,10 @@
+{
+  "jup-token-price-direct": {
+    "p50_ms": 309,
+    "threshold_multiplier": 2.5
+  },
+  "jup-token-price-resolve": {
+    "p50_ms": 713,
+    "threshold_multiplier": 2.5
+  }
+}
