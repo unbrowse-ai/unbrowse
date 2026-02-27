@@ -427,10 +427,36 @@ export async function executeEndpoint(
       // URL parse failure — skip query merge
     }
   }
-  const url = interpolate(urlTemplate, mergedParams);
+  let url = interpolate(urlTemplate, mergedParams);
   const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
   const isSafe = endpoint.method === "GET";
+
+  // Append leftover params as query string on GET requests.
+  // Params already consumed by path_params, endpoint.query, or {template} vars are skipped.
+  if (isSafe && Object.keys(params).length > 0) {
+    const consumedKeys = new Set<string>([
+      "endpoint_id",
+      ...Object.keys(endpoint.path_params ?? {}),
+      ...Object.keys(endpoint.query ?? {}),
+    ]);
+    // Also mark keys that appeared as {var} in the original URL template
+    const templateVarRe = /\{(\w+)\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = templateVarRe.exec(endpoint.url_template)) !== null) {
+      consumedKeys.add(m[1]);
+    }
+    const leftover = Object.entries(params).filter(([k]) => !consumedKeys.has(k) && params[k] != null);
+    if (leftover.length > 0) {
+      try {
+        const u = new URL(url);
+        for (const [k, v] of leftover) {
+          u.searchParams.set(k, String(v));
+        }
+        url = u.toString();
+      } catch { /* URL parse failure — skip */ }
+    }
+  }
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     const headers: Record<string, string> = {
