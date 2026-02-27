@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerRoutes } from "./api/routes.js";
@@ -12,6 +13,17 @@ import { shutdownAllBrowsers } from "./capture/index.js";
 try {
   execSync("pkill -f chrome-headless-shell", { stdio: "ignore" });
 } catch { /* no orphans — ok */ }
+
+// Ensure browser engine is installed (agent-browser needs Chromium binaries)
+try {
+  const { chromium } = await import("playwright-core");
+  if (!existsSync(chromium.executablePath())) {
+    console.log("[startup] Chromium not found, installing...");
+    execSync("npx agent-browser install", { stdio: "inherit", timeout: 120_000 });
+  }
+} catch {
+  console.warn("[startup] WARNING: Could not verify/install browser engine. Run: npx agent-browser install");
+}
 
 // Auto-register with backend if no API key is configured
 await ensureRegistered();

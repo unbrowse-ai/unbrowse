@@ -40,6 +40,18 @@ Set the base URL:
 UNBROWSE=\${UNBROWSE_URL:-http://localhost:6969}
 \`\`\`
 
+### Browser Engine Setup
+
+The browser engine must be installed before first use (needed for site capture):
+
+\`\`\`bash
+cd ~/.agents/skills/unbrowse && npx playwright install chromium
+\`\`\`
+
+On Linux, include system dependencies: \`npx playwright install --with-deps chromium\`
+
+This is handled automatically by \`setup.sh\`, but must be done manually for other installation methods.
+
 ### Agent Registration (Getting an API Key)
 
 The local server auto-registers on first startup and caches credentials in \`~/.unbrowse/config.json\`. If you need to register manually or get a fresh key:
