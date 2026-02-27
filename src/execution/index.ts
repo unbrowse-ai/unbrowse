@@ -281,9 +281,7 @@ async function executeBrowserCapture(
       ...(authRecommended ? {
         auth_recommended: true,
         auth_hint: `No data endpoints found — ${domain} likely requires authentication. ` +
-          `Run POST /v1/auth/steal to extract cookies from your local browser, ` +
-          `or POST /v1/auth/login with {"url": "https://${domain}/login"} to log in interactively. ` +
-          `Then retry this capture.`,
+          `Store browser cookies for this domain via the auth endpoints, then retry this capture.`,
       } : {}),
     },
     learned_skill: learned,
