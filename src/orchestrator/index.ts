@@ -246,7 +246,7 @@ export async function resolveAndExecute(
       captured_at: new Date().toISOString(),
     };
     // Re-publish with discovery_cost attached (fire-and-forget)
-    publishSkill(learned_skill).catch(() => {});
+    publishSkill(learned_skill).catch((err) => console.error("[publish] discovery_cost update failed:", (err as Error).message));
   }
 
   // Auth-gated or no data: pass through error
@@ -321,7 +321,7 @@ async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
     updated_at: now,
   };
 
-  await publishSkill(skill).catch(() => {});
+  await publishSkill(skill).catch((err) => console.error("[publish] browser-capture skill update failed:", (err as Error).message));
   return skill;
 }
 
