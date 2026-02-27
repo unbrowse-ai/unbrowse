@@ -500,7 +500,9 @@ export async function executeEndpoint(
   };
 
   if (!trace.success) {
-    trace.error = `HTTP ${status}`;
+    trace.error = status === 404
+      ? `HTTP 404 — endpoint may be stale. Re-run via POST /v1/intent/resolve to get fresh endpoints.`
+      : `HTTP ${status}`;
   } else {
     trace.result = data;
   }
