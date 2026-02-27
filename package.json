@@ -5,6 +5,7 @@
   "scripts": {
     "prepare": "husky",
     "eval": "bun evals/perf.ts",
+    "eval:full": "bun evals/perf.ts --full",
     "eval:update": "bun evals/perf.ts --update-baseline"
   },
   "dependencies": {
