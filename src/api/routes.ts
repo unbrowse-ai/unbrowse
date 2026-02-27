@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { resolveAndExecute } from "../orchestrator/index.js";
+import { resolveAndExecute, cacheRoute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
@@ -121,6 +121,11 @@ export async function registerRoutes(app: FastifyInstance) {
         } catch {
           // Recovery failed — return original 404 with guidance
         }
+      }
+
+      // Cache agent's endpoint pick so next resolve auto-executes
+      if (execResult.trace.success && intent && params?.endpoint_id) {
+        cacheRoute(intent, skill.domain || null, skill_id, String(params.endpoint_id));
       }
 
       return reply.send(execResult);
