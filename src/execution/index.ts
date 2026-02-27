@@ -641,6 +641,14 @@ function interpolateObj(
  */
 // --- BM25 scoring for intent→endpoint relevance ---
 
+/** Minimal stemmer: strip trailing s/es for plural matching */
+function stem(word: string): string {
+  if (word.endsWith("ies") && word.length > 4) return word.slice(0, -3) + "y";
+  if (word.endsWith("es") && word.length > 4) return word.slice(0, -2);
+  if (word.endsWith("s") && !word.endsWith("ss") && word.length > 3) return word.slice(0, -1);
+  return word;
+}
+
 const BM25_K1 = 1.2;
 const BM25_B = 0.75;
 const STOPWORDS = new Set([
@@ -667,12 +675,13 @@ function tokenize(text: string): string[] {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
 }
 
-/** Expand intent tokens with synonyms for better matching */
+/** Expand intent tokens with synonyms + stemmed variants for better matching */
 function expandQuery(tokens: string[]): string[] {
   const expanded = new Set(tokens);
   for (const t of tokens) {
-    const syns = SYNONYMS[t];
-    if (syns) for (const s of syns) expanded.add(s);
+    expanded.add(stem(t));
+    const syns = SYNONYMS[t] ?? SYNONYMS[stem(t)];
+    if (syns) for (const s of syns) { expanded.add(s); expanded.add(stem(s)); }
   }
   return [...expanded];
 }
@@ -701,7 +710,7 @@ function endpointToTokens(ep: EndpointDescriptor): string[] {
       if (val?.properties) tokens.push(...Object.keys(val.properties));
     }
   }
-  return tokens.map((t) => t.toLowerCase());
+  return tokens.map((t) => stem(t.toLowerCase()));
 }
 
 function bm25Score(query: string[], doc: string[], avgDl: number, docCount: number, docFreqs: Map<string, number>): number {
@@ -779,8 +788,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   }
   const docCount = docs.length;
 
-  // Meta/support path patterns — not primary data
-  const META_PATHS = /\/(annotation|insight|sentiment|vote|portfolio|summary_button|summary_card|tagmetric|quick_add|notifications?|preferences|settings|onboarding)/i;
+  // Meta/support/promo path patterns — not primary data
+  const META_PATHS = /\/(annotation|insight|sentiment|vote|portfolio|summary_button|summary_card|tagmetric|quick_add|notifications?|preferences|settings|onboarding|public\/active|remoteConfig|banner\/metadata|embedded-wallets|glow\/get-rendered)/i;
 
   // Data format indicators
   const DATA_INDICATORS = /\.(json|xml|csv)(\?|$)|\/api\//i;
