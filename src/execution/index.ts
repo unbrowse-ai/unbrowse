@@ -430,15 +430,13 @@ export async function executeEndpoint(
   const url = interpolate(urlTemplate, mergedParams);
   const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
-  // Fast path: server-side fetch for simple JSON endpoints (no browser needed)
-  // Use browser only when cookies/auth are required or endpoint needs page context
   const isSafe = endpoint.method === "GET";
-  const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0 || !!endpoint.dom_extraction;
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     const headers: Record<string, string> = {
       ...endpoint.headers_template,
-      "accept": "application/json",
+      ...(endpoint.dom_extraction ? {} : { "accept": "application/json" }),
+      ...authHeaders,
     };
     // Strip browser-only headers that cause issues server-side
     delete headers["sec-ch-ua"];
@@ -446,7 +444,13 @@ export async function executeEndpoint(
     delete headers["sec-ch-ua-platform"];
     delete headers["upgrade-insecure-requests"];
 
-    const res = await fetch(url, { method: endpoint.method, headers, body: body ? JSON.stringify(body) : undefined });
+    // Inject cookies as Cookie header — same as a browser would send
+    if (cookies.length > 0) {
+      const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      headers["cookie"] = cookieStr;
+    }
+
+    const res = await fetch(url, { method: endpoint.method, headers, body: body ? JSON.stringify(body) : undefined, redirect: "follow" });
     let data: unknown;
     const text = await res.text();
     try { data = JSON.parse(text); } catch { data = text; }
@@ -463,25 +467,25 @@ export async function executeEndpoint(
   );
 
   let result: { data: unknown; status: number; trace_id: string };
-  if (needsBrowser) {
-    // Browser required: cookies, auth headers, or DOM extraction
-    result = isSafe
-      ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
-      : await browserCall();
-  } else if (isSafe) {
-    // Fetch-first for safe GETs — fall back to browser if HTML or error
+  if (isSafe) {
+    // Fetch-first for all safe GETs — fall back to browser if SPA shell or error
     try {
       result = await withRetry(serverFetch, (r) => isRetryableStatus(r.status));
-      // If server fetch returned HTML (e.g. Cloudflare challenge), fall back to browser
+      // If we got HTML, check if it's a usable SSR page or an empty SPA shell
       if (typeof result.data === "string" && isHtml(result.data)) {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        if (isSpaShell(result.data)) {
+          // SPA shell — need browser to render JavaScript
+          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        }
+        // Otherwise it's SSR HTML — the HTML post-processing below will extract data
       }
     } catch {
       result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
     }
   } else {
-    // Unsafe non-GET without browser needs — server fetch only
-    result = await serverFetch();
+    // Non-GET: server fetch if no browser deps, otherwise browser
+    const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0;
+    result = needsBrowser ? await browserCall() : await serverFetch();
   }
   const { status, trace_id } = result;
   let data = result.data;
@@ -850,4 +854,28 @@ function isHtml(text: string): boolean {
   return trimmed.startsWith("<!doctype html") ||
     trimmed.startsWith("<html") ||
     (trimmed.includes("<head") && trimmed.includes("<body"));
+}
+
+/**
+ * Detect if HTML is an empty SPA shell that needs JS to render.
+ * SPA shells have a near-empty body (just a <div id="root"> or similar)
+ * with all content loaded by JavaScript bundles.
+ * SSR pages have substantial text content in the body already.
+ */
+function isSpaShell(html: string): boolean {
+  // Quick heuristic: extract body content and check if it has meaningful text
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (!bodyMatch) return true; // no body at all — treat as SPA shell
+  const body = bodyMatch[1];
+
+  // Strip script/style tags and HTML tags to get raw text
+  const text = body
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // SPA shells have very little text — just "Loading..." or empty divs
+  return text.length < 200;
 }

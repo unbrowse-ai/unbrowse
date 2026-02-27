@@ -1,26 +1,26 @@
 {
   "jup-asset-search": {
-    "p50_ms": 307,
+    "p50_ms": 58,
     "threshold_multiplier": 2.5
   },
   "jup-trending-tokens": {
-    "p50_ms": 302,
+    "p50_ms": 55,
     "threshold_multiplier": 2.5
   },
   "jup-chain-status": {
-    "p50_ms": 312,
+    "p50_ms": 57,
     "threshold_multiplier": 2.5
   },
   "jup-token-shield": {
-    "p50_ms": 420,
+    "p50_ms": 62,
     "threshold_multiplier": 2.5
   },
   "github-trending-dom": {
-    "p50_ms": 1367,
-    "threshold_multiplier": 3.0
+    "p50_ms": 800,
+    "threshold_multiplier": 3
   },
   "jup-resolve-e2e": {
-    "p50_ms": 922,
-    "threshold_multiplier": 5.0
+    "p50_ms": 800,
+    "threshold_multiplier": 5
   }
 }
