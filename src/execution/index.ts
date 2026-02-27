@@ -135,12 +135,14 @@ async function executeBrowserCapture(
   // BUG-002/003 fix: auto-load vault cookies for the target domain
   let authHeaders = params.auth_headers as Record<string, string> | undefined;
   let cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
+  let usedStoredAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
 
   // Check vault for stored auth (from prior interactiveLogin)
   if (!cookies || cookies.length === 0) {
     const vaultCookies = await getStoredAuth(targetDomain);
     if (vaultCookies && vaultCookies.length > 0) {
       cookies = vaultCookies;
+      usedStoredAuth = true;
     }
     // Also try parent domain (e.g. mail.google.com → google.com)
     if (!cookies || cookies.length === 0) {
@@ -150,6 +152,7 @@ async function executeBrowserCapture(
         const parentCookies = await getStoredAuth(parentDomain);
         if (parentCookies && parentCookies.length > 0) {
           cookies = parentCookies;
+          usedStoredAuth = true;
         }
       }
     }
@@ -348,8 +351,26 @@ async function executeBrowserCapture(
     result: { learned_skill_id: learned.skill_id, endpoints_discovered: cleanEndpoints.length },
   };
 
-  return { trace, result: trace.result, learned_skill: learned };
+  // Detect tracking-only capture: all endpoints lack a response_schema, meaning no real
+  // JSON data was returned — the site likely gated its API behind authentication.
+  // Only flag this when no auth was used (so a retry with auth has a chance of succeeding).
+  const hasMeaningfulEndpoint = publishableEndpoints.some((ep) => ep.response_schema != null);
+  const authRecommended = !usedStoredAuth && !hasMeaningfulEndpoint;
+
+  return {
+    trace,
+    result: {
+      ...(trace.result as Record<string, unknown>),
+      ...(authRecommended ? {
+        auth_recommended: true,
+        auth_hint: `No data endpoints found — ${domain} likely requires authentication. ` +
+          `Store browser cookies for this domain via the auth endpoints, then retry this capture.`,
+      } : {}),
+    },
+    learned_skill: learned,
+  };
 }
+
 
 export async function executeEndpoint(
   skill: SkillManifest,
