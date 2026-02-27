@@ -1,6 +1,6 @@
 [
   {
-    "name": "jup-token-price-direct",
+    "name": "jup-asset-search",
     "mode": "execute",
     "skill_id": "lUm_I-ImV_fMeSzMX7axS",
     "endpoint_id": "lFPl8UOodJwS9zgvkfZx5",
@@ -8,11 +8,43 @@
     "runs": 3
   },
   {
-    "name": "jup-token-price-resolve",
+    "name": "jup-trending-tokens",
+    "mode": "execute",
+    "skill_id": "lUm_I-ImV_fMeSzMX7axS",
+    "endpoint_id": "wOhC5nPahB-mRDuhmQdJs",
+    "params": { "limit": "5" },
+    "runs": 3
+  },
+  {
+    "name": "jup-chain-status",
+    "mode": "execute",
+    "skill_id": "lUm_I-ImV_fMeSzMX7axS",
+    "endpoint_id": "wk4QVdysAFBZLSHRAJ8_h",
+    "params": {},
+    "runs": 3
+  },
+  {
+    "name": "jup-token-shield",
+    "mode": "execute",
+    "skill_id": "lUm_I-ImV_fMeSzMX7axS",
+    "endpoint_id": "lygz8MEyKX4HxbC3rFq3B",
+    "params": { "mints": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", "isJupiter": "true" },
+    "runs": 3
+  },
+  {
+    "name": "github-trending-dom",
+    "mode": "execute",
+    "skill_id": "GLuoHwktHk9VUNk_CJTAL",
+    "endpoint_id": "VMt3B8oLyL0gK2lyjMQfs",
+    "params": {},
+    "runs": 2
+  },
+  {
+    "name": "jup-resolve-e2e",
     "mode": "resolve",
     "intent": "get JUP token price",
     "url": "https://jup.ag",
     "params": {},
-    "runs": 3
+    "runs": 2
   }
 ]
