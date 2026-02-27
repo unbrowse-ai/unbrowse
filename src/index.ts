@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerRoutes } from "./api/routes.js";
@@ -12,6 +13,32 @@ import { shutdownAllBrowsers } from "./capture/index.js";
 try {
   execSync("pkill -f chrome-headless-shell", { stdio: "ignore" });
 } catch { /* no orphans — ok */ }
+
+// Ensure browser engine is installed (agent-browser needs Chromium binaries via playwright)
+try {
+  const { chromium } = await import("playwright-core");
+  if (!existsSync(chromium.executablePath())) {
+    console.log("[startup] Chromium not found, installing...");
+    // agent-browser install shells out to `npx playwright install` internally,
+    // so call playwright directly to support bun-only environments
+    const cmds = [
+      "bunx playwright install chromium",
+      "npx playwright install chromium",
+    ];
+    let installed = false;
+    for (const cmd of cmds) {
+      try {
+        execSync(cmd, { stdio: "inherit", timeout: 120_000 });
+        installed = true;
+        break;
+      } catch { /* try next */ }
+    }
+    if (!installed) throw new Error("All install methods failed");
+  }
+} catch (e) {
+  console.warn(`[startup] WARNING: Could not install browser engine: ${e}`);
+  console.warn("[startup] Run manually: bunx playwright install chromium");
+}
 
 // Auto-register with backend if no API key is configured
 await ensureRegistered();
