@@ -1,0 +1,1011 @@
+{
+  "trace_id": "3pWDrWXgopWTBWCs-0U_x",
+  "skill_id": "npETXG-5DvzZCwrCRS0UM",
+  "endpoint_id": "WCKhLVwYXMYsyFGGB1W-A",
+  "started_at": "2026-02-23T15:35:26.288Z",
+  "completed_at": "2026-02-23T15:35:31.274Z",
+  "success": true,
+  "status_code": 200,
+  "result": [
+    {
+      "ticker": "NVDA",
+      "total": 484,
+      "avgSent": 0.1167,
+      "company": "NVIDIA Corp.",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-28T17:04:25.647",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "HIMS",
+      "total": 90,
+      "avgSent": -0.4302,
+      "company": "Hims & Hers Health, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-02T16:07:29.46",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CRWV",
+      "total": 88,
+      "avgSent": 0.2819,
+      "company": "CoreWeave, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-05T16:05:54.907",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "MU",
+      "total": 84,
+      "avgSent": 0.0455,
+      "company": "Micron Technology, Inc.",
+      "nextEPSDate": "2026-03-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "AVGO",
+      "total": 67,
+      "avgSent": 0.1898,
+      "company": "Broadcom Inc.",
+      "nextEPSDate": "2026-03-04T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-02T08:01:36.667",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "TTD",
+      "total": 62,
+      "avgSent": -0.5532,
+      "company": "Trade Desk, Inc.",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-26T13:02:50.137",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CRM",
+      "total": 51,
+      "avgSent": -0.4073,
+      "company": "Salesforce",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-04T16:32:12.597",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "RKLB",
+      "total": 43,
+      "avgSent": -0.0279,
+      "company": "Rocket Lab USA, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-26T16:54:51.643",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "WGS",
+      "total": 41,
+      "avgSent": 0.1473,
+      "company": "GeneDx",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-23T06:36:16.08",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "ORCL",
+      "total": 40,
+      "avgSent": -0.0396,
+      "company": "Oracle Corp.",
+      "nextEPSDate": "2026-03-12T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "MELI",
+      "total": 35,
+      "avgSent": 0.2266,
+      "company": "MercadoLibre Inc",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-16T08:47:11.403",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "AMC",
+      "total": 34,
+      "avgSent": 0.2956,
+      "company": "AMC Entertainment Holdings, Inc",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-23T07:52:53.73",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "DPZ",
+      "total": 33,
+      "avgSent": -0.4059,
+      "company": "Domino's Pizza, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-01-22T16:08:16.87",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "SNOW",
+      "total": 33,
+      "avgSent": 0.0656,
+      "company": "Snowflake",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-02T09:33:38.61",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "HD",
+      "total": 32,
+      "avgSent": -0.17,
+      "company": "Home Depot, Inc.",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-10T08:11:56.217",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "MSFT",
+      "total": 32,
+      "avgSent": -0.2694,
+      "company": "Microsoft Corp.",
+      "nextEPSDate": "2026-04-29T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CIFR",
+      "total": 31,
+      "avgSent": 0.1866,
+      "company": "Cipher Mining Inc",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-09T16:16:42.3",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "BABA",
+      "total": 30,
+      "avgSent": 0.2847,
+      "company": "Alibaba Group Holding Ltd.",
+      "nextEPSDate": "2026-03-03T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "DELL",
+      "total": 29,
+      "avgSent": -0.2341,
+      "company": "Dell Technologies",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-13T08:33:20.44",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "ADBE",
+      "total": 26,
+      "avgSent": -0.6819,
+      "company": "Adobe Inc.",
+      "nextEPSDate": "2026-03-12T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-09T00:00:00",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "BWXT",
+      "total": 26,
+      "avgSent": 0.0702,
+      "company": "BWX Technologies, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-18T06:55:09.97",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "INOD",
+      "total": 26,
+      "avgSent": -0.1819,
+      "company": "Innodata Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-09T00:00:00",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "KTOS",
+      "total": 26,
+      "avgSent": 0.1669,
+      "company": "Kratos Defense & Security Solutions, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-13T08:05:00.78",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "MARA",
+      "total": 25,
+      "avgSent": -0.0493,
+      "company": "Marathon Digital Holdings, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-20T08:43:41.607",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "OPK",
+      "total": 25,
+      "avgSent": 0.4279,
+      "company": "Opko Health Inc",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-12T09:21:37.733",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "KEYS",
+      "total": 24,
+      "avgSent": 0.4621,
+      "company": "Keysight Technologies, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-02T08:02:34.763",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "NKE",
+      "total": 24,
+      "avgSent": -0.1399,
+      "company": "Nike Inc",
+      "nextEPSDate": "2026-03-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "AAPL",
+      "total": 23,
+      "avgSent": 0.1219,
+      "company": "Apple, Inc.",
+      "nextEPSDate": "2026-04-30T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "APLD",
+      "total": 23,
+      "avgSent": -0.2434,
+      "company": "Applied Digital Corporation",
+      "nextEPSDate": "2026-04-20T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "QBTS",
+      "total": 23,
+      "avgSent": -0.0416,
+      "company": "D-Wave Quantum Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-12T07:04:22.013",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "SOUN",
+      "total": 23,
+      "avgSent": -0.2268,
+      "company": "SoundHound AI, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-10T16:13:03.523",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "BRK.B",
+      "total": 22,
+      "avgSent": 0.3031,
+      "company": "Berkshire Hathaway, Inc.",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-01-24T08:11:04.09",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "HUT",
+      "total": 22,
+      "avgSent": 0.0938,
+      "company": "Hut 8 Mining Corp.",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-01-30T06:50:48.963",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "CAVA",
+      "total": 20,
+      "avgSent": -0.0984,
+      "company": "CAVA Group, Inc.",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-04T16:18:22.85",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "RIOT",
+      "total": 20,
+      "avgSent": 0.2349,
+      "company": "Riot Platforms, Inc. ",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-20T10:03:32.27",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "TJX",
+      "total": 20,
+      "avgSent": 0.2737,
+      "company": "TJX Companies Inc.",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-11T14:24:16.83",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "AXON",
+      "total": 19,
+      "avgSent": -0.1423,
+      "company": "Axon Enterprise, Inc.",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-10T16:01:45.29",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "NIO",
+      "total": 19,
+      "avgSent": 0.0302,
+      "company": "NIO Inc.",
+      "nextEPSDate": "2026-03-12T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "ZS",
+      "total": 19,
+      "avgSent": -0.3317,
+      "company": "Zscaler, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-05T08:18:29.34",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CRDO",
+      "total": 18,
+      "avgSent": 0.0042,
+      "company": "Credo Technology Group Holding Ltd",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-09T17:18:40.157",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "IONQ",
+      "total": 18,
+      "avgSent": -0.3439,
+      "company": "IonQ Inc",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-04T08:12:19.607",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "MRVL",
+      "total": 18,
+      "avgSent": -0.3097,
+      "company": "Marvell Technology, Inc. ",
+      "nextEPSDate": "2026-03-05T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-09T09:13:39.763",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "PLTR",
+      "total": 18,
+      "avgSent": 0.2725,
+      "company": "Palantir Technologies Inc.",
+      "nextEPSDate": "2026-05-04T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "BYND",
+      "total": 17,
+      "avgSent": 0.0665,
+      "company": "Beyond Meat, Inc.",
+      "nextEPSDate": "2026-03-04T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "CRWD",
+      "total": 17,
+      "avgSent": -0.3643,
+      "company": "CrowdStrike, Inc.",
+      "nextEPSDate": "2026-03-03T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-03T08:32:23.12",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "DUOL",
+      "total": 17,
+      "avgSent": -0.2509,
+      "company": "Duolingo, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-05T09:48:02.117",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "PRIM",
+      "total": 17,
+      "avgSent": 0.1399,
+      "company": "Primoris Services Corporation",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-10T16:45:18.89",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "ZETA",
+      "total": 17,
+      "avgSent": -0.2017,
+      "company": "Zeta Global",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-10T16:45:50.29",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CELH",
+      "total": 16,
+      "avgSent": -0.1695,
+      "company": "Celsius Holdings, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-12T16:55:30.963",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "NFLX",
+      "total": 16,
+      "avgSent": 0.3261,
+      "company": "Netflix, Inc.",
+      "nextEPSDate": "2026-04-20T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "NVTS",
+      "total": 16,
+      "avgSent": -0.0767,
+      "company": "Navitas Semiconductor Corp",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-28T08:10:21.16",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "WDAY",
+      "total": 16,
+      "avgSent": -0.4846,
+      "company": "Workday, Inc.",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-03T08:32:39.76",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "AXSM",
+      "total": 15,
+      "avgSent": 0.4089,
+      "company": "Axsome Therapeutics, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-01-27T07:09:56.53",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "VST",
+      "total": 15,
+      "avgSent": 0.1895,
+      "company": "Vistra Energy",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-01-24T06:32:56.867",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "AMZN",
+      "total": 14,
+      "avgSent": -0.0345,
+      "company": "Amazon.com, Inc.",
+      "nextEPSDate": "2026-05-07T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "BBAI",
+      "total": 14,
+      "avgSent": -0.4748,
+      "company": "BigBear.ai",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-17T16:16:53.213",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "FANG",
+      "total": 14,
+      "avgSent": 0.252,
+      "company": "Diamondback Energy, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-09T23:41:22.063",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "RGTI",
+      "total": 14,
+      "avgSent": -0.1192,
+      "company": "Rigetti Computing Inc",
+      "nextEPSDate": "2026-03-04T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-18T08:20:56.693",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "TEM",
+      "total": 14,
+      "avgSent": -0.3299,
+      "company": "Tempus AI, Inc. ",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-10T13:55:18.103",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "VEEV",
+      "total": 14,
+      "avgSent": -0.236,
+      "company": "Veeva Systems Inc.",
+      "nextEPSDate": "2026-03-04T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-11T16:13:15.133",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "WULF",
+      "total": 14,
+      "avgSent": -0.0141,
+      "company": "TeraWulf Inc",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-06T09:59:43.88",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "XYZ",
+      "total": 14,
+      "avgSent": -0.0813,
+      "company": "Block, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-29T16:37:53.42",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "ARRY",
+      "total": 13,
+      "avgSent": 0.1014,
+      "company": "ARRAY Technologies Inc",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-04T16:21:20.597",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "FSLR",
+      "total": 13,
+      "avgSent": -0.3432,
+      "company": "First Solar Inc",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-29T09:44:42.087",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "INTC",
+      "total": 13,
+      "avgSent": 0.0478,
+      "company": "Intel Corp.",
+      "nextEPSDate": "2026-04-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "INTU",
+      "total": 13,
+      "avgSent": -0.761,
+      "company": "Intuit Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-29T16:01:55.623",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "NRG",
+      "total": 13,
+      "avgSent": 0.7225,
+      "company": "NRG Energy, Inc.",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-02T07:18:10.783",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "NTAP",
+      "total": 13,
+      "avgSent": -0.3528,
+      "company": "NetApp",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-04T18:45:32.543",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "ONDS",
+      "total": 13,
+      "avgSent": 0.2513,
+      "company": "Ondas Holdings Inc.",
+      "nextEPSDate": "2026-03-17T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "RCAT",
+      "total": 13,
+      "avgSent": -0.1846,
+      "company": "Red Cat Holdings Inc",
+      "nextEPSDate": "2026-03-18T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-18T08:02:34.127",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "SNPS",
+      "total": 13,
+      "avgSent": -0.313,
+      "company": "Synopsys, Inc.",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-27T16:11:15.777",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "AAOI",
+      "total": 12,
+      "avgSent": -0.0998,
+      "company": "Applied Optoelectronics, Inc.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-05T16:16:09.603",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CODI",
+      "total": 12,
+      "avgSent": -0.2923,
+      "company": "Compass Diversified Holdings",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-18T16:22:16.32",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CRCL",
+      "total": 12,
+      "avgSent": -0.3539,
+      "company": "Circle Internet Group, Inc.",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-01-21T16:20:58.48",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "DEA",
+      "total": 12,
+      "avgSent": 0.0345,
+      "company": "Easterly Government Properties, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-23T06:38:55.993",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "HPQ",
+      "total": 12,
+      "avgSent": -0.4181,
+      "company": "HP Inc.",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-03T07:08:15.513",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "PATH",
+      "total": 12,
+      "avgSent": -0.6315,
+      "company": "UiPath, Inc.",
+      "nextEPSDate": "2026-03-11T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-11T16:12:54.04",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "S",
+      "total": 12,
+      "avgSent": -0.0766,
+      "company": "SentinelOne, Inc. ",
+      "nextEPSDate": "2026-03-12T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-12T16:30:22.933",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "SMR",
+      "total": 12,
+      "avgSent": -0.2558,
+      "company": "NuScale Power Corporation",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-27T07:10:08.8",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "SNDK",
+      "total": 12,
+      "avgSent": 0.2028,
+      "company": "SanDisk Corp.",
+      "nextEPSDate": "2026-04-30T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "DOCN",
+      "total": 11,
+      "avgSent": 0.0392,
+      "company": "DigitalOcean",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-09T16:16:08.293",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "EOSE",
+      "total": 11,
+      "avgSent": -0.2696,
+      "company": "Eos Energy Enterprises, Inc. ",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-11T16:33:11.18",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "KOPN",
+      "total": 11,
+      "avgSent": -0.2734,
+      "company": "Kopin Corp.",
+      "nextEPSDate": "2026-03-11T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": null,
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "MP",
+      "total": 11,
+      "avgSent": 0.3102,
+      "company": "MP Materials Corp.",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-29T16:39:06.567",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "SCL",
+      "total": 11,
+      "avgSent": 0.3357,
+      "company": "Stepan Company",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-03T16:01:13.597",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "AMPX",
+      "total": 10,
+      "avgSent": 0.0288,
+      "company": "Amprius Technologies, Inc.",
+      "nextEPSDate": "2026-03-05T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-19T09:54:55.45",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "ASTS",
+      "total": 10,
+      "avgSent": -0.1442,
+      "company": "AST SpaceMobile, Inc.",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-20T06:58:11.053",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "CEG",
+      "total": 10,
+      "avgSent": 0.1541,
+      "company": "Constellation Energy Group, Inc.",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "CIEN",
+      "total": 10,
+      "avgSent": 0.1913,
+      "company": "Ciena Corporation",
+      "nextEPSDate": "2026-03-05T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-05T09:45:40.143",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "D",
+      "total": 10,
+      "avgSent": 0.103,
+      "company": "Dominion Energy, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-23T07:37:56.887",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "FRPT",
+      "total": 10,
+      "avgSent": -0.1637,
+      "company": "Freshpet, Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-23T06:38:20.97",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "META",
+      "total": 10,
+      "avgSent": 0.1374,
+      "company": "Meta Platforms, Inc.",
+      "nextEPSDate": "2026-04-29T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "NCLH",
+      "total": 10,
+      "avgSent": 0.1172,
+      "company": "Norwegian Cruise Line Holdings Ltd.",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-12T16:21:38.32",
+      "sentiment": "Bullish"
+    },
+    {
+      "ticker": "OKE",
+      "total": 10,
+      "avgSent": -0.1693,
+      "company": "ONEOK Inc.",
+      "nextEPSDate": "2026-02-23T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-01-20T16:28:24.303",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "PLNT",
+      "total": 10,
+      "avgSent": -0.2509,
+      "company": "Planet Fitness, Inc.",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": "2026-02-10T08:28:49.647",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "PLUG",
+      "total": 10,
+      "avgSent": -0.0996,
+      "company": "Plug Power, Inc.",
+      "nextEPSDate": "2026-03-02T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-23T07:07:29.837",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "PSTG",
+      "total": 10,
+      "avgSent": -0.1505,
+      "company": "Pure Storage, Inc.",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-04T18:44:53.013",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "RBRK",
+      "total": 10,
+      "avgSent": -0.0341,
+      "company": "Rubrik, Inc.",
+      "nextEPSDate": "2026-03-12T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": "2026-02-09T00:00:00",
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "SOFI",
+      "total": 10,
+      "avgSent": -0.1906,
+      "company": "SoFi",
+      "nextEPSDate": "2026-05-01T00:00:00",
+      "releaseTime": 1,
+      "confirmDate": null,
+      "sentiment": "Bearish"
+    },
+    {
+      "ticker": "TSLA",
+      "total": 10,
+      "avgSent": 0.2465,
+      "company": "Tesla, Inc.",
+      "nextEPSDate": "2026-04-29T00:00:00",
+      "releaseTime": 3,
+      "confirmDate": null,
+      "sentiment": "Bullish"
+    }
+  ]
+}

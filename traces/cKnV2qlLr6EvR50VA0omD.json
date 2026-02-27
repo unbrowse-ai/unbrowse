@@ -1,0 +1,14 @@
+{
+  "trace_id": "cKnV2qlLr6EvR50VA0omD",
+  "skill_id": "TMV-ifsWWV4y7scn28OGW",
+  "endpoint_id": "1kc3sIiWPzm9WYqdszxxO",
+  "started_at": "2026-02-25T01:19:13.759Z",
+  "completed_at": "2026-02-25T01:19:13.884Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "warnings": {
+      "So11111111111111111111111111111111111111112": []
+    }
+  }
+}

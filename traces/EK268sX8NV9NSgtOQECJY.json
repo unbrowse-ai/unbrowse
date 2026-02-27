@@ -1,0 +1,131 @@
+{
+  "trace_id": "EK268sX8NV9NSgtOQECJY",
+  "skill_id": "npETXG-5DvzZCwrCRS0UM",
+  "endpoint_id": "87KQb9trkl4l7UQ6q_rcI",
+  "started_at": "2026-02-23T15:35:13.128Z",
+  "completed_at": "2026-02-23T15:35:16.280Z",
+  "success": true,
+  "status_code": 200,
+  "result": [
+    {
+      "ticker": "NVDA",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "whisper": 1.56,
+      "releaseTime": 3,
+      "epsTime": "2025-11-19T16:20:00",
+      "total": 484,
+      "epsImpact": 0.0642714150247603,
+      "avgEPSMove": 0.0376
+    },
+    {
+      "ticker": "CRWV",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "whisper": -0.55,
+      "releaseTime": 3,
+      "epsTime": "2025-11-10T16:09:00",
+      "total": 88,
+      "epsImpact": 0.184313725490196,
+      "avgEPSMove": 0.1321
+    },
+    {
+      "ticker": "TTD",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "whisper": 0.6,
+      "releaseTime": 3,
+      "epsTime": "2025-11-06T16:01:00",
+      "total": 62,
+      "epsImpact": 0.161752988047809,
+      "avgEPSMove": 0.191
+    },
+    {
+      "ticker": "CRM",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "whisper": 3.2,
+      "releaseTime": 3,
+      "epsTime": "2025-12-03T16:01:00",
+      "total": 51,
+      "epsImpact": 0.101128753510477,
+      "avgEPSMove": 0.046
+    },
+    {
+      "ticker": "RKLB",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "whisper": -0.04,
+      "releaseTime": 3,
+      "epsTime": "2025-11-10T16:15:00",
+      "total": 43,
+      "epsImpact": 0.13265594129269,
+      "avgEPSMove": 0.0118
+    },
+    {
+      "ticker": "MELI",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "whisper": 12.01,
+      "releaseTime": 3,
+      "epsTime": "2025-10-29T16:00:00",
+      "total": 35,
+      "epsImpact": 0.0901911491484173,
+      "avgEPSMove": 0.0729
+    },
+    {
+      "ticker": "SNOW",
+      "nextEPSDate": "2026-02-25T00:00:00",
+      "whisper": 0.32,
+      "releaseTime": 3,
+      "epsTime": "2025-12-03T16:05:00",
+      "total": 33,
+      "epsImpact": 0.130144927536232,
+      "avgEPSMove": 0.1617
+    },
+    {
+      "ticker": "HD",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "whisper": 2.56,
+      "releaseTime": 1,
+      "epsTime": "2025-11-18T06:00:00",
+      "total": 32,
+      "epsImpact": 0.0500981033355134,
+      "avgEPSMove": 0.0253
+    },
+    {
+      "ticker": "CIFR",
+      "nextEPSDate": "2026-02-24T00:00:00",
+      "whisper": -0.08,
+      "releaseTime": 1,
+      "epsTime": "2025-11-03T07:10:00",
+      "total": 31,
+      "epsImpact": 0.161774744027304,
+      "avgEPSMove": 0.0915
+    },
+    {
+      "ticker": "DELL",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "whisper": 3.55,
+      "releaseTime": 3,
+      "epsTime": "2025-11-25T16:05:00",
+      "total": 29,
+      "epsImpact": 0.113273902020119,
+      "avgEPSMove": 0.0634
+    },
+    {
+      "ticker": "MARA",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "whisper": -0.3,
+      "releaseTime": 3,
+      "epsTime": "2025-11-04T07:10:00",
+      "total": 25,
+      "epsImpact": 0.121706398996236,
+      "avgEPSMove": 0.07
+    },
+    {
+      "ticker": "OPK",
+      "nextEPSDate": "2026-02-26T00:00:00",
+      "whisper": -0.09,
+      "releaseTime": 3,
+      "epsTime": "2025-10-29T16:05:00",
+      "total": 25,
+      "epsImpact": 0.354166666666667,
+      "avgEPSMove": 0.0577
+    }
+  ]
+}

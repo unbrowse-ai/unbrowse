@@ -1,0 +1,64 @@
+{
+  "trace_id": "JGgWOaEDuVovU3fXB9MQy",
+  "skill_id": "D9RXuUW4PZtJG4XziYEHe",
+  "endpoint_id": "ehu4LwL53Wo743U0XjGzK",
+  "started_at": "2026-02-23T14:36:03.449Z",
+  "completed_at": "2026-02-23T14:36:04.980Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": [
+      {
+        "title": "What is Visual Trading?",
+        "heading_1": "What is Visual Trading?",
+        "description": "Options AI puts the Expected Move at the heart of its visual platform – so you don’t just see what a stock has done, but what the market thinks it will do next."
+      },
+      {
+        "title": "Is paper trading included in my trial?",
+        "heading_1": "Is paper trading included in my trial?",
+        "description": "Yes. During your 10 day trial, you’ll have full access to the Options AI platform and all the tools, including visual strategy setup, the ‘what-if’ trade simulator, virtual portfolio and trade manager, as well as access to our team of options experts to answer any questions you may have."
+      },
+      {
+        "title": "How much does Options AI cost?",
+        "heading_1": "How much does Options AI cost?",
+        "description": "$19 per month after an initial 10 day free trial. An annual subscription offers a discount of over 20% when you make a payment of $180 upfront."
+      },
+      {
+        "title": "Do you offer a free trial?",
+        "heading_1": "Do you offer a free trial?",
+        "description": "Yes, you can try out Options AI for 10 days for free. Your subscription is billed after the trial period."
+      },
+      {
+        "title": "What is the expected move?",
+        "heading_1": "What is the expected move?",
+        "description": "The Expected Move (or Implied Move) is the amount that a stock or index is expected to move up or down from its current price in any given timeframe, as derived from option prices."
+      },
+      {
+        "title": "Why is the Expected Move useful?",
+        "heading_1": "Why is the Expected Move useful?",
+        "description": "The Expected Move can help traders in three key ways:"
+      },
+      {
+        "title": "How do I execute trades via Options AI?",
+        "heading_1": "How do I execute trades via Options AI?",
+        "link": "https://trade.tradier.com/optionsai/",
+        "description": "You can execute trades by connecting your Tradier brokerage account. Login to Options AI and view your account page to authorize the connection."
+      },
+      {
+        "title": "I have an idea or feedback. Who can I talk to?",
+        "heading_1": "I have an idea or feedback. Who can I talk to?",
+        "link": "mailto:support@options.ai",
+        "description": "Please email support@options.ai and you will be connected with the right person ASAP. We love ideas and feedback!"
+      },
+      {
+        "link": "https://www.optionsai.com/terms/",
+        "description": "Options AI is not a broker dealer or investment adviser. It does not provide investment, tax or legal advice and does not endorse or recommend the purchase or sale of any particular security or trading strategy."
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.8500000000000001,
+      "source": "html-postprocess"
+    }
+  }
+}

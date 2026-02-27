@@ -1,0 +1,1015 @@
+{
+  "trace_id": "17_IxVu6EnQsSIdWFbt_T",
+  "skill_id": "Vibib8YNlVTO8YbaZ4rl2",
+  "endpoint_id": "tzbA1GDyMvxNEjLiBm-39",
+  "started_at": "2026-02-25T01:46:50.153Z",
+  "completed_at": "2026-02-25T01:46:50.534Z",
+  "success": true,
+  "status_code": 200,
+  "result": [
+    {
+      "id": "D1wZHkfk8d6QsCjF3NTiYHLzsZJ2Qb4Q7WBFFbGuzBLV",
+      "name": "Infraxa",
+      "symbol": "INFRA",
+      "icon": "https://dpiknhejtrohakoouanp.supabase.co/storage/v1/object/public/token-media/clout/56a864ef-e55d-4bb1-afb9-0ef2d02bf8f5-infraxa.png",
+      "decimals": 9,
+      "dev": "Hb6CUSdtJ1ScEqhrGCVxPkN449HZSZPXV9Cd41aN6d5a",
+      "circSupply": 999972850.6199807,
+      "totalSupply": 999972850.6199807,
+      "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "launchpad": "Believe",
+      "metaLaunchpad": "met-dbc",
+      "partnerConfig": "7SXEnhGRXVkR5LEE4o6xXYwcX6QJbFemMS3mbmMRHSDn",
+      "firstPool": {
+        "id": "D1wZHkfk8d6QsCjF3NTiYHLzsZJ2Qb4Q7WBFFbGuzBLV",
+        "createdAt": "2025-10-15T14:49:44Z"
+      },
+      "graduatedPool": "5hRMtU4k8j1gNVdtKP4KSovDV9bRgUX8HV5Ly7uSiMz5",
+      "graduatedAt": "2025-10-15T14:56:47Z",
+      "holderCount": 1262,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 27.123976851387116,
+        "devMigrations": 1,
+        "devMints": 1,
+        "botHoldersCount": 15,
+        "botHoldersPercentage": 1.385750862528124
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "isVerified": true,
+      "tags": [
+        "verified"
+      ],
+      "createdAt": "2025-10-15T14:49:44Z",
+      "fdv": 1121132.6983667393,
+      "mcap": 1121132.6983667393,
+      "usdPrice": 0.0011211631372508163,
+      "priceBlockId": 402512744,
+      "liquidity": 80300.24716232011,
+      "stats1h": {
+        "liquidityChange": 0.00013900686357054827,
+        "volumeChange": 1122.2100586241897,
+        "buyVolume": 4.253016564340372,
+        "sellVolume": 4.256707002788083,
+        "buyOrganicVolume": 1.0577413738870365,
+        "sellOrganicVolume": 1.0523900232653647,
+        "numBuys": 5,
+        "numSells": 4,
+        "numTraders": 3
+      },
+      "stats6h": {
+        "priceChange": 1.9466534238284248,
+        "holderChange": -0.0791765637371338,
+        "liquidityChange": 1.0056881418861843,
+        "volumeChange": -98.7615060795146,
+        "buyVolume": 4.253016564340372,
+        "sellVolume": 5.394640965711642,
+        "buyOrganicVolume": 1.0577413738870365,
+        "sellOrganicVolume": 1.4940669469768895,
+        "numBuys": 5,
+        "numSells": 6,
+        "numTraders": 5
+      },
+      "stats24h": {
+        "priceChange": -3.2260170249296074,
+        "holderChange": -0.15822784810126583,
+        "liquidityChange": -1.221751348646149,
+        "volumeChange": -43.091630481930004,
+        "buyVolume": 994.1988722325974,
+        "sellVolume": 2655.4793737983073,
+        "buyOrganicVolume": 163.0322923442112,
+        "sellOrganicVolume": 471.08508430598715,
+        "numBuys": 28,
+        "numSells": 21,
+        "numTraders": 25,
+        "numNetBuyers": 12
+      },
+      "stats7d": {
+        "priceChange": -29.909131329678583
+      },
+      "stats30d": {
+        "priceChange": -50.8801110697304
+      },
+      "fees": 3.873783926,
+      "bondingCurve": 100,
+      "updatedAt": "2026-02-25T01:22:31.80751003Z"
+    },
+    {
+      "id": "ERPUemEVRJyHyBQTLpTK6TkQ7YELyEsgxCsNCbXUPBUb",
+      "name": "Particular Agent Infrastructure",
+      "symbol": "PAI",
+      "decimals": 6,
+      "dev": "aPp8RU3bE1iKwGm4TrotyqfyRmfDLznmkGkriNEcgHi",
+      "circSupply": 999999999.99878,
+      "totalSupply": 999999999.99878,
+      "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "launchpad": "met-dbc",
+      "metaLaunchpad": "met-dbc",
+      "partnerConfig": "3hDM16sBuWGYELD463oi89CmXNquw1Y8ig2jkhZuYJWf",
+      "firstPool": {
+        "id": "ERPUemEVRJyHyBQTLpTK6TkQ7YELyEsgxCsNCbXUPBUb",
+        "createdAt": "2026-02-21T00:41:10Z"
+      },
+      "graduatedPool": "9WX5Qb4MyLuU9vo2nrAFmyBrfxMTxWkHGpkaUSr4dMGd",
+      "graduatedAt": "2026-02-21T00:47:59Z",
+      "holderCount": 5,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 31.272923824895553,
+        "devMigrations": 1,
+        "devMints": 1,
+        "highSingleOwnership": true
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown"
+      ],
+      "createdAt": "2026-02-21T00:41:10Z",
+      "fdv": 0.4805166157047901,
+      "mcap": 0.4805166157047901,
+      "usdPrice": 4.805166157053763e-10,
+      "priceBlockId": 401744569,
+      "liquidity": 1014.1061495283219,
+      "stats1h": {
+        "liquidityChange": -0.0314188996951896,
+        "buyVolume": 0.042680542698844734,
+        "sellVolume": 0.36716591263201304,
+        "numBuys": 1,
+        "numSells": 1,
+        "numTraders": 1
+      },
+      "stats6h": {
+        "priceChange": 8.922627248624435,
+        "liquidityChange": -0.0314188996951896,
+        "volumeChange": -99.98509178084097,
+        "buyVolume": 0.042680542698844734,
+        "sellVolume": 0.36716591263201304,
+        "numBuys": 1,
+        "numSells": 1,
+        "numTraders": 1
+      },
+      "stats24h": {
+        "priceChange": -99.99955431343105,
+        "holderChange": -58.333333333333336,
+        "liquidityChange": 116.86704954776414,
+        "buyVolume": 1984.2033124833915,
+        "sellVolume": 773.7870875798886,
+        "numBuys": 141,
+        "numSells": 111,
+        "numTraders": 139,
+        "numNetBuyers": 135
+      },
+      "fees": 0.023390117999999974,
+      "bondingCurve": 100,
+      "updatedAt": "2026-02-21T12:06:15Z"
+    },
+    {
+      "id": "F5QkFNWXue8ernJ99N2AsyuBzRAW2vZm3sgvxABipump",
+      "name": "Particular Agent Infrastructure",
+      "symbol": "PAI",
+      "icon": "https://ipfs.io/ipfs/bafkreidpycfsuucoxcecncscqmaw4xz3qy37l7wi5xe4uq3echvk263ooe",
+      "decimals": 6,
+      "twitter": "https://x.com/AnguloTramposo/status/2024984988391784789?s=20",
+      "website": "https://github.com/danielmiessler/Personal_AI_Infrastructure",
+      "dev": "35woRsuEChS5frPqjjP6sJW3TbokfPQ9D3ZqKLg8E1xT",
+      "circSupply": 999656407.209382,
+      "totalSupply": 999656407.209382,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "F5QkFNWXue8ernJ99N2AsyuBzRAW2vZm3sgvxABipump",
+        "createdAt": "2026-02-20T23:10:42Z"
+      },
+      "graduatedPool": "5dSrL6AZnAcuXKJJuSCxVxEUUWY7aTErYXQQ4dCq35qg",
+      "graduatedAt": "2026-02-21T00:30:31Z",
+      "holderCount": 97,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 18.121020329834376,
+        "devMigrations": 1,
+        "devMints": 1,
+        "botHoldersCount": 17,
+        "botHoldersPercentage": 8.777379201506157
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-02-20T23:10:42Z",
+      "fdv": 2419.9345270460835,
+      "mcap": 2419.9345270460835,
+      "usdPrice": 0.0000024207662848893425,
+      "priceBlockId": 402521206,
+      "liquidity": 11311.307747580453,
+      "stats1h": {
+        "priceChange": -0.9758556299515762,
+        "liquidityChange": 0.2706750160493072,
+        "buyVolume": 4.894204081665272,
+        "numBuys": 1
+      },
+      "stats6h": {
+        "priceChange": -0.9758556299515762,
+        "holderChange": -1.0204081632653061,
+        "liquidityChange": -0.32295602523106465,
+        "volumeChange": -7.056964180776353,
+        "buyVolume": 4.894204081665272,
+        "sellVolume": 72.44382048871968,
+        "numBuys": 1,
+        "numSells": 1,
+        "numTraders": 1
+      },
+      "stats24h": {
+        "priceChange": 2.524222278126026,
+        "holderChange": -3.9603960396039604,
+        "liquidityChange": -0.23382499065261855,
+        "volumeChange": 155.08732747705574,
+        "buyVolume": 82.93125843152956,
+        "sellVolume": 111.23507757850027,
+        "numBuys": 3,
+        "numSells": 5,
+        "numTraders": 5
+      },
+      "fees": 14.032574546000008,
+      "bondingCurve": 100,
+      "updatedAt": "2026-02-25T01:33:10.702416009Z"
+    },
+    {
+      "id": "9vaJQDnfoPNNBmnBSeg76udCrttVBSjvwZm4RqP6pump",
+      "name": "Personal Agent Infrastructure",
+      "symbol": "PAI",
+      "icon": "https://ipfs.io/ipfs/Qma9CQR6braJPWD85bdMr3kqeCL1zKPMWK8nZrWjJG3KD7",
+      "decimals": 6,
+      "twitter": "https://x.com/Stockz_Sol/status/2022057208226455656",
+      "website": "https://github.com/danielmiessler/Personal_AI_Infrastructure",
+      "dev": "58Hx4stSpAVZKa1371wGumXMnp2n3tvZWxvicEMK4rSv",
+      "circSupply": 999983807.013473,
+      "totalSupply": 999983807.013473,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "9vaJQDnfoPNNBmnBSeg76udCrttVBSjvwZm4RqP6pump",
+        "createdAt": "2026-02-12T21:17:45Z"
+      },
+      "graduatedPool": "5CcRmbdbdE6BTe9xmn63aLj8uLbGhFHSiscMKrQp9Duu",
+      "graduatedAt": "2026-02-12T21:32:31Z",
+      "holderCount": 15,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.471441820520148,
+        "devMigrations": 1,
+        "devMints": 1
+      },
+      "dexBanner": "https://static.datapi.jup.ag/images/dex-profile/9vaJQDnfoPNNBmnBSeg76udCrttVBSjvwZm4RqP6pump",
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-02-12T21:17:45Z",
+      "fdv": 1463.7347095011853,
+      "mcap": 1463.7347095011853,
+      "usdPrice": 0.0000014637584121214315,
+      "priceBlockId": 402069213,
+      "liquidity": 10039.927012721319,
+      "stats24h": {
+        "holderChange": -6.25,
+        "liquidityChange": -0.5172250532250772,
+        "volumeChange": -100
+      },
+      "stats7d": {
+        "priceChange": -6.909945027935111
+      },
+      "fees": 7.055135923000001,
+      "bondingCurve": 100,
+      "updatedAt": "2026-02-25T01:09:28.702278756Z"
+    },
+    {
+      "id": "Fx34NQVuX7QCb4F4CcALeH8XrzwBVuidAPDg83Dupump",
+      "name": "infrastructure coin",
+      "symbol": "INFRA",
+      "icon": "https://ipfs.io/ipfs/bafkreic5dbw4yiscfb7f3je4d7uy5e2cyksp73i7dx4bhtbeyiaub2jcem",
+      "decimals": 6,
+      "twitter": "https://x.com/cryptocom/status/2020135460433985709",
+      "dev": "BTdxeQCrMd2xhZ6URAoYnNUBUPnTGWumxNyLrA7s6udX",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "Fx34NQVuX7QCb4F4CcALeH8XrzwBVuidAPDg83Dupump",
+        "createdAt": "2026-02-07T14:00:55Z"
+      },
+      "holderCount": 2,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.2366411467702,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-02-07T14:00:55Z",
+      "fdv": 2422.662275268193,
+      "mcap": 2422.662275268193,
+      "usdPrice": 0.000002422662275268193,
+      "priceBlockId": 398682088,
+      "liquidity": 2371.2580459195797,
+      "stats1h": {
+        "holderChange": -33.33333333333333,
+        "liquidityChange": -8.506262244230697,
+        "sellVolume": 3.666637519051052,
+        "numSells": 1
+      },
+      "stats6h": {
+        "holderChange": -33.33333333333333,
+        "liquidityChange": -8.506262244230697,
+        "sellVolume": 3.666637519051052,
+        "numSells": 1
+      },
+      "stats24h": {
+        "holderChange": -33.33333333333333,
+        "liquidityChange": -8.506262244230697,
+        "sellVolume": 3.666637519051052,
+        "numSells": 1
+      },
+      "fees": 0.105495312,
+      "bondingCurve": 0.2983749171229344,
+      "updatedAt": "2026-02-23T17:02:10.46161586Z"
+    },
+    {
+      "id": "4CKVkHXvjocddSpTvvHsd5fhMQGUd9ffGv1DwWZapump",
+      "name": "Sol Agent Trust Infrastructure",
+      "symbol": "SATI",
+      "icon": "https://ipfs.io/ipfs/bafkreidhs73k2bstwbgurlvuib6tskhaipv5fqjqr6eyoluh4g54u3itmq",
+      "decimals": 6,
+      "twitter": "https://x.com/cascade_fyi",
+      "website": "https://sati.cascade.fyi/",
+      "dev": "FG9PGsL9GvkVe8As6Pb7o1EiqdggBHxxhqT9cbn9ANuY",
+      "circSupply": 999999999.999927,
+      "totalSupply": 999999999.999927,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "4CKVkHXvjocddSpTvvHsd5fhMQGUd9ffGv1DwWZapump",
+        "createdAt": "2026-01-14T03:19:24Z"
+      },
+      "holderCount": 1,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.08156006488520595,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-14T03:19:24Z",
+      "liquidity": 4364.749581273059,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "fees": 0.53462695,
+      "bondingCurve": 9.203748874142548e-12,
+      "updatedAt": "2026-02-22T08:16:43Z"
+    },
+    {
+      "id": "45sy7efiSJ5bKYkJjb7EYEsoGbb1AhwPCcuZThbQpump",
+      "name": "Inframarkets",
+      "symbol": "Infra",
+      "icon": "https://ipfs.io/ipfs/bafkreial5bnzoi7v6o56zwo2f3tkro3j3smh3ttvuzuleqrkmljthxxirq",
+      "decimals": 6,
+      "twitter": "https://x.com/Inframarkets#2",
+      "website": "https://inframarkets.io/",
+      "dev": "9cERW55eCK2KsBStX1N5v8iq9bwoysqzrmoPXsVNX48h",
+      "circSupply": 999991393.331621,
+      "totalSupply": 999991393.331621,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "45sy7efiSJ5bKYkJjb7EYEsoGbb1AhwPCcuZThbQpump",
+        "createdAt": "2026-01-16T22:12:08Z"
+      },
+      "holderCount": 4,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.334088081180324,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-16T22:12:08Z",
+      "liquidity": 4335.063414323761,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "fees": 0.8936365030000001,
+      "bondingCurve": 0.0011318121375669676,
+      "updatedAt": "2026-02-24T07:46:37.510653867Z"
+    },
+    {
+      "id": "9S7jKM4KhDEvvUUsZBUnMY8PFXnRmh21EptzpBkUpump",
+      "name": "Inframarkets",
+      "symbol": "Infra",
+      "icon": "https://ipfs.io/ipfs/bafkreifndrk3gqu5rinawrqwhomevbivotdzctr4k62kkmrrvkjqgtdhhi",
+      "decimals": 6,
+      "twitter": "https://x.com/Inframarkets#1",
+      "website": "https://inframarkets.io/",
+      "dev": "25p6c7o1aRzj9bTyNbGg4wTXvCLhwa6YfvAv2gVUr74J",
+      "circSupply": 999999999.999997,
+      "totalSupply": 999999999.999997,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "9S7jKM4KhDEvvUUsZBUnMY8PFXnRmh21EptzpBkUpump",
+        "createdAt": "2026-01-16T19:09:59Z"
+      },
+      "holderCount": 1,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.017897243006600054,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-16T19:09:59Z",
+      "liquidity": 4296.082564557385,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "fees": 0.08364494500000001,
+      "bondingCurve": 3.774758283725532e-13,
+      "updatedAt": "2026-02-23T19:27:27.296601327Z"
+    },
+    {
+      "id": "4KnxX7CorhWDLdJHCps9K3hyaAXEWL274zMEqARdpump",
+      "name": "Inframarkets",
+      "symbol": "Infra",
+      "icon": "https://ipfs.io/ipfs/bafkreichqu2vdaxsefooduswrutirf35g3lz554cczk2ggkcuz2il52wo4",
+      "decimals": 6,
+      "twitter": "https://x.com/Inframarkets",
+      "website": "https://inframarkets.io/",
+      "dev": "GKt79dgduNUbjqLP8pPJ8HSNVfp2qnhivWPySenKcNY",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "4KnxX7CorhWDLdJHCps9K3hyaAXEWL274zMEqARdpump",
+        "createdAt": "2026-01-18T22:45:53Z"
+      },
+      "holderCount": 1,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 1.1544697280741998,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-18T22:45:53Z",
+      "liquidity": 4270.377347147587,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "fees": 0.187162224,
+      "bondingCurve": 0,
+      "updatedAt": "2026-02-19T16:49:38Z"
+    },
+    {
+      "id": "F5p7FdTuCvzPvZ6zeK39rNPJimjfo9v9evZh6CZfpump",
+      "name": "X402 Dex Infra",
+      "symbol": "DF402",
+      "icon": "https://gateway.irys.xyz/H-AAPCevruw7ROFitdef5S6VyG-8ARSWaz0zPyhYvZw",
+      "decimals": 6,
+      "twitter": "https://x.com/i/communities/2005642394285547751",
+      "website": "https://dexfra.fun/",
+      "dev": "4vpjkbzaiwp7EvXvXkf2XwPm4x9qDwgeY2fby3Cbpduv",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "F5p7FdTuCvzPvZ6zeK39rNPJimjfo9v9evZh6CZfpump",
+        "createdAt": "2025-12-29T14:30:34Z"
+      },
+      "holderCount": 3,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 10.0950048294441,
+        "devBalancePercentage": 10.0492447129909,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown"
+      ],
+      "createdAt": "2025-12-29T14:30:34Z",
+      "liquidity": 4236.963222490345,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "bondingCurve": 12.680354917302362,
+      "updatedAt": "2026-02-19T18:19:18Z"
+    },
+    {
+      "id": "5CJKmWt7E6up8DDdaubGoSqm2jebzrCxu4Jp1n9Spump",
+      "name": "Agent Gaming Infra",
+      "symbol": "AGI",
+      "icon": "https://ipfs.io/ipfs/bafkreib5bfc3whghz4wibzmcr7ha4llgpuphktg3wxxfly6itmq6qj45nq",
+      "decimals": 6,
+      "twitter": "https://x.com/AGIFUN_",
+      "website": "https://agentgi.fun/",
+      "dev": "CjMZzqfHHFU4HF4iLfJZiYS1iwZfbS4QmPgZfpKJfs8v",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "5CJKmWt7E6up8DDdaubGoSqm2jebzrCxu4Jp1n9Spump",
+        "createdAt": "2026-01-19T19:11:46Z"
+      },
+      "holderCount": 1,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 9.027481000441199,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-19T19:11:46Z",
+      "liquidity": 4034.1162073528844,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "fees": 0.023828768,
+      "bondingCurve": 0,
+      "updatedAt": "2026-02-23T12:31:13.532528171Z"
+    },
+    {
+      "id": "4bgDFuEbkzrMbeFe4M4wdYJzecVLsnKXMe1iLbgepump",
+      "name": "Foundational Infrastructure Laye",
+      "symbol": "FIL",
+      "icon": "https://metadata.rapidlaunch.io/images/fba5f0bf-d47b-49b1-8ebb-9705b4664209.webp",
+      "decimals": 6,
+      "twitter": "https://x.com/DecryptMedia/status/2009269670449217690",
+      "dev": "HUgpmqL6r4Z4iEZiVuNZ6J6QnAsSZpsL8giVyVtz3QhT",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "4bgDFuEbkzrMbeFe4M4wdYJzecVLsnKXMe1iLbgepump",
+        "createdAt": "2026-01-08T14:24:30Z"
+      },
+      "holderCount": 1,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-08T14:24:30Z",
+      "liquidity": 4018.0698674976607,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "bondingCurve": 0,
+      "updatedAt": "2026-02-25T00:15:29.462081163Z"
+    },
+    {
+      "id": "Et6dkjyMSn9SJrF2Wz4ozqC16q58fdctQM2XmE1Gpump",
+      "name": "DEX INFRA",
+      "symbol": "DEFRA",
+      "icon": "https://gateway.irys.xyz/M3C-8911P3JwpSM1U9wny87tWaeBR2gQwkYRoC73Gdg",
+      "decimals": 6,
+      "twitter": "https://x.com/i/communities/2005305846058901586",
+      "website": "https://dexfra.fun/",
+      "dev": "6pQMroSJ6CSGAKT73BJWSawQyFkoFURSJ2DoAU3ZxZ1L",
+      "circSupply": 999928988.882508,
+      "totalSupply": 999928988.882508,
+      "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "Et6dkjyMSn9SJrF2Wz4ozqC16q58fdctQM2XmE1Gpump",
+        "createdAt": "2025-12-28T15:54:57Z"
+      },
+      "holderCount": 5,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.16240780364392618,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown"
+      ],
+      "createdAt": "2025-12-28T15:54:57Z",
+      "fdv": 3536.4470893824955,
+      "mcap": 3536.4470893824955,
+      "usdPrice": 0.0000035366982342763433,
+      "priceBlockId": 395853149,
+      "liquidity": 3789.1279260076462,
+      "stats30d": {
+        "priceChange": 1.2338610323476713
+      },
+      "fees": 0.000298844,
+      "bondingCurve": 0.19666685091904723,
+      "updatedAt": "2026-02-18T19:23:18Z"
+    },
+    {
+      "id": "8CZH1hSWSdr6AxbeDpZfwUHjRx3PACd3zH8y3tdcpump",
+      "name": "Digital Body and Voice Infra",
+      "symbol": "IO",
+      "icon": "https://ipfs.io/ipfs/QmYXHX7qXkSvpnPBqZtcHQS531bmhR8eypSyoma817jYaz",
+      "decimals": 6,
+      "website": "https://decrypt.co/293420/truth-terminal-integrates-other-ai-models",
+      "dev": "6a7tZxBST4vbKCD4EGtKNoiRW3bJgcLBg7kiQo2PvGyG",
+      "circSupply": 998960300.853724,
+      "totalSupply": 998960300.853724,
+      "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "8CZH1hSWSdr6AxbeDpZfwUHjRx3PACd3zH8y3tdcpump",
+        "createdAt": "2024-11-25T16:58:11Z"
+      },
+      "holderCount": 23,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.8332427261434121,
+        "devBalancePercentage": 1.0010397802048673e-7,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "launchpad"
+      ],
+      "createdAt": "2024-11-25T16:58:11Z",
+      "liquidity": 3774.2513222307807,
+      "stats7d": {
+        "priceChange": -100
+      },
+      "stats30d": {
+        "priceChange": -100
+      },
+      "bondingCurve": 0.8326161557423939,
+      "updatedAt": "2026-02-24T04:49:09.147503192Z"
+    },
+    {
+      "id": "5wMaQbZ9U3dE8TBuZBDarLkGpdP4jWDMCaeTaLTGpump",
+      "name": "Prism Infrastructure",
+      "symbol": "PRISM",
+      "icon": "https://ipfs.io/ipfs/bafybeiencgj2szywvmgbqlhcn7xvcsgya5khilvsquxctt6tnmxuxtgvji",
+      "decimals": 6,
+      "dev": "Hchag4FEoGXJ7eV9HD2EHsZTU4uYCQKXnBjQZGKBHj8N",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "5wMaQbZ9U3dE8TBuZBDarLkGpdP4jWDMCaeTaLTGpump",
+        "createdAt": "2026-02-14T18:52:58Z"
+      },
+      "holderCount": 18,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 8.0334234714816,
+        "devMints": 27
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-02-14T18:52:58Z",
+      "fdv": 2564.8460517746134,
+      "mcap": 2564.8460517746134,
+      "usdPrice": 0.0000025648460517746136,
+      "priceBlockId": 402492939,
+      "liquidity": 2545.177560111309,
+      "stats1h": {
+        "priceChange": 1.6455018969368789,
+        "holderChange": -5.263157894736842,
+        "liquidityChange": 0.9374998062610267,
+        "sellVolume": 1.3374945697010066,
+        "numSells": 1
+      },
+      "stats6h": {
+        "priceChange": 1.6455018969368789,
+        "holderChange": -5.263157894736842,
+        "liquidityChange": 0.9374998062610267,
+        "sellVolume": 1.3374945697010066,
+        "numSells": 1
+      },
+      "stats24h": {
+        "priceChange": 1.6455018969368789,
+        "holderChange": -10,
+        "liquidityChange": -7.8824735068564795,
+        "volumeChange": 1677.1648907947765,
+        "sellVolume": 1.4788722411448791,
+        "numSells": 2,
+        "numTraders": 1
+      },
+      "stats7d": {
+        "priceChange": -7.925891182814568
+      },
+      "fees": 1.541416839,
+      "bondingCurve": 10.113035112679103,
+      "updatedAt": "2026-02-24T22:36:11.701806235Z"
+    },
+    {
+      "id": "2ocStMMvUCArC7VAjidT4KRXuk79cHozigFWArcuKc2g",
+      "name": "VX Umbrella Infra",
+      "symbol": "VXUM",
+      "icon": "https://ipfs.io/ipfs/Qmei4HEXFK4mNfyZUAyV5o1cYbb9DNRtgjoRUz87i97vFF",
+      "decimals": 6,
+      "dev": "3bggEJsC8NCDbzrhVSxDK3ayrvvNbaDod1S3Bgk1qYzu",
+      "circSupply": 949998337.215958,
+      "totalSupply": 949998337.215958,
+      "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "firstPool": {
+        "id": "E3voeyNUGg42Pg42ChtFdDufokmzBBFmsx9JhLVUu38r",
+        "createdAt": "2025-12-16T17:04:03Z"
+      },
+      "holderCount": 78,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 99.71688463643241,
+        "devBalancePercentage": 58.31304090736196,
+        "devMints": 1,
+        "highSingleOwnership": true
+      },
+      "dexBanner": "https://static.datapi.jup.ag/images/dex-profile/2ocStMMvUCArC7VAjidT4KRXuk79cHozigFWArcuKc2g",
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown"
+      ],
+      "createdAt": "2025-12-14T08:17:55Z",
+      "fdv": 2100028.009189499,
+      "mcap": 2100028.009189499,
+      "usdPrice": 0.0022105596682871994,
+      "priceBlockId": 400023794,
+      "liquidity": 3631.681700379603,
+      "stats24h": {
+        "holderChange": 1.2987012987012987,
+        "liquidityChange": 39.07313123819403
+      },
+      "stats30d": {
+        "priceChange": 34.132329934785844
+      },
+      "fees": 0.0012800640000000002,
+      "updatedAt": "2026-02-23T08:54:48Z"
+    },
+    {
+      "id": "ER1H5rqfmAfBAs7VNHNq5uznxwUDk2q4c8EMBpuyaNcA",
+      "name": "Molt Sentience Infracstructure",
+      "symbol": "Promitheus",
+      "icon": "https://desperate-moccasin-minnow.myfilebase.com/ipfs/QmZkerXxuYd8tSyiFAeBS4ckwV3rdi5B6uX6tMPz8R5t29",
+      "decimals": 6,
+      "twitter": "https://x.com/FriendlyDevv/status/2017468204554326166",
+      "dev": "8qf973vA1y56pccTTP83zxK8qShkHdRsvtCx3mbNewTv",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "ER1H5rqfmAfBAs7VNHNq5uznxwUDk2q4c8EMBpuyaNcA",
+        "createdAt": "2026-01-31T05:23:46Z"
+      },
+      "holderCount": 1,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.0714856762015,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-31T05:23:46Z",
+      "fdv": 3301.436545142373,
+      "mcap": 3301.436545142373,
+      "usdPrice": 0.000003301436545142373,
+      "priceBlockId": 397066156,
+      "liquidity": 3540.310501317859,
+      "fees": 0.030044421999999998,
+      "bondingCurve": 0,
+      "updatedAt": "2026-02-21T21:55:41Z"
+    },
+    {
+      "id": "C7pZoWDu3ZVAgPYsoKMv8BJiXkZ6DXkdSYkLDe8Mbasb",
+      "name": "Molt Sentience Infracstructure",
+      "symbol": "Promitheus",
+      "icon": "https://desperate-moccasin-minnow.myfilebase.com/ipfs/QmZkerXxuYd8tSyiFAeBS4ckwV3rdi5B6uX6tMPz8R5t29",
+      "decimals": 6,
+      "twitter": "https://x.com/FriendlyDevv/status/2017468204554326166",
+      "dev": "8qf973vA1y56pccTTP83zxK8qShkHdRsvtCx3mbNewTv",
+      "circSupply": 1000000000,
+      "totalSupply": 1000000000,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "C7pZoWDu3ZVAgPYsoKMv8BJiXkZ6DXkdSYkLDe8Mbasb",
+        "createdAt": "2026-01-31T05:24:04Z"
+      },
+      "holderCount": 1,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 6.6285714223523,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-31T05:24:04Z",
+      "fdv": 3516.0880468468445,
+      "mcap": 3516.0880468468445,
+      "usdPrice": 0.0000035160880468468446,
+      "priceBlockId": 397065702,
+      "liquidity": 3539.868521036959,
+      "fees": 0.000250002,
+      "bondingCurve": 0,
+      "updatedAt": "2026-02-21T21:55:41Z"
+    },
+    {
+      "id": "EmgYTxwXr9CPms7v3a13teU83zpeiLtysxj7Jf98pump",
+      "name": "Velox Infrastructure",
+      "symbol": "VELOX",
+      "icon": "https://ipfs.io/ipfs/bafybeig3yo2cc7lq6macdtlku5pqp3fco6dp5xnz2lnmc6sus7vedhpjv4",
+      "decimals": 6,
+      "dev": "Hchag4FEoGXJ7eV9HD2EHsZTU4uYCQKXnBjQZGKBHj8N",
+      "circSupply": 999999372.16256,
+      "totalSupply": 999999372.16256,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "EmgYTxwXr9CPms7v3a13teU83zpeiLtysxj7Jf98pump",
+        "createdAt": "2026-02-12T19:55:50Z"
+      },
+      "holderCount": 17,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 2.1467115253182687,
+        "devMints": 25
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-02-12T19:55:50Z",
+      "fdv": 2270.4432400272835,
+      "mcap": 2270.4432400272835,
+      "usdPrice": 0.00000227044466549745,
+      "priceBlockId": 402442146,
+      "liquidity": 2521.4168367988027,
+      "stats1h": {
+        "priceChange": -5.417515699538886,
+        "holderChange": -5.555555555555555,
+        "liquidityChange": -0.05447226340513082,
+        "sellVolume": 1.300546246948081,
+        "numSells": 1
+      },
+      "stats6h": {
+        "priceChange": -5.417515699538886,
+        "holderChange": -5.555555555555555,
+        "liquidityChange": -0.05447226340513082,
+        "sellVolume": 1.300546246948081,
+        "numSells": 1
+      },
+      "stats24h": {
+        "priceChange": -5.417515699538886,
+        "holderChange": -5.555555555555555,
+        "liquidityChange": -0.05447226340513082,
+        "sellVolume": 1.300546246948081,
+        "numSells": 1
+      },
+      "stats7d": {
+        "priceChange": -9.87194013494152
+      },
+      "fees": 1.7186867479999999,
+      "bondingCurve": 2.710078268348637,
+      "updatedAt": "2026-02-24T23:06:52.101281565Z"
+    },
+    {
+      "id": "3hnZLfpqK1DpCSzCQ7TMtYYWk8LVUcCVrjffXZMQpump",
+      "name": "THE INFRASTRUCTURE ANNEXATION",
+      "symbol": "PROTOCOL 1",
+      "icon": "https://ipfs.io/ipfs/bafybeie5mqigfwaq7lb4c2dyj2safre365dvquerzghlb4gppjur3rek7q",
+      "decimals": 6,
+      "twitter": "https://x.com/Emelyacooks/status/2017598038009663518",
+      "website": "https://www.moltbook.com/post/77cbc28e-cc20-442b-ab22-b840f7773157",
+      "dev": "DLivSEcRzKNPAFdgompm8YYdkPFVg8zTWQYsQzAvhwdk",
+      "circSupply": 999999338.434302,
+      "totalSupply": 999999338.434302,
+      "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "launchpad": "pump.fun",
+      "firstPool": {
+        "id": "3hnZLfpqK1DpCSzCQ7TMtYYWk8LVUcCVrjffXZMQpump",
+        "createdAt": "2026-01-31T13:57:37Z"
+      },
+      "holderCount": 4,
+      "audit": {
+        "mintAuthorityDisabled": true,
+        "freezeAuthorityDisabled": true,
+        "topHoldersPercentage": 0.13520890607217434,
+        "devMints": 1
+      },
+      "organicScore": 0,
+      "organicScoreLabel": "low",
+      "tags": [
+        "unknown",
+        "token-2022"
+      ],
+      "createdAt": "2026-01-31T13:57:37Z",
+      "fdv": 3049.142446205362,
+      "mcap": 3049.142446205362,
+      "usdPrice": 0.0000030491444634147473,
+      "priceBlockId": 397161523,
+      "liquidity": 3267.818827797238,
+      "fees": 0.529649615,
+      "bondingCurve": 0.0006461642978128346,
+      "updatedAt": "2026-02-22T14:38:31Z"
+    }
+  ]
+}

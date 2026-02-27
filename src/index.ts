@@ -14,30 +14,15 @@ try {
   execSync("pkill -f chrome-headless-shell", { stdio: "ignore" });
 } catch { /* no orphans — ok */ }
 
-// Ensure browser engine is installed (agent-browser needs Chromium binaries via playwright)
+// Ensure browser engine is installed (agent-browser needs Chromium binaries)
 try {
   const { chromium } = await import("playwright-core");
   if (!existsSync(chromium.executablePath())) {
     console.log("[startup] Chromium not found, installing...");
-    // agent-browser install shells out to `npx playwright install` internally,
-    // so call playwright directly to support bun-only environments
-    const cmds = [
-      "bunx playwright install chromium",
-      "npx playwright install chromium",
-    ];
-    let installed = false;
-    for (const cmd of cmds) {
-      try {
-        execSync(cmd, { stdio: "inherit", timeout: 120_000 });
-        installed = true;
-        break;
-      } catch { /* try next */ }
-    }
-    if (!installed) throw new Error("All install methods failed");
+    execSync("npx agent-browser install", { stdio: "inherit", timeout: 120_000 });
   }
-} catch (e) {
-  console.warn(`[startup] WARNING: Could not install browser engine: ${e}`);
-  console.warn("[startup] Run manually: bunx playwright install chromium");
+} catch {
+  console.warn("[startup] WARNING: Could not verify/install browser engine. Run: npx agent-browser install");
 }
 
 // Auto-register with backend if no API key is configured

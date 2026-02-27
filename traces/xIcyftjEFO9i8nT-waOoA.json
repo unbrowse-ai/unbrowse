@@ -1,0 +1,10 @@
+{
+  "trace_id": "xIcyftjEFO9i8nT-waOoA",
+  "skill_id": "are_jhxclgDznaAmVH-iV",
+  "endpoint_id": "rrc_NMsTbOeIosj47L-J4",
+  "started_at": "2026-02-23T14:43:58.396Z",
+  "completed_at": "2026-02-23T14:43:58.934Z",
+  "success": false,
+  "status_code": 400,
+  "error": "HTTP 400"
+}
