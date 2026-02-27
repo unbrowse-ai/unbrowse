@@ -85,6 +85,36 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent });
       saveTrace(execResult.trace);
+
+      // Auto-recovery: if endpoint returned 404 (stale), re-capture via orchestrator
+      if (
+        execResult.trace.status_code === 404 &&
+        skill.domain &&
+        skill.intent_signature &&
+        skill.execution_type !== "browser-capture"
+      ) {
+        try {
+          const freshResult = await resolveAndExecute(
+            intent || skill.intent_signature,
+            { ...(params ?? {}), url: `https://${skill.domain}` },
+            { url: `https://${skill.domain}` },
+            projection,
+            { confirm_unsafe, dry_run, intent: intent || skill.intent_signature }
+          );
+          saveTrace(freshResult.trace);
+          return reply.send({
+            ...freshResult,
+            _recovery: {
+              reason: "stale_endpoint_404",
+              original_skill_id: skill_id,
+              message: "Original endpoint returned 404. Auto-recovered with fresh capture.",
+            },
+          });
+        } catch {
+          // Recovery failed — return original 404 with guidance
+        }
+      }
+
       return reply.send(execResult);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
