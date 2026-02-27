@@ -71,6 +71,64 @@ export interface RawRequest {
   timestamp: string;
 }
 
+/**
+ * Adaptive content-ready wait. Replaces flat 5s timeout.
+ * Phase 1: 2s initial settle
+ * Phase 2: If Cloudflare challenge detected, poll up to 15s for clearance
+ * Phase 3: Wait for network idle (SPA API calls to complete)
+ * Worst case: 2 + 15 + 8 = 25s, well within CAPTURE_TIMEOUT_MS (90s).
+ */
+async function waitForContentReady(browser: InstanceType<typeof BrowserManager>): Promise<void> {
+  // Phase 1: Initial settle — let the page start rendering
+  await new Promise((r) => setTimeout(r, 2000));
+
+  // Phase 2: Cloudflare challenge detection and wait
+  try {
+    const page = browser.getPage();
+    const hasCfChallenge = await page.evaluate(() => {
+      const html = document.documentElement.innerHTML;
+      return (
+        html.includes("challenge-platform") ||
+        html.includes("cf_chl_opt") ||
+        document.title === "Just a moment..." ||
+        !!document.querySelector("#challenge-running, #challenge-form, .cf-browser-verification")
+      );
+    });
+
+    if (hasCfChallenge) {
+      log("capture", "Cloudflare challenge detected, waiting for clearance...");
+      const CF_POLL_INTERVAL = 1500;
+      const CF_MAX_WAIT = 15000;
+      const cfStart = Date.now();
+
+      while (Date.now() - cfStart < CF_MAX_WAIT) {
+        await new Promise((r) => setTimeout(r, CF_POLL_INTERVAL));
+        const stillBlocked = await page.evaluate(() => {
+          return (
+            document.title === "Just a moment..." ||
+            !!document.querySelector("#challenge-running, #challenge-form, .cf-browser-verification")
+          );
+        }).catch(() => false);
+
+        if (!stillBlocked) {
+          log("capture", `Cloudflare cleared after ${Date.now() - cfStart}ms`);
+          break;
+        }
+      }
+    }
+  } catch {
+    // Page not available — skip CF detection
+  }
+
+  // Phase 3: Wait for network idle (SPA API calls to settle)
+  try {
+    const page = browser.getPage();
+    await page.waitForLoadState("networkidle", { timeout: 8000 });
+  } catch {
+    // networkidle timeout is non-fatal — some sites never fully idle
+  }
+}
+
 export async function captureSession(
   url: string,
   authHeaders?: Record<string, string>,
@@ -184,8 +242,8 @@ export async function captureSession(
 
   await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
 
-  // Wait longer for SPA XHR/fetch calls to settle (SPAs like Google Trends need more time)
-  await new Promise((r) => setTimeout(r, 5000));
+  // Adaptive wait: handle Cloudflare challenges + SPA content loading
+  await waitForContentReady(browser);
 
   // BUG-008: Share Cloudflare clearance cookies across subdomains
   try {
