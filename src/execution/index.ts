@@ -376,8 +376,8 @@ export async function executeEndpoint(
     }
   }
 
-  // BUG-006 fix: fallback to domain vault cookies when auth_profile_ref is absent or yields nothing
-  if (cookies.length === 0) {
+  // BUG-006 fix: fallback to domain vault cookies — only check if skill has auth hints
+  if (cookies.length === 0 && skill.auth_profile_ref) {
     try {
       const epDomain = new URL(endpoint.url_template).hostname;
       const domainCookies = await getStoredAuth(epDomain);
@@ -434,7 +434,7 @@ export async function executeEndpoint(
   // Use browser only when cookies/auth are required or endpoint needs page context
   const isSafe = endpoint.method === "GET";
   const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0 || !!endpoint.dom_extraction;
-  const isJsonEndpoint = /\.(json|xml|csv)(\?|$)|\/api\//i.test(url) || (endpoint.response_schema && !endpoint.dom_extraction);
+  const isJsonEndpoint = /\.(json|xml|csv)(\?|$)|\/(api|v\d+)\//i.test(url) || (endpoint.response_schema && !endpoint.dom_extraction);
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     const headers: Record<string, string> = {
@@ -540,8 +540,8 @@ export async function executeEndpoint(
     }
   }
 
-  // Record execution for reliability scoring (backend handles score update atomically)
-  await recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
+  // Record execution for reliability scoring — fire-and-forget, don't block response
+  recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
   // Apply field projection if requested
   let resultData = data;
