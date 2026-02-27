@@ -1,3 +1,4 @@
+import { nanoid } from "nanoid";
 import * as client from "../client/index.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
 
@@ -15,12 +16,28 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<SkillManifest> {
-  const { warnings: _, ...backendFields } = await client.publishSkill(draft);
-  // Merge draft with backend response — avoids read-after-write race
-  const skill = { ...draft, ...backendFields } as SkillManifest;
-  // Cache locally so the skill is immediately executable despite backend eventual consistency
-  client.cachePublishedSkill(skill);
-  return skill;
+  // Pre-cache locally so the skill is immediately available even if the remote publish
+  // fails or EmergentDB hasn't indexed it yet (eventual consistency).
+  const now = new Date().toISOString();
+  const preCache = {
+    ...draft,
+    skill_id: draft.skill_id ?? nanoid(),
+    created_at: now,
+    updated_at: now,
+    version: draft.version ?? "1.0.0",
+  } as SkillManifest;
+  client.cachePublishedSkill(preCache);
+
+  try {
+    const { warnings: _, ...backendFields } = await client.publishSkill(draft);
+    // Merge draft with backend response — avoids read-after-write race
+    const skill = { ...draft, ...backendFields } as SkillManifest;
+    client.cachePublishedSkill(skill);
+    return skill;
+  } catch (err) {
+    console.error("[publish] remote publish failed, using local cache:", (err as Error).message);
+    return preCache;
+  }
 }
 
 export async function updateEndpointScore(
