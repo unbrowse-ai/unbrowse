@@ -139,6 +139,41 @@ export function parseStructured(html: string): ExtractedStructure[] {
     results.push({ type: "meta", data: meta, element_count: Object.keys(meta).length });
   }
 
+  // --- Itemlist tables (HN-style: tr.athing with story rows) ---
+  $("table").each((_, table) => {
+    const $table = $(table);
+    const athings = $table.find("tr.athing");
+    if (athings.length >= 3) {
+      const items: Record<string, string>[] = [];
+      athings.each((_, tr) => {
+        const $tr = $(tr);
+        const item: Record<string, string> = {};
+        const titleLink = $tr.find("span.titleline > a, td.title > span > a, td.title a.storylink").first();
+        if (titleLink.length) {
+          item.title = titleLink.text().trim();
+          item.link = titleLink.attr("href") || "";
+        }
+        const rank = $tr.find("span.rank").text().trim().replace(".", "");
+        if (rank) item.rank = rank;
+        const $sub = $tr.next("tr");
+        const score = $sub.find("span.score").text().trim();
+        if (score) item.score = score;
+        const age = $sub.find("span.age").text().trim();
+        if (age) item.age = age;
+        const author = $sub.find("a.hnuser").text().trim();
+        if (author) item.author = author;
+        const commentsLink = $sub.find("a").last().text().trim();
+        if (commentsLink && commentsLink.includes("comment")) item.comments = commentsLink;
+        if (item.title) items.push(item);
+      });
+      if (items.length >= 3) {
+        results.push({ type: "itemlist", data: items, element_count: items.length });
+        $table.remove();
+        return;
+      }
+    }
+  });
+
   // --- Tables ---
   $("table").each((_, table) => {
     const rows = parseTable($, $(table));
@@ -341,6 +376,15 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     if (text && text.length < 300) fields[i === 0 ? "title" : `heading_${i}`] = text;
   });
 
+  // Fallback title: strong/bold text or [class*='name']
+  if (!fields["title"]) {
+    const strong = $el.find("strong, b, [class*='name']").first();
+    if (strong.length) {
+      const text = strong.text().trim();
+      if (text && text.length < 200) fields["title"] = text;
+    }
+  }
+
   // Extract links
   const links: string[] = [];
   $el.find("a[href]").each((_, a) => {
@@ -350,6 +394,14 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     }
   });
   if (links.length > 0) fields["link"] = links[0];
+
+  // Fallback title from link text
+  if (!fields["title"] && links.length > 0) {
+    const linkText = $el.find("a").first().text().trim();
+    if (linkText && linkText.length > 2 && linkText.length < 200 && !/^(read|more|view|see|click)/i.test(linkText)) {
+      fields["title"] = linkText;
+    }
+  }
 
   // Extract images
   const img = $el.find("img[src]").first();
@@ -465,6 +517,7 @@ function scoreRelevance(structure: ExtractedStructure, intentWords: string[]): n
 
   // Bonus for highly structured data
   if (structure.type === "json-ld") score += 3;
+  if (structure.type === "itemlist") score += 3;
   if (structure.type === "table") score += 2;
   if (structure.type === "repeated-elements") score += 1;
   if (structure.type === "key-value") score += 1;
@@ -481,6 +534,9 @@ function computeConfidence(structure: ExtractedStructure, relevanceScore: number
   // Base confidence from structure type
   switch (structure.type) {
     case "json-ld":
+      confidence = 0.9;
+      break;
+    case "itemlist":
       confidence = 0.9;
       break;
     case "table":
