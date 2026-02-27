@@ -427,19 +427,42 @@ export async function executeEndpoint(
       // URL parse failure — skip query merge
     }
   }
-  const url = interpolate(urlTemplate, mergedParams);
+  let url = interpolate(urlTemplate, mergedParams);
   const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
-  // Fast path: server-side fetch for simple JSON endpoints (no browser needed)
-  // Use browser only when cookies/auth are required or endpoint needs page context
   const isSafe = endpoint.method === "GET";
-  const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0 || !!endpoint.dom_extraction;
-  const isJsonEndpoint = /\.(json|xml|csv)(\?|$)|\/api\//i.test(url) || (endpoint.response_schema && !endpoint.dom_extraction);
+
+  // Append leftover params as query string on GET requests.
+  // Params already consumed by path_params, endpoint.query, or {template} vars are skipped.
+  if (isSafe && Object.keys(params).length > 0) {
+    const consumedKeys = new Set<string>([
+      "endpoint_id",
+      ...Object.keys(endpoint.path_params ?? {}),
+      ...Object.keys(endpoint.query ?? {}),
+    ]);
+    // Also mark keys that appeared as {var} in the original URL template
+    const templateVarRe = /\{(\w+)\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = templateVarRe.exec(endpoint.url_template)) !== null) {
+      consumedKeys.add(m[1]);
+    }
+    const leftover = Object.entries(params).filter(([k]) => !consumedKeys.has(k) && params[k] != null);
+    if (leftover.length > 0) {
+      try {
+        const u = new URL(url);
+        for (const [k, v] of leftover) {
+          u.searchParams.set(k, String(v));
+        }
+        url = u.toString();
+      } catch { /* URL parse failure — skip */ }
+    }
+  }
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     const headers: Record<string, string> = {
       ...endpoint.headers_template,
-      "accept": "application/json",
+      ...(endpoint.dom_extraction ? {} : { "accept": "application/json" }),
+      ...authHeaders,
     };
     // Strip browser-only headers that cause issues server-side
     delete headers["sec-ch-ua"];
@@ -447,7 +470,13 @@ export async function executeEndpoint(
     delete headers["sec-ch-ua-platform"];
     delete headers["upgrade-insecure-requests"];
 
-    const res = await fetch(url, { method: endpoint.method, headers, body: body ? JSON.stringify(body) : undefined });
+    // Inject cookies as Cookie header — same as a browser would send
+    if (cookies.length > 0) {
+      const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      headers["cookie"] = cookieStr;
+    }
+
+    const res = await fetch(url, { method: endpoint.method, headers, body: body ? JSON.stringify(body) : undefined, redirect: "follow" });
     let data: unknown;
     const text = await res.text();
     try { data = JSON.parse(text); } catch { data = text; }
@@ -464,27 +493,25 @@ export async function executeEndpoint(
   );
 
   let result: { data: unknown; status: number; trace_id: string };
-  if (isJsonEndpoint && !needsBrowser) {
-    // Try server-side first — falls back to browser if it fails
+  if (isSafe) {
+    // Fetch-first for all safe GETs — fall back to browser if SPA shell or error
     try {
-      result = isSafe
-        ? await withRetry(serverFetch, (r) => isRetryableStatus(r.status))
-        : await serverFetch();
-      // If server fetch returned HTML (e.g. Cloudflare challenge), fall back to browser
+      result = await withRetry(serverFetch, (r) => isRetryableStatus(r.status));
+      // If we got HTML, check if it's a usable SSR page or an empty SPA shell
       if (typeof result.data === "string" && isHtml(result.data)) {
-        result = isSafe
-          ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
-          : await browserCall();
+        if (isSpaShell(result.data)) {
+          // SPA shell — need browser to render JavaScript
+          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        }
+        // Otherwise it's SSR HTML — the HTML post-processing below will extract data
       }
     } catch {
-      result = isSafe
-        ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
-        : await browserCall();
+      result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
     }
   } else {
-    result = isSafe
-      ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
-      : await browserCall();
+    // Non-GET: server fetch if no browser deps, otherwise browser
+    const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0;
+    result = needsBrowser ? await browserCall() : await serverFetch();
   }
   const { status, trace_id } = result;
   let data = result.data;
@@ -540,8 +567,8 @@ export async function executeEndpoint(
     }
   }
 
-  // Record execution for reliability scoring (backend handles score update atomically)
-  await recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
+  // Record execution for reliability scoring (fire-and-forget — don't block response)
+  recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
   // Apply field projection if requested
   let resultData = data;
@@ -614,6 +641,14 @@ function interpolateObj(
  */
 // --- BM25 scoring for intent→endpoint relevance ---
 
+/** Minimal stemmer: strip trailing s/es for plural matching */
+function stem(word: string): string {
+  if (word.endsWith("ies") && word.length > 4) return word.slice(0, -3) + "y";
+  if (word.endsWith("es") && word.length > 4) return word.slice(0, -2);
+  if (word.endsWith("s") && !word.endsWith("ss") && word.length > 3) return word.slice(0, -1);
+  return word;
+}
+
 const BM25_K1 = 1.2;
 const BM25_B = 0.75;
 const STOPWORDS = new Set([
@@ -640,12 +675,13 @@ function tokenize(text: string): string[] {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
 }
 
-/** Expand intent tokens with synonyms for better matching */
+/** Expand intent tokens with synonyms + stemmed variants for better matching */
 function expandQuery(tokens: string[]): string[] {
   const expanded = new Set(tokens);
   for (const t of tokens) {
-    const syns = SYNONYMS[t];
-    if (syns) for (const s of syns) expanded.add(s);
+    expanded.add(stem(t));
+    const syns = SYNONYMS[t] ?? SYNONYMS[stem(t)];
+    if (syns) for (const s of syns) { expanded.add(s); expanded.add(stem(s)); }
   }
   return [...expanded];
 }
@@ -674,7 +710,7 @@ function endpointToTokens(ep: EndpointDescriptor): string[] {
       if (val?.properties) tokens.push(...Object.keys(val.properties));
     }
   }
-  return tokens.map((t) => t.toLowerCase());
+  return tokens.map((t) => stem(t.toLowerCase()));
 }
 
 function bm25Score(query: string[], doc: string[], avgDl: number, docCount: number, docFreqs: Map<string, number>): number {
@@ -752,8 +788,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   }
   const docCount = docs.length;
 
-  // Meta/support path patterns — not primary data
-  const META_PATHS = /\/(annotation|insight|sentiment|vote|portfolio|summary_button|summary_card|tagmetric|quick_add|notifications?|preferences|settings|onboarding)/i;
+  // Meta/support/promo path patterns — not primary data
+  const META_PATHS = /\/(annotation|insight|sentiment|vote|portfolio|summary_button|summary_card|tagmetric|quick_add|notifications?|preferences|settings|onboarding|public\/active|remoteConfig|banner\/metadata|embedded-wallets|glow\/get-rendered)/i;
 
   // Data format indicators
   const DATA_INDICATORS = /\.(json|xml|csv)(\?|$)|\/api\//i;
@@ -853,4 +889,28 @@ function isHtml(text: string): boolean {
   return trimmed.startsWith("<!doctype html") ||
     trimmed.startsWith("<html") ||
     (trimmed.includes("<head") && trimmed.includes("<body"));
+}
+
+/**
+ * Detect if HTML is an empty SPA shell that needs JS to render.
+ * SPA shells have a near-empty body (just a <div id="root"> or similar)
+ * with all content loaded by JavaScript bundles.
+ * SSR pages have substantial text content in the body already.
+ */
+function isSpaShell(html: string): boolean {
+  // Quick heuristic: extract body content and check if it has meaningful text
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (!bodyMatch) return true; // no body at all — treat as SPA shell
+  const body = bodyMatch[1];
+
+  // Strip script/style tags and HTML tags to get raw text
+  const text = body
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // SPA shells have very little text — just "Loading..." or empty divs
+  return text.length < 200;
 }
