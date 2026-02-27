@@ -2,6 +2,12 @@
   "name": "unbrowse",
   "private": true,
   "workspaces": ["packages/*", "backend", "frontend"],
+  "scripts": {
+    "prepare": "husky",
+    "eval": "bun evals/perf.ts",
+    "eval:full": "bun evals/perf.ts --full",
+    "eval:update": "bun evals/perf.ts --update-baseline"
+  },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
@@ -10,5 +16,8 @@
     "dotenv": "^17.3.1",
     "fastify": "^5.7.4",
     "nanoid": "^5.1.6"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }

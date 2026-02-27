@@ -36,6 +36,97 @@ const CARD_SELECTORS = [
 ];
 
 // ---------------------------------------------------------------------------
+// extractSPAData — parse SPA-embedded JSON before cleanDOM strips scripts
+// ---------------------------------------------------------------------------
+
+interface SPAExtraction extends ExtractedStructure {
+  type: "spa-nextjs" | "spa-nuxt" | "spa-initial-state" | "spa-preloaded-state";
+}
+
+/**
+ * Extract structured data embedded by SPA frameworks BEFORE cleanDOM strips scripts.
+ * Must be called on raw HTML.
+ */
+export function extractSPAData(html: string): SPAExtraction[] {
+  const results: SPAExtraction[] = [];
+
+  // --- Next.js: <script id="__NEXT_DATA__" type="application/json"> ---
+  const nextDataMatch = html.match(/<script\s+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (nextDataMatch) {
+    try {
+      const parsed = JSON.parse(nextDataMatch[1]);
+      const pageProps = parsed?.props?.pageProps;
+      if (pageProps && typeof pageProps === "object" && Object.keys(pageProps).length > 0) {
+        results.push({
+          type: "spa-nextjs",
+          data: pageProps,
+          element_count: countDataElements(pageProps),
+        });
+      }
+    } catch { /* malformed __NEXT_DATA__ */ }
+  }
+
+  // --- Nuxt.js: window.__NUXT__={...} or <script>window.__NUXT__=... ---
+  const nuxtMatch = html.match(/window\.__NUXT__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
+  if (nuxtMatch) {
+    try {
+      const parsed = JSON.parse(nuxtMatch[1]);
+      const data = parsed?.data?.[0] ?? parsed?.state ?? parsed;
+      if (data && typeof data === "object" && Object.keys(data).length > 0) {
+        results.push({
+          type: "spa-nuxt",
+          data,
+          element_count: countDataElements(data),
+        });
+      }
+    } catch { /* malformed __NUXT__ — often not pure JSON, skip */ }
+  }
+
+  // --- Generic: window.__INITIAL_STATE__ ---
+  const initialStateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
+  if (initialStateMatch) {
+    try {
+      const parsed = JSON.parse(initialStateMatch[1]);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+        results.push({
+          type: "spa-initial-state",
+          data: parsed,
+          element_count: countDataElements(parsed),
+        });
+      }
+    } catch { /* malformed __INITIAL_STATE__ */ }
+  }
+
+  // --- Generic: window.__PRELOADED_STATE__ ---
+  const preloadedMatch = html.match(/window\.__PRELOADED_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
+  if (preloadedMatch) {
+    try {
+      const parsed = JSON.parse(preloadedMatch[1]);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+        results.push({
+          type: "spa-preloaded-state",
+          data: parsed,
+          element_count: countDataElements(parsed),
+        });
+      }
+    } catch { /* malformed __PRELOADED_STATE__ */ }
+  }
+
+  return results;
+}
+
+/** Count meaningful data elements in a nested structure */
+function countDataElements(obj: unknown, depth = 0): number {
+  if (depth > 5) return 0;
+  if (Array.isArray(obj)) return obj.reduce((sum, item) => sum + Math.max(1, countDataElements(item, depth + 1)), 0);
+  if (obj && typeof obj === "object") {
+    const keys = Object.keys(obj);
+    return keys.reduce((sum, k) => sum + countDataElements((obj as Record<string, unknown>)[k], depth + 1), 0);
+  }
+  return 1;
+}
+
+// ---------------------------------------------------------------------------
 // cleanDOM
 // ---------------------------------------------------------------------------
 
@@ -138,6 +229,41 @@ export function parseStructured(html: string): ExtractedStructure[] {
   if (Object.keys(meta).length > 0) {
     results.push({ type: "meta", data: meta, element_count: Object.keys(meta).length });
   }
+
+  // --- Itemlist tables (HN-style: tr.athing with story rows) ---
+  $("table").each((_, table) => {
+    const $table = $(table);
+    const athings = $table.find("tr.athing");
+    if (athings.length >= 3) {
+      const items: Record<string, string>[] = [];
+      athings.each((_, tr) => {
+        const $tr = $(tr);
+        const item: Record<string, string> = {};
+        const titleLink = $tr.find("span.titleline > a, td.title > span > a, td.title a.storylink").first();
+        if (titleLink.length) {
+          item.title = titleLink.text().trim();
+          item.link = titleLink.attr("href") || "";
+        }
+        const rank = $tr.find("span.rank").text().trim().replace(".", "");
+        if (rank) item.rank = rank;
+        const $sub = $tr.next("tr");
+        const score = $sub.find("span.score").text().trim();
+        if (score) item.score = score;
+        const age = $sub.find("span.age").text().trim();
+        if (age) item.age = age;
+        const author = $sub.find("a.hnuser").text().trim();
+        if (author) item.author = author;
+        const commentsLink = $sub.find("a").last().text().trim();
+        if (commentsLink && commentsLink.includes("comment")) item.comments = commentsLink;
+        if (item.title) items.push(item);
+      });
+      if (items.length >= 3) {
+        results.push({ type: "itemlist", data: items, element_count: items.length });
+        $table.remove();
+        return;
+      }
+    }
+  });
 
   // --- Tables ---
   $("table").each((_, table) => {
@@ -341,6 +467,15 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     if (text && text.length < 300) fields[i === 0 ? "title" : `heading_${i}`] = text;
   });
 
+  // Fallback title: strong/bold text or [class*='name']
+  if (!fields["title"]) {
+    const strong = $el.find("strong, b, [class*='name']").first();
+    if (strong.length) {
+      const text = strong.text().trim();
+      if (text && text.length < 200) fields["title"] = text;
+    }
+  }
+
   // Extract links
   const links: string[] = [];
   $el.find("a[href]").each((_, a) => {
@@ -350,6 +485,14 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     }
   });
   if (links.length > 0) fields["link"] = links[0];
+
+  // Fallback title from link text
+  if (!fields["title"] && links.length > 0) {
+    const linkText = $el.find("a").first().text().trim();
+    if (linkText && linkText.length > 2 && linkText.length < 200 && !/^(read|more|view|see|click)/i.test(linkText)) {
+      fields["title"] = linkText;
+    }
+  }
 
   // Extract images
   const img = $el.find("img[src]").first();
@@ -410,8 +553,10 @@ export interface ExtractionResult {
  * the best match for the given intent.
  */
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
+  // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
+  const spaStructures = extractSPAData(html);
   const cleaned = cleanDOM(html);
-  const structures = parseStructured(cleaned);
+  const structures = [...spaStructures, ...parseStructured(cleaned)];
 
   if (structures.length === 0) {
     return { data: null, extraction_method: "none", confidence: 0 };
@@ -464,7 +609,10 @@ function scoreRelevance(structure: ExtractedStructure, intentWords: string[]): n
   }
 
   // Bonus for highly structured data
+  if (structure.type === "spa-nextjs") score += 5;
+  if (structure.type.startsWith("spa-")) score += 3;
   if (structure.type === "json-ld") score += 3;
+  if (structure.type === "itemlist") score += 3;
   if (structure.type === "table") score += 2;
   if (structure.type === "repeated-elements") score += 1;
   if (structure.type === "key-value") score += 1;
@@ -480,7 +628,18 @@ function computeConfidence(structure: ExtractedStructure, relevanceScore: number
 
   // Base confidence from structure type
   switch (structure.type) {
+    case "spa-nextjs":
+      confidence = 0.9;
+      break;
+    case "spa-nuxt":
+    case "spa-initial-state":
+    case "spa-preloaded-state":
+      confidence = 0.85;
+      break;
     case "json-ld":
+      confidence = 0.9;
+      break;
+    case "itemlist":
       confidence = 0.9;
       break;
     case "table":
