@@ -70,6 +70,14 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // GET /v1/skills/:skill_id — local route so skill lookups hit disk cache before proxying to backend
+  app.get("/v1/skills/:skill_id", async (req, reply) => {
+    const { skill_id } = req.params as { skill_id: string };
+    const skill = await getSkill(skill_id);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+    return reply.send(skill);
+  });
+
   // POST /v1/skills/:skill_id/execute
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const { skill_id } = req.params as { skill_id: string };

@@ -1,5 +1,26 @@
 # Changelog
 
+## fix: skill not found after intent/resolve (cache-first publish)
+
+After `POST /v1/intent/resolve` discovers endpoints, the returned `skill_id` was
+immediately unusable — `GET /v1/skills/{id}` returned 404 because the local disk
+cache was only written after a successful remote publish to `beta-api.unbrowse.ai`,
+and EmergentDB's eventual consistency meant the backend hadn't indexed it yet.
+
+### `src/marketplace/index.ts` — cache-first publish
+`publishSkill()` now writes to `~/.unbrowse/skill-cache/` **before** calling the
+remote backend. If the remote publish fails, the skill is still locally available
+and the function returns the pre-cached version instead of throwing.
+
+### `src/api/routes.ts` — add local `GET /v1/skills/:skill_id` route
+Previously this fell through to the catch-all proxy which forwarded to the remote
+backend. Now there's a dedicated local route that checks the disk cache first via
+`getSkill()`, so recently published skills resolve immediately.
+
+### `src/orchestrator/index.ts` — log publish errors
+Fire-and-forget `.catch(() => {})` calls now log the error message instead of
+silently swallowing failures.
+
 ## fix: stale skill auto-recovery + playwright auto-install
 
 ### `src/index.ts` + `scripts/setup.sh` — auto-install browser engine
