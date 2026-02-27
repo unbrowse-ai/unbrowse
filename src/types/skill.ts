@@ -202,6 +202,4 @@ export interface OrchestrationTiming {
   time_saved_pct: number;
   /** Percentage token saved vs estimated full-page browsing cost */
   tokens_saved_pct: number;
-  /** Why marketplace candidates were filtered out (diagnostic) */
-  filter_reasons?: string[];
 }

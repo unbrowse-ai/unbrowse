@@ -376,8 +376,8 @@ export async function executeEndpoint(
     }
   }
 
-  // BUG-006 fix: fallback to domain vault cookies — only check if skill has auth hints
-  if (cookies.length === 0 && skill.auth_profile_ref) {
+  // BUG-006 fix: fallback to domain vault cookies when auth_profile_ref is absent or yields nothing
+  if (cookies.length === 0) {
     try {
       const epDomain = new URL(endpoint.url_template).hostname;
       const domainCookies = await getStoredAuth(epDomain);
@@ -434,7 +434,6 @@ export async function executeEndpoint(
   // Use browser only when cookies/auth are required or endpoint needs page context
   const isSafe = endpoint.method === "GET";
   const needsBrowser = cookies.length > 0 || Object.keys(authHeaders).length > 0 || !!endpoint.dom_extraction;
-  const isJsonEndpoint = /\.(json|xml|csv)(\?|$)|\/(api|v\d+)\//i.test(url) || (endpoint.response_schema && !endpoint.dom_extraction);
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     const headers: Record<string, string> = {
@@ -464,27 +463,25 @@ export async function executeEndpoint(
   );
 
   let result: { data: unknown; status: number; trace_id: string };
-  if (isJsonEndpoint && !needsBrowser) {
-    // Try server-side first — falls back to browser if it fails
-    try {
-      result = isSafe
-        ? await withRetry(serverFetch, (r) => isRetryableStatus(r.status))
-        : await serverFetch();
-      // If server fetch returned HTML (e.g. Cloudflare challenge), fall back to browser
-      if (typeof result.data === "string" && isHtml(result.data)) {
-        result = isSafe
-          ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
-          : await browserCall();
-      }
-    } catch {
-      result = isSafe
-        ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
-        : await browserCall();
-    }
-  } else {
+  if (needsBrowser) {
+    // Browser required: cookies, auth headers, or DOM extraction
     result = isSafe
       ? await withRetry(browserCall, (r) => isRetryableStatus(r.status))
       : await browserCall();
+  } else if (isSafe) {
+    // Fetch-first for safe GETs — fall back to browser if HTML or error
+    try {
+      result = await withRetry(serverFetch, (r) => isRetryableStatus(r.status));
+      // If server fetch returned HTML (e.g. Cloudflare challenge), fall back to browser
+      if (typeof result.data === "string" && isHtml(result.data)) {
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+      }
+    } catch {
+      result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+    }
+  } else {
+    // Unsafe non-GET without browser needs — server fetch only
+    result = await serverFetch();
   }
   const { status, trace_id } = result;
   let data = result.data;
@@ -540,7 +537,7 @@ export async function executeEndpoint(
     }
   }
 
-  // Record execution for reliability scoring — fire-and-forget, don't block response
+  // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
   // Apply field projection if requested

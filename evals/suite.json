@@ -1,0 +1,18 @@
+[
+  {
+    "name": "jup-token-price-direct",
+    "mode": "execute",
+    "skill_id": "lUm_I-ImV_fMeSzMX7axS",
+    "endpoint_id": "lFPl8UOodJwS9zgvkfZx5",
+    "params": { "query": "JUP" },
+    "runs": 3
+  },
+  {
+    "name": "jup-token-price-resolve",
+    "mode": "resolve",
+    "intent": "get JUP token price",
+    "url": "https://jup.ag",
+    "params": {},
+    "runs": 3
+  }
+]
