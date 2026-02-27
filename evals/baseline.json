@@ -1,10 +1,26 @@
 {
-  "jup-token-price-direct": {
-    "p50_ms": 309,
+  "jup-asset-search": {
+    "p50_ms": 307,
     "threshold_multiplier": 2.5
   },
-  "jup-token-price-resolve": {
-    "p50_ms": 713,
+  "jup-trending-tokens": {
+    "p50_ms": 302,
     "threshold_multiplier": 2.5
+  },
+  "jup-chain-status": {
+    "p50_ms": 312,
+    "threshold_multiplier": 2.5
+  },
+  "jup-token-shield": {
+    "p50_ms": 420,
+    "threshold_multiplier": 2.5
+  },
+  "github-trending-dom": {
+    "p50_ms": 1367,
+    "threshold_multiplier": 3.0
+  },
+  "jup-resolve-e2e": {
+    "p50_ms": 922,
+    "threshold_multiplier": 5.0
   }
 }
