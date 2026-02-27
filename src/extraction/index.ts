@@ -36,6 +36,97 @@ const CARD_SELECTORS = [
 ];
 
 // ---------------------------------------------------------------------------
+// extractSPAData — parse SPA-embedded JSON before cleanDOM strips scripts
+// ---------------------------------------------------------------------------
+
+interface SPAExtraction extends ExtractedStructure {
+  type: "spa-nextjs" | "spa-nuxt" | "spa-initial-state" | "spa-preloaded-state";
+}
+
+/**
+ * Extract structured data embedded by SPA frameworks BEFORE cleanDOM strips scripts.
+ * Must be called on raw HTML.
+ */
+export function extractSPAData(html: string): SPAExtraction[] {
+  const results: SPAExtraction[] = [];
+
+  // --- Next.js: <script id="__NEXT_DATA__" type="application/json"> ---
+  const nextDataMatch = html.match(/<script\s+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (nextDataMatch) {
+    try {
+      const parsed = JSON.parse(nextDataMatch[1]);
+      const pageProps = parsed?.props?.pageProps;
+      if (pageProps && typeof pageProps === "object" && Object.keys(pageProps).length > 0) {
+        results.push({
+          type: "spa-nextjs",
+          data: pageProps,
+          element_count: countDataElements(pageProps),
+        });
+      }
+    } catch { /* malformed __NEXT_DATA__ */ }
+  }
+
+  // --- Nuxt.js: window.__NUXT__={...} or <script>window.__NUXT__=... ---
+  const nuxtMatch = html.match(/window\.__NUXT__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
+  if (nuxtMatch) {
+    try {
+      const parsed = JSON.parse(nuxtMatch[1]);
+      const data = parsed?.data?.[0] ?? parsed?.state ?? parsed;
+      if (data && typeof data === "object" && Object.keys(data).length > 0) {
+        results.push({
+          type: "spa-nuxt",
+          data,
+          element_count: countDataElements(data),
+        });
+      }
+    } catch { /* malformed __NUXT__ — often not pure JSON, skip */ }
+  }
+
+  // --- Generic: window.__INITIAL_STATE__ ---
+  const initialStateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
+  if (initialStateMatch) {
+    try {
+      const parsed = JSON.parse(initialStateMatch[1]);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+        results.push({
+          type: "spa-initial-state",
+          data: parsed,
+          element_count: countDataElements(parsed),
+        });
+      }
+    } catch { /* malformed __INITIAL_STATE__ */ }
+  }
+
+  // --- Generic: window.__PRELOADED_STATE__ ---
+  const preloadedMatch = html.match(/window\.__PRELOADED_STATE__\s*=\s*(\{[\s\S]*?\});?\s*(?:<\/script>|$)/i);
+  if (preloadedMatch) {
+    try {
+      const parsed = JSON.parse(preloadedMatch[1]);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+        results.push({
+          type: "spa-preloaded-state",
+          data: parsed,
+          element_count: countDataElements(parsed),
+        });
+      }
+    } catch { /* malformed __PRELOADED_STATE__ */ }
+  }
+
+  return results;
+}
+
+/** Count meaningful data elements in a nested structure */
+function countDataElements(obj: unknown, depth = 0): number {
+  if (depth > 5) return 0;
+  if (Array.isArray(obj)) return obj.reduce((sum, item) => sum + Math.max(1, countDataElements(item, depth + 1)), 0);
+  if (obj && typeof obj === "object") {
+    const keys = Object.keys(obj);
+    return keys.reduce((sum, k) => sum + countDataElements((obj as Record<string, unknown>)[k], depth + 1), 0);
+  }
+  return 1;
+}
+
+// ---------------------------------------------------------------------------
 // cleanDOM
 // ---------------------------------------------------------------------------
 
@@ -462,8 +553,10 @@ export interface ExtractionResult {
  * the best match for the given intent.
  */
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
+  // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
+  const spaStructures = extractSPAData(html);
   const cleaned = cleanDOM(html);
-  const structures = parseStructured(cleaned);
+  const structures = [...spaStructures, ...parseStructured(cleaned)];
 
   if (structures.length === 0) {
     return { data: null, extraction_method: "none", confidence: 0 };
@@ -516,6 +609,8 @@ function scoreRelevance(structure: ExtractedStructure, intentWords: string[]): n
   }
 
   // Bonus for highly structured data
+  if (structure.type === "spa-nextjs") score += 5;
+  if (structure.type.startsWith("spa-")) score += 3;
   if (structure.type === "json-ld") score += 3;
   if (structure.type === "itemlist") score += 3;
   if (structure.type === "table") score += 2;
@@ -533,6 +628,14 @@ function computeConfidence(structure: ExtractedStructure, relevanceScore: number
 
   // Base confidence from structure type
   switch (structure.type) {
+    case "spa-nextjs":
+      confidence = 0.9;
+      break;
+    case "spa-nuxt":
+    case "spa-initial-state":
+    case "spa-preloaded-state":
+      confidence = 0.85;
+      break;
     case "json-ld":
       confidence = 0.9;
       break;
