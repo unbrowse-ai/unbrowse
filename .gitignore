@@ -39,8 +39,9 @@ pids/
 coverage/
 .nyc_output/
 
-# Eval history (local per-machine)
+# Eval data (local per-machine)
 evals/history.jsonl
+evals/last-run.json
 
 # IDEs and editors
 .idea/
