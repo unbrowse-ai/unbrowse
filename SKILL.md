@@ -11,7 +11,7 @@ metadata: {"openclaw": {"requires": {"bins": ["curl"]}, "emoji": "🔍", "homepa
 
 Unbrowse is a local service backed by a shared skill marketplace. When you ask it to do something, it first searches the marketplace for an existing skill discovered by any agent. If none exists, it captures the site, reverse-engineers the API, publishes the skill to the marketplace, and executes it. Future requests from any agent reuse the learned skill instantly.
 
-The local server runs on `http://localhost:6969` (or `$UNBROWSE_URL` if configured) and proxies marketplace operations to `beta-api.unbrowse.ai`. On first startup it auto-registers as an agent and caches the API key in `~/.unbrowse/config.json`.
+All API calls go through the local server at `http://localhost:6969` (or `$UNBROWSE_URL` if configured). The local server handles everything — orchestration, execution, and marketplace operations. On first startup it auto-registers as an agent and caches the API key in `~/.unbrowse/config.json`. There is no separate remote API to call directly.
 
 ## How Intent Resolution Works
 
@@ -325,7 +325,7 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
 
 ## API Reference
 
-All routes go through `localhost:6969`. Local routes are handled directly; marketplace routes are proxied to `beta-api.unbrowse.ai` automatically.
+All routes go through `localhost:6969` (or `$UNBROWSE_URL`). The local server handles everything — do not call any remote API directly.
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
