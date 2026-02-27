@@ -70,5 +70,46 @@
     "url": "https://jup.ag",
     "params": {},
     "runs": 2
+  },
+
+  {
+    "name": "retrieve-hn-stories",
+    "mode": "retrieve",
+    "intent": "get top stories",
+    "url": "https://news.ycombinator.com",
+    "params": {},
+    "runs": 1
+  },
+  {
+    "name": "retrieve-github-trending",
+    "mode": "retrieve",
+    "intent": "get trending repositories",
+    "url": "https://github.com/trending",
+    "params": {},
+    "runs": 1
+  },
+  {
+    "name": "retrieve-weather",
+    "mode": "retrieve",
+    "intent": "get current weather in Tokyo",
+    "url": "https://wttr.in/Tokyo?format=j1",
+    "params": {},
+    "runs": 1
+  },
+  {
+    "name": "retrieve-espn-scores",
+    "mode": "retrieve",
+    "intent": "get live sports scores",
+    "url": "https://www.espn.com",
+    "params": {},
+    "runs": 1
+  },
+  {
+    "name": "retrieve-crypto-prices",
+    "mode": "retrieve",
+    "intent": "get top cryptocurrency prices",
+    "url": "https://jup.ag",
+    "params": {},
+    "runs": 1
   }
 ]
