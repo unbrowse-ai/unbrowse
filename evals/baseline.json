@@ -1,26 +1,38 @@
 {
   "jup-asset-search": {
-    "p50_ms": 58,
+    "p50_ms": 74,
     "threshold_multiplier": 2.5
   },
   "jup-trending-tokens": {
-    "p50_ms": 55,
+    "p50_ms": 60,
     "threshold_multiplier": 2.5
   },
   "jup-chain-status": {
-    "p50_ms": 57,
+    "p50_ms": 63,
     "threshold_multiplier": 2.5
   },
   "jup-token-shield": {
-    "p50_ms": 62,
+    "p50_ms": 57,
     "threshold_multiplier": 2.5
   },
   "github-trending-dom": {
-    "p50_ms": 800,
+    "p50_ms": 747,
+    "threshold_multiplier": 3
+  },
+  "espn-scoreboard-api": {
+    "p50_ms": 68,
+    "threshold_multiplier": 2.5
+  },
+  "producthunt-trending-dom": {
+    "p50_ms": 1000,
+    "threshold_multiplier": 3
+  },
+  "hackernews-front-dom": {
+    "p50_ms": 300,
     "threshold_multiplier": 3
   },
   "jup-resolve-e2e": {
-    "p50_ms": 800,
+    "p50_ms": 476,
     "threshold_multiplier": 5
   }
 }

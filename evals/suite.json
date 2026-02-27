@@ -40,6 +40,30 @@
     "runs": 2
   },
   {
+    "name": "espn-scoreboard-api",
+    "mode": "execute",
+    "skill_id": "LCl3FhtLLtCT6c3Z78P7d",
+    "endpoint_id": "MmDyz9n5H7tP1P6fqdQYJ",
+    "params": {},
+    "runs": 3
+  },
+  {
+    "name": "producthunt-trending-dom",
+    "mode": "execute",
+    "skill_id": "AEZmTzGU4lGbKgidlO0RU",
+    "endpoint_id": "LounzR7CCT0Nrd1ngqWyD",
+    "params": {},
+    "runs": 2
+  },
+  {
+    "name": "hackernews-front-dom",
+    "mode": "execute",
+    "skill_id": "dAvB42noGQE6QooFdTAYc",
+    "endpoint_id": "bo8wEptfVftJoIc0MqGRA",
+    "params": {},
+    "runs": 2
+  },
+  {
     "name": "jup-resolve-e2e",
     "mode": "resolve",
     "intent": "get JUP token price",
