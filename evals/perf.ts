@@ -1,14 +1,17 @@
 #!/usr/bin/env bun
 /**
- * Unbrowse eval harness — performance + data capture.
+ * Unbrowse eval harness — tests the whole pipeline.
  *
- * Measures latency, captures actual response data, and writes everything
- * to evals/last-run.json for review. Blocks commits on perf regression only.
+ * Three test modes:
+ *   execute  — hit a cached skill endpoint (fast, tests execution engine)
+ *   resolve  — marketplace lookup + execute (tests ranking + caching)
+ *   retrieve — full pipeline: intent → discover → extract → return data
+ *              (tests live capture, endpoint selection, DOM/API extraction)
  *
  * Usage:
- *   bun evals/perf.ts                    # run eval (pre-commit hook)
+ *   bun evals/perf.ts                    # pre-commit: fast tests only (execute + resolve)
+ *   bun evals/perf.ts --full             # all tests including retrieval, with data summaries
  *   bun evals/perf.ts --update-baseline  # rewrite baseline with current results
- *   bun evals/perf.ts --full             # run + dump full response data for review
  *   bun evals/perf.ts --skip-server      # assume server is already running
  */
 
@@ -26,13 +29,13 @@ const UNBROWSE = process.env.UNBROWSE_URL ?? "http://localhost:6969";
 const args = new Set(process.argv.slice(2));
 const updateBaseline = args.has("--update-baseline");
 const skipServer = args.has("--skip-server");
-const fullDump = args.has("--full");
+const fullMode = args.has("--full");
 
 // --- Types ---
 
 interface BenchEntry {
   name: string;
-  mode: "execute" | "resolve";
+  mode: "execute" | "resolve" | "retrieve";
   skill_id?: string;
   endpoint_id?: string;
   intent?: string;
@@ -48,6 +51,7 @@ interface BaselineEntry {
 
 interface RunResult {
   name: string;
+  mode: string;
   p50_ms: number;
   runs_ms: number[];
   baseline_ms: number | null;
@@ -83,18 +87,26 @@ async function ensureServer(): Promise<boolean> {
   }
 }
 
-/** Produce a human-readable summary of what the response contains */
-function summarizeData(body: Record<string, unknown>): { summary: string; snapshot: unknown } {
+/** Produce a human-readable summary of the full response */
+function summarizeData(body: Record<string, unknown>, mode: string): { summary: string; snapshot: unknown } {
   const trace = body.trace as Record<string, unknown> | undefined;
   const result = body.result as unknown;
   const source = body.source as string | undefined;
+  const skill = body.skill as Record<string, unknown> | undefined;
 
   const parts: string[] = [];
 
-  // Status
-  if (trace?.status_code) parts.push(`status=${trace.status_code}`);
-  else if (trace?.success === false) parts.push("FAILED");
+  // Pipeline metadata
   if (source) parts.push(`source=${source}`);
+  if (trace?.status_code) parts.push(`status=${trace.status_code}`);
+  else if (trace?.success === false) parts.push(`FAILED${trace.error ? ": " + String(trace.error).slice(0, 60) : ""}`);
+
+  // Discovery info (for resolve/retrieve)
+  if (skill) {
+    const eps = skill.endpoints as unknown[];
+    if (eps) parts.push(`endpoints=${eps.length}`);
+    if (skill.domain) parts.push(`domain=${skill.domain}`);
+  }
 
   // Extraction info
   let data: unknown = result;
@@ -103,9 +115,14 @@ function summarizeData(body: Record<string, unknown>): { summary: string; snapsh
     if (r._extraction) {
       const ext = r._extraction as Record<string, unknown>;
       parts.push(`extraction=${ext.method}`);
-      parts.push(`confidence=${ext.confidence}`);
       data = r.data;
     }
+    if (r.error) {
+      parts.push(`error=${r.error}`);
+      if (r.message) parts.push(String(r.message).slice(0, 80));
+    }
+    // Resolve returns hint/message when it can't auto-select
+    if (r.hint) parts.push("needs_endpoint_selection");
   }
 
   // Data shape
@@ -114,32 +131,61 @@ function summarizeData(body: Record<string, unknown>): { summary: string; snapsh
     if (data.length > 0 && typeof data[0] === "object" && data[0] != null) {
       parts.push(`fields=[${Object.keys(data[0] as object).slice(0, 6).join(",")}]`);
     }
-  } else if (data && typeof data === "object") {
+  } else if (data && typeof data === "object" && !(data as Record<string, unknown>).error) {
     const keys = Object.keys(data as object);
     parts.push(`object{${keys.slice(0, 6).join(",")}}`);
   } else if (typeof data === "string") {
-    parts.push(`string(${data.length} chars)`);
     if (data.startsWith("<!")) parts.push("RAW_HTML");
-  } else {
-    parts.push(`${typeof data}`);
+    else parts.push(`string(${data.length})`);
   }
 
-  // Build snapshot: first 2 items if array, or truncated object
+  // Build snapshot
   let snapshot: unknown;
-  if (Array.isArray(data)) {
-    snapshot = data.slice(0, 2);
-  } else if (data && typeof data === "object") {
-    // Truncate large values
-    const obj = data as Record<string, unknown>;
-    const truncated: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj).slice(0, 10)) {
-      if (Array.isArray(v)) truncated[k] = `[${v.length} items]`;
-      else if (typeof v === "string" && v.length > 200) truncated[k] = v.slice(0, 200) + "...";
-      else truncated[k] = v;
+  if (mode === "retrieve" || mode === "resolve") {
+    // For pipeline tests, include discovery metadata + data sample
+    const meta: Record<string, unknown> = {};
+    if (source) meta.source = source;
+    if (skill) {
+      meta.skill_id = skill.skill_id;
+      meta.domain = skill.domain;
+      meta.endpoint_count = (skill.endpoints as unknown[])?.length;
+      meta.endpoints = ((skill.endpoints as Array<Record<string, unknown>>) || []).slice(0, 5).map(ep => ({
+        method: ep.method,
+        url: (ep.url_template as string)?.slice(0, 80),
+        id: ep.endpoint_id,
+      }));
     }
-    snapshot = truncated;
+    if (trace?.error) meta.error = trace.error;
+    // Data sample
+    if (Array.isArray(data)) {
+      meta.data_sample = data.slice(0, 2);
+    } else if (data && typeof data === "object") {
+      const obj = data as Record<string, unknown>;
+      const truncated: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj).slice(0, 8)) {
+        if (Array.isArray(v)) truncated[k] = `[${v.length} items]`;
+        else if (typeof v === "string" && v.length > 150) truncated[k] = v.slice(0, 150) + "...";
+        else truncated[k] = v;
+      }
+      meta.data_sample = truncated;
+    }
+    snapshot = meta;
   } else {
-    snapshot = typeof data === "string" ? data.slice(0, 300) : data;
+    // For execute tests, just show data
+    if (Array.isArray(data)) {
+      snapshot = data.slice(0, 2);
+    } else if (data && typeof data === "object") {
+      const obj = data as Record<string, unknown>;
+      const truncated: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj).slice(0, 10)) {
+        if (Array.isArray(v)) truncated[k] = `[${v.length} items]`;
+        else if (typeof v === "string" && v.length > 200) truncated[k] = v.slice(0, 200) + "...";
+        else truncated[k] = v;
+      }
+      snapshot = truncated;
+    } else {
+      snapshot = typeof data === "string" ? data.slice(0, 300) : data;
+    }
   }
 
   return { summary: parts.join(" | "), snapshot };
@@ -185,11 +231,14 @@ async function runBench(entry: BenchEntry): Promise<RunResult> {
   let lastBody: Record<string, unknown> = {};
   let error: string | undefined;
 
-  for (let i = 0; i < entry.runs; i++) {
+  // retrieve mode: only 1 run (it's slow + may do live capture)
+  const runs = entry.mode === "retrieve" ? 1 : entry.runs;
+
+  for (let i = 0; i < runs; i++) {
     try {
       const { ms, body } = entry.mode === "execute"
         ? await benchExecute(entry)
-        : await benchResolve(entry);
+        : await benchResolve(entry); // resolve and retrieve both use intent/resolve
       timings.push(Math.round(ms));
       lastBody = body;
     } catch (err) {
@@ -202,11 +251,12 @@ async function runBench(entry: BenchEntry): Promise<RunResult> {
   const p50 = valid.length > 0 ? Math.round(median(valid)) : -1;
 
   const { summary, snapshot } = Object.keys(lastBody).length > 0
-    ? summarizeData(lastBody)
+    ? summarizeData(lastBody, entry.mode)
     : { summary: error ?? "no response", snapshot: null };
 
   return {
     name: entry.name,
+    mode: entry.mode,
     p50_ms: p50,
     runs_ms: timings,
     baseline_ms: null,
@@ -221,7 +271,12 @@ async function runBench(entry: BenchEntry): Promise<RunResult> {
 // --- Main ---
 
 async function main() {
-  const suite: BenchEntry[] = JSON.parse(readFileSync(SUITE_PATH, "utf-8"));
+  const allEntries: BenchEntry[] = JSON.parse(readFileSync(SUITE_PATH, "utf-8"));
+
+  // Pre-commit (no --full): skip retrieve tests (slow, need browser)
+  const suite = fullMode
+    ? allEntries
+    : allEntries.filter((e) => e.mode !== "retrieve");
 
   if (!skipServer) {
     const alive = await ensureServer();
@@ -239,25 +294,30 @@ async function main() {
 
   const sha = gitSha();
   const ts = new Date().toISOString();
+  const skipped = allEntries.length - suite.length;
 
-  console.log(`\nunbrowse eval \u2014 ${ts} (${sha})`);
-  console.log("\u2500".repeat(72));
+  console.log(`\nunbrowse eval \u2014 ${ts} (${sha})${skipped > 0 ? ` [${skipped} retrieve tests skipped, use --full]` : ""}`);
+  console.log("\u2500".repeat(76));
 
   const results: RunResult[] = [];
   for (const entry of suite) {
     const result = await runBench(entry);
 
-    const bl = baseline[entry.name];
-    if (bl && result.p50_ms > 0) {
-      result.baseline_ms = bl.p50_ms;
-      result.threshold_ms = Math.round(bl.p50_ms * bl.threshold_multiplier);
-      result.perf_pass = result.p50_ms <= result.threshold_ms;
+    // Perf baseline comparison (retrieve tests exempt — too variable)
+    if (entry.mode !== "retrieve") {
+      const bl = baseline[entry.name];
+      if (bl && result.p50_ms > 0) {
+        result.baseline_ms = bl.p50_ms;
+        result.threshold_ms = Math.round(bl.p50_ms * bl.threshold_multiplier);
+        result.perf_pass = result.p50_ms <= result.threshold_ms;
+      }
     }
 
     results.push(result);
 
     // Print row
-    const nameCol = result.name.padEnd(28);
+    const modeTag = entry.mode === "execute" ? "" : entry.mode === "resolve" ? " [r]" : " [R]";
+    const nameCol = (result.name + modeTag).padEnd(32);
     const msCol = result.p50_ms > 0 ? `${result.p50_ms}ms`.padStart(8) : "  ERROR".padStart(8);
     const blCol = result.baseline_ms ? `(base: ${result.baseline_ms}ms)`.padEnd(16) : "(no baseline)   ";
 
@@ -272,20 +332,22 @@ async function main() {
 
     console.log(`  ${nameCol} ${msCol}  ${blCol}  ${status}`);
 
-    // In full mode, show data summary inline
-    if (fullDump) {
+    // Show data summary in full mode, or always for retrieve tests
+    if (fullMode || entry.mode === "retrieve") {
       console.log(`    \x1b[36m${result.data_summary}\x1b[0m`);
     }
   }
 
-  console.log("\u2500".repeat(72));
+  console.log("\u2500".repeat(76));
 
-  // Write last-run.json with full data snapshots for LLM review
+  // Write last-run.json
   const lastRun = {
     ts,
     sha,
+    mode: fullMode ? "full" : "pre-commit",
     results: results.map((r) => ({
       name: r.name,
+      mode: r.mode,
       p50_ms: r.p50_ms,
       perf_pass: r.perf_pass,
       data_summary: r.data_summary,
@@ -305,11 +367,11 @@ async function main() {
   };
   appendFileSync(HISTORY_PATH, JSON.stringify(historyEntry) + "\n");
 
-  // Update baseline mode
+  // Update baseline (only for execute + resolve, not retrieve)
   if (updateBaseline) {
     const newBaseline: Record<string, BaselineEntry> = {};
     for (const r of results) {
-      if (r.p50_ms > 0) {
+      if (r.p50_ms > 0 && r.mode !== "retrieve") {
         const existing = baseline[r.name];
         newBaseline[r.name] = {
           p50_ms: r.p50_ms,
@@ -322,8 +384,8 @@ async function main() {
     process.exit(0);
   }
 
-  // Only block on perf regressions — data quality is reviewed by reading last-run.json
-  const perfFails = results.filter((r) => !r.perf_pass);
+  // Block on perf regressions (execute + resolve only, not retrieve)
+  const perfFails = results.filter((r) => !r.perf_pass && r.mode !== "retrieve");
   const errors = results.filter((r) => !!r.error);
 
   if (perfFails.length > 0) {
@@ -336,7 +398,7 @@ async function main() {
     console.log(`\x1b[33m${errors.length} endpoint(s) errored (not blocking).\x1b[0m`);
   }
 
-  console.log(`${results.length - errors.length}/${results.length} passed. Data snapshots in evals/last-run.json`);
+  console.log(`${results.length - errors.length}/${results.length} passed. Data in evals/last-run.json`);
   process.exit(0);
 }
 
