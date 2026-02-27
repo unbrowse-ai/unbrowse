@@ -15,6 +15,81 @@ import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM } from "../extraction/index.js";
 
+// ---------------------------------------------------------------------------
+// Quality gate — validate extracted data before marketplace publishing
+// ---------------------------------------------------------------------------
+
+interface QualityResult {
+  valid: boolean;
+  quality_note?: string;
+}
+
+/** Detect concatenated values like "AAPLApple" or "Inc978,583" */
+function isConcatenatedValue(s: string): boolean {
+  // Uppercase ticker jammed onto capitalized word: AAPLApple, NVDANvidia
+  if (/[A-Z]{2,}[A-Z][a-z]/.test(s)) return true;
+  // Word ending in letter immediately followed by digits: Inc978, Corp123
+  if (/[a-zA-Z]\d{3,}/.test(s)) return true;
+  return false;
+}
+
+/**
+ * Validate extraction quality. Always returns data to the caller —
+ * this only gates whether we publish to the marketplace.
+ */
+function validateExtractionQuality(data: unknown, confidence: number): QualityResult {
+  // 1. Min confidence
+  if (confidence < 0.5) {
+    return { valid: false, quality_note: `confidence too low (${confidence.toFixed(2)} < 0.5)` };
+  }
+
+  // Only validate arrays (repeated data structures)
+  if (!Array.isArray(data)) return { valid: true };
+  if (data.length === 0) return { valid: true };
+
+  // 2. Deduplication check
+  const serialized = data.map((item) => JSON.stringify(item));
+  const unique = new Set(serialized);
+  const dupeRatio = 1 - unique.size / serialized.length;
+  if (dupeRatio > 0.5) {
+    return { valid: false, quality_note: `${Math.round(dupeRatio * 100)}% duplicate rows` };
+  }
+
+  // 3. Concatenation detection
+  let totalStrings = 0;
+  let concatStrings = 0;
+  for (const item of data) {
+    if (item && typeof item === "object") {
+      for (const val of Object.values(item as Record<string, unknown>)) {
+        if (typeof val === "string" && val.length > 3) {
+          totalStrings++;
+          if (isConcatenatedValue(val)) concatStrings++;
+        }
+      }
+    }
+  }
+  if (totalStrings > 0 && concatStrings / totalStrings > 0.3) {
+    return { valid: false, quality_note: `${Math.round((concatStrings / totalStrings) * 100)}% concatenated values detected` };
+  }
+
+  // 4. Diversity check — reject if all items share the same link/title (nav chrome)
+  if (data.length >= 3) {
+    for (const field of ["link", "href", "url", "title"]) {
+      const vals = data
+        .map((item) => (item && typeof item === "object" ? (item as Record<string, unknown>)[field] : undefined))
+        .filter((v) => v != null);
+      if (vals.length >= 3) {
+        const uniqueVals = new Set(vals.map(String));
+        if (uniqueVals.size === 1) {
+          return { valid: false, quality_note: `all items share the same "${field}" — likely navigation chrome` };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
@@ -141,6 +216,9 @@ async function executeBrowserCapture(
     if (captured.html) {
       const extracted = extractFromDOM(captured.html, intent);
       if (extracted.data && extracted.confidence > 0.2) {
+        // Quality gate: validate data before publishing to marketplace
+        const quality = validateExtractionQuality(extracted.data, extracted.confidence);
+
         // Build a DOM skill: a GET endpoint for the page URL with extraction mapping
         // Templatize query params so the skill supports re-execution with different values
         // e.g. /search?q=books&page=1 → /search?q={q}&page={page}
@@ -176,13 +254,16 @@ async function executeBrowserCapture(
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
+        // Only publish to marketplace if quality passes
         let learned: SkillManifest | undefined;
-        try {
-          const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
-          if (validation.valid) {
-            learned = await publishSkill(domDraft);
-          }
-        } catch { /* publish failure is non-fatal */ }
+        if (quality.valid) {
+          try {
+            const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
+            if (validation.valid) {
+              learned = await publishSkill(domDraft);
+            }
+          } catch { /* publish failure is non-fatal */ }
+        }
 
         const trace: ExecutionTrace = {
           trace_id: traceId,
@@ -193,6 +274,7 @@ async function executeBrowserCapture(
           success: true,
           result: extracted.data,
         };
+        // Always return data to the caller — quality gate only blocks publishing
         return {
           trace,
           result: {
@@ -201,6 +283,7 @@ async function executeBrowserCapture(
               method: extracted.extraction_method,
               confidence: extracted.confidence,
               source: "dom-fallback",
+              ...(quality.quality_note ? { quality_note: quality.quality_note, published: false } : { published: !!learned }),
             },
           },
           learned_skill: learned,
@@ -555,12 +638,14 @@ export async function executeEndpoint(
     const intent = options?.intent || skill.intent_signature;
     const extracted = extractFromDOM(data, intent);
     if (extracted.data) {
+      const quality = validateExtractionQuality(extracted.data, extracted.confidence);
       data = {
         data: extracted.data,
         _extraction: {
           method: extracted.extraction_method,
           confidence: extracted.confidence,
           source: "html-postprocess",
+          ...(quality.quality_note ? { quality_note: quality.quality_note } : {}),
         },
       };
       trace.result = data;

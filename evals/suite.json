@@ -111,5 +111,13 @@
     "url": "https://jup.ag",
     "params": {},
     "runs": 1
+  },
+  {
+    "name": "retrieve-stocktwits-spa",
+    "mode": "retrieve",
+    "intent": "get trending stock discussions",
+    "url": "https://stocktwits.com/symbol/AAPL",
+    "params": {},
+    "runs": 1
   }
 ]
