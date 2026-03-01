@@ -131,6 +131,8 @@ export interface ExecutionTrace {
   tokens_saved?: number;
   /** Percentage tokens saved vs original capture cost */
   tokens_saved_pct?: number;
+  /** Code version hash + git SHA — tracks which code produced this trace */
+  trace_version?: string;
 }
 
 export interface DiscoveryCandidate {
@@ -211,4 +213,6 @@ export interface OrchestrationTiming {
   time_saved_pct: number;
   /** Percentage token saved vs estimated full-page browsing cost */
   tokens_saved_pct: number;
+  /** Code version hash + git SHA — tracks which code produced this timing */
+  trace_version?: string;
 }

@@ -15,6 +15,13 @@ import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM } from "../extraction/index.js";
 import { log } from "../logger.js";
+import { TRACE_VERSION } from "../version.js";
+
+/** Stamp every trace with the code version hash for telemetry tracking */
+function stampTrace(trace: ExecutionTrace): ExecutionTrace {
+  trace.trace_version = TRACE_VERSION;
+  return trace;
+}
 
 // ---------------------------------------------------------------------------
 // Quality gate — validate extracted data before marketplace publishing
@@ -158,7 +165,7 @@ async function executeBrowserCapture(
   const redirectedToLogin = captured.final_url !== url && LOGIN_PATHS.test(new URL(captured.final_url).pathname);
 
   if (redirectedToAuth || redirectedToLogin) {
-    const trace: ExecutionTrace = {
+    const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
       skill_id: skill.skill_id,
       endpoint_id: "browser-capture",
@@ -166,7 +173,7 @@ async function executeBrowserCapture(
       completed_at: new Date().toISOString(),
       success: false,
       error: "auth_required",
-    };
+    });
     return {
       trace,
       result: {
@@ -264,7 +271,7 @@ async function executeBrowserCapture(
           } catch { /* publish failure is non-fatal */ }
         }
 
-        const trace: ExecutionTrace = {
+        const trace: ExecutionTrace = stampTrace({
           trace_id: traceId,
           skill_id: learned?.skill_id ?? skill.skill_id,
           endpoint_id: domEndpoint.endpoint_id,
@@ -272,7 +279,7 @@ async function executeBrowserCapture(
           completed_at: new Date().toISOString(),
           success: true,
           result: extracted.data,
-        };
+        });
         // Always return data to the caller — quality gate only blocks publishing
         return {
           trace,
@@ -290,7 +297,7 @@ async function executeBrowserCapture(
       }
     }
 
-    const trace: ExecutionTrace = {
+    const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
       skill_id: skill.skill_id,
       endpoint_id: "browser-capture",
@@ -298,7 +305,7 @@ async function executeBrowserCapture(
       completed_at: new Date().toISOString(),
       success: false,
       error: "no_endpoints",
-    };
+    });
     return {
       trace,
       result: {
@@ -354,7 +361,7 @@ async function executeBrowserCapture(
 
   const learned = await publishSkill(draft);
 
-  const trace: ExecutionTrace = {
+  const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,
     skill_id: skill.skill_id,
     endpoint_id: "browser-capture",
@@ -362,7 +369,7 @@ async function executeBrowserCapture(
     completed_at: new Date().toISOString(),
     success: true,
     result: { learned_skill_id: learned.skill_id, endpoints_discovered: cleanEndpoints.length },
-  };
+  });
 
   // Detect tracking-only capture: all endpoints lack a response_schema, meaning no real
   // JSON data was returned — the site likely gated its API behind authentication.
@@ -409,19 +416,19 @@ export async function executeEndpoint(
         ws.on("close", () => { clearTimeout(timeout); resolve(); });
       });
       const parsed = messages.map((m) => { try { return JSON.parse(m); } catch { return m; } });
-      const trace: ExecutionTrace = {
+      const trace: ExecutionTrace = stampTrace({
         trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
         started_at: startedAt, completed_at: new Date().toISOString(), success: true, result: parsed,
-      };
+      });
       let resultData: unknown = parsed;
       if (projection) resultData = applyProjection(parsed, projection);
       return { trace, result: resultData };
     } catch (err) {
-      const trace: ExecutionTrace = {
+      const trace: ExecutionTrace = stampTrace({
         trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
         started_at: startedAt, completed_at: new Date().toISOString(), success: false,
         error: String(err),
-      };
+      });
       return { trace, result: { error: String(err) } };
     }
   }
@@ -439,7 +446,7 @@ export async function executeEndpoint(
       const url = interpolate(endpoint.url_template, dryParams);
       const body = endpoint.body ? interpolateObj(endpoint.body, dryParams) : undefined;
       return {
-        trace: {
+        trace: stampTrace({
           trace_id: nanoid(),
           skill_id: skill.skill_id,
           endpoint_id: endpoint.endpoint_id,
@@ -447,7 +454,7 @@ export async function executeEndpoint(
           completed_at: new Date().toISOString(),
           success: false,
           error: "dry_run",
-        },
+        }),
         result: {
           dry_run: true,
           would_execute: { method: endpoint.method, url, body },
@@ -456,7 +463,7 @@ export async function executeEndpoint(
     }
     if (!options?.confirm_unsafe) {
       return {
-        trace: {
+        trace: stampTrace({
           trace_id: nanoid(),
           skill_id: skill.skill_id,
           endpoint_id: endpoint.endpoint_id,
@@ -464,7 +471,7 @@ export async function executeEndpoint(
           completed_at: new Date().toISOString(),
           success: false,
           error: "confirmation_required",
-        },
+        }),
         result: {
           error: "confirmation_required",
           message: `This endpoint (${endpoint.method} ${endpoint.url_template}) is marked as unsafe. Pass confirm_unsafe: true to proceed.`,
@@ -586,7 +593,7 @@ export async function executeEndpoint(
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     // Default accept to JSON, but never overwrite the endpoint's own accept header
     // (e.g. LinkedIn uses "application/vnd.linkedin.normalized+json+2.1")
-    const defaultAccept = (!endpoint.dom_extraction && !endpoint.headers_template?.["accept"])
+    const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpoint.headers_template?.["accept"])
       ? { "accept": "application/json" } : {};
     const headers: Record<string, string> = {
       ...defaultAccept,
@@ -716,7 +723,7 @@ export async function executeEndpoint(
   const { status, trace_id } = result;
   let data = result.data;
 
-  const trace: ExecutionTrace = {
+  const trace: ExecutionTrace = stampTrace({
     trace_id,
     skill_id: skill.skill_id,
     endpoint_id: endpoint.endpoint_id,
@@ -724,7 +731,7 @@ export async function executeEndpoint(
     completed_at: new Date().toISOString(),
     success: status >= 200 && status < 300,
     status_code: status,
-  };
+  });
 
   if (!trace.success) {
     trace.error = status === 404
