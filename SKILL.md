@@ -56,6 +56,18 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
   -d '{"params": {"endpoint_id": "{correct_endpoint_id}"}}'
 ```
 
+### Reading the response
+
+**IMPORTANT: Always read `.result` — never dig into `.trace.result`.**
+
+If `recipe_applied: true` is in the response, the data is already parsed:
+```
+.result.data[]    → array of clean, flat objects (e.g. {author, text, posted})
+.result._recipe   → metadata: source, items_before/after_filter, fields_mapped
+```
+
+If no recipe exists, `.result` contains the raw API response — parse it yourself and consider submitting a recipe (see Extraction Recipes below).
+
 ## Authentication
 
 **Automatic.** Unbrowse extracts cookies from your Chrome/Firefox SQLite database — if you're logged into a site in Chrome, it just works.
