@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
@@ -223,7 +224,7 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   // GET /health
-  app.get("/health", async (_req, reply) => reply.send({ status: "ok" }));
+  app.get("/health", async (_req, reply) => reply.send({ status: "ok", trace_version: TRACE_VERSION, code_hash: CODE_HASH, git_sha: GIT_SHA }));
 
   // Catch-all proxy: forward unmatched /v1/* routes to beta-api.unbrowse.ai
   app.all("/v1/*", async (req, reply) => {

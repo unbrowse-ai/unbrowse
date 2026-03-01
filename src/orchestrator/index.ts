@@ -3,6 +3,7 @@ import { publishSkill, getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import type { ExecutionOptions, ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
+import { TRACE_VERSION } from "../version.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
@@ -71,6 +72,7 @@ export async function resolveAndExecute(
     search_ms: 0, get_skill_ms: 0, execute_ms: 0, total_ms: 0,
     source: "marketplace", cache_hit: false, candidates_found: 0, candidates_tried: 0,
     tokens_saved: 0, response_bytes: 0, time_saved_pct: 0, tokens_saved_pct: 0,
+    trace_version: TRACE_VERSION,
   };
 
   // Fallback baselines when a skill has no discovery_cost (old skills / first capture)
