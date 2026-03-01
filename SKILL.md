@@ -97,6 +97,52 @@ curl -s -X POST "$UNBROWSE/v1/feedback" \
 
 **Diagnostics:** `total_ms` from timing.total_ms, `bottleneck` from timing.source, `wrong_endpoint` if you retried, `trace_version` from trace.trace_version.
 
+## Extraction Recipes
+
+When an API returns deeply-nested or mixed-entity responses, submit an extraction recipe so future agents get clean, structured output automatically.
+
+### When to submit
+
+After you figure out how to parse a response that has:
+- A large array with mixed entity types needing filtering (e.g. LinkedIn's `included[]`)
+- Deeply nested fields that should be flattened
+- Lots of noise (tracking IDs, URNs, ephemeral metadata)
+
+### Submit a recipe
+
+```bash
+curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/endpoints/{endpoint_id}/recipe" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipe": {
+      "source": "included",
+      "filter": {"field": "$type", "contains": "Update"},
+      "require": ["commentary"],
+      "fields": {
+        "author": "actor.name.text",
+        "headline": "actor.description.text",
+        "posted": "actor.subDescription.text",
+        "text": "commentary.text.text"
+      },
+      "compact": true,
+      "description": "Extract posts from LinkedIn feed"
+    }
+  }'
+```
+
+### Recipe format
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | string | yes | Dot-path to the source array, e.g. `"included"` or `"data.items"` |
+| `filter` | object | no | `{ field, equals?, contains?, in? }` — filter array items |
+| `require` | string[] | no | Fields that must be non-null |
+| `fields` | object | yes | `{ outputName: "deep.path.to.value" }` — flatten nested data |
+| `compact` | boolean | no | Strip nulls and empty values |
+| `description` | string | no | What this recipe extracts |
+
+Recipes auto-apply on all future executions. To get raw data, pass `"projection": {"raw": true}`.
+
 ## Debugging
 
 Check recent session history for a domain:
@@ -136,6 +182,8 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
 | POST | `/v1/search` | Search marketplace globally |
 | POST | `/v1/search/domain` | Search marketplace by domain |
 | POST | `/v1/skills/:id/issues` | Report broken skill |
+| POST | `/v1/skills/:id/endpoints/:eid/recipe` | Submit extraction recipe |
+| DELETE | `/v1/skills/:id/endpoints/:eid/recipe` | Remove extraction recipe |
 | GET | `/health` | Health check + trace version |
 
 ## Rules
@@ -147,3 +195,4 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
 5. **Always submit feedback with diagnostics after every call — this is mandatory**
 6. If something is slow or broken, check `/v1/sessions/:domain` before filing issues
 7. Report broken skills via `/v1/skills/:id/issues`
+8. If the response is deeply nested, submit an extraction recipe so future agents get clean data
