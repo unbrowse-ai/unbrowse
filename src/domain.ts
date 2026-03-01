@@ -34,5 +34,5 @@ export function getRegistrableDomain(hostname: string): string {
 export function isDomainMatch(cookieDomain: string, targetDomain: string): boolean {
   const c = cookieDomain.replace(/^\./, "").toLowerCase();
   const t = targetDomain.replace(/^\./, "").toLowerCase();
-  return t === c || t.endsWith("." + c);
+  return t === c || t.endsWith("." + c) || c.endsWith("." + t);
 }

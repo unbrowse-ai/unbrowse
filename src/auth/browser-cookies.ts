@@ -185,19 +185,15 @@ function sqliteQuery(dbPath: string, sql: string): string {
 
 function buildDomainWhereClause(domain: string, column: string): string {
   const reg = getRegistrableDomain(domain);
-  // Match exact domains: .example.com, example.com, plus common subdomains
+  // Match: .example.com, example.com, sub.example.com
   const variants = new Set([
     reg,
     `.${reg}`,
     domain,
     `.${domain}`,
-    `www.${reg}`,
-    `.www.${reg}`,
   ]);
   const escaped = [...variants].map((d) => `'${d.replace(/'/g, "''")}'`);
-  // Also match any subdomain via LIKE (e.g. .api.example.com, .sg.example.com)
-  const likePattern = `'%.${reg.replace(/'/g, "''")}'`;
-  return `(${column} IN (${escaped.join(", ")}) OR ${column} LIKE ${likePattern})`;
+  return `${column} IN (${escaped.join(", ")})`;
 }
 
 // ---------------------------------------------------------------------------
