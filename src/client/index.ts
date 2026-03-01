@@ -223,12 +223,13 @@ function writeSkillCache(skill: SkillManifest): void {
     const existing = readSkillCache(skill.skill_id);
     if (existing) {
       for (const ep of skill.endpoints) {
-        if (!ep.exec_strategy) {
-          const cached = existing.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
-          if (cached?.exec_strategy) {
-            ep.exec_strategy = cached.exec_strategy;
-            console.log(`[cache] preserved exec_strategy=${cached.exec_strategy} for ${ep.endpoint_id}`);
-          }
+        const cached = existing.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
+        if (!ep.exec_strategy && cached?.exec_strategy) {
+          ep.exec_strategy = cached.exec_strategy;
+          console.log(`[cache] preserved exec_strategy=${cached.exec_strategy} for ${ep.endpoint_id}`);
+        }
+        if (!ep.extraction_recipe && cached?.extraction_recipe) {
+          ep.extraction_recipe = cached.extraction_recipe;
         }
       }
     }
@@ -277,6 +278,9 @@ export async function getSkill(skillId: string): Promise<SkillManifest | null> {
             const local = cached.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
             if (local?.exec_strategy && !ep.exec_strategy) {
               ep.exec_strategy = local.exec_strategy;
+            }
+            if (local?.extraction_recipe && !ep.extraction_recipe) {
+              ep.extraction_recipe = local.extraction_recipe;
             }
           }
         }

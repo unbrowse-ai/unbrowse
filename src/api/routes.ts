@@ -8,7 +8,7 @@ import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { recordFeedback, recordDiagnostics, getApiKey } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
-import type { ProjectionOptions } from "../types/index.js";
+import type { ProjectionOptions, ExtractionRecipe } from "../types/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -224,6 +224,54 @@ export async function registerRoutes(app: FastifyInstance) {
         recordDiagnostics(resolvedSkillId, endpoint_id, diagnostics).catch(() => {});
       }
       return reply.send({ ok: true, avg_rating });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // POST /v1/skills/:skill_id/endpoints/:endpoint_id/recipe — submit extraction recipe
+  app.post("/v1/skills/:skill_id/endpoints/:endpoint_id/recipe", async (req, reply) => {
+    const { skill_id, endpoint_id } = req.params as { skill_id: string; endpoint_id: string };
+    const { recipe } = req.body as { recipe: ExtractionRecipe };
+    if (!recipe) return reply.code(400).send({ error: "recipe object required in body" });
+
+    const { validateRecipe } = await import("../transform/recipe.js");
+    const errors = validateRecipe(recipe);
+    if (errors.length > 0) return reply.code(422).send({ error: "Invalid recipe", details: errors });
+
+    const skill = await getSkill(skill_id);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    const endpoint = skill.endpoints.find(e => e.endpoint_id === endpoint_id);
+    if (!endpoint) return reply.code(404).send({ error: "Endpoint not found" });
+
+    endpoint.extraction_recipe = { ...recipe, updated_at: new Date().toISOString() };
+    skill.updated_at = new Date().toISOString();
+
+    try {
+      await publishSkill(skill);
+      return reply.send({ ok: true, skill_id, endpoint_id, recipe: endpoint.extraction_recipe });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // DELETE /v1/skills/:skill_id/endpoints/:endpoint_id/recipe — remove extraction recipe
+  app.delete("/v1/skills/:skill_id/endpoints/:endpoint_id/recipe", async (req, reply) => {
+    const { skill_id, endpoint_id } = req.params as { skill_id: string; endpoint_id: string };
+
+    const skill = await getSkill(skill_id);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    const endpoint = skill.endpoints.find(e => e.endpoint_id === endpoint_id);
+    if (!endpoint) return reply.code(404).send({ error: "Endpoint not found" });
+
+    delete endpoint.extraction_recipe;
+    skill.updated_at = new Date().toISOString();
+
+    try {
+      await publishSkill(skill);
+      return reply.send({ ok: true, message: "Recipe removed" });
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }

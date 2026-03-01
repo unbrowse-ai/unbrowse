@@ -6,6 +6,7 @@ import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
+import { applyRecipe } from "../transform/recipe.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
@@ -421,7 +422,14 @@ export async function executeEndpoint(
         started_at: startedAt, completed_at: new Date().toISOString(), success: true, result: parsed,
       });
       let resultData: unknown = parsed;
-      if (projection) resultData = applyProjection(parsed, projection);
+      if (projection?.raw) {
+        // Explicit raw — skip recipe and projection
+      } else if (projection) {
+        resultData = applyProjection(parsed, projection);
+      } else if (endpoint.extraction_recipe) {
+        const recipeResult = applyRecipe(parsed, endpoint.extraction_recipe);
+        if (recipeResult) resultData = recipeResult;
+      }
       return { trace, result: resultData };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
@@ -795,10 +803,15 @@ export async function executeEndpoint(
   // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
-  // Apply field projection if requested
+  // Apply field projection or extraction recipe
   let resultData = data;
-  if (projection && trace.success) {
+  if (projection?.raw) {
+    // Explicit raw request — skip recipe and projection
+  } else if (projection && trace.success) {
     resultData = applyProjection(data, projection);
+  } else if (endpoint.extraction_recipe && trace.success && data != null) {
+    const recipeResult = applyRecipe(data, endpoint.extraction_recipe);
+    if (recipeResult) resultData = recipeResult;
   }
 
   return { trace, result: resultData };
