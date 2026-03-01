@@ -4,14 +4,10 @@ import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import type { ExecutionOptions, ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { TRACE_VERSION } from "../version.js";
+import { nanoid } from "nanoid";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
-
-// Auto-execute thresholds: when the top ranked endpoint from a fresh capture
-// meets ALL criteria, execute it immediately instead of deferring to the agent.
-const AUTO_EXEC_MIN_SCORE = 15;
-const AUTO_EXEC_SCORE_GAP = 3;
 
 // Per-domain skill cache: after a live capture succeeds, cache the skill for 60s so
 // subsequent requests hit the local cache instead of re-capturing (avoids EmergentDB lag).
@@ -80,6 +76,9 @@ export async function resolveAndExecute(
   const DEFAULT_CAPTURE_TOKENS = 30_000;
   const CHARS_PER_TOKEN = 4;
 
+  // When the agent explicitly passes endpoint_id, execute directly — they already chose.
+  const agentChoseEndpoint = !!params.endpoint_id;
+
   function finalize(source: OrchestrationTiming["source"], result: unknown, skillId?: string, skill?: SkillManifest, trace?: ExecutionTrace): OrchestrationTiming {
     timing.total_ms = Date.now() - t0;
     timing.source = source;
@@ -115,50 +114,92 @@ export async function resolveAndExecute(
     return timing;
   }
 
-  // Fast path: if we've successfully executed this intent+domain before, skip search entirely
-  const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
-  const cacheKey = `${requestedDomain || "global"}:${intent}`;
-  const cached = skillRouteCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
-    const skill = await getSkill(cached.skillId);
-    if (skill) {
-      const te0 = Date.now();
-      try {
-        const { trace, result } = await executeSkill(skill, params, projection, { ...options, intent, contextUrl: context?.url });
-        timing.execute_ms = Date.now() - te0;
-        if (trace.success) {
-          timing.cache_hit = true;
-          return { result, trace, source: "marketplace", skill, timing: finalize("route-cache", result, cached.skillId, skill, trace) };
-        }
-      } catch { timing.execute_ms = Date.now() - te0; }
-    }
-    skillRouteCache.delete(cacheKey); // stale — remove
+  /** Build a deferral response — returns the skill + ranked endpoints for the agent to choose. */
+  function buildDeferral(skill: SkillManifest, source: "marketplace" | "live-capture", extraFields?: Record<string, unknown>): OrchestratorResult {
+    const epRanked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
+    const deferTrace: ExecutionTrace = {
+      trace_id: nanoid(),
+      skill_id: skill.skill_id,
+      endpoint_id: "",
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      success: true,
+    };
+    return {
+      result: {
+        message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${skill.skill_id}/execute with params.endpoint_id.`,
+        skill_id: skill.skill_id,
+        available_endpoints: epRanked.slice(0, 10).map((r) => ({
+          endpoint_id: r.endpoint.endpoint_id,
+          method: r.endpoint.method,
+          url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
+          score: Math.round(r.score * 10) / 10,
+          has_schema: !!r.endpoint.response_schema,
+          dom_extraction: !!r.endpoint.dom_extraction,
+          trigger_url: r.endpoint.trigger_url,
+        })),
+        ...extraFields,
+      },
+      trace: deferTrace,
+      source,
+      skill,
+      timing: finalize(source, null, skill.skill_id, skill, deferTrace),
+    };
   }
 
-  // Local disk cache: try the cached skill for this domain before hitting the remote marketplace.
+  const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
+  const cacheKey = `${requestedDomain || "global"}:${intent}`;
+
+  // --- Agent explicitly chose an endpoint — execute directly via any cache/skill path ---
+  if (agentChoseEndpoint) {
+    // Route cache
+    const cached = skillRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
+      const skill = await getSkill(cached.skillId);
+      if (skill) {
+        const te0 = Date.now();
+        try {
+          const { trace, result } = await executeSkill(skill, params, projection, { ...options, intent, contextUrl: context?.url });
+          timing.execute_ms = Date.now() - te0;
+          if (trace.success) {
+            timing.cache_hit = true;
+            return { result, trace, source: "marketplace", skill, timing: finalize("route-cache", result, cached.skillId, skill, trace) };
+          }
+        } catch { timing.execute_ms = Date.now() - te0; }
+      }
+      skillRouteCache.delete(cacheKey);
+    }
+  }
+
+  // Local disk cache: find skill for this domain.
   // Only use if the skill's trigger_url matches the requested context URL path — this ensures
   // we don't serve a bookmarks skill when DMs are requested (same domain, different page).
   if (requestedDomain && context?.url) {
     const { findExistingSkillForDomain } = await import("../client/index.js");
     const localSkill = findExistingSkillForDomain(requestedDomain);
     if (localSkill && localSkill.endpoints.length > 0) {
-      // Check if any endpoint's trigger_url path matches the requested page
       const requestedPath = new URL(context.url).pathname;
       const hasTriggerMatch = localSkill.endpoints.some((ep) => {
         if (!ep.trigger_url) return false;
         try { return new URL(ep.trigger_url).pathname === requestedPath; } catch { return false; }
       });
       if (hasTriggerMatch) {
-        const te0 = Date.now();
-        try {
-          const { trace, result } = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
-          timing.execute_ms = Date.now() - te0;
-          if (trace.success) {
-            timing.cache_hit = true;
-            skillRouteCache.set(cacheKey, { skillId: localSkill.skill_id, domain: localSkill.domain, ts: Date.now() });
-            return { result, trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", result, localSkill.skill_id, localSkill, trace) };
-          }
-        } catch { timing.execute_ms = Date.now() - te0; }
+        if (agentChoseEndpoint) {
+          // Agent already picked — execute
+          const te0 = Date.now();
+          try {
+            const { trace, result } = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
+            timing.execute_ms = Date.now() - te0;
+            if (trace.success) {
+              timing.cache_hit = true;
+              skillRouteCache.set(cacheKey, { skillId: localSkill.skill_id, domain: localSkill.domain, ts: Date.now() });
+              return { result, trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", result, localSkill.skill_id, localSkill, trace) };
+            }
+          } catch { timing.execute_ms = Date.now() - te0; }
+        } else {
+          // Defer — return endpoints for agent to choose
+          return buildDeferral(localSkill, "marketplace");
+        }
       }
     }
   }
@@ -200,7 +241,6 @@ export async function resolveAndExecute(
 
   const ranked: RankedCandidate[] = [];
   // When a target domain is specified, only accept skills from that domain.
-  // This prevents the marketplace from matching e.g. beehiiv for a linkedin query.
   const targetRegDomain = requestedDomain ? getRegistrableDomain(requestedDomain) : null;
   for (const { c, skill } of skillResults) {
     if (!skill) continue;
@@ -211,45 +251,48 @@ export async function resolveAndExecute(
   }
   ranked.sort((a, b) => b.composite - a.composite);
 
-  // Race top marketplace candidates in parallel — first successful wins.
+  // If marketplace found viable skills, defer to the agent (or execute if they already chose).
   const viable = ranked.filter((c) => c.composite >= CONFIDENCE_THRESHOLD).slice(0, 3);
   timing.candidates_tried = viable.length;
   if (viable.length > 0) {
-    const te0 = Date.now();
-    try {
-      const winner = await Promise.any(
-        viable.map((candidate, i) =>
-          Promise.race([
-            executeSkill(candidate.skill, params, projection, { ...options, intent, contextUrl: context?.url })
-              .then(({ trace, result }) => {
-                if (!trace.success) {
-                  console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) failed: status=${trace.status_code}`);
-                  throw new Error("execution failed");
-                }
-                console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) succeeded in ${Date.now() - te0}ms`);
-                return { result, trace, candidate };
-              })
-              .catch((err) => {
-                console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) error: ${(err as Error).message}`);
-                throw err;
-              }),
-            new Promise<never>((_, reject) => setTimeout(() => {
-              console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) TIMEOUT after 30s`);
-              reject(new Error("timeout"));
-            }, 30_000)),
-          ])
-        )
-      );
-      timing.execute_ms = Date.now() - te0;
-      skillRouteCache.set(cacheKey, { skillId: winner.candidate.skill.skill_id, domain: winner.candidate.skill.domain, ts: Date.now() });
-      return { result: winner.result, trace: winner.trace, source: "marketplace" as const, skill: winner.candidate.skill, timing: finalize("marketplace", winner.result, winner.candidate.skill.skill_id, winner.candidate.skill, winner.trace) };
-    } catch (err) {
-      console.log(`[race] all candidates failed after ${Date.now() - te0}ms: ${(err as Error).message}`);
-      timing.execute_ms = Date.now() - te0;
+    if (agentChoseEndpoint) {
+      // Agent already picked an endpoint — race top candidates to execute it
+      const te0 = Date.now();
+      try {
+        const winner = await Promise.any(
+          viable.map((candidate, i) =>
+            Promise.race([
+              executeSkill(candidate.skill, params, projection, { ...options, intent, contextUrl: context?.url })
+                .then(({ trace, result }) => {
+                  if (!trace.success) {
+                    console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) failed: status=${trace.status_code}`);
+                    throw new Error("execution failed");
+                  }
+                  return { result, trace, candidate };
+                })
+                .catch((err) => {
+                  console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) error: ${(err as Error).message}`);
+                  throw err;
+                }),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 30_000)),
+            ])
+          )
+        );
+        timing.execute_ms = Date.now() - te0;
+        skillRouteCache.set(cacheKey, { skillId: winner.candidate.skill.skill_id, domain: winner.candidate.skill.domain, ts: Date.now() });
+        return { result: winner.result, trace: winner.trace, source: "marketplace" as const, skill: winner.candidate.skill, timing: finalize("marketplace", winner.result, winner.candidate.skill.skill_id, winner.candidate.skill, winner.trace) };
+      } catch (err) {
+        console.log(`[race] all candidates failed after ${Date.now() - te0}ms: ${(err as Error).message}`);
+        timing.execute_ms = Date.now() - te0;
+      }
+    } else {
+      // Defer — return the best skill's endpoints for agent to choose
+      const bestSkill = viable[0].skill;
+      return buildDeferral(bestSkill, "marketplace");
     }
   }
 
-  // 2. No match -- invoke browser-capture skill
+  // 2. No match — invoke browser-capture skill
   if (!context?.url) {
     throw new Error(
       "No matching skill found. Pass context.url to trigger live capture and discovery."
@@ -261,8 +304,11 @@ export async function resolveAndExecute(
   // Check recently-captured cache: avoids re-capturing when EmergentDB hasn't indexed yet
   const domainHit = capturedDomainCache.get(captureDomain);
   if (domainHit && Date.now() < domainHit.expires) {
-    const { trace, result } = await executeSkill(domainHit.skill, params, projection, { ...options, intent, contextUrl: context?.url });
-    return { result, trace, source: "marketplace", skill: domainHit.skill, timing: finalize("marketplace", result, domainHit.skill.skill_id, domainHit.skill, trace) };
+    if (agentChoseEndpoint) {
+      const { trace, result } = await executeSkill(domainHit.skill, params, projection, { ...options, intent, contextUrl: context?.url });
+      return { result, trace, source: "marketplace", skill: domainHit.skill, timing: finalize("marketplace", result, domainHit.skill.skill_id, domainHit.skill, trace) };
+    }
+    return buildDeferral(domainHit.skill, "marketplace");
   }
 
   // In-flight lock: reject parallel captures of the same domain to prevent thundering herd
@@ -290,8 +336,6 @@ export async function resolveAndExecute(
   timing.execute_ms = Date.now() - te0;
 
   // Stamp learned skill with real discovery cost so future cache hits use real baselines.
-  // capture_tokens uses DEFAULT_CAPTURE_TOKENS (not the deferral response size) because
-  // it represents the LLM-browsing cost baseline, not the bytes we sent back to the caller.
   if (learned_skill) {
     const captureResultStr = typeof result === "string" ? result : JSON.stringify(result ?? "");
     learned_skill.discovery_cost = {
@@ -309,83 +353,32 @@ export async function resolveAndExecute(
     return { result, trace, source: "live-capture", skill: captureSkill!, timing: finalize("live-capture", result, undefined, undefined, trace) };
   }
 
-  // DOM-extracted skill: data already extracted during capture, skip re-execution
+  // DOM-extracted skill: data already extracted during capture, return directly
   const isDomSkill = learned_skill?.endpoints?.some((ep) => ep.dom_extraction);
   if (isDomSkill || (!learned_skill && trace.success)) {
     return { result, trace, source: "dom-fallback", skill: learned_skill ?? captureSkill!, timing: finalize("dom-fallback", result, learned_skill?.skill_id, learned_skill, trace) };
   }
 
   // Cache the learned API skill so the next request finds it without re-capturing.
-  // 5-minute TTL gives the marketplace time to index the skill.
   if (learned_skill) {
     capturedDomainCache.set(captureDomain, { skill: learned_skill, expires: Date.now() + 5 * 60_000 });
-    // Also populate the route cache so the second identical request skips search entirely
     skillRouteCache.set(cacheKey, { skillId: learned_skill.skill_id, domain: learned_skill.domain, ts: Date.now() });
   }
 
-  // 3. Auto-execute when ranking is confident; otherwise defer to the agent.
-  if (!params.endpoint_id) {
-    const epRanked = rankEndpoints(learned_skill!.endpoints, intent, learned_skill!.domain, context?.url);
-    const captureResult = result as Record<string, unknown> | null;
-    const authRecommended = captureResult?.auth_recommended === true;
-
-    const topScore = epRanked.length > 0 ? epRanked[0].score : 0;
-    const runnerUpScore = epRanked.length > 1 ? epRanked[1].score : 0;
-    const topHasSchema = epRanked.length > 0 && !!epRanked[0].endpoint.response_schema;
-    const shouldAutoExec = !authRecommended
-      && topHasSchema
-      && topScore >= AUTO_EXEC_MIN_SCORE
-      && (topScore - runnerUpScore) >= AUTO_EXEC_SCORE_GAP;
-
-    if (shouldAutoExec) {
-      const te1 = Date.now();
-      const { trace: execTrace, result: execResult } = await executeSkill(
-        learned_skill!, { ...params, endpoint_id: epRanked[0].endpoint.endpoint_id }, projection, { ...options, intent, contextUrl: context?.url }
-      );
-      timing.execute_ms += Date.now() - te1;
-      return {
-        result: execResult,
-        trace: execTrace,
-        source: "live-capture",
-        skill: learned_skill!,
-        timing: finalize("live-capture", execResult, learned_skill!.skill_id, learned_skill, execTrace),
-      };
-    }
-
-    // Low confidence or auth-gated: defer to the agent
-    const deferTrace: ExecutionTrace = {
-      trace_id: trace.trace_id,
-      skill_id: learned_skill!.skill_id,
-      endpoint_id: "",
-      started_at: trace.started_at,
-      completed_at: new Date().toISOString(),
-      success: true,
-    };
-    return {
-      result: {
-        message: authRecommended
-          ? `Captured ${epRanked.length} endpoint(s) but no data endpoints found — authentication likely required.`
-          : `Discovered ${epRanked.length} endpoint(s). Review available_endpoints and re-execute with the correct endpoint_id.`,
-        hint: "Call POST /v1/skills/{skill_id}/execute with params.endpoint_id set to your chosen endpoint.",
-        skill_id: learned_skill!.skill_id,
-        ...(authRecommended ? {
-          auth_recommended: true,
-          auth_hint: captureResult!.auth_hint,
-        } : {}),
-      },
-      trace: deferTrace,
-      source: "live-capture",
-      skill: learned_skill!,
-      timing: finalize("live-capture", null, learned_skill!.skill_id, learned_skill, deferTrace),
-    };
+  // Always defer to the agent — return ranked endpoints, never auto-execute.
+  if (agentChoseEndpoint && learned_skill) {
+    const te1 = Date.now();
+    const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params, projection, { ...options, intent, contextUrl: context?.url });
+    timing.execute_ms += Date.now() - te1;
+    return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill, timing: finalize("live-capture", execResult, learned_skill.skill_id, learned_skill, execTrace) };
   }
 
-  // Agent specified an endpoint_id — execute it directly
-  const te1 = Date.now();
-  const { trace: execTrace, result: execResult } = await executeSkill(learned_skill!, params, projection, { ...options, intent, contextUrl: context?.url });
-  timing.execute_ms += Date.now() - te1;
-
-  return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill!, timing: finalize("live-capture", execResult, learned_skill!.skill_id, learned_skill, execTrace) };
+  const captureResult = result as Record<string, unknown> | null;
+  const authRecommended = captureResult?.auth_recommended === true;
+  return buildDeferral(learned_skill!, "live-capture", authRecommended ? {
+    auth_recommended: true,
+    auth_hint: captureResult!.auth_hint,
+  } : undefined);
 }
 
 async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
