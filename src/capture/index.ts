@@ -166,7 +166,7 @@ async function waitForContentReady(
         try {
           const page = browser.getPage();
           await new Promise<void>((resolve) => {
-            const timeout = setTimeout(resolve, 5000);
+            const timeout = setTimeout(resolve, 15000);
             const handler = (response: { url(): string }) => {
               if (response.url().toLowerCase().includes(hint)) {
                 log("capture", `intent-aware wait: matched ${response.url().substring(0, 120)}`);

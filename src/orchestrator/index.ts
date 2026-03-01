@@ -134,21 +134,30 @@ export async function resolveAndExecute(
   }
 
   // Local disk cache: try the cached skill for this domain before hitting the remote marketplace.
-  // This is the key optimization — avoids 40-80s of marketplace search+fetch latency.
-  if (requestedDomain) {
+  // Only use if the skill's trigger_url matches the requested context URL path — this ensures
+  // we don't serve a bookmarks skill when DMs are requested (same domain, different page).
+  if (requestedDomain && context?.url) {
     const { findExistingSkillForDomain } = await import("../client/index.js");
     const localSkill = findExistingSkillForDomain(requestedDomain);
     if (localSkill && localSkill.endpoints.length > 0) {
-      const te0 = Date.now();
-      try {
-        const { trace, result } = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
-        timing.execute_ms = Date.now() - te0;
-        if (trace.success) {
-          timing.cache_hit = true;
-          skillRouteCache.set(cacheKey, { skillId: localSkill.skill_id, domain: localSkill.domain, ts: Date.now() });
-          return { result, trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", result, localSkill.skill_id, localSkill, trace) };
-        }
-      } catch { timing.execute_ms = Date.now() - te0; }
+      // Check if any endpoint's trigger_url path matches the requested page
+      const requestedPath = new URL(context.url).pathname;
+      const hasTriggerMatch = localSkill.endpoints.some((ep) => {
+        if (!ep.trigger_url) return false;
+        try { return new URL(ep.trigger_url).pathname === requestedPath; } catch { return false; }
+      });
+      if (hasTriggerMatch) {
+        const te0 = Date.now();
+        try {
+          const { trace, result } = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
+          timing.execute_ms = Date.now() - te0;
+          if (trace.success) {
+            timing.cache_hit = true;
+            skillRouteCache.set(cacheKey, { skillId: localSkill.skill_id, domain: localSkill.domain, ts: Date.now() });
+            return { result, trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", result, localSkill.skill_id, localSkill, trace) };
+          }
+        } catch { timing.execute_ms = Date.now() - te0; }
+      }
     }
   }
 
