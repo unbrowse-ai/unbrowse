@@ -11,6 +11,41 @@ Browse once, cache the APIs, reuse them instantly. First call discovers and lear
 
 All calls go through `http://localhost:6969` (or `$UNBROWSE_URL`).
 
+## CLI (Recommended)
+
+The CLI eliminates shell escaping issues with curl + jq. All JSON is constructed and parsed in TypeScript.
+
+```bash
+# Resolve an intent (handles marketplace search → capture → execute)
+unbrowse resolve --intent "get timeline posts" --url "https://x.com"
+
+# Execute a specific endpoint
+unbrowse execute --skill {skill_id} --endpoint {endpoint_id}
+
+# Extract specific fields (no jq needed)
+unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --extract "user,text,likes"
+
+# Submit feedback (MANDATORY after every resolve)
+unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5
+
+# Submit extraction recipe for clean future responses
+unbrowse recipe --skill {skill_id} --endpoint {endpoint_id} \
+  --source "data.items" --fields "author:actor.name,text:body.text" --compact
+
+# Interactive login for gated sites
+unbrowse login --url "https://example.com/login"
+
+# Search marketplace
+unbrowse search --intent "get product prices" --domain "amazon.com"
+
+# Pretty-print any command
+unbrowse resolve --intent "..." --url "..." --pretty
+```
+
+The CLI auto-starts the server if it's not running. Use `--raw` to skip extraction recipes and get unprocessed data. Use `--extract` for ad-hoc field selection without recipes.
+
+Run `unbrowse help` for all commands and flags.
+
 ## Server Startup
 
 ```bash
