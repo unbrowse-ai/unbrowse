@@ -124,6 +124,8 @@ export interface ExecutionTrace {
   tokens_saved?: number;
   /** Percentage tokens saved vs original capture cost */
   tokens_saved_pct?: number;
+  /** Code version hash + git SHA */
+  trace_version?: string;
 }
 
 export interface DiscoveryCandidate {
@@ -175,6 +177,8 @@ export interface ExecutionOptions {
   dry_run?: boolean;
   /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
   intent?: string;
+  /** Skip marketplace search and route cache — go straight to live capture */
+  force_capture?: boolean;
 }
 
 export interface ValidationResult {
@@ -202,4 +206,6 @@ export interface OrchestrationTiming {
   time_saved_pct: number;
   /** Percentage token saved vs estimated full-page browsing cost */
   tokens_saved_pct: number;
+  /** Code version hash + git SHA */
+  trace_version?: string;
 }
