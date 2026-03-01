@@ -131,9 +131,9 @@ curl -s "$UNBROWSE/v1/skills/{skill_id}/endpoints/{endpoint_id}/schema" | jq .
 
 ## Authentication for Gated Sites
 
-If a site requires login:
+Auth is automatic — unbrowse extracts cookies directly from your Chrome/Firefox browser's SQLite database (bird-style). If you're logged into a site in Chrome, unbrowse can use those cookies without any manual steps.
 
-### Interactive Login (opens a browser window)
+If a site returns `auth_required` (cookies expired or you've never logged in), use interactive login:
 
 ```bash
 curl -s -X POST "$UNBROWSE/v1/auth/login" \
@@ -141,31 +141,7 @@ curl -s -X POST "$UNBROWSE/v1/auth/login" \
   -d '{"url": "https://example.com/login"}'
 ```
 
-The user completes login in the browser. Cookies are stored in the vault and automatically used for subsequent captures and executions on that domain.
-
-### Yolo Login (use existing Chrome sessions)
-
-If the user is already logged into a site in their main Chrome browser, yolo mode opens Chrome with their real profile -- no need to re-login.
-
-**Important: Always ask the user before using yolo mode.** Say: "I'll open your main Chrome browser with all your existing sessions. You'll need to close Chrome first. OK to proceed?"
-
-```bash
-curl -s -X POST "$UNBROWSE/v1/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com", "yolo": true}'
-```
-
-If the response contains `"Chrome is running"` error, tell the user to close Chrome and retry.
-
-### After Login, Re-capture
-
-```bash
-curl -s -X POST "$UNBROWSE/v1/intent/resolve" \
-  -H "Content-Type: application/json" \
-  -d '{"intent": "get my dashboard data", "params": {"url": "https://example.com/dashboard"}, "context": {"url": "https://example.com"}}'
-```
-
-Stored auth cookies are automatically loaded from the vault.
+The user completes login in the browser. Cookies are stored in the vault and automatically used for all subsequent calls on that domain.
 
 ## Mutation Safety
 
