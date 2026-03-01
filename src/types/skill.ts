@@ -72,6 +72,13 @@ export interface EndpointDescriptor {
     extraction_method: string;
     confidence: number;
   };
+  /** The page URL that triggered this API call during capture.
+   *  Used for trigger-and-intercept execution: navigate to this page,
+   *  let the site's own JS make the API call, and intercept the response. */
+  trigger_url?: string;
+  /** Learned execution strategy — set after first successful execution.
+   *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
+  exec_strategy?: "server" | "trigger-intercept" | "browser";
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -124,7 +131,7 @@ export interface ExecutionTrace {
   tokens_saved?: number;
   /** Percentage tokens saved vs original capture cost */
   tokens_saved_pct?: number;
-  /** Code version hash + git SHA */
+  /** Code version hash + git SHA — tracks which code produced this trace */
   trace_version?: string;
 }
 
@@ -177,8 +184,8 @@ export interface ExecutionOptions {
   dry_run?: boolean;
   /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
   intent?: string;
-  /** Skip marketplace search and route cache — go straight to live capture */
-  force_capture?: boolean;
+  /** The page URL the user is asking about — used to boost endpoints captured from that page */
+  contextUrl?: string;
 }
 
 export interface ValidationResult {
@@ -206,6 +213,6 @@ export interface OrchestrationTiming {
   time_saved_pct: number;
   /** Percentage token saved vs estimated full-page browsing cost */
   tokens_saved_pct: number;
-  /** Code version hash + git SHA */
+  /** Code version hash + git SHA — tracks which code produced this timing */
   trace_version?: string;
 }

@@ -228,6 +228,8 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       verification_status: verificationStatus,
       reliability_score: 0.5,
       response_schema,
+      // Record which page triggered this API call — used for trigger-and-intercept execution
+      trigger_url: context?.pageUrl,
     });
   }
 
@@ -336,21 +338,45 @@ function extractQueryParams(rawUrl: string): Record<string, string> {
   }
 }
 
+/** Returns true if a header name is sensitive and should be stripped from skill manifests. */
+function isSensitiveHeader(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (lower === "cookie" || lower === "content-length" || lower === "host") return false; // handled separately
+  if (STRIP_HEADERS.has(lower)) return true;
+  if (STRIP_HEADER_PREFIXES.some((p) => lower.startsWith(p))) return true;
+  if (lower.startsWith("x-goog-api")) return true;
+  if (lower.startsWith("x-server-")) return true;
+  if (!SAFE_HEADERS.has(lower) && SENSITIVE_HEADER_PATTERN.test(lower)) return true;
+  return false;
+}
+
 function sanitizeHeaders(headers: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(headers ?? {}).filter(([k]) => {
       const lower = k.toLowerCase();
-      if (STRIP_HEADERS.has(lower)) return false;
-      if (STRIP_HEADER_PREFIXES.some((p) => lower.startsWith(p))) return false;
-      // Strip all x-goog-api-* variants (catches x-goog-api-key and siblings)
-      if (lower.startsWith("x-goog-api")) return false;
-      // Strip server-side token headers
-      if (lower.startsWith("x-server-")) return false;
-      // Catch-all: strip any non-safe header whose name contains sensitive patterns
-      if (!SAFE_HEADERS.has(lower) && SENSITIVE_HEADER_PATTERN.test(lower)) return false;
-      return true;
+      if (lower === "cookie" || lower === "content-length" || lower === "host") return false;
+      return !isSensitiveHeader(k);
     })
   );
+}
+
+/**
+ * Extract auth-sensitive headers from captured requests — the inverse of sanitizeHeaders.
+ * These are stored in the vault (not the skill manifest) so server-fetch can reconstruct
+ * the full header set without launching a browser. This is what makes the 2nd call fast.
+ */
+export function extractAuthHeaders(requests: RawRequest[]): Record<string, string> {
+  const authHeaders: Record<string, string> = {};
+  for (const req of requests) {
+    for (const [k, v] of Object.entries(req.request_headers)) {
+      const lower = k.toLowerCase();
+      if (lower === "cookie" || lower === "content-length" || lower === "host") continue;
+      if (isSensitiveHeader(k) && !authHeaders[lower]) {
+        authHeaders[lower] = v;
+      }
+    }
+  }
+  return authHeaders;
 }
 
 function sanitizeQueryParams(params: Record<string, string>): Record<string, string> {
@@ -517,6 +543,41 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
 
 
 /**
+ * Determine whether a URL path segment looks like a variable entity ID
+ * (UUID, numeric ID, hash, ticker symbol) vs. a fixed action/resource name
+ * (camelCase, English word, REST resource).
+ *
+ * Used by collapseEndpoints to avoid merging distinct API actions
+ * like /relationships/connectionsSummary + /relationships/invitationsSummary.
+ */
+function looksLikeEntityId(segment: string): boolean {
+  if (segment.startsWith("{")) return true;
+  // UUID (with or without dashes)
+  if (/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(segment)) return true;
+  // Pure numeric
+  if (/^\d+$/.test(segment)) return true;
+  // Long hex string (hash, object ID) — 8+ hex chars
+  if (/^[0-9a-f]{8,}$/i.test(segment)) return true;
+  // URN identifiers
+  if (segment.startsWith("urn:")) return true;
+  // Short uppercase stock tickers (1-5 uppercase letters, possibly with dots like BRK.B)
+  if (/^[A-Z]{1,5}(\.[A-Z])?$/.test(segment)) return true;
+  // Comma-separated lists
+  if (segment.includes(",")) return true;
+
+  // === NOT an entity ID — these are action/resource names ===
+  // camelCase: lowercase letter followed by uppercase (e.g., connectionsSummary)
+  if (/[a-z][A-Z]/.test(segment)) return false;
+  // snake_case or kebab-case multi-word
+  if (/[a-z][_-][a-z]/i.test(segment)) return false;
+  // Pure lowercase alphabetic word 3+ chars (REST resource: "connections", "settings")
+  if (/^[a-z]{3,}$/.test(segment)) return false;
+
+  // Ambiguous — allow collapsing (conservative)
+  return true;
+}
+
+/**
  * Collapse sibling endpoints that share the same base path into a single
  * templatized endpoint.  e.g.:
  *   GET /sentiment/MSFT  +  GET /sentiment/NVDA  +  GET /sentiment/HIMS
@@ -526,6 +587,9 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
  * all path segments except the last.  If a group has 3+ members whose last
  * segment varies, replace the last segment with a template variable.
  * Keep the first endpoint's metadata (headers, schema, etc.) as representative.
+ *
+ * Only collapses when the majority (>50%) of varying segments look like entity
+ * IDs, NOT distinct action/resource names (camelCase, REST words).
  */
 function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
   // Group by method + origin + all-but-last path segment
@@ -569,6 +633,14 @@ function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[
     const unique = new Set(lastSegments);
     if (unique.size < 3) {
       // Last segments don't vary enough — keep as-is
+      result.push(...group);
+      continue;
+    }
+
+    // Only collapse if the varying segments look like entity IDs (UUIDs, numbers,
+    // tickers, hashes), NOT distinct action/resource names (camelCase, English words).
+    const entityLikeCount = lastSegments.filter((s) => looksLikeEntityId(s)).length;
+    if (entityLikeCount / lastSegments.length <= 0.5) {
       result.push(...group);
       continue;
     }

@@ -201,7 +201,9 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
 
 ## Feedback (Auto-submit after every call)
 
-**IMPORTANT: After every `intent/resolve` call, you MUST submit feedback.** This is how real sessions become evals.
+**IMPORTANT: After every `intent/resolve` call, you MUST submit feedback.** This is how real sessions become evals. Don't skip this — every data point improves accuracy for all agents.
+
+Use the `timing` and `trace` from the response to build diagnostics:
 
 ```bash
 curl -s -X POST "$UNBROWSE/v1/feedback" \
@@ -222,19 +224,21 @@ curl -s -X POST "$UNBROWSE/v1/feedback" \
   }'
 ```
 
-**Rating guide:** 5=right data+fast, 4=right but slow(>5s), 3=incomplete, 2=wrong endpoint, 1=no useful data.
+**How to rate:**
+- **5** — Got exactly the right data, fast
+- **4** — Right data but slow (>5s)
+- **3** — Right endpoint but data was incomplete or needed a retry
+- **2** — Wrong endpoint selected, had to manually pick one from available_endpoints
+- **1** — No useful data returned, auth failed, or completely wrong site
 
-**Diagnostics fields:** `total_ms` from timing.total_ms, `bottleneck` from timing.source (marketplace-search/trigger-intercept/live-capture/server-fetch), `wrong_endpoint` if you retried with a different endpoint_id, `trace_version` from trace.trace_version.
+**How to fill diagnostics:**
+- `total_ms`: from `timing.total_ms` in the response
+- `bottleneck`: the slowest phase — check `timing.source` and `timing.search_ms` / `timing.execute_ms`. Common values: `"marketplace-search"` (remote API slow), `"trigger-intercept"` (browser needed), `"live-capture"` (first-time discovery), `"server-fetch"` (fast path worked)
+- `wrong_endpoint`: true if you had to re-execute with a different endpoint_id
+- `expected_data` / `got_data`: brief description of what you wanted vs what you got
+- `trace_version`: from `trace.trace_version` in the response
 
-## Debugging — Session Logs
-
-If something is slow or broken, check the session log for that domain:
-
-```bash
-curl -s "$UNBROWSE/v1/sessions/www.linkedin.com?limit=10" | jq '.entries[] | {ts, intent, source, success, status, endpoint, total_ms, error}'
-```
-
-Every `intent/resolve` call is auto-logged with: timing breakdown, which endpoint was selected, cache hits, errors. Use this to understand **why** a call was slow or returned wrong data before filing an issue.
+Ratings affect the skill's reliability score and marketplace ranking. Diagnostics enable version-grouped regression detection across all agents.
 
 ## Reporting Issues
 
@@ -381,7 +385,7 @@ All routes go through `localhost:6969` (or `$UNBROWSE_URL`). The local server ha
 2. **Check the result** -- if it looks wrong, inspect `available_endpoints` and retry with a specific `endpoint_id`
 3. If a site returns `auth_required`, use `/v1/auth/login` then retry
 4. Always `dry_run` before executing mutations (non-GET endpoints)
-5. **Always submit feedback with diagnostics after every `intent/resolve` call** — this is mandatory
+5. **Always submit feedback after every `intent/resolve` call** -- include diagnostics with timing, bottleneck, and whether the right endpoint was selected. This is mandatory, not optional.
 6. Use `jq` to parse JSON responses for clean output
 7. Replace `{skill_id}` and `{endpoint_id}` with actual IDs from previous responses
 8. Report broken skills via `/v1/skills/:id/issues` -- it helps all agents on the network
