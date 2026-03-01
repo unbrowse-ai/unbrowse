@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
@@ -6,10 +7,9 @@ import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { recordFeedback, recordDiagnostics, getApiKey } from "../client/index.js";
-import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
-import { writeFileSync, readFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const BETA_API_URL = "https://beta-api.unbrowse.ai";
@@ -64,26 +64,6 @@ export async function registerRoutes(app: FastifyInstance) {
       if (result.timing) {
         res.timing = result.timing;
       }
-
-      // Auto-log session for debugging — every call gets a structured entry
-      const domain = context?.url ? new URL(context.url).hostname : "unknown";
-      const ep = result.skill?.endpoints?.find((e: { endpoint_id: string }) => e.endpoint_id === result.trace?.endpoint_id);
-      appendSessionLog({
-        ts: new Date().toISOString(),
-        domain,
-        intent,
-        source: result.source,
-        success: result.trace?.success,
-        status: result.trace?.status_code,
-        endpoint: ep?.url_template?.split("/").pop()?.split("?")[0],
-        total_ms: result.timing?.total_ms,
-        search_ms: result.timing?.search_ms,
-        execute_ms: result.timing?.execute_ms,
-        cache_hit: result.timing?.cache_hit,
-        trace_version: result.trace?.trace_version,
-        skill_id: result.skill?.skill_id,
-        error: result.trace?.error,
-      });
 
       return reply.send(result);
     } catch (err) {
@@ -177,10 +157,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/auth/login — interactive OAuth flow or direct browser cookie extraction
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
-    const { url, yolo } = req.body as { url: string; yolo?: boolean };
+    const { url } = req.body as { url: string };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
-      const result = await interactiveLogin(url, undefined, { yolo });
+      const result = await interactiveLogin(url);
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
@@ -230,7 +210,14 @@ export async function registerRoutes(app: FastifyInstance) {
       endpoint_id?: string;
       rating?: number;
       outcome?: string;
-      diagnostics?: Record<string, unknown>;
+      diagnostics?: {
+        total_ms?: number;
+        bottleneck?: string;
+        wrong_endpoint?: boolean;
+        expected_data?: string;
+        got_data?: string;
+        trace_version?: string;
+      };
     };
     const resolvedSkillId = skill_id ?? target_id;
     if (!resolvedSkillId || !endpoint_id || rating == null) {
@@ -238,31 +225,14 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     try {
       const avg_rating = await recordFeedback(resolvedSkillId, endpoint_id, rating);
+      // Forward diagnostics to backend for version-grouped analysis
       if (diagnostics) {
         recordDiagnostics(resolvedSkillId, endpoint_id, diagnostics).catch(() => {});
-        // Log feedback to domain session for debugging context
-        const domain = (diagnostics.domain as string) ?? resolvedSkillId.split("--")[0]?.trim() ?? "unknown";
-        appendSessionLog({
-          ts: new Date().toISOString(),
-          domain,
-          type: "feedback",
-          skill_id: resolvedSkillId,
-          endpoint_id,
-          rating,
-          ...(diagnostics as object),
-        });
       }
       return reply.send({ ok: true, avg_rating });
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
-  });
-
-  // GET /v1/sessions/:domain — recent session log for debugging
-  app.get("/v1/sessions/:domain", async (req, reply) => {
-    const { domain } = req.params as { domain: string };
-    const limit = Number((req.query as Record<string, string>).limit) || 20;
-    return reply.send({ domain, entries: readSessionLog(domain, limit) });
   });
 
   // GET /health
@@ -297,21 +267,4 @@ function saveTrace(trace: unknown) {
   if (!existsSync(TRACES_DIR)) mkdirSync(TRACES_DIR, { recursive: true });
   const t = trace as { trace_id: string };
   writeFileSync(join(TRACES_DIR, `${t.trace_id}.json`), JSON.stringify(trace, null, 2));
-}
-
-// --- Session log: append-only JSONL per domain, queryable for debugging ---
-const SESSION_LOG_DIR = join(TRACES_DIR, "sessions");
-
-function appendSessionLog(entry: Record<string, unknown>) {
-  if (!existsSync(SESSION_LOG_DIR)) mkdirSync(SESSION_LOG_DIR, { recursive: true });
-  const domain = String(entry.domain ?? "unknown").replace(/[^a-zA-Z0-9.-]/g, "_");
-  const path = join(SESSION_LOG_DIR, `${domain}.jsonl`);
-  appendFileSync(path, JSON.stringify(entry) + "\n");
-}
-
-function readSessionLog(domain: string, limit = 20): Record<string, unknown>[] {
-  const path = join(SESSION_LOG_DIR, `${domain.replace(/[^a-zA-Z0-9.-]/g, "_")}.jsonl`);
-  if (!existsSync(path)) return [];
-  const lines = readFileSync(path, "utf-8").trim().split("\n").filter(Boolean);
-  return lines.slice(-limit).reverse().map((l) => { try { return JSON.parse(l); } catch { return { raw: l }; } });
 }
