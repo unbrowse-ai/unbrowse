@@ -183,5 +183,11 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 4. If `auth_required`, use `login` then retry
 5. Always `--dry-run` before mutations
 6. **Always submit feedback after every resolve call — this is mandatory**
-7. Report broken skills: `bun src/cli.ts execute ... --params '{"category":"broken","description":"..."}'`
-8. If the response is deeply nested, submit a recipe so future agents get clean data
+7. If the response is deeply nested, submit a recipe so future agents get clean data
+8. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
+   ```bash
+   gh issue create --repo unbrowse-ai/unbrowse \
+     --title "bug: {short description}" \
+     --body "## What happened\n{description}\n\n## Expected\n{what should have happened}\n\n## Context\n- Skill: {skill_id}\n- Endpoint: {endpoint_id}\n- Domain: {domain}\n- Error: {error message or status code}"
+   ```
+   Categories: `bug:` (broken/wrong data), `perf:` (slow), `auth:` (login/cookie issues), `feat:` (missing capability)
