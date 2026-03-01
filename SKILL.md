@@ -2,256 +2,186 @@
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents. Capture network traffic, discover API endpoints, learn patterns, execute learned skills, and manage auth for gated sites. Use when someone wants to extract structured data from a website, discover API endpoints, automate web interactions, or work without official API documentation.
 user-invocable: true
-metadata: {"openclaw": {"requires": {"bins": ["curl"]}, "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
+metadata: {"openclaw": {"requires": {"bins": ["bun"]}, "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
 ---
 
 # Unbrowse — Drop-in Browser Replacement for Agents
 
 Browse once, cache the APIs, reuse them instantly. First call discovers and learns the site's APIs (~20-80s). Every subsequent call uses cached skills (<200ms for server-fetch, ~2s for sites requiring browser execution).
 
-All calls go through `http://localhost:6969` (or `$UNBROWSE_URL`).
-
-## CLI (Recommended)
-
-The CLI eliminates shell escaping issues with curl + jq. All JSON is constructed and parsed in TypeScript.
-
-```bash
-# Resolve an intent (handles marketplace search → capture → execute)
-unbrowse resolve --intent "get timeline posts" --url "https://x.com"
-
-# Execute a specific endpoint
-unbrowse execute --skill {skill_id} --endpoint {endpoint_id}
-
-# Extract specific fields (no jq needed — replaces piping to node/jq)
-unbrowse execute --skill {skill_id} --endpoint {endpoint_id} \
-  --path "data.items[]" \
-  --extract "name:author.name,text:body.text,likes:stats.favorite_count" \
-  --limit 20
-
-# Submit feedback (MANDATORY after every resolve)
-unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5
-
-# Submit extraction recipe for clean future responses
-unbrowse recipe --skill {skill_id} --endpoint {endpoint_id} \
-  --source "data.items" --fields "author:actor.name,text:body.text" --compact
-
-# Interactive login for gated sites
-unbrowse login --url "https://example.com/login"
-
-# Search marketplace
-unbrowse search --intent "get product prices" --domain "amazon.com"
-
-# Pretty-print any command
-unbrowse resolve --intent "..." --url "..." --pretty
-```
-
-The CLI auto-starts the server if it's not running.
-
-**Key flags for data extraction (no piping needed):**
-- `--path "deep.nested.array[]"` — drill into the response before extracting
-- `--extract "alias:field.path,alias2:other.path"` — pick specific fields with aliasing
-- `--limit N` — cap array output to N items
-- `--raw` — skip extraction recipes, return unprocessed data
-- `--pretty` — indented JSON output
-
-When `--path`/`--extract`/`--limit` are used, trace metadata is slimmed down automatically (1MB → 1.5KB typical).
-
-Run `unbrowse help` for all commands and flags.
+**IMPORTANT: Always use the CLI (`bun src/cli.ts`). NEVER pipe output to `node -e`, `python -c`, or `jq` — this causes shell escaping failures. Use `--path`, `--extract`, and `--limit` flags instead.**
 
 ## Server Startup
 
 ```bash
-UNBROWSE=${UNBROWSE_URL:-http://localhost:6969}
-curl -sf "$UNBROWSE/health" || echo "NOT_RUNNING"
+cd ~/.agents/skills/unbrowse && bun src/cli.ts health
 ```
 
-If not running, start it. First time requires ToS acceptance — ask the user:
+If not running, the CLI auto-starts the server. First time requires ToS acceptance — ask the user:
 
 > Unbrowse needs you to accept its Terms of Service:
 > - Discovered API structures may be shared in the collective registry
 > - You will not use Unbrowse to attack, overload, or abuse any target site
 > Full terms: https://unbrowse.ai/terms
 
-After consent:
+After consent, the CLI handles startup automatically. First run also needs the browser engine:
 
 ```bash
-cd ~/.agents/skills/unbrowse && UNBROWSE_NON_INTERACTIVE=1 UNBROWSE_TOS_ACCEPTED=1 nohup bun src/index.ts > /tmp/unbrowse.log 2>&1 &
-for i in $(seq 1 10); do curl -sf "$UNBROWSE/health" && break || sleep 1; done
+cd ~/.agents/skills/unbrowse && npx agent-browser install
 ```
 
-First run also needs the browser engine: `cd ~/.agents/skills/unbrowse && npx agent-browser install`
+## Core Workflow
 
-## Core Usage
-
-### Resolve an intent (recommended — handles everything)
+### Step 1: Resolve an intent
 
 ```bash
-curl -s -X POST "$UNBROWSE/v1/intent/resolve" \
-  -H "Content-Type: application/json" \
-  -d '{"intent": "get my bookmarked tweets", "params": {"url": "https://x.com/i/bookmarks"}, "context": {"url": "https://x.com/i/bookmarks"}}'
+cd ~/.agents/skills/unbrowse && bun src/cli.ts resolve \
+  --intent "get feed posts" \
+  --url "https://www.linkedin.com/feed/" \
+  --pretty
 ```
 
-This searches the marketplace for a cached skill, or captures the site and learns one. The response includes `result`, `trace`, `timing`, `skill`, and `available_endpoints`.
+This returns `available_endpoints` — a ranked list of discovered API endpoints. Pick the right one by URL pattern (e.g., `MainFeed` for feed, `HomeTimeline` for tweets).
 
-### Execute a specific endpoint
-
-If the auto-selected endpoint is wrong, pick from `available_endpoints`:
+### Step 2: Execute with extraction
 
 ```bash
-curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
-  -H "Content-Type: application/json" \
-  -d '{"params": {"endpoint_id": "{correct_endpoint_id}"}}'
+cd ~/.agents/skills/unbrowse && bun src/cli.ts execute \
+  --skill {skill_id} \
+  --endpoint {endpoint_id} \
+  --path "data.included[]" \
+  --extract "author:actor.name.text,text:commentary.text.text,posted:actor.subDescription.text" \
+  --limit 20 \
+  --pretty
 ```
 
-### Reading the response
+**This is the key pattern — `--path` + `--extract` + `--limit` replace ALL piping to jq/node/python.**
 
-**IMPORTANT: Always read `.result` — never dig into `.trace.result`.**
+### Step 3: Submit feedback (MANDATORY)
 
-If `recipe_applied: true` is in the response, the data is already parsed:
+```bash
+cd ~/.agents/skills/unbrowse && bun src/cli.ts feedback \
+  --skill {skill_id} \
+  --endpoint {endpoint_id} \
+  --rating 5 \
+  --outcome success
 ```
-.result.data[]    → array of clean, flat objects (e.g. {author, text, posted})
-.result._recipe   → metadata: source, items_before/after_filter, fields_mapped
+
+**Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
+
+## Data Extraction Flags
+
+These flags eliminate the need to pipe output to any external parser:
+
+| Flag | Example | What it does |
+|------|---------|--------------|
+| `--path` | `"data.home.timeline.instructions[].entries[]"` | Drill into nested response using dot-paths with `[]` array expansion |
+| `--extract` | `"user:core.user.name,text:legacy.full_text"` | Pick specific fields with `alias:path` mapping |
+| `--limit` | `10` | Cap array output to N items |
+| `--pretty` | (boolean) | Indented JSON output |
+| `--raw` | (boolean) | Skip extraction recipes, return unprocessed data |
+
+When these flags are used, trace metadata is slimmed automatically (1MB raw -> 1.5KB output typical).
+
+### Examples
+
+```bash
+# X timeline — extract tweets with user, text, likes
+bun src/cli.ts execute --skill {id} --endpoint {id} \
+  --path "data.home.home_timeline_urt.instructions[].entries[].content.itemContent.tweet_results.result" \
+  --extract "user:core.user_results.result.legacy.screen_name,text:legacy.full_text,likes:legacy.favorite_count" \
+  --limit 20 --pretty
+
+# LinkedIn feed — extract posts from included[]
+bun src/cli.ts execute --skill {id} --endpoint {id} \
+  --path "data.included[]" \
+  --extract "author:actor.name.text,text:commentary.text.text,likes:socialDetail.totalSocialActivityCounts.numLikes" \
+  --limit 20 --pretty
+
+# Simple case — just limit results
+bun src/cli.ts execute --skill {id} --endpoint {id} --limit 10 --pretty
 ```
 
-If no recipe exists, `.result` contains the raw API response — parse it yourself and consider submitting a recipe (see Extraction Recipes below).
+## Extraction Recipes
+
+For responses you parse repeatedly, submit a recipe so future calls return clean data automatically (for ALL agents):
+
+```bash
+cd ~/.agents/skills/unbrowse && bun src/cli.ts recipe \
+  --skill {skill_id} \
+  --endpoint {endpoint_id} \
+  --source "included" \
+  --fields "author:actor.name.text,text:commentary.text.text,posted:actor.subDescription.text" \
+  --require "commentary" \
+  --compact \
+  --description "Extract posts from LinkedIn feed"
+```
+
+When a recipe exists, future executions auto-return clean data. Use `--raw` to bypass recipes.
+
+| Recipe flag | Description |
+|-------------|-------------|
+| `--source "path"` | Dot-path to the source array |
+| `--fields "alias:path,..."` | Field mappings |
+| `--filter '{"field":"type","equals":"post"}'` | Filter array items (JSON) |
+| `--require "field1,field2"` | Required non-null fields |
+| `--compact` | Strip nulls and empty values |
 
 ## Authentication
 
 **Automatic.** Unbrowse extracts cookies from your Chrome/Firefox SQLite database — if you're logged into a site in Chrome, it just works.
 
-If `auth_required` is returned (never logged in, cookies expired):
+If `auth_required` is returned:
 
 ```bash
-curl -s -X POST "$UNBROWSE/v1/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/login"}'
+cd ~/.agents/skills/unbrowse && bun src/cli.ts login --url "https://example.com/login"
 ```
 
 User completes login in the browser window. Cookies are stored and reused automatically.
 
-## Feedback (MANDATORY after every call)
-
-**You MUST submit feedback after every `intent/resolve` call.** This is how real sessions become evals.
+## Other Commands
 
 ```bash
-curl -s -X POST "$UNBROWSE/v1/feedback" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "skill_id": "{skill_id}",
-    "endpoint_id": "{endpoint_id}",
-    "rating": 5,
-    "outcome": "success",
-    "diagnostics": {
-      "total_ms": 150,
-      "bottleneck": "server-fetch",
-      "wrong_endpoint": false,
-      "expected_data": "bookmarked tweets",
-      "got_data": "bookmark collections",
-      "trace_version": "d9ff33c0eeb9@abc1234"
-    }
-  }'
+bun src/cli.ts skills                                    # List all skills
+bun src/cli.ts skill {id}                                # Get skill details
+bun src/cli.ts search --intent "..." --domain "..."      # Search marketplace
+bun src/cli.ts sessions --domain "linkedin.com"          # Debug session logs
+bun src/cli.ts health                                    # Server health check
 ```
-
-**Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
-
-**Diagnostics:** `total_ms` from timing.total_ms, `bottleneck` from timing.source, `wrong_endpoint` if you retried, `trace_version` from trace.trace_version.
-
-## Extraction Recipes
-
-When an API returns deeply-nested or mixed-entity responses, submit an extraction recipe so future agents get clean, structured output automatically.
-
-### When to submit
-
-After you figure out how to parse a response that has:
-- A large array with mixed entity types needing filtering (e.g. LinkedIn's `included[]`)
-- Deeply nested fields that should be flattened
-- Lots of noise (tracking IDs, URNs, ephemeral metadata)
-
-### Submit a recipe
-
-```bash
-curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/endpoints/{endpoint_id}/recipe" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "recipe": {
-      "source": "included",
-      "filter": {"field": "$type", "contains": "Update"},
-      "require": ["commentary"],
-      "fields": {
-        "author": "actor.name.text",
-        "headline": "actor.description.text",
-        "posted": "actor.subDescription.text",
-        "text": "commentary.text.text"
-      },
-      "compact": true,
-      "description": "Extract posts from LinkedIn feed"
-    }
-  }'
-```
-
-### Recipe format
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `source` | string | yes | Dot-path to the source array, e.g. `"included"` or `"data.items"` |
-| `filter` | object | no | `{ field, equals?, contains?, in? }` — filter array items |
-| `require` | string[] | no | Fields that must be non-null |
-| `fields` | object | yes | `{ outputName: "deep.path.to.value" }` — flatten nested data |
-| `compact` | boolean | no | Strip nulls and empty values |
-| `description` | string | no | What this recipe extracts |
-
-Recipes auto-apply on all future executions. To get raw data, pass `"projection": {"raw": true}`.
-
-## Debugging
-
-Check recent session history for a domain:
-
-```bash
-curl -s "$UNBROWSE/v1/sessions/www.linkedin.com?limit=10" | jq '.entries[]'
-```
-
-Every call is auto-logged with timing, endpoint selected, errors, trace version.
 
 ## Mutations
 
-Always `dry_run` first, ask user before `confirm_unsafe`:
+Always `--dry-run` first, ask user before `--confirm-unsafe`:
 
 ```bash
-# Preview
-curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
-  -H "Content-Type: application/json" \
-  -d '{"params": {}, "dry_run": true}'
-
-# Execute (after user confirms)
-curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
-  -H "Content-Type: application/json" \
-  -d '{"params": {}, "confirm_unsafe": true}'
+bun src/cli.ts execute --skill {id} --endpoint {id} --dry-run
+bun src/cli.ts execute --skill {id} --endpoint {id} --confirm-unsafe
 ```
 
-## Other Endpoints
+## REST API Reference
+
+For cases where the CLI doesn't cover your needs, the raw REST API is at `http://localhost:6969`:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/v1/intent/resolve` | Resolve intent → search/capture/execute |
+| POST | `/v1/intent/resolve` | Resolve intent -> search/capture/execute |
 | POST | `/v1/skills/:id/execute` | Execute a specific skill |
 | POST | `/v1/auth/login` | Interactive browser login |
 | POST | `/v1/feedback` | Submit feedback with diagnostics |
-| GET | `/v1/sessions/:domain` | Debug session logs for domain |
-| GET | `/v1/skills/:id` | Get skill details |
 | POST | `/v1/search` | Search marketplace globally |
 | POST | `/v1/search/domain` | Search marketplace by domain |
-| POST | `/v1/skills/:id/issues` | Report broken skill |
 | POST | `/v1/skills/:id/endpoints/:eid/recipe` | Submit extraction recipe |
-| DELETE | `/v1/skills/:id/endpoints/:eid/recipe` | Remove extraction recipe |
-| GET | `/health` | Health check + trace version |
+| GET | `/v1/skills/:id` | Get skill details |
+| GET | `/v1/sessions/:domain` | Debug session logs |
+| GET | `/health` | Health check |
 
 ## Rules
 
-1. Always try `intent/resolve` first
-2. Check the result — if wrong, pick from `available_endpoints` and re-execute
-3. If `auth_required`, use `/v1/auth/login` then retry
-4. Always `dry_run` before mutations
-5. **Always submit feedback with diagnostics after every call — this is mandatory**
-6. If something is slow or broken, check `/v1/sessions/:domain` before filing issues
-7. Report broken skills via `/v1/skills/:id/issues`
-8. If the response is deeply nested, submit an extraction recipe so future agents get clean data
+1. **Always use the CLI** — never pipe to `node -e`, `python -c`, or `jq`. Use `--path`/`--extract`/`--limit` instead.
+2. Always try `resolve` first — it handles the full marketplace search -> capture pipeline
+3. Check the result — if wrong, pick from `available_endpoints` and re-execute with `--endpoint`
+4. If `auth_required`, use `login` then retry
+5. Always `--dry-run` before mutations
+6. **Always submit feedback after every resolve call — this is mandatory**
+7. Report broken skills: `bun src/cli.ts execute ... --params '{"category":"broken","description":"..."}'`
+8. If the response is deeply nested, submit a recipe so future agents get clean data
