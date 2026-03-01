@@ -22,8 +22,11 @@ unbrowse resolve --intent "get timeline posts" --url "https://x.com"
 # Execute a specific endpoint
 unbrowse execute --skill {skill_id} --endpoint {endpoint_id}
 
-# Extract specific fields (no jq needed)
-unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --extract "user,text,likes"
+# Extract specific fields (no jq needed — replaces piping to node/jq)
+unbrowse execute --skill {skill_id} --endpoint {endpoint_id} \
+  --path "data.items[]" \
+  --extract "name:author.name,text:body.text,likes:stats.favorite_count" \
+  --limit 20
 
 # Submit feedback (MANDATORY after every resolve)
 unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5
@@ -42,7 +45,16 @@ unbrowse search --intent "get product prices" --domain "amazon.com"
 unbrowse resolve --intent "..." --url "..." --pretty
 ```
 
-The CLI auto-starts the server if it's not running. Use `--raw` to skip extraction recipes and get unprocessed data. Use `--extract` for ad-hoc field selection without recipes.
+The CLI auto-starts the server if it's not running.
+
+**Key flags for data extraction (no piping needed):**
+- `--path "deep.nested.array[]"` — drill into the response before extracting
+- `--extract "alias:field.path,alias2:other.path"` — pick specific fields with aliasing
+- `--limit N` — cap array output to N items
+- `--raw` — skip extraction recipes, return unprocessed data
+- `--pretty` — indented JSON output
+
+When `--path`/`--extract`/`--limit` are used, trace metadata is slimmed down automatically (1MB → 1.5KB typical).
 
 Run `unbrowse help` for all commands and flags.
 
