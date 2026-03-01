@@ -226,6 +226,16 @@ curl -s -X POST "$UNBROWSE/v1/feedback" \
 
 **Diagnostics fields:** `total_ms` from timing.total_ms, `bottleneck` from timing.source (marketplace-search/trigger-intercept/live-capture/server-fetch), `wrong_endpoint` if you retried with a different endpoint_id, `trace_version` from trace.trace_version.
 
+## Debugging — Session Logs
+
+If something is slow or broken, check the session log for that domain:
+
+```bash
+curl -s "$UNBROWSE/v1/sessions/www.linkedin.com?limit=10" | jq '.entries[] | {ts, intent, source, success, status, endpoint, total_ms, error}'
+```
+
+Every `intent/resolve` call is auto-logged with: timing breakdown, which endpoint was selected, cache hits, errors. Use this to understand **why** a call was slow or returned wrong data before filing an issue.
+
 ## Reporting Issues
 
 If a skill is broken or returns wrong data, report it:
