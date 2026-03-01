@@ -8,8 +8,9 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 
-const LOGIN_TIMEOUT_MS = 120_000;
-const POLL_INTERVAL_MS = 1_000;
+const LOGIN_TIMEOUT_MS = 300_000;
+const POLL_INTERVAL_MS = 2_000;
+const MIN_WAIT_MS = 15_000; // Always wait at least 15s so user has time to log in
 
 /**
  * Returns the persistent profile directory for a given domain.
@@ -55,11 +56,19 @@ export async function interactiveLogin(
     const page = browser.getPage();
     const startTime = Date.now();
 
-    // Wait for user to complete login — detect navigation back to target domain
+    // Snapshot initial cookies so we can detect new ones after login
+    const context = browser.getContext();
+    const initialCookies = context ? await context.cookies() : [];
+    const initialCookieCount = initialCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
+    log("auth", `initial cookies for ${targetDomain}: ${initialCookieCount}`);
+
+    // Wait for user to complete login — detect via cookie changes + URL change
     let loggedIn = false;
     let lastLoggedUrl = "";
     while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      const elapsed = Date.now() - startTime;
+
       try {
         const currentUrl = page.url();
         const currentDomain = new URL(currentUrl).hostname.toLowerCase();
@@ -70,12 +79,21 @@ export async function interactiveLogin(
           lastLoggedUrl = currentUrl;
         }
 
+        // Don't even check for login completion until MIN_WAIT_MS has passed
+        if (elapsed < MIN_WAIT_MS) continue;
+
         const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
         if (isOnTarget) {
           const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/.test(new URL(currentUrl).pathname);
-          if (!isStillLogin) {
+
+          // Check if new cookies appeared (the real signal that login happened)
+          const currentCookies = context ? await context.cookies() : [];
+          const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
+          const gotNewCookies = currentCookieCount > initialCookieCount;
+
+          if (!isStillLogin && gotNewCookies) {
             loggedIn = true;
-            log("auth", `login complete — ${currentUrl}`);
+            log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount})`);
             break;
           }
         }
@@ -83,12 +101,14 @@ export async function interactiveLogin(
     }
 
     if (!loggedIn) {
-      return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login timeout (120s)" };
+      // Even on timeout, grab whatever cookies we have — the user may have logged in
+      // but the detection missed it
+      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — capturing cookies anyway`);
     }
 
     // Extract and store cookies
-    const context = browser.getContext();
-    const cookies = context ? await context.cookies() : [];
+    const finalContext = browser.getContext();
+    const cookies = finalContext ? await finalContext.cookies() : [];
     const domainCookies = cookies.filter((c) => isDomainMatch(c.domain, targetDomain));
 
     if (domainCookies.length === 0) {
