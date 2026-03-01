@@ -79,6 +79,9 @@ export interface EndpointDescriptor {
   /** Learned execution strategy — set after first successful execution.
    *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
   exec_strategy?: "server" | "trigger-intercept" | "browser";
+  /** Persisted extraction recipe — auto-applied during execution when no explicit projection is given.
+   *  Converts raw API responses (e.g. LinkedIn's 500KB included[] blobs) into clean structured output. */
+  extraction_recipe?: ExtractionRecipe;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -158,6 +161,35 @@ export interface ProjectionOptions {
   fields?: string[];
   compact?: boolean;
   max_depth?: number;
+  /** When true, skip extraction_recipe and return raw response data */
+  raw?: boolean;
+}
+
+/**
+ * Persisted transformation rule that converts raw API responses into clean,
+ * structured output. Stored on EndpointDescriptor so it travels with the skill.
+ */
+export interface ExtractionRecipe {
+  /** Dot-path to the source array in the response, e.g. "included" or "data.items" */
+  source: string;
+  /** Filter to select items from the source array */
+  filter?: {
+    field: string;
+    equals?: string;
+    contains?: string;
+    /** Match any of several values */
+    in?: string[];
+  };
+  /** Fields that must be non-null for an item to be included */
+  require?: string[];
+  /** Map of { outputFieldName: "deep.path.to.value" } */
+  fields: Record<string, string>;
+  /** Strip nulls, empty strings, empty arrays from output items */
+  compact?: boolean;
+  /** Human-readable note about what this recipe extracts */
+  description?: string;
+  /** ISO timestamp of when the recipe was last updated */
+  updated_at?: string;
 }
 
 export interface DriftResult {
