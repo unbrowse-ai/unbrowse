@@ -97,7 +97,10 @@ function resolvePath(obj: unknown, path: string): unknown {
   return cur;
 }
 
-/** Apply --extract fields to data. Each field is "alias:deep.path" or just "field". */
+/** Apply --extract fields to data. Each field is "alias:deep.path" or just "field".
+ *  When processing arrays, rows where ALL extracted fields are null/undefined are dropped.
+ *  This handles decorator-pattern APIs (e.g. LinkedIn included[]) where heterogeneous
+ *  item types coexist and only some items match the requested fields. */
 function extractFields(data: unknown, fields: string[]): unknown {
   if (data == null) return data;
 
@@ -112,7 +115,10 @@ function extractFields(data: unknown, fields: string[]): unknown {
     return out;
   }
 
-  return Array.isArray(data) ? data.map(mapItem) : mapItem(data);
+  if (Array.isArray(data)) {
+    return data.map(mapItem).filter((row) => Object.values(row).some((v) => v != null));
+  }
+  return mapItem(data);
 }
 
 /** Apply --path, --extract, --limit to a result object. */
