@@ -70,51 +70,92 @@ function info(msg: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Extract helper — resolve dot-paths with [] array expansion
+// Path resolution — drill into nested structures with [] array expansion
 // ---------------------------------------------------------------------------
 
-function extract(data: unknown, fields: string[]): unknown {
+/** Resolve a dot-path like "data.items[].name" against an object. */
+function resolvePath(obj: unknown, path: string): unknown {
+  if (!path || obj == null) return obj;
+  const segments = path.split(".");
+  let cur: unknown = obj;
+  for (let i = 0; i < segments.length; i++) {
+    if (cur == null) return undefined;
+    const seg = segments[i];
+    if (seg.endsWith("[]")) {
+      const key = seg.slice(0, -2);
+      const arr = key ? (cur as Record<string, unknown>)[key] : cur;
+      if (!Array.isArray(arr)) return undefined;
+      const remaining = segments.slice(i + 1).join(".");
+      if (!remaining) return arr;
+      return arr.flatMap((item) => {
+        const v = resolvePath(item, remaining);
+        return v === undefined ? [] : Array.isArray(v) ? v : [v];
+      });
+    }
+    cur = (cur as Record<string, unknown>)[seg];
+  }
+  return cur;
+}
+
+/** Apply --extract fields to data. Each field is "alias:deep.path" or just "field". */
+function extractFields(data: unknown, fields: string[]): unknown {
   if (data == null) return data;
 
-  function resolve(obj: unknown, path: string): unknown {
-    const parts = path.split(".");
-    let cur: unknown = obj;
-    for (const p of parts) {
-      if (cur == null) return undefined;
-      if (p.endsWith("[]")) {
-        const key = p.slice(0, -2);
-        const arr = key ? (cur as Record<string, unknown>)[key] : cur;
-        if (!Array.isArray(arr)) return undefined;
-        const remaining = parts.slice(parts.indexOf(p) + 1).join(".");
-        if (!remaining) return arr;
-        return arr.map((item) => resolve(item, remaining)).filter((v) => v !== undefined);
-      }
-      cur = (cur as Record<string, unknown>)[p];
+  function mapItem(item: unknown): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const f of fields) {
+      const colonIdx = f.indexOf(":");
+      const alias = colonIdx >= 0 ? f.slice(0, colonIdx) : f.split(".").pop()!;
+      const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
+      out[alias] = resolvePath(item, path);
     }
-    return cur;
+    return out;
   }
 
-  // If data is an array, map each item
-  if (Array.isArray(data)) {
-    return data.map((item) => {
-      const out: Record<string, unknown> = {};
-      for (const f of fields) {
-        const alias = f.includes(":") ? f.split(":")[0] : f.split(".").pop()!;
-        const path = f.includes(":") ? f.split(":").slice(1).join(":") : f;
-        out[alias] = resolve(item, path);
-      }
-      return out;
-    });
+  return Array.isArray(data) ? data.map(mapItem) : mapItem(data);
+}
+
+/** Apply --path, --extract, --limit to a result object. */
+function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
+  let data = result;
+
+  // --path: drill into nested structure
+  const pathFlag = flags.path as string | undefined;
+  if (pathFlag) {
+    data = resolvePath(data, pathFlag);
   }
 
-  // Single object
-  const out: Record<string, unknown> = {};
-  for (const f of fields) {
-    const alias = f.includes(":") ? f.split(":")[0] : f.split(".").pop()!;
-    const path = f.includes(":") ? f.split(":").slice(1).join(":") : f;
-    out[alias] = resolve(data, path);
+  // --extract: pick specific fields
+  const extractFlag = flags.extract as string | undefined;
+  if (extractFlag) {
+    const fields = extractFlag.split(",").map((f) => f.trim());
+    data = extractFields(data, fields);
   }
-  return out;
+
+  // --limit: cap array output
+  const limitFlag = flags.limit as string | undefined;
+  if (limitFlag && Array.isArray(data)) {
+    data = data.slice(0, Number(limitFlag));
+  }
+
+  return data;
+}
+
+/** Slim down trace when transforms are applied — keep only essential metadata. */
+function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
+  const trace = obj.trace as Record<string, unknown> | undefined;
+  if (!trace) return obj;
+  return {
+    ...obj,
+    trace: {
+      trace_id: trace.trace_id,
+      skill_id: trace.skill_id,
+      endpoint_id: trace.endpoint_id,
+      success: trace.success,
+      status_code: trace.status_code,
+      trace_version: trace.trace_version,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -184,11 +225,10 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
   let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
 
-  // --extract: ad-hoc field extraction from .result
-  const extractFields = flags.extract as string | undefined;
-  if (extractFields && result.result) {
-    const fields = extractFields.split(",").map((f) => f.trim());
-    result = { ...result, result: extract(result.result, fields) };
+  // --path / --extract / --limit: transform .result in-place
+  const hasTransforms = !!(flags.path || flags.extract || flags.limit);
+  if (hasTransforms && result.result != null) {
+    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
   }
 
   // Append CLI hint for feedback
@@ -218,10 +258,10 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
 
   let result = await api("POST", `/v1/skills/${skillId}/execute`, body) as Record<string, unknown>;
 
-  const extractFields = flags.extract as string | undefined;
-  if (extractFields && result.result) {
-    const fields = extractFields.split(",").map((f) => f.trim());
-    result = { ...result, result: extract(result.result, fields) };
+  // --path / --extract / --limit: transform .result in-place
+  const hasTransforms = !!(flags.path || flags.extract || flags.limit);
+  if (hasTransforms && result.result != null) {
+    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
   }
 
   output(result, !!flags.pretty);
@@ -326,7 +366,9 @@ Global flags:
   --raw             Skip extraction recipes, return raw data
 
 resolve/execute flags:
-  --extract "field1,field2,alias:deep.path"   Ad-hoc field extraction from result
+  --path "data.items[]"                       Drill into result before extract/output
+  --extract "field1,alias:deep.path.to.val"   Pick specific fields (no piping needed)
+  --limit N                                   Cap array output to N items
   --endpoint-id ID                            Pick a specific endpoint
   --dry-run                                   Preview mutations
   --force-capture                             Bypass caches, re-capture
@@ -343,7 +385,8 @@ recipe flags:
 Examples:
   unbrowse resolve --intent "get timeline" --url "https://x.com"
   unbrowse execute --skill abc --endpoint def --pretty
-  unbrowse execute --skill abc --endpoint def --extract "user,text,likes"
+  unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10
+  unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20
   unbrowse feedback --skill abc --endpoint def --rating 5
   unbrowse recipe --skill abc --endpoint def --source "included" --fields "author:actor.name,text:commentary.text" --compact
 `;
