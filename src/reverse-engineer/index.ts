@@ -126,9 +126,15 @@ function scoreRequest(req: RawRequest): number {
   if (SKIP_JS_BUNDLES.test(req.url)) score -= 10;
   const ct = req.response_headers?.["content-type"] ?? "";
   if (ct.includes("application/json") && !ct.includes("protobuf")) score += 4;
+  // Fallback: if response_headers is empty (common in tracked requests), check if body is JSON
+  else if (!ct && req.response_body) {
+    try { JSON.parse(stripJsonPrefix(req.response_body)); score += 4; } catch { /* not JSON */ }
+  }
   // Protobuf responses are not parseable — score neutral, don't reward (BUG-GC-006)
   if (ct.includes("x-protobuf") || ct.includes("json+protobuf")) score += 0;
-  if (req.url.length > 500) score -= 5;
+  // Penalise long URLs — but only the path, not query params (GraphQL endpoints
+  // have long variables/features query strings that inflate the URL length)
+  try { if (new URL(req.url).pathname.length > 200) score -= 5; } catch { if (req.url.length > 500) score -= 5; }
   // Penalise telemetry paths even if they passed the host filter
   if (SKIP_TELEMETRY_PATHS.test(new URL(req.url).pathname)) score -= 8;
   // Penalise Next.js RSC navigation requests — framework wire format, not data

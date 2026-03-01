@@ -186,6 +186,8 @@ export interface ExecutionOptions {
   intent?: string;
   /** The page URL the user is asking about — used to boost endpoints captured from that page */
   contextUrl?: string;
+  /** Skip marketplace search and caches — go straight to browser capture */
+  force_capture?: boolean;
 }
 
 export interface ValidationResult {
