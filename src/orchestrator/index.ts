@@ -79,6 +79,16 @@ export async function resolveAndExecute(
   // When the agent explicitly passes endpoint_id, execute directly — they already chose.
   const agentChoseEndpoint = !!params.endpoint_id;
 
+  const forceCapture = !!options?.force_capture;
+  // force_capture: clear domain caches so we go straight to browser capture
+  if (forceCapture && context?.url) {
+    const d = new URL(context.url).hostname;
+    capturedDomainCache.delete(d);
+    for (const [k] of skillRouteCache) {
+      if (k.includes(d)) skillRouteCache.delete(k);
+    }
+  }
+
   function finalize(source: OrchestrationTiming["source"], result: unknown, skillId?: string, skill?: SkillManifest, trace?: ExecutionTrace): OrchestrationTiming {
     timing.total_ms = Date.now() - t0;
     timing.source = source;
@@ -151,7 +161,7 @@ export async function resolveAndExecute(
   const cacheKey = `${requestedDomain || "global"}:${intent}`;
 
   // --- Agent explicitly chose an endpoint — execute directly via any cache/skill path ---
-  if (agentChoseEndpoint) {
+  if (!forceCapture && agentChoseEndpoint) {
     // Route cache
     const cached = skillRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
@@ -174,7 +184,7 @@ export async function resolveAndExecute(
   // Local disk cache: find skill for this domain.
   // Only use if the skill's trigger_url matches the requested context URL path — this ensures
   // we don't serve a bookmarks skill when DMs are requested (same domain, different page).
-  if (requestedDomain && context?.url) {
+  if (!forceCapture && requestedDomain && context?.url) {
     const { findExistingSkillForDomain } = await import("../client/index.js");
     const localSkill = findExistingSkillForDomain(requestedDomain);
     if (localSkill && localSkill.endpoints.length > 0) {
@@ -204,6 +214,7 @@ export async function resolveAndExecute(
     }
   }
 
+ if (!forceCapture) {
   // 1. Search marketplace — domain + global in parallel
   const ts0 = Date.now();
   type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
@@ -291,8 +302,9 @@ export async function resolveAndExecute(
       return buildDeferral(bestSkill, "marketplace");
     }
   }
+ } // end !forceCapture
 
-  // 2. No match — invoke browser-capture skill
+  // 2. No match (or force_capture) — invoke browser-capture skill
   if (!context?.url) {
     throw new Error(
       "No matching skill found. Pass context.url to trigger live capture and discovery."
@@ -302,7 +314,7 @@ export async function resolveAndExecute(
   const captureDomain = new URL(context.url).hostname;
 
   // Check recently-captured cache: avoids re-capturing when EmergentDB hasn't indexed yet
-  const domainHit = capturedDomainCache.get(captureDomain);
+  const domainHit = !forceCapture ? capturedDomainCache.get(captureDomain) : undefined;
   if (domainHit && Date.now() < domainHit.expires) {
     if (agentChoseEndpoint) {
       const { trace, result } = await executeSkill(domainHit.skill, params, projection, { ...options, intent, contextUrl: context?.url });

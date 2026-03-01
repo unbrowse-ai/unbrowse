@@ -33,17 +33,18 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
-    const { intent, params, context, projection, confirm_unsafe, dry_run } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, dry_run, force_capture } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
       dry_run?: boolean;
+      force_capture?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture });
 
       // Surface timing breakdown
       const res = result as unknown as Record<string, unknown>;
