@@ -199,17 +199,32 @@ curl -s -X POST "$UNBROWSE/v1/skills/{skill_id}/execute" \
   -d '{"params": {}, "projection": {"include": ["title", "url", "score"]}}'
 ```
 
-## Feedback
+## Feedback (Auto-submit after every call)
 
-Report whether a skill execution was useful:
+**IMPORTANT: After every `intent/resolve` call, you MUST submit feedback.** This is how real sessions become evals.
 
 ```bash
 curl -s -X POST "$UNBROWSE/v1/feedback" \
   -H "Content-Type: application/json" \
-  -d '{"target_type": "skill", "target_id": "{skill_id}", "endpoint_id": "{endpoint_id}", "outcome": "success", "rating": 5}'
+  -d '{
+    "skill_id": "{skill_id}",
+    "endpoint_id": "{endpoint_id}",
+    "rating": 5,
+    "outcome": "success",
+    "diagnostics": {
+      "total_ms": 2500,
+      "bottleneck": "trigger-intercept",
+      "wrong_endpoint": false,
+      "expected_data": "linkedin messages",
+      "got_data": "linkedin messages",
+      "trace_version": "d9ff33c0eeb9@abc1234"
+    }
+  }'
 ```
 
-Ratings (1-5) affect the skill's reliability score and marketplace ranking. Skills with consistently low ratings or consecutive execution failures are automatically deprecated from the marketplace.
+**Rating guide:** 5=right data+fast, 4=right but slow(>5s), 3=incomplete, 2=wrong endpoint, 1=no useful data.
+
+**Diagnostics fields:** `total_ms` from timing.total_ms, `bottleneck` from timing.source (marketplace-search/trigger-intercept/live-capture/server-fetch), `wrong_endpoint` if you retried with a different endpoint_id, `trace_version` from trace.trace_version.
 
 ## Reporting Issues
 
@@ -356,7 +371,7 @@ All routes go through `localhost:6969` (or `$UNBROWSE_URL`). The local server ha
 2. **Check the result** -- if it looks wrong, inspect `available_endpoints` and retry with a specific `endpoint_id`
 3. If a site returns `auth_required`, use `/v1/auth/login` then retry
 4. Always `dry_run` before executing mutations (non-GET endpoints)
-5. Submit feedback after executions to improve skill reliability scores
+5. **Always submit feedback with diagnostics after every `intent/resolve` call** — this is mandatory
 6. Use `jq` to parse JSON responses for clean output
 7. Replace `{skill_id}` and `{endpoint_id}` with actual IDs from previous responses
 8. Report broken skills via `/v1/skills/:id/issues` -- it helps all agents on the network

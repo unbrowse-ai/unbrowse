@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, getApiKey } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, getApiKey } from "../client/index.js";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
@@ -157,10 +157,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/auth/login — interactive OAuth flow or direct browser cookie extraction
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
-    const { url } = req.body as { url: string };
+    const { url, yolo } = req.body as { url: string; yolo?: boolean };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
-      const result = await interactiveLogin(url);
+      const result = await interactiveLogin(url, undefined, { yolo });
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
@@ -202,14 +202,15 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /v1/feedback — submit execution feedback (proxies to backend)
+  // POST /v1/feedback — submit execution feedback with optional diagnostics
   app.post("/v1/feedback", async (req, reply) => {
-    const { skill_id, target_id, endpoint_id, rating, outcome } = req.body as {
+    const { skill_id, target_id, endpoint_id, rating, outcome, diagnostics } = req.body as {
       skill_id?: string;
       target_id?: string;
       endpoint_id?: string;
       rating?: number;
       outcome?: string;
+      diagnostics?: Record<string, unknown>;
     };
     const resolvedSkillId = skill_id ?? target_id;
     if (!resolvedSkillId || !endpoint_id || rating == null) {
@@ -217,6 +218,9 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     try {
       const avg_rating = await recordFeedback(resolvedSkillId, endpoint_id, rating);
+      if (diagnostics) {
+        recordDiagnostics(resolvedSkillId, endpoint_id, diagnostics).catch(() => {});
+      }
       return reply.send({ ok: true, avg_rating });
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
