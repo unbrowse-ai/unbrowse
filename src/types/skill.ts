@@ -72,6 +72,13 @@ export interface EndpointDescriptor {
     extraction_method: string;
     confidence: number;
   };
+  /** The page URL that triggered this API call during capture.
+   *  Used for trigger-and-intercept execution: navigate to this page,
+   *  let the site's own JS make the API call, and intercept the response. */
+  trigger_url?: string;
+  /** Learned execution strategy — set after first successful execution.
+   *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
+  exec_strategy?: "server" | "trigger-intercept" | "browser";
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -175,6 +182,8 @@ export interface ExecutionOptions {
   dry_run?: boolean;
   /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
   intent?: string;
+  /** The page URL the user is asking about — used to boost endpoints captured from that page */
+  contextUrl?: string;
 }
 
 export interface ValidationResult {
