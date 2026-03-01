@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill, rankEndpoints } from "../execution/index.js";
+import { executeSkill } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
@@ -45,24 +45,17 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run });
 
-      // Surface ranked endpoints so the calling agent can pick a better one
-      const skill = result.skill;
-      const res = result as unknown as Record<string, unknown>;
-      if (skill?.endpoints && skill.endpoints.length > 0) {
-        const ranked = rankEndpoints(skill.endpoints, intent, skill.domain);
-        res.available_endpoints = ranked.slice(0, 5).map((r) => ({
-          endpoint_id: r.endpoint.endpoint_id,
-          method: r.endpoint.method,
-          url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
-          score: Math.round(r.score * 10) / 10,
-          has_schema: !!r.endpoint.response_schema,
-          dom_extraction: !!r.endpoint.dom_extraction,
-        }));
-      }
-
       // Surface timing breakdown
+      const res = result as unknown as Record<string, unknown>;
       if (result.timing) {
         res.timing = result.timing;
+      }
+
+      // If the orchestrator already included available_endpoints in result (deferral),
+      // also append them at the top level for backward compatibility.
+      const innerResult = result.result as Record<string, unknown> | null;
+      if (innerResult?.available_endpoints && !res.available_endpoints) {
+        res.available_endpoints = innerResult.available_endpoints;
       }
 
       return reply.send(result);
