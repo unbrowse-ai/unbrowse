@@ -103,6 +103,8 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
+  /** When true, result contains { data: [...], _recipe: {...} } from an extraction recipe */
+  recipe_applied?: boolean;
 }
 
 export async function executeSkill(
@@ -422,15 +424,16 @@ export async function executeEndpoint(
         started_at: startedAt, completed_at: new Date().toISOString(), success: true, result: parsed,
       });
       let resultData: unknown = parsed;
+      let recipeApplied = false;
       if (projection?.raw) {
         // Explicit raw — skip recipe and projection
       } else if (projection) {
         resultData = applyProjection(parsed, projection);
       } else if (endpoint.extraction_recipe) {
         const recipeResult = applyRecipe(parsed, endpoint.extraction_recipe);
-        if (recipeResult) resultData = recipeResult;
+        if (recipeResult) { resultData = recipeResult; recipeApplied = true; }
       }
-      return { trace, result: resultData };
+      return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}) };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
         trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
@@ -805,16 +808,20 @@ export async function executeEndpoint(
 
   // Apply field projection or extraction recipe
   let resultData = data;
+  let recipeApplied = false;
   if (projection?.raw) {
     // Explicit raw request — skip recipe and projection
   } else if (projection && trace.success) {
     resultData = applyProjection(data, projection);
   } else if (endpoint.extraction_recipe && trace.success && data != null) {
     const recipeResult = applyRecipe(data, endpoint.extraction_recipe);
-    if (recipeResult) resultData = recipeResult;
+    if (recipeResult) {
+      resultData = recipeResult;
+      recipeApplied = true;
+    }
   }
 
-  return { trace, result: resultData };
+  return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}) };
 }
 
 /**
