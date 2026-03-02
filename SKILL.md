@@ -79,7 +79,7 @@ These flags eliminate the need to pipe output to any external parser:
 | `--extract` | `"user:core.user.name,text:legacy.full_text"` | Pick specific fields with `alias:path` mapping |
 | `--limit` | `10` | Cap array output to N items |
 | `--pretty` | (boolean) | Indented JSON output |
-| `--raw` | (boolean) | Skip extraction recipes, return unprocessed data |
+| `--raw` | (boolean) | Return raw response data (skip server-side projection) |
 
 When these flags are used, trace metadata is slimmed automatically (1MB raw -> 1.5KB output typical).
 
@@ -102,30 +102,9 @@ bun src/cli.ts execute --skill {id} --endpoint {id} \
 bun src/cli.ts execute --skill {id} --endpoint {id} --limit 10 --pretty
 ```
 
-## Extraction Recipes
+## Response Schema
 
-For responses you parse repeatedly, submit a recipe so future calls return clean data automatically (for ALL agents):
-
-```bash
-cd ~/.agents/skills/unbrowse && bun src/cli.ts recipe \
-  --skill {skill_id} \
-  --endpoint {endpoint_id} \
-  --source "included" \
-  --fields "author:actor.name.text,text:commentary.text.text,posted:actor.subDescription.text" \
-  --require "commentary" \
-  --compact \
-  --description "Extract posts from LinkedIn feed"
-```
-
-When a recipe exists, future executions auto-return clean data. Use `--raw` to bypass recipes.
-
-| Recipe flag | Description |
-|-------------|-------------|
-| `--source "path"` | Dot-path to the source array |
-| `--fields "alias:path,..."` | Field mappings |
-| `--filter '{"field":"type","equals":"post"}'` | Filter array items (JSON) |
-| `--require "field1,field2"` | Required non-null fields |
-| `--compact` | Strip nulls and empty values |
+Execute responses include a `response_schema` — the inferred JSON schema of the endpoint's response. Use it to understand the response shape and craft `--path`/`--extract` flags dynamically. The resolve command also includes a `schema_summary` per endpoint (top-level property names and types) to help pick the right endpoint.
 
 ## Authentication
 
@@ -170,7 +149,6 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 | POST | `/v1/feedback` | Submit feedback with diagnostics |
 | POST | `/v1/search` | Search marketplace globally |
 | POST | `/v1/search/domain` | Search marketplace by domain |
-| POST | `/v1/skills/:id/endpoints/:eid/recipe` | Submit extraction recipe |
 | GET | `/v1/skills/:id` | Get skill details |
 | GET | `/v1/sessions/:domain` | Debug session logs |
 | GET | `/health` | Health check |
@@ -183,7 +161,7 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 4. If `auth_required`, use `login` then retry
 5. Always `--dry-run` before mutations
 6. **Always submit feedback after every resolve call — this is mandatory**
-7. If the response is deeply nested, submit a recipe so future agents get clean data
+7. Use `response_schema` from execute responses to understand the data shape and craft extraction flags
 8. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
    ```bash
    gh issue create --repo unbrowse-ai/unbrowse \
