@@ -56,6 +56,7 @@ export interface CaptureResult {
   final_url: string;
   ws_messages?: CapturedWsMessage[];
   html?: string;
+  js_bundles?: Map<string, string>;
 }
 
 export interface RawRequest {
@@ -228,12 +229,36 @@ export async function captureSession(
   // including XHR/fetch calls made during initial page load
   const responseBodies = new Map<string, string>();
   const MAX_BODY_SIZE = 512 * 1024; // 512KB
+
+  // Collect same-domain JS bundles for API route scanning
+  const jsBundleBodies = new Map<string, string>();
+  const MAX_JS_BUNDLE_SIZE = 2 * 1024 * 1024; // 2MB per bundle
+  const MAX_JS_BUNDLES = 20;
+  let pageDomain: string | undefined;
+  try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
+
   try {
     const page = browser.getPage();
     page.on("response", async (response) => {
       try {
         const ct = response.headers()["content-type"] ?? "";
         const respUrl = response.url();
+
+        // Capture same-domain JS bundles for bundle scanning
+        const isJs = ct.includes("javascript") || /\.js(\?|$)/.test(respUrl);
+        if (isJs && jsBundleBodies.size < MAX_JS_BUNDLES && pageDomain) {
+          try {
+            const jsDomain = getRegistrableDomain(new URL(respUrl).hostname);
+            if (jsDomain === pageDomain) {
+              const body = await response.body();
+              if (body.length <= MAX_JS_BUNDLE_SIZE) {
+                jsBundleBodies.set(respUrl, body.toString("utf8"));
+              }
+            }
+          } catch { /* body unavailable */ }
+          return;
+        }
+
         // Capture JSON, protobuf, and batch RPC responses (Google batchexecute etc.)
         const isDataResponse =
           ct.includes("application/json") ||
@@ -373,7 +398,8 @@ export async function captureSession(
   }));
 
   if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
-  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html };
+  log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
+  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html, js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined };
   } finally {
     clearTimeout(timeoutHandle);
     releaseBrowserSlot(browser);
