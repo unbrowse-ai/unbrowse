@@ -1,6 +1,7 @@
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
+import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
@@ -188,6 +189,56 @@ async function executeBrowserCapture(
   }
 
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, intent });
+
+  // JS bundle scanning: discover API routes not seen in network traffic
+  if (captured.js_bundles && captured.js_bundles.size > 0) {
+    const pageOrigin = new URL(url).origin;
+    const bundleRoutes = scanBundlesForRoutes(captured.js_bundles, pageOrigin);
+
+    // Build set of already-discovered URL paths for deduplication
+    const networkPaths = new Set<string>();
+    for (const ep of endpoints) {
+      try {
+        const normalized = new URL(ep.url_template).pathname
+          .replace(/\{[^}]+\}/g, "*")
+          .replace(/\/+$/, "");
+        networkPaths.add(normalized);
+      } catch { /* skip */ }
+    }
+
+    let added = 0;
+    for (const route of bundleRoutes) {
+      const normalized = route.path.replace(/\/+$/, "");
+      if (networkPaths.has(normalized)) continue;
+
+      // Check if a network endpoint's wildcard pattern matches this route
+      let isDup = false;
+      for (const np of networkPaths) {
+        if (np.includes("*")) {
+          const re = new RegExp("^" + np.replace(/\*/g, "[^/]+") + "$");
+          if (re.test(normalized)) { isDup = true; break; }
+        }
+      }
+      if (isDup) continue;
+
+      endpoints.push({
+        endpoint_id: nanoid(),
+        method: "GET",
+        url_template: route.url,
+        idempotency: "safe",
+        verification_status: "pending",
+        reliability_score: 0.2,
+        description: `Inferred from JS bundle (${route.match_type}). Not observed in network traffic.`,
+        trigger_url: url,
+      });
+      added++;
+      networkPaths.add(normalized);
+    }
+
+    if (added > 0) {
+      log("execution", `added ${added} inferred endpoints from JS bundle scanning`);
+    }
+  }
 
   const cleanEndpoints = endpoints.filter((ep) => {
     try {

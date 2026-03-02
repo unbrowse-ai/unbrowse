@@ -180,6 +180,11 @@ function applyTransforms(result: unknown, flags: Record<string, string | boolean
   const pathFlag = flags.path as string | undefined;
   if (pathFlag) {
     data = resolvePath(data, pathFlag, entityIndex);
+    if (data === undefined) {
+      // Path didn't match — warn so the user knows to fix it
+      process.stderr.write(`[unbrowse] warning: --path "${pathFlag}" resolved to undefined. Check path against response structure.\n`);
+      return [];
+    }
   }
 
   // --extract: pick specific fields (with entity index for URN resolution)
@@ -198,21 +203,26 @@ function applyTransforms(result: unknown, flags: Record<string, string | boolean
   return data;
 }
 
-/** Slim down trace when transforms are applied — keep only essential metadata. */
+/** Slim down output when transforms are applied — keep only essential trace metadata
+ *  and drop the response_schema (it's noise once extraction is done). */
 function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   const trace = obj.trace as Record<string, unknown> | undefined;
-  if (!trace) return obj;
-  return {
-    ...obj,
-    trace: {
-      trace_id: trace.trace_id,
-      skill_id: trace.skill_id,
-      endpoint_id: trace.endpoint_id,
-      success: trace.success,
-      status_code: trace.status_code,
-      trace_version: trace.trace_version,
-    },
+  const out: Record<string, unknown> = {
+    trace: trace
+      ? {
+          trace_id: trace.trace_id,
+          skill_id: trace.skill_id,
+          endpoint_id: trace.endpoint_id,
+          success: trace.success,
+          status_code: trace.status_code,
+          trace_version: trace.trace_version,
+        }
+      : undefined,
   };
+  // Carry over result (even if empty array — don't silently drop it)
+  if ("result" in obj) out.result = obj.result;
+  // Drop response_schema when transforms are applied — it's noise
+  return out;
 }
 
 // ---------------------------------------------------------------------------
