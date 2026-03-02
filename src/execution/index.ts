@@ -6,8 +6,6 @@ import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
-import { applyRecipe } from "../transform/recipe.js";
-import { suggestExtraction, type SuggestionResult } from "../transform/suggest.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
@@ -104,8 +102,8 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
-  /** When true, result contains { data: [...], _recipe: {...} } from an extraction recipe */
-  recipe_applied?: boolean;
+  /** Inferred JSON schema of the endpoint's response, for agent-side extraction */
+  response_schema?: import("../types/index.js").ResponseSchema;
 }
 
 export async function executeSkill(
@@ -425,20 +423,15 @@ export async function executeEndpoint(
         started_at: startedAt, completed_at: new Date().toISOString(), success: true, result: parsed,
       });
       let resultData: unknown = parsed;
-      let recipeApplied = false;
-      let suggestedWs: SuggestionResult | null = null;
       if (projection?.raw) {
-        // Explicit raw — skip recipe and projection
+        // Explicit raw — skip projection
       } else if (projection) {
         resultData = applyProjection(parsed, projection);
-      } else if (endpoint.extraction_recipe) {
-        const recipeResult = applyRecipe(parsed, endpoint.extraction_recipe);
-        if (recipeResult) { resultData = recipeResult; recipeApplied = true; }
       }
-      if (!recipeApplied && !projection?.raw && parsed != null) {
-        try { if (JSON.stringify(parsed).length > 2048) suggestedWs = suggestExtraction(parsed, options?.intent); } catch {}
-      }
-      return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}), ...(suggestedWs ? { suggested_extraction: suggestedWs } : {}) };
+      return {
+        trace, result: resultData,
+        ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
+      };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
         trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
@@ -811,28 +804,18 @@ export async function executeEndpoint(
   // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
-  // Apply field projection or extraction recipe
+  // Apply field projection
   let resultData = data;
-  let recipeApplied = false;
   if (projection?.raw) {
-    // Explicit raw request — skip recipe and projection
+    // Explicit raw request — skip projection
   } else if (projection && trace.success) {
     resultData = applyProjection(data, projection);
-  } else if (endpoint.extraction_recipe && trace.success && data != null) {
-    const recipeResult = applyRecipe(data, endpoint.extraction_recipe);
-    if (recipeResult) {
-      resultData = recipeResult;
-      recipeApplied = true;
-    }
   }
 
-  // Auto-suggest extraction when no recipe was applied and response is large
-  let suggested: SuggestionResult | null = null;
-  if (!recipeApplied && !projection?.raw && trace.success && data != null) {
-    try { if (JSON.stringify(data).length > 2048) suggested = suggestExtraction(data, options?.intent); } catch {}
-  }
-
-  return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}), ...(suggested ? { suggested_extraction: suggested } : {}) };
+  return {
+    trace, result: resultData,
+    ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
+  };
 }
 
 /**

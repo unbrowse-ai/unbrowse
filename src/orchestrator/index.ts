@@ -2,11 +2,27 @@ import { searchIntent, searchIntentInDomain, recordOrchestrationPerf } from "../
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { getRegistrableDomain } from "../domain.js";
-import type { ExecutionOptions, ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
+import type { ExecutionOptions, ExecutionTrace, OrchestrationTiming, ProjectionOptions, ResponseSchema, SkillManifest } from "../types/index.js";
 import { TRACE_VERSION } from "../version.js";
 import { nanoid } from "nanoid";
 
 const CONFIDENCE_THRESHOLD = 0.3;
+
+/** Flat map of top-level property names → types from a ResponseSchema.
+ *  Gives agents enough shape to pick --path targets without full schema bloat. */
+function summarizeSchema(schema: ResponseSchema): Record<string, string> | null {
+  if (schema.properties) {
+    return Object.fromEntries(
+      Object.entries(schema.properties).map(([k, v]) => [k, v.type])
+    );
+  }
+  if (schema.type === "array" && schema.items?.properties) {
+    return Object.fromEntries(
+      Object.entries(schema.items.properties).map(([k, v]) => [k, v.type])
+    );
+  }
+  return null;
+}
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 
 // Per-domain skill cache: after a live capture succeeds, cache the skill for 60s so
@@ -145,7 +161,7 @@ export async function resolveAndExecute(
           description: r.endpoint.description,
           url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
           score: Math.round(r.score * 10) / 10,
-          has_schema: !!r.endpoint.response_schema,
+          schema_summary: r.endpoint.response_schema ? summarizeSchema(r.endpoint.response_schema) : null,
           dom_extraction: !!r.endpoint.dom_extraction,
           trigger_url: r.endpoint.trigger_url,
         })),
