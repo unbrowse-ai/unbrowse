@@ -52,6 +52,8 @@ export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
   url_template: string;
+  /** LLM-generated description of what this endpoint returns, for semantic matching */
+  description?: string;
   ws_messages?: WsMessage[];
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;

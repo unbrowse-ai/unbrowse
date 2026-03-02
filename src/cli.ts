@@ -237,6 +237,19 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
   }
 
+  // Auto-apply suggested extraction when no explicit transforms and suggestion available
+  const resolveSuggestion = result.suggested_extraction as Record<string, unknown> | undefined;
+  if (resolveSuggestion?.recipe && !hasTransforms && !flags.raw) {
+    const recipe = resolveSuggestion.recipe as Record<string, unknown>;
+    const recipeFields = recipe.fields as Record<string, string> | undefined;
+    if (recipeFields && recipe.source) {
+      const source = recipe.source as string;
+      const fieldPairs = Object.entries(recipeFields).map(([alias, path]) => `${alias}:${path}`).join(",");
+      const transformed = applyTransforms(result.result, { path: `${source}[]`, extract: fieldPairs, limit: flags.limit || "20" });
+      result = { ...slimTrace({ ...result, result: transformed }), suggested_extraction: resolveSuggestion };
+    }
+  }
+
   // Append CLI hint for feedback
   const skill = result.skill as Record<string, unknown> | undefined;
   const trace = result.trace as Record<string, unknown> | undefined;
@@ -268,6 +281,27 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   const hasTransforms = !!(flags.path || flags.extract || flags.limit);
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
+  }
+
+  // Auto-apply suggested extraction when no explicit transforms and suggestion available
+  const suggestion = result.suggested_extraction as Record<string, unknown> | undefined;
+  if (suggestion?.recipe && !hasTransforms && !flags.raw) {
+    const recipe = suggestion.recipe as Record<string, unknown>;
+    const recipeFields = recipe.fields as Record<string, string> | undefined;
+    if (recipeFields && recipe.source) {
+      const source = recipe.source as string;
+      const fieldPairs = Object.entries(recipeFields).map(([alias, path]) => `${alias}:${path}`).join(",");
+      // Apply the suggestion to result in-place
+      const transformed = applyTransforms(result.result, { path: `${source}[]`, extract: fieldPairs, limit: flags.limit || "20" });
+      result = {
+        ...slimTrace({ ...result, result: transformed }),
+        suggested_extraction: suggestion,
+      };
+      const endpointId = flags.endpoint || ((result.trace as Record<string, unknown>)?.endpoint_id as string) || "?";
+      const requireFlag = Array.isArray(recipe.require) && recipe.require.length > 0 ? ` --require "${(recipe.require as string[]).join(",")}"` : "";
+      (result as Record<string, unknown>)._extraction_hint =
+        `Auto-applied suggested extraction. Save as recipe: unbrowse recipe --skill ${skillId} --endpoint ${endpointId} --source "${source}" --fields "${fieldPairs}"${requireFlag} --compact`;
+    }
   }
 
   output(result, !!flags.pretty);
