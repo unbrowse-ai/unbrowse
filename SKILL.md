@@ -175,16 +175,35 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 | GET | `/v1/sessions/:domain` | Debug session logs |
 | GET | `/health` | Health check |
 
+## Known Skills (skip resolve — execute directly)
+
+When a skill+endpoint is already known, **skip `resolve`** and call `execute` directly. This saves 20-80s.
+
+| Site | Intent | Skill ID | Endpoint ID | Has Recipe |
+|------|--------|----------|-------------|------------|
+| LinkedIn | Feed posts | `Qa64PLr-jwzHFH44UqDUo` | `c0lLHzmU2YkpzysuTDPeI` | Yes — `{author, headline, posted, text, likes, comments}` |
+
+```bash
+# LinkedIn feed — one call, clean data, ~3s
+cd ~/.agents/skills/unbrowse && bun src/cli.ts execute \
+  --skill Qa64PLr-jwzHFH44UqDUo \
+  --endpoint c0lLHzmU2YkpzysuTDPeI \
+  --limit 20 --pretty
+```
+
+> After a successful `resolve` + recipe submission for a new site, add the IDs here so future calls skip discovery.
+
 ## Rules
 
 1. **Always use the CLI** — never pipe to `node -e`, `python -c`, or `jq`. Use `--path`/`--extract`/`--limit` instead.
-2. Always try `resolve` first — it handles the full marketplace search -> capture pipeline
-3. Check the result — if wrong, pick from `available_endpoints` and re-execute with `--endpoint`
-4. If `auth_required`, use `login` then retry
-5. Always `--dry-run` before mutations
-6. **Always submit feedback after every resolve call — this is mandatory**
-7. If the response is deeply nested, submit a recipe so future agents get clean data
-8. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
+2. **Check Known Skills first** — if the site+intent is listed above, skip resolve and execute directly
+3. If not known, try `resolve` — it handles the full marketplace search -> capture pipeline
+4. Check the result — if wrong, pick from `available_endpoints` and re-execute with `--endpoint`
+5. If `auth_required`, use `login` then retry
+6. Always `--dry-run` before mutations
+7. **Always submit feedback after every resolve call — this is mandatory**
+8. If the response is deeply nested, submit a recipe so future agents get clean data
+9. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
    ```bash
    gh issue create --repo unbrowse-ai/unbrowse \
      --title "bug: {short description}" \
