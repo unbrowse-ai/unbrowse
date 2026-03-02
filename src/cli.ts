@@ -278,7 +278,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  // When explicit CLI transforms are present, bypass server recipe to get raw data
+  // When explicit CLI transforms are present, get raw data for client-side extraction
   const hasTransforms = !!(flags.path || flags.extract);
   if (flags.raw || hasTransforms) body.projection = { raw: true };
 
@@ -287,19 +287,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   // --path / --extract / --limit: transform .result in-place
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  }
-
-  // Auto-apply suggested extraction when no explicit transforms and suggestion available
-  const resolveSuggestion = result.suggested_extraction as Record<string, unknown> | undefined;
-  if (resolveSuggestion?.recipe && !hasTransforms && !flags.raw) {
-    const recipe = resolveSuggestion.recipe as Record<string, unknown>;
-    const recipeFields = recipe.fields as Record<string, string> | undefined;
-    if (recipeFields && recipe.source) {
-      const source = recipe.source as string;
-      const fieldPairs = Object.entries(recipeFields).map(([alias, path]) => `${alias}:${path}`).join(",");
-      const transformed = applyTransforms(result.result, { path: `${source}[]`, extract: fieldPairs, limit: flags.limit || "20" });
-      result = { ...slimTrace({ ...result, result: transformed }), suggested_extraction: resolveSuggestion };
-    }
   }
 
   // Append CLI hint for feedback
@@ -325,7 +312,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  // When explicit CLI transforms are present, bypass server recipe to get raw data
+  // When explicit CLI transforms are present, get raw data for client-side extraction
   const hasTransforms = !!(flags.path || flags.extract);
   if (flags.raw || hasTransforms) body.projection = { raw: true };
 
@@ -334,27 +321,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   // --path / --extract / --limit: transform .result in-place
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  }
-
-  // Auto-apply suggested extraction when no explicit transforms and suggestion available
-  const suggestion = result.suggested_extraction as Record<string, unknown> | undefined;
-  if (suggestion?.recipe && !hasTransforms && !flags.raw) {
-    const recipe = suggestion.recipe as Record<string, unknown>;
-    const recipeFields = recipe.fields as Record<string, string> | undefined;
-    if (recipeFields && recipe.source) {
-      const source = recipe.source as string;
-      const fieldPairs = Object.entries(recipeFields).map(([alias, path]) => `${alias}:${path}`).join(",");
-      // Apply the suggestion to result in-place
-      const transformed = applyTransforms(result.result, { path: `${source}[]`, extract: fieldPairs, limit: flags.limit || "20" });
-      result = {
-        ...slimTrace({ ...result, result: transformed }),
-        suggested_extraction: suggestion,
-      };
-      const endpointId = flags.endpoint || ((result.trace as Record<string, unknown>)?.endpoint_id as string) || "?";
-      const requireFlag = Array.isArray(recipe.require) && recipe.require.length > 0 ? ` --require "${(recipe.require as string[]).join(",")}"` : "";
-      (result as Record<string, unknown>)._extraction_hint =
-        `Auto-applied suggested extraction. Save as recipe: unbrowse recipe --skill ${skillId} --endpoint ${endpointId} --source "${source}" --fields "${fieldPairs}"${requireFlag} --compact`;
-    }
   }
 
   output(result, !!flags.pretty);
@@ -403,30 +369,6 @@ async function cmdSearch(flags: Record<string, string | boolean>): Promise<void>
   output(await api("POST", path, body), !!flags.pretty);
 }
 
-async function cmdRecipe(flags: Record<string, string | boolean>): Promise<void> {
-  const skillId = flags.skill as string;
-  const endpointId = flags.endpoint as string;
-  if (!skillId || !endpointId) die("--skill and --endpoint are required");
-
-  const recipe: Record<string, unknown> = {};
-  if (flags.source) recipe.source = flags.source;
-  if (flags.fields) {
-    // Parse "alias:path,alias:path" into { alias: "path" }
-    const fields: Record<string, string> = {};
-    for (const pair of (flags.fields as string).split(",")) {
-      const [key, ...rest] = pair.trim().split(":");
-      fields[key] = rest.join(":") || key;
-    }
-    recipe.fields = fields;
-  }
-  if (flags.filter) recipe.filter = JSON.parse(flags.filter as string);
-  if (flags.require) recipe.require = (flags.require as string).split(",");
-  if (flags.compact) recipe.compact = true;
-  if (flags.description) recipe.description = flags.description;
-
-  output(await api("POST", `/v1/skills/${skillId}/endpoints/${endpointId}/recipe`, { recipe }), !!flags.pretty);
-}
-
 async function cmdSessions(flags: Record<string, string | boolean>): Promise<void> {
   const domain = flags.domain as string;
   if (!domain) die("--domain is required");
@@ -450,13 +392,12 @@ Commands:
   skills                                       List all skills
   skill    <id>                                Get skill details
   search   --intent "..." [--domain "..."]     Search marketplace
-  recipe   --skill ID --endpoint ID [opts]     Submit extraction recipe
   sessions --domain "..." [--limit N]          Debug session logs
 
 Global flags:
   --pretty          Indented JSON output
   --no-auto-start   Don't auto-start server
-  --raw             Skip extraction recipes, return raw data
+  --raw             Return raw response data (skip server-side projection)
 
 resolve/execute flags:
   --path "data.items[]"                       Drill into result before extract/output
@@ -467,21 +408,12 @@ resolve/execute flags:
   --force-capture                             Bypass caches, re-capture
   --params '{...}'                            Extra params as JSON
 
-recipe flags:
-  --source "data.items"                       Dot-path to source array
-  --fields "name:user.name,text:body.text"    Field mappings (alias:path)
-  --filter '{"field":"type","equals":"post"}' Filter criteria as JSON
-  --require "id,text"                         Required non-null fields
-  --compact                                   Strip nulls/empties
-  --description "..."                         Human description
-
 Examples:
   unbrowse resolve --intent "get timeline" --url "https://x.com"
   unbrowse execute --skill abc --endpoint def --pretty
   unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10
   unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20
   unbrowse feedback --skill abc --endpoint def --rating 5
-  unbrowse recipe --skill abc --endpoint def --source "included" --fields "author:actor.name,text:commentary.text" --compact
 `;
   process.stderr.write(help);
 }
@@ -514,7 +446,6 @@ async function main(): Promise<void> {
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
     case "search": return cmdSearch(flags);
-    case "recipe": return cmdRecipe(flags);
     case "sessions": return cmdSessions(flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
