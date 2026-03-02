@@ -73,8 +73,45 @@ function info(msg: string): void {
 // Path resolution — drill into nested structures with [] array expansion
 // ---------------------------------------------------------------------------
 
-/** Resolve a dot-path like "data.items[].name" against an object. */
-function resolvePath(obj: unknown, path: string): unknown {
+/** Build entityUrn → object index for normalized APIs (LinkedIn, Facebook, etc.) */
+function buildEntityIndex(items: unknown[]): Map<string, unknown> {
+  const index = new Map<string, unknown>();
+  for (const item of items) {
+    if (item != null && typeof item === "object") {
+      const urn = (item as Record<string, unknown>).entityUrn;
+      if (typeof urn === "string") index.set(urn, item);
+    }
+  }
+  return index;
+}
+
+/** Detect if an object contains a normalized entity array and build the index. */
+function detectEntityIndex(data: unknown): Map<string, unknown> | null {
+  if (data == null || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+
+  // Check common locations: { included: [...] }, { data: { included: [...] } }
+  const candidates: unknown[][] = [];
+  if (Array.isArray(obj.included)) candidates.push(obj.included);
+  if (obj.data && typeof obj.data === "object") {
+    const d = obj.data as Record<string, unknown>;
+    if (Array.isArray(d.included)) candidates.push(d.included);
+  }
+
+  for (const arr of candidates) {
+    if (arr.length < 2) continue;
+    const sample = arr.slice(0, 5);
+    const withUrn = sample.filter(
+      (i) => i != null && typeof i === "object" && typeof (i as Record<string, unknown>).entityUrn === "string"
+    ).length;
+    if (withUrn >= sample.length * 0.5) return buildEntityIndex(arr);
+  }
+  return null;
+}
+
+/** Resolve a dot-path like "data.items[].name" against an object.
+ *  When entityIndex is provided, transparently follows *-prefixed URN references. */
+function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unknown> | null): unknown {
   if (!path || obj == null) return obj;
   const segments = path.split(".");
   let cur: unknown = obj;
@@ -88,11 +125,22 @@ function resolvePath(obj: unknown, path: string): unknown {
       const remaining = segments.slice(i + 1).join(".");
       if (!remaining) return arr;
       return arr.flatMap((item) => {
-        const v = resolvePath(item, remaining);
+        const v = resolvePath(item, remaining, entityIndex);
         return v === undefined ? [] : Array.isArray(v) ? v : [v];
       });
     }
-    cur = (cur as Record<string, unknown>)[seg];
+    const rec = cur as Record<string, unknown>;
+    let val = rec[seg];
+
+    // URN reference resolution: if direct lookup fails, check for "*key" reference
+    if (val === undefined && entityIndex) {
+      const ref = rec[`*${seg}`];
+      if (typeof ref === "string") {
+        val = entityIndex.get(ref);
+      }
+    }
+
+    cur = val;
   }
   return cur;
 }
@@ -101,7 +149,7 @@ function resolvePath(obj: unknown, path: string): unknown {
  *  When processing arrays, rows where ALL extracted fields are null/undefined are dropped.
  *  This handles decorator-pattern APIs (e.g. LinkedIn included[]) where heterogeneous
  *  item types coexist and only some items match the requested fields. */
-function extractFields(data: unknown, fields: string[]): unknown {
+function extractFields(data: unknown, fields: string[], entityIndex?: Map<string, unknown> | null): unknown {
   if (data == null) return data;
 
   function mapItem(item: unknown): Record<string, unknown> {
@@ -110,7 +158,7 @@ function extractFields(data: unknown, fields: string[]): unknown {
       const colonIdx = f.indexOf(":");
       const alias = colonIdx >= 0 ? f.slice(0, colonIdx) : f.split(".").pop()!;
       const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
-      out[alias] = resolvePath(item, path);
+      out[alias] = resolvePath(item, path, entityIndex);
     }
     return out;
   }
@@ -125,17 +173,20 @@ function extractFields(data: unknown, fields: string[]): unknown {
 function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
   let data = result;
 
+  // Build entity index from the full response before drilling into it
+  const entityIndex = detectEntityIndex(result);
+
   // --path: drill into nested structure
   const pathFlag = flags.path as string | undefined;
   if (pathFlag) {
-    data = resolvePath(data, pathFlag);
+    data = resolvePath(data, pathFlag, entityIndex);
   }
 
-  // --extract: pick specific fields
+  // --extract: pick specific fields (with entity index for URN resolution)
   const extractFlag = flags.extract as string | undefined;
   if (extractFlag) {
     const fields = extractFlag.split(",").map((f) => f.trim());
-    data = extractFields(data, fields);
+    data = extractFields(data, fields, entityIndex);
   }
 
   // --limit: cap array output
@@ -227,12 +278,13 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  if (flags.raw) body.projection = { raw: true };
+  // When explicit CLI transforms are present, bypass server recipe to get raw data
+  const hasTransforms = !!(flags.path || flags.extract);
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
 
   let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
 
   // --path / --extract / --limit: transform .result in-place
-  const hasTransforms = !!(flags.path || flags.extract || flags.limit);
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
   }
@@ -273,12 +325,13 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  if (flags.raw) body.projection = { raw: true };
+  // When explicit CLI transforms are present, bypass server recipe to get raw data
+  const hasTransforms = !!(flags.path || flags.extract);
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
 
   let result = await api("POST", `/v1/skills/${skillId}/execute`, body) as Record<string, unknown>;
 
   // --path / --extract / --limit: transform .result in-place
-  const hasTransforms = !!(flags.path || flags.extract || flags.limit);
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
   }

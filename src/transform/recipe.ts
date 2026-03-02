@@ -1,4 +1,4 @@
-import { resolvePath, compact } from "./index.js";
+import { resolvePath, compact, detectEntityIndex } from "./index.js";
 import type { ExtractionRecipe } from "../types/index.js";
 
 export interface RecipeResult {
@@ -13,11 +13,16 @@ export interface RecipeResult {
 
 /**
  * Apply an ExtractionRecipe to raw response data.
+ * Automatically detects and resolves URN references in normalized APIs
+ * (e.g. LinkedIn Voyager's included[] with *-prefixed entity references).
  * Returns null if the recipe cannot be applied — caller falls back to raw data.
  */
 export function applyRecipe(data: unknown, recipe: ExtractionRecipe): RecipeResult | null {
+  // Build entity index for URN reference resolution (LinkedIn, Facebook, etc.)
+  const entityIndex = detectEntityIndex(data);
+
   // Step 1: Resolve source path
-  const sourceValues = resolvePath(data, recipe.source);
+  const sourceValues = resolvePath(data, recipe.source, entityIndex ?? undefined);
   if (sourceValues.length === 0) return null;
 
   let items: unknown[];
@@ -36,7 +41,7 @@ export function applyRecipe(data: unknown, recipe: ExtractionRecipe): RecipeResu
     const { field, equals, contains, in: inValues } = recipe.filter;
     items = items.filter(item => {
       if (item == null || typeof item !== "object") return false;
-      const fieldValues = resolvePath(item, field);
+      const fieldValues = resolvePath(item, field, entityIndex ?? undefined);
       if (fieldValues.length === 0) return false;
       const val = fieldValues[0];
       if (typeof val !== "string") return false;
@@ -52,18 +57,18 @@ export function applyRecipe(data: unknown, recipe: ExtractionRecipe): RecipeResu
     items = items.filter(item => {
       if (item == null || typeof item !== "object") return false;
       return recipe.require!.every(requiredField => {
-        const vals = resolvePath(item, requiredField);
+        const vals = resolvePath(item, requiredField, entityIndex ?? undefined);
         return vals.length > 0 && vals[0] != null;
       });
     });
   }
 
-  // Step 4: Map fields
+  // Step 4: Map fields (with URN resolution)
   const outputFields = Object.keys(recipe.fields);
   const mapped = items.map(item => {
     const out: Record<string, unknown> = {};
     for (const [outputName, sourcePath] of Object.entries(recipe.fields)) {
-      const vals = resolvePath(item, sourcePath);
+      const vals = resolvePath(item, sourcePath, entityIndex ?? undefined);
       out[outputName] = vals.length === 1 ? vals[0] : vals.length > 1 ? vals : undefined;
     }
     return out;

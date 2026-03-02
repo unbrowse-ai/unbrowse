@@ -1,4 +1,5 @@
 import type { ExtractionRecipe } from "../types/index.js";
+import { detectEntityIndex } from "./index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -278,12 +279,23 @@ function nameBonus(fieldName: string): number {
   return best;
 }
 
-function collectFields(items: unknown[], intentWords: string[], maxDepth = MAX_FIELD_DEPTH): ScoredField[] {
+function collectFields(items: unknown[], intentWords: string[], maxDepth = MAX_FIELD_DEPTH, entityIndex?: Map<string, unknown> | null): ScoredField[] {
   const fieldStats = new Map<string, { count: number; types: Map<string, number>; ephemeralValues: number; depth: number }>();
 
   function walkItem(obj: unknown, path: string, depth: number): void {
     if (depth > maxDepth || obj == null || typeof obj !== "object" || Array.isArray(obj)) return;
     for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      // Follow *-prefixed URN references transparently
+      if (key.startsWith("*") && typeof val === "string" && entityIndex) {
+        const resolved = entityIndex.get(val);
+        if (resolved != null && typeof resolved === "object") {
+          const refKey = key.slice(1); // strip the "*" prefix
+          const refPath = path ? `${path}.${refKey}` : refKey;
+          walkItem(resolved, refPath, depth + 1);
+        }
+        continue; // don't record the raw URN string as a field
+      }
+
       const fieldPath = path ? `${path}.${key}` : key;
       const t = typeOf(val);
 
@@ -447,8 +459,11 @@ export function suggestExtraction(data: unknown, intent?: string): SuggestionRes
     if (filteredItems.length < 2) filteredItems = best.items; // fallback if filter is too aggressive
   }
 
-  // Phase 3: Score fields
-  const scored = collectFields(filteredItems, intentWords);
+  // Build entity index for URN reference resolution (LinkedIn, Facebook, etc.)
+  const entityIndex = detectEntityIndex(data);
+
+  // Phase 3: Score fields (follows *-prefixed URN references when entity index is available)
+  const scored = collectFields(filteredItems, intentWords, MAX_FIELD_DEPTH, entityIndex);
   // Exclude the discriminator field — it's redundant with the filter
   const discriminatorPath = hetero.discriminator || "";
   const topFields = scored
