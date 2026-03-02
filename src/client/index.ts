@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir, hostname } from "os";
 import { randomBytes } from "crypto";
@@ -219,22 +219,6 @@ function readSkillCache(skillId: string): SkillManifest | null {
 function writeSkillCache(skill: SkillManifest): void {
   try {
     if (!existsSync(SKILL_CACHE_DIR)) mkdirSync(SKILL_CACHE_DIR, { recursive: true });
-    // Preserve local-only fields (exec_strategy) that the backend doesn't know about
-    const existing = readSkillCache(skill.skill_id);
-    if (existing) {
-      for (const ep of skill.endpoints) {
-        const cached = existing.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
-        if (!ep.exec_strategy && cached?.exec_strategy) {
-          ep.exec_strategy = cached.exec_strategy;
-          console.log(`[cache] preserved exec_strategy=${cached.exec_strategy} for ${ep.endpoint_id}`);
-        }
-        if (!ep.extraction_recipe && cached?.extraction_recipe) {
-          ep.extraction_recipe = cached.extraction_recipe;
-        }
-      }
-    }
-    const hasStrategy = skill.endpoints.some(e => e.exec_strategy);
-    if (hasStrategy) console.log(`[cache] writing skill ${skill.skill_id} with exec_strategy`);
     writeFileSync(skillCachePath(skill.skill_id), JSON.stringify(skill), "utf-8");
   } catch { /* non-critical — best effort */ }
 }
@@ -243,49 +227,12 @@ export function cachePublishedSkill(skill: SkillManifest): void {
   writeSkillCache(skill);
 }
 
-/**
- * Find an existing cached skill for the same domain, so re-captures update
- * the existing skill instead of creating duplicates. Preserves skill_id and
- * exec_strategy across re-captures and server restarts.
- */
-export function findExistingSkillForDomain(domain: string): SkillManifest | null {
-  try {
-    if (!existsSync(SKILL_CACHE_DIR)) return null;
-    const files = readdirSync(SKILL_CACHE_DIR);
-    for (const f of files) {
-      if (!f.endsWith(".json") || f === "browser-capture.json") continue;
-      try {
-        const raw = readFileSync(join(SKILL_CACHE_DIR, f), "utf-8");
-        const skill = JSON.parse(raw) as SkillManifest;
-        if (skill.domain === domain && skill.execution_type === "http") {
-          return skill;
-        }
-      } catch { /* skip corrupt files */ }
-    }
-  } catch { /* cache dir doesn't exist */ }
-  return null;
-}
-
 export async function getSkill(skillId: string): Promise<SkillManifest | null> {
   // Cache-first: return disk cache immediately, async-refresh from backend
   const cached = readSkillCache(skillId);
   if (cached) {
     api<SkillManifest>("GET", `/v1/skills/${skillId}`)
-      .then(skill => {
-        // Preserve locally-learned exec_strategy — backend doesn't store these
-        if (cached.endpoints) {
-          for (const ep of skill.endpoints) {
-            const local = cached.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
-            if (local?.exec_strategy && !ep.exec_strategy) {
-              ep.exec_strategy = local.exec_strategy;
-            }
-            if (local?.extraction_recipe && !ep.extraction_recipe) {
-              ep.extraction_recipe = local.extraction_recipe;
-            }
-          }
-        }
-        writeSkillCache(skill);
-      })
+      .then(skill => writeSkillCache(skill))
       .catch(() => {});
     return cached;
   }
@@ -387,20 +334,6 @@ export async function recordFeedback(
     rating,
   });
   return data.avg_rating;
-}
-
-// --- Diagnostics ---
-
-export async function recordDiagnostics(
-  skillId: string,
-  endpointId: string,
-  diagnostics: Record<string, unknown>
-): Promise<void> {
-  await api("POST", "/v1/stats/diagnostics", {
-    skill_id: skillId,
-    endpoint_id: endpointId,
-    ...diagnostics,
-  });
 }
 
 // --- Orchestration Perf ---
