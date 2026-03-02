@@ -4,6 +4,9 @@
   "description": "Reverse-engineer any website into reusable API skills. Claude Code skill + local engine.",
   "type": "module",
   "main": "src/index.ts",
+  "bin": {
+    "unbrowse": "src/cli.ts"
+  },
   "scripts": {
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts"
