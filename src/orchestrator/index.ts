@@ -142,6 +142,7 @@ export async function resolveAndExecute(
         available_endpoints: epRanked.slice(0, 10).map((r) => ({
           endpoint_id: r.endpoint.endpoint_id,
           method: r.endpoint.method,
+          description: r.endpoint.description,
           url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
           score: Math.round(r.score * 10) / 10,
           has_schema: !!r.endpoint.response_schema,
@@ -155,6 +156,59 @@ export async function resolveAndExecute(
       skill,
       timing: finalize(source, null, skill.skill_id, skill, deferTrace),
     };
+  }
+
+  /**
+   * Try to auto-select and execute the best endpoint when the agent hasn't chosen one.
+   * Uses BM25 ranking (boosted by LLM descriptions). Auto-executes when:
+   * - Top endpoint has a clear score gap over #2 (>= 20% relative or absolute >= 15)
+   * - Or skill has only 1 usable endpoint
+   * Returns null if not confident enough (caller should fall back to deferral).
+   */
+  async function tryAutoExecute(
+    skill: SkillManifest,
+    source: "marketplace" | "live-capture"
+  ): Promise<OrchestratorResult | null> {
+    const epRanked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
+    if (epRanked.length === 0) return null;
+
+    const top = epRanked[0];
+    const second = epRanked[1];
+
+    // Check if we have a confident pick
+    const hasDescriptions = skill.endpoints.some((ep) => !!ep.description);
+    if (!hasDescriptions) return null; // No descriptions = BM25 on noisy URL tokens, don't risk it
+
+    const shouldAutoExec =
+      epRanked.length === 1 ||
+      (top.score > 0 && (!second || top.score - second.score >= 15 || (second.score > 0 && top.score / second.score >= 1.5)));
+
+    if (!shouldAutoExec) {
+      console.log(`[auto-exec] skipped: top=${top.score.toFixed(1)} second=${second?.score.toFixed(1) ?? "n/a"} gap insufficient`);
+      return null;
+    }
+
+    console.log(`[auto-exec] confident pick: ${top.endpoint.endpoint_id} score=${top.score.toFixed(1)} (gap=${second ? (top.score - second.score).toFixed(1) : "only-one"})`);
+
+    const te0 = Date.now();
+    try {
+      const { trace, result } = await executeSkill(
+        skill,
+        { ...params, endpoint_id: top.endpoint.endpoint_id },
+        projection,
+        { ...options, intent, contextUrl: context?.url }
+      );
+      timing.execute_ms = Date.now() - te0;
+      if (trace.success) {
+        skillRouteCache.set(cacheKey, { skillId: skill.skill_id, domain: skill.domain, ts: Date.now() });
+        return { result, trace, source, skill, timing: finalize(source, result, skill.skill_id, skill, trace) };
+      }
+      console.log(`[auto-exec] execution failed: status=${trace.status_code}`);
+    } catch (err) {
+      console.log(`[auto-exec] execution error: ${(err as Error).message}`);
+      timing.execute_ms = Date.now() - te0;
+    }
+    return null; // Fall through to deferral
   }
 
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
@@ -207,7 +261,9 @@ export async function resolveAndExecute(
             }
           } catch { timing.execute_ms = Date.now() - te0; }
         } else {
-          // Defer — return endpoints for agent to choose
+          // Try auto-execute, fall back to deferral
+          const autoResult = await tryAutoExecute(localSkill, "marketplace");
+          if (autoResult) return autoResult;
           return buildDeferral(localSkill, "marketplace");
         }
       }
@@ -297,8 +353,10 @@ export async function resolveAndExecute(
         timing.execute_ms = Date.now() - te0;
       }
     } else {
-      // Defer — return the best skill's endpoints for agent to choose
+      // Try auto-execute, fall back to deferral
       const bestSkill = viable[0].skill;
+      const autoResult = await tryAutoExecute(bestSkill, "marketplace");
+      if (autoResult) return autoResult;
       return buildDeferral(bestSkill, "marketplace");
     }
   }
@@ -377,12 +435,18 @@ export async function resolveAndExecute(
     skillRouteCache.set(cacheKey, { skillId: learned_skill.skill_id, domain: learned_skill.domain, ts: Date.now() });
   }
 
-  // Always defer to the agent — return ranked endpoints, never auto-execute.
+  // Agent explicitly chose an endpoint — execute directly.
   if (agentChoseEndpoint && learned_skill) {
     const te1 = Date.now();
     const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params, projection, { ...options, intent, contextUrl: context?.url });
     timing.execute_ms += Date.now() - te1;
     return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill, timing: finalize("live-capture", execResult, learned_skill.skill_id, learned_skill, execTrace) };
+  }
+
+  // Try auto-execute on the learned skill, fall back to deferral
+  if (learned_skill) {
+    const autoResult = await tryAutoExecute(learned_skill, "live-capture");
+    if (autoResult) return autoResult;
   }
 
   const captureResult = result as Record<string, unknown> | null;

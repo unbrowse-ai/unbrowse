@@ -7,6 +7,7 @@ import { getCredential, storeCredential, deleteCredential } from "../vault/index
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
 import { applyRecipe } from "../transform/recipe.js";
+import { suggestExtraction, type SuggestionResult } from "../transform/suggest.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { recordExecution, cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
@@ -425,6 +426,7 @@ export async function executeEndpoint(
       });
       let resultData: unknown = parsed;
       let recipeApplied = false;
+      let suggestedWs: SuggestionResult | null = null;
       if (projection?.raw) {
         // Explicit raw — skip recipe and projection
       } else if (projection) {
@@ -433,7 +435,10 @@ export async function executeEndpoint(
         const recipeResult = applyRecipe(parsed, endpoint.extraction_recipe);
         if (recipeResult) { resultData = recipeResult; recipeApplied = true; }
       }
-      return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}) };
+      if (!recipeApplied && !projection?.raw && parsed != null) {
+        try { if (JSON.stringify(parsed).length > 2048) suggestedWs = suggestExtraction(parsed, options?.intent); } catch {}
+      }
+      return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}), ...(suggestedWs ? { suggested_extraction: suggestedWs } : {}) };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
         trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
@@ -821,7 +826,13 @@ export async function executeEndpoint(
     }
   }
 
-  return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}) };
+  // Auto-suggest extraction when no recipe was applied and response is large
+  let suggested: SuggestionResult | null = null;
+  if (!recipeApplied && !projection?.raw && trace.success && data != null) {
+    try { if (JSON.stringify(data).length > 2048) suggested = suggestExtraction(data, options?.intent); } catch {}
+  }
+
+  return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}), ...(suggested ? { suggested_extraction: suggested } : {}) };
 }
 
 /**
@@ -1001,6 +1012,12 @@ function endpointToTokens(ep: EndpointDescriptor): string[] {
       tokens.push(...tu.pathname.split(/[/\-_.{}]/).filter((s) => s.length > 1 && !/^(i|app|en|v\d+)$/.test(s)));
     } catch { /* skip */ }
   }
+  // LLM-generated description — strongest semantic signal for intent matching.
+  // Tokenized words are added 3x to boost their BM25 weight over noisy URL tokens.
+  if (ep.description) {
+    const descTokens = ep.description.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
+    for (let i = 0; i < 3; i++) tokens.push(...descTokens);
+  }
   return tokens.map((t) => stem(t.toLowerCase()));
 }
 
@@ -1110,6 +1127,27 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // === BM25 relevance to intent (primary signal, weighted heavily) ===
     if (queryTokens.length > 0) {
       score += bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs) * 20;
+    }
+
+    // === Description match bonus — separate from BM25 to avoid IDF dilution ===
+    // When an endpoint has a description, compute direct token overlap with RAW intent
+    // (not synonym-expanded, to avoid dilution). Each matching core intent token gives a
+    // massive bonus that overrides structural noise from schema richness.
+    if (ep.description && rawTokens.length > 0) {
+      const descTokens = new Set(
+        ep.description.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/)
+          .filter((w) => w.length > 1 && !STOPWORDS.has(w))
+          .map((w) => stem(w))
+      );
+      // Use raw intent tokens (not expanded) — "feed" and "post" are the core signal
+      const rawStems = new Set(rawTokens.map((t) => stem(t)));
+      let matches = 0;
+      for (const t of rawStems) {
+        if (descTokens.has(t)) matches++;
+      }
+      // Each matching core token = +100 points. "feed" matching gives +100,
+      // "feed" + "post" matching gives +200, etc.
+      score += matches * 100;
     }
 
     // === Structural bonuses ===
