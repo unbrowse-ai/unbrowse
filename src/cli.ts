@@ -7,6 +7,8 @@
  * Usage: unbrowse <command> [flags]
  */
 
+import { maybeAutoUpdate } from "./auto-update.js";
+
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 
 // ---------------------------------------------------------------------------
@@ -221,8 +223,83 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   };
   // Carry over result (even if empty array — don't silently drop it)
   if ("result" in obj) out.result = obj.result;
-  // Drop response_schema when transforms are applied — it's noise
+  // Drop response_schema but keep extraction_hints (agent may need them if extraction partially fails)
   return out;
+}
+
+/** When a response is large and has extraction_hints, replace the full result
+ *  with a compact summary + the hints so agents know how to extract. */
+function wrapWithHints(obj: Record<string, unknown>): Record<string, unknown> {
+  const hints = obj.extraction_hints as { path: string; fields: string[]; item_field_count: number; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
+  if (!hints) return obj;
+
+  const resultStr = JSON.stringify(obj.result ?? "");
+  // Only wrap when response is large enough that raw output would overwhelm context
+  if (resultStr.length < 2000) return obj;
+
+  const trace = obj.trace as Record<string, unknown> | undefined;
+
+  return {
+    trace: trace
+      ? {
+          trace_id: trace.trace_id,
+          skill_id: trace.skill_id,
+          endpoint_id: trace.endpoint_id,
+          success: trace.success,
+          status_code: trace.status_code,
+        }
+      : undefined,
+    _response_too_large: `${resultStr.length} bytes — use extraction flags below to get structured data`,
+    extraction_hints: hints,
+  };
+}
+
+/** When --schema is used, return only the schema tree + extraction hints */
+function schemaOnly(obj: Record<string, unknown>): Record<string, unknown> {
+  const trace = obj.trace as Record<string, unknown> | undefined;
+  return {
+    trace: trace
+      ? { trace_id: trace.trace_id, skill_id: trace.skill_id, endpoint_id: trace.endpoint_id, success: trace.success }
+      : undefined,
+    extraction_hints: obj.extraction_hints ?? null,
+    response_schema: obj.response_schema ?? null,
+  };
+}
+
+/** Auto-extract when hints have high confidence, otherwise wrap with hints.
+ *  This is the "right first try" path — agents get clean data without a second call. */
+function autoExtractOrWrap(obj: Record<string, unknown>): Record<string, unknown> {
+  const hints = obj.extraction_hints as { path: string; fields: string[]; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
+  const resultStr = JSON.stringify(obj.result ?? "");
+
+  // Small responses: return as-is
+  if (resultStr.length < 2000) return obj;
+
+  // No hints: can't auto-extract, return as-is (raw will be big but we have no better option)
+  if (!hints) return obj;
+
+  // High/medium confidence: auto-apply extraction
+  if (hints.confidence === "high" || hints.confidence === "medium") {
+    const syntheticFlags: Record<string, string | boolean> = {};
+    if (hints.path) syntheticFlags.path = hints.path;
+    if (hints.fields.length > 0) syntheticFlags.extract = hints.fields.join(",");
+    syntheticFlags.limit = "20";
+
+    const extracted = applyTransforms(obj.result, syntheticFlags);
+    const slimmed = slimTrace({ ...obj, result: extracted });
+
+    // Include the hints so the agent knows what was auto-applied and can adjust
+    (slimmed as Record<string, unknown>)._auto_extracted = {
+      applied: hints.cli_args,
+      confidence: hints.confidence,
+      all_fields: hints.schema_tree,
+      note: "Auto-extracted using response_schema. Add/remove fields with --extract, change array with --path, or use --raw for full response.",
+    };
+    return slimmed;
+  }
+
+  // Low confidence: wrap with hints, let agent decide
+  return wrapWithHints(obj);
 }
 
 // ---------------------------------------------------------------------------
@@ -294,9 +371,18 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
   let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
 
+  // --schema: return only schema + extraction hints (no data)
+  if (flags.schema) {
+    output(schemaOnly(result), !!flags.pretty);
+    return;
+  }
+
   // --path / --extract / --limit: transform .result in-place
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
+  } else if (!flags.raw && result.result != null) {
+    // No transforms requested — try auto-extraction from hints
+    result = autoExtractOrWrap(result);
   }
 
   // Append CLI hint for feedback
@@ -328,9 +414,18 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
 
   let result = await api("POST", `/v1/skills/${skillId}/execute`, body) as Record<string, unknown>;
 
+  // --schema: return only schema + extraction hints (no data)
+  if (flags.schema) {
+    output(schemaOnly(result), !!flags.pretty);
+    return;
+  }
+
   // --path / --extract / --limit: transform .result in-place
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
+  } else if (!flags.raw && result.result != null) {
+    // No transforms requested — try auto-extraction from hints
+    result = autoExtractOrWrap(result);
   }
 
   output(result, !!flags.pretty);
@@ -387,45 +482,79 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
 }
 
 // ---------------------------------------------------------------------------
-// Help
+// CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
 
+export const CLI_REFERENCE = {
+  commands: [
+    { name: "health", usage: "", desc: "Server health check" },
+    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
+    { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
+    { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
+    { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
+    { name: "skills", usage: "", desc: "List all skills" },
+    { name: "skill", usage: "<id>", desc: "Get skill details" },
+    { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
+    { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
+  ],
+  globalFlags: [
+    { flag: "--pretty", desc: "Indented JSON output" },
+    { flag: "--no-auto-start", desc: "Don't auto-start server" },
+    { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
+  ],
+  resolveExecuteFlags: [
+    { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
+    { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
+    { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
+    { flag: "--limit N", desc: "Cap array output to N items" },
+    { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
+    { flag: "--dry-run", desc: "Preview mutations" },
+    { flag: "--force-capture", desc: "Bypass caches, re-capture" },
+    { flag: "--params '{...}'", desc: "Extra params as JSON" },
+  ],
+  examples: [
+    'unbrowse resolve --intent "get timeline" --url "https://x.com"',
+    "unbrowse execute --skill abc --endpoint def --pretty",
+    'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
+    'unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20',
+    "unbrowse feedback --skill abc --endpoint def --rating 5",
+  ],
+};
+
 function printHelp(): void {
-  const help = `unbrowse — shell-safe CLI for the local API
+  const r = CLI_REFERENCE;
+  const lines: string[] = ["unbrowse \u2014 shell-safe CLI for the local API", ""];
 
-Commands:
-  health                                       Server health check
-  resolve  --intent "..." --url "..." [opts]   Resolve intent → search/capture/execute
-  execute  --skill ID --endpoint ID [opts]     Execute a specific endpoint
-  feedback --skill ID --endpoint ID --rating N Submit feedback (mandatory after resolve)
-  login    --url "..."                         Interactive browser login
-  skills                                       List all skills
-  skill    <id>                                Get skill details
-  search   --intent "..." [--domain "..."]     Search marketplace
-  sessions --domain "..." [--limit N]          Debug session logs
+  // Commands
+  lines.push("Commands:");
+  const cmdPad = Math.max(...r.commands.map((c) => `  ${c.name}  ${c.usage}`.length)) + 2;
+  for (const c of r.commands) {
+    const left = `  ${c.name}  ${c.usage}`;
+    lines.push(left.padEnd(cmdPad) + c.desc);
+  }
 
-Global flags:
-  --pretty          Indented JSON output
-  --no-auto-start   Don't auto-start server
-  --raw             Return raw response data (skip server-side projection)
+  // Global flags
+  lines.push("", "Global flags:");
+  const gPad = Math.max(...r.globalFlags.map((f) => `  ${f.flag}`.length)) + 2;
+  for (const f of r.globalFlags) {
+    lines.push(`  ${f.flag}`.padEnd(gPad) + f.desc);
+  }
 
-resolve/execute flags:
-  --path "data.items[]"                       Drill into result before extract/output
-  --extract "field1,alias:deep.path.to.val"   Pick specific fields (no piping needed)
-  --limit N                                   Cap array output to N items
-  --endpoint-id ID                            Pick a specific endpoint
-  --dry-run                                   Preview mutations
-  --force-capture                             Bypass caches, re-capture
-  --params '{...}'                            Extra params as JSON
+  // resolve/execute flags
+  lines.push("", "resolve/execute flags:");
+  const rPad = Math.max(...r.resolveExecuteFlags.map((f) => `  ${f.flag}`.length)) + 2;
+  for (const f of r.resolveExecuteFlags) {
+    lines.push(`  ${f.flag}`.padEnd(rPad) + f.desc);
+  }
 
-Examples:
-  unbrowse resolve --intent "get timeline" --url "https://x.com"
-  unbrowse execute --skill abc --endpoint def --pretty
-  unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10
-  unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20
-  unbrowse feedback --skill abc --endpoint def --rating 5
-`;
-  process.stderr.write(help);
+  // Examples
+  lines.push("", "Examples:");
+  for (const e of r.examples) {
+    lines.push(`  ${e}`);
+  }
+
+  lines.push("");
+  process.stderr.write(lines.join("\n"));
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +562,8 @@ Examples:
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  maybeAutoUpdate();
+
   const { command, args, flags } = parseArgs(process.argv);
   const pretty = !!flags.pretty;
   const noAutoStart = !!flags["no-auto-start"];
@@ -461,6 +592,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  die((err as Error).message);
-});
+// Only run when this file is the entry point (not when imported by sync script etc.)
+if (import.meta.main !== false) {
+  main().catch((err) => {
+    die((err as Error).message);
+  });
+}

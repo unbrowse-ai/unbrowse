@@ -43,19 +43,41 @@ cd ~/.agents/skills/unbrowse && bun src/cli.ts resolve \
 
 This returns `available_endpoints` — a ranked list of discovered API endpoints. Pick the right one by URL pattern (e.g., `MainFeed` for feed, `HomeTimeline` for tweets).
 
-### Step 2: Execute with extraction
+**Auto-extraction:** When the response is large (>2KB) and the engine has high confidence in the data structure, it **auto-extracts** structured data — you get clean results immediately with `_auto_extracted` metadata showing what was applied. No second call needed.
+
+If auto-extraction fires, the response includes:
+- `result` — already extracted, clean data (array of objects with useful fields)
+- `_auto_extracted.applied` — the `--path`/`--extract` that was auto-applied
+- `_auto_extracted.all_fields` — schema tree showing ALL available fields if you need different ones
+- `_auto_extracted.note` — how to customize (add `--extract` to override field selection)
+
+### Step 2: Refine extraction (only if needed)
+
+**If auto-extraction returned what you need, skip to Step 3.** Otherwise, customize:
 
 ```bash
+# Override fields — use _auto_extracted.all_fields to see what's available
 cd ~/.agents/skills/unbrowse && bun src/cli.ts execute \
   --skill {skill_id} \
   --endpoint {endpoint_id} \
-  --path "data.included[]" \
-  --extract "author:actor.name.text,text:commentary.text.text,posted:actor.subDescription.text" \
-  --limit 20 \
-  --pretty
+  --path "data.events[]" \
+  --extract "name,url,start_at,price" \
+  --limit 10 --pretty
+
+# See full schema without data
+cd ~/.agents/skills/unbrowse && bun src/cli.ts execute \
+  --skill {skill_id} \
+  --endpoint {endpoint_id} \
+  --schema --pretty
+
+# Get raw unprocessed response
+cd ~/.agents/skills/unbrowse && bun src/cli.ts execute \
+  --skill {skill_id} \
+  --endpoint {endpoint_id} \
+  --raw --pretty
 ```
 
-**This is the key pattern — `--path` + `--extract` + `--limit` replace ALL piping to jq/node/python.**
+**`--path` + `--extract` + `--limit` replace ALL piping to jq/node/python.**
 
 ### Step 3: Submit feedback (MANDATORY)
 
@@ -69,23 +91,65 @@ cd ~/.agents/skills/unbrowse && bun src/cli.ts feedback \
 
 **Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
 
-## Data Extraction Flags
+<!-- CLI_REFERENCE_START -->
+## CLI Flags
 
-These flags eliminate the need to pipe output to any external parser:
+**Auto-generated from `src/cli.ts CLI_REFERENCE` — do not edit manually. Run `bun scripts/sync-skill-md.ts` to sync.**
 
-| Flag | Example | What it does |
-|------|---------|--------------|
-| `--path` | `"data.home.timeline.instructions[].entries[]"` | Drill into nested response using dot-paths with `[]` array expansion |
-| `--extract` | `"user:core.user.name,text:legacy.full_text"` | Pick specific fields with `alias:path` mapping |
-| `--limit` | `10` | Cap array output to N items |
-| `--pretty` | (boolean) | Indented JSON output |
-| `--raw` | (boolean) | Return raw response data (skip server-side projection) |
+### Commands
 
-When these flags are used, trace metadata is slimmed automatically (1MB raw -> 1.5KB output typical).
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `health` |  | Server health check |
+| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
+| `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
+| `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
+| `login` | `--url "..."` | Interactive browser login |
+| `skills` |  | List all skills |
+| `skill` | `<id>` | Get skill details |
+| `search` | `--intent "..." [--domain "..."]` | Search marketplace |
+| `sessions` | `--domain "..." [--limit N]` | Debug session logs |
+
+### Global flags
+
+| Flag | Description |
+|------|-------------|
+| `--pretty` | Indented JSON output |
+| `--no-auto-start` | Don't auto-start server |
+| `--raw` | Return raw response data (skip server-side projection) |
+
+### resolve/execute flags
+
+| Flag | Description |
+|------|-------------|
+| `--schema` | Show response schema + extraction hints only (no data) |
+| `--path "data.items[]"` | Drill into result before extract/output |
+| `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
+| `--limit N` | Cap array output to N items |
+| `--endpoint-id ID` | Pick a specific endpoint |
+| `--dry-run` | Preview mutations |
+| `--force-capture` | Bypass caches, re-capture |
+| `--params '{...}'` | Extra params as JSON |
+<!-- CLI_REFERENCE_END -->
+
+When `--path`/`--extract` are used, trace metadata is slimmed automatically (1MB raw -> 1.5KB output typical).
+
+When NO extraction flags are used on a large response (>2KB), the CLI auto-wraps the result with `extraction_hints` instead of dumping raw data. This prevents context window bloat and tells you exactly how to extract. Use `--raw` to override this and get the full response.
 
 ### Examples
 
 ```bash
+# Step 1: resolve — auto-executes and returns hints for complex responses
+bun src/cli.ts resolve --intent "get events" --url "https://lu.ma" --pretty
+# Response includes extraction_hints.cli_args = "--path \"data.events[]\" --extract \"name,url,start_at,city\" --limit 10"
+
+# Step 2: use the hints directly
+bun src/cli.ts execute --skill {id} --endpoint {id} \
+  --path "data.events[]" --extract "name,url,start_at,city" --limit 10 --pretty
+
+# If you need to see the schema first
+bun src/cli.ts execute --skill {id} --endpoint {id} --schema --pretty
+
 # X timeline — extract tweets with user, text, likes
 bun src/cli.ts execute --skill {id} --endpoint {id} \
   --path "data.home.home_timeline_urt.instructions[].entries[].content.itemContent.tweet_results.result" \
@@ -101,10 +165,6 @@ bun src/cli.ts execute --skill {id} --endpoint {id} \
 # Simple case — just limit results
 bun src/cli.ts execute --skill {id} --endpoint {id} --limit 10 --pretty
 ```
-
-## Response Schema
-
-Execute responses include a `response_schema` — the inferred JSON schema of the endpoint's response. Use it to understand the response shape and craft `--path`/`--extract` flags dynamically. The resolve command also includes a `schema_summary` per endpoint (top-level property names and types) to help pick the right endpoint.
 
 ## Authentication
 
@@ -157,12 +217,14 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 
 1. **Always use the CLI** — never pipe to `node -e`, `python -c`, or `jq`. Use `--path`/`--extract`/`--limit` instead.
 2. Always try `resolve` first — it handles the full marketplace search -> capture pipeline
-3. Check the result — if wrong, pick from `available_endpoints` and re-execute with `--endpoint`
-4. If `auth_required`, use `login` then retry
-5. Always `--dry-run` before mutations
-6. **Always submit feedback after every resolve call — this is mandatory**
-7. Use `response_schema` from execute responses to understand the data shape and craft extraction flags
-8. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
+3. **Trust auto-extraction** — for large responses, the CLI auto-extracts structured data using `response_schema`. Check `_auto_extracted` in the response to see what was applied. If the result looks right, you're done. If you need different fields, use `_auto_extracted.all_fields` to see what's available and re-run with `--extract`.
+4. **NEVER guess paths by trial-and-error** — use `--schema` to see the full response structure, or read `_auto_extracted.all_fields` / `extraction_hints.schema_tree`
+5. Use `--raw` if you need the unprocessed full response
+6. Check the result — if wrong endpoint, pick from `available_endpoints` and re-execute with `--endpoint`
+7. If `auth_required`, use `login` then retry
+8. Always `--dry-run` before mutations
+9. **Always submit feedback after every resolve call — this is mandatory**
+10. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
    ```bash
    gh issue create --repo unbrowse-ai/unbrowse \
      --title "bug: {short description}" \

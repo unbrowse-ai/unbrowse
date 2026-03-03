@@ -6,8 +6,9 @@ import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
-import { applyProjection } from "../transform/index.js";
+import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
+import { generateExtractionHints } from "../transform/schema-hints.js";
 import { recordExecution, cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
@@ -105,6 +106,8 @@ export interface ExecutionResult {
   learned_skill?: SkillManifest;
   /** Inferred JSON schema of the endpoint's response, for agent-side extraction */
   response_schema?: import("../types/index.js").ResponseSchema;
+  /** Ready-to-use extraction hints derived from response_schema */
+  extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
 }
 
 export async function executeSkill(
@@ -482,6 +485,7 @@ export async function executeEndpoint(
       return {
         trace, result: resultData,
         ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
+        ...(endpoint.response_schema ? { extraction_hints: generateExtractionHints(endpoint.response_schema, skill.intent_signature) ?? undefined } : {}),
       };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
@@ -831,6 +835,18 @@ export async function executeEndpoint(
     }
   }
 
+  // Backfill response_schema on first successful execution (mirrors exec_strategy learning)
+  if (trace.success && !endpoint.response_schema && data != null) {
+    try {
+      const inferred = inferSchema([data]);
+      if (inferred.type !== "object" || inferred.properties) {
+        log("exec", `learned response_schema for endpoint ${endpoint.endpoint_id}`);
+        endpoint.response_schema = inferred;
+        try { cachePublishedSkill(skill); } catch {}
+      }
+    } catch {}
+  }
+
   // HTML→JSON post-processing: if the endpoint returned HTML instead of JSON,
   // pipe it through DOM extraction to produce structured data.
   // Always extract — returning raw HTML to an agent is never useful.
@@ -866,6 +882,7 @@ export async function executeEndpoint(
   return {
     trace, result: resultData,
     ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
+    ...(endpoint.response_schema ? { extraction_hints: generateExtractionHints(endpoint.response_schema, options?.intent ?? skill.intent_signature) ?? undefined } : {}),
   };
 }
 

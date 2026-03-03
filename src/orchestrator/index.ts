@@ -40,6 +40,8 @@ export interface OrchestratorResult {
   source: "marketplace" | "live-capture" | "dom-fallback";
   skill: SkillManifest;
   timing: OrchestrationTiming;
+  response_schema?: ResponseSchema;
+  extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
 }
 
 function computeCompositeScore(
@@ -208,16 +210,21 @@ export async function resolveAndExecute(
 
     const te0 = Date.now();
     try {
-      const { trace, result } = await executeSkill(
+      const execOut = await executeSkill(
         skill,
         { ...params, endpoint_id: top.endpoint.endpoint_id },
         projection,
         { ...options, intent, contextUrl: context?.url }
       );
       timing.execute_ms = Date.now() - te0;
-      if (trace.success) {
+      if (execOut.trace.success) {
         skillRouteCache.set(cacheKey, { skillId: skill.skill_id, domain: skill.domain, ts: Date.now() });
-        return { result, trace, source, skill, timing: finalize(source, result, skill.skill_id, skill, trace) };
+        return {
+          result: execOut.result, trace: execOut.trace, source, skill,
+          timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
+          response_schema: execOut.response_schema,
+          extraction_hints: execOut.extraction_hints,
+        };
       }
       console.log(`[auto-exec] execution failed: status=${trace.status_code}`);
     } catch (err) {
@@ -239,11 +246,11 @@ export async function resolveAndExecute(
       if (skill) {
         const te0 = Date.now();
         try {
-          const { trace, result } = await executeSkill(skill, params, projection, { ...options, intent, contextUrl: context?.url });
+          const execOut = await executeSkill(skill, params, projection, { ...options, intent, contextUrl: context?.url });
           timing.execute_ms = Date.now() - te0;
-          if (trace.success) {
+          if (execOut.trace.success) {
             timing.cache_hit = true;
-            return { result, trace, source: "marketplace", skill, timing: finalize("route-cache", result, cached.skillId, skill, trace) };
+            return { result: execOut.result, trace: execOut.trace, source: "marketplace", skill, timing: finalize("route-cache", execOut.result, cached.skillId, skill, execOut.trace), response_schema: execOut.response_schema, extraction_hints: execOut.extraction_hints };
           }
         } catch { timing.execute_ms = Date.now() - te0; }
       }
@@ -268,12 +275,12 @@ export async function resolveAndExecute(
           // Agent already picked — execute
           const te0 = Date.now();
           try {
-            const { trace, result } = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
+            const execOut = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
             timing.execute_ms = Date.now() - te0;
-            if (trace.success) {
+            if (execOut.trace.success) {
               timing.cache_hit = true;
               skillRouteCache.set(cacheKey, { skillId: localSkill.skill_id, domain: localSkill.domain, ts: Date.now() });
-              return { result, trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", result, localSkill.skill_id, localSkill, trace) };
+              return { result: execOut.result, trace: execOut.trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", execOut.result, localSkill.skill_id, localSkill, execOut.trace), response_schema: execOut.response_schema, extraction_hints: execOut.extraction_hints };
             }
           } catch { timing.execute_ms = Date.now() - te0; }
         } else {
@@ -346,12 +353,12 @@ export async function resolveAndExecute(
           viable.map((candidate, i) =>
             Promise.race([
               executeSkill(candidate.skill, params, projection, { ...options, intent, contextUrl: context?.url })
-                .then(({ trace, result }) => {
-                  if (!trace.success) {
-                    console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) failed: status=${trace.status_code}`);
+                .then((execOut) => {
+                  if (!execOut.trace.success) {
+                    console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) failed: status=${execOut.trace.status_code}`);
                     throw new Error("execution failed");
                   }
-                  return { result, trace, candidate };
+                  return { ...execOut, candidate };
                 })
                 .catch((err) => {
                   console.log(`[race] candidate ${i} (${candidate.skill.skill_id}) error: ${(err as Error).message}`);
@@ -363,7 +370,7 @@ export async function resolveAndExecute(
         );
         timing.execute_ms = Date.now() - te0;
         skillRouteCache.set(cacheKey, { skillId: winner.candidate.skill.skill_id, domain: winner.candidate.skill.domain, ts: Date.now() });
-        return { result: winner.result, trace: winner.trace, source: "marketplace" as const, skill: winner.candidate.skill, timing: finalize("marketplace", winner.result, winner.candidate.skill.skill_id, winner.candidate.skill, winner.trace) };
+        return { result: winner.result, trace: winner.trace, source: "marketplace" as const, skill: winner.candidate.skill, timing: finalize("marketplace", winner.result, winner.candidate.skill.skill_id, winner.candidate.skill, winner.trace), response_schema: winner.response_schema, extraction_hints: winner.extraction_hints };
       } catch (err) {
         console.log(`[race] all candidates failed after ${Date.now() - te0}ms: ${(err as Error).message}`);
         timing.execute_ms = Date.now() - te0;
@@ -391,8 +398,8 @@ export async function resolveAndExecute(
   const domainHit = !forceCapture ? capturedDomainCache.get(captureDomain) : undefined;
   if (domainHit && Date.now() < domainHit.expires) {
     if (agentChoseEndpoint) {
-      const { trace, result } = await executeSkill(domainHit.skill, params, projection, { ...options, intent, contextUrl: context?.url });
-      return { result, trace, source: "marketplace", skill: domainHit.skill, timing: finalize("marketplace", result, domainHit.skill.skill_id, domainHit.skill, trace) };
+      const execOut = await executeSkill(domainHit.skill, params, projection, { ...options, intent, contextUrl: context?.url });
+      return { result: execOut.result, trace: execOut.trace, source: "marketplace", skill: domainHit.skill, timing: finalize("marketplace", execOut.result, domainHit.skill.skill_id, domainHit.skill, execOut.trace), response_schema: execOut.response_schema, extraction_hints: execOut.extraction_hints };
     }
     return buildDeferral(domainHit.skill, "marketplace");
   }
@@ -454,9 +461,9 @@ export async function resolveAndExecute(
   // Agent explicitly chose an endpoint — execute directly.
   if (agentChoseEndpoint && learned_skill) {
     const te1 = Date.now();
-    const { trace: execTrace, result: execResult } = await executeSkill(learned_skill, params, projection, { ...options, intent, contextUrl: context?.url });
+    const execOut = await executeSkill(learned_skill, params, projection, { ...options, intent, contextUrl: context?.url });
     timing.execute_ms += Date.now() - te1;
-    return { result: execResult, trace: execTrace, source: "live-capture", skill: learned_skill, timing: finalize("live-capture", execResult, learned_skill.skill_id, learned_skill, execTrace) };
+    return { result: execOut.result, trace: execOut.trace, source: "live-capture", skill: learned_skill, timing: finalize("live-capture", execOut.result, learned_skill.skill_id, learned_skill, execOut.trace), response_schema: execOut.response_schema, extraction_hints: execOut.extraction_hints };
   }
 
   // Try auto-execute on the learned skill, fall back to deferral
