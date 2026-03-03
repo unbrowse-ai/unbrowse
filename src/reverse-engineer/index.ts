@@ -146,6 +146,8 @@ function scoreRequest(req: RawRequest): number {
 export interface ExtractionContext {
   /** The page URL that was captured (used to detect entity values in API paths) */
   pageUrl?: string;
+  /** The final URL after redirects (e.g. lu.ma → luma.com) */
+  finalUrl?: string;
   /** The user's intent string */
   intent?: string;
 }
@@ -154,21 +156,25 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
 
-  // Extract the registrable domain for affinity filtering
-  // e.g. "swaggystocks.com" from "https://swaggystocks.com/dashboard/..."
-  let baseDomain: string | undefined;
-  try { baseDomain = context?.pageUrl ? getRegistrableDomain(new URL(context.pageUrl).hostname) : undefined; } catch { /* bad url */ }
+  // Extract the registrable domain(s) for affinity filtering.
+  // Include both pageUrl and finalUrl domains to handle redirects
+  // (e.g. lu.ma → luma.com where API lives on api2.luma.com).
+  const affinityDomains = new Set<string>();
+  for (const u of [context?.pageUrl, context?.finalUrl]) {
+    if (!u) continue;
+    try { affinityDomains.add(getRegistrableDomain(new URL(u).hostname)); } catch { /* bad url */ }
+  }
 
   const scored = requests
     .map((r) => ({ req: r, score: scoreRequest(r) }))
     .filter(({ req, score }) => isApiLike(req) && score > 0)
     .filter(({ req }) => {
-      if (!baseDomain) return true; // no target domain — keep everything
+      if (affinityDomains.size === 0) return true; // no target domain — keep everything
       try {
         const reqHost = new URL(req.url).hostname;
         const reqDomain = getRegistrableDomain(reqHost);
         // Keep same-domain and API subdomains (e.g. api.swaggystocks.com)
-        return reqDomain === baseDomain;
+        return affinityDomains.has(reqDomain);
       } catch { return false; }
     })
     .sort((a, b) => b.score - a.score);
