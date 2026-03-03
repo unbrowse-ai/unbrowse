@@ -148,7 +148,7 @@ function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unkno
 }
 
 /** Apply --extract fields to data. Each field is "alias:deep.path" or just "field".
- *  When processing arrays, rows where ALL extracted fields are null/undefined are dropped.
+ *  When processing arrays, rows where ALL extracted fields are null/undefined/empty are dropped.
  *  This handles decorator-pattern APIs (e.g. LinkedIn included[]) where heterogeneous
  *  item types coexist and only some items match the requested fields. */
 function extractFields(data: unknown, fields: string[], entityIndex?: Map<string, unknown> | null): unknown {
@@ -160,13 +160,22 @@ function extractFields(data: unknown, fields: string[], entityIndex?: Map<string
       const colonIdx = f.indexOf(":");
       const alias = colonIdx >= 0 ? f.slice(0, colonIdx) : f.split(".").pop()!;
       const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
-      out[alias] = resolvePath(item, path, entityIndex);
+      const resolved = resolvePath(item, path, entityIndex ?? undefined) ?? [];
+      // Unwrap single-element arrays to scalar values
+      out[alias] = resolved.length === 0 ? null : resolved.length === 1 ? resolved[0] : resolved;
     }
     return out;
   }
 
+  /** Check if a value is "present" (non-null, non-empty) */
+  function hasValue(v: unknown): boolean {
+    if (v == null) return false;
+    if (Array.isArray(v)) return v.length > 0;
+    return true;
+  }
+
   if (Array.isArray(data)) {
-    return data.map(mapItem).filter((row) => Object.values(row).some((v) => v != null));
+    return data.map(mapItem).filter((row) => Object.values(row).some(hasValue));
   }
   return mapItem(data);
 }
