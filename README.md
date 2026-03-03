@@ -8,6 +8,18 @@ Skills discovered by any agent are published to a shared marketplace and instant
 
 > Security note: capture and execution are local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full API reference.
 
+## What's new
+
+**Auth just works now.** Unbrowse reads cookies directly from your Chrome and Firefox databases — no manual login flows needed for most sites. If you're logged into a site in your browser, Unbrowse can use those sessions automatically. Cookies are resolved fresh on every call, expired cookies are filtered out, and cross-domain redirects (e.g. lu.ma → luma.com) are handled transparently. Auth headers (CSRF tokens, API keys) captured during browsing are stored encrypted and replayed on server-side fetches.
+
+**Extraction hints.** Large API responses no longer require agents to guess `--path` values through trial and error. The engine analyzes response schemas at inference time and returns `extraction_hints` with the exact path, fields, and ready-to-paste CLI args. Agents get structured data on the first try.
+
+**JS bundle scanning.** During capture, Unbrowse scans JavaScript bundles for API routes that were never triggered by network traffic. Endpoints like `/api/search` that only fire on user interaction are now discovered automatically — zero extra requests, since the bundles are already downloaded.
+
+**Auto-update.** The skill silently updates itself in the background every 4 hours. No more manual `npx skills update`.
+
+**10x faster execution.** Server-side fetch with stored auth headers means most calls skip the browser entirely — 120s → 100ms. Local disk cache eliminates marketplace latency for known domains.
+
 ## Install
 
 ```bash
@@ -94,15 +106,15 @@ A background verification loop runs every 6 hours, executing safe (GET) endpoint
 
 ## Authentication for gated sites
 
-If a site requires login, Unbrowse provides three strategies:
+For most sites, auth is automatic. If you're logged into a site in Chrome or Firefox, Unbrowse reads your cookies directly from the browser's SQLite database — no extra steps needed. Cookies are resolved fresh on every call, so sessions stay current.
 
 | Strategy | How it works | When to use |
 |---|---|---|
-| Interactive login | Opens a headed browser; user completes auth flow | First-time login to any site |
-| Yolo mode | Opens Chrome with user's real profile (existing sessions) | Already logged in via Chrome |
-| Cookie steal | Reads cookie DBs directly from Chrome/Firefox | Instant, no browser launch |
+| Auto cookie resolve | Reads cookie DBs from Chrome/Firefox automatically | Default — works if you're logged in via your browser |
+| Yolo mode | Opens Chrome with your real profile | Sites with complex auth (OAuth popups, 2FA) |
+| Interactive login | Opens a headed browser for manual login | Fallback when auto-resolve has no cookies |
 
-Cookies are stored in an encrypted vault (`~/.unbrowse/vault/`) and automatically loaded for subsequent captures and executions on the same domain. Stale credentials (401/403 responses) are auto-deleted.
+Auth headers (CSRF tokens, API keys, authorization headers) are captured during browsing and stored in an encrypted vault (`~/.unbrowse/vault/`). Server-side fetches replay these headers automatically — no browser launch needed. Cross-domain auth (e.g. lu.ma cookies working on api2.luma.com) is handled transparently. Stale credentials (401/403 responses) are auto-deleted.
 
 ## Mutation safety
 
