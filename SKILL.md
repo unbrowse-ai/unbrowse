@@ -43,20 +43,11 @@ cd ~/.agents/skills/unbrowse && bun src/cli.ts resolve \
 
 This returns `available_endpoints` — a ranked list of discovered API endpoints. Pick the right one by URL pattern (e.g., `MainFeed` for feed, `HomeTimeline` for tweets).
 
-**Auto-extraction:** When the response is large (>2KB) and the engine has high confidence in the data structure, it **auto-extracts** structured data — you get clean results immediately with `_auto_extracted` metadata showing what was applied. No second call needed.
+### Step 2: Execute with extraction
 
-If auto-extraction fires, the response includes:
-- `result` — already extracted, clean data (array of objects with useful fields)
-- `_auto_extracted.applied` — the `--path`/`--extract` that was auto-applied
-- `_auto_extracted.all_fields` — schema tree showing ALL available fields if you need different ones
-- `_auto_extracted.note` — how to customize (add `--extract` to override field selection)
-
-### Step 2: Refine extraction (only if needed)
-
-**If auto-extraction returned what you need, skip to Step 3.** Otherwise, customize:
+Use `--extract` to get the fields you need. For well-known domains, use the known extraction patterns from the Examples section — don't wait for auto-extraction to guess.
 
 ```bash
-# Override fields — use _auto_extracted.all_fields to see what's available
 cd ~/.agents/skills/unbrowse && bun src/cli.ts execute \
   --skill {skill_id} \
   --endpoint {endpoint_id} \
@@ -79,7 +70,15 @@ cd ~/.agents/skills/unbrowse && bun src/cli.ts execute \
 
 **`--path` + `--extract` + `--limit` replace ALL piping to jq/node/python.**
 
-### Step 3: Submit feedback (MANDATORY)
+**Auto-extraction caveat:** The CLI may auto-extract on first try, but for normalized APIs (LinkedIn Voyager, Facebook Graph) with mixed-type `included[]` arrays, auto-extraction often picks up the wrong fields. Always validate auto-extracted results — if you see mostly nulls or just metadata, ignore it and extract manually with known field patterns.
+
+### Step 3: Present results to the user
+
+Show the user their data first. Do not block on feedback before returning information.
+
+### Step 4: Submit feedback (MANDATORY — but after presenting results)
+
+Submit feedback after you've shown the user their results. This can run in parallel with your response.
 
 ```bash
 cd ~/.agents/skills/unbrowse && bun src/cli.ts feedback \
@@ -296,13 +295,13 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 
 1. **Always use the CLI** — never pipe to `node -e`, `python -c`, or `jq`. Use `--path`/`--extract`/`--limit` instead.
 2. Always try `resolve` first — it handles the full marketplace search -> capture pipeline
-3. **Trust auto-extraction** — for large responses, the CLI auto-extracts structured data using `response_schema`. Check `_auto_extracted` in the response to see what was applied. If the result looks right, you're done. If you need different fields, use `_auto_extracted.all_fields` to see what's available and re-run with `--extract`.
+3. **Don't blindly trust auto-extraction** — for normalized APIs (LinkedIn, Facebook) auto-extraction often grabs wrong fields from mixed-type arrays. If you know the domain's extraction pattern (see Examples), use `--extract` directly. If auto-extraction fires, validate the result — mostly-null rows mean it picked the wrong fields.
 4. **NEVER guess paths by trial-and-error** — use `--schema` to see the full response structure, or read `_auto_extracted.all_fields` / `extraction_hints.schema_tree`
 5. Use `--raw` if you need the unprocessed full response
 6. Check the result — if wrong endpoint, pick from `available_endpoints` and re-execute with `--endpoint`
 7. If `auth_required`, use `login` then retry
 8. Always `--dry-run` before mutations
-9. **Always submit feedback after every resolve call — this is mandatory**
+9. **Always submit feedback — but after presenting results to the user, not before**
 10. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
    ```bash
    gh issue create --repo unbrowse-ai/unbrowse \
