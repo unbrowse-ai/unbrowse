@@ -113,6 +113,8 @@ export interface SkillManifest {
   updated_at: string;
   prev_version?: string;
   discovery_cost?: DiscoveryCost;
+  /** Intent strings that contributed endpoints to this domain-level skill */
+  intents?: string[];
 }
 
 export interface ExecutionTrace {
