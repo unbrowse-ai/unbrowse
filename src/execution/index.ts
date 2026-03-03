@@ -2,7 +2,7 @@ import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
-import { publishSkill } from "../marketplace/index.js";
+import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
@@ -299,20 +299,23 @@ async function executeBrowserCapture(
           },
         };
 
+        const existingDomSkill = findExistingSkillForDomain(domain);
         const domDraft = {
-          skill_id: nanoid(),
+          skill_id: existingDomSkill?.skill_id ?? nanoid(),
           version: "1.0.0",
           schema_version: "1",
           lifecycle: "active" as const,
           execution_type: "http" as const,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          name: `${domain} -- ${intent}`,
-          intent_signature: intent,
+          name: domain,
+          intent_signature: domain,
           domain,
-          description: `DOM-extracted skill for: ${intent}`,
+          description: `API skill for ${domain}`,
           owner_type: "agent" as const,
-          endpoints: [domEndpoint],
+          endpoints: existingDomSkill
+            ? mergeEndpoints(existingDomSkill.endpoints, [domEndpoint])
+            : [domEndpoint],
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
@@ -395,6 +398,11 @@ async function executeBrowserCapture(
     }
   }
 
+  // Merge newly captured endpoints with existing ones instead of replacing
+  const finalEndpoints = existingSkill
+    ? mergeEndpoints(existingSkill.endpoints, publishableEndpoints)
+    : publishableEndpoints;
+
   const draft = {
     skill_id: existingSkill?.skill_id ?? nanoid(),
     version: "1.0.0",
@@ -403,12 +411,12 @@ async function executeBrowserCapture(
     execution_type: "http" as const,
     created_at: existingSkill?.created_at ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    name: `${domain} -- ${intent}`,
-    intent_signature: intent,
+    name: domain,
+    intent_signature: domain,
     domain,
-    description: `Auto-discovered skill for: ${intent}`,
+    description: `API skill for ${domain}`,
     owner_type: "agent" as const,
-    endpoints: publishableEndpoints,
+    endpoints: finalEndpoints,
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
 
