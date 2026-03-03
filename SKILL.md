@@ -156,10 +156,10 @@ bun src/cli.ts execute --skill {id} --endpoint {id} \
   --extract "user:core.user_results.result.legacy.screen_name,text:legacy.full_text,likes:legacy.favorite_count" \
   --limit 20 --pretty
 
-# LinkedIn feed — extract posts from included[]
+# LinkedIn feed — extract posts from included[] (chained URN resolution)
 bun src/cli.ts execute --skill {id} --endpoint {id} \
-  --path "data.included[]" \
-  --extract "author:actor.name.text,text:commentary.text.text,likes:socialDetail.totalSocialActivityCounts.numLikes" \
+  --path "included[]" \
+  --extract "author:actor.name.text,text:commentary.text.text,likes:socialDetail.totalSocialActivityCounts.numLikes,comments:socialDetail.totalSocialActivityCounts.numComments" \
   --limit 20 --pretty
 
 # Simple case — just limit results
@@ -210,14 +210,20 @@ bun src/cli.ts search --intent "get my notifications" --domain "www.linkedin.com
 
 Or filter `available_endpoints` by URL/description pattern in the resolve response.
 
-### Normalized APIs (LinkedIn Voyager, Facebook Graph)
+### Mixed-type arrays and normalized APIs
 
-These APIs return data in `included[]` arrays with URN cross-references. Key patterns:
+Many APIs return heterogeneous arrays — posts, profiles, media, and metadata objects all mixed together (e.g. `included[]`, `data[]`, `entries[]`). When you `--extract` fields, **rows where all extracted fields are null are automatically dropped**, so only objects that match your field selection survive. You don't need to filter by type.
 
-- **Data path is always `included[]`** — not `data.elements[]`
-- **Fields are flat on each object** — e.g. `commentary.text.text`, `actor.title.text`, `numLikes`
-- **URN references** (`*socialDetail`, `*actor`) are auto-resolved by `--extract` when the CLI detects `entityUrn`-keyed arrays
-- **Objects are mixed types** — `included[]` contains posts, profiles, comments, media all in one array. Use `--extract` to pull only fields that exist on the objects you care about — missing fields return null and are filtered out
+Some APIs (LinkedIn Voyager, Facebook Graph) use **normalized entity references** — objects reference each other via `*fieldName` URN keys instead of nesting data inline. The CLI auto-resolves these chains when `entityUrn`-keyed arrays are detected:
+
+```bash
+# Direct field: commentary.text.text → walks into nested object
+# URN chain: socialDetail.totalSocialActivityCounts.numLikes
+#   → socialDetail is inline, but totalSocialActivityCounts is a *URN reference
+#   → CLI resolves *totalSocialActivityCounts → looks up entity by URN → gets .numLikes
+```
+
+You don't need to know if a field is inline or URN-referenced — just use the dot path and the CLI resolves it automatically. If a field doesn't resolve, check `--schema` output for `*fieldName` patterns indicating URN references.
 
 ### Large responses — trust extraction_hints
 
@@ -229,16 +235,15 @@ bun src/cli.ts execute --skill {id} --endpoint {id} \
   --path "entries[]" --extract "name,start_at,url" --limit 10 --pretty
 ```
 
-### Don't use curl + jq for unbrowse
+### Why the CLI over curl + jq
 
-The CLI handles:
-- Shell escaping (zsh `!=` issues with jq)
-- URN reference resolution (LinkedIn/Facebook normalized APIs)
-- Auto-extraction on large responses
-- Server auto-start
-- Auth cookie injection
-
-None of this works through raw curl.
+The CLI handles things that break with raw curl:
+- **Shell escaping** — zsh escapes `!=` to `\!=` which breaks jq filters
+- **URN resolution** — chained entity references resolved automatically across normalized arrays
+- **Null-row filtering** — mixed-type arrays filtered to only objects matching your `--extract` fields
+- **Auto-extraction** — large responses wrapped with hints instead of dumping 500KB of JSON
+- **Auth injection** — cookies loaded from vault automatically
+- **Server auto-start** — boots the server if not running
 
 ## Authentication
 
