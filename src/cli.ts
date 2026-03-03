@@ -218,12 +218,14 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
           success: trace.success,
           status_code: trace.status_code,
           trace_version: trace.trace_version,
+          ...(trace.schema_backfilled ? { schema_backfilled: true } : {}),
         }
       : undefined,
   };
   // Carry over result (even if empty array — don't silently drop it)
   if ("result" in obj) out.result = obj.result;
-  // Drop response_schema but keep extraction_hints (agent may need them if extraction partially fails)
+  // Keep extraction_hints — agents need them for --path/--extract guidance
+  if (obj.extraction_hints) out.extraction_hints = obj.extraction_hints;
   return out;
 }
 
