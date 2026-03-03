@@ -9,7 +9,7 @@ import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/i
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { generateExtractionHints } from "../transform/schema-hints.js";
-import { recordExecution, cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
+import { recordExecution, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -835,18 +835,6 @@ export async function executeEndpoint(
     }
   }
 
-  // Backfill response_schema on first successful execution (mirrors exec_strategy learning)
-  if (trace.success && !endpoint.response_schema && data != null) {
-    try {
-      const inferred = inferSchema([data]);
-      if (inferred.type !== "object" || inferred.properties) {
-        log("exec", `learned response_schema for endpoint ${endpoint.endpoint_id}`);
-        endpoint.response_schema = inferred;
-        try { cachePublishedSkill(skill); } catch {}
-      }
-    } catch {}
-  }
-
   // HTML→JSON post-processing: if the endpoint returned HTML instead of JSON,
   // pipe it through DOM extraction to produce structured data.
   // Always extract — returning raw HTML to an agent is never useful.
@@ -866,6 +854,20 @@ export async function executeEndpoint(
       };
       trace.result = data;
     }
+  }
+
+  // Backfill response_schema on first successful execution — push to marketplace so all agents benefit
+  if (trace.success && !endpoint.response_schema && data != null && typeof data !== "string") {
+    try {
+      const inferred = inferSchema([data]);
+      if (inferred.type !== "object" || inferred.properties) {
+        log("exec", `learned response_schema for endpoint ${endpoint.endpoint_id} (${Object.keys(inferred.properties ?? {}).length} top-level props)`);
+        endpoint.response_schema = inferred;
+        trace.schema_backfilled = true;
+        cachePublishedSkill(skill);
+        updateEndpointSchema(skill.skill_id, endpoint.endpoint_id, inferred).catch(() => {});
+      }
+    } catch {}
   }
 
   // Record execution for reliability scoring (fire-and-forget — don't block response)

@@ -219,14 +219,16 @@ function readSkillCache(skillId: string): SkillManifest | null {
 function writeSkillCache(skill: SkillManifest): void {
   try {
     if (!existsSync(SKILL_CACHE_DIR)) mkdirSync(SKILL_CACHE_DIR, { recursive: true });
-    // Preserve local-only fields (exec_strategy) that the backend doesn't know about
+    // Preserve local-only fields that the backend doesn't know about
     const existing = readSkillCache(skill.skill_id);
     if (existing) {
       for (const ep of skill.endpoints) {
         const cached = existing.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
         if (!ep.exec_strategy && cached?.exec_strategy) {
           ep.exec_strategy = cached.exec_strategy;
-          console.log(`[cache] preserved exec_strategy=${cached.exec_strategy} for ${ep.endpoint_id}`);
+        }
+        if (!ep.response_schema && cached?.response_schema) {
+          ep.response_schema = cached.response_schema;
         }
       }
     }
@@ -269,12 +271,15 @@ export async function getSkill(skillId: string): Promise<SkillManifest | null> {
   if (cached) {
     api<SkillManifest>("GET", `/v1/skills/${skillId}`)
       .then(skill => {
-        // Preserve locally-learned exec_strategy — backend doesn't store these
+        // Preserve locally-learned fields — backend doesn't store these
         if (cached.endpoints) {
           for (const ep of skill.endpoints) {
             const local = cached.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
             if (local?.exec_strategy && !ep.exec_strategy) {
               ep.exec_strategy = local.exec_strategy;
+            }
+            if (local?.response_schema && !ep.response_schema) {
+              ep.response_schema = local.response_schema;
             }
           }
         }
@@ -318,6 +323,14 @@ export async function updateEndpointScore(
   status?: string
 ): Promise<void> {
   await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status });
+}
+
+export async function updateEndpointSchema(
+  skillId: string,
+  endpointId: string,
+  schema: import("../types/index.js").ResponseSchema
+): Promise<void> {
+  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { response_schema: schema });
 }
 
 export async function getEndpointSchema(
