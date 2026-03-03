@@ -5,7 +5,7 @@ import { randomBytes } from "crypto";
 import { createInterface } from "readline";
 import type { EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
 
-const API_URL = "https://beta-api.unbrowse.ai";
+const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 const CONFIG_DIR = join(homedir(), ".unbrowse");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const SKILL_CACHE_DIR = join(CONFIG_DIR, "skill-cache");
@@ -69,7 +69,11 @@ async function api<T = unknown>(method: string, path: string, body?: unknown): P
     throw new Error("ToS update required. Restart unbrowse to accept new terms.");
   }
 
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `API HTTP ${res.status}`);
+  if (!res.ok) {
+    const errData = data as { error?: string; details?: string[] };
+    const msg = errData.details?.length ? `${errData.error}: ${errData.details.join("; ")}` : errData.error ?? `API HTTP ${res.status}`;
+    throw new Error(msg);
+  }
   return data;
 }
 

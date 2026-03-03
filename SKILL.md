@@ -166,6 +166,80 @@ bun src/cli.ts execute --skill {id} --endpoint {id} \
 bun src/cli.ts execute --skill {id} --endpoint {id} --limit 10 --pretty
 ```
 
+## Best Practices
+
+### Minimize round-trips — one CLI call, not five curl + jq pipes
+
+Bad (5 steps):
+```bash
+curl ... /v1/intent/resolve | jq .skill.skill_id    # Step 1: resolve
+curl ... /v1/skills/{id}/execute | jq .              # Step 2: execute
+curl ... | jq '.result.included[]'                   # Step 3: drill in
+curl ... | jq 'select(.commentary)'                  # Step 4: filter
+curl ... | jq '{author, text, likes}'                # Step 5: extract
+```
+
+Good (1 step):
+```bash
+bun src/cli.ts execute --skill {id} --endpoint {id} \
+  --path "included[]" \
+  --extract "text:commentary.text.text,author:actor.title.text,likes:numLikes,comments:numComments" \
+  --limit 10 --pretty
+```
+
+### Know the endpoint ID before executing
+
+On first resolve for a domain, you'll get `available_endpoints`. Scan descriptions and URLs to pick the right one — don't blindly execute the top-ranked result.
+
+Common patterns:
+- LinkedIn feed: look for `voyagerFeedDashMainFeed` in the URL
+- Twitter timeline: look for `HomeTimeline` in the URL
+- Luma events: look for `/home/get-events` in the URL
+- Notifications: look for `/notifications/list` in the URL
+
+Once you know the endpoint ID, pass it with `--endpoint` on every subsequent call.
+
+### Domain skills have many endpoints — use search or description matching
+
+After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endpoints. Don't scroll through all of them — filter by intent:
+
+```bash
+# Search finds the best endpoint by embedding similarity
+bun src/cli.ts search --intent "get my notifications" --domain "www.linkedin.com"
+```
+
+Or filter `available_endpoints` by URL/description pattern in the resolve response.
+
+### Normalized APIs (LinkedIn Voyager, Facebook Graph)
+
+These APIs return data in `included[]` arrays with URN cross-references. Key patterns:
+
+- **Data path is always `included[]`** — not `data.elements[]`
+- **Fields are flat on each object** — e.g. `commentary.text.text`, `actor.title.text`, `numLikes`
+- **URN references** (`*socialDetail`, `*actor`) are auto-resolved by `--extract` when the CLI detects `entityUrn`-keyed arrays
+- **Objects are mixed types** — `included[]` contains posts, profiles, comments, media all in one array. Use `--extract` to pull only fields that exist on the objects you care about — missing fields return null and are filtered out
+
+### Large responses — trust extraction_hints
+
+When a response is >2KB and no `--path`/`--extract` is given, the CLI returns `extraction_hints` instead of dumping raw JSON. Read `extraction_hints.cli_args` and paste it directly:
+
+```bash
+# Response says: extraction_hints.cli_args = "--path \"entries[]\" --extract \"name,start_at,url\" --limit 10"
+bun src/cli.ts execute --skill {id} --endpoint {id} \
+  --path "entries[]" --extract "name,start_at,url" --limit 10 --pretty
+```
+
+### Don't use curl + jq for unbrowse
+
+The CLI handles:
+- Shell escaping (zsh `!=` issues with jq)
+- URN reference resolution (LinkedIn/Facebook normalized APIs)
+- Auto-extraction on large responses
+- Server auto-start
+- Auth cookie injection
+
+None of this works through raw curl.
+
 ## Authentication
 
 **Automatic.** Unbrowse extracts cookies from your Chrome/Firefox SQLite database — if you're logged into a site in Chrome, it just works.
