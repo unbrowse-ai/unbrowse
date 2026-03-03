@@ -1,7 +1,9 @@
 import { BrowserManager } from "agent-browser/dist/browser.js";
 import { executeCommand } from "agent-browser/dist/actions.js";
 import { nanoid } from "nanoid";
+import { existsSync } from "node:fs";
 import { getRegistrableDomain } from "../domain.js";
+import { getProfilePath } from "../auth/index.js";
 import { log } from "../logger.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
@@ -205,9 +207,21 @@ export async function captureSession(
   try {
   const domain = new URL(url).hostname;
 
-  // Always ephemeral headless — cookies are injected by the caller (bird pattern).
-  // Persistent profiles are only for interactiveLogin where the user is present.
-  await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
+  // Use persistent profile if one exists (from prior interactiveLogin).
+  // This preserves localStorage/sessionStorage auth that cookie injection can't cover.
+  // Falls back to ephemeral headless with cookie injection (bird pattern).
+  const profileDir = getProfilePath(domain);
+  const hasPersistentProfile = existsSync(profileDir);
+  if (hasPersistentProfile) {
+    log("capture", `using persistent profile for ${domain}: ${profileDir}`);
+  }
+  await browser.launch({
+    action: "launch",
+    id: nanoid(),
+    headless: true,
+    userAgent: CHROME_UA,
+    ...(hasPersistentProfile ? { profile: profileDir } : {}),
+  });
 
   // Override Chromium's auto-set Client Hints headers — without this, Chromium 145+
   // sends sec-ch-ua: "HeadlessChrome" even when user-agent is spoofed to Chrome 131,

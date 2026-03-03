@@ -191,7 +191,7 @@ async function executeBrowserCapture(
     };
   }
 
-  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, intent });
+  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
 
   // JS bundle scanning: discover API routes not seen in network traffic
   if (captured.js_bundles && captured.js_bundles.size > 0) {

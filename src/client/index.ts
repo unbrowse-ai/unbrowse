@@ -283,7 +283,11 @@ export async function getSkill(skillId: string): Promise<SkillManifest | null> {
             }
           }
         }
-        writeSkillCache(skill);
+        // Only update cache if remote has same or more endpoints — avoids clobbering
+        // a freshly published local skill with a stale backend copy (eventual consistency)
+        if ((skill.endpoints?.length ?? 0) >= (cached.endpoints?.length ?? 0)) {
+          writeSkillCache(skill);
+        }
       })
       .catch(() => {});
     return cached;
