@@ -1,5 +1,197 @@
 # Changelog
 
+## feat: CLI SDK — shell-safe wrapper, no more curl + jq
+
+Agents no longer need curl + jq to interact with unbrowse. The CLI handles all
+JSON construction and parsing in TypeScript, eliminating shell escaping issues
+(e.g. `!=` being escaped to `\!=` in zsh, breaking jq filters).
+
+- **`unbrowse resolve`**: intent resolution with `--url`, `--endpoint-id`, `--force-capture`
+- **`unbrowse execute`**: skill execution with `--skill`, `--endpoint`, `--params`
+- **`unbrowse feedback`**: mandatory post-call feedback
+- **`unbrowse recipe`**: submit extraction recipes via flags instead of JSON blobs
+- **`--extract`**: ad-hoc field extraction from result (e.g. `--extract "user,text,likes"`)
+- **`--pretty`**: indented JSON output on any command
+- **`--raw`**: bypass extraction recipes for unprocessed data
+- **Auto-start**: server spawns automatically if not running
+- **bin entry**: `"bin": { "unbrowse": "src/cli.ts" }` in unbrowse-skill package
+
+## feat: extraction recipes — persist parsing knowledge on endpoints
+
+When an agent figures out how to parse a complex API response (e.g. LinkedIn's 500KB
+Voyager blob), that knowledge now persists as an extraction recipe on the endpoint.
+Future executions auto-return clean, structured output — for all users via the marketplace.
+
+- **ExtractionRecipe type**: filter + field-mapping rules stored on EndpointDescriptor
+- **Auto-apply**: recipes applied during execution when no explicit projection is given
+- **API**: POST/DELETE `/v1/skills/:id/endpoints/:eid/recipe` to submit/remove recipes
+- **Marketplace**: recipes travel with the skill — all agents benefit
+- **Escape hatch**: `"projection": {"raw": true}` bypasses recipe for raw data
+- **Graceful fallback**: if recipe can't apply (source path missing), returns raw data
+
+## fix: speed, coverage, and accuracy overhaul (bird-style parity)
+
+### Speed: 20s→2s (trigger-intercept), 120s→100ms (server-fetch)
+- **trigger-intercept: domcontentloaded not networkidle**: The page.goto was waiting
+  for ALL network activity to settle (networkidle). SPAs like LinkedIn never fully
+  idle. Now uses domcontentloaded — the intercept promise resolves as soon as the
+  specific API call fires, typically 1-3s after navigation starts.
+- **Local disk cache before marketplace search**: Marketplace API takes 40-80s
+  (search + getSkill). Now checks disk cache first — if a skill exists locally for
+  the domain, execute it immediately. Eliminates remote API latency entirely.
+- **Cookie quote stripping**: Chrome SQLite stores some values with embedded quotes
+  (e.g. JSESSIONID="ajax:..."). RFC 6265 requires unquoted values in Cookie headers.
+  LinkedIn's CSRF check was failing because the quoted cookie didn't match the
+  unquoted csrf-token header.
+- **Accept header preservation**: server-fetch was overwriting endpoint's accept header
+  with "application/json". LinkedIn requires "application/vnd.linkedin.normalized+json+2.1".
+  Now only sets accept as default when the endpoint doesn't have one.
+- **Stored auth headers in vault**: During capture, extract all sensitive headers
+  (authorization, x-csrf-token, api-keys) that reverse-engineer strips from skill
+  manifests. Store them encrypted in the vault. Server-fetch now works without
+  launching a browser — direct HTTP with full auth headers.
+- **Route cache on live-capture**: Route cache was only set on marketplace success.
+  Now also caches after live-capture so the 2nd identical request skips search.
+- **Domain cache TTL 60s→5min**: Prevents re-capture when marketplace hasn't indexed yet.
+- **Domain strategy cache**: Once we learn x.com needs trigger-intercept (or server),
+  apply that as default for all new endpoints on that domain.
+- **Preserve exec_strategy on backend refresh**: `getSkill()` async-refresh from
+  backend was overwriting locally-learned exec_strategy. Now merges them.
+- **Parallel marketplace race**: Top 3 marketplace candidates execute via Promise.any
+  instead of serial loop.
+
+### Coverage: SPA intent-aware API wait
+- **Phase 4 in waitForContentReady**: After networkidle, extract a route hint from
+  the capture URL (e.g., "bookmark" from /i/bookmarks) and wait up to 5s for a
+  matching API response. Catches SPA lazy-loaded APIs like Twitter's Bookmarks
+  GraphQL query that fire after initial page load.
+- **Synthesized requests**: Response bodies captured by the listener but missed by
+  request tracking are now synthesized as RawRequests so they reach extractEndpoints.
+
+### Accuracy: Better endpoint ranking
+- **CamelCase tokenization**: GraphQL operation names like `BookmarkFoldersSlice` are
+  now split into `["Bookmark", "Folders", "Slice"]` for BM25 matching. Previously the
+  entire name was one token, never matching intent words.
+- **Stemmer fix**: Added `-ed` and `-ing` suffix stripping. "bookmarked" now stems to
+  "bookmark", matching `BookmarkFoldersSlice`. "trending" stems to "trend".
+- **Bookmark synonyms**: Added bookmark ↔ saved/favorite synonym expansion.
+- **trigger_url tokenization**: Endpoint trigger_url path segments are now included
+  in BM25 document tokens.
+- **Context URL match bonus**: +20 score when endpoint trigger_url matches the user's
+  context URL path.
+- **Session plumbing filter**: Filter account/settings, badge_count, DataSaverMode,
+  live_pipeline, and other session plumbing from ranking candidates.
+- **extractAuthHeaders()**: New export from reverse-engineer that extracts the inverse
+  of sanitizeHeaders — all headers that would be stripped from the skill manifest.
+
+### Stale skill prevention
+- **Reuse existing skill_id**: Re-captures find the existing cached skill for
+  the same domain and reuse its skill_id. Preserves learned exec_strategy across
+  re-captures and server restarts.
+- **Carry forward exec_strategy**: Learned strategies from old endpoints transfer
+  to matching new endpoints by URL template on re-capture.
+
+### Execution strategy fixes
+- **Removed domain strategy cache**: One 400 on LinkedIn was locking ALL endpoints
+  into trigger-intercept. Strategy is now per-endpoint only.
+- **Always try server-fetch first** for new endpoints before falling back.
+- **Marketplace race timeout 15s→30s**: Trigger-intercept takes 20s on authed sites.
+
+### Bug fix: Remove persistent profile from captureSession
+- captureSession no longer tries to launch headed Playwright with a persistent
+  profile directory. Eliminates SingletonLock crashes. Always uses ephemeral
+  headless browsers with bird-style cookie injection.
+
+## fix: endpoint ranking + auto-execute after capture
+
+After capturing a site, unbrowse would return "Discovered N endpoints, pick one"
+instead of executing the best match. Three root causes fixed:
+
+### `src/reverse-engineer/index.ts` — smarter endpoint collapsing
+`collapseEndpoints` was too aggressive — it merged distinct API actions
+(e.g. `/relationships/connectionsSummary` + `/invitationsSummary`) into
+`/relationships/{relationship}`. Added `looksLikeEntityId()` guard that only
+allows collapsing when leaf segments look like entity IDs (UUIDs, numbers,
+tickers), not camelCase action names or REST resource words.
+
+### `src/execution/index.ts` — expanded BM25 synonyms + camelCase tokenization + stemmer fix
+- Added synonym groups for social/content domains: feed, post, comment, message,
+  notification, connection, profile, recommend, news, dashboard.
+- `endpointToTokens` now splits long query param values on camelCase boundaries,
+  so `voyagerFeedDashMainFeed` tokenizes as `[voyager, Feed, Dash, Main, Feed]`.
+- Fixed stemmer: `messages` now stems to `message` (not `messag`), enabling
+  synonym expansion for words ending in -ses, -ges, -ces, -zes.
+
+### `src/orchestrator/index.ts` — auto-execute on confident ranking
+Instead of always deferring, the orchestrator now auto-executes when:
+- Top endpoint scores >= 30 (strong BM25 match)
+- Top endpoint has a response_schema (confirmed JSON data)
+- Score gap >= 5 over runner-up (clear winner)
+
+### `src/capture/index.ts` — queryId-aware trigger-and-intercept
+For graphql endpoints, the intercept now matches on the queryId name prefix
+(e.g. `voyagerFeedDashMainFeed`) instead of just the base path (`/graphql`),
+preventing it from intercepting the wrong graphql response.
+
+## fix: auth reliability overhaul (bird-style cookie resolution)
+
+Auth was unreliable due to multiple bugs: bidirectional domain matching, expired
+cookies never filtered, stale vault cookies never refreshed from browser, missing
+CSRF header replay, and inconsistent vault key naming.
+
+Inspired by [bird](https://github.com/jawond/bird) which reads cookies fresh
+from browser SQLite every time for zero-staleness auth.
+
+### `src/domain.ts` — fix bidirectional domain matching
+`isDomainMatch` had `c.endsWith("." + t)` which allowed `notgoogle.com` to match
+`google.com`. Removed — now only matches when target equals or is a subdomain of
+cookie domain.
+
+### `src/auth/index.ts` — bird-style cookie resolution
+- **`getAuthCookies(domain)`**: new unified resolver with fallback chain:
+  vault cookies (fast) → auto-extract from Chrome/Firefox SQLite (fresh).
+  No more manual `/v1/auth/steal` calls needed.
+- **`filterExpired()`**: cookies with past `expires` are now filtered out on
+  retrieval. Session cookies (expires <= 0) are kept.
+- **`refreshAuthFromBrowser(domain)`**: on 401/403, auto-extracts fresh cookies
+  from browser instead of just deleting stale ones.
+- Vault keys normalized to registrable domain (`auth:example.com` not
+  `auth:api.example.com`) with backward-compat fallback.
+
+### `src/execution/index.ts` — CSRF replay + auto-refresh
+- CSRF token auto-detection: scans cookies for `ct0`, `csrf_token`, `_csrf`,
+  `XSRF-TOKEN`, `csrftoken` and sends as `x-csrf-token` header automatically.
+- On 401/403: tries `refreshAuthFromBrowser()` before deleting credentials.
+  Next retry will use fresh cookies.
+- `executeBrowserCapture` and `executeEndpoint` now use `getAuthCookies()`
+  (bird-style auto-extract) instead of manual vault lookups.
+
+### `src/auth/browser-cookies.ts` — subdomain cookie extraction
+`buildDomainWhereClause` only matched exact domain variants (`.linkedin.com`)
+but missed subdomain-scoped cookies (`.www.linkedin.com` where `li_at` lives).
+Added LIKE clause to match all subdomains, fixing LinkedIn/similar sites.
+
+### `src/capture/index.ts` — trigger-and-intercept execution
+New `triggerAndIntercept()` function: navigate to the page that originally
+triggered an API call, let the site's own JS make the request (passing CSRF,
+TLS fingerprinting, session validation), and intercept the response. This is
+the generalized bird pattern — instead of replaying API calls ourselves, we
+let the site's code handle auth and just capture the result.
+
+Also: cookie injection logging, CSRF auto-detection in browser execution.
+
+### `src/execution/index.ts` — 3-tier authed execution fallback
+1. Server fetch (bird pattern — fast, works for Twitter/simple APIs)
+2. Trigger-and-intercept (navigate page, intercept API call — works for LinkedIn)
+3. Browser in-page fetch (last resort)
+
+### `src/reverse-engineer/index.ts` — record trigger_url
+Each endpoint now stores `trigger_url` — the page URL that triggered the API
+call during capture. Used by trigger-and-intercept execution.
+
+### `src/types/skill.ts` — trigger_url field
+Added `trigger_url` to `EndpointDescriptor`.
+
 ## fix: skill not found after intent/resolve (cache-first publish)
 
 After `POST /v1/intent/resolve` discovers endpoints, the returned `skill_id` was

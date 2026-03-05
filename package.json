@@ -4,9 +4,13 @@
   "workspaces": ["packages/*", "backend", "frontend"],
   "scripts": {
     "prepare": "husky",
+    "test": "bun test tests/path-params.test.ts tests/utils.test.ts evals/quality-gate.test.ts",
+    "test:backend": "bun test backend/tests/",
+    "test:all": "bun test tests/ evals/quality-gate.test.ts backend/tests/",
     "eval": "bun evals/perf.ts",
     "eval:full": "bun evals/perf.ts --full",
-    "eval:update": "bun evals/perf.ts --update-baseline"
+    "eval:update": "bun evals/perf.ts --update-baseline",
+    "cli": "bun src/cli.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

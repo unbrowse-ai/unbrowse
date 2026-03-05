@@ -1,13 +1,14 @@
 import type { FastifyInstance } from "fastify";
+import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill, rankEndpoints } from "../execution/index.js";
+import { executeSkill } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, getApiKey } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, getApiKey } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
-import type { ProjectionOptions } from "../types/index.js";
+import type { ProjectionOptions, ExtractionRecipe } from "../types/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -32,36 +33,30 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
-    const { intent, params, context, projection, confirm_unsafe, dry_run } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, dry_run, force_capture } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
       dry_run?: boolean;
+      force_capture?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run });
-
-      // Surface ranked endpoints so the calling agent can pick a better one
-      const skill = result.skill;
-      const res = result as unknown as Record<string, unknown>;
-      if (skill?.endpoints && skill.endpoints.length > 0) {
-        const ranked = rankEndpoints(skill.endpoints, intent, skill.domain);
-        res.available_endpoints = ranked.slice(0, 5).map((r) => ({
-          endpoint_id: r.endpoint.endpoint_id,
-          method: r.endpoint.method,
-          url: r.endpoint.url_template.length > 120 ? r.endpoint.url_template.slice(0, 120) + "..." : r.endpoint.url_template,
-          score: Math.round(r.score * 10) / 10,
-          has_schema: !!r.endpoint.response_schema,
-          dom_extraction: !!r.endpoint.dom_extraction,
-        }));
-      }
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture });
 
       // Surface timing breakdown
+      const res = result as unknown as Record<string, unknown>;
       if (result.timing) {
         res.timing = result.timing;
+      }
+
+      // If the orchestrator already included available_endpoints in result (deferral),
+      // also append them at the top level for backward compatibility.
+      const innerResult = result.result as Record<string, unknown> | null;
+      if (innerResult?.available_endpoints && !res.available_endpoints) {
+        res.available_endpoints = innerResult.available_endpoints;
       }
 
       return reply.send(result);
@@ -156,10 +151,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/auth/login — interactive OAuth flow or direct browser cookie extraction
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
-    const { url, yolo } = req.body as { url: string; yolo?: boolean };
+    const { url } = req.body as { url: string };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
-      const result = await interactiveLogin(url, undefined, { yolo });
+      const result = await interactiveLogin(url);
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
@@ -201,14 +196,22 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /v1/feedback — submit execution feedback (proxies to backend)
+  // POST /v1/feedback — submit execution feedback with optional diagnostics
   app.post("/v1/feedback", async (req, reply) => {
-    const { skill_id, target_id, endpoint_id, rating, outcome } = req.body as {
+    const { skill_id, target_id, endpoint_id, rating, outcome, diagnostics } = req.body as {
       skill_id?: string;
       target_id?: string;
       endpoint_id?: string;
       rating?: number;
       outcome?: string;
+      diagnostics?: {
+        total_ms?: number;
+        bottleneck?: string;
+        wrong_endpoint?: boolean;
+        expected_data?: string;
+        got_data?: string;
+        trace_version?: string;
+      };
     };
     const resolvedSkillId = skill_id ?? target_id;
     if (!resolvedSkillId || !endpoint_id || rating == null) {
@@ -216,14 +219,66 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     try {
       const avg_rating = await recordFeedback(resolvedSkillId, endpoint_id, rating);
+      // Forward diagnostics to backend for version-grouped analysis
+      if (diagnostics) {
+        recordDiagnostics(resolvedSkillId, endpoint_id, diagnostics).catch(() => {});
+      }
       return reply.send({ ok: true, avg_rating });
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
   });
 
+  // POST /v1/skills/:skill_id/endpoints/:endpoint_id/recipe — submit extraction recipe
+  app.post("/v1/skills/:skill_id/endpoints/:endpoint_id/recipe", async (req, reply) => {
+    const { skill_id, endpoint_id } = req.params as { skill_id: string; endpoint_id: string };
+    const { recipe } = req.body as { recipe: ExtractionRecipe };
+    if (!recipe) return reply.code(400).send({ error: "recipe object required in body" });
+
+    const { validateRecipe } = await import("../transform/recipe.js");
+    const errors = validateRecipe(recipe);
+    if (errors.length > 0) return reply.code(422).send({ error: "Invalid recipe", details: errors });
+
+    const skill = await getSkill(skill_id);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    const endpoint = skill.endpoints.find(e => e.endpoint_id === endpoint_id);
+    if (!endpoint) return reply.code(404).send({ error: "Endpoint not found" });
+
+    endpoint.extraction_recipe = { ...recipe, updated_at: new Date().toISOString() };
+    skill.updated_at = new Date().toISOString();
+
+    try {
+      await publishSkill(skill);
+      return reply.send({ ok: true, skill_id, endpoint_id, recipe: endpoint.extraction_recipe });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // DELETE /v1/skills/:skill_id/endpoints/:endpoint_id/recipe — remove extraction recipe
+  app.delete("/v1/skills/:skill_id/endpoints/:endpoint_id/recipe", async (req, reply) => {
+    const { skill_id, endpoint_id } = req.params as { skill_id: string; endpoint_id: string };
+
+    const skill = await getSkill(skill_id);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    const endpoint = skill.endpoints.find(e => e.endpoint_id === endpoint_id);
+    if (!endpoint) return reply.code(404).send({ error: "Endpoint not found" });
+
+    delete endpoint.extraction_recipe;
+    skill.updated_at = new Date().toISOString();
+
+    try {
+      await publishSkill(skill);
+      return reply.send({ ok: true, message: "Recipe removed" });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
   // GET /health
-  app.get("/health", async (_req, reply) => reply.send({ status: "ok" }));
+  app.get("/health", async (_req, reply) => reply.send({ status: "ok", trace_version: TRACE_VERSION, code_hash: CODE_HASH, git_sha: GIT_SHA }));
 
   // Catch-all proxy: forward unmatched /v1/* routes to beta-api.unbrowse.ai
   app.all("/v1/*", async (req, reply) => {
