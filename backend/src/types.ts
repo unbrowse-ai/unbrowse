@@ -3,7 +3,7 @@ export interface Env {
   UNKEY_ROOT_KEY: string;
   UNKEY_API_ID: string;
   EMERGENTDB_API_KEY: string;
-  GEMINI_API_KEY: string;
+  NEBIUS_API_KEY: string;
   STATS_KV: KVNamespace;
 }
 

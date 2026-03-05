@@ -5,10 +5,13 @@ const EMERGENTDB_BASE = "https://api.emergentdb.com";
 const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
 
+// Namespace version — old "unbrowse--" namespaces remain as backup.
+const NS_PREFIX = "unbrowse-v2--";
+
 function domainNamespace(domain: string): string {
-  return `unbrowse--${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
+  return `${NS_PREFIX}${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
 }
-const GLOBAL_NS = "unbrowse--global";
+const GLOBAL_NS = `${NS_PREFIX}global`;
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
 
@@ -85,25 +88,27 @@ async function edbRequest(
 async function embedIntent(
   env: Env,
   text: string,
-  task: "query" | "document" = "query"
+  _task: "query" | "document" = "query"
 ): Promise<number[]> {
-  const taskType = task === "query" ? "RETRIEVAL_QUERY" : "RETRIEVAL_DOCUMENT";
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${env.GEMINI_API_KEY}`,
+    "https://api.tokenfactory.nebius.com/v1/embeddings",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.NEBIUS_API_KEY}`,
+      },
       body: JSON.stringify({
-        content: { parts: [{ text }] },
-        taskType,
-        outputDimensionality: DIMS,
+        model: "Qwen/Qwen3-Embedding-8B",
+        input: text,
+        dimensions: DIMS,
       }),
     }
   );
   const data = (await res.json()) as {
-    embedding?: { values?: number[] };
+    data?: Array<{ embedding?: number[] }>;
   };
-  const raw = data.embedding?.values ?? [];
+  const raw = data.data?.[0]?.embedding ?? [];
   const norm = Math.sqrt(raw.reduce((s, v) => s + v * v, 0));
   return norm > 0 ? raw.map((v) => v / norm) : raw;
 }

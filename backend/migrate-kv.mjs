@@ -7,7 +7,7 @@
 import { execSync } from "child_process";
 
 const EMERGENTDB_API_KEY = "emdb_HgUO931Kj9BZQHppxTBB3VsoSibXozcS";
-const GEMINI_API_KEY = "REMOVED_GOOGLE_API_KEY";
+const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY || "";
 const EBASE = "https://api.emergentdb.com";
 const DIMS = 1536;
 
@@ -42,19 +42,22 @@ function hashToInt(str) {
 
 async function embedIntent(text) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_API_KEY}`,
+    "https://api.tokenfactory.nebius.com/v1/embeddings",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${NEBIUS_API_KEY}`,
+      },
       body: JSON.stringify({
-        content: { parts: [{ text }] },
-        taskType: "RETRIEVAL_DOCUMENT",
-        outputDimensionality: DIMS,
+        model: "Qwen/Qwen3-Embedding-8B",
+        input: text,
+        dimensions: DIMS,
       }),
     }
   );
   const data = await res.json();
-  const raw = data.embedding?.values ?? [];
+  const raw = data.data?.[0]?.embedding ?? [];
   const norm = Math.sqrt(raw.reduce((s, v) => s + v * v, 0));
   return norm > 0 ? raw.map((v) => v / norm) : raw;
 }
