@@ -1,7 +1,11 @@
 {
   "name": "unbrowse",
   "private": true,
-  "workspaces": ["packages/*", "backend", "frontend"],
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "prepare": "husky",
     "test": "bun test tests/path-params.test.ts tests/utils.test.ts evals/quality-gate.test.ts",
@@ -10,7 +14,8 @@
     "eval": "bun evals/perf.ts",
     "eval:full": "bun evals/perf.ts --full",
     "eval:update": "bun evals/perf.ts --update-baseline",
-    "cli": "bun src/cli.ts"
+    "cli": "bun src/cli.ts",
+    "release": "release-it"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
@@ -22,6 +27,10 @@
     "nanoid": "^5.1.6"
   },
   "devDependencies": {
-    "husky": "^9.1.7"
-  }
+    "@release-it/bumper": "^7.0.5",
+    "@release-it/conventional-changelog": "^10.0.5",
+    "husky": "^9.1.7",
+    "release-it": "^19.2.4"
+  },
+  "version": "1.0.0"
 }

@@ -75,25 +75,12 @@ export interface ResponseSchema {
   inferred_from_samples: number;
 }
 
-export interface ExtractionRecipe {
-  source: string;
-  filter?: {
-    field: string;
-    equals?: string;
-    contains?: string;
-    in?: string[];
-  };
-  require?: string[];
-  fields: Record<string, string>;
-  compact?: boolean;
-  description?: string;
-  updated_at?: string;
-}
-
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
   url_template: string;
+  /** LLM-generated description of what this endpoint returns, for semantic matching */
+  description?: string;
   headers_template?: Record<string, string>;
   query?: Record<string, unknown>;
   body?: Record<string, unknown>;
@@ -106,7 +93,7 @@ export interface EndpointDescriptor {
   last_verified_at?: string;
   signature?: string;
   response_schema?: ResponseSchema;
-  extraction_recipe?: ExtractionRecipe;
+  trigger_url?: string;
 }
 
 export interface DiscoveryCost {

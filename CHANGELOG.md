@@ -1,5 +1,144 @@
 # Changelog
 
+## [1.0.0] — 2025-01-01
+
+## feat: staging environment — isolated namespaces for safe migration testing
+
+Vector namespaces, KV namespaces, and search caches are now derived from
+`env.ENVIRONMENT`. Staging uses completely isolated data stores (`unbrowse-staging--`
+vectors, `staging-skills` / `staging-stats` KV) so migrations and schema changes
+can be tested without touching production data.
+
+- **`backend/src/services/discovery.ts`**: `NS_PREFIX`, `domainNamespace()`, `globalNs()`
+  now take `env` and return staging-prefixed namespaces when `ENVIRONMENT=staging`
+- **`backend/src/services/kv.ts`**: `skillsKV()` and `statsKV()` return staging-prefixed
+  KV namespaces when `ENVIRONMENT=staging`
+- **`backend/wrangler.toml`**: Added `[env.staging]` with `ENVIRONMENT=staging`.
+  Deploy with `wrangler deploy --env staging`, set secrets with `--env staging`
+
+## refactor: domain-convergent skills — one skill per domain with endpoint-level search
+
+Skills were being created per-intent per-domain, fragmenting the API surface and
+limiting search to whatever intent string happened to be captured first. "get bookmarks
+from x.com" and "get feed from x.com" produced two separate skills with separate
+vector embeddings, making cross-intent discovery impossible.
+
+Now each domain converges to a single skill. Captures accumulate endpoints via
+`mergeEndpoints()` instead of replacing them. Search operates at the endpoint
+level — each endpoint's description gets its own vector embedding, so "get
+notifications" finds the notifications endpoint even if the domain was first
+captured for "get events."
+
+- **Backend `publishSkill()`**: dedup changed from `intent-idx:{domain}:{hash(intent)}`
+  to `domain-idx:{domain}`. `mergeEndpoints()` (previously dead code) is now wired in
+  to accumulate endpoints across captures
+- **Per-endpoint vector indexing**: `indexEndpoints()` replaces `indexSkill()` —
+  embeds each endpoint's description as `"{description} [{method} {path}]"` with
+  batch Nebius API calls. Search results now include `endpoint_id` in metadata
+- **Orchestrator**: extracts `endpoint_id` from search results and executes directly,
+  skipping BM25 `rankEndpoints()` when vector search already found the right endpoint.
+  Removed `hasTriggerMatch` filter on local cache (too restrictive for consolidated skills)
+- **Capture**: `executeBrowserCapture()` merges new endpoints into existing domain skill
+  instead of replacing. Skill `name` and `intent_signature` set to domain name
+- **Migration**: lazy — old `intent-idx:*` entries are scanned as fallback. Old
+  skill-level vectors are cleaned up on next `ops/reindex`. New `POST /v1/ops/consolidate`
+  endpoint merges all skills for a domain on demand
+
+## fix: cross-domain redirect sites (lu.ma → luma.com) and skill cache persistence
+
+Sites that redirect to a different domain (e.g. lu.ma → luma.com) had three
+compounding issues preventing API discovery and execution:
+
+- **Domain affinity filter in extractEndpoints** now uses both the page URL and
+  final URL domains. Previously, XHR calls to `api2.luma.com` were filtered out
+  because the base domain was `lu.ma` (different registrable domain).
+- **Server-side fetch with cookies** — the `serverFetch` path in the skill
+  directory now includes auth cookies via the Cookie header and detects API
+  subdomains (`api2.*`, `api.*`), routing them to server-fetch instead of
+  browser-based execution.
+- **Skill cache persistence** — `getSkill()` no longer overwrites a freshly
+  published local skill with a stale backend copy (eventual consistency).
+  `publishSkill()` pre-caches locally and only merges backend identity fields.
+- **Persistent browser profiles for capture** — `captureSession` now uses
+  headless persistent profiles (from prior `interactiveLogin`) to preserve
+  localStorage/sessionStorage auth. Previously always ephemeral.
+- **Client Hints header override** — prevents Chromium 145+ from leaking
+  `sec-ch-ua: "HeadlessChrome"` during capture, which triggered bot detection.
+
+## feat: auto-update — skill silently updates itself in the background
+
+End users no longer need to run `npx skills update` manually. On every CLI
+invocation the skill checks if it's time for an update (every 4 hours). If so,
+a detached background worker fetches the latest commit from GitHub, downloads
+the tarball, and copies new files over the skill directory. Dev installs
+(symlinks) are automatically skipped.
+
+- **`src/auto-update.ts`**: Orchestrator — reads `~/.unbrowse/config.json` for
+  `last_update_check`, spawns worker as detached process, never blocks CLI
+- **`src/auto-update-worker.ts`**: Standalone worker — checks GitHub API for
+  latest SHA, downloads + extracts tarball, runs `bun install`, stores SHA
+- **`src/cli.ts`**: Calls `maybeAutoUpdate()` at the top of `main()`
+
+## feat: extraction hints — agents get structured data on first try
+
+Large API responses (>2KB) were causing agents to flail through 5-7 execute calls
+guessing `--path` values. Now the engine analyzes the `response_schema` at inference
+time and returns `extraction_hints` with the exact `--path`, `--extract`, and ready-to-paste
+`cli_args`. The CLI auto-wraps large responses with hints instead of dumping raw JSON.
+
+- **`src/transform/schema-hints.ts`**: New module — walks `ResponseSchema` to find best data
+  array, ranks fields by name semantics (identity > content > metrics > tracking), produces
+  `ExtractionHint` with `path`, `fields`, `cli_args`, and `schema_tree`
+- **`src/execution/index.ts`**: Attaches `extraction_hints` to all execute responses alongside
+  `response_schema` — computed from schema at inference time, zero extra network calls
+- **`src/orchestrator/index.ts`**: Passes `response_schema` and `extraction_hints` through all
+  execution paths (auto-exec, race, cache hit, post-capture)
+- **`src/cli.ts`**: Auto-wraps large responses with hints (replaces 300+ line JSON dumps with
+  compact hint output). New `--schema` flag returns only schema + hints without data.
+- **`SKILL.md`**: Updated workflow — agents read `extraction_hints.cli_args` and paste directly
+  into next execute call. Rule 3 now explicitly forbids guessing paths by trial-and-error.
+
+## feat: JS bundle scanning for API route discovery
+
+During capture, Unbrowse now scans same-domain JavaScript bundles for API route
+patterns that were never triggered by network traffic. Previously, endpoints like
+`/api/emails/search` on jmail.world were invisible because the capture only
+observed passive page-load requests — the search API required typing in a search
+box to trigger. Now these routes are discovered via regex scanning of JS bundles.
+
+- **`src/capture/index.ts`**: Collects same-domain JS bundle content during capture (2MB/bundle cap, 20 bundles max)
+- **`src/reverse-engineer/bundle-scanner.ts`**: New module — scans bundles for `/api/...`, `fetch("/...")`, and `/v1/...` patterns with deny-list filtering
+- **`src/execution/index.ts`**: Merges bundle-discovered routes as low-confidence (`reliability_score: 0.2`) inferred endpoints, deduped against network-observed endpoints
+- Zero perf cost: bundles are already downloaded by the browser, no extra requests
+- Handles query strings in string literals (e.g., `"/api/search?q="` → `/api/search`)
+
+## refactor: remove extraction recipes, surface response schema
+
+Extraction recipes were brittle hardcoded field mappings that broke when APIs changed
+their response shape. Replaced with a schema-first approach: the `response_schema`
+(already inferred during capture) is now returned in execute responses so agents can
+craft their own `--path`/`--extract` dynamically.
+
+- **Deleted** `src/transform/recipe.ts` and `src/transform/suggest.ts` (~660 lines)
+- **Removed** recipe CRUD routes (`POST`/`DELETE /v1/skills/:id/endpoints/:eid/recipe`)
+- **Removed** `cmdRecipe` CLI command and `suggested_extraction` auto-apply logic
+- **Added** `response_schema` to execute responses — agents see the full inferred schema
+- **Added** `schema_summary` in resolve deferral — top-level property names + types replace the old `has_schema` boolean
+- **Kept** `--path`/`--extract`/`--limit`/`--raw` projection system unchanged
+
+## feat: URN reference resolution for normalized APIs
+
+APIs like LinkedIn Voyager and Facebook Graph return normalized data in `included[]`
+arrays where objects reference each other via `*`-prefixed URN fields (e.g.
+`*socialDetail` → SocialDetail → `*totalSocialActivityCounts` → counts). The
+extraction pipeline now transparently follows these multi-hop references.
+
+- **`buildEntityIndex()`** / **`detectEntityIndex()`**: auto-detect `entityUrn`-keyed arrays and build a lookup map
+- **`resolvePath()` upgrade**: when a field lookup fails, checks for `*field` URN reference and resolves through the entity index
+- **Works everywhere**: CLI `--extract` and server-side projection all follow URN references
+- **Zero config**: entity index is detected and built automatically; no new flags needed
+- **Backward compatible**: non-normalized APIs are unaffected — the `*` resolution only activates when `entityUrn`-keyed arrays are present
+
 ## feat: CLI SDK — shell-safe wrapper, no more curl + jq
 
 Agents no longer need curl + jq to interact with unbrowse. The CLI handles all
