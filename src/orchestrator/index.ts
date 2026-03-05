@@ -258,37 +258,29 @@ export async function resolveAndExecute(
     }
   }
 
-  // Local disk cache: find skill for this domain.
-  // Only use if the skill's trigger_url matches the requested context URL path — this ensures
-  // we don't serve a bookmarks skill when DMs are requested (same domain, different page).
+  // Local disk cache: find the consolidated domain skill.
+  // With domain-level skills, BM25 rankEndpoints handles endpoint selection.
   if (!forceCapture && requestedDomain && context?.url) {
     const { findExistingSkillForDomain } = await import("../client/index.js");
     const localSkill = findExistingSkillForDomain(requestedDomain);
     if (localSkill && localSkill.endpoints.length > 0) {
-      const requestedPath = new URL(context.url).pathname;
-      const hasTriggerMatch = localSkill.endpoints.some((ep) => {
-        if (!ep.trigger_url) return false;
-        try { return new URL(ep.trigger_url).pathname === requestedPath; } catch { return false; }
-      });
-      if (hasTriggerMatch) {
-        if (agentChoseEndpoint) {
-          // Agent already picked — execute
-          const te0 = Date.now();
-          try {
-            const execOut = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
-            timing.execute_ms = Date.now() - te0;
-            if (execOut.trace.success) {
-              timing.cache_hit = true;
-              skillRouteCache.set(cacheKey, { skillId: localSkill.skill_id, domain: localSkill.domain, ts: Date.now() });
-              return { result: execOut.result, trace: execOut.trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", execOut.result, localSkill.skill_id, localSkill, execOut.trace), response_schema: execOut.response_schema, extraction_hints: execOut.extraction_hints };
-            }
-          } catch { timing.execute_ms = Date.now() - te0; }
-        } else {
-          // Try auto-execute, fall back to deferral
-          const autoResult = await tryAutoExecute(localSkill, "marketplace");
-          if (autoResult) return autoResult;
-          return buildDeferral(localSkill, "marketplace");
-        }
+      if (agentChoseEndpoint) {
+        // Agent already picked — execute
+        const te0 = Date.now();
+        try {
+          const execOut = await executeSkill(localSkill, params, projection, { ...options, intent, contextUrl: context?.url });
+          timing.execute_ms = Date.now() - te0;
+          if (execOut.trace.success) {
+            timing.cache_hit = true;
+            skillRouteCache.set(cacheKey, { skillId: localSkill.skill_id, domain: localSkill.domain, ts: Date.now() });
+            return { result: execOut.result, trace: execOut.trace, source: "marketplace", skill: localSkill, timing: finalize("route-cache", execOut.result, localSkill.skill_id, localSkill, execOut.trace), response_schema: execOut.response_schema, extraction_hints: execOut.extraction_hints };
+          }
+        } catch { timing.execute_ms = Date.now() - te0; }
+      } else {
+        // Try auto-execute, fall back to deferral
+        const autoResult = await tryAutoExecute(localSkill, "marketplace");
+        if (autoResult) return autoResult;
+        return buildDeferral(localSkill, "marketplace");
       }
     }
   }
@@ -305,39 +297,46 @@ export async function resolveAndExecute(
   ]);
   timing.search_ms = Date.now() - ts0;
 
-  // Merge: domain results first (higher precision), then global (broader recall), deduplicate by skill_id
+  // Merge: domain results first (higher precision), then global (broader recall)
+  // Dedup by skill_id+endpoint_id — search now returns per-endpoint vectors
   const seen = new Set<string>();
   const candidates: typeof domainResults = [];
   for (const c of [...domainResults, ...globalResults]) {
     const sid = extractSkillId(c.metadata);
-    if (sid && !seen.has(sid)) {
-      seen.add(sid);
+    const eid = extractEndpointId(c.metadata);
+    const key = eid ? `${sid}:${eid}` : sid;
+    if (sid && key && !seen.has(key)) {
+      seen.add(key);
       candidates.push(c);
     }
   }
 
-  // Fetch all skills in parallel — don't waste time on serial 404s
-  type RankedCandidate = { candidate: typeof candidates[0]; skill: SkillManifest; composite: number };
+  // Fetch all unique skills in parallel — don't waste time on serial 404s
+  type RankedCandidate = { candidate: typeof candidates[0]; skill: SkillManifest; composite: number; endpointId?: string };
   const tg0 = Date.now();
-  const skillResults = await Promise.all(
-    candidates.map(async (c) => {
-      const skillId = extractSkillId(c.metadata)!;
+  const uniqueSkillIds = [...new Set(candidates.map((c) => extractSkillId(c.metadata)!))];
+  const skillMap = new Map<string, SkillManifest>();
+  await Promise.all(
+    uniqueSkillIds.map(async (skillId) => {
       const skill = await getSkill(skillId);
-      return { c, skill };
+      if (skill) skillMap.set(skillId, skill);
     })
   );
   timing.get_skill_ms = Date.now() - tg0;
-  timing.candidates_found = skillResults.filter(r => r.skill).length;
+  timing.candidates_found = skillMap.size;
 
   const ranked: RankedCandidate[] = [];
   // When a target domain is specified, only accept skills from that domain.
   const targetRegDomain = requestedDomain ? getRegistrableDomain(requestedDomain) : null;
-  for (const { c, skill } of skillResults) {
+  for (const c of candidates) {
+    const skillId = extractSkillId(c.metadata)!;
+    const skill = skillMap.get(skillId);
     if (!skill) continue;
     if (skill.lifecycle !== "active") continue;
     if (!hasUsableEndpoints(skill)) continue;
     if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
-    ranked.push({ candidate: c, skill, composite: computeCompositeScore(c.score, skill) });
+    const endpointId = extractEndpointId(c.metadata) ?? undefined;
+    ranked.push({ candidate: c, skill, composite: computeCompositeScore(c.score, skill), endpointId });
   }
   ranked.sort((a, b) => b.composite - a.composite);
 
@@ -376,11 +375,36 @@ export async function resolveAndExecute(
         timing.execute_ms = Date.now() - te0;
       }
     } else {
-      // Try auto-execute, fall back to deferral
-      const bestSkill = viable[0].skill;
-      const autoResult = await tryAutoExecute(bestSkill, "marketplace");
+      const best = viable[0];
+      // If search returned a specific endpoint (per-endpoint indexing), execute it directly
+      if (best.endpointId) {
+        console.log(`[search] endpoint-level hit: ${best.endpointId} score=${best.candidate.score.toFixed(3)}`);
+        const te0 = Date.now();
+        try {
+          const execOut = await executeSkill(
+            best.skill,
+            { ...params, endpoint_id: best.endpointId },
+            projection,
+            { ...options, intent, contextUrl: context?.url }
+          );
+          timing.execute_ms = Date.now() - te0;
+          if (execOut.trace.success) {
+            skillRouteCache.set(cacheKey, { skillId: best.skill.skill_id, domain: best.skill.domain, ts: Date.now() });
+            return {
+              result: execOut.result, trace: execOut.trace, source: "marketplace" as const, skill: best.skill,
+              timing: finalize("marketplace", execOut.result, best.skill.skill_id, best.skill, execOut.trace),
+              response_schema: execOut.response_schema, extraction_hints: execOut.extraction_hints,
+            };
+          }
+        } catch (err) {
+          console.log(`[search] endpoint-level exec failed: ${(err as Error).message}`);
+          timing.execute_ms = Date.now() - te0;
+        }
+      }
+      // Fallback: try BM25 auto-execute, then deferral
+      const autoResult = await tryAutoExecute(best.skill, "marketplace");
       if (autoResult) return autoResult;
-      return buildDeferral(bestSkill, "marketplace");
+      return buildDeferral(best.skill, "marketplace");
     }
   }
  } // end !forceCapture
@@ -523,6 +547,15 @@ function extractSkillId(metadata: Record<string, unknown>): string | null {
   try {
     const content = JSON.parse(metadata.content as string) as { skill_id?: string };
     return content.skill_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function extractEndpointId(metadata: Record<string, unknown>): string | null {
+  try {
+    const content = JSON.parse(metadata.content as string) as { endpoint_id?: string };
+    return content.endpoint_id ?? null;
   } catch {
     return null;
   }

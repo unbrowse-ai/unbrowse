@@ -6,12 +6,17 @@ const SEARCH_CACHE_TTL = 300; // 5 minutes
 const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
 
 // Namespace version — old "unbrowse--" namespaces remain as backup.
-const NS_PREFIX = "unbrowse-v2--";
-
-function domainNamespace(domain: string): string {
-  return `${NS_PREFIX}${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
+// Staging uses a separate prefix so migrations can be tested without touching prod vectors.
+function nsPrefix(env: Env): string {
+  return env.ENVIRONMENT === "staging" ? "unbrowse-stg4--" : "unbrowse-v3--";
 }
-const GLOBAL_NS = `${NS_PREFIX}global`;
+
+function domainNamespace(env: Env, domain: string): string {
+  return `${nsPrefix(env)}${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
+}
+function globalNs(env: Env): string {
+  return `${nsPrefix(env)}global`;
+}
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
 
@@ -113,6 +118,7 @@ async function embedIntent(
   return norm > 0 ? raw.map((v) => v / norm) : raw;
 }
 
+/** @deprecated Use indexEndpoints() for per-endpoint vector indexing */
 export async function indexSkill(
   env: Env,
   skillId: string,
@@ -121,7 +127,7 @@ export async function indexSkill(
 ): Promise<void> {
   const vector = await embedIntent(env, intentSignature, "document");
   const numericId = hashToInt(skillId);
-  const ns = domainNamespace(String(meta.domain ?? "global"));
+  const ns = domainNamespace(env, String(meta.domain ?? "global"));
   const payload = {
     id: numericId,
     vector,
@@ -134,8 +140,71 @@ export async function indexSkill(
   };
   await Promise.all([
     edbRequest(env, "POST", "/vectors/insert", { ...payload, namespace: ns }),
-    edbRequest(env, "POST", "/vectors/insert", { ...payload, namespace: GLOBAL_NS }),
+    edbRequest(env, "POST", "/vectors/insert", { ...payload, namespace: globalNs(env) }),
   ]);
+}
+
+/** Index each endpoint as a separate vector using its description. */
+export async function indexEndpoints(
+  env: Env,
+  skillId: string,
+  endpoints: Array<{ endpoint_id: string; description?: string; method: string; url_template: string }>,
+  meta: Record<string, unknown>
+): Promise<void> {
+  const ns = domainNamespace(env, String(meta.domain ?? "global"));
+  const toIndex = endpoints.filter((ep) => ep.description);
+  if (toIndex.length === 0) return;
+
+  // Batch embed all descriptions in one API call
+  const texts = toIndex.map((ep) => {
+    let path: string;
+    try { path = new URL(ep.url_template).pathname; } catch { path = ep.url_template.slice(0, 60); }
+    return `${ep.description} [${ep.method} ${path}]`;
+  });
+
+  const embedRes = await fetch("https://api.tokenfactory.nebius.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.NEBIUS_API_KEY}`,
+    },
+    body: JSON.stringify({ model: "Qwen/Qwen3-Embedding-8B", input: texts, dimensions: DIMS }),
+  });
+  const embedData = (await embedRes.json()) as {
+    data?: Array<{ embedding?: number[] }>;
+  };
+  const embeddings = (embedData.data ?? []).map((d) => {
+    const raw = d.embedding ?? [];
+    const norm = Math.sqrt(raw.reduce((s, v) => s + v * v, 0));
+    return norm > 0 ? raw.map((v) => v / norm) : raw;
+  });
+
+  // Insert all endpoint vectors in parallel
+  const inserts = toIndex.flatMap((ep, i) => {
+    const vector = embeddings[i];
+    if (!vector || vector.length === 0) return [];
+    const numericId = hashToInt(skillId + ":" + ep.endpoint_id);
+    const payload = {
+      id: numericId,
+      vector,
+      metadata: {
+        title: ep.description ?? "",
+        content: JSON.stringify({
+          ...meta,
+          skill_id: skillId,
+          endpoint_id: ep.endpoint_id,
+        }),
+        tags: [meta.domain, meta.subdomain].filter(Boolean),
+        source_url: String(meta.domain ?? ""),
+      },
+    };
+    return [
+      edbRequest(env, "POST", "/vectors/insert", { ...payload, namespace: ns }),
+      edbRequest(env, "POST", "/vectors/insert", { ...payload, namespace: globalNs(env) }),
+    ];
+  });
+
+  await Promise.all(inserts);
 }
 
 export async function searchIntentInDomain(
@@ -156,7 +225,7 @@ export async function searchIntentInDomain(
   const t2 = Date.now();
   console.log(`[perf:search-domain] embed: ${t2 - t1}ms`);
 
-  const ns = domainNamespace(domain);
+  const ns = domainNamespace(env, domain);
   let results: SearchResult;
   try {
     const data = (await edbRequest(env, "POST", "/vectors/search", {
@@ -195,14 +264,15 @@ export async function searchIntent(
   const t2 = Date.now();
   console.log(`[perf:search-global] embed: ${t2 - t1}ms`);
 
+  const gns = globalNs(env);
   let results: SearchResult;
   try {
     const data = (await edbRequest(env, "POST", "/vectors/search", {
-      vector, k, include_metadata: true, namespace: GLOBAL_NS,
+      vector, k, include_metadata: true, namespace: gns,
     })) as { results?: SearchResult };
     results = (data.results ?? []).filter(r => r.metadata);
   } catch (err) {
-    console.error(`[search] global ns=${GLOBAL_NS} error:`, (err as Error).message);
+    console.error(`[search] global ns=${gns} error:`, (err as Error).message);
     return [];
   }
   const t3 = Date.now();
@@ -216,11 +286,14 @@ export async function searchIntent(
   return results;
 }
 
-/** Re-index a single skill into both vector namespaces. */
+/** Re-index a single skill — removes old skill-level vector and indexes per-endpoint. */
 export async function reindexSkill(
   env: Env,
-  skill: { skill_id: string; intent_signature: string; domain: string; subdomain?: string; name: string; description: string; endpoints: Array<{ reliability_score: number; verification_status: string }>; updated_at: string }
+  skill: { skill_id: string; intent_signature: string; domain: string; subdomain?: string; name: string; description: string; endpoints: Array<{ endpoint_id: string; description?: string; method: string; url_template: string; reliability_score: number; verification_status: string }>; updated_at: string }
 ): Promise<void> {
+  // Remove legacy skill-level vector
+  await removeSkillFromIndex(env, skill.skill_id, skill.domain).catch(() => {});
+
   const reliabilities = skill.endpoints.map((e) => e.reliability_score);
   const avgReliability = reliabilities.length > 0
     ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
@@ -228,7 +301,7 @@ export async function reindexSkill(
   const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
   const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
 
-  await indexSkill(env, skill.skill_id, skill.intent_signature, {
+  await indexEndpoints(env, skill.skill_id, skill.endpoints, {
     domain: skill.domain,
     subdomain: skill.subdomain,
     name: skill.name,
@@ -239,13 +312,32 @@ export async function reindexSkill(
   });
 }
 
+/** @deprecated Use removeEndpointsFromIndex() */
 export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {
   const numericId = hashToInt(skillId);
-  const ns = domainNamespace(domain);
+  const ns = domainNamespace(env, domain);
   await Promise.all([
     edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: ns }),
-    edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: GLOBAL_NS }),
+    edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: globalNs(env) }),
   ]);
+}
+
+/** Remove specific endpoint vectors from both namespaces. */
+export async function removeEndpointsFromIndex(
+  env: Env,
+  skillId: string,
+  endpointIds: string[],
+  domain: string
+): Promise<void> {
+  const ns = domainNamespace(env, domain);
+  const deletes = endpointIds.flatMap((epId) => {
+    const numericId = hashToInt(skillId + ":" + epId);
+    return [
+      edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: ns }),
+      edbRequest(env, "POST", "/vectors/delete", { id: numericId, namespace: globalNs(env) }),
+    ];
+  });
+  await Promise.all(deletes);
 }
 
 function hashToInt(str: string): number {

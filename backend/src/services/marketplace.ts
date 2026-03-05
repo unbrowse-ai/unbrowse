@@ -1,11 +1,15 @@
 import { nanoid } from "nanoid";
 import type { Env, SkillManifest, EndpointDescriptor } from "../types.js";
-import { indexSkill, removeSkillFromIndex } from "./discovery.js";
+import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex } from "./discovery.js";
 import { generateDescriptions } from "./descriptions.js";
 import { skillsKV } from "./kv.js";
 
 function kvKey(skillId: string): string {
   return `skill:${skillId}`;
+}
+
+function domainKey(domain: string): string {
+  return `domain-idx:${domain}`;
 }
 
 function intentKey(domain: string, intent: string): string {
@@ -46,18 +50,28 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<SkillManifest & { index_status: string }> {
-  const existing = await findExistingByIntent(env, draft.intent_signature, draft.domain);
+  const existing = await findExistingByDomain(env, draft.domain);
   const now = new Date().toISOString();
   let skill: SkillManifest;
 
   if (existing) {
     const newVersion = bumpMinor(existing.version);
+    const mergedEndpoints = mergeEndpoints(existing.endpoints, draft.endpoints);
+    // Track which intents contributed endpoints
+    const intents = new Set(existing.intents ?? []);
+    if (draft.intent_signature && draft.intent_signature !== draft.domain) {
+      intents.add(draft.intent_signature);
+    }
     skill = {
       ...existing,
       ...draft,
       skill_id: existing.skill_id,
       version: newVersion,
       prev_version: existing.version,
+      name: draft.domain,
+      intent_signature: draft.domain,
+      endpoints: mergedEndpoints,
+      intents: Array.from(intents),
       updated_at: now,
       created_at: existing.created_at,
     };
@@ -67,6 +81,8 @@ export async function publishSkill(
       skill_id: draft.skill_id ?? nanoid(),
       version: draft.version ?? "1.0.0",
       schema_version: "1",
+      name: draft.domain,
+      intent_signature: draft.domain,
       lifecycle: "active",
       created_at: now,
       updated_at: now,
@@ -86,7 +102,7 @@ export async function publishSkill(
   const kv = skillsKV(env);
   await kv.putBatch([
     { key: kvKey(skill.skill_id), value: JSON.stringify(skill) },
-    { key: intentKey(skill.domain, skill.intent_signature), value: skill.skill_id },
+    { key: domainKey(skill.domain), value: skill.skill_id },
   ]);
 
   const reliabilities = skill.endpoints.map((e) => e.reliability_score);
@@ -96,9 +112,19 @@ export async function publishSkill(
   const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
   const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
 
+  // Remove old endpoint vectors that were replaced during merge (if any)
+  if (existing) {
+    const removedIds = existing.endpoints
+      .filter((old) => !skill.endpoints.some((ep) => ep.endpoint_id === old.endpoint_id))
+      .map((ep) => ep.endpoint_id);
+    if (removedIds.length > 0) {
+      removeEndpointsFromIndex(env, skill.skill_id, removedIds, skill.domain).catch(() => {});
+    }
+  }
+
   let index_status: string;
   try {
-    await indexSkill(env, skill.skill_id, skill.intent_signature, {
+    await indexEndpoints(env, skill.skill_id, skill.endpoints, {
       domain: skill.domain,
       subdomain: skill.subdomain,
       name: skill.name,
@@ -110,7 +136,7 @@ export async function publishSkill(
     index_status = "ok";
   } catch (err) {
     index_status = (err as Error).message;
-    console.error(`[indexSkill] failed for ${skill.skill_id}:`, index_status);
+    console.error(`[indexEndpoints] failed for ${skill.skill_id}:`, index_status);
   }
 
   return { ...skill, index_status };
@@ -152,6 +178,22 @@ export async function updateEndpointScore(
   }
 }
 
+export async function updateEndpointSchema(
+  env: Env,
+  skillId: string,
+  endpointId: string,
+  schema: import("../types.js").ResponseSchema
+): Promise<void> {
+  const skill = await getSkill(env, skillId);
+  if (!skill) return;
+  const endpoint = skill.endpoints.find((e) => e.endpoint_id === endpointId);
+  if (!endpoint) return;
+  if (endpoint.response_schema) return; // don't overwrite existing schema
+  endpoint.response_schema = schema;
+  skill.updated_at = new Date().toISOString();
+  await skillsKV(env).put(kvKey(skillId), JSON.stringify(skill));
+}
+
 export async function getEndpointSchema(
   env: Env,
   skillId: string,
@@ -163,14 +205,21 @@ export async function getEndpointSchema(
   return endpoint?.response_schema ?? null;
 }
 
-async function findExistingByIntent(
+/** Find the canonical domain-level skill, with lazy migration from old intent-idx entries. */
+async function findExistingByDomain(
   env: Env,
-  intentSignature: string,
   domain: string
 ): Promise<SkillManifest | null> {
-  const existingId = await skillsKV(env).get(intentKey(domain, intentSignature.toLowerCase())) as string | null;
+  // Primary: domain-level index key
+  const existingId = await skillsKV(env).get(domainKey(domain)) as string | null;
   if (existingId) {
     const skill = await getSkill(env, existingId);
+    if (skill && skill.lifecycle === "active") return skill;
+  }
+  // Fallback: scan old intent-idx entries for this domain (lazy migration)
+  const entries = await skillsKV(env).listWithValues(`intent-idx:${domain}:`);
+  for (const { value } of entries) {
+    const skill = await getSkill(env, value as string);
     if (skill && skill.lifecycle === "active") return skill;
   }
   return null;

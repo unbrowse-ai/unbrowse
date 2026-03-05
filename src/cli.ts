@@ -148,7 +148,7 @@ function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unkno
 }
 
 /** Apply --extract fields to data. Each field is "alias:deep.path" or just "field".
- *  When processing arrays, rows where ALL extracted fields are null/undefined are dropped.
+ *  When processing arrays, rows where ALL extracted fields are null/undefined/empty are dropped.
  *  This handles decorator-pattern APIs (e.g. LinkedIn included[]) where heterogeneous
  *  item types coexist and only some items match the requested fields. */
 function extractFields(data: unknown, fields: string[], entityIndex?: Map<string, unknown> | null): unknown {
@@ -160,13 +160,22 @@ function extractFields(data: unknown, fields: string[], entityIndex?: Map<string
       const colonIdx = f.indexOf(":");
       const alias = colonIdx >= 0 ? f.slice(0, colonIdx) : f.split(".").pop()!;
       const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
-      out[alias] = resolvePath(item, path, entityIndex);
+      const resolved = resolvePath(item, path, entityIndex ?? undefined) ?? [];
+      // Unwrap single-element arrays to scalar values
+      out[alias] = resolved.length === 0 ? null : resolved.length === 1 ? resolved[0] : resolved;
     }
     return out;
   }
 
+  /** Check if a value is "present" (non-null, non-empty) */
+  function hasValue(v: unknown): boolean {
+    if (v == null) return false;
+    if (Array.isArray(v)) return v.length > 0;
+    return true;
+  }
+
   if (Array.isArray(data)) {
-    return data.map(mapItem).filter((row) => Object.values(row).some((v) => v != null));
+    return data.map(mapItem).filter((row) => Object.values(row).some(hasValue));
   }
   return mapItem(data);
 }
@@ -218,12 +227,14 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
           success: trace.success,
           status_code: trace.status_code,
           trace_version: trace.trace_version,
+          ...(trace.schema_backfilled ? { schema_backfilled: true } : {}),
         }
       : undefined,
   };
   // Carry over result (even if empty array — don't silently drop it)
   if ("result" in obj) out.result = obj.result;
-  // Drop response_schema but keep extraction_hints (agent may need them if extraction partially fails)
+  // Keep extraction_hints — agents need them for --path/--extract guidance
+  if (obj.extraction_hints) out.extraction_hints = obj.extraction_hints;
   return out;
 }
 
@@ -482,46 +493,79 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
 }
 
 // ---------------------------------------------------------------------------
-// Help
+// CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
 
+export const CLI_REFERENCE = {
+  commands: [
+    { name: "health", usage: "", desc: "Server health check" },
+    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
+    { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
+    { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
+    { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
+    { name: "skills", usage: "", desc: "List all skills" },
+    { name: "skill", usage: "<id>", desc: "Get skill details" },
+    { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
+    { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
+  ],
+  globalFlags: [
+    { flag: "--pretty", desc: "Indented JSON output" },
+    { flag: "--no-auto-start", desc: "Don't auto-start server" },
+    { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
+  ],
+  resolveExecuteFlags: [
+    { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
+    { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
+    { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
+    { flag: "--limit N", desc: "Cap array output to N items" },
+    { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
+    { flag: "--dry-run", desc: "Preview mutations" },
+    { flag: "--force-capture", desc: "Bypass caches, re-capture" },
+    { flag: "--params '{...}'", desc: "Extra params as JSON" },
+  ],
+  examples: [
+    'unbrowse resolve --intent "get timeline" --url "https://x.com"',
+    "unbrowse execute --skill abc --endpoint def --pretty",
+    'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
+    'unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20',
+    "unbrowse feedback --skill abc --endpoint def --rating 5",
+  ],
+};
+
 function printHelp(): void {
-  const help = `unbrowse — shell-safe CLI for the local API
+  const r = CLI_REFERENCE;
+  const lines: string[] = ["unbrowse \u2014 shell-safe CLI for the local API", ""];
 
-Commands:
-  health                                       Server health check
-  resolve  --intent "..." --url "..." [opts]   Resolve intent → search/capture/execute
-  execute  --skill ID --endpoint ID [opts]     Execute a specific endpoint
-  feedback --skill ID --endpoint ID --rating N Submit feedback (mandatory after resolve)
-  login    --url "..."                         Interactive browser login
-  skills                                       List all skills
-  skill    <id>                                Get skill details
-  search   --intent "..." [--domain "..."]     Search marketplace
-  sessions --domain "..." [--limit N]          Debug session logs
+  // Commands
+  lines.push("Commands:");
+  const cmdPad = Math.max(...r.commands.map((c) => `  ${c.name}  ${c.usage}`.length)) + 2;
+  for (const c of r.commands) {
+    const left = `  ${c.name}  ${c.usage}`;
+    lines.push(left.padEnd(cmdPad) + c.desc);
+  }
 
-Global flags:
-  --pretty          Indented JSON output
-  --no-auto-start   Don't auto-start server
-  --raw             Return raw response data (skip server-side projection)
+  // Global flags
+  lines.push("", "Global flags:");
+  const gPad = Math.max(...r.globalFlags.map((f) => `  ${f.flag}`.length)) + 2;
+  for (const f of r.globalFlags) {
+    lines.push(`  ${f.flag}`.padEnd(gPad) + f.desc);
+  }
 
-resolve/execute flags:
-  --schema                                    Show response schema + extraction hints only (no data)
-  --path "data.items[]"                       Drill into result before extract/output
-  --extract "field1,alias:deep.path.to.val"   Pick specific fields (no piping needed)
-  --limit N                                   Cap array output to N items
-  --endpoint-id ID                            Pick a specific endpoint
-  --dry-run                                   Preview mutations
-  --force-capture                             Bypass caches, re-capture
-  --params '{...}'                            Extra params as JSON
+  // resolve/execute flags
+  lines.push("", "resolve/execute flags:");
+  const rPad = Math.max(...r.resolveExecuteFlags.map((f) => `  ${f.flag}`.length)) + 2;
+  for (const f of r.resolveExecuteFlags) {
+    lines.push(`  ${f.flag}`.padEnd(rPad) + f.desc);
+  }
 
-Examples:
-  unbrowse resolve --intent "get timeline" --url "https://x.com"
-  unbrowse execute --skill abc --endpoint def --pretty
-  unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10
-  unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20
-  unbrowse feedback --skill abc --endpoint def --rating 5
-`;
-  process.stderr.write(help);
+  // Examples
+  lines.push("", "Examples:");
+  for (const e of r.examples) {
+    lines.push(`  ${e}`);
+  }
+
+  lines.push("");
+  process.stderr.write(lines.join("\n"));
 }
 
 // ---------------------------------------------------------------------------
@@ -559,6 +603,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  die((err as Error).message);
-});
+// Only run when this file is the entry point (not when imported by sync script etc.)
+if (import.meta.main !== false) {
+  main().catch((err) => {
+    die((err as Error).message);
+  });
+}

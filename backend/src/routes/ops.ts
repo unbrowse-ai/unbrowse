@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import type { Env, SkillManifest } from "../types.js";
-import { listSkills } from "../services/marketplace.js";
+import { listSkills, mergeEndpoints, publishSkill, deprecateSkill } from "../services/marketplace.js";
 import { listAgents, countAgents } from "../services/agents.js";
 import { reindexSkill, removeSkillFromIndex } from "../services/discovery.js";
+import { backfillFromProfiles } from "../services/analytics.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 import { bearerAuth } from "../middleware/auth.js";
 
@@ -84,6 +85,19 @@ opsRoutes.post("/ops/migrate-index", bearerAuth, async (c) => {
   return c.json({ ok: true, message: "Split indexes deleted. Next read will re-migrate from legacy _idx." });
 });
 
+// Debug: check what Nebius embedding returns (staging only)
+opsRoutes.get("/ops/debug-embed", async (c) => {
+  if (c.env.ENVIRONMENT !== "staging") return c.json({ error: "staging only" }, 403);
+  const res = await fetch("https://api.tokenfactory.nebius.com/v1/embeddings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.env.NEBIUS_API_KEY}` },
+    body: JSON.stringify({ model: "Qwen/Qwen3-Embedding-8B", input: "get upcoming events", dimensions: 4096 }),
+  });
+  const data = await res.json() as { data?: Array<{ embedding?: number[] }>; error?: string; detail?: string };
+  const dims = data.data?.[0]?.embedding?.length ?? 0;
+  return c.json({ dims, error: data.error ?? data.detail ?? null, raw_keys: Object.keys(data) });
+});
+
 opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
   const agentId = c.get("agent_id");
   if (agentId !== "__admin__") {
@@ -141,5 +155,74 @@ opsRoutes.post("/ops/reindex", bearerAuth, async (c) => {
     purged,
     results,
   });
+});
+
+/**
+ * POST /v1/ops/consolidate — merge all skills for a domain into one canonical skill.
+ * Finds all active skills matching the domain, merges their endpoints into the first one,
+ * deprecates the rest, and re-indexes. Admin-only.
+ */
+opsRoutes.post("/ops/consolidate", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+
+  const { domain } = await c.req.json<{ domain?: string }>();
+  if (!domain) return c.json({ error: "domain required" }, 400);
+
+  const skills = await listSkills(c.env);
+  const domainSkills = skills.filter((s) => s.domain === domain && s.lifecycle === "active");
+
+  if (domainSkills.length <= 1) {
+    return c.json({ message: `${domain} already consolidated`, skills: domainSkills.length });
+  }
+
+  // Sort by endpoint count descending — use the richest skill as the canonical one
+  domainSkills.sort((a, b) => b.endpoints.length - a.endpoints.length);
+  const canonical = domainSkills[0];
+  const deprecated: string[] = [];
+
+  // Merge endpoints from all other skills into canonical
+  let merged = canonical.endpoints;
+  const intents = new Set<string>(canonical.intents ?? []);
+  for (const other of domainSkills.slice(1)) {
+    merged = mergeEndpoints(merged, other.endpoints);
+    if (other.intent_signature && other.intent_signature !== domain) {
+      intents.add(other.intent_signature);
+    }
+    await deprecateSkill(c.env, other.skill_id);
+    deprecated.push(other.skill_id);
+  }
+
+  // Publish consolidated skill
+  const consolidated = await publishSkill(c.env, {
+    ...canonical,
+    endpoints: merged,
+    name: domain,
+    intent_signature: domain,
+    intents: Array.from(intents),
+  });
+
+  return c.json({
+    domain,
+    canonical_skill_id: consolidated.skill_id,
+    endpoints: consolidated.endpoints.length,
+    deprecated_skill_ids: deprecated,
+    intents: Array.from(intents),
+  });
+});
+
+/**
+ * POST /v1/ops/backfill-analytics — seed cohort + active-day data from existing agent profiles.
+ * Safe to run multiple times. Admin-only.
+ */
+opsRoutes.post("/ops/backfill-analytics", bearerAuth, async (c) => {
+  const agentId = c.get("agent_id");
+  if (agentId !== "__admin__") {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  const result = await backfillFromProfiles(c.env);
+  return c.json(result);
 });
 

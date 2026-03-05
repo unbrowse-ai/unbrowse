@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { registerAgent, getAgent, listAgents, acceptTos } from "../services/agents.js";
+import { recordRegistration } from "../services/analytics.js";
 import { bearerAuthNoTos } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
@@ -44,6 +45,8 @@ publicAgentRoutes.post("/agents/register", async (c) => {
   }
   try {
     const result = await registerAgent(c.env, name, tos_version);
+    // Track registration cohort (non-blocking)
+    c.executionCtx.waitUntil(recordRegistration(c.env, result.agent_id));
     return c.json(result, 201);
   } catch (err) {
     const msg = (err as Error).message;

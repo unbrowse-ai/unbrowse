@@ -4,6 +4,7 @@ import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { recordPerf, getPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { incrementAgentExecutions, incrementAgentFeedback, countAgents } from "../services/agents.js";
+import { recordActivity } from "../services/analytics.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 
@@ -139,10 +140,11 @@ statsRoutes.post("/stats/execution", async (c) => {
     return c.json({ error: "skill_id, endpoint_id, and trace required" }, 400);
   }
   await recordExecution(c.env, skill_id, endpoint_id, trace);
-  // Track agent contribution (non-blocking)
+  // Track agent contribution + daily activity (non-blocking)
   const agentId = c.get("agent_id");
   if (agentId) {
     c.executionCtx.waitUntil(incrementAgentExecutions(c.env, agentId));
+    c.executionCtx.waitUntil(recordActivity(c.env, agentId));
   }
   return c.json({ ok: true });
 });
@@ -158,10 +160,11 @@ statsRoutes.post("/stats/feedback", async (c) => {
     return c.json({ error: "skill_id, endpoint_id, and rating required" }, 400);
   }
   const avgRating = await recordFeedback(c.env, skill_id, endpoint_id, rating);
-  // Track agent contribution (non-blocking)
+  // Track agent contribution + daily activity (non-blocking)
   const agentId = c.get("agent_id");
   if (agentId) {
     c.executionCtx.waitUntil(incrementAgentFeedback(c.env, agentId));
+    c.executionCtx.waitUntil(recordActivity(c.env, agentId));
   }
   return c.json({ ok: true, avg_rating: avgRating });
 });

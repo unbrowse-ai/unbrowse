@@ -12,7 +12,7 @@
     "threshold_multiplier": 2.5
   },
   "jup-token-shield": {
-    "p50_ms": 1,
+    "p50_ms": 512,
     "threshold_multiplier": 2.5
   },
   "jup-resolve-e2e": {

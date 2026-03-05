@@ -113,6 +113,8 @@ export interface SkillManifest {
   updated_at: string;
   prev_version?: string;
   discovery_cost?: DiscoveryCost;
+  /** Intent strings that contributed endpoints to this domain-level skill */
+  intents?: string[];
 }
 
 export interface ExecutionTrace {
@@ -127,6 +129,8 @@ export interface ExecutionTrace {
   result?: unknown;
   har_lineage_id?: string;
   drift?: DriftResult;
+  /** Set when response_schema was backfilled from this execution's response */
+  schema_backfilled?: boolean;
   /** Estimated tokens consumed by the response */
   tokens_used?: number;
   /** Tokens saved vs original capture cost (0 for live captures) */

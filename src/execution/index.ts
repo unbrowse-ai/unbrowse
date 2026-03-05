@@ -2,14 +2,14 @@ import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
-import { publishSkill } from "../marketplace/index.js";
+import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
-import { applyProjection } from "../transform/index.js";
+import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { generateExtractionHints } from "../transform/schema-hints.js";
-import { recordExecution, cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
+import { recordExecution, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -191,7 +191,7 @@ async function executeBrowserCapture(
     };
   }
 
-  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, intent });
+  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
 
   // JS bundle scanning: discover API routes not seen in network traffic
   if (captured.js_bundles && captured.js_bundles.size > 0) {
@@ -224,10 +224,21 @@ async function executeBrowserCapture(
       }
       if (isDup) continue;
 
+      // Build query template from bundle-inferred param names
+      let epUrl = route.url;
+      let epQuery: Record<string, unknown> | undefined;
+      if (route.query_params && route.query_params.length > 0) {
+        epQuery = {};
+        for (const p of route.query_params) epQuery[p] = "";
+        const qStr = route.query_params.map((k) => `${encodeURIComponent(k)}={${k}}`).join("&");
+        epUrl = `${route.url}?${qStr}`;
+      }
+
       endpoints.push({
         endpoint_id: nanoid(),
         method: "GET",
-        url_template: route.url,
+        url_template: epUrl,
+        query: epQuery,
         idempotency: "safe",
         verification_status: "pending",
         reliability_score: 0.2,
@@ -299,20 +310,23 @@ async function executeBrowserCapture(
           },
         };
 
+        const existingDomSkill = findExistingSkillForDomain(domain);
         const domDraft = {
-          skill_id: nanoid(),
+          skill_id: existingDomSkill?.skill_id ?? nanoid(),
           version: "1.0.0",
           schema_version: "1",
           lifecycle: "active" as const,
           execution_type: "http" as const,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          name: `${domain} -- ${intent}`,
-          intent_signature: intent,
+          name: domain,
+          intent_signature: domain,
           domain,
-          description: `DOM-extracted skill for: ${intent}`,
+          description: `API skill for ${domain}`,
           owner_type: "agent" as const,
-          endpoints: [domEndpoint],
+          endpoints: existingDomSkill
+            ? mergeEndpoints(existingDomSkill.endpoints, [domEndpoint])
+            : [domEndpoint],
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
@@ -395,6 +409,11 @@ async function executeBrowserCapture(
     }
   }
 
+  // Merge newly captured endpoints with existing ones instead of replacing
+  const finalEndpoints = existingSkill
+    ? mergeEndpoints(existingSkill.endpoints, publishableEndpoints)
+    : publishableEndpoints;
+
   const draft = {
     skill_id: existingSkill?.skill_id ?? nanoid(),
     version: "1.0.0",
@@ -403,12 +422,12 @@ async function executeBrowserCapture(
     execution_type: "http" as const,
     created_at: existingSkill?.created_at ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    name: `${domain} -- ${intent}`,
-    intent_signature: intent,
+    name: domain,
+    intent_signature: domain,
     domain,
-    description: `Auto-discovered skill for: ${intent}`,
+    description: `API skill for ${domain}`,
     owner_type: "agent" as const,
-    endpoints: publishableEndpoints,
+    endpoints: finalEndpoints,
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
 
@@ -854,6 +873,20 @@ export async function executeEndpoint(
       };
       trace.result = data;
     }
+  }
+
+  // Backfill response_schema on first successful execution — push to marketplace so all agents benefit
+  if (trace.success && !endpoint.response_schema && data != null && typeof data !== "string") {
+    try {
+      const inferred = inferSchema([data]);
+      if (inferred.type !== "object" || inferred.properties) {
+        log("exec", `learned response_schema for endpoint ${endpoint.endpoint_id} (${Object.keys(inferred.properties ?? {}).length} top-level props)`);
+        endpoint.response_schema = inferred;
+        trace.schema_backfilled = true;
+        cachePublishedSkill(skill);
+        updateEndpointSchema(skill.skill_id, endpoint.endpoint_id, inferred).catch(() => {});
+      }
+    } catch {}
   }
 
   // Record execution for reliability scoring (fire-and-forget — don't block response)

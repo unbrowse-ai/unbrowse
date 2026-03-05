@@ -5,7 +5,7 @@ import { randomBytes } from "crypto";
 import { createInterface } from "readline";
 import type { EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
 
-const API_URL = "https://beta-api.unbrowse.ai";
+const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 const CONFIG_DIR = join(homedir(), ".unbrowse");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const SKILL_CACHE_DIR = join(CONFIG_DIR, "skill-cache");
@@ -44,16 +44,29 @@ export function getApiKey(): string {
   return "";
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-  const key = getApiKey();
-  const res = await fetch(`${API_URL}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(key ? { Authorization: `Bearer ${key}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
+
+async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean }): Promise<T> {
+  const key = opts?.noAuth ? "" : getApiKey();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        // Bun + Cloudflare Brotli bug: chunked br responses hang for ~40s.
+        // Force identity encoding to avoid the issue.
+        "Accept-Encoding": "gzip, deflate",
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   let data: T & { error?: string };
   try {
     data = await res.json() as T & { error?: string };
@@ -69,7 +82,11 @@ async function api<T = unknown>(method: string, path: string, body?: unknown): P
     throw new Error("ToS update required. Restart unbrowse to accept new terms.");
   }
 
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `API HTTP ${res.status}`);
+  if (!res.ok) {
+    const errData = data as { error?: string; details?: string[] };
+    const msg = errData.details?.length ? `${errData.error}: ${errData.details.join("; ")}` : errData.error ?? `API HTTP ${res.status}`;
+    throw new Error(msg);
+  }
   return data;
 }
 
@@ -219,14 +236,16 @@ function readSkillCache(skillId: string): SkillManifest | null {
 function writeSkillCache(skill: SkillManifest): void {
   try {
     if (!existsSync(SKILL_CACHE_DIR)) mkdirSync(SKILL_CACHE_DIR, { recursive: true });
-    // Preserve local-only fields (exec_strategy) that the backend doesn't know about
+    // Preserve local-only fields that the backend doesn't know about
     const existing = readSkillCache(skill.skill_id);
     if (existing) {
       for (const ep of skill.endpoints) {
         const cached = existing.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
         if (!ep.exec_strategy && cached?.exec_strategy) {
           ep.exec_strategy = cached.exec_strategy;
-          console.log(`[cache] preserved exec_strategy=${cached.exec_strategy} for ${ep.endpoint_id}`);
+        }
+        if (!ep.response_schema && cached?.response_schema) {
+          ep.response_schema = cached.response_schema;
         }
       }
     }
@@ -267,25 +286,32 @@ export async function getSkill(skillId: string): Promise<SkillManifest | null> {
   // Cache-first: return disk cache immediately, async-refresh from backend
   const cached = readSkillCache(skillId);
   if (cached) {
-    api<SkillManifest>("GET", `/v1/skills/${skillId}`)
+    api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true })
       .then(skill => {
-        // Preserve locally-learned exec_strategy — backend doesn't store these
+        // Preserve locally-learned fields — backend doesn't store these
         if (cached.endpoints) {
           for (const ep of skill.endpoints) {
             const local = cached.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
             if (local?.exec_strategy && !ep.exec_strategy) {
               ep.exec_strategy = local.exec_strategy;
             }
+            if (local?.response_schema && !ep.response_schema) {
+              ep.response_schema = local.response_schema;
+            }
           }
         }
-        writeSkillCache(skill);
+        // Only update cache if remote has same or more endpoints — avoids clobbering
+        // a freshly published local skill with a stale backend copy (eventual consistency)
+        if ((skill.endpoints?.length ?? 0) >= (cached.endpoints?.length ?? 0)) {
+          writeSkillCache(skill);
+        }
       })
       .catch(() => {});
     return cached;
   }
-  // No cache — must fetch from backend
+  // No cache — must fetch from backend (public endpoint, no auth needed)
   try {
-    const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
+    const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true });
     writeSkillCache(skill);
     return skill;
   } catch {
@@ -318,6 +344,14 @@ export async function updateEndpointScore(
   status?: string
 ): Promise<void> {
   await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status });
+}
+
+export async function updateEndpointSchema(
+  skillId: string,
+  endpointId: string,
+  schema: import("../types/index.js").ResponseSchema
+): Promise<void> {
+  await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { response_schema: schema });
 }
 
 export async function getEndpointSchema(

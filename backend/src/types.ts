@@ -5,6 +5,7 @@ export interface Env {
   EMERGENTDB_API_KEY: string;
   NEBIUS_API_KEY: string;
   STATS_KV: KVNamespace;
+  ENVIRONMENT?: string; // "production" | "staging"
 }
 
 // --- Agent identity ---
@@ -18,6 +19,9 @@ export interface AgentProfile {
   total_feedback_given: number;
   tos_accepted_version: string | null;
   tos_accepted_at: string | null;
+  // Lifecycle tracking (added for retention analytics)
+  first_execution_at?: string;
+  last_active_at?: string;
 }
 
 // --- Shared types (mirrored from src/types/skill.ts) ---
@@ -123,6 +127,8 @@ export interface SkillManifest {
   updated_at: string;
   prev_version?: string;
   discovery_cost?: DiscoveryCost;
+  /** Intent strings that contributed endpoints to this domain-level skill */
+  intents?: string[];
 }
 
 export interface EndpointStats {
