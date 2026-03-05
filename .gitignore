@@ -67,4 +67,4 @@ Thumbs.db
 .cache/
 temp/
 tmp/
-.github/
+.release-notes.md

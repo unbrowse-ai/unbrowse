@@ -1,1 +1,60 @@
-# Release Workflow
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend (CF Worker)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  deploy-frontend:
+    name: Deploy Frontend (CF Pages)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  sync-skill:
+    name: Sync Skill Repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Checkout skill repo
+        uses: actions/checkout@v4
+        with:
+          repository: unbrowse-ai/unbrowse
+          token: ${{ secrets.SKILL_REPO_TOKEN }}
+          path: _skill-repo
+
+      - name: Sync and push
+        env:
+          CI: "true"
+          UNBROWSE_SKILL_REPO: ${{ github.workspace }}/_skill-repo
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          bash scripts/sync-skill.sh "chore: release ${GITHUB_REF_NAME}"

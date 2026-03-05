@@ -1,13 +1,14 @@
 import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
 import { captureSession } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
+import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { publishSkill } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
 import { applyProjection } from "../transform/index.js";
-import { applyRecipe } from "../transform/recipe.js";
 import { detectSchemaDrift } from "../transform/drift.js";
+import { generateExtractionHints } from "../transform/schema-hints.js";
 import { recordExecution, cachePublishedSkill, findExistingSkillForDomain } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
@@ -103,8 +104,10 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
-  /** When true, result contains { data: [...], _recipe: {...} } from an extraction recipe */
-  recipe_applied?: boolean;
+  /** Inferred JSON schema of the endpoint's response, for agent-side extraction */
+  response_schema?: import("../types/index.js").ResponseSchema;
+  /** Ready-to-use extraction hints derived from response_schema */
+  extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
 }
 
 export async function executeSkill(
@@ -189,6 +192,56 @@ async function executeBrowserCapture(
   }
 
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, intent });
+
+  // JS bundle scanning: discover API routes not seen in network traffic
+  if (captured.js_bundles && captured.js_bundles.size > 0) {
+    const pageOrigin = new URL(url).origin;
+    const bundleRoutes = scanBundlesForRoutes(captured.js_bundles, pageOrigin);
+
+    // Build set of already-discovered URL paths for deduplication
+    const networkPaths = new Set<string>();
+    for (const ep of endpoints) {
+      try {
+        const normalized = new URL(ep.url_template).pathname
+          .replace(/\{[^}]+\}/g, "*")
+          .replace(/\/+$/, "");
+        networkPaths.add(normalized);
+      } catch { /* skip */ }
+    }
+
+    let added = 0;
+    for (const route of bundleRoutes) {
+      const normalized = route.path.replace(/\/+$/, "");
+      if (networkPaths.has(normalized)) continue;
+
+      // Check if a network endpoint's wildcard pattern matches this route
+      let isDup = false;
+      for (const np of networkPaths) {
+        if (np.includes("*")) {
+          const re = new RegExp("^" + np.replace(/\*/g, "[^/]+") + "$");
+          if (re.test(normalized)) { isDup = true; break; }
+        }
+      }
+      if (isDup) continue;
+
+      endpoints.push({
+        endpoint_id: nanoid(),
+        method: "GET",
+        url_template: route.url,
+        idempotency: "safe",
+        verification_status: "pending",
+        reliability_score: 0.2,
+        description: `Inferred from JS bundle (${route.match_type}). Not observed in network traffic.`,
+        trigger_url: url,
+      });
+      added++;
+      networkPaths.add(normalized);
+    }
+
+    if (added > 0) {
+      log("execution", `added ${added} inferred endpoints from JS bundle scanning`);
+    }
+  }
 
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
@@ -424,16 +477,16 @@ export async function executeEndpoint(
         started_at: startedAt, completed_at: new Date().toISOString(), success: true, result: parsed,
       });
       let resultData: unknown = parsed;
-      let recipeApplied = false;
       if (projection?.raw) {
-        // Explicit raw — skip recipe and projection
+        // Explicit raw — skip projection
       } else if (projection) {
         resultData = applyProjection(parsed, projection);
-      } else if (endpoint.extraction_recipe) {
-        const recipeResult = applyRecipe(parsed, endpoint.extraction_recipe);
-        if (recipeResult) { resultData = recipeResult; recipeApplied = true; }
       }
-      return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}) };
+      return {
+        trace, result: resultData,
+        ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
+        ...(endpoint.response_schema ? { extraction_hints: generateExtractionHints(endpoint.response_schema, skill.intent_signature) ?? undefined } : {}),
+      };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
         trace_id: traceId, skill_id: skill.skill_id, endpoint_id: endpoint.endpoint_id,
@@ -806,22 +859,19 @@ export async function executeEndpoint(
   // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
 
-  // Apply field projection or extraction recipe
+  // Apply field projection
   let resultData = data;
-  let recipeApplied = false;
   if (projection?.raw) {
-    // Explicit raw request — skip recipe and projection
+    // Explicit raw request — skip projection
   } else if (projection && trace.success) {
     resultData = applyProjection(data, projection);
-  } else if (endpoint.extraction_recipe && trace.success && data != null) {
-    const recipeResult = applyRecipe(data, endpoint.extraction_recipe);
-    if (recipeResult) {
-      resultData = recipeResult;
-      recipeApplied = true;
-    }
   }
 
-  return { trace, result: resultData, ...(recipeApplied ? { recipe_applied: true } : {}) };
+  return {
+    trace, result: resultData,
+    ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
+    ...(endpoint.response_schema ? { extraction_hints: generateExtractionHints(endpoint.response_schema, options?.intent ?? skill.intent_signature) ?? undefined } : {}),
+  };
 }
 
 /**
@@ -1001,6 +1051,12 @@ function endpointToTokens(ep: EndpointDescriptor): string[] {
       tokens.push(...tu.pathname.split(/[/\-_.{}]/).filter((s) => s.length > 1 && !/^(i|app|en|v\d+)$/.test(s)));
     } catch { /* skip */ }
   }
+  // LLM-generated description — strongest semantic signal for intent matching.
+  // Tokenized words are added 3x to boost their BM25 weight over noisy URL tokens.
+  if (ep.description) {
+    const descTokens = ep.description.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
+    for (let i = 0; i < 3; i++) tokens.push(...descTokens);
+  }
   return tokens.map((t) => stem(t.toLowerCase()));
 }
 
@@ -1110,6 +1166,27 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // === BM25 relevance to intent (primary signal, weighted heavily) ===
     if (queryTokens.length > 0) {
       score += bm25Score(queryTokens, docs[i], avgDl, docCount, docFreqs) * 20;
+    }
+
+    // === Description match bonus — separate from BM25 to avoid IDF dilution ===
+    // When an endpoint has a description, compute direct token overlap with RAW intent
+    // (not synonym-expanded, to avoid dilution). Each matching core intent token gives a
+    // massive bonus that overrides structural noise from schema richness.
+    if (ep.description && rawTokens.length > 0) {
+      const descTokens = new Set(
+        ep.description.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/)
+          .filter((w) => w.length > 1 && !STOPWORDS.has(w))
+          .map((w) => stem(w))
+      );
+      // Use raw intent tokens (not expanded) — "feed" and "post" are the core signal
+      const rawStems = new Set(rawTokens.map((t) => stem(t)));
+      let matches = 0;
+      for (const t of rawStems) {
+        if (descTokens.has(t)) matches++;
+      }
+      // Each matching core token = +100 points. "feed" matching gives +100,
+      // "feed" + "post" matching gives +200, etc.
+      score += matches * 100;
     }
 
     // === Structural bonuses ===

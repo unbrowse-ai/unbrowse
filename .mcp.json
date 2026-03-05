@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "gitagent": {
-      "command": "/Users/rachpradhan/codedb/zig-out/bin/gitagent-mcp",
+      "command": "/Users/rachpradhan/codedb/zig-out/bin/devswarm",
       "args": [],
       "env": {
         "REPO_PATH": "/Users/rachpradhan/unbrowse34"

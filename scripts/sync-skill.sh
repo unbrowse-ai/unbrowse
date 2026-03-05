@@ -54,6 +54,14 @@ echo "Claude Code skill installed."
 echo ""
 
 # --------------------------------------------------------------------------
+# 1b. Sync CLI_REFERENCE into SKILL.md
+# --------------------------------------------------------------------------
+
+echo "=== Syncing CLI_REFERENCE into SKILL.md ==="
+bun "$SCRIPT_DIR/sync-skill-md.ts"
+echo ""
+
+# --------------------------------------------------------------------------
 # 2. Sync to external skill repo (for publishing)
 # --------------------------------------------------------------------------
 
@@ -82,7 +90,7 @@ echo ""
 echo "Sync complete. Files in $TARGET_REPO:"
 ls -la "$TARGET_REPO/"
 
-# Optionally commit and push
+# Optionally commit, tag, and push
 MSG="${1:-chore: sync from monorepo}"
 cd "$TARGET_REPO"
 if git diff --quiet && git diff --staged --quiet; then
@@ -94,12 +102,47 @@ else
   echo "Changes to commit:"
   git diff --staged --stat
   echo ""
-  read -p "Commit and push with message '$MSG'? [y/N] " confirm
-  if [[ "$confirm" =~ ^[Yy]$ ]]; then
+  if [ "${CI:-}" = "true" ]; then
+    # Non-interactive mode for CI
     git commit -m "$MSG"
     git push origin main
     echo "Pushed to $(git remote get-url origin)"
   else
-    echo "Skipped commit. Changes are staged."
+    read -p "Commit and push with message '$MSG'? [y/N] " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+      git commit -m "$MSG"
+      git push origin main
+      echo "Pushed to $(git remote get-url origin)"
+    else
+      echo "Skipped commit. Changes are staged."
+    fi
+  fi
+fi
+
+# --------------------------------------------------------------------------
+# 3. Tag skill repo if this is a release (message contains a version tag)
+# --------------------------------------------------------------------------
+
+# Extract version tag from commit message (e.g. "chore: release v1.2.0" → "v1.2.0")
+VERSION_TAG=$(echo "$MSG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || true)
+if [ -n "$VERSION_TAG" ]; then
+  echo ""
+  echo "=== Tagging skill repo with $VERSION_TAG ==="
+  cd "$TARGET_REPO"
+  git tag -a "$VERSION_TAG" -m "Release $VERSION_TAG"
+  git push origin "$VERSION_TAG"
+  echo "Tagged and pushed $VERSION_TAG to $(git remote get-url origin)"
+
+  # Create GitHub Release on skill repo using LLM-generated notes
+  NOTES_FILE="$MONO_ROOT/.release-notes.md"
+  if [ -f "$NOTES_FILE" ] && command -v gh &> /dev/null; then
+    echo ""
+    echo "=== Creating GitHub Release on skill repo ==="
+    cd "$TARGET_REPO"
+    gh release create "$VERSION_TAG" \
+      --title "$VERSION_TAG" \
+      --notes-file "$NOTES_FILE" \
+      --repo unbrowse-ai/unbrowse
+    echo "GitHub Release created for $VERSION_TAG"
   fi
 fi

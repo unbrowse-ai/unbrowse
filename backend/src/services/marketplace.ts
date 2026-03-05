@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import type { Env, SkillManifest, EndpointDescriptor } from "../types.js";
 import { indexSkill, removeSkillFromIndex } from "./discovery.js";
+import { generateDescriptions } from "./descriptions.js";
 import { skillsKV } from "./kv.js";
 
 function kvKey(skillId: string): string {
@@ -70,6 +71,15 @@ export async function publishSkill(
       created_at: now,
       updated_at: now,
     } as SkillManifest;
+  }
+
+  // Generate LLM descriptions for endpoints that lack them (non-blocking on failure)
+  if (skill.endpoints.some((ep) => !ep.description)) {
+    try {
+      await generateDescriptions(env, skill.endpoints);
+    } catch (err) {
+      console.error(`[descriptions] failed for ${skill.skill_id}:`, (err as Error).message);
+    }
   }
 
   // putBatch: N parallel sets + 1 idx load + 1 idx save (vs 2 separate puts = 2 loads + 2 saves)

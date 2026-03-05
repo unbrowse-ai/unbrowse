@@ -1,12 +1,66 @@
 import type { ProjectionOptions, ResponseSchema } from "../types/index.js";
 
+// --- Entity Index (for normalized/decorator-pattern APIs) ---
+
+/**
+ * Build a lookup map from entityUrn → object for APIs that use
+ * normalized entity references (LinkedIn Voyager, Facebook Graph, etc.).
+ * Objects reference each other via "*fieldName" keys whose values are URNs.
+ */
+export function buildEntityIndex(items: unknown[]): Map<string, unknown> {
+  const index = new Map<string, unknown>();
+  for (const item of items) {
+    if (item != null && typeof item === "object") {
+      const urn = (item as Record<string, unknown>).entityUrn;
+      if (typeof urn === "string") index.set(urn, item);
+    }
+  }
+  return index;
+}
+
+/**
+ * Auto-detect and build an entity index from a response that contains
+ * an entityUrn-keyed array (e.g. `included[]`, `data.included[]`).
+ * Returns null if no suitable array is found.
+ */
+export function detectEntityIndex(data: unknown): Map<string, unknown> | null {
+  if (data == null || typeof data !== "object") return null;
+
+  // Check common locations for normalized entity arrays
+  const candidates: unknown[] = [];
+  const obj = data as Record<string, unknown>;
+
+  // Direct: { included: [...] }
+  if (Array.isArray(obj.included)) candidates.push(obj.included);
+  // Nested: { data: { included: [...] } }
+  if (obj.data && typeof obj.data === "object") {
+    const d = obj.data as Record<string, unknown>;
+    if (Array.isArray(d.included)) candidates.push(d.included);
+  }
+
+  // Check if any candidate has entityUrn-keyed objects
+  for (const arr of candidates) {
+    const items = arr as unknown[];
+    if (items.length < 2) continue;
+    // Sample first few items to check for entityUrn
+    const sample = items.slice(0, 5);
+    const hasUrns = sample.filter(
+      (i) => i != null && typeof i === "object" && typeof (i as Record<string, unknown>).entityUrn === "string"
+    ).length;
+    if (hasUrns >= sample.length * 0.5) {
+      return buildEntityIndex(items);
+    }
+  }
+  return null;
+}
+
 // --- Field Projection ---
 
 /**
  * Walk a dot-notation path with [] array expansion.
  * e.g. "elements[].actor.name" expands across array items.
  */
-export function resolvePath(obj: unknown, path: string): unknown[] {
+export function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unknown>): unknown[] {
   const parts = path.split(".");
   let current: unknown[] = [obj];
 
@@ -17,7 +71,17 @@ export function resolvePath(obj: unknown, path: string): unknown[] {
 
     for (const item of current) {
       if (item == null || typeof item !== "object") continue;
-      const val = (item as Record<string, unknown>)[key];
+      const rec = item as Record<string, unknown>;
+      let val = rec[key];
+
+      // URN reference resolution: if direct lookup fails, check for "*key" reference
+      if (val === undefined && entityIndex) {
+        const ref = rec[`*${key}`];
+        if (typeof ref === "string") {
+          val = entityIndex.get(ref);
+        }
+      }
+
       if (val === undefined) continue;
       if (isArray && Array.isArray(val)) {
         next.push(...val);

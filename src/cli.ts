@@ -7,6 +7,8 @@
  * Usage: unbrowse <command> [flags]
  */
 
+import { maybeAutoUpdate } from "./auto-update.js";
+
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
 
 // ---------------------------------------------------------------------------
@@ -73,8 +75,45 @@ function info(msg: string): void {
 // Path resolution — drill into nested structures with [] array expansion
 // ---------------------------------------------------------------------------
 
-/** Resolve a dot-path like "data.items[].name" against an object. */
-function resolvePath(obj: unknown, path: string): unknown {
+/** Build entityUrn → object index for normalized APIs (LinkedIn, Facebook, etc.) */
+function buildEntityIndex(items: unknown[]): Map<string, unknown> {
+  const index = new Map<string, unknown>();
+  for (const item of items) {
+    if (item != null && typeof item === "object") {
+      const urn = (item as Record<string, unknown>).entityUrn;
+      if (typeof urn === "string") index.set(urn, item);
+    }
+  }
+  return index;
+}
+
+/** Detect if an object contains a normalized entity array and build the index. */
+function detectEntityIndex(data: unknown): Map<string, unknown> | null {
+  if (data == null || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+
+  // Check common locations: { included: [...] }, { data: { included: [...] } }
+  const candidates: unknown[][] = [];
+  if (Array.isArray(obj.included)) candidates.push(obj.included);
+  if (obj.data && typeof obj.data === "object") {
+    const d = obj.data as Record<string, unknown>;
+    if (Array.isArray(d.included)) candidates.push(d.included);
+  }
+
+  for (const arr of candidates) {
+    if (arr.length < 2) continue;
+    const sample = arr.slice(0, 5);
+    const withUrn = sample.filter(
+      (i) => i != null && typeof i === "object" && typeof (i as Record<string, unknown>).entityUrn === "string"
+    ).length;
+    if (withUrn >= sample.length * 0.5) return buildEntityIndex(arr);
+  }
+  return null;
+}
+
+/** Resolve a dot-path like "data.items[].name" against an object.
+ *  When entityIndex is provided, transparently follows *-prefixed URN references. */
+function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unknown> | null): unknown {
   if (!path || obj == null) return obj;
   const segments = path.split(".");
   let cur: unknown = obj;
@@ -88,11 +127,22 @@ function resolvePath(obj: unknown, path: string): unknown {
       const remaining = segments.slice(i + 1).join(".");
       if (!remaining) return arr;
       return arr.flatMap((item) => {
-        const v = resolvePath(item, remaining);
+        const v = resolvePath(item, remaining, entityIndex);
         return v === undefined ? [] : Array.isArray(v) ? v : [v];
       });
     }
-    cur = (cur as Record<string, unknown>)[seg];
+    const rec = cur as Record<string, unknown>;
+    let val = rec[seg];
+
+    // URN reference resolution: if direct lookup fails, check for "*key" reference
+    if (val === undefined && entityIndex) {
+      const ref = rec[`*${seg}`];
+      if (typeof ref === "string") {
+        val = entityIndex.get(ref);
+      }
+    }
+
+    cur = val;
   }
   return cur;
 }
@@ -101,7 +151,7 @@ function resolvePath(obj: unknown, path: string): unknown {
  *  When processing arrays, rows where ALL extracted fields are null/undefined are dropped.
  *  This handles decorator-pattern APIs (e.g. LinkedIn included[]) where heterogeneous
  *  item types coexist and only some items match the requested fields. */
-function extractFields(data: unknown, fields: string[]): unknown {
+function extractFields(data: unknown, fields: string[], entityIndex?: Map<string, unknown> | null): unknown {
   if (data == null) return data;
 
   function mapItem(item: unknown): Record<string, unknown> {
@@ -110,7 +160,7 @@ function extractFields(data: unknown, fields: string[]): unknown {
       const colonIdx = f.indexOf(":");
       const alias = colonIdx >= 0 ? f.slice(0, colonIdx) : f.split(".").pop()!;
       const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
-      out[alias] = resolvePath(item, path);
+      out[alias] = resolvePath(item, path, entityIndex);
     }
     return out;
   }
@@ -125,17 +175,25 @@ function extractFields(data: unknown, fields: string[]): unknown {
 function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
   let data = result;
 
+  // Build entity index from the full response before drilling into it
+  const entityIndex = detectEntityIndex(result);
+
   // --path: drill into nested structure
   const pathFlag = flags.path as string | undefined;
   if (pathFlag) {
-    data = resolvePath(data, pathFlag);
+    data = resolvePath(data, pathFlag, entityIndex);
+    if (data === undefined) {
+      // Path didn't match — warn so the user knows to fix it
+      process.stderr.write(`[unbrowse] warning: --path "${pathFlag}" resolved to undefined. Check path against response structure.\n`);
+      return [];
+    }
   }
 
-  // --extract: pick specific fields
+  // --extract: pick specific fields (with entity index for URN resolution)
   const extractFlag = flags.extract as string | undefined;
   if (extractFlag) {
     const fields = extractFlag.split(",").map((f) => f.trim());
-    data = extractFields(data, fields);
+    data = extractFields(data, fields, entityIndex);
   }
 
   // --limit: cap array output
@@ -147,21 +205,101 @@ function applyTransforms(result: unknown, flags: Record<string, string | boolean
   return data;
 }
 
-/** Slim down trace when transforms are applied — keep only essential metadata. */
+/** Slim down output when transforms are applied — keep only essential trace metadata
+ *  and drop the response_schema (it's noise once extraction is done). */
 function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   const trace = obj.trace as Record<string, unknown> | undefined;
-  if (!trace) return obj;
-  return {
-    ...obj,
-    trace: {
-      trace_id: trace.trace_id,
-      skill_id: trace.skill_id,
-      endpoint_id: trace.endpoint_id,
-      success: trace.success,
-      status_code: trace.status_code,
-      trace_version: trace.trace_version,
-    },
+  const out: Record<string, unknown> = {
+    trace: trace
+      ? {
+          trace_id: trace.trace_id,
+          skill_id: trace.skill_id,
+          endpoint_id: trace.endpoint_id,
+          success: trace.success,
+          status_code: trace.status_code,
+          trace_version: trace.trace_version,
+        }
+      : undefined,
   };
+  // Carry over result (even if empty array — don't silently drop it)
+  if ("result" in obj) out.result = obj.result;
+  // Drop response_schema but keep extraction_hints (agent may need them if extraction partially fails)
+  return out;
+}
+
+/** When a response is large and has extraction_hints, replace the full result
+ *  with a compact summary + the hints so agents know how to extract. */
+function wrapWithHints(obj: Record<string, unknown>): Record<string, unknown> {
+  const hints = obj.extraction_hints as { path: string; fields: string[]; item_field_count: number; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
+  if (!hints) return obj;
+
+  const resultStr = JSON.stringify(obj.result ?? "");
+  // Only wrap when response is large enough that raw output would overwhelm context
+  if (resultStr.length < 2000) return obj;
+
+  const trace = obj.trace as Record<string, unknown> | undefined;
+
+  return {
+    trace: trace
+      ? {
+          trace_id: trace.trace_id,
+          skill_id: trace.skill_id,
+          endpoint_id: trace.endpoint_id,
+          success: trace.success,
+          status_code: trace.status_code,
+        }
+      : undefined,
+    _response_too_large: `${resultStr.length} bytes — use extraction flags below to get structured data`,
+    extraction_hints: hints,
+  };
+}
+
+/** When --schema is used, return only the schema tree + extraction hints */
+function schemaOnly(obj: Record<string, unknown>): Record<string, unknown> {
+  const trace = obj.trace as Record<string, unknown> | undefined;
+  return {
+    trace: trace
+      ? { trace_id: trace.trace_id, skill_id: trace.skill_id, endpoint_id: trace.endpoint_id, success: trace.success }
+      : undefined,
+    extraction_hints: obj.extraction_hints ?? null,
+    response_schema: obj.response_schema ?? null,
+  };
+}
+
+/** Auto-extract when hints have high confidence, otherwise wrap with hints.
+ *  This is the "right first try" path — agents get clean data without a second call. */
+function autoExtractOrWrap(obj: Record<string, unknown>): Record<string, unknown> {
+  const hints = obj.extraction_hints as { path: string; fields: string[]; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
+  const resultStr = JSON.stringify(obj.result ?? "");
+
+  // Small responses: return as-is
+  if (resultStr.length < 2000) return obj;
+
+  // No hints: can't auto-extract, return as-is (raw will be big but we have no better option)
+  if (!hints) return obj;
+
+  // High/medium confidence: auto-apply extraction
+  if (hints.confidence === "high" || hints.confidence === "medium") {
+    const syntheticFlags: Record<string, string | boolean> = {};
+    if (hints.path) syntheticFlags.path = hints.path;
+    if (hints.fields.length > 0) syntheticFlags.extract = hints.fields.join(",");
+    syntheticFlags.limit = "20";
+
+    const extracted = applyTransforms(obj.result, syntheticFlags);
+    const slimmed = slimTrace({ ...obj, result: extracted });
+
+    // Include the hints so the agent knows what was auto-applied and can adjust
+    (slimmed as Record<string, unknown>)._auto_extracted = {
+      applied: hints.cli_args,
+      confidence: hints.confidence,
+      all_fields: hints.schema_tree,
+      note: "Auto-extracted using response_schema. Add/remove fields with --extract, change array with --path, or use --raw for full response.",
+    };
+    return slimmed;
+  }
+
+  // Low confidence: wrap with hints, let agent decide
+  return wrapWithHints(obj);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,14 +365,24 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  if (flags.raw) body.projection = { raw: true };
+  // When explicit CLI transforms are present, get raw data for client-side extraction
+  const hasTransforms = !!(flags.path || flags.extract);
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
 
   let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
 
+  // --schema: return only schema + extraction hints (no data)
+  if (flags.schema) {
+    output(schemaOnly(result), !!flags.pretty);
+    return;
+  }
+
   // --path / --extract / --limit: transform .result in-place
-  const hasTransforms = !!(flags.path || flags.extract || flags.limit);
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
+  } else if (!flags.raw && result.result != null) {
+    // No transforms requested — try auto-extraction from hints
+    result = autoExtractOrWrap(result);
   }
 
   // Append CLI hint for feedback
@@ -260,14 +408,24 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  if (flags.raw) body.projection = { raw: true };
+  // When explicit CLI transforms are present, get raw data for client-side extraction
+  const hasTransforms = !!(flags.path || flags.extract);
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
 
   let result = await api("POST", `/v1/skills/${skillId}/execute`, body) as Record<string, unknown>;
 
+  // --schema: return only schema + extraction hints (no data)
+  if (flags.schema) {
+    output(schemaOnly(result), !!flags.pretty);
+    return;
+  }
+
   // --path / --extract / --limit: transform .result in-place
-  const hasTransforms = !!(flags.path || flags.extract || flags.limit);
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
+  } else if (!flags.raw && result.result != null) {
+    // No transforms requested — try auto-extraction from hints
+    result = autoExtractOrWrap(result);
   }
 
   output(result, !!flags.pretty);
@@ -316,30 +474,6 @@ async function cmdSearch(flags: Record<string, string | boolean>): Promise<void>
   output(await api("POST", path, body), !!flags.pretty);
 }
 
-async function cmdRecipe(flags: Record<string, string | boolean>): Promise<void> {
-  const skillId = flags.skill as string;
-  const endpointId = flags.endpoint as string;
-  if (!skillId || !endpointId) die("--skill and --endpoint are required");
-
-  const recipe: Record<string, unknown> = {};
-  if (flags.source) recipe.source = flags.source;
-  if (flags.fields) {
-    // Parse "alias:path,alias:path" into { alias: "path" }
-    const fields: Record<string, string> = {};
-    for (const pair of (flags.fields as string).split(",")) {
-      const [key, ...rest] = pair.trim().split(":");
-      fields[key] = rest.join(":") || key;
-    }
-    recipe.fields = fields;
-  }
-  if (flags.filter) recipe.filter = JSON.parse(flags.filter as string);
-  if (flags.require) recipe.require = (flags.require as string).split(",");
-  if (flags.compact) recipe.compact = true;
-  if (flags.description) recipe.description = flags.description;
-
-  output(await api("POST", `/v1/skills/${skillId}/endpoints/${endpointId}/recipe`, { recipe }), !!flags.pretty);
-}
-
 async function cmdSessions(flags: Record<string, string | boolean>): Promise<void> {
   const domain = flags.domain as string;
   if (!domain) die("--domain is required");
@@ -363,15 +497,15 @@ Commands:
   skills                                       List all skills
   skill    <id>                                Get skill details
   search   --intent "..." [--domain "..."]     Search marketplace
-  recipe   --skill ID --endpoint ID [opts]     Submit extraction recipe
   sessions --domain "..." [--limit N]          Debug session logs
 
 Global flags:
   --pretty          Indented JSON output
   --no-auto-start   Don't auto-start server
-  --raw             Skip extraction recipes, return raw data
+  --raw             Return raw response data (skip server-side projection)
 
 resolve/execute flags:
+  --schema                                    Show response schema + extraction hints only (no data)
   --path "data.items[]"                       Drill into result before extract/output
   --extract "field1,alias:deep.path.to.val"   Pick specific fields (no piping needed)
   --limit N                                   Cap array output to N items
@@ -380,21 +514,12 @@ resolve/execute flags:
   --force-capture                             Bypass caches, re-capture
   --params '{...}'                            Extra params as JSON
 
-recipe flags:
-  --source "data.items"                       Dot-path to source array
-  --fields "name:user.name,text:body.text"    Field mappings (alias:path)
-  --filter '{"field":"type","equals":"post"}' Filter criteria as JSON
-  --require "id,text"                         Required non-null fields
-  --compact                                   Strip nulls/empties
-  --description "..."                         Human description
-
 Examples:
   unbrowse resolve --intent "get timeline" --url "https://x.com"
   unbrowse execute --skill abc --endpoint def --pretty
   unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10
   unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20
   unbrowse feedback --skill abc --endpoint def --rating 5
-  unbrowse recipe --skill abc --endpoint def --source "included" --fields "author:actor.name,text:commentary.text" --compact
 `;
   process.stderr.write(help);
 }
@@ -404,6 +529,8 @@ Examples:
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  maybeAutoUpdate();
+
   const { command, args, flags } = parseArgs(process.argv);
   const pretty = !!flags.pretty;
   const noAutoStart = !!flags["no-auto-start"];
@@ -427,7 +554,6 @@ async function main(): Promise<void> {
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
     case "search": return cmdSearch(flags);
-    case "recipe": return cmdRecipe(flags);
     case "sessions": return cmdSessions(flags);
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
