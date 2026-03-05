@@ -32,5 +32,5 @@
     "husky": "^9.1.7",
     "release-it": "^19.2.4"
   },
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

@@ -74,7 +74,10 @@ export async function incrementAgentExecutions(env: Env, agentId: string): Promi
   if (agentId === "__admin__") return;
   const profile = await getAgent(env, agentId);
   if (!profile) return;
+  const now = new Date().toISOString();
   profile.total_executions++;
+  if (!profile.first_execution_at) profile.first_execution_at = now;
+  profile.last_active_at = now;
   await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
 }
 
@@ -83,6 +86,7 @@ export async function incrementAgentFeedback(env: Env, agentId: string): Promise
   const profile = await getAgent(env, agentId);
   if (!profile) return;
   profile.total_feedback_given++;
+  profile.last_active_at = new Date().toISOString();
   await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
 }
 

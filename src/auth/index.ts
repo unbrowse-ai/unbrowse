@@ -96,6 +96,15 @@ export async function interactiveLogin(
             log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount})`);
             break;
           }
+
+          // Handle "already logged in" — user was redirected away from login
+          // to a non-login page, and cookies already exist (even if count didn't change).
+          // This means the persistent profile already has the session.
+          if (!isStillLogin && currentCookieCount > 0) {
+            loggedIn = true;
+            log("auth", `already logged in — ${currentUrl} (${currentCookieCount} cookies present)`);
+            break;
+          }
         }
       } catch { /* page navigating */ }
     }

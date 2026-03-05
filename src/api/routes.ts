@@ -12,7 +12,7 @@ import type { ProjectionOptions } from "../types/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
-const BETA_API_URL = "https://beta-api.unbrowse.ai";
+const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 

@@ -2,6 +2,18 @@
 
 ## [1.0.0] — 2025-01-01
 
+## fix: bundle-inferred endpoints now capture query param names from JS source
+
+The bundle scanner regex patterns matched query strings (e.g. `/api/search?q=`) but
+discarded them in a non-capturing group. Bundle-inferred endpoints had no `query`
+field and no `{param}` template vars, forcing users to guess parameter names.
+
+Now the scanner captures query string portions as regex group 2, extracts param
+names, and merges them across multiple occurrences of the same path. The endpoint
+creation code builds templatized `url_template` (e.g. `/api/search?q={q}`) and
+populates `endpoint.query` for bundle-inferred endpoints, matching the behavior
+of network-captured endpoints.
+
 ## feat: staging environment — isolated namespaces for safe migration testing
 
 Vector namespaces, KV namespaces, and search caches are now derived from

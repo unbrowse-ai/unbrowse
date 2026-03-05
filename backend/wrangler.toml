@@ -15,3 +15,16 @@ zone_id = "73934a4d815fde770167414fc3ead04b"
 # - UNKEY_ROOT_KEY
 # - EMERGENTDB_API_KEY
 # - NEBIUS_API_KEY
+
+# --- Staging environment ---
+# Deploy: wrangler deploy --env staging
+# Secrets: wrangler secret put EMERGENTDB_API_KEY --env staging (etc.)
+# Uses isolated vector/KV namespaces (unbrowse-staging--, staging-skills, staging-stats)
+[env.staging]
+name = "unbrowse-backend-staging"
+workers_dev = true
+routes = []
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"

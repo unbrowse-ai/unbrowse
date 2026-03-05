@@ -339,10 +339,12 @@ function safeJson(s: string): unknown {
   try { return JSON.parse(s); } catch { return null; }
 }
 
-export function skillsKV(env: { EMERGENTDB_API_KEY: string }): EdbKV {
-  return new EdbKV(env.EMERGENTDB_API_KEY, "skills");
+export function skillsKV(env: { EMERGENTDB_API_KEY: string; ENVIRONMENT?: string }): EdbKV {
+  const ns = env.ENVIRONMENT === "staging" ? "staging-skills-v2" : "skills";
+  return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }
 
-export function statsKV(env: { EMERGENTDB_API_KEY: string }): EdbKV {
-  return new EdbKV(env.EMERGENTDB_API_KEY, "stats");
+export function statsKV(env: { EMERGENTDB_API_KEY: string; ENVIRONMENT?: string }): EdbKV {
+  const ns = env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
+  return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }

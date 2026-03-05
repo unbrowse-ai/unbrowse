@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
-import { publishSkill, getSkill, listSkills, updateEndpointScore, getEndpointSchema } from "../services/marketplace.js";
+import { publishSkill, getSkill, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
@@ -46,7 +46,13 @@ skillRoutes.post("/skills", async (c) => {
   if (!validation.valid) {
     return c.json({ error: "Validation failed", details: validation.hardErrors }, 422);
   }
-  const skill = await publishSkill(c.env, body);
+  let skill;
+  try {
+    skill = await publishSkill(c.env, body);
+  } catch (err) {
+    console.error("[publish] error:", (err as Error).message, (err as Error).stack);
+    return c.json({ error: "Publish failed", detail: (err as Error).message }, 500);
+  }
   // Track agent contribution (non-blocking)
   const agentId = c.get("agent_id");
   if (agentId) {
@@ -59,9 +65,14 @@ skillRoutes.post("/skills", async (c) => {
   }, 201);
 });
 
-// PATCH /v1/skills/:id/endpoints/:eid — update endpoint score/status
+// PATCH /v1/skills/:id/endpoints/:eid — update endpoint score/status/schema
 skillRoutes.patch("/skills/:id/endpoints/:eid", async (c) => {
-  const { score, status } = await c.req.json<{ score: number; status?: string }>();
-  await updateEndpointScore(c.env, c.req.param("id"), c.req.param("eid"), score, status as any);
+  const { score, status, response_schema } = await c.req.json<{ score?: number; status?: string; response_schema?: import("../types.js").ResponseSchema }>();
+  if (score != null || status) {
+    await updateEndpointScore(c.env, c.req.param("id"), c.req.param("eid"), score ?? 0, status as any);
+  }
+  if (response_schema) {
+    await updateEndpointSchema(c.env, c.req.param("id"), c.req.param("eid"), response_schema);
+  }
   return c.json({ ok: true });
 });
