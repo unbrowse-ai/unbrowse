@@ -224,10 +224,21 @@ async function executeBrowserCapture(
       }
       if (isDup) continue;
 
+      // Build query template from bundle-inferred param names
+      let epUrl = route.url;
+      let epQuery: Record<string, unknown> | undefined;
+      if (route.query_params && route.query_params.length > 0) {
+        epQuery = {};
+        for (const p of route.query_params) epQuery[p] = "";
+        const qStr = route.query_params.map((k) => `${encodeURIComponent(k)}={${k}}`).join("&");
+        epUrl = `${route.url}?${qStr}`;
+      }
+
       endpoints.push({
         endpoint_id: nanoid(),
         method: "GET",
-        url_template: route.url,
+        url_template: epUrl,
+        query: epQuery,
         idempotency: "safe",
         verification_status: "pending",
         reliability_score: 0.2,

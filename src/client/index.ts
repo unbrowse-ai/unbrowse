@@ -44,16 +44,29 @@ export function getApiKey(): string {
   return "";
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-  const key = getApiKey();
-  const res = await fetch(`${API_URL}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(key ? { Authorization: `Bearer ${key}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
+
+async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean }): Promise<T> {
+  const key = opts?.noAuth ? "" : getApiKey();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        // Bun + Cloudflare Brotli bug: chunked br responses hang for ~40s.
+        // Force identity encoding to avoid the issue.
+        "Accept-Encoding": "gzip, deflate",
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   let data: T & { error?: string };
   try {
     data = await res.json() as T & { error?: string };
@@ -273,7 +286,7 @@ export async function getSkill(skillId: string): Promise<SkillManifest | null> {
   // Cache-first: return disk cache immediately, async-refresh from backend
   const cached = readSkillCache(skillId);
   if (cached) {
-    api<SkillManifest>("GET", `/v1/skills/${skillId}`)
+    api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true })
       .then(skill => {
         // Preserve locally-learned fields — backend doesn't store these
         if (cached.endpoints) {
@@ -296,9 +309,9 @@ export async function getSkill(skillId: string): Promise<SkillManifest | null> {
       .catch(() => {});
     return cached;
   }
-  // No cache — must fetch from backend
+  // No cache — must fetch from backend (public endpoint, no auth needed)
   try {
-    const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`);
+    const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true });
     writeSkillCache(skill);
     return skill;
   } catch {

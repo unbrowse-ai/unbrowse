@@ -117,6 +117,10 @@ function collectKeysShallow(obj: unknown): string[] {
   return keys;
 }
 
+// On-domain noise patterns — framework plumbing, auth, tracking, ads that live
+// on the site's own domain (not caught by SKIP_HOSTS since they're same-origin).
+const ON_DOMAIN_NOISE = /\/(recaptcha|captcha|update-recaptcha|csrf|consent|data-protection|badge|drawer|header-action|geolocation|onboarding|wana\/bids|prebid|bids\/request|ads\/|pixel|beacon|collect|impression|click-tracking|heartbeat|webConfig|config\.json|manifest\.json|service-worker|sw\.js|favicon|robots\.txt|sitemap|opensearch|partial\/[a-zA-Z]+\/mod-|logging|csp-report|gen_204|generate_204|sodar|__|devvit-|user-drawer|action-item)/i;
+
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
   let score = 0;
@@ -140,6 +144,20 @@ function scoreRequest(req: RawRequest): number {
   // Penalise Next.js RSC navigation requests — framework wire format, not data
   if (req.url.includes("_rsc=")) score -= 3;
   if (ct.includes("text/x-component")) score -= 10; // RSC wire format
+  // Penalise on-domain noise (framework plumbing, recaptcha, consent, ad bids)
+  try { if (ON_DOMAIN_NOISE.test(new URL(req.url).pathname)) score -= 15; } catch {}
+  // Reward rich JSON responses (data endpoints have deep objects, noise has shallow)
+  if (req.response_body) {
+    try {
+      const parsed = JSON.parse(stripJsonPrefix(req.response_body));
+      const bodyStr = req.response_body;
+      // Responses with many keys = likely data. Tiny responses = config/status.
+      if (bodyStr.length > 500) score += 3;
+      if (bodyStr.length > 2000) score += 2;
+      // Array responses are usually data listings
+      if (Array.isArray(parsed) && parsed.length > 0) score += 3;
+    } catch { /* not JSON */ }
+  }
   return score;
 }
 
@@ -311,9 +329,13 @@ function isApiLike(req: RawRequest): boolean {
     if (hostname === "play.google.com" && pathname.startsWith("/log")) return false;
     // Skip image CDN paths (coin images, avatars, etc.)
     if (/\/(coin-image|avatar|profile-image)\//.test(pathname)) return false;
+    // Hard-skip on-domain noise that's never useful data
+    if (/\/(recaptcha|update-recaptcha|captcha|wana\/bids|prebid|bids\/request|pixel[s]?\/|beacon\/|csp-report|service-worker|sw\.js$|favicon|robots\.txt$|sitemap|opensearch)/.test(pathname)) return false;
   } catch {
     return false;
   }
+  // Skip tiny responses — config/status/empty endpoints, not data
+  if (req.response_body && req.response_body.length < 20) return false;
   return true;
 }
 

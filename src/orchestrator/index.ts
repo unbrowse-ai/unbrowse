@@ -187,51 +187,71 @@ export async function resolveAndExecute(
     skill: SkillManifest,
     source: "marketplace" | "live-capture"
   ): Promise<OrchestratorResult | null> {
-    const epRanked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
+    let epRanked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
     if (epRanked.length === 0) return null;
+
+    // When BM25 scores are tied, use schema field overlap with intent as tiebreaker.
+    // "get subreddit posts" → intent tokens ["subreddit","posts","get"]
+    // Endpoint with schema {title, author, score, num_comments} > {token, expires}
+    if (epRanked.length >= 2 && intent) {
+      const intentTokens = new Set(
+        intent.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter(w => w.length > 2)
+      );
+      epRanked = epRanked.map((r) => {
+        let schemaBonus = 0;
+        const schema = r.endpoint.response_schema;
+        if (schema) {
+          const schemaStr = JSON.stringify(schema).toLowerCase();
+          for (const tok of intentTokens) {
+            if (schemaStr.includes(tok)) schemaBonus += 5;
+          }
+          // Rich schemas (many fields) are more likely data endpoints
+          const propCount = schema.properties ? Object.keys(schema.properties).length : 0;
+          if (propCount >= 5) schemaBonus += 3;
+        }
+        // Penalize noise endpoints (recaptcha, token, csrf, tracking)
+        const url = r.endpoint.url_template.toLowerCase();
+        if (/recaptcha|captcha|csrf|token$|consent|badge|drawer|header-action|logging|telemetry/i.test(url)) {
+          schemaBonus -= 20;
+        }
+        return { ...r, score: r.score + schemaBonus };
+      });
+      epRanked.sort((a, b) => b.score - a.score);
+    }
 
     const top = epRanked[0];
     const second = epRanked[1];
 
-    // Check if we have a confident pick
-    const hasDescriptions = skill.endpoints.some((ep) => !!ep.description);
-    if (!hasDescriptions) return null; // No descriptions = BM25 on noisy URL tokens, don't risk it
-
-    const shouldAutoExec =
-      epRanked.length === 1 ||
-      (top.score > 0 && (!second || top.score - second.score >= 15 || (second.score > 0 && top.score / second.score >= 1.5)));
-
-    if (!shouldAutoExec) {
-      console.log(`[auto-exec] skipped: top=${top.score.toFixed(1)} second=${second?.score.toFixed(1) ?? "n/a"} gap insufficient`);
-      return null;
-    }
-
-    console.log(`[auto-exec] confident pick: ${top.endpoint.endpoint_id} score=${top.score.toFixed(1)} (gap=${second ? (top.score - second.score).toFixed(1) : "only-one"})`);
-
+    // Try top candidates in order until one succeeds. If all fail, fall through to deferral.
+    const MAX_TRIES = Math.min(epRanked.length, 3);
     const te0 = Date.now();
-    try {
-      const execOut = await executeSkill(
-        skill,
-        { ...params, endpoint_id: top.endpoint.endpoint_id },
-        projection,
-        { ...options, intent, contextUrl: context?.url }
-      );
-      timing.execute_ms = Date.now() - te0;
-      if (execOut.trace.success) {
-        skillRouteCache.set(cacheKey, { skillId: skill.skill_id, domain: skill.domain, ts: Date.now() });
-        return {
-          result: execOut.result, trace: execOut.trace, source, skill,
-          timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
-          response_schema: execOut.response_schema,
-          extraction_hints: execOut.extraction_hints,
-        };
+    for (let i = 0; i < MAX_TRIES; i++) {
+      const candidate = epRanked[i];
+      console.log(`[auto-exec] trying #${i + 1}: ${candidate.endpoint.endpoint_id} score=${candidate.score.toFixed(1)}`);
+      try {
+        const execOut = await executeSkill(
+          skill,
+          { ...params, endpoint_id: candidate.endpoint.endpoint_id },
+          projection,
+          { ...options, intent, contextUrl: context?.url }
+        );
+        timing.execute_ms = Date.now() - te0;
+        if (execOut.trace.success) {
+          skillRouteCache.set(cacheKey, { skillId: skill.skill_id, domain: skill.domain, ts: Date.now() });
+          return {
+            result: execOut.result, trace: execOut.trace, source, skill,
+            timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
+            response_schema: execOut.response_schema,
+            extraction_hints: execOut.extraction_hints,
+          };
+        }
+        console.log(`[auto-exec] #${i + 1} failed: status=${execOut.trace.status_code}`);
+      } catch (err) {
+        console.log(`[auto-exec] #${i + 1} error: ${(err as Error).message}`);
       }
-      console.log(`[auto-exec] execution failed: status=${trace.status_code}`);
-    } catch (err) {
-      console.log(`[auto-exec] execution error: ${(err as Error).message}`);
-      timing.execute_ms = Date.now() - te0;
     }
-    return null; // Fall through to deferral
+    timing.execute_ms = Date.now() - te0;
+    return null; // All candidates failed, fall through to deferral
   }
 
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
@@ -461,8 +481,30 @@ export async function resolveAndExecute(
       response_bytes: captureResultStr.length,
       captured_at: new Date().toISOString(),
     };
-    // Re-publish with discovery_cost attached (fire-and-forget)
-    publishSkill(learned_skill).catch((err) => console.error("[publish] discovery_cost update failed:", (err as Error).message));
+
+    // Generate local heuristic descriptions so BM25 auto-exec works immediately.
+    // Backend will overwrite with LLM descriptions, but this unblocks the first request.
+    for (const ep of learned_skill.endpoints) {
+      if (!ep.description) {
+        ep.description = generateLocalDescription(ep);
+      }
+    }
+
+    // Await publish so backend-generated LLM descriptions come back before auto-exec
+    try {
+      const published = await publishSkill(learned_skill);
+      // Update local copy with backend descriptions
+      if (published.endpoints) {
+        for (const ep of learned_skill.endpoints) {
+          const backendEp = published.endpoints.find(
+            (e) => e.endpoint_id === ep.endpoint_id
+          );
+          if (backendEp?.description) ep.description = backendEp.description;
+        }
+      }
+    } catch (err) {
+      console.error("[publish] discovery_cost update failed:", (err as Error).message);
+    }
   }
 
   // Auth-gated or no data: pass through error
@@ -541,6 +583,52 @@ function hasUsableEndpoints(skill: SkillManifest): boolean {
       return !!ep.response_schema || /\/api\//i.test(u.pathname) || !!ep.dom_extraction;
     } catch { return false; }
   });
+}
+
+/** Generate a local heuristic description for an endpoint so BM25 can work immediately. */
+function generateLocalDescription(ep: import("../types/index.js").EndpointDescriptor): string {
+  let id = "";
+  try {
+    const u = new URL(ep.url_template);
+    // GraphQL: extract queryId name
+    const qid = u.searchParams.get("queryId") ?? "";
+    const match = qid.match(/^([a-zA-Z]+)\./);
+    if (match) id = match[1];
+    // REST: last meaningful path segment
+    if (!id) {
+      const segs = u.pathname.split("/").filter((s) => s.length > 1 && !s.startsWith("{") && !/^v\d+$/.test(s));
+      id = segs[segs.length - 1] ?? u.pathname;
+    }
+  } catch {
+    id = ep.url_template.slice(0, 60);
+  }
+
+  // Split camelCase to words
+  const words = id
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/[-_]/g, " ")
+    .toLowerCase()
+    .replace(/^(voyager|api|graphql|dash)\s+/g, "")
+    .replace(/\b(voyager|dash|graphql)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Schema keys for context
+  const keys: string[] = [];
+  if (ep.response_schema?.properties) {
+    for (const [k, v] of Object.entries(ep.response_schema.properties)) {
+      const sub = v as { properties?: Record<string, unknown> };
+      if (sub?.properties) {
+        keys.push(`${k}:{${Object.keys(sub.properties).slice(0, 4).join(",")}}`);
+      } else {
+        keys.push(k);
+      }
+    }
+  }
+  const keysStr = keys.slice(0, 8).join(", ");
+  const core = words || "endpoint";
+  return keysStr ? `Returns ${core} data. fields: ${keysStr}` : `Returns ${core} data`;
 }
 
 function extractSkillId(metadata: Record<string, unknown>): string | null {
