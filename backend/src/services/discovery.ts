@@ -1,9 +1,9 @@
 import type { Env } from "../types.js";
-import { EdbKV } from "./kv.js";
 
 const DIMS = 1536;
 const EMERGENTDB_BASE = "https://api.emergentdb.com";
 const SEARCH_CACHE_TTL = 300; // 5 minutes
+const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
 
 function domainNamespace(domain: string): string {
   return `unbrowse--${domain.replace(/^www\./, "").replace(/\./g, "-")}`;
@@ -12,13 +12,52 @@ const GLOBAL_NS = "unbrowse--global";
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
 
-function searchCacheKV(env: Env): EdbKV {
-  return new EdbKV(env.EMERGENTDB_API_KEY, "search-cache");
-}
+// In-memory search cache — survives within a single Worker isolate lifetime.
+// Avoids the 20s cold-start penalty of EdbKV._idxLoad() for TTL cache lookups.
+const _memCache = new Map<string, { value: string; expires: number }>();
 
 function searchCacheKey(intent: string, k: number, domain?: string): string {
   const base = `${intent.toLowerCase().trim()}:${k}`;
   return domain ? `${base}:${domain}` : base;
+}
+
+/** Direct qdkv/get with timeout — bypasses the heavy EdbKV index load. */
+async function cacheGet(env: Env, key: string): Promise<string | null> {
+  const fullKey = `search-cache:${key}`;
+
+  // Check in-memory first (free, no HTTP)
+  const mem = _memCache.get(fullKey);
+  if (mem && Date.now() < mem.expires) return mem.value;
+  if (mem) _memCache.delete(fullKey);
+
+  // Direct qdkv/get with a hard timeout — never block search for cache
+  try {
+    const res = await Promise.race([
+      fetch(`${EMERGENTDB_BASE}/qdkv/get/${encodeURIComponent(fullKey)}`, {
+        headers: { Authorization: `Bearer ${env.EMERGENTDB_API_KEY}`, "Content-Type": "application/json" },
+      }),
+      new Promise<Response>((_, reject) => setTimeout(() => reject(new Error("cache timeout")), CACHE_READ_TIMEOUT)),
+    ]);
+    if (!res.ok) return null;
+    const data = await res.json() as { value?: string | null; found?: boolean };
+    if (!data.found || !data.value) return null;
+    // Warm the in-memory cache
+    _memCache.set(fullKey, { value: data.value, expires: Date.now() + SEARCH_CACHE_TTL * 1000 });
+    return data.value;
+  } catch {
+    return null; // timeout or network error — skip cache, proceed to live search
+  }
+}
+
+/** Fire-and-forget cache write — never blocks the response. */
+function cachePut(env: Env, key: string, value: string): void {
+  const fullKey = `search-cache:${key}`;
+  _memCache.set(fullKey, { value, expires: Date.now() + SEARCH_CACHE_TTL * 1000 });
+  fetch(`${EMERGENTDB_BASE}/qdkv/set`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.EMERGENTDB_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ key: fullKey, value, ttlMs: SEARCH_CACHE_TTL * 1000 }),
+  }).catch(() => {});
 }
 
 async function edbRequest(
@@ -100,13 +139,18 @@ export async function searchIntentInDomain(
   domain: string,
   k = 5
 ): Promise<SearchResult> {
-  const kv = searchCacheKV(env);
+  const t0 = Date.now();
   const ckey = searchCacheKey(intent, k, domain);
 
-  const hit = await kv.get(ckey) as string | null;
+  const hit = await cacheGet(env, ckey);
+  const t1 = Date.now();
+  console.log(`[perf:search-domain] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
 
   const vector = await embedIntent(env, intent, "query");
+  const t2 = Date.now();
+  console.log(`[perf:search-domain] embed: ${t2 - t1}ms`);
+
   const ns = domainNamespace(domain);
   let results: SearchResult;
   try {
@@ -118,9 +162,12 @@ export async function searchIntentInDomain(
     console.error(`[search] domain=${domain} ns=${ns} error:`, (err as Error).message);
     return [];
   }
+  const t3 = Date.now();
+  console.log(`[perf:search-domain] vector-search: ${t3 - t2}ms results=${results.length}`);
+  console.log(`[perf:search-domain] TOTAL: ${t3 - t0}ms`);
 
   if (results.length > 0) {
-    kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
+    cachePut(env, ckey, JSON.stringify(results));
   }
 
   return results;
@@ -131,13 +178,18 @@ export async function searchIntent(
   intent: string,
   k = 5
 ): Promise<SearchResult> {
-  const kv = searchCacheKV(env);
+  const t0 = Date.now();
   const ckey = searchCacheKey(intent, k);
 
-  const hit = await kv.get(ckey) as string | null;
+  const hit = await cacheGet(env, ckey);
+  const t1 = Date.now();
+  console.log(`[perf:search-global] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
 
   const vector = await embedIntent(env, intent, "query");
+  const t2 = Date.now();
+  console.log(`[perf:search-global] embed: ${t2 - t1}ms`);
+
   let results: SearchResult;
   try {
     const data = (await edbRequest(env, "POST", "/vectors/search", {
@@ -148,9 +200,12 @@ export async function searchIntent(
     console.error(`[search] global ns=${GLOBAL_NS} error:`, (err as Error).message);
     return [];
   }
+  const t3 = Date.now();
+  console.log(`[perf:search-global] vector-search: ${t3 - t2}ms results=${results.length}`);
+  console.log(`[perf:search-global] TOTAL: ${t3 - t0}ms`);
 
   if (results.length > 0) {
-    kv.put(ckey, JSON.stringify(results), { expirationTtl: SEARCH_CACHE_TTL }).catch(() => {});
+    cachePut(env, ckey, JSON.stringify(results));
   }
 
   return results;

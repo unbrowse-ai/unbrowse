@@ -4,6 +4,7 @@ export interface Env {
   UNKEY_API_ID: string;
   EMERGENTDB_API_KEY: string;
   GEMINI_API_KEY: string;
+  STATS_KV: KVNamespace;
 }
 
 // --- Agent identity ---
@@ -74,6 +75,21 @@ export interface ResponseSchema {
   inferred_from_samples: number;
 }
 
+export interface ExtractionRecipe {
+  source: string;
+  filter?: {
+    field: string;
+    equals?: string;
+    contains?: string;
+    in?: string[];
+  };
+  require?: string[];
+  fields: Record<string, string>;
+  compact?: boolean;
+  description?: string;
+  updated_at?: string;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -90,6 +106,7 @@ export interface EndpointDescriptor {
   last_verified_at?: string;
   signature?: string;
   response_schema?: ResponseSchema;
+  extraction_recipe?: ExtractionRecipe;
 }
 
 export interface DiscoveryCost {
@@ -147,6 +164,7 @@ export interface ExecutionTrace {
   tokens_used?: number;
   tokens_saved?: number;
   tokens_saved_pct?: number;
+  trace_version?: string;
 }
 
 export interface ValidationResult {

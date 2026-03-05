@@ -42,6 +42,13 @@ interface BenchEntry {
   url?: string;
   params: Record<string, unknown>;
   runs: number;
+  /** Content validation for authed retrieval tests */
+  validate?: {
+    require_auth?: boolean;
+    require_trigger_url?: boolean;
+    require_endpoints_with_schema?: number;
+    require_fields?: string[];
+  };
 }
 
 interface BaselineEntry {
@@ -254,6 +261,75 @@ async function runBench(entry: BenchEntry): Promise<RunResult> {
     ? summarizeData(lastBody, entry.mode)
     : { summary: error ?? "no response", snapshot: null };
 
+  // Content validation for authed retrieval tests
+  if (entry.validate && !error && Object.keys(lastBody).length > 0) {
+    const v = entry.validate;
+    const skill = lastBody.skill as Record<string, unknown> | undefined;
+    const endpoints = (skill?.endpoints ?? []) as Array<Record<string, unknown>>;
+    const bodyStr = JSON.stringify(lastBody);
+
+    if (v.require_endpoints_with_schema) {
+      const withSchema = endpoints.filter((ep) => ep.response_schema != null);
+      if (withSchema.length < v.require_endpoints_with_schema) {
+        error = `validate: need ${v.require_endpoints_with_schema} endpoints with schema, got ${withSchema.length}`;
+      }
+    }
+    if (v.require_trigger_url) {
+      const withTrigger = endpoints.filter((ep) => ep.trigger_url);
+      if (withTrigger.length === 0) {
+        error = `validate: no endpoints have trigger_url`;
+      }
+    }
+    if (v.require_fields) {
+      for (const field of v.require_fields) {
+        if (!bodyStr.includes(`"${field}"`)) {
+          error = `validate: missing required field "${field}" in response`;
+          break;
+        }
+      }
+    }
+
+    // If capture discovered endpoints, try executing one with trigger-and-intercept
+    // to verify actual data comes back. Prefer endpoint whose schema contains required fields.
+    if (!error && skill?.skill_id && endpoints.length > 0) {
+      const candidates = endpoints.filter((ep) => ep.trigger_url && ep.response_schema);
+      let bestEndpoint = candidates[0] as Record<string, unknown> | undefined;
+      if (v.require_fields && candidates.length > 1) {
+        const fieldMatch = candidates.find((ep) => {
+          const schema = JSON.stringify(ep.response_schema);
+          return v.require_fields!.every((f) => schema.includes(f));
+        });
+        if (fieldMatch) bestEndpoint = fieldMatch as Record<string, unknown>;
+      }
+      if (bestEndpoint) {
+        try {
+          const execRes = await fetch(`${UNBROWSE}/v1/skills/${skill.skill_id}/execute`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ params: { endpoint_id: bestEndpoint.endpoint_id } }),
+          });
+          const execBody = await execRes.json() as Record<string, unknown>;
+          const trace = execBody.trace as Record<string, unknown> | undefined;
+          if (trace?.success) {
+            const execStr = JSON.stringify(execBody);
+            if (v.require_fields) {
+              for (const field of v.require_fields) {
+                if (!execStr.includes(field)) {
+                  error = `validate: executed endpoint but "${field}" not in response data`;
+                  break;
+                }
+              }
+            }
+          } else {
+            error = `validate: endpoint execution failed — ${trace?.error ?? "unknown"}`;
+          }
+        } catch (err) {
+          error = `validate: endpoint execution threw — ${err}`;
+        }
+      }
+    }
+  }
+
   return {
     name: entry.name,
     mode: entry.mode,
@@ -296,7 +372,15 @@ async function main() {
   const ts = new Date().toISOString();
   const skipped = allEntries.length - suite.length;
 
-  console.log(`\nunbrowse eval \u2014 ${ts} (${sha})${skipped > 0 ? ` [${skipped} retrieve tests skipped, use --full]` : ""}`);
+  // Fetch trace version from running server for version-tracked eval history
+  let traceVersion = "unknown";
+  try {
+    const healthRes = await fetch(`${UNBROWSE}/health`);
+    const health = await healthRes.json() as { trace_version?: string };
+    traceVersion = health.trace_version ?? "unknown";
+  } catch { /* server may not expose version yet */ }
+
+  console.log(`\nunbrowse eval \u2014 ${ts} (${traceVersion})${skipped > 0 ? ` [${skipped} retrieve tests skipped, use --full]` : ""}`);
   console.log("\u2500".repeat(76));
 
   const results: RunResult[] = [];
@@ -344,6 +428,7 @@ async function main() {
   const lastRun = {
     ts,
     sha,
+    trace_version: traceVersion,
     mode: fullMode ? "full" : "pre-commit",
     results: results.map((r) => ({
       name: r.name,
@@ -361,6 +446,7 @@ async function main() {
   const historyEntry = {
     ts,
     sha,
+    trace_version: traceVersion,
     results: Object.fromEntries(
       results.map((r) => [r.name, { p50_ms: r.p50_ms, runs: r.runs_ms, data: r.data_summary }])
     ),

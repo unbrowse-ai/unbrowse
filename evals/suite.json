@@ -119,5 +119,20 @@
     "url": "https://stocktwits.com/symbol/AAPL",
     "params": {},
     "runs": 1
+  },
+
+  {
+    "name": "retrieve-linkedin-authed",
+    "mode": "retrieve",
+    "intent": "get linkedin social proof connections",
+    "url": "https://www.linkedin.com/in/lewistham/",
+    "params": {},
+    "runs": 1,
+    "validate": {
+      "require_auth": true,
+      "require_trigger_url": true,
+      "require_endpoints_with_schema": 3,
+      "require_fields": ["firstName", "lastName"]
+    }
   }
 ]

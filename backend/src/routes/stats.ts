@@ -102,6 +102,32 @@ statsRoutes.post("/stats/perf", async (c) => {
   return c.json({ ok: true });
 });
 
+// POST /v1/stats/diagnostics — agent-reported speed/accuracy diagnostics
+statsRoutes.use("/stats/diagnostics", agentRateLimit({ limit: 120, window: 60, prefix: "diagnostics" }));
+statsRoutes.post("/stats/diagnostics", async (c) => {
+  const body = await c.req.json<{
+    skill_id: string;
+    endpoint_id: string;
+    total_ms?: number;
+    bottleneck?: string;
+    wrong_endpoint?: boolean;
+    expected_data?: string;
+    got_data?: string;
+    trace_version?: string;
+  }>();
+  if (!body.skill_id || !body.endpoint_id) {
+    return c.json({ error: "skill_id and endpoint_id required" }, 400);
+  }
+  // Store in KV for analysis — keyed by trace_version for version grouping
+  const key = `diag:${body.trace_version ?? "unknown"}:${Date.now()}`;
+  await c.env.STATS_KV.put(key, JSON.stringify({
+    ...body,
+    agent_id: c.get("agent_id"),
+    ts: new Date().toISOString(),
+  }), { expirationTtl: 90 * 86400 }); // 90 day retention
+  return c.json({ ok: true });
+});
+
 // POST /v1/stats/execution — record execution + recompute score
 statsRoutes.post("/stats/execution", async (c) => {
   const { skill_id, endpoint_id, trace } = await c.req.json<{
