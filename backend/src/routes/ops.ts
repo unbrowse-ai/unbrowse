@@ -57,7 +57,7 @@ opsRoutes.get("/ops", async (c) => {
 
 /**
  * POST /v1/ops/reindex — re-index all active skills into vector store.
- * Reads every skill from KV, re-embeds via Gemini, inserts into both
+ * Reads every skill from KV, re-embeds via Nebius, inserts into both
  * global and domain vector namespaces. Admin-only.
  *
  * CF Workers have a 30s CPU limit, so we process skills sequentially
