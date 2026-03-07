@@ -1,0 +1,23 @@
+name: Init Wiki
+on:
+  workflow_dispatch:
+jobs:
+  init-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone https://x-access-token:${GH_TOKEN}@github.com/unbrowse-ai/unbrowse.wiki.git wiki || {
+            mkdir wiki && cd wiki && git init
+            git remote add origin https://x-access-token:${GH_TOKEN}@github.com/unbrowse-ai/unbrowse.wiki.git
+          }
+          cd wiki
+          echo "# Unbrowse" > Home.md
+          echo "Wiki initialized" >> Home.md
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Initialize wiki" || true
+          git push -u origin master || git push -u origin main
