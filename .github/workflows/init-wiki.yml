@@ -1,18 +1,22 @@
 name: Init Wiki
 on:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   init-wiki:
     runs-on: ubuntu-latest
     steps:
       - name: Create wiki
-        env:
-          GH_TOKEN: ${{ secrets.WIKI_TOKEN }}
         run: |
           mkdir -p wiki && cd wiki && git init
-          git remote add origin https://x-access-token:${GH_TOKEN}@github.com/unbrowse-ai/unbrowse.wiki.git
-          echo "# Unbrowse" > Home.md
+          git remote add origin https://x-access-token:${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+          cat > Home.md << 'CONTENT'
+          # Unbrowse
+          Initial wiki page.
+          CONTENT
           git config user.name "lekt9"
           git config user.email "lewis@getfoundry.app"
           git add -A && git commit -m "Initialize wiki"
-          git push -u origin master
+          git push -u origin master 2>&1 || git push -u origin main 2>&1
+          echo "Push exit code: $?"
