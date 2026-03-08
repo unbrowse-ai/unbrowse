@@ -16,7 +16,7 @@ import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOp
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
-import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
+import { buildSkillOperationGraph, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
 import { mergeContextTemplateParams } from "../template-params.js";
@@ -1562,10 +1562,14 @@ export async function executeEndpoint(
     resultData = projectResultForIntent(data, options?.intent ?? skill.intent_signature);
   }
 
+  const rawResultShape = resultData === data;
+
   return {
     trace, result: resultData,
-    ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
-    ...(endpoint.response_schema ? { extraction_hints: generateExtractionHints(endpoint.response_schema, options?.intent ?? skill.intent_signature) ?? undefined } : {}),
+    ...(endpoint.response_schema && rawResultShape ? { response_schema: endpoint.response_schema } : {}),
+    ...(endpoint.response_schema && rawResultShape
+      ? { extraction_hints: generateExtractionHints(endpoint.response_schema, options?.intent ?? skill.intent_signature) ?? undefined }
+      : {}),
   };
 }
 
@@ -1678,8 +1682,16 @@ const SYNONYMS: Record<string, string[]> = {
   dashboard: ["dashboard", "overview", "summary", "home", "main"],
 };
 
+function normalizeTokenText(text: string): string {
+  return text
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([a-zA-Z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-zA-Z])/g, "$1 $2");
+}
+
 function tokenize(text: string): string[] {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
+  return normalizeTokenText(text).toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter((w) => w.length > 1 && !STOPWORDS.has(w));
 }
 
 /** Expand intent tokens with synonyms + stemmed variants for better matching */
@@ -1783,7 +1795,7 @@ function intentResourceKinds(intent?: string): string[] {
   const lower = (intent ?? "").toLowerCase();
   if (/\b(person|people|profile|profiles|user|users|member|members)\b/.test(lower)) return ["person", "people", "profile", "user", "member"];
   if (/\b(company|organization|org)\b/.test(lower)) return ["company", "organization", "org", "business"];
-  if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) return ["post", "tweet", "status", "message"];
+  if (/\b(post|posts|tweet|tweets|status|statuses|feed|timeline|stream|home)\b/.test(lower)) return ["post", "tweet", "status", "message", "feed", "timeline", "update"];
   if (/\b(topic|topics|trend|trending|hashtag|hashtags)\b/.test(lower)) return ["topic", "trend", "hashtag"];
   if (/\b(repo|repository|repositories)\b/.test(lower)) return ["repo", "repository", "project"];
   return [];
@@ -1791,6 +1803,7 @@ function intentResourceKinds(intent?: string): string[] {
 
 function intentActionKinds(intent?: string): string[] {
   const lower = (intent ?? "").toLowerCase();
+  if (/\b(feed|timeline|stream|home)\b/.test(lower)) return ["list", "feed", "timeline"];
   if (/\b(search|find|lookup)\b/.test(lower)) return ["search", "list"];
   if (/\b(get|fetch|view)\b/.test(lower)) return ["detail", "get", "fetch"];
   if (/\b(list|browse|discover|trending|top|latest)\b/.test(lower)) return ["list", "search"];
@@ -1803,7 +1816,7 @@ function isEntityDetailIntent(intent?: string): boolean {
 }
 
 function semanticIntentAdjustment(endpoint: EndpointDescriptor, intent?: string): number {
-  const semantic = endpoint.semantic;
+  const semantic = resolveEndpointSemantic(endpoint);
   if (!semantic || !intent) return 0;
   const resourceKinds = intentResourceKinds(intent);
   const actionKinds = intentActionKinds(intent);
@@ -1923,6 +1936,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     let contextPath = "";
     let contextLeaf = "";
     let contextQueryKeys = new Set<string>();
+    const semantic = resolveEndpointSemantic(ep);
     try {
       const u = new URL(ep.url_template);
       pathname = u.pathname;
@@ -2073,7 +2087,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       if (/(search\/results\/people|searchcluster|searchresult|public_identifier|headline|mini_profile|memberresult)/i.test(profileHaystack)) score += 95;
     }
 
-    const requestHint = JSON.stringify(ep.semantic?.example_request ?? {}).toLowerCase();
+    if (intent && /\b(feed|timeline|stream|home)\b/i.test(intent) && /\b(post|posts|status|statuses|update|updates)\b/i.test(intent)) {
+      const feedHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(semantic)}`.toLowerCase();
+      if (/(voyagerfeeddashmainfeed|voyagerfeeddashfeedupdates|mainfeed|feedupdates|main_feed)/i.test(feedHaystack)) score += 170;
+      if (/(identitydashprofiles|voyageridentity|storylines|newsdashstorylines|globalnav|launchpad|mailbox|notification|presence)/i.test(feedHaystack)) score -= 150;
+    }
+
+    const requestHint = JSON.stringify(semantic.example_request ?? {}).toLowerCase();
     const endpointHint = `${ep.url_template} ${ep.description ?? ""}`.toLowerCase();
     const hasConcreteEntityRoute =
       ENTITY_DETAIL_INTENT &&

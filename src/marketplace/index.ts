@@ -61,16 +61,43 @@ export function mergeEndpoints(
 ): EndpointDescriptor[] {
   const merged = [...existing];
   for (const ep of incoming) {
-    const dupe = merged.find(
+    const dupeIndex = merged.findIndex(
       (e) =>
         e.method === ep.method &&
         normalizeTemplate(e.url_template) === normalizeTemplate(ep.url_template)
     );
-    if (!dupe) merged.push(ep);
+    if (dupeIndex === -1) {
+      merged.push(ep);
+      continue;
+    }
+
+    const dupe = merged[dupeIndex]!;
+    merged[dupeIndex] = {
+      ...dupe,
+      ...ep,
+      endpoint_id: dupe.endpoint_id,
+      reliability_score: Math.max(dupe.reliability_score ?? 0, ep.reliability_score ?? 0),
+      verification_status: dupe.verification_status === "verified" ? dupe.verification_status : ep.verification_status,
+      exec_strategy: ep.exec_strategy ?? dupe.exec_strategy,
+      dom_extraction: ep.dom_extraction ?? dupe.dom_extraction,
+      semantic: ep.semantic ?? dupe.semantic,
+      response_schema: ep.response_schema ?? dupe.response_schema,
+      headers_template: ep.headers_template ?? dupe.headers_template,
+      query: ep.query ?? dupe.query,
+      path_params: ep.path_params ?? dupe.path_params,
+      body: ep.body ?? dupe.body,
+      trigger_url: ep.trigger_url ?? dupe.trigger_url,
+    };
   }
   return merged;
 }
 
 export function normalizeTemplate(t: string): string {
-  return t.replace(/\{[^}]+\}/g, "{}").toLowerCase();
+  return t
+    .replace(/\{[^}]+\}/g, "{}")
+    .replace(/([?&]queryid=)([^?&]+)/gi, (_match, prefix: string, value: string) => {
+      if (value === "{}") return `${prefix}${value}`;
+      return `${prefix}${value.replace(/\.[a-f0-9]{8,}$/i, "")}`;
+    })
+    .toLowerCase();
 }

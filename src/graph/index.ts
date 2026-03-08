@@ -11,8 +11,16 @@ import type {
   SkillOperationNode,
 } from "../types/index.js";
 
+function normalizeTokenText(text: string): string {
+  return text
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([a-zA-Z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-zA-Z])/g, "$1 $2");
+}
+
 function tokenize(text: string): string[] {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter(Boolean);
+  return normalizeTokenText(text).toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter(Boolean);
 }
 
 function unique<T>(items: T[]): T[] {
@@ -78,10 +86,10 @@ function summarizeSchemaFields(schema?: ResponseSchema): string[] {
 }
 
 function inferActionKind(text: string): string {
-  if (/\b(search|find|lookup|query)\b/.test(text)) return "search";
+  if (/\b(feed|timeline|stream|inbox)\b/.test(text)) return "timeline";
+  if (/\b(search|find|lookup)\b/.test(text)) return "search";
   if (/\b(list|browse|index|catalog|channels|guilds|messages|posts|repos|repositories)\b/.test(text)) return "list";
   if (/\b(trending|top|latest|popular|hot)\b/.test(text)) return "trending";
-  if (/\b(feed|timeline|stream|inbox)\b/.test(text)) return "timeline";
   if (/\b(status|health|incident|maintenance)\b/.test(text)) return "status";
   if (/\b(create|post|send|submit)\b/.test(text)) return "create";
   if (/\b(update|patch|edit)\b/.test(text)) return "update";
@@ -92,6 +100,7 @@ function inferActionKind(text: string): string {
 
 function inferResourceKind(text: string): string {
   if (/\bpeople\b/.test(text)) return "person";
+  if (/\b(feed|timeline|stream|home|update|updates|commentary|actor|socialdetail)\b/.test(text)) return "post";
   const candidates = [
     "channel", "guild", "message", "thread", "conversation", "repo", "repository",
     "profile", "person", "user", "post", "comment", "listing", "document", "issue", "job",
@@ -108,9 +117,11 @@ function inferNegativeTags(text: string): string[] {
   if (/\b(experiment|assignment|fingerprint|feature)\b/.test(text)) tags.push("experiment");
   if (/\b(status|incident|maintenance)\b/.test(text)) tags.push("status");
   if (/\b(config|settings|manifest|bootstrap)\b/.test(text)) tags.push("config");
-  if (/\b(auth|login|token|csrf|session)\b/.test(text)) tags.push("auth");
+  if (/\b(auth|login|csrf|session|oauth|bearer|authorization)\b|access[_-]?token|refresh[_-]?token|id[_-]?token/.test(text)) tags.push("auth");
   if (/\b(telemetry|analytics|metrics|science|beacon|tracking)\b/.test(text)) tags.push("telemetry");
+  if (/\b(thirdparty|syncs?|clientsignal|impression|tracklix)\b/.test(text)) tags.push("telemetry");
   if (/\b(helper|launcher|onboarding|setup)\b/.test(text)) tags.push("helper");
+  if (/\b(allowlist|pagekey|controlurn)\b/.test(text)) tags.push("helper");
   if (/\b(recommendation|recommendations|suggested|sidebar)\b/.test(text)) tags.push("recommendation");
   if (/\b(settings|preferences|badge_count|counts|counter)\b/.test(text)) tags.push("settings");
   if (/\b(message|messaging|dm|conversation|mailbox|inbox)\b/.test(text)) tags.push("messaging");
@@ -210,9 +221,68 @@ function semanticText(endpoint: EndpointDescriptor): string {
     endpoint.method,
     endpoint.url_template,
     endpoint.description ?? "",
-    endpoint.trigger_url ?? "",
     ...(endpoint.semantic?.example_fields ?? []),
   ].join(" ");
+}
+
+function bindingIdentity(binding: OperationBinding): string {
+  return [
+    binding.key,
+    binding.source ?? "",
+    binding.semantic_type ?? "",
+    binding.type ?? "",
+    binding.required ? "1" : "0",
+  ].join("|");
+}
+
+function mergeBindings(primary: OperationBinding[] = [], secondary: OperationBinding[] = []): OperationBinding[] {
+  const merged: OperationBinding[] = [];
+  const seen = new Set<string>();
+  for (const binding of [...primary, ...secondary]) {
+    const id = bindingIdentity(binding);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    merged.push(binding);
+  }
+  return merged;
+}
+
+function semanticSupportScore(text: string, label?: string): number {
+  if (!label) return -1;
+  const tokens = unique(tokenize(label).map(singularize));
+  if (tokens.length === 0) return -1;
+  let score = 0;
+  for (const token of tokens) {
+    if (new RegExp(`\\b${token}\\b`).test(text)) score += 2;
+  }
+  return score;
+}
+
+function chooseSemanticKind(
+  existing: string | undefined,
+  inferred: string | undefined,
+  text: string,
+  genericKinds: Set<string>,
+): string {
+  if (!existing) return inferred ?? "";
+  if (!inferred || existing === inferred) return existing;
+
+  const existingLower = existing.toLowerCase();
+  const inferredLower = inferred.toLowerCase();
+  const existingGeneric = genericKinds.has(existingLower);
+  const inferredGeneric = genericKinds.has(inferredLower);
+
+  if (existingGeneric && !inferredGeneric) return inferred;
+
+  const existingSupport = semanticSupportScore(text, existingLower);
+  const inferredSupport = semanticSupportScore(text, inferredLower);
+
+  if (inferredGeneric && !existingGeneric) {
+    return existingSupport > inferredSupport ? existing : inferred;
+  }
+
+  if (inferredSupport !== existingSupport) return inferredSupport > existingSupport ? inferred : existing;
+  return inferred;
 }
 
 export function inferEndpointSemantic(
@@ -228,7 +298,7 @@ export function inferEndpointSemantic(
     ...summarizeSchemaFields(endpoint.response_schema),
     ...flattenFields(compactExample(opts?.sampleResponse ?? endpoint.semantic?.example_response_compact)),
   ]).slice(0, 20);
-  const text = `${semanticText(endpoint)} ${fields.join(" ")}`.toLowerCase();
+  const text = normalizeTokenText(`${semanticText(endpoint)} ${fields.join(" ")}`).toLowerCase();
   const actionKind = inferActionKind(text);
   const resourceKind = inferResourceKind(text);
   const requires = inferRequires(endpoint);
@@ -257,8 +327,57 @@ export function inferEndpointSemantic(
   };
 }
 
+export function resolveEndpointSemantic(
+  endpoint: EndpointDescriptor,
+  opts?: {
+    sampleResponse?: unknown;
+    sampleRequest?: unknown;
+    observedAt?: string;
+    sampleRequestUrl?: string;
+  },
+): EndpointDescriptor["semantic"] {
+  const existing = endpoint.semantic;
+  const inferred = inferEndpointSemantic(endpoint, {
+    sampleResponse: opts?.sampleResponse ?? existing?.example_response_compact,
+    sampleRequest: opts?.sampleRequest ?? existing?.example_request,
+    observedAt: opts?.observedAt ?? existing?.observed_at,
+    sampleRequestUrl: opts?.sampleRequestUrl ?? existing?.sample_request_url,
+  });
+  const supportText = normalizeTokenText([
+    endpoint.method,
+    endpoint.url_template,
+    endpoint.description ?? "",
+    existing?.description_out ?? "",
+    inferred.description_out ?? "",
+    existing?.response_summary ?? "",
+    inferred.response_summary ?? "",
+    ...(existing?.example_fields ?? []),
+    ...(inferred.example_fields ?? []),
+  ].join(" ")).toLowerCase();
+
+  return {
+    ...existing,
+    ...inferred,
+    action_kind: chooseSemanticKind(existing?.action_kind, inferred.action_kind, supportText, new Set(["fetch"])),
+    resource_kind: chooseSemanticKind(existing?.resource_kind, inferred.resource_kind, supportText, new Set(["resource"])),
+    description_in: inferred.description_in || existing?.description_in,
+    description_out: inferred.description_out || existing?.description_out,
+    response_summary: inferred.response_summary || existing?.response_summary,
+    example_request: opts?.sampleRequest ?? existing?.example_request ?? inferred.example_request,
+    example_response_compact: opts?.sampleResponse ?? existing?.example_response_compact ?? inferred.example_response_compact,
+    example_fields: unique([...(inferred.example_fields ?? []), ...(existing?.example_fields ?? [])]).slice(0, 20),
+    requires: mergeBindings(existing?.requires, inferred.requires),
+    provides: mergeBindings(existing?.provides, inferred.provides),
+    negative_tags: [...(inferred.negative_tags ?? [])],
+    confidence: Math.max(existing?.confidence ?? 0, inferred.confidence ?? 0),
+    observed_at: opts?.observedAt ?? existing?.observed_at ?? inferred.observed_at,
+    sample_request_url: opts?.sampleRequestUrl ?? existing?.sample_request_url ?? inferred.sample_request_url,
+    auth_required: existing?.auth_required ?? inferred.auth_required ?? false,
+  };
+}
+
 function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
-  const semantic = endpoint.semantic ?? inferEndpointSemantic(endpoint);
+  const semantic = resolveEndpointSemantic(endpoint);
   return {
     operation_id: endpoint.endpoint_id,
     endpoint_id: endpoint.endpoint_id,
@@ -340,8 +459,8 @@ export function operationSoftPenalty(op: SkillOperationNode, intent?: string): n
   if (tags.has("settings") && !intentHasAny(intent, ["setting", "settings", "preference", "preferences"])) penalty += 8;
   if (tags.has("messaging") && !intentHasAny(intent, ["message", "dm", "conversation", "mailbox", "inbox", "channel"])) penalty += 6;
   if (tags.has("adjacent")) penalty += 6;
-  if (/\b(helper|recommendation|sidebar|counts?|badge|notification|verifiedorg|subscription|preference|settings)\b/.test(text)) penalty += 5;
-  return penalty + (op.negative_tags?.length ?? 0) * 2;
+  if (/\b(helper|recommendation|sidebar|badge(?:_count)?|notification(?:s)?|verifiedorg|subscription|preferences?|settings?)\b/.test(text)) penalty += 5;
+  return penalty;
 }
 
 function isBefore(lhs?: string, rhs?: string): boolean {
@@ -386,6 +505,7 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
 }
 
 export function ensureSkillOperationGraph(skill: SkillManifest): SkillOperationGraph {
+  if (skill.endpoints.length > 0) return buildSkillOperationGraph(skill.endpoints);
   if (skill.operation_graph?.operations?.length) return skill.operation_graph;
   return buildSkillOperationGraph(skill.endpoints);
 }

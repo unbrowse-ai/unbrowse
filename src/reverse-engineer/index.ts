@@ -240,9 +240,17 @@ function collectKeysShallow(obj: unknown): string[] {
   return keys;
 }
 
+function normalizeTokenText(text: string): string {
+  return text
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([a-zA-Z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-zA-Z])/g, "$1 $2");
+}
+
 function tokenize(text: string | undefined): string[] {
   if (!text) return [];
-  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return normalizeTokenText(text).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 }
 
 function collectSemanticTokens(value: unknown, out = new Set<string>(), depth = 0): Set<string> {
@@ -269,7 +277,7 @@ type IntentEntityKind = "comment" | "post" | "person" | "company" | "repository"
 function inferIntentEntityKind(intent: string | undefined): IntentEntityKind | null {
   const text = intent?.toLowerCase() ?? "";
   if (/\b(comment|comments|reply|replies)\b/.test(text)) return "comment";
-  if (/\b(post|posts|status|statuses|tweet|tweets|message|messages)\b/.test(text)) return "post";
+  if (/\b(post|posts|status|statuses|tweet|tweets|message|messages|feed|timeline|stream|home)\b/.test(text)) return "post";
   if (/\b(person|people|profile|profiles|member|members|user|users)\b/.test(text)) return "person";
   if (/\b(company|companies|organization|organisations|org|business|businesses)\b/.test(text)) return "company";
   if (/\b(repo|repos|repository|repositories|project|projects)\b/.test(text)) return "repository";
@@ -290,8 +298,8 @@ function getIntentEntityRules(kind: IntentEntityKind): { strong: string[]; weak:
       };
     case "post":
       return {
-        strong: ["status", "statuses", "post", "posts", "content", "text", "title", "author", "permalink", "score", "numcomments", "num_comments", "selftext", "reblog", "spoiler"],
-        weak: ["blog", "body", "reply", "replies", "favourites", "favourited", "published", "visibility", "subreddit", "created"],
+        strong: ["status", "statuses", "post", "posts", "feed", "timeline", "update", "updates", "content", "text", "title", "author", "actor", "commentary", "permalink", "score", "numcomments", "num_comments", "selftext", "reblog", "spoiler", "socialdetail", "socialactivitycounts"],
+        weak: ["blog", "body", "reply", "replies", "favourites", "favourited", "published", "visibility", "subreddit", "created", "activity", "activities", "element", "elements", "reshare", "reaction", "reactions"],
         negative: /(subreddits?(\/|$)|communityinfo|about(\.json)?$|trends\/tags|custom_emojis|instance|filters|accounts(\/|$)|reports(\/|$)|packs\/assets)/i,
         negativeSignals: ["displayname", "display_name", "subscribers", "communityicon", "community_icon", "activeusercount", "active_user_count", "subreddittype", "subreddit_type", "bannerimg", "banner_img"],
       };

@@ -225,6 +225,39 @@ function hasMeaningfulValue(value: unknown): boolean {
   return false;
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isScalarLike(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) {
+    return value.length > 0 && value.every((item) => item == null || typeof item === "string" || typeof item === "number" || typeof item === "boolean");
+  }
+  return false;
+}
+
+function looksStructuredForDirectOutput(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    const sample = value.filter(isPlainRecord).slice(0, 3);
+    if (sample.length === 0) return false;
+    const simpleRows = sample.filter((row) => {
+      const keys = Object.keys(row);
+      const scalarFields = Object.values(row).filter(isScalarLike).length;
+      return keys.length > 0 && keys.length <= 20 && scalarFields >= 2;
+    });
+    return simpleRows.length >= Math.ceil(sample.length / 2);
+  }
+
+  if (!isPlainRecord(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length === 0 || keys.length > 20) return false;
+  const scalarFields = Object.values(value).filter(isScalarLike).length;
+  return scalarFields >= 2;
+}
+
 /** Apply --path, --extract, --limit to a result object. */
 function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
   let data = result;
@@ -330,6 +363,12 @@ function autoExtractOrWrap(obj: Record<string, unknown>): Record<string, unknown
 
   // Small responses: return as-is
   if (resultStr.length < 2000) return obj;
+
+  // Server-side intent projection can already return clean rows while raw endpoint
+  // hints still describe the pre-projection payload. Preserve the structured rows.
+  if (looksStructuredForDirectOutput(obj.result)) {
+    return slimTrace({ ...obj, extraction_hints: undefined, response_schema: undefined });
+  }
 
   // No hints: can't auto-extract, return as-is (raw will be big but we have no better option)
   if (!hints) return obj;
