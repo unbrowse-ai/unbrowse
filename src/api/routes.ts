@@ -1,14 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
-import { resolveAndExecute } from "../orchestrator/index.js";
+import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, recordDiagnostics, getApiKey } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, getApiKey, getRecentLocalSkill } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
+import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -17,6 +18,11 @@ const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbro
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
 export async function registerRoutes(app: FastifyInstance) {
+  const clientScopeFor = (req: { headers: Record<string, unknown>; id: string }) =>
+    (typeof req.headers["x-unbrowse-client-id"] === "string" && req.headers["x-unbrowse-client-id"].trim())
+      ? req.headers["x-unbrowse-client-id"].trim()
+      : req.id;
+
   // Auth gate: block all routes except /health when no API key is configured
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health") return;
@@ -33,6 +39,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
+    const clientScope = clientScopeFor(req);
     const { intent, params, context, projection, confirm_unsafe, dry_run, force_capture } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
@@ -44,7 +51,7 @@ export async function registerRoutes(app: FastifyInstance) {
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture, client_scope: clientScope });
 
       // Surface timing breakdown
       const res = result as unknown as Record<string, unknown>;
@@ -67,27 +74,60 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // GET /v1/skills/:skill_id — local route so skill lookups hit disk cache before proxying to backend
   app.get("/v1/skills/:skill_id", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const skill = await getSkill(skill_id);
+    const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     return reply.send(skill);
   });
 
+  // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
+  app.post("/v1/skills/:skill_id/chunk", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const { skill_id } = req.params as { skill_id: string };
+    const { intent, operation_id, known_bindings, max_operations } = req.body as {
+      intent?: string;
+      operation_id?: string;
+      known_bindings?: Record<string, unknown>;
+      max_operations?: number;
+    };
+    const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+    return reply.send(toAgentSkillChunkView(getSkillChunk(skill, {
+      intent,
+      seed_operation_id: operation_id,
+      known_bindings,
+      max_operations,
+    })));
+  });
+
   // POST /v1/skills/:skill_id/execute
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
+    const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, dry_run, intent } = req.body as {
+    const { params, projection, confirm_unsafe, dry_run, intent, context_url } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
       dry_run?: boolean;
       intent?: string;
+      context_url?: string;
     };
-    const skill = await getSkill(skill_id);
+    const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     try {
-      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent });
+      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
+      if (execResult.trace.success) {
+        promoteExplicitExecution(
+          clientScope,
+          intent || skill.intent_signature,
+          context_url || (typeof params?.url === "string" ? params.url : undefined),
+          skill,
+          execResult.trace.endpoint_id,
+          execResult.result,
+        );
+      }
 
       // Auto-recovery: if endpoint returned 404 (stale), re-capture via orchestrator
       if (
@@ -97,12 +137,17 @@ export async function registerRoutes(app: FastifyInstance) {
         skill.execution_type !== "browser-capture"
       ) {
         try {
+          const recoveryUrl =
+            context_url ||
+            (typeof params?.url === "string" && params.url) ||
+            skill.endpoints.find((endpoint) => typeof endpoint.trigger_url === "string" && endpoint.trigger_url)?.trigger_url ||
+            `https://${skill.domain}`;
           const freshResult = await resolveAndExecute(
             intent || skill.intent_signature,
-            { ...(params ?? {}), url: `https://${skill.domain}` },
-            { url: `https://${skill.domain}` },
+            { ...(params ?? {}), url: recoveryUrl },
+            { url: recoveryUrl },
             projection,
-            { confirm_unsafe, dry_run, intent: intent || skill.intent_signature }
+            { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
           return reply.send({

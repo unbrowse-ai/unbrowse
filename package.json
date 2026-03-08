@@ -1,13 +1,18 @@
 {
-  "name": "unbrowse-skill",
+  "name": "unbrowse",
   "version": "1.1.0",
-  "description": "Reverse-engineer any website into reusable API skills. Claude Code skill + local engine.",
+  "description": "Reverse-engineer any website into reusable API skills. npm CLI + local engine.",
   "type": "module",
-  "main": "src/index.ts",
   "bin": {
-    "unbrowse": "src/cli.ts"
+    "unbrowse": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
+    "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts"
   },
@@ -15,7 +20,18 @@
     "fastify": "^5.7.4",
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
     "nanoid": "^5.1.6",
-    "agent-browser": "^0.12.0"
+    "agent-browser": "^0.13.0",
+    "playwright-core": "^1.58.2",
+    "tsx": "^4.20.6",
+    "ws": "^8.19.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.1"
   }
 }

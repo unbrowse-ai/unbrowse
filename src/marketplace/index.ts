@@ -6,8 +6,8 @@ export async function listSkills(): Promise<SkillManifest[]> {
   return client.listSkills();
 }
 
-export async function getSkill(skillId: string): Promise<SkillManifest | null> {
-  return client.getSkill(skillId);
+export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
+  return client.getSkill(skillId, scopeId);
 }
 
 export async function publishSkill(
@@ -27,6 +27,10 @@ export async function publishSkill(
     version: draft.version ?? "1.0.0",
   } as SkillManifest;
   client.cachePublishedSkill(preCache);
+
+  if (client.isLocalOnlyMode()) {
+    return preCache;
+  }
 
   try {
     const { warnings: _, ...backendFields } = await client.publishSkill(draft);

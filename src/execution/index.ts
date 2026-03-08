@@ -15,15 +15,21 @@ import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
-import { extractFromDOM } from "../extraction/index.js";
+import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
+import { buildSkillOperationGraph, inferEndpointSemantic } from "../graph/index.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
+import { mergeContextTemplateParams } from "../template-params.js";
+import { assessIntentResult, projectIntentData } from "../intent-match.js";
 
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
   return trace;
 }
+
+const DEFAULT_BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
 
 // ---------------------------------------------------------------------------
 // Quality gate — validate extracted data before marketplace publishing
@@ -32,6 +38,41 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
 interface QualityResult {
   valid: boolean;
   quality_note?: string;
+}
+
+const VALID_VERIFICATION_STATUSES = new Set(["verified", "unverified", "failed", "pending"]);
+
+function normalizeEndpointForManifest(endpoint: EndpointDescriptor): EndpointDescriptor {
+  const verification_status = VALID_VERIFICATION_STATUSES.has(endpoint.verification_status)
+    ? endpoint.verification_status
+    : (endpoint.response_schema || endpoint.dom_extraction ? "verified" : "pending");
+  return { ...endpoint, verification_status };
+}
+
+function intentWantsStructuredRecords(intent?: string): boolean {
+  return /\b(search|list|find|get|fetch|timeline|feed|trending)\b/i.test(intent ?? "");
+}
+
+function looksLikeUiChromeText(value: string): boolean {
+  const lower = value.toLowerCase();
+  let hits = 0;
+  for (const token of [
+    "advanced search",
+    "pull requests",
+    "discussions",
+    "languages",
+    "more languages",
+    "owner",
+    "number of stars",
+    "number of forks",
+    "date created",
+    "date pushed",
+    "public private",
+    "results",
+  ]) {
+    if (lower.includes(token)) hits++;
+  }
+  return hits >= 2;
 }
 
 /** Detect concatenated values like "AAPLApple" or "Inc978,583" */
@@ -47,7 +88,7 @@ function isConcatenatedValue(s: string): boolean {
  * Validate extraction quality. Always returns data to the caller —
  * this only gates whether we publish to the marketplace.
  */
-function validateExtractionQuality(data: unknown, confidence: number): QualityResult {
+export function validateExtractionQuality(data: unknown, confidence: number, intent?: string): QualityResult {
   // 1. Min confidence
   if (confidence < 0.5) {
     return { valid: false, quality_note: `confidence too low (${confidence.toFixed(2)} < 0.5)` };
@@ -56,6 +97,17 @@ function validateExtractionQuality(data: unknown, confidence: number): QualityRe
   // Only validate arrays (repeated data structures)
   if (!Array.isArray(data)) return { valid: true };
   if (data.length === 0) return { valid: true };
+  if (intentWantsStructuredRecords(intent) && data.every((item) => !item || typeof item !== "object" || Array.isArray(item))) {
+    return { valid: false, quality_note: "primitive rows only — expected structured records" };
+  }
+
+  const stringRows = data.filter((item): item is string => typeof item === "string");
+  if (stringRows.length === data.length) {
+    const uiChromeRows = stringRows.filter((item) => looksLikeUiChromeText(item));
+    if (uiChromeRows.length / stringRows.length >= 0.5) {
+      return { valid: false, quality_note: "ui chrome text detected instead of structured records" };
+    }
+  }
 
   // 2. Deduplication check
   const serialized = data.map((item) => JSON.stringify(item));
@@ -110,6 +162,337 @@ export interface ExecutionResult {
   extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
 }
 
+export function projectResultForIntent(data: unknown, intent?: string): unknown {
+  return projectIntentData(data, intent);
+}
+
+function inferActionKindFromIntent(intent: string): string {
+  const lower = intent.toLowerCase();
+  if (/\b(search|find|lookup)\b/.test(lower)) return "search";
+  if (/\b(list|feed|timeline|trending)\b/.test(lower)) return "list";
+  return "detail";
+}
+
+function sanitizeNavigationQueryParams(url: URL): URL {
+  const out = new URL(url.toString());
+  for (const key of [...out.searchParams.keys()]) {
+    const lower = key.toLowerCase();
+    if (lower === "url" || lower === "context_url" || lower === "intent" || lower === "redirect" || lower === "redirect_url") {
+      out.searchParams.delete(key);
+    }
+  }
+  return out;
+}
+
+function isDocumentLikeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return !/\/api\/|graphql|\/rest\/|\/rpc\/|\/ajax\/|\/1\.1\/|\/2\/|voyager/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+export function resolveExecutionUrlTemplate(
+  endpoint: EndpointDescriptor,
+  contextUrl?: string,
+): string {
+  if (!contextUrl) return endpoint.url_template;
+  if (endpoint.method !== "GET") return endpoint.url_template;
+  if (!isDocumentLikeUrl(endpoint.url_template)) return endpoint.url_template;
+  if (endpoint.trigger_url && !isDocumentLikeUrl(endpoint.trigger_url)) return endpoint.url_template;
+  return contextUrl;
+}
+
+export function shouldIgnoreLearnedBrowserStrategy(
+  endpoint: EndpointDescriptor,
+  resolvedUrl: string,
+): boolean {
+  return endpoint.method === "GET" && !endpoint.dom_extraction && !isDocumentLikeUrl(resolvedUrl);
+}
+
+export function deriveStructuredDataReplayUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    if (host !== "reddit.com" && host !== "old.reddit.com" && host !== "np.reddit.com") return url;
+    if (/\.json$/i.test(parsed.pathname) || /\/api\/|\/svc\/|graphql/i.test(parsed.pathname)) return url;
+    if (parsed.pathname === "/search" || parsed.pathname === "/search/") {
+      parsed.pathname = "/search.json";
+      return parsed.toString();
+    }
+    if (parsed.pathname.startsWith("/r/") || parsed.pathname.startsWith("/comments/")) {
+      parsed.pathname = `${parsed.pathname.replace(/\/$/, "")}/.json`;
+      return parsed.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+export function deriveStructuredDataReplayCandidates(url: string): string[] {
+  const primary = deriveStructuredDataReplayUrl(url);
+  const out = new Set<string>([primary]);
+  try {
+    const parsed = new URL(primary);
+    const host = parsed.hostname.replace(/^www\./, "");
+    if (host === "reddit.com" || host === "np.reddit.com") {
+      parsed.hostname = "old.reddit.com";
+      out.add(parsed.toString());
+    }
+  } catch {
+    // ignore
+  }
+  return [...out];
+}
+
+export function buildStructuredReplayHeaders(
+  originalUrl: string,
+  replayUrl: string,
+  baseHeaders: Record<string, string>,
+): Record<string, string> {
+  const headers = { ...baseHeaders };
+  try {
+    const replayTarget = new URL(replayUrl);
+    const originalTarget = new URL(originalUrl);
+    const host = replayTarget.hostname.replace(/^www\./, "");
+    if (host === "reddit.com" || host === "old.reddit.com" || host === "np.reddit.com") {
+      headers["user-agent"] ??= DEFAULT_BROWSER_UA;
+      headers["accept-language"] ??= "en-US,en;q=0.9";
+      headers["referer"] ??= originalTarget.toString();
+      headers["accept"] = "application/json,text/plain,*/*";
+    }
+  } catch {
+    return headers;
+  }
+  return headers;
+}
+
+function shouldFallbackToBrowserReplay(
+  data: unknown,
+  endpoint: EndpointDescriptor,
+  intent?: string,
+  contextUrl?: string,
+): boolean {
+  const replayUrl = resolveExecutionUrlTemplate(endpoint, contextUrl);
+  if (!isDocumentLikeUrl(replayUrl)) return false;
+  if (typeof data === "string") return isHtml(data) || isSpaShell(data);
+  const assessment = assessIntentResult(data, intent);
+  return assessment.verdict === "fail";
+}
+
+function buildSampleRequestFromUrl(url: string): Record<string, unknown> {
+  try {
+    return Object.fromEntries(sanitizeNavigationQueryParams(new URL(url)).searchParams.entries());
+  } catch {
+    return {};
+  }
+}
+
+export function buildPageArtifactCapture(
+  url: string,
+  intent: string,
+  html: string,
+  authRequired = false,
+): {
+  endpoint?: EndpointDescriptor;
+  result?: { data: unknown; _extraction: Record<string, unknown> };
+  quality_note?: string;
+} {
+  const extracted = extractFromDOM(html, intent);
+  if (!extracted.data || extracted.confidence <= 0.2) return {};
+  const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
+  if (!quality.valid) {
+    return { quality_note: quality.quality_note ?? "low_quality_dom_extraction" };
+  }
+  const semanticAssessment = assessIntentResult(extracted.data, intent);
+  if (semanticAssessment.verdict === "fail") {
+    return { quality_note: semanticAssessment.reason };
+  }
+  const response_schema = inferSchema([extracted.data]);
+  const endpoint: EndpointDescriptor = {
+    endpoint_id: nanoid(),
+    method: "GET",
+    url_template: templatizeQueryParams(url),
+    idempotency: "safe" as const,
+    verification_status: "verified" as const,
+    reliability_score: extracted.confidence,
+    description: `Captured page artifact for ${intent}`,
+    response_schema,
+    dom_extraction: {
+      extraction_method: extracted.extraction_method,
+      confidence: extracted.confidence,
+      ...(extracted.selector ? { selector: extracted.selector } : {}),
+    },
+    trigger_url: url,
+  };
+  endpoint.semantic = {
+    ...inferEndpointSemantic(endpoint, {
+      sampleResponse: extracted.data,
+      sampleRequest: buildSampleRequestFromUrl(url),
+      observedAt: new Date().toISOString(),
+      sampleRequestUrl: url,
+    }),
+    ...(authRequired ? { auth_required: true } : {}),
+  };
+  return {
+    endpoint,
+    result: {
+      data: extracted.data,
+      _extraction: {
+        method: extracted.extraction_method,
+        confidence: extracted.confidence,
+        source: "dom-fallback",
+      },
+    },
+  };
+}
+
+function buildCanonicalDocumentEndpoint(
+  url: string,
+  intent: string,
+  authRequired = false,
+): EndpointDescriptor | undefined {
+  const replayUrl = deriveStructuredDataReplayUrl(url);
+  if (replayUrl === url) return undefined;
+  const endpoint: EndpointDescriptor = {
+    endpoint_id: nanoid(),
+    method: "GET",
+    url_template: url,
+    idempotency: "safe",
+    verification_status: "verified",
+    reliability_score: 0.9,
+    description: `Canonical document replay for ${intent}`,
+    trigger_url: url,
+  };
+  endpoint.semantic = {
+    ...inferEndpointSemantic(endpoint, {
+      sampleRequest: buildSampleRequestFromUrl(url),
+      observedAt: new Date().toISOString(),
+      sampleRequestUrl: url,
+    }),
+    ...(authRequired ? { auth_required: true } : {}),
+  };
+  return endpoint;
+}
+
+async function trySeedStructuredDocumentSkill(
+  skill: SkillManifest,
+  url: string,
+  intent: string,
+  targetDomain: string,
+  authHeaders: Record<string, string> | undefined,
+  cookies: Array<{ name: string; value: string; domain: string }> | undefined,
+  usedStoredAuth: boolean,
+): Promise<ExecutionResult | undefined> {
+  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(url, intent, usedStoredAuth);
+  if (!canonicalDocumentEndpoint) return undefined;
+
+  const replayUrls = deriveStructuredDataReplayCandidates(url);
+  let headers: Record<string, string> = {
+    accept: "application/json,text/plain,*/*",
+    ...(canonicalDocumentEndpoint.headers_template ?? {}),
+    ...(authHeaders ?? {}),
+  };
+  if (cookies && cookies.length > 0) {
+    headers.cookie = cookies.map((c) => {
+      const v = c.value.startsWith('"') && c.value.endsWith('"') ? c.value.slice(1, -1) : c.value;
+      return `${c.name}=${v}`;
+    }).join("; ");
+  }
+
+  let data: unknown;
+  let passed = false;
+  for (const replayUrl of replayUrls) {
+    const res = await fetch(replayUrl, {
+      method: "GET",
+      headers: buildStructuredReplayHeaders(url, replayUrl, headers),
+      redirect: "follow",
+    });
+    const text = await res.text();
+    try { data = JSON.parse(text); } catch { data = text; }
+
+    const assessment = assessIntentResult(data, intent);
+    if (assessment.verdict === "pass") {
+      passed = true;
+      break;
+    }
+  }
+  if (!passed) return undefined;
+
+  canonicalDocumentEndpoint.response_schema = inferSchema([data]);
+  canonicalDocumentEndpoint.semantic = {
+    ...inferEndpointSemantic(canonicalDocumentEndpoint, {
+      sampleResponse: data,
+      sampleRequest: buildSampleRequestFromUrl(url),
+      observedAt: new Date().toISOString(),
+      sampleRequestUrl: url,
+    }),
+    ...(usedStoredAuth ? { auth_required: true } : {}),
+  };
+
+  const domain = getRegistrableDomain(targetDomain);
+  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const localEndpoints = (existingSkill
+    ? mergeEndpoints(existingSkill.endpoints, [canonicalDocumentEndpoint])
+    : [canonicalDocumentEndpoint]).map(normalizeEndpointForManifest);
+
+  const localDraft: SkillManifest = {
+    skill_id: existingSkill?.skill_id ?? nanoid(),
+    version: "1.0.0",
+    schema_version: "1",
+    lifecycle: "active" as const,
+    execution_type: "http" as const,
+    created_at: existingSkill?.created_at ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    name: domain,
+    intent_signature: intent,
+    domain,
+    description: `API skill for ${domain}`,
+    owner_type: "agent" as const,
+    endpoints: localEndpoints,
+    operation_graph: buildSkillOperationGraph(localEndpoints),
+    intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
+  };
+
+  let learned: SkillManifest = localDraft;
+  const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
+  if (validation.valid) {
+    try {
+      const { operation_graph: _graph, ...publishDraft } = localDraft;
+      const published = await publishSkill(publishDraft);
+      learned = {
+        ...published,
+        endpoints: localEndpoints,
+        operation_graph: localDraft.operation_graph,
+      };
+    } catch {
+      learned = localDraft;
+    }
+  }
+  try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+
+  const trace: ExecutionTrace = stampTrace({
+    trace_id: nanoid(),
+    skill_id: learned.skill_id,
+    endpoint_id: "browser-capture",
+    started_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    success: true,
+    result: {
+      learned_skill_id: learned.skill_id,
+      endpoints_discovered: 1,
+      seeded_from: "canonical_document",
+    },
+  });
+  return {
+    trace,
+    result: trace.result,
+    learned_skill: learned,
+  };
+}
+
 export async function executeSkill(
   skill: SkillManifest,
   params: Record<string, unknown> = {},
@@ -138,7 +521,12 @@ async function executeBrowserCapture(
   skill: SkillManifest,
   params: Record<string, unknown>
 ): Promise<ExecutionResult> {
-  const url = String(params.url ?? "");
+  const fallbackUrl =
+    (typeof params.context_url === "string" && params.context_url) ||
+    skill.endpoints.find((endpoint) => typeof endpoint.trigger_url === "string" && endpoint.trigger_url)?.trigger_url ||
+    skill.endpoints.find((endpoint) => !/\{[^}]+\}/.test(endpoint.url_template))?.url_template ||
+    "";
+  const url = String(params.url ?? fallbackUrl);
   const intent = String(params.intent ?? skill.intent_signature);
   if (!url) throw new Error("browser-capture skill requires params.url");
 
@@ -159,7 +547,17 @@ async function executeBrowserCapture(
       usedStoredAuth = true;
     }
   }
-  const captured = await captureSession(url, authHeaders, cookies);
+  const seeded = await trySeedStructuredDocumentSkill(
+    skill,
+    url,
+    intent,
+    targetDomain,
+    authHeaders,
+    cookies,
+    usedStoredAuth,
+  );
+  if (seeded) return seeded;
+  const captured = await captureSession(url, authHeaders, cookies, intent);
 
   const finalDomain = (() => {
     try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
@@ -227,10 +625,22 @@ async function executeBrowserCapture(
       // Build query template from bundle-inferred param names
       let epUrl = route.url;
       let epQuery: Record<string, unknown> | undefined;
-      if (route.query_params && route.query_params.length > 0) {
+      let queryParamNames = route.query_params ? [...route.query_params] : [];
+      if (queryParamNames.length === 0) {
+        try {
+          const triggerUrl = new URL(url);
+          const triggerParams = [...triggerUrl.searchParams.keys()].filter((k) =>
+            /^(q|query|search|term|type|tag|sort|page)$/i.test(k)
+          );
+          if (triggerParams.length > 0 && /\/(search|lookup|find)\b/i.test(route.path)) {
+            queryParamNames = triggerParams;
+          }
+        } catch { /* skip */ }
+      }
+      if (queryParamNames.length > 0) {
         epQuery = {};
-        for (const p of route.query_params) epQuery[p] = "";
-        const qStr = route.query_params.map((k) => `${encodeURIComponent(k)}={${k}}`).join("&");
+        for (const p of queryParamNames) epQuery[p] = "";
+        const qStr = queryParamNames.map((k) => `${encodeURIComponent(k)}={${k}}`).join("&");
         epUrl = `${route.url}?${qStr}`;
       }
 
@@ -283,35 +693,37 @@ async function executeBrowserCapture(
     const hasStoredAuth = (await getCredential(vaultKey)) != null;
     if (hasStoredAuth) auth_profile_ref = vaultKey;
   }
+  const authBackedCapture = usedStoredAuth || !!auth_profile_ref;
+  if (authBackedCapture) {
+    for (const endpoint of cleanEndpoints) {
+      endpoint.semantic = {
+        ...(endpoint.semantic ?? {}),
+        action_kind: endpoint.semantic?.action_kind ?? "fetch",
+        resource_kind: endpoint.semantic?.resource_kind ?? "resource",
+        auth_required: true,
+      };
+    }
+  }
+
+  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(url, intent, authBackedCapture);
+  if (
+    canonicalDocumentEndpoint &&
+    !cleanEndpoints.some((endpoint) => endpoint.method === canonicalDocumentEndpoint.method && endpoint.url_template === canonicalDocumentEndpoint.url_template)
+  ) {
+    cleanEndpoints.push(canonicalDocumentEndpoint);
+  }
+
+  const pageArtifact = captured.html
+    ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
+    : {};
+  const domArtifactEndpoint = pageArtifact.endpoint;
+  const domArtifactResult = pageArtifact.result;
 
   if (cleanEndpoints.length === 0) {
     // DOM fallback: extract structured data from rendered page, learn a DOM skill
-    if (captured.html) {
-      const extracted = extractFromDOM(captured.html, intent);
-      if (extracted.data && extracted.confidence > 0.2) {
-        // Quality gate: validate data before publishing to marketplace
-        const quality = validateExtractionQuality(extracted.data, extracted.confidence);
-
-        // Build a DOM skill: a GET endpoint for the page URL with extraction mapping
-        // Templatize query params so the skill supports re-execution with different values
-        // e.g. /search?q=books&page=1 → /search?q={q}&page={page}
-        const templatizedUrl = templatizeQueryParams(url);
-
-        const domEndpoint: EndpointDescriptor = {
-          endpoint_id: nanoid(),
-          method: "GET",
-          url_template: templatizedUrl,
-          idempotency: "safe" as const,
-          verification_status: "verified" as const,
-          reliability_score: extracted.confidence,
-          dom_extraction: {
-            extraction_method: extracted.extraction_method,
-            confidence: extracted.confidence,
-          },
-        };
-
-        const existingDomSkill = findExistingSkillForDomain(domain);
-        const domDraft = {
+    if (domArtifactEndpoint && domArtifactResult) {
+        const existingDomSkill = findExistingSkillForDomain(domain, intent);
+        const domDraft: SkillManifest = {
           skill_id: existingDomSkill?.skill_id ?? nanoid(),
           version: "1.0.0",
           schema_version: "1",
@@ -320,51 +732,66 @@ async function executeBrowserCapture(
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           name: domain,
-          intent_signature: domain,
+          intent_signature: intent,
           domain,
           description: `API skill for ${domain}`,
           owner_type: "agent" as const,
           endpoints: existingDomSkill
-            ? mergeEndpoints(existingDomSkill.endpoints, [domEndpoint])
-            : [domEndpoint],
+            ? mergeEndpoints(existingDomSkill.endpoints, [domArtifactEndpoint])
+            : [domArtifactEndpoint],
+          operation_graph: buildSkillOperationGraph(existingDomSkill
+            ? mergeEndpoints(existingDomSkill.endpoints, [domArtifactEndpoint])
+            : [domArtifactEndpoint]),
+          intents: Array.from(new Set([...(existingDomSkill?.intents ?? []), intent])),
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
         // Only publish to marketplace if quality passes
-        let learned: SkillManifest | undefined;
-        if (quality.valid) {
-          try {
-            const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
-            if (validation.valid) {
-              learned = await publishSkill(domDraft);
-            }
-          } catch { /* publish failure is non-fatal */ }
+        let learned: SkillManifest | undefined = domDraft;
+        try {
+          const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
+          if (validation.valid) {
+            learned = await publishSkill(domDraft);
+          }
+        } catch { /* publish failure is non-fatal */ }
+        if (learned) {
+          try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
         }
 
         const trace: ExecutionTrace = stampTrace({
           trace_id: traceId,
           skill_id: learned?.skill_id ?? skill.skill_id,
-          endpoint_id: domEndpoint.endpoint_id,
+          endpoint_id: domArtifactEndpoint.endpoint_id,
           started_at: startedAt,
           completed_at: new Date().toISOString(),
           success: true,
-          result: extracted.data,
+          result: domArtifactResult.data,
         });
         // Always return data to the caller — quality gate only blocks publishing
         return {
           trace,
-          result: {
-            data: extracted.data,
-            _extraction: {
-              method: extracted.extraction_method,
-              confidence: extracted.confidence,
-              source: "dom-fallback",
-              ...(quality.quality_note ? { quality_note: quality.quality_note, published: false } : { published: !!learned }),
-            },
-          },
+          result: domArtifactResult,
           learned_skill: learned,
         };
       }
+
+    if (pageArtifact.quality_note) {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: traceId,
+        skill_id: skill.skill_id,
+        endpoint_id: "browser-capture",
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        success: false,
+        error: pageArtifact.quality_note,
+      });
+      return {
+        trace,
+        result: {
+          error: "low_quality_dom_extraction",
+          message: `Structured DOM extraction was rejected for ${url}: ${pageArtifact.quality_note}`,
+        },
+      };
     }
 
     const trace: ExecutionTrace = stampTrace({
@@ -385,19 +812,12 @@ async function executeBrowserCapture(
     };
   }
 
-  // Strip WS endpoints — backend validator/publisher doesn't support WS method yet
-  const publishableEndpoints = cleanEndpoints.filter((ep) => ep.method !== "WS");
-
-  if (publishableEndpoints.length === 0) {
-    throw new Error("No valid HTTP endpoints discovered (WebSocket-only sites not yet supported for publishing)");
-  }
-
   // Reuse existing skill for this domain to preserve skill_id and learned exec_strategy.
   // This prevents duplicate skills accumulating in the marketplace on re-captures.
-  const existingSkill = findExistingSkillForDomain(domain);
+  const existingSkill = findExistingSkillForDomain(domain, intent);
   if (existingSkill) {
     // Carry forward learned exec_strategy from old endpoints to matching new ones
-    for (const ep of publishableEndpoints) {
+    for (const ep of cleanEndpoints) {
       if (ep.exec_strategy) continue;
       // Match by URL template (endpoint_id changes on re-capture)
       const oldMatch = existingSkill.endpoints.find(
@@ -409,12 +829,17 @@ async function executeBrowserCapture(
     }
   }
 
-  // Merge newly captured endpoints with existing ones instead of replacing
-  const finalEndpoints = existingSkill
-    ? mergeEndpoints(existingSkill.endpoints, publishableEndpoints)
-    : publishableEndpoints;
+  // Keep all captured endpoints locally so the resolver can use WS-backed skills,
+  // but only publish HTTP endpoints until backend validation supports WS manifests.
+  const learnedEndpoints = domArtifactEndpoint
+    ? [...cleanEndpoints, domArtifactEndpoint]
+    : cleanEndpoints;
+  const localEndpoints = (existingSkill
+    ? mergeEndpoints(existingSkill.endpoints, learnedEndpoints)
+    : learnedEndpoints).map(normalizeEndpointForManifest);
+  const publishableEndpoints = localEndpoints.filter((ep) => ep.method !== "WS");
 
-  const draft = {
+  const localDraft: SkillManifest = {
     skill_id: existingSkill?.skill_id ?? nanoid(),
     version: "1.0.0",
     schema_version: "1",
@@ -423,22 +848,34 @@ async function executeBrowserCapture(
     created_at: existingSkill?.created_at ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
     name: domain,
-    intent_signature: domain,
+    intent_signature: intent,
     domain,
     description: `API skill for ${domain}`,
     owner_type: "agent" as const,
-    endpoints: finalEndpoints,
+    endpoints: localEndpoints,
+    operation_graph: buildSkillOperationGraph(localEndpoints),
+    intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
-
-  const validation = await validateManifest({ ...draft, skill_id: "__validate__" });
-  if (!validation.valid) throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
-
-  const learned = await publishSkill(draft);
+  let learned: SkillManifest = localDraft;
+  if (publishableEndpoints.length > 0) {
+    const { operation_graph: _graph, ...publishBase } = localDraft;
+    const publishDraft: SkillManifest = { ...publishBase, endpoints: publishableEndpoints };
+    const validation = await validateManifest({ ...publishDraft, skill_id: "__validate__" });
+    if (!validation.valid) throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
+    const published = await publishSkill(publishDraft);
+    learned = {
+      ...published,
+      endpoints: localEndpoints,
+      operation_graph: localDraft.operation_graph,
+      ...(auth_profile_ref ? { auth_profile_ref } : {}),
+    };
+  }
+  try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,
-    skill_id: skill.skill_id,
+    skill_id: learned.skill_id,
     endpoint_id: "browser-capture",
     started_at: startedAt,
     completed_at: new Date().toISOString(),
@@ -449,7 +886,7 @@ async function executeBrowserCapture(
   // Detect tracking-only capture: all endpoints lack a response_schema, meaning no real
   // JSON data was returned — the site likely gated its API behind authentication.
   // Only flag this when no auth was used (so a retry with auth has a chance of succeeding).
-  const hasMeaningfulEndpoint = publishableEndpoints.some((ep) => ep.response_schema != null);
+  const hasMeaningfulEndpoint = cleanEndpoints.some((ep) => ep.response_schema != null);
   const authRecommended = !usedStoredAuth && !hasMeaningfulEndpoint;
 
   return {
@@ -466,6 +903,39 @@ async function executeBrowserCapture(
   };
 }
 
+async function executeDomExtractionEndpoint(
+  endpoint: EndpointDescriptor,
+  url: string,
+  intent: string,
+  authHeaders: Record<string, string>,
+  cookies: Array<{ name: string; value: string; domain: string }>,
+): Promise<{ data: unknown; status: number; trace_id: string }> {
+  const captured = await captureSession(url, authHeaders, cookies, intent);
+  const html = captured.html ?? "";
+  const extracted = extractFromDOMWithHint(html, intent, endpoint.dom_extraction);
+  if (extracted.data) {
+    return {
+      data: {
+        data: extracted.data,
+        _extraction: {
+          method: extracted.extraction_method,
+          confidence: extracted.confidence,
+          source: "rendered-dom",
+          final_url: captured.final_url,
+          ...(extracted.selector ? { selector: extracted.selector } : {}),
+        },
+      },
+      status: 200,
+      trace_id: nanoid(),
+    };
+  }
+  return {
+    data: html,
+    status: 200,
+    trace_id: nanoid(),
+  };
+}
+
 
 export async function executeEndpoint(
   skill: SkillManifest,
@@ -474,6 +944,7 @@ export async function executeEndpoint(
   projection?: ProjectionOptions,
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
+  const reservedMetaParams = new Set(["endpoint_id", "url", "context_url", "intent"]);
   // WebSocket endpoint: connect, collect messages, return
   if (endpoint.method === "WS") {
     const startedAt = new Date().toISOString();
@@ -615,7 +1086,7 @@ export async function executeEndpoint(
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
 
   // BUG-006: Merge path_params defaults — user params override captured defaults
-  let mergedParams = { ...params };
+  let mergedParams = mergeContextTemplateParams(params, endpoint.url_template, options?.contextUrl);
   if (endpoint.path_params && typeof endpoint.path_params === "object") {
     for (const [k, v] of Object.entries(endpoint.path_params)) {
       if (mergedParams[k] == null) {
@@ -625,7 +1096,7 @@ export async function executeEndpoint(
   }
 
   // Merge captured query params into URL — user params override endpoint defaults
-  let urlTemplate = endpoint.url_template;
+  let urlTemplate = resolveExecutionUrlTemplate(endpoint, options?.contextUrl);
   if (endpoint.query && typeof endpoint.query === "object" && Object.keys(endpoint.query).length > 0) {
     try {
       const u = new URL(urlTemplate);
@@ -646,12 +1117,14 @@ export async function executeEndpoint(
   const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
   const isSafe = endpoint.method === "GET";
+  const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
+  const hasStructuredReplay = structuredReplayUrl !== url;
 
   // Append leftover params as query string on GET requests.
   // Params already consumed by path_params, endpoint.query, or {template} vars are skipped.
   if (isSafe && Object.keys(params).length > 0) {
     const consumedKeys = new Set<string>([
-      "endpoint_id",
+      ...reservedMetaParams,
       ...Object.keys(endpoint.path_params ?? {}),
       ...Object.keys(endpoint.query ?? {}),
     ]);
@@ -712,11 +1185,27 @@ export async function executeEndpoint(
       }
     }
 
-    const res = await fetch(url, { method: endpoint.method, headers, body: body ? JSON.stringify(body) : undefined, redirect: "follow" });
-    let data: unknown;
-    const text = await res.text();
-    try { data = JSON.parse(text); } catch { data = text; }
-    return { data, status: res.status, trace_id: nanoid() };
+    const replayUrls = hasStructuredReplay ? deriveStructuredDataReplayCandidates(structuredReplayUrl) : [structuredReplayUrl];
+    let last: { data: unknown; status: number } = { data: null, status: 0 };
+
+    for (const replayUrl of replayUrls) {
+      const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
+      const res = await fetch(replayUrl, {
+        method: endpoint.method,
+        headers: replayHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+        redirect: "follow",
+      });
+      let data: unknown;
+      const text = await res.text();
+      try { data = JSON.parse(text); } catch { data = text; }
+      last = { data, status: res.status };
+      if (res.ok && !(typeof data === "string" && isHtml(data))) {
+        return { data, status: res.status, trace_id: nanoid() };
+      }
+    }
+
+    return { data: last.data, status: last.status, trace_id: nanoid() };
   };
 
   const browserCall = () => executeInBrowser(
@@ -731,7 +1220,28 @@ export async function executeEndpoint(
   let result: { data: unknown; status: number; trace_id: string };
   const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
 
-  if (hasAuth) {
+  if (endpoint.dom_extraction && isSafe) {
+    if (hasStructuredReplay) {
+      result = await serverFetch();
+      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+        result = await executeDomExtractionEndpoint(
+          endpoint,
+          url,
+          options?.intent ?? skill.intent_signature,
+          authHeaders,
+          cookies,
+        );
+      }
+    } else {
+      result = await executeDomExtractionEndpoint(
+        endpoint,
+        url,
+        options?.intent ?? skill.intent_signature,
+        authHeaders,
+        cookies,
+      );
+    }
+  } else if (hasAuth) {
     // Authed execution: learned strategy → skip doomed tiers
     //   1. Server fetch (fast — works for Twitter, simple APIs)
     //   2. Trigger-and-intercept (navigate to page, let site's JS make the call)
@@ -743,26 +1253,58 @@ export async function executeEndpoint(
     // because different endpoints on the same domain may have different requirements.
     const endpointStrategy = endpoint.exec_strategy;
 
-    if (endpointStrategy === "server") {
+    if (hasStructuredReplay) {
+      result = await serverFetch();
+      if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+        strategy = "server";
+      } else if (endpoint.trigger_url && isSafe) {
+        result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+        strategy = "trigger-intercept";
+      } else {
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        strategy = "browser";
+      }
+    } else if (endpointStrategy === "server") {
       // Proven: server-fetch works for this endpoint
       result = await serverFetch();
-      strategy = "server";
+      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        strategy = "browser";
+      } else {
+        strategy = "server";
+      }
     } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
       // Proven: this endpoint needs trigger-intercept
       log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
       result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
       strategy = "trigger-intercept";
     } else if (endpointStrategy === "browser") {
-      log("exec", `using learned strategy browser`);
-      result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-      strategy = "browser";
+      if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
+        result = await serverFetch();
+        if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+          strategy = "server";
+        } else {
+          log("exec", `server replay rejected stale learned browser strategy for ${endpoint.endpoint_id}; falling back to browser`);
+          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+          strategy = "browser";
+        }
+      } else {
+        log("exec", `using learned strategy browser`);
+        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+        strategy = "browser";
+      }
     } else {
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
       try {
         result = await serverFetch();
         if (result.status >= 200 && result.status < 400) {
-          strategy = "server";
+          if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+            strategy = "browser";
+          } else {
+            strategy = "server";
+          }
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
           if (endpoint.trigger_url && isSafe) {
@@ -785,7 +1327,7 @@ export async function executeEndpoint(
     if (strategy && result.status >= 200 && result.status < 400 && strategy !== endpoint.exec_strategy) {
       log("exec", `learned exec_strategy=${strategy} for endpoint ${endpoint.endpoint_id}`);
       endpoint.exec_strategy = strategy;
-      try { cachePublishedSkill(skill); } catch (e) { log("exec", `failed to cache strategy: ${e}`); }
+      try { cachePublishedSkill(skill, options?.client_scope); } catch (e) { log("exec", `failed to cache strategy: ${e}`); }
     }
   } else if (isSafe) {
     // No auth: fetch-first for safe GETs — fall back to browser if SPA shell or error
@@ -859,19 +1401,38 @@ export async function executeEndpoint(
   // Always extract — returning raw HTML to an agent is never useful.
   if (trace.success && typeof data === "string" && isHtml(data)) {
     const intent = options?.intent || skill.intent_signature;
-    const extracted = extractFromDOM(data, intent);
-    if (extracted.data) {
-      const quality = validateExtractionQuality(extracted.data, extracted.confidence);
+    if (!endpoint.dom_extraction) {
+      trace.success = false;
+      trace.error = "unexpected_html_response";
       data = {
-        data: extracted.data,
-        _extraction: {
-          method: extracted.extraction_method,
-          confidence: extracted.confidence,
-          source: "html-postprocess",
-          ...(quality.quality_note ? { quality_note: quality.quality_note } : {}),
-        },
+        error: "unexpected_html_response",
+        message: `Endpoint returned HTML instead of API data for intent "${intent}"`,
       };
       trace.result = data;
+    } else {
+      const extracted = extractFromDOM(data, intent);
+      if (extracted.data) {
+        const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
+        if (quality.valid) {
+          data = {
+            data: extracted.data,
+            _extraction: {
+              method: extracted.extraction_method,
+              confidence: extracted.confidence,
+              source: "html-postprocess",
+            },
+          };
+          trace.result = data;
+        } else {
+          trace.success = false;
+          trace.error = quality.quality_note ?? "low_quality_dom_extraction";
+          data = {
+            error: "low_quality_dom_extraction",
+            message: `Structured DOM extraction was rejected: ${quality.quality_note ?? "low quality extraction"}`,
+          };
+          trace.result = data;
+        }
+      }
     }
   }
 
@@ -883,7 +1444,7 @@ export async function executeEndpoint(
         log("exec", `learned response_schema for endpoint ${endpoint.endpoint_id} (${Object.keys(inferred.properties ?? {}).length} top-level props)`);
         endpoint.response_schema = inferred;
         trace.schema_backfilled = true;
-        cachePublishedSkill(skill);
+        cachePublishedSkill(skill, options?.client_scope);
         updateEndpointSchema(skill.skill_id, endpoint.endpoint_id, inferred).catch(() => {});
       }
     } catch {}
@@ -898,6 +1459,8 @@ export async function executeEndpoint(
     // Explicit raw request — skip projection
   } else if (projection && trace.success) {
     resultData = applyProjection(data, projection);
+  } else if (trace.success) {
+    resultData = projectResultForIntent(data, options?.intent ?? skill.intent_signature);
   }
 
   return {
@@ -914,7 +1477,7 @@ export async function executeEndpoint(
  */
 function templatizeQueryParams(url: string): string {
   try {
-    const u = new URL(url);
+    const u = sanitizeNavigationQueryParams(new URL(url));
     if (u.search.length <= 1) return url; // no query params
     const params = new URLSearchParams(u.search);
     const templated = new URLSearchParams();
@@ -1117,6 +1680,67 @@ export interface RankedEndpoint {
   score: number;
 }
 
+function intentResourceKinds(intent?: string): string[] {
+  const lower = (intent ?? "").toLowerCase();
+  if (/\b(person|people|profile|profiles|user|users|member|members)\b/.test(lower)) return ["person", "people", "profile", "user", "member"];
+  if (/\b(company|organization|org)\b/.test(lower)) return ["company", "organization", "org", "business"];
+  if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) return ["post", "tweet", "status", "message"];
+  if (/\b(topic|topics|trend|trending|hashtag|hashtags)\b/.test(lower)) return ["topic", "trend", "hashtag"];
+  if (/\b(repo|repository|repositories)\b/.test(lower)) return ["repo", "repository", "project"];
+  return [];
+}
+
+function intentActionKinds(intent?: string): string[] {
+  const lower = (intent ?? "").toLowerCase();
+  if (/\b(search|find|lookup)\b/.test(lower)) return ["search", "list"];
+  if (/\b(get|fetch|view)\b/.test(lower)) return ["detail", "get", "fetch"];
+  if (/\b(list|browse|discover|trending|top|latest)\b/.test(lower)) return ["list", "search"];
+  return [];
+}
+
+function isEntityDetailIntent(intent?: string): boolean {
+  const lower = (intent ?? "").toLowerCase();
+  return /\b(get|fetch|view)\b/.test(lower) && /\b(company|organization|org|business|person|people|profile|profiles|user|users|member|members)\b/.test(lower);
+}
+
+function semanticIntentAdjustment(endpoint: EndpointDescriptor, intent?: string): number {
+  const semantic = endpoint.semantic;
+  if (!semantic || !intent) return 0;
+  const resourceKinds = intentResourceKinds(intent);
+  const actionKinds = intentActionKinds(intent);
+  let delta = 0;
+
+  const resource = (semantic.resource_kind ?? "").toLowerCase();
+  const action = (semantic.action_kind ?? "").toLowerCase();
+  const negatives = new Set((semantic.negative_tags ?? []).map((tag) => tag.toLowerCase()));
+  const haystack = [
+    endpoint.url_template,
+    endpoint.description ?? "",
+    semantic.description_out ?? "",
+    semantic.response_summary ?? "",
+  ].join(" ").toLowerCase();
+  const uiScaffold = /(sharebox|closedsharebox|mailbox|messaging|conversation|notification|notifications|alerts?|presence|badging|launchpad|previewbanner|main_feed|feedtype)/i.test(haystack);
+
+  if (resourceKinds.length > 0) {
+    if (resourceKinds.some((kind) => resource.includes(kind) || kind.includes(resource))) delta += 80;
+    else if (resource) delta -= 90;
+  }
+
+  if (actionKinds.length > 0) {
+    if (actionKinds.some((kind) => action.includes(kind) || kind.includes(action))) delta += 25;
+    else if (action) delta -= 25;
+  }
+
+  if (negatives.has("config") || negatives.has("telemetry") || negatives.has("experiment") || negatives.has("auth")) {
+    delta -= 60;
+  }
+  if (uiScaffold && (resourceKinds.length > 0 || actionKinds.length > 0)) {
+    delta -= 220;
+  }
+
+  return delta;
+}
+
 /**
  * Rank endpoints by relevance to intent using BM25 + structural bonuses.
  * Exported so routes.ts can surface the ranked list to the agent.
@@ -1134,7 +1758,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   // Session plumbing — infrastructure endpoints no user would ever want as data.
   // Only true noise: account config, badge counts, feature flags, telemetry, DM settings.
   // NOT filtered: HomeTimeline, Bookmarks, Notifications, UserByScreenName, etc. — real data.
-  const SESSION_PLUMBING = /(account\/settings|account\/multi|badge_count|DataSaverMode|permissionsState|hashflags|email_phone_info|live_pipeline|user_flow|strato\/column|ces\/p2|IntercomStarter|getAltText|fleetline|FeatureHelper|VerifiedAvatar|ScheduledPromotion|DirectCall|DmSettings|PinnedTimeline)/i;
+  const SESSION_PLUMBING = /(account\/settings|account\/multi|badge_count|DataSaverMode|permissionsState|email_phone_info|live_pipeline|user_flow|strato\/column|ces\/p2|IntercomStarter|getAltText|fleetline|FeatureHelper|VerifiedAvatar|ScheduledPromotion|DirectCall|DmSettings|PinnedTimeline)/i;
 
   // Static assets
   const STATIC_ASSET_PATTERNS = /\.(woff2?|ttf|eot|css|js|mjs|png|jpg|jpeg|gif|svg|ico|webp|avif|mp4|mp3|wav|riv|lottie|wasm)(\?|%3F|$)/i;
@@ -1185,15 +1809,34 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
   // API subdomain pattern — "api.example.com" or "io.example.com" strongly suggests data endpoint
   const API_SUBDOMAIN = /^(api|io|data|feed|stream|ws)\./i;
+  const LIST_INTENT = /\b(search|list|find|trending|top|latest|discover|browse)\b/i;
+  const STATUS_INTENT = /\b(status|incident|outage|maintenance|uptime|degraded)\b/i;
+  const COMMS_INTENT = /\b(guild|channel|message|dm|server|thread|chat)\b/i;
+  const COMMS_PATH = /\/(guilds?|channels?|messages?|threads?|conversations?|affinities)\b/i;
+  const COMPANY_INTENT = /\b(company|companies|organization|organisations|business|org)\b/i;
+  const PROFILE_INTENT = /\b(person|people|profile|profiles|user|users|member|members)\b/i;
+  const ENTITY_DETAIL_INTENT = isEntityDetailIntent(intent);
 
   const scored = candidates.map((ep, i) => {
     let score = 0;
     let pathname = "";
     let hostname = "";
+    let contextPath = "";
+    let contextLeaf = "";
+    let contextQueryKeys = new Set<string>();
     try {
       const u = new URL(ep.url_template);
       pathname = u.pathname;
       hostname = u.hostname;
+    } catch { /* skip */ }
+    try {
+      if (contextUrl) {
+        const cu = new URL(contextUrl);
+        contextPath = cu.pathname;
+        const contextSegs = cu.pathname.split("/").filter(Boolean);
+        contextLeaf = contextSegs.length > 0 ? decodeURIComponent(contextSegs[contextSegs.length - 1] ?? "").toLowerCase() : "";
+        contextQueryKeys = new Set([...cu.searchParams.keys()]);
+      }
     } catch { /* skip */ }
 
     // === BM25 relevance to intent (primary signal, weighted heavily) ===
@@ -1225,6 +1868,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // === Structural bonuses ===
     if (ep.dom_extraction) score += 25;
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
+    score += semanticIntentAdjustment(ep, intent);
 
     // Rich schema = likely structured data endpoint
     if (ep.response_schema) {
@@ -1255,9 +1899,18 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     // API subdomain bonus even without skill domain context
     if (API_SUBDOMAIN.test(hostname)) score += 10;
 
+    // Strongly penalize dedicated status/statuspage endpoints unless the user explicitly
+    // asked for status/incidents/maintenance. These often hijack root-domain skills.
+    if (!STATUS_INTENT.test(intent ?? "")) {
+      if (/^(status|statuspage)\./i.test(hostname) || /\/(scheduled-maintenances|incidents|components|status|uptime|summary)\b/i.test(pathname)) {
+        score -= 80;
+      }
+    }
+
     // === Data-relevance signals ===
     if (DATA_INDICATORS.test(ep.url_template)) score += 5;
     if (CURRENCY_TIME_PATTERNS.test(pathname)) score += 15;
+    if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += 45;
 
     // Deep paths with meaningful segments = likely data endpoints
     const pathDepth = pathname.split("/").filter((s) => s.length > 0).length;
@@ -1270,6 +1923,79 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         const triggerPath = new URL(ep.trigger_url).pathname;
         if (triggerPath === contextPath) score += 20;
       } catch { /* skip */ }
+    }
+
+    // Direct endpoint/context path match. Stronger than trigger_url because marketplace
+    // skills may have stale or missing trigger_url, but url_template still reflects intent.
+    if (contextPath) {
+      if (pathname === contextPath) score += 45;
+      else if (pathname.startsWith(contextPath) || contextPath.startsWith(pathname)) score += 20;
+
+      const contextSegs = contextPath.split("/").filter(Boolean);
+      const endpointSegs = pathname.split("/").filter(Boolean);
+      if (contextSegs.length > 0 && endpointSegs.length > 0 && contextSegs[0] === endpointSegs[0]) {
+        score += 12;
+      }
+
+      if (contextQueryKeys.size > 0) {
+        let matchedKeys = 0;
+        for (const key of contextQueryKeys) {
+          if (ep.url_template.includes(`${key}=`) || ep.url_template.includes(`{${key}}`)) matchedKeys++;
+        }
+        score += matchedKeys * 12;
+        if (matchedKeys === 0 && /\/search\b/.test(contextPath)) score -= 20;
+      }
+    }
+
+    const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(ep.url_template);
+    const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
+    const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
+
+    if (ENTITY_DETAIL_INTENT && looksLikeDocumentRoute) {
+      score -= 55;
+    }
+    if (ENTITY_DETAIL_INTENT && isCapturedPageArtifact) {
+      score -= 200;
+    }
+
+    if (intent && COMPANY_INTENT.test(intent)) {
+      const companyHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
+      if (/(organization|company|companies|org)/i.test(companyHaystack) && looksLikeApiEndpoint) score += 110;
+      if (/(mailbox|messaging|messagecenter|notifications?|inbox|launchpad|identity|sharebox)/i.test(companyHaystack)) score -= 140;
+      if (/(organizationdashcompanies|universalname|companyprofile|organizationprofile|aboutthisprofile|organizationresult|companyresult)/i.test(companyHaystack)) score += 95;
+      if (looksLikeDocumentRoute) score -= 35;
+    }
+
+    if (intent && PROFILE_INTENT.test(intent)) {
+      const profileHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})}`.toLowerCase();
+      if (/(sidebar|recommend|recommendations|suggested|spotlight|timeline|tweets|following|followers)/i.test(profileHaystack)) score -= 90;
+      if (/(sharebox|closedsharebox|mailbox|messaging|conversation|alerts?|notification|presence|badging|feedtype|main_feed)/i.test(profileHaystack)) score -= 180;
+      if (/(userbyscreenname|profile|profiles|memberprofile|identityprofile|person)/i.test(profileHaystack) && looksLikeApiEndpoint) score += 80;
+      if (/(search\/results\/people|searchcluster|searchresult|public_identifier|headline|mini_profile|memberresult)/i.test(profileHaystack)) score += 95;
+    }
+
+    const requestHint = JSON.stringify(ep.semantic?.example_request ?? {}).toLowerCase();
+    const endpointHint = `${ep.url_template} ${ep.description ?? ""}`.toLowerCase();
+    const hasConcreteEntityRoute =
+      ENTITY_DETAIL_INTENT &&
+      !!contextLeaf &&
+      !/^(search|explore|trending|tabs|home|for-you|foryou|latest|live|people|posts|videos)$/.test(contextLeaf);
+    if (hasConcreteEntityRoute) {
+      if (requestHint.includes(contextLeaf)) score += 120;
+      else if (endpointHint.includes(contextLeaf)) score += 40;
+      if (/(screen_name|screenname|username|userby|slug|vanity|universalname|public_identifier|identifier)/i.test(endpointHint + " " + requestHint)) score += 55;
+      if (/(restids|usersbyrestids|recommendations|timeline|tweets|following|followers)/i.test(endpointHint + " " + requestHint)) score -= 70;
+    }
+
+    // Penalize fixed entity/detail pages when the user asked for a list/search flow.
+    const isStaticEntityPath = /^\/[^/{?]+\/[^/{?]+$/.test(pathname);
+    if (intent && LIST_INTENT.test(intent) && isStaticEntityPath) {
+      score -= 35;
+    }
+
+    // Reward endpoints whose path explicitly names the list/search surface the user is on.
+    if (intent && LIST_INTENT.test(intent) && /\/(search|trending|discover|explore)\b/i.test(pathname)) {
+      score += 30;
     }
 
     // === Penalties ===
