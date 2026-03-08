@@ -19,6 +19,8 @@ Browse once, cache the APIs, reuse them instantly. First call discovers and lear
 npx unbrowse setup
 ```
 
+`unbrowse setup` now prompts for an email-style agent identity before first registration. For headless runs, preseed it with `UNBROWSE_AGENT_EMAIL=you@example.com`.
+
 For repeat use, install globally:
 
 ```bash
@@ -46,6 +48,8 @@ If not running, the CLI auto-starts the server. First time requires ToS acceptan
 > Full terms: https://unbrowse.ai/terms
 
 After consent, the CLI handles startup automatically. If the browser engine is missing, the CLI installs it on first capture.
+
+The backend still uses an opaque internal agent id. The email is just the user-facing registration identity for lower-friction setup.
 
 ## Core Workflow
 

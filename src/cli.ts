@@ -8,6 +8,7 @@
  */
 
 import { config as loadEnv } from "dotenv";
+import { ensureRegistered, getApiKey } from "./client/index.js";
 import { ensureLocalServer } from "./runtime/local-server.js";
 import { isMainModule } from "./runtime/paths.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
@@ -592,6 +593,10 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
     output(report, true);
     if (report.browser_engine.action === "failed") process.exit(1);
     return;
+  }
+
+  if (!getApiKey()) {
+    await ensureRegistered({ promptForEmail: true });
   }
 
   try {
