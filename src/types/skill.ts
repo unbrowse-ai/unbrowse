@@ -48,6 +48,33 @@ export interface WsMessage {
   timestamp: string;
 }
 
+export interface OperationBinding {
+  key: string;
+  type?: string;
+  semantic_type?: string;
+  required?: boolean;
+  source?: string;
+  example_value?: string;
+}
+
+export interface EndpointSemanticDescriptor {
+  action_kind: string;
+  resource_kind: string;
+  description_in?: string;
+  description_out?: string;
+  response_summary?: string;
+  example_request?: unknown;
+  example_response_compact?: unknown;
+  example_fields?: string[];
+  requires?: OperationBinding[];
+  provides?: OperationBinding[];
+  negative_tags?: string[];
+  confidence?: number;
+  observed_at?: string;
+  sample_request_url?: string;
+  auth_required?: boolean;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -73,6 +100,7 @@ export interface EndpointDescriptor {
   dom_extraction?: {
     extraction_method: string;
     confidence: number;
+    selector?: string;
   };
   /** The page URL that triggered this API call during capture.
    *  Used for trigger-and-intercept execution: navigate to this page,
@@ -81,6 +109,8 @@ export interface EndpointDescriptor {
   /** Learned execution strategy — set after first successful execution.
    *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
   exec_strategy?: "server" | "trigger-intercept" | "browser";
+  /** Semantic v2 metadata for endpoint-level retrieval and DAG planning */
+  semantic?: EndpointSemanticDescriptor;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -91,6 +121,75 @@ export interface DiscoveryCost {
   capture_tokens: number;
   response_bytes: number;
   captured_at: string;
+}
+
+export interface SkillOperationNode {
+  operation_id: string;
+  endpoint_id: string;
+  method: EndpointDescriptor["method"];
+  url_template: string;
+  trigger_url?: string;
+  action_kind: string;
+  resource_kind: string;
+  description_in?: string;
+  description_out?: string;
+  response_summary?: string;
+  requires: OperationBinding[];
+  provides: OperationBinding[];
+  negative_tags?: string[];
+  example_request?: unknown;
+  example_response_compact?: unknown;
+  example_fields?: string[];
+  confidence: number;
+  observed_at?: string;
+  auth_required?: boolean;
+}
+
+export interface SkillOperationEdge {
+  edge_id: string;
+  from_operation_id: string;
+  to_operation_id: string;
+  binding_key: string;
+  kind: "dependency" | "hint";
+  confidence: number;
+}
+
+export interface SkillOperationGraph {
+  generated_at: string;
+  entry_operation_ids: string[];
+  operations: SkillOperationNode[];
+  edges: SkillOperationEdge[];
+}
+
+export interface SkillChunk {
+  skill_id: string;
+  intent?: string;
+  available_operation_ids: string[];
+  missing_bindings: string[];
+  operations: SkillOperationNode[];
+  edges: SkillOperationEdge[];
+}
+
+export interface AgentAvailableOperation {
+  operation_id: string;
+  method: EndpointDescriptor["method"];
+  action_kind: string;
+  resource_kind: string;
+  title: string;
+  why_available: string;
+  url_template: string;
+  requires: string[];
+  yields: string[];
+  example_request?: unknown;
+  example_response_compact?: unknown;
+}
+
+export interface AgentSkillChunkView {
+  skill_id: string;
+  intent?: string;
+  missing_bindings: string[];
+  suggested_next_operation_id?: string;
+  available_operations: AgentAvailableOperation[];
 }
 
 export interface SkillManifest {
@@ -115,6 +214,8 @@ export interface SkillManifest {
   discovery_cost?: DiscoveryCost;
   /** Intent strings that contributed endpoints to this domain-level skill */
   intents?: string[];
+  /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
+  operation_graph?: SkillOperationGraph;
 }
 
 export interface ExecutionTrace {
@@ -196,6 +297,8 @@ export interface ExecutionOptions {
   contextUrl?: string;
   /** Skip marketplace search and caches — go straight to browser capture */
   force_capture?: boolean;
+  /** Request/client namespace for isolating local server state across concurrent CLI users */
+  client_scope?: string;
 }
 
 export interface ValidationResult {

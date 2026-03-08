@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { assessIntentResult } from "../intent-match.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cheerio v1.x doesn't export Element directly
 type CheerioEl = any;
@@ -195,6 +196,298 @@ interface ExtractedStructure {
   type: string;
   data: unknown;
   element_count: number;
+  selector?: string;
+}
+
+function normalizeGitHubPath(href: string | undefined): string | null {
+  if (!href) return null;
+  const clean = href.split("?")[0].replace(/\/+$/, "");
+  const match = clean.match(/^\/([^/]+)\/([^/]+)$/);
+  if (!match) return null;
+  const owner = match[1];
+  const repo = match[2];
+  if (/^(features|topics|collections|marketplace|orgs|users|settings|login|signup|sponsors|pricing|search|notifications|explore|pulls|issues)$/.test(owner)) return null;
+  return `${owner}/${repo}`;
+}
+
+function cleanText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizeLinkedInProfilePath(href: string | undefined): string | null {
+  if (!href) return null;
+  const clean = href.split("?")[0].replace(/\/+$/, "");
+  const match = clean.match(/\/in\/([^/]+)$/);
+  return match ? match[1] : null;
+}
+
+function extractGitHubSpecial(html: string, intent: string): ExtractedStructure[] {
+  if (
+    !/github/i.test(html) &&
+    !/href=["']\/[^/"']+\/[^/"']+["']/i.test(html) &&
+    !/data-target="react-app\.embeddedData"/i.test(html)
+  ) return [];
+  const $ = cheerio.load(html);
+  const results: ExtractedStructure[] = [];
+  const intentLower = intent.toLowerCase();
+
+  const embeddedDataMatch = html.match(/<script[^>]+data-target="react-app\.embeddedData"[^>]*>([\s\S]*?)<\/script>/i);
+  if (embeddedDataMatch && intentLower.includes("search")) {
+    try {
+      const parsed = JSON.parse(embeddedDataMatch[1]);
+      const embeddedResults = parsed?.payload?.results;
+      if (Array.isArray(embeddedResults) && embeddedResults.length >= 2) {
+        const repos = embeddedResults
+          .map((item: Record<string, unknown>) => {
+            const repo = item.repo as { repository?: { owner_login?: string; name?: string } } | undefined;
+            const owner = repo?.repository?.owner_login;
+            const name = repo?.repository?.name;
+            if (!owner || !name) return null;
+            const row: Record<string, string> = {
+              full_name: `${owner}/${name}`,
+              url: `https://github.com/${owner}/${name}`,
+            };
+            const description = String(item.hl_trunc_description ?? "").replace(/<[^>]+>/g, "").trim();
+            const language = String(item.language ?? "").trim();
+            const stars = item.followers != null ? String(item.followers) : "";
+            if (description) row.description = description;
+            if (language) row.language = language;
+            if (stars) row.stargazers_count = stars;
+            return row;
+          })
+          .filter((row): row is Record<string, string> => !!row);
+        if (repos.length >= 2) {
+          results.push({ type: "repeated-elements", data: repos.slice(0, 20), element_count: repos.length });
+        }
+      }
+    } catch { /* malformed embedded data */ }
+  }
+
+  const repoNwo = $('meta[name="octolytics-dimension-repository_nwo"]').attr("content")?.trim();
+  if (repoNwo && (intentLower.includes("repository") || intentLower.includes("repo"))) {
+    const ogDesc = $('meta[property="og:description"]').attr("content")?.trim() || "";
+    const stars = $("#repo-stars-counter-star").first().text().trim()
+      || $('a[href$="/stargazers"]').first().text().replace(/\s+/g, " ").trim();
+    const forks = $('a[href$="/forks"]').first().text().replace(/\s+/g, " ").trim();
+    const about = $("h2").filter((_, el) => $(el).text().trim() === "About").first()
+      .parent().text().replace(/\s+/g, " ").trim();
+    const data: Record<string, string> = {
+      full_name: repoNwo,
+      description: ogDesc || $('meta[name="description"]').attr("content")?.trim() || "",
+      url: $('meta[property="og:url"]').attr("content")?.trim() || `https://github.com/${repoNwo}`,
+    };
+    if (stars) data.stars = stars;
+    if (forks) data.forks = forks;
+    if (about && about.length > 20 && about.length < 500) data.about = about;
+    results.push({ type: "key-value", data, element_count: Object.keys(data).length });
+  }
+
+  if ((/search-results-page/.test(html) || /\/search\?/.test(html) || /resultsrepositories/i.test(html) || /href=["']\/[^/"']+\/[^/"']+["']/i.test(html)) && intentLower.includes("search")) {
+    const seen = new Set<string>();
+    const repos: Record<string, string>[] = [];
+    $(".search-title a[href], [data-testid='results-list'] a[href], .search-results-container a[href], a[href^='/']").each((_, el) => {
+      const $a = $(el);
+      const href = $a.attr("href");
+      const fullName = normalizeGitHubPath(href);
+      if (!fullName || seen.has(fullName)) return;
+      const title = cleanText($a.text());
+      if (!title || title.length > 120) return;
+      const card = $a.closest("div, li");
+      const cardText = cleanText(card.text());
+      const desc = cleanText(card.find("p").first().text());
+      const lang = cleanText(card.find("[itemprop='programmingLanguage']").first().text());
+      if (!/star|fork|updated|results?|language|repository/i.test(cardText) && !desc && !lang) return;
+      seen.add(fullName);
+      const stars = cleanText(card.find("a[href$='/stargazers']").first().text());
+      const row: Record<string, string> = {
+        full_name: fullName,
+        url: `https://github.com/${fullName}`,
+      };
+      if (desc) row.description = desc;
+      if (lang) row.language = lang;
+      if (stars) row.stars = stars;
+      repos.push(row);
+    });
+    if (repos.length >= 2) {
+      results.push({ type: "repeated-elements", data: repos.slice(0, 10), element_count: repos.length });
+    }
+  }
+
+  if (/trending/i.test(intentLower) || /\/trending\b/.test(html)) {
+    const seen = new Set<string>();
+    const repos: Record<string, string>[] = [];
+    $("article.Box-row, article, .Box-row").each((_, el) => {
+      const $el = $(el);
+      const repoLink = $el.find("h1 a[href], h2 a[href], a[href^='/']").filter((_, a) => !!normalizeGitHubPath($(a).attr("href"))).first();
+      const fullName = normalizeGitHubPath(repoLink.attr("href"));
+      if (!fullName || seen.has(fullName)) return;
+      const desc = $el.find("p").first().text().replace(/\s+/g, " ").trim();
+      const lang = $el.find('[itemprop="programmingLanguage"]').first().text().trim();
+      const stars = $el.find('a[href$="/stargazers"]').first().text().replace(/\s+/g, " ").trim();
+      seen.add(fullName);
+      const row: Record<string, string> = {
+        full_name: fullName,
+        url: `https://github.com/${fullName}`,
+      };
+      if (desc) row.description = desc;
+      if (lang) row.language = lang;
+      if (stars) row.stars = stars;
+      repos.push(row);
+    });
+    if (repos.length >= 2) {
+      results.push({ type: "repeated-elements", data: repos.slice(0, 20), element_count: repos.length });
+    }
+  }
+
+  return results;
+}
+
+function extractLinkedInSpecial(html: string, intent: string): ExtractedStructure[] {
+  if (!/linkedin/i.test(html)) return [];
+  const intentLower = intent.toLowerCase();
+  if (!/(search|people|person|profile|member)/.test(intentLower)) return [];
+  const $ = cheerio.load(html);
+  const seen = new Set<string>();
+  const people: Record<string, string>[] = [];
+
+  $("a[href*='/in/']").each((_, el) => {
+    const $a = $(el);
+    const handle = normalizeLinkedInProfilePath($a.attr("href"));
+    if (!handle || seen.has(handle)) return;
+    const name = cleanText($a.text());
+    if (!name || name.length < 3 || name.length > 120) return;
+    const card = $a.closest("li, div");
+    const cardText = cleanText(card.text());
+    if (cardText.length < name.length + 5) return;
+    const headline = cleanText(
+      card.find("div, span, p")
+        .map((_, node) => cleanText($(node).text()))
+        .get()
+        .find((text) =>
+          !!text &&
+          text !== name &&
+          text.length >= 8 &&
+          text.length <= 220 &&
+          !/^(message|connect|follow|premium|linkedin|see more|show all)$/i.test(text)
+        ) ?? ""
+    );
+    const row: Record<string, string> = {
+      name,
+      url: `https://www.linkedin.com/in/${handle}`,
+      public_identifier: handle,
+    };
+    if (headline) row.headline = headline;
+    people.push(row);
+    seen.add(handle);
+  });
+
+  return people.length >= 2 ? [{ type: "repeated-elements", data: people.slice(0, 10), element_count: people.length }] : [];
+}
+
+function extractXProfileSpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  if (!/(person|people|profile|profiles|user|users|member)/.test(intentLower)) return [];
+  if (!/(twitter|x\.com|twitter:|og:)/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const title = cleanText($("title").first().text());
+  const ogTitle = cleanText($('meta[property="og:title"]').attr("content") ?? $('meta[name="twitter:title"]').attr("content") ?? "");
+  const description = cleanText($('meta[name="description"]').attr("content") ?? $('meta[property="og:description"]').attr("content") ?? "");
+  const canonical = ($('link[rel="canonical"]').attr("href") ?? $('meta[property="og:url"]').attr("content") ?? "").trim();
+
+  const source = ogTitle || title;
+  const titleMatch = source.match(/^(.*?)\s*\(@?([A-Za-z0-9_]{1,30})\)/);
+  const handleFromUrl = canonical.match(/https?:\/\/(?:www\.)?x\.com\/([A-Za-z0-9_]{1,30})(?:\/|$)/)?.[1]
+    ?? canonical.match(/https?:\/\/(?:www\.)?twitter\.com\/([A-Za-z0-9_]{1,30})(?:\/|$)/)?.[1];
+  const username = titleMatch?.[2] ?? handleFromUrl ?? "";
+  const name = cleanText(titleMatch?.[1] ?? source.replace(/\s*\/\s*[XT]$/i, ""));
+
+  if (!name || !username) return [];
+
+  const row: Record<string, string> = {
+    name,
+    username,
+    public_identifier: username,
+    url: canonical || `https://x.com/${username}`,
+  };
+  if (description) row.description = description;
+  return [{ type: "key-value", data: row, element_count: 1 }];
+}
+
+function extractPostSpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  if (!/(post|posts|tweet|tweets|status|statuses)/.test(intentLower)) return [];
+  const $ = cheerio.load(html);
+  const seen = new Set<string>();
+  const posts: Record<string, string>[] = [];
+
+  $("article, [role='article'], li, div").each((_, el) => {
+    const $el = $(el);
+    const link = $el.find("a[href*='/status/'], a[href*='/statuses/'], a[href*='/posts/'], a[href*='/@']").first();
+    const href = link.attr("href");
+    if (!href || href.length > 300) return;
+    const canonical = href.split("?")[0];
+    if (seen.has(canonical)) return;
+
+    const text = cleanText(
+      $el.find("p, span, div")
+        .map((__, node) => cleanText($(node).text()))
+        .get()
+        .filter((value) =>
+          value.length >= 20 &&
+          value.length <= 700 &&
+          !/^(reply|repost|like|share|show more|show less|follow|message)$/i.test(value)
+        )
+        .sort((a, b) => b.length - a.length)[0] ?? ""
+    );
+
+    const mastodonMatch = canonical.match(/\/@([^/]+)\/(\d+)/);
+    const statusMatch = canonical.match(/\/status\/(\d+)/);
+    const username = mastodonMatch?.[1]
+      ?? canonical.match(/\/([^/@]+)\/status\/\d+/)?.[1]
+      ?? "";
+    const id = mastodonMatch?.[2] ?? statusMatch?.[1] ?? canonical.split("/").pop() ?? "";
+
+    if (!text && !username) return;
+
+    posts.push({
+      ...(id ? { id } : {}),
+      ...(username ? { username } : {}),
+      url: canonical,
+      ...(text ? { text } : {}),
+    });
+    seen.add(canonical);
+  });
+
+  return posts.length >= 1 ? [{ type: "repeated-elements", data: posts.slice(0, 20), element_count: posts.length }] : [];
+}
+
+function extractTrendSpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  if (!/(trend|trending|topic|topics|hashtag|hashtags)/.test(intentLower)) return [];
+  const $ = cheerio.load(html);
+  const roots = $("main, [role='main'], section");
+  const scope = roots.length > 0 ? roots.first() : $("body");
+  const seen = new Set<string>();
+  const topics: Record<string, string>[] = [];
+
+  scope.find("a[href]").each((_, el) => {
+    const $a = $(el);
+    const href = ($a.attr("href") ?? "").trim();
+    const name = cleanText($a.text());
+    if (!href || !name || name.length > 80 || name.length < 2) return;
+    if (/^(home|explore|notifications|messages|lists|profile|more|show more|settings|terms|privacy)$/i.test(name)) return;
+    const nearby = cleanText($a.closest("div, li, article, section").text());
+    const trendish = name.startsWith("#")
+      || /hashtag|trend|trending|topic/i.test(nearby)
+      || /search\?q=|explore|hashtag/i.test(href);
+    if (!trendish) return;
+    const key = `${name}|${href.split("?")[0]}`;
+    if (seen.has(key)) return;
+    topics.push({ name, url: href });
+    seen.add(key);
+  });
+
+  return topics.length >= 2 ? [{ type: "repeated-elements", data: topics.slice(0, 20), element_count: topics.length }] : [];
 }
 
 /**
@@ -384,6 +677,7 @@ function detectRepeatingPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
         type: "repeated-elements",
         data: items,
         element_count: items.length,
+        selector,
       });
     }
   }
@@ -443,6 +737,7 @@ function detectSiblingPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
           type: "repeated-elements",
           data: items,
           element_count: items.length,
+          selector: buildReplaySelector($(elements[0])),
         });
       }
     }
@@ -546,6 +841,61 @@ export interface ExtractionResult {
   data: unknown;
   extraction_method: string;
   confidence: number;
+  selector?: string;
+}
+
+function buildReplaySelector($el: cheerio.Cheerio<CheerioEl>): string | undefined {
+  const tag = $el.get(0)?.tagName;
+  if (!tag) return undefined;
+  const id = ($el.attr("id") ?? "").trim();
+  if (id) return `${tag}#${id.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const classes = (($el.attr("class") ?? "").trim())
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((part) => part.replace(/[^a-zA-Z0-9_-]/g, ""))
+    .filter(Boolean);
+  return classes.length > 0 ? `${tag}.${classes.join(".")}` : tag;
+}
+
+function extractUsingSelector(html: string, selector: string): ExtractedStructure | null {
+  const $ = cheerio.load(cleanDOM(html));
+  const elements = $(selector);
+  if (elements.length < 1) return null;
+  const items: Record<string, string>[] = [];
+  elements.each((_, el) => {
+    const fields = extractCardFields($, $(el));
+    if (Object.keys(fields).length >= 2) items.push(fields);
+  });
+  if (items.length >= 2) {
+    return { type: "repeated-elements", data: items, element_count: items.length, selector };
+  }
+  if (items.length === 1) {
+    return { type: "key-value", data: items[0], element_count: 1, selector };
+  }
+  return null;
+}
+
+export function extractFromDOMWithHint(
+  html: string,
+  intent: string,
+  hint?: { selector?: string },
+): ExtractionResult {
+  if (hint?.selector) {
+    const extracted = extractUsingSelector(html, hint.selector);
+    if (extracted) {
+      const assessment = assessIntentResult(extracted.data, intent);
+      if (assessment.verdict === "pass") {
+        return {
+          data: extracted.data,
+          extraction_method: extracted.type,
+          confidence: 0.95,
+          selector: hint.selector,
+        };
+      }
+    }
+  }
+  return extractFromDOM(html, intent);
 }
 
 /**
@@ -556,7 +906,12 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
   const spaStructures = extractSPAData(html);
   const cleaned = cleanDOM(html);
-  const structures = [...spaStructures, ...parseStructured(cleaned)];
+  const githubStructures = extractGitHubSpecial(html, intent);
+  const linkedInStructures = extractLinkedInSpecial(html, intent);
+  const xProfileStructures = extractXProfileSpecial(html, intent);
+  const postStructures = extractPostSpecial(html, intent);
+  const trendStructures = extractTrendSpecial(html, intent);
+  const structures = [...githubStructures, ...linkedInStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...spaStructures, ...parseStructured(cleaned)];
 
   if (structures.length === 0) {
     return { data: null, extraction_method: "none", confidence: 0 };
@@ -579,6 +934,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
       data: best.structure.data,
       extraction_method: best.structure.type,
       confidence: computeConfidence(best.structure, best.score),
+      selector: best.structure.selector,
     };
   }
 
@@ -591,12 +947,14 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
     })),
     extraction_method: "multiple",
     confidence: computeConfidence(best.structure, best.score) * 0.7,
+    selector: best.structure.selector,
   };
 }
 
 function scoreRelevance(structure: ExtractedStructure, intentWords: string[]): number {
   const text = JSON.stringify(structure.data).toLowerCase();
   let score = 0;
+  const intentSet = new Set(intentWords);
 
   for (const word of intentWords) {
     if (word.length < 3) continue; // skip short words like "a", "to", etc.
@@ -616,6 +974,44 @@ function scoreRelevance(structure: ExtractedStructure, intentWords: string[]): n
   if (structure.type === "table") score += 2;
   if (structure.type === "repeated-elements") score += 1;
   if (structure.type === "key-value") score += 1;
+
+  // GitHub/repo-aware shaping: prefer repo-shaped objects/lists over file tables.
+  if (structure.type === "key-value" && structure.data && typeof structure.data === "object" && !Array.isArray(structure.data)) {
+    const keys = Object.keys(structure.data as Record<string, unknown>);
+    if (keys.includes("full_name")) score += 4;
+    if (keys.includes("description")) score += 2;
+    if (keys.includes("stars")) score += 2;
+    if ((intentSet.has("repository") || intentSet.has("repo")) && keys.includes("full_name")) score += 6;
+    if (intentSet.has("info")) score += 2;
+  }
+
+  if (structure.type === "repeated-elements" && Array.isArray(structure.data)) {
+    const items = structure.data as Array<Record<string, unknown>>;
+    const repoShaped = items.filter((item) => typeof item?.full_name === "string" || typeof item?.url === "string");
+    if (repoShaped.length >= 2) score += 8;
+    if ((intentSet.has("search") || intentSet.has("trending")) && repoShaped.length >= 2) score += 8;
+    const peopleShaped = items.filter((item) => typeof item?.name === "string" && (typeof item?.headline === "string" || typeof item?.public_identifier === "string"));
+    if (peopleShaped.length >= 2) score += 8;
+    if ((intentSet.has("people") || intentSet.has("person") || intentSet.has("profile")) && peopleShaped.length >= 2) score += 10;
+    const postShaped = items.filter((item) =>
+      (typeof item?.id === "string" || typeof item?.url === "string") &&
+      (typeof item?.text === "string" || typeof item?.content === "string" || typeof item?.username === "string")
+    );
+    if (postShaped.length >= 1) score += 8;
+    if ((intentSet.has("post") || intentSet.has("posts") || intentSet.has("status") || intentSet.has("statuses") || intentSet.has("tweet")) && postShaped.length >= 1) score += 10;
+    const topicShaped = items.filter((item) =>
+      (typeof item?.name === "string" || typeof item?.title === "string") &&
+      typeof item?.url === "string"
+    );
+    if (topicShaped.length >= 2) score += 8;
+    if ((intentSet.has("trend") || intentSet.has("trending") || intentSet.has("topic") || intentSet.has("topics") || intentSet.has("hashtag")) && topicShaped.length >= 2) score += 10;
+  }
+
+  if (structure.type === "table" && Array.isArray(structure.data)) {
+    const keys = new Set((structure.data as Array<Record<string, unknown>>).flatMap((row) => Object.keys(row)));
+    if (keys.has("Last commit message") || keys.has("Last commit date")) score -= 8;
+    if (keys.has("Name") && !intentSet.has("file") && !intentSet.has("commit")) score -= 4;
+  }
 
   // Bonus for more elements (richer data)
   score += Math.min(structure.element_count * 0.1, 2);
