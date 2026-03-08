@@ -3,12 +3,36 @@ import { join } from "path";
 import { homedir, hostname } from "os";
 import { randomBytes } from "crypto";
 import { createInterface } from "readline";
-import type { EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
+import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
 
 const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
-const CONFIG_DIR = join(homedir(), ".unbrowse");
+const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
+const CONFIG_DIR = PROFILE_NAME
+  ? join(homedir(), ".unbrowse", "profiles", PROFILE_NAME)
+  : join(homedir(), ".unbrowse");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
-const SKILL_CACHE_DIR = join(CONFIG_DIR, "skill-cache");
+const recentLocalSkills = new Map<string, SkillManifest>();
+const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
+
+function scopedSkillKey(skillId: string, scopeId?: string): string {
+  return scopeId ? `${scopeId}:${skillId}` : skillId;
+}
+
+function getSkillCacheDir(): string {
+  return process.env.UNBROWSE_SKILL_CACHE_DIR || join(CONFIG_DIR, "skill-cache");
+}
+
+function sanitizeProfileName(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+export function getActiveProfile(): string {
+  return PROFILE_NAME || "default";
+}
+
+export function isLocalOnlyMode(): boolean {
+  return LOCAL_ONLY;
+}
 
 interface UnbrowseConfig {
   api_key: string;
@@ -34,6 +58,7 @@ function saveConfig(config: UnbrowseConfig): void {
 }
 
 export function getApiKey(): string {
+  if (LOCAL_ONLY) return "local-only";
   // Env var takes priority, then cached config
   if (process.env.UNBROWSE_API_KEY) return process.env.UNBROWSE_API_KEY;
   const config = loadConfig();
@@ -166,6 +191,7 @@ async function checkTosStatus(): Promise<void> {
 
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(): Promise<void> {
+  if (LOCAL_ONLY) return;
   if (getApiKey()) {
     // Already have a key — check if ToS re-acceptance is needed
     await checkTosStatus();
@@ -218,12 +244,11 @@ export async function ensureRegistered(): Promise<void> {
 
 // --- Skill CRUD ---
 
-// Disk-backed skill cache — survives server restarts.
-// Backend has eventual consistency so GET /v1/skills/:id can 404 for
-// recently published skills. This cache is the safety net.
+// Disk snapshots for explicit local harness/debug flows.
+// Runtime resolve/execution should treat remote/shared skills as source of truth.
 
 function skillCachePath(skillId: string): string {
-  return join(SKILL_CACHE_DIR, `${skillId}.json`);
+  return join(getSkillCacheDir(), `${skillId}.json`);
 }
 
 function readSkillCache(skillId: string): SkillManifest | null {
@@ -233,9 +258,11 @@ function readSkillCache(skillId: string): SkillManifest | null {
   } catch { return null; }
 }
 
-function writeSkillCache(skill: SkillManifest): void {
+function writeSkillCache(skill: SkillManifest, scopeId?: string): void {
   try {
-    if (!existsSync(SKILL_CACHE_DIR)) mkdirSync(SKILL_CACHE_DIR, { recursive: true });
+    recentLocalSkills.set(scopedSkillKey(skill.skill_id, scopeId), skill);
+    const skillCacheDir = getSkillCacheDir();
+    if (!existsSync(skillCacheDir)) mkdirSync(skillCacheDir, { recursive: true });
     // Preserve local-only fields that the backend doesn't know about
     const existing = readSkillCache(skill.skill_id);
     if (existing) {
@@ -255,8 +282,13 @@ function writeSkillCache(skill: SkillManifest): void {
   } catch { /* non-critical — best effort */ }
 }
 
-export function cachePublishedSkill(skill: SkillManifest): void {
-  writeSkillCache(skill);
+export function cachePublishedSkill(skill: SkillManifest, scopeId?: string): void {
+  recentLocalSkills.set(scopedSkillKey(skill.skill_id, scopeId), skill);
+  writeSkillCache(skill, scopeId);
+}
+
+export function getRecentLocalSkill(skillId: string, scopeId?: string): SkillManifest | null {
+  return recentLocalSkills.get(scopedSkillKey(skillId, scopeId)) ?? recentLocalSkills.get(skillId) ?? null;
 }
 
 /**
@@ -264,62 +296,96 @@ export function cachePublishedSkill(skill: SkillManifest): void {
  * the existing skill instead of creating duplicates. Preserves skill_id and
  * exec_strategy across re-captures and server restarts.
  */
-export function findExistingSkillForDomain(domain: string): SkillManifest | null {
+function normalizeIntent(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function intentFamily(value: string | undefined): string {
+  const intent = normalizeIntent(value);
+  if (!intent) return "";
+  if (/\b(search|find|lookup)\b/.test(intent)) return `search:${intent.replace(/\b(search|find|lookup)\b/g, "").trim()}`;
+  if (/\b(get|fetch|retrieve|view)\b/.test(intent)) return `get:${intent.replace(/\b(get|fetch|retrieve|view)\b/g, "").trim()}`;
+  return intent;
+}
+
+function isIntentCompatible(lhs: string | undefined, rhs: string | undefined): boolean {
+  const left = normalizeIntent(lhs);
+  const right = normalizeIntent(rhs);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  return intentFamily(left) === intentFamily(right);
+}
+
+export function findExistingSkillForDomain(domain: string, intent?: string): SkillManifest | null {
   try {
-    if (!existsSync(SKILL_CACHE_DIR)) return null;
-    const files = readdirSync(SKILL_CACHE_DIR);
+    const skillCacheDir = getSkillCacheDir();
+    if (!existsSync(skillCacheDir)) return null;
+    const files = readdirSync(skillCacheDir);
+    let compatible: SkillManifest | null = null;
+    let fallback: SkillManifest | null = null;
     for (const f of files) {
       if (!f.endsWith(".json") || f === "browser-capture.json") continue;
       try {
-        const raw = readFileSync(join(SKILL_CACHE_DIR, f), "utf-8");
+        const raw = readFileSync(join(skillCacheDir, f), "utf-8");
         const skill = JSON.parse(raw) as SkillManifest;
         if (skill.domain === domain && skill.execution_type === "http") {
-          return skill;
+          if (!fallback) fallback = skill;
+          if (isIntentCompatible(skill.intent_signature, intent) || (skill.intents ?? []).some((candidate) => isIntentCompatible(candidate, intent))) {
+            compatible = skill;
+            break;
+          }
         }
       } catch { /* skip corrupt files */ }
     }
+    if (intent && normalizeIntent(intent)) return compatible;
+    return compatible ?? fallback;
   } catch { /* cache dir doesn't exist */ }
   return null;
 }
 
-export async function getSkill(skillId: string): Promise<SkillManifest | null> {
-  // Cache-first: return disk cache immediately, async-refresh from backend
-  const cached = readSkillCache(skillId);
-  if (cached) {
-    api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true })
-      .then(skill => {
-        // Preserve locally-learned fields — backend doesn't store these
-        if (cached.endpoints) {
-          for (const ep of skill.endpoints) {
-            const local = cached.endpoints.find(e => e.endpoint_id === ep.endpoint_id);
-            if (local?.exec_strategy && !ep.exec_strategy) {
-              ep.exec_strategy = local.exec_strategy;
-            }
-            if (local?.response_schema && !ep.response_schema) {
-              ep.response_schema = local.response_schema;
-            }
-          }
-        }
-        // Only update cache if remote has same or more endpoints — avoids clobbering
-        // a freshly published local skill with a stale backend copy (eventual consistency)
-        if ((skill.endpoints?.length ?? 0) >= (cached.endpoints?.length ?? 0)) {
-          writeSkillCache(skill);
-        }
-      })
-      .catch(() => {});
-    return cached;
+export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
+  const recent = getRecentLocalSkill(skillId, scopeId ?? process.env.UNBROWSE_CLIENT_ID);
+  if (recent) return recent;
+  if (LOCAL_ONLY) {
+    return readSkillCache(skillId);
   }
-  // No cache — must fetch from backend (public endpoint, no auth needed)
   try {
     const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true });
-    writeSkillCache(skill);
+    writeSkillCache(skill, scopeId);
     return skill;
   } catch {
     return null;
   }
 }
 
+export async function getSkillChunk(
+  skillId: string,
+  opts?: {
+    intent?: string;
+    operation_id?: string;
+    known_bindings?: Record<string, unknown>;
+    max_operations?: number;
+  }
+): Promise<AgentSkillChunkView> {
+  if (LOCAL_ONLY) throw new Error("local-only mode does not support remote chunk fetch");
+  return api("POST", `/v1/skills/${skillId}/chunk`, opts ?? {});
+}
+
 export async function listSkills(): Promise<SkillManifest[]> {
+  if (LOCAL_ONLY) {
+    try {
+      if (!existsSync(SKILL_CACHE_DIR)) return [];
+      return readdirSync(SKILL_CACHE_DIR)
+        .filter((file) => file.endsWith(".json"))
+        .map((file) => {
+          try { return JSON.parse(readFileSync(join(SKILL_CACHE_DIR, file), "utf-8")) as SkillManifest; }
+          catch { return null; }
+        })
+        .filter((skill): skill is SkillManifest => !!skill);
+    } catch {
+      return [];
+    }
+  }
   const data = await api<{ skills: SkillManifest[] }>("GET", "/v1/skills");
   return data.skills;
 }
@@ -330,10 +396,23 @@ export async function publishSkill(
     version?: string;
   }
 ): Promise<SkillManifest & { warnings: string[] }> {
+  if (!draft.endpoints || draft.endpoints.length === 0) {
+    const now = new Date().toISOString();
+    return {
+      ...draft,
+      skill_id: draft.skill_id ?? "local-empty-skill",
+      version: draft.version ?? "1.0.0",
+      created_at: now,
+      updated_at: now,
+      warnings: ["skipped_publish_empty_endpoints"],
+    } as SkillManifest & { warnings: string[] };
+  }
+  if (LOCAL_ONLY) throw new Error("local-only mode");
   return api("POST", "/v1/skills", draft);
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
+  if (LOCAL_ONLY) return;
   await api("DELETE", `/v1/skills/${skillId}`, undefined);
 }
 
@@ -343,6 +422,7 @@ export async function updateEndpointScore(
   score: number,
   status?: string
 ): Promise<void> {
+  if (LOCAL_ONLY) return;
   await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { score, status });
 }
 
@@ -351,6 +431,7 @@ export async function updateEndpointSchema(
   endpointId: string,
   schema: import("../types/index.js").ResponseSchema
 ): Promise<void> {
+  if (LOCAL_ONLY) return;
   await api("PATCH", `/v1/skills/${skillId}/endpoints/${endpointId}`, { response_schema: schema });
 }
 
@@ -358,6 +439,7 @@ export async function getEndpointSchema(
   skillId: string,
   endpointId: string
 ): Promise<unknown | null> {
+  if (LOCAL_ONLY) return null;
   try {
     return await api("GET", `/v1/skills/${skillId}/endpoints/${endpointId}/schema`);
   } catch {
@@ -371,6 +453,7 @@ export async function searchIntent(
   intent: string,
   k = 5
 ): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
+  if (LOCAL_ONLY) return [];
   const data = await api<{ results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> }>(
     "POST", "/v1/search", { intent, k }
   );
@@ -382,6 +465,7 @@ export async function searchIntentInDomain(
   domain: string,
   k = 5
 ): Promise<Array<{ id: number; score: number; metadata: Record<string, unknown> }>> {
+  if (LOCAL_ONLY) return [];
   const data = await api<{ results: Array<{ id: number; score: number; metadata: Record<string, unknown> }> }>(
     "POST", "/v1/search/domain", { intent, domain, k }
   );
@@ -395,6 +479,7 @@ export async function recordExecution(
   endpointId: string,
   trace: ExecutionTrace
 ): Promise<void> {
+  if (LOCAL_ONLY) return;
   // Strip actual API response data — only send metadata for scoring
   const { result: _result, ...metadata } = trace;
   await api("POST", "/v1/stats/execution", {
@@ -409,6 +494,7 @@ export async function recordFeedback(
   endpointId: string,
   rating: number
 ): Promise<number> {
+  if (LOCAL_ONLY) return rating;
   const data = await api<{ avg_rating: number }>("POST", "/v1/stats/feedback", {
     skill_id: skillId,
     endpoint_id: endpointId,
@@ -424,6 +510,7 @@ export async function recordDiagnostics(
   endpointId: string,
   diagnostics: Record<string, unknown>
 ): Promise<void> {
+  if (LOCAL_ONLY) return;
   await api("POST", "/v1/stats/diagnostics", {
     skill_id: skillId,
     endpoint_id: endpointId,
@@ -434,12 +521,14 @@ export async function recordDiagnostics(
 // --- Orchestration Perf ---
 
 export async function recordOrchestrationPerf(timing: OrchestrationTiming): Promise<void> {
+  if (LOCAL_ONLY) return;
   await api("POST", "/v1/stats/perf", timing);
 }
 
 // --- Validation ---
 
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {
+  if (LOCAL_ONLY) return { valid: true, hardErrors: [], softWarnings: [] };
   return api<ValidationResult>("POST", "/v1/validate", manifest);
 }
 

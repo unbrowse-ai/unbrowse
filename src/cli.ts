@@ -7,9 +7,16 @@
  * Usage: unbrowse <command> [flags]
  */
 
-import { maybeAutoUpdate } from "./auto-update.js";
+import { config as loadEnv } from "dotenv";
+import { ensureLocalServer } from "./runtime/local-server.js";
+import { isMainModule } from "./runtime/paths.js";
+import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
+
+loadEnv({ quiet: true });
+loadEnv({ path: ".env.runtime", quiet: true });
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
+const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
 
 // ---------------------------------------------------------------------------
 // Arg parser
@@ -46,7 +53,10 @@ export function parseArgs(argv: string[]): { command: string; args: string[]; fl
 async function api(method: string, path: string, body?: unknown): Promise<unknown> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      "x-unbrowse-client-id": CLI_CLIENT_ID,
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok && res.headers.get("content-type")?.includes("json")) {
@@ -69,6 +79,26 @@ function die(msg: string): never {
 
 function info(msg: string): void {
   process.stderr.write(`[unbrowse] ${msg}\n`);
+}
+
+async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
+  let done = false;
+  const timer = setTimeout(() => {
+    if (!done) info(message);
+  }, delayMs);
+  try {
+    return await promise;
+  } finally {
+    done = true;
+    clearTimeout(timer);
+  }
+}
+
+function normalizeSetupScope(value: string | boolean | undefined): SetupScope {
+  if (value === true || value == null) return "auto";
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "global" || normalized === "project" || normalized === "off") return normalized;
+  return "auto";
 }
 
 // ---------------------------------------------------------------------------
@@ -162,7 +192,13 @@ function extractFields(data: unknown, fields: string[], entityIndex?: Map<string
       const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
       const resolved = resolvePath(item, path, entityIndex ?? undefined) ?? [];
       // Unwrap single-element arrays to scalar values
-      out[alias] = resolved.length === 0 ? null : resolved.length === 1 ? resolved[0] : resolved;
+      out[alias] = Array.isArray(resolved)
+        ? resolved.length === 0
+          ? null
+          : resolved.length === 1
+            ? resolved[0]
+            : resolved
+        : resolved;
     }
     return out;
   }
@@ -178,6 +214,15 @@ function extractFields(data: unknown, fields: string[], entityIndex?: Map<string
     return data.map(mapItem).filter((row) => Object.values(row).some(hasValue));
   }
   return mapItem(data);
+}
+
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.some((item) => hasMeaningfulValue(item));
+  if (typeof value === "object") return Object.values(value as Record<string, unknown>).some((item) => hasMeaningfulValue(item));
+  return false;
 }
 
 /** Apply --path, --extract, --limit to a result object. */
@@ -289,14 +334,15 @@ function autoExtractOrWrap(obj: Record<string, unknown>): Record<string, unknown
   // No hints: can't auto-extract, return as-is (raw will be big but we have no better option)
   if (!hints) return obj;
 
-  // High/medium confidence: auto-apply extraction
-  if (hints.confidence === "high" || hints.confidence === "medium") {
+  // High confidence only: medium confidence still too error-prone for first-try correctness.
+  if (hints.confidence === "high") {
     const syntheticFlags: Record<string, string | boolean> = {};
     if (hints.path) syntheticFlags.path = hints.path;
     if (hints.fields.length > 0) syntheticFlags.extract = hints.fields.join(",");
     syntheticFlags.limit = "20";
 
     const extracted = applyTransforms(obj.result, syntheticFlags);
+    if (!hasMeaningfulValue(extracted)) return wrapWithHints(obj);
     const slimmed = slimTrace({ ...obj, result: extracted });
 
     // Include the hints so the agent knows what was auto-applied and can adjust
@@ -316,34 +362,6 @@ function autoExtractOrWrap(obj: Record<string, unknown>): Record<string, unknown
 // ---------------------------------------------------------------------------
 // Server lifecycle
 // ---------------------------------------------------------------------------
-
-async function ensureServer(noAutoStart: boolean): Promise<void> {
-  try {
-    const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(2000) });
-    if (res.ok) return;
-  } catch { /* not running */ }
-
-  if (noAutoStart) die("Server not running. Start with: cd ~/.agents/skills/unbrowse && bun src/index.ts");
-
-  info("Server not running. Starting...");
-  const skillDir = process.env.SKILL_DIR ?? `${process.env.HOME}/.agents/skills/unbrowse`;
-  const { spawn } = await import("child_process");
-  spawn("bun", ["src/index.ts"], {
-    cwd: skillDir,
-    detached: true,
-    stdio: ["ignore", "ignore", "ignore"],
-    env: { ...process.env, UNBROWSE_NON_INTERACTIVE: "1", UNBROWSE_TOS_ACCEPTED: "1" },
-  }).unref();
-
-  for (let i = 0; i < 15; i++) {
-    await new Promise((r) => setTimeout(r, 1000));
-    try {
-      const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(2000) });
-      if (res.ok) { info("Server ready."); return; }
-    } catch { /* keep polling */ }
-  }
-  die("Server failed to start. Check /tmp/unbrowse.log");
-}
 
 // ---------------------------------------------------------------------------
 // Commands
@@ -380,7 +398,11 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   const hasTransforms = !!(flags.path || flags.extract);
   if (flags.raw || hasTransforms) body.projection = { raw: true };
 
-  let result = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
+  const startedAt = Date.now();
+  let result = await withPendingNotice(
+    api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+    "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back.",
+  );
 
   // --schema: return only schema + extraction hints (no data)
   if (flags.schema) {
@@ -403,6 +425,10 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
   }
 
+  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
+    info("Live capture finished. Future runs against this site should be much faster.");
+  }
+
   output(result, !!flags.pretty);
 }
 
@@ -417,13 +443,18 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   if (flags.params) {
     body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
   }
+  if (flags.url) body.context_url = flags.url;
+  if (flags.intent) body.intent = flags.intent;
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
   // When explicit CLI transforms are present, get raw data for client-side extraction
   const hasTransforms = !!(flags.path || flags.extract);
   if (flags.raw || hasTransforms) body.projection = { raw: true };
 
-  let result = await api("POST", `/v1/skills/${skillId}/execute`, body) as Record<string, unknown>;
+  let result = await withPendingNotice(
+    api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
+    "Still working. This endpoint may require browser replay or first-time auth/capture setup.",
+  );
 
   // --schema: return only schema + extraction hints (no data)
   if (flags.schema) {
@@ -492,6 +523,52 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
   output(await api("GET", `/v1/sessions/${domain}?limit=${limit}`), !!flags.pretty);
 }
 
+async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> {
+  info("Running setup checks");
+  const report = await runSetup({
+    cwd: process.cwd(),
+    opencode: normalizeSetupScope(flags.opencode),
+    installBrowser: !flags["skip-browser"],
+  }) as SetupReport & {
+    server?: {
+      started: boolean;
+      skipped?: boolean;
+      base_url?: string;
+      error?: string;
+    };
+  };
+
+  if (report.browser_engine.action === "failed") {
+    info("Browser engine install failed");
+  } else if (report.browser_engine.action === "installed") {
+    info("Browser engine installed");
+  }
+
+  if (report.opencode.action === "installed" || report.opencode.action === "updated") {
+    info(`Open Code command installed at ${report.opencode.command_file}`);
+  }
+
+  if (flags["no-start"]) {
+    report.server = { started: false, skipped: true, base_url: BASE_URL };
+    output(report, true);
+    if (report.browser_engine.action === "failed") process.exit(1);
+    return;
+  }
+
+  try {
+    await ensureLocalServer(BASE_URL, false, import.meta.url);
+    report.server = { started: true, base_url: BASE_URL };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    report.server = { started: false, error: message, base_url: BASE_URL };
+    output(report, true);
+    process.exit(1);
+  }
+
+  output(report, true);
+  if (report.browser_engine.action === "failed") process.exit(1);
+}
+
 // ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
@@ -499,6 +576,7 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
 export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
+    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
@@ -512,6 +590,8 @@ export const CLI_REFERENCE = {
     { flag: "--pretty", desc: "Indented JSON output" },
     { flag: "--no-auto-start", desc: "Don't auto-start server" },
     { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
+    { flag: "--skip-browser", desc: "setup: skip browser-engine install" },
+    { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
     { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
@@ -524,6 +604,7 @@ export const CLI_REFERENCE = {
     { flag: "--params '{...}'", desc: "Extra params as JSON" },
   ],
   examples: [
+    "unbrowse setup",
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
     "unbrowse execute --skill abc --endpoint def --pretty",
     'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
@@ -573,10 +654,7 @@ function printHelp(): void {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  maybeAutoUpdate();
-
   const { command, args, flags } = parseArgs(process.argv);
-  const pretty = !!flags.pretty;
   const noAutoStart = !!flags["no-auto-start"];
 
   if (command === "help" || flags.help) {
@@ -584,13 +662,16 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Health check doesn't need auto-start
-  if (command !== "health") {
-    await ensureServer(noAutoStart);
+  if (command === "setup") {
+    await cmdSetup(flags);
+    return;
   }
+
+  await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
 
   switch (command) {
     case "health": return cmdHealth(flags);
+    case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
@@ -604,7 +685,7 @@ async function main(): Promise<void> {
 }
 
 // Only run when this file is the entry point (not when imported by sync script etc.)
-if (import.meta.main !== false) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     die((err as Error).message);
   });

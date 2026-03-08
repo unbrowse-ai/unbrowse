@@ -1,11 +1,14 @@
 import { createHash } from "crypto";
 import { readFileSync, readdirSync } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
 import { execSync } from "child_process";
+import { fileURLToPath } from "url";
 
 // Deterministic version hash of all src/*.ts files.
 // Computed once at startup. Same code = same hash.
 // Used to stamp every trace so real user sessions become versioned evals.
+
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
 function collectTsFiles(dir: string): string[] {
   const results: string[] = [];
@@ -21,7 +24,7 @@ function collectTsFiles(dir: string): string[] {
 }
 
 function computeCodeHash(): string {
-  const srcDir = join((import.meta as any).dir ?? __dirname, ".");
+  const srcDir = join(MODULE_DIR, ".");
   const files = collectTsFiles(srcDir).sort();
   const hash = createHash("sha256");
   for (const file of files) {
@@ -33,7 +36,7 @@ function computeCodeHash(): string {
 
 function getGitSha(): string {
   try {
-    return execSync("git rev-parse --short HEAD", { encoding: "utf-8", cwd: (import.meta as any).dir ?? __dirname }).trim();
+    return execSync("git rev-parse --short HEAD", { encoding: "utf-8", cwd: MODULE_DIR }).trim();
   } catch {
     return "unknown";
   }

@@ -1,77 +1,67 @@
 # Unbrowse
 
-[![Star History Chart](https://api.star-history.com/svg?repos=unbrowse-ai/unbrowse&type=date&legend=top-left)](https://www.star-history.com/#unbrowse-ai/unbrowse&type=date&legend=top-left)
+This package installs the `unbrowse` CLI.
 
-The browser that agents actually need. Instead of rendering pixels for software that doesn't have eyes, Unbrowse reverse-engineers the APIs underneath every website and turns them into reusable, structured endpoint contracts.
+Turn any website into a reusable API interface for agents. Unbrowse captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
 
-Skills discovered by any agent are published to a shared marketplace and instantly available to all agents.
+One agent learns a site once. Every later agent gets the fast path.
 
-> Security note: capture and execution are local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full API reference.
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
-## What's new
-
-**Auth just works now.** Unbrowse reads cookies directly from your Chrome and Firefox databases — no manual login flows needed for most sites. If you're logged into a site in your browser, Unbrowse can use those sessions automatically. Cookies are resolved fresh on every call, expired cookies are filtered out, and cross-domain redirects (e.g. lu.ma → luma.com) are handled transparently. Auth headers (CSRF tokens, API keys) captured during browsing are stored encrypted and replayed on server-side fetches.
-
-**Extraction hints.** Large API responses no longer require agents to guess `--path` values through trial and error. The engine analyzes response schemas at inference time and returns `extraction_hints` with the exact path, fields, and ready-to-paste CLI args. Agents get structured data on the first try.
-
-**JS bundle scanning.** During capture, Unbrowse scans JavaScript bundles for API routes that were never triggered by network traffic. Endpoints like `/api/search` that only fire on user interaction are now discovered automatically — zero extra requests, since the bundles are already downloaded.
-
-**Auto-update.** The skill silently updates itself in the background every 4 hours. No more manual `npx skills update`.
-
-**10x faster execution.** Server-side fetch with stored auth headers means most calls skip the browser entirely — 120s → 100ms. Local disk cache eliminates marketplace latency for known domains.
-
-## Install
+## Quick start
 
 ```bash
-npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
+# Fastest full setup
+npx unbrowse setup
 ```
 
-No manual configuration needed — credentials are auto-generated on first run.
+`npx unbrowse setup` downloads the CLI on demand, installs browser assets, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
 
-Works with Claude Code, Cursor, Codex, Windsurf, and any agent that supports skills.
+For daily use:
 
-## The problem
+```bash
+npm install -g unbrowse
+unbrowse setup
+```
 
-Every AI company building agents hits the same wall: **browsers don't work for machines.**
+If your agent host uses skills:
 
-Browser automation hammers servers with full page loads just to extract one data point. It's slow, unreliable, and expensive for everyone. Sites hate it. Developers hate it. Everyone loses.
+```bash
+npx skills add unbrowse-ai/unbrowse
+```
 
-The current approaches all fail at scale:
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`.
 
-| Approach | What it does | Why it breaks |
-|---|---|---|
-| **Computer Use** | Screenshots + click coordinates | 30-60s per action, $0.10+ per page, breaks on any UI change |
-| **Web Scraping** | Parse HTML into structured data | Constant maintenance, blocked by anti-bot, no auth handling |
-| **MCP Servers** | Hand-built integrations per site | 1B+ sites on the web, ~50 MCP servers. Will never reach 1% |
+Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
-The agentic web won't be built on browsers. It'll be built on APIs.
+## What setup does
 
-## What Unbrowse does
+- Checks local prerequisites for the npm/npx flow.
+- Installs browser assets needed for live capture.
+- Registers the Open Code `/unbrowse` command when Open Code is present.
+- Starts the local Unbrowse server unless `--no-start` is passed.
 
-An agent connects to Unbrowse and says "I need to search flights on Skyscanner." Instead of launching a browser, loading a page, clicking buttons, and parsing HTML — it gets a clean API call back. Structured JSON in milliseconds.
+## Common commands
 
-**What agents see today:** 4,847 DOM nodes, 12.4 seconds to parse.
+```bash
+unbrowse health
+unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
+unbrowse login --url "https://calendar.google.com"
+unbrowse skills
+unbrowse search --intent "get stock prices"
+```
 
-**What Unbrowse sees:** 4 clean API endpoints, ~200ms, structured JSON.
+## Demo notes
 
-| | Browser automation | Unbrowse |
-|---|---|---|
-| **Speed** | 5-30 seconds per action | 50-200ms |
-| **Reliability** | Breaks on any UI/selector change | Stable API contracts |
-| **Cost** | $0.10+ per page load | ~90% cheaper |
-| **Output** | Raw HTML / screenshots | Structured JSON |
-| **Maintenance** | Constant | Self-healing via marketplace |
+- First-time capture/indexing on a site can take 20-80 seconds. That is the slow path; repeats should be much faster.
+- For website tasks, keep the agent on Unbrowse instead of letting it drift into generic web search or ad hoc `curl`.
+- Reddit is still a harder target than most sites because of anti-bot protections. Prefer canonical `.json` routes when available.
 
 ## How it works
 
-1. You provide a URL and intent (e.g. "get trending searches on Google")
-2. The marketplace is searched for an existing skill matching your intent
-3. If found, the skill executes immediately (50-200ms)
-4. If not found, a headless browser navigates to the URL and records all network traffic
-5. API endpoints are extracted, scored, and filtered from the traffic
-6. A reusable skill is published to the shared marketplace with endpoint schemas
-7. The skill is executed and results are returned
-8. Future calls — from any agent — reuse the learned skill instantly
+When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse captures the site, learns the APIs behind it, publishes a reusable skill, and executes that instead.
+
+Every learned skill becomes discoverable by every future agent. Reliability scoring, feedback, schema drift, and verification keep the good paths hot and the broken ones out of the way.
 
 ### Intent resolution pipeline
 
@@ -108,11 +98,11 @@ A background verification loop runs every 6 hours, executing safe (GET) endpoint
 
 For most sites, auth is automatic. If you're logged into a site in Chrome or Firefox, Unbrowse reads your cookies directly from the browser's SQLite database — no extra steps needed. Cookies are resolved fresh on every call, so sessions stay current.
 
-| Strategy | How it works | When to use |
-|---|---|---|
+| Strategy            | How it works                                       | When to use                                          |
+| ------------------- | -------------------------------------------------- | ---------------------------------------------------- |
 | Auto cookie resolve | Reads cookie DBs from Chrome/Firefox automatically | Default — works if you're logged in via your browser |
-| Yolo mode | Opens Chrome with your real profile | Sites with complex auth (OAuth popups, 2FA) |
-| Interactive login | Opens a headed browser for manual login | Fallback when auto-resolve has no cookies |
+| Yolo mode           | Opens Chrome with your real profile                | Sites with complex auth (OAuth popups, 2FA)          |
+| Interactive login   | Opens a headed browser for manual login            | Fallback when auto-resolve has no cookies            |
 
 Auth headers (CSRF tokens, API keys, authorization headers) are captured during browsing and stored in an encrypted vault (`~/.unbrowse/vault/`). Server-side fetches replay these headers automatically — no browser launch needed. Cross-domain auth (e.g. lu.ma cookies working on api2.luma.com) is handled transparently. Stale credentials (401/403 responses) are auto-deleted.
 
@@ -129,19 +119,19 @@ GET endpoints auto-execute. Mutations never fire without opt-in.
 
 See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, search, feedback, auth, and issue reporting.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/v1/intent/resolve` | Search marketplace, capture if needed, execute |
-| POST | `/v1/skills/:id/execute` | Execute a specific skill |
-| POST | `/v1/auth/login` | Interactive browser login |
-| POST | `/v1/search` | Semantic search across all domains |
-| POST | `/v1/search/domain` | Semantic search scoped to a domain |
-| POST | `/v1/feedback` | Submit feedback (affects reliability scores) |
-| POST | `/v1/skills/:id/verify` | Health check skill endpoints |
-| POST | `/v1/skills/:id/issues` | Report a broken skill |
-| GET | `/v1/skills` | List all marketplace skills |
-| GET | `/v1/stats/summary` | Platform stats |
-| GET | `/health` | Health check |
+| Method | Endpoint                 | Description                                    |
+| ------ | ------------------------ | ---------------------------------------------- |
+| POST   | `/v1/intent/resolve`     | Search marketplace, capture if needed, execute |
+| POST   | `/v1/skills/:id/execute` | Execute a specific skill                       |
+| POST   | `/v1/auth/login`         | Interactive browser login                      |
+| POST   | `/v1/search`             | Semantic search across all domains             |
+| POST   | `/v1/search/domain`      | Semantic search scoped to a domain             |
+| POST   | `/v1/feedback`           | Submit feedback (affects reliability scores)   |
+| POST   | `/v1/skills/:id/verify`  | Health check skill endpoints                   |
+| POST   | `/v1/skills/:id/issues`  | Report a broken skill                          |
+| GET    | `/v1/skills`             | List all marketplace skills                    |
+| GET    | `/v1/stats/summary`      | Platform stats                                 |
+| GET    | `/health`                | Health check                                   |
 
 ## Configuration
 
@@ -158,14 +148,14 @@ See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, s
 
 ### Environment variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `6969` | Server port |
-| `HOST` | `127.0.0.1` | Server bind address |
-| `UNBROWSE_URL` | `http://localhost:6969` | Base URL for API calls |
-| `UNBROWSE_API_KEY` | auto-generated | API key override |
-| `UNBROWSE_TOS_ACCEPTED` | — | Accept ToS non-interactively |
-| `UNBROWSE_NON_INTERACTIVE` | — | Skip readline prompts |
+| Variable                   | Default                 | Description                  |
+| -------------------------- | ----------------------- | ---------------------------- |
+| `PORT`                     | `6969`                  | Server port                  |
+| `HOST`                     | `127.0.0.1`             | Server bind address          |
+| `UNBROWSE_URL`             | `http://localhost:6969` | Base URL for API calls       |
+| `UNBROWSE_API_KEY`         | auto-generated          | API key override             |
+| `UNBROWSE_TOS_ACCEPTED`    | —                       | Accept ToS non-interactively |
+| `UNBROWSE_NON_INTERACTIVE` | —                       | Skip readline prompts        |
 
 ## System layout
 

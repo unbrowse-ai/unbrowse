@@ -3,9 +3,30 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
-let keytar: typeof import("keytar") | null = null;
+type KeytarClient = {
+  setPassword: (service: string, account: string, password: string) => Promise<unknown>;
+  getPassword: (service: string, account: string) => Promise<string | null>;
+  deletePassword: (service: string, account: string) => Promise<boolean>;
+};
+
+export function normalizeKeytarModule(mod: unknown): KeytarClient | null {
+  const candidate = (mod && typeof mod === "object" && "default" in mod
+    ? (mod as { default?: unknown }).default
+    : mod) as Partial<KeytarClient> | undefined;
+  if (!candidate) return null;
+  if (
+    typeof candidate.setPassword === "function" &&
+    typeof candidate.getPassword === "function" &&
+    typeof candidate.deletePassword === "function"
+  ) {
+    return candidate as KeytarClient;
+  }
+  return null;
+}
+
+let keytar: KeytarClient | null = null;
 try {
-  keytar = await import("keytar");
+  keytar = normalizeKeytarModule(await import("keytar"));
 } catch {
   // keytar unavailable -- use encrypted file fallback
 }

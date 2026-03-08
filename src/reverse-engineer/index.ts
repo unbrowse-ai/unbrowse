@@ -3,6 +3,8 @@ import type { EndpointDescriptor, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
+import { inferEndpointSemantic } from "../graph/index.js";
+import { writeDebugTrace } from "../debug-trace.js";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -82,6 +84,104 @@ const AD_SCHEMA_KEYS = new Set([
 ]);
 const AD_SCHEMA_THRESHOLD = 3; // need at least this many ad-like keys to classify
 
+function singularize(word: string): string {
+  if (word.endsWith("ies") && word.length > 4) return `${word.slice(0, -3)}y`;
+  if (word.endsWith("ses") || word.endsWith("ges") || word.endsWith("zes")) return word.slice(0, -2);
+  if (word.endsWith("s") && !word.endsWith("ss") && word.length > 3) return word.slice(0, -1);
+  return word;
+}
+
+function titleCase(text: string): string {
+  return text
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part[0] ? `${part[0].toUpperCase()}${part.slice(1)}` : "")
+    .join(" ");
+}
+
+function compactForSemanticExample(value: unknown, depth = 0): unknown {
+  if (depth > 2 || value == null) return value;
+  if (Array.isArray(value)) return value.slice(0, 2).map((item) => compactForSemanticExample(item, depth + 1));
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).slice(0, 8);
+    return Object.fromEntries(entries.map(([key, next]) => [key, compactForSemanticExample(next, depth + 1)]));
+  }
+  if (typeof value === "string" && value.length > 160) return `${value.slice(0, 157)}...`;
+  return value;
+}
+
+function flattenRequestExample(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: Record<string, unknown> = {};
+  for (const [groupKey, groupValue] of Object.entries(value as Record<string, unknown>)) {
+    if (groupValue == null) continue;
+    if (!groupValue || typeof groupValue !== "object" || Array.isArray(groupValue)) {
+      out[groupKey] = groupValue;
+      continue;
+    }
+    for (const [nestedKey, nestedValue] of Object.entries(groupValue as Record<string, unknown>)) {
+      if (out[nestedKey] == null) out[nestedKey] = nestedValue;
+    }
+  }
+  return out;
+}
+
+function summarizeResponseExample(sample: unknown): { subject: string; fields: string[] } {
+  if (Array.isArray(sample)) {
+    const first = sample.find((item) => item && typeof item === "object");
+    const fields = first ? collectKeysShallow(first).slice(0, 6) : [];
+    return { subject: "items", fields };
+  }
+  if (!sample || typeof sample !== "object") return { subject: "response", fields: [] };
+  const record = sample as Record<string, unknown>;
+  const preferredKey = Object.keys(record).find((key) => {
+    const value = record[key];
+    return (Array.isArray(value) && value.length > 0) || (value && typeof value === "object");
+  }) ?? Object.keys(record)[0] ?? "response";
+  const preferredValue = record[preferredKey];
+  if (Array.isArray(preferredValue) && preferredValue.length > 0) {
+    const fields = preferredValue[0] && typeof preferredValue[0] === "object"
+      ? collectKeysShallow(preferredValue[0]).slice(0, 6)
+      : [];
+    return { subject: singularize(preferredKey), fields };
+  }
+  if (preferredValue && typeof preferredValue === "object") {
+    return { subject: singularize(preferredKey), fields: collectKeysShallow(preferredValue).slice(0, 6) };
+  }
+  return { subject: singularize(preferredKey), fields: collectKeysShallow(sample).slice(0, 6) };
+}
+
+function inferPathSubject(pathname: string): string {
+  const generic = new Set(["api", "graphql", "rpc", "search", "query", "v1", "v2", "v3", "rest"]);
+  const segments = pathname.split("/").filter(Boolean).filter((segment) => !generic.has(segment.toLowerCase()));
+  return singularize(segments[segments.length - 1] ?? "response");
+}
+
+function buildEndpointDescription(
+  req: RawRequest,
+  sampleRequest: Record<string, unknown>,
+  sampleResponse: unknown,
+): string {
+  const url = new URL(req.url);
+  const pathTail = url.pathname.split("/").filter(Boolean).slice(-2).join(" ");
+  const requestKeys = Object.keys(sampleRequest).slice(0, 4);
+  const response = summarizeResponseExample(sampleResponse);
+  const action = requestKeys.some((key) => /^(q|query|search|term)$/i.test(key)) || /search|find|lookup/.test(url.pathname)
+    ? "Searches"
+    : /status|health|incident|maintenance/.test(url.pathname)
+      ? "Returns status for"
+      : url.pathname.match(/\{[^}]+\}|\/[0-9A-Za-z_-]{4,}(\/|$)/)
+        ? "Returns details for"
+        : "Returns";
+  const subjectSource = new Set(["response", "data", "result", "results", "item", "items"]).has(response.subject.toLowerCase())
+    ? inferPathSubject(url.pathname)
+    : response.subject;
+  const subject = titleCase(subjectSource === "response" ? (pathTail || url.hostname) : subjectSource);
+  const fieldText = response.fields.length > 0 ? ` with ${response.fields.join(", ")}` : "";
+  const inputText = requestKeys.length > 0 ? ` using ${requestKeys.join(", ")}` : "";
+  return `${action} ${subject}${fieldText}${inputText}`;
+}
+
 function looksLikeAdResponse(body: string | undefined): boolean {
   if (!body) return false;
   try {
@@ -95,6 +195,29 @@ function looksLikeAdResponse(body: string | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+function isHtmlResponseBody(body: string | undefined): boolean {
+  if (!body) return false;
+  const trimmed = body.trim();
+  if (!trimmed) return false;
+  if (!/[<>]/.test(trimmed)) return false;
+  return /<(html|body|head|main|article|div|section|a|script|meta|title)\b/i.test(trimmed) ||
+    /<!doctype html/i.test(trimmed);
+}
+
+function isJsonResponseBody(body: string | undefined): boolean {
+  if (!body) return false;
+  try {
+    JSON.parse(stripJsonPrefix(body));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasAdmissibleParsedBody(body: string | undefined): boolean {
+  return isJsonResponseBody(body) || isHtmlResponseBody(body);
 }
 
 /** Collect top-level + one-level-nested keys from an object/array */
@@ -115,6 +238,147 @@ function collectKeysShallow(obj: unknown): string[] {
     }
   }
   return keys;
+}
+
+function tokenize(text: string | undefined): string[] {
+  if (!text) return [];
+  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+function collectSemanticTokens(value: unknown, out = new Set<string>(), depth = 0): Set<string> {
+  if (depth > 6 || value == null) return out;
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 3)) collectSemanticTokens(item, out, depth + 1);
+    return out;
+  }
+  if (typeof value === "object") {
+    for (const [key, next] of Object.entries(value as Record<string, unknown>).slice(0, 12)) {
+      for (const token of tokenize(key)) out.add(token);
+      collectSemanticTokens(next, out, depth + 1);
+    }
+    return out;
+  }
+  if (typeof value === "string" && value.length <= 64) {
+    for (const token of tokenize(value)) out.add(token);
+  }
+  return out;
+}
+
+type IntentEntityKind = "comment" | "post" | "person" | "company" | "repository" | "topic" | "channel" | "listing";
+
+function inferIntentEntityKind(intent: string | undefined): IntentEntityKind | null {
+  const text = intent?.toLowerCase() ?? "";
+  if (/\b(comment|comments|reply|replies)\b/.test(text)) return "comment";
+  if (/\b(post|posts|status|statuses|tweet|tweets|message|messages)\b/.test(text)) return "post";
+  if (/\b(person|people|profile|profiles|member|members|user|users)\b/.test(text)) return "person";
+  if (/\b(company|companies|organization|organisations|org|business|businesses)\b/.test(text)) return "company";
+  if (/\b(repo|repos|repository|repositories|project|projects)\b/.test(text)) return "repository";
+  if (/\b(topic|topics|trend|trends|hashtag|hashtags)\b/.test(text)) return "topic";
+  if (/\b(channel|channels|thread|threads|conversation|conversations)\b/.test(text)) return "channel";
+  if (/\b(listing|listings|product|products|item|items|marketplace)\b/.test(text)) return "listing";
+  return null;
+}
+
+function getIntentEntityRules(kind: IntentEntityKind): { strong: string[]; weak: string[]; negative: RegExp; negativeSignals?: string[] } {
+  switch (kind) {
+    case "comment":
+      return {
+        strong: ["comment", "comments", "body", "bodyhtml", "author", "replies", "reply", "parentid", "permalink", "score"],
+        weak: ["text", "content", "created", "subreddit", "depth", "children"],
+        negative: /(subreddits?(\/|$)|communities|communityinfo|about(\.json)?$|accounts(\/|$)|people|profiles|instance|custom_emojis)/i,
+        negativeSignals: ["displayname", "subscribers", "communityicon", "activeusercount", "subreddittype", "bannerimg"],
+      };
+    case "post":
+      return {
+        strong: ["status", "statuses", "post", "posts", "content", "text", "title", "author", "permalink", "score", "numcomments", "num_comments", "selftext", "reblog", "spoiler"],
+        weak: ["blog", "body", "reply", "replies", "favourites", "favourited", "published", "visibility", "subreddit", "created"],
+        negative: /(subreddits?(\/|$)|communityinfo|about(\.json)?$|trends\/tags|custom_emojis|instance|filters|accounts(\/|$)|reports(\/|$)|packs\/assets)/i,
+        negativeSignals: ["displayname", "display_name", "subscribers", "communityicon", "community_icon", "activeusercount", "active_user_count", "subreddittype", "subreddit_type", "bannerimg", "banner_img"],
+      };
+    case "person":
+      return {
+        strong: ["publicidentifier", "firstname", "lastname", "headline", "displayname", "fullname", "occupation", "username", "acct", "screen", "followers", "following", "bio", "avatar", "verified"],
+        weak: ["person", "people", "profile", "profiles", "member", "members", "actor", "name", "title", "description", "viewer", "user", "users"],
+        negative: /(policy\/notices|globalalerts|badging|notification|messaging|mailbox|launchpad|identitymodule|globalnav|feeddash|topics|realtime|tracking|tracko11y|allowlist|preload|presence)/i,
+      };
+    case "company":
+      return {
+        strong: ["company", "organization", "organisation", "org", "staffcount", "employees", "industry", "industries", "tagline", "overview", "about", "headquarters", "websiteurl", "companyname"],
+        weak: ["name", "followers", "location", "specialties", "logo", "description"],
+        negative: /(people|profiles|members|globalnav|launchpad|messaging|mailbox|tracking|notification|preload|presence|metadata$)/i,
+        negativeSignals: ["navigationcontext", "trackingid", "tracking", "globalnav", "mailbox", "notification"],
+      };
+    case "repository":
+      return {
+        strong: ["repository", "repositories", "fullname", "stargazers", "forks", "owner", "language", "license", "defaultbranch"],
+        weak: ["repo", "repos", "topic", "topics", "description", "watchers", "openissues"],
+        negative: /(notifications|sponsors|settings|sessions|codespaces|copilot|marketplace)/i,
+      };
+    case "topic":
+      return {
+        strong: ["topic", "topics", "trend", "trends", "hashtag", "hashtags", "tag", "tags"],
+        weak: ["name", "volume", "url"],
+        negative: /(accounts|people|profiles|messages|mailbox|notifications)/i,
+      };
+    case "channel":
+      return {
+        strong: ["channel", "channels", "thread", "threads", "conversation", "conversations", "guild", "room"],
+        weak: ["message", "messages", "name", "topic"],
+        negative: /(experiments|affinities|promotions|settings|notifications|status)/i,
+      };
+    case "listing":
+      return {
+        strong: ["listing", "listings", "price", "seller", "currency", "product"],
+        weak: ["title", "bed", "bath", "address", "location"],
+        negative: /(tracking|ads|telemetry|config|status|auth)/i,
+      };
+  }
+}
+
+function isSemanticallyAdmissibleResponse(
+  req: RawRequest,
+  sampleResponse: unknown,
+  context?: ExtractionContext,
+): { ok: boolean; reason: string } {
+  const kind = inferIntentEntityKind(context?.intent);
+  if (!kind) return { ok: true, reason: "semantic_gate_not_applicable" };
+
+  const bodyIsJson = isJsonResponseBody(req.response_body);
+  if (!bodyIsJson && isHtmlResponseBody(req.response_body)) {
+    try {
+      const reqPath = new URL(req.url).pathname;
+      const pagePath = context?.pageUrl ? new URL(context.pageUrl).pathname : "";
+      return reqPath === pagePath
+        ? { ok: true, reason: "semantic_html_page_candidate" }
+        : { ok: false, reason: "semantic_html_not_page" };
+    } catch {
+      return { ok: false, reason: "semantic_html_bad_url" };
+    }
+  }
+
+  const { strong, weak, negative, negativeSignals = [] } = getIntentEntityRules(kind);
+  if (negative.test(req.url)) return { ok: false, reason: "semantic_negative_url" };
+
+  const signals = collectSemanticTokens(sampleResponse);
+  for (const token of tokenize(req.url)) signals.add(token);
+  let strongHits = 0;
+  let weakHits = 0;
+  let negativeHits = 0;
+  for (const token of strong) {
+    if (signals.has(token)) strongHits++;
+  }
+  for (const token of weak) {
+    if (signals.has(token)) weakHits++;
+  }
+  for (const token of negativeSignals) {
+    if (signals.has(token)) negativeHits++;
+  }
+  if (negativeHits >= 2 && strongHits < 2) {
+    return { ok: false, reason: "semantic_negative_payload" };
+  }
+  return (strongHits >= 1) || (weakHits >= 3)
+    ? { ok: true, reason: "semantic_match" }
+    : { ok: false, reason: "semantic_entity_mismatch" };
 }
 
 // On-domain noise patterns — framework plumbing, auth, tracking, ads that live
@@ -173,6 +437,7 @@ export interface ExtractionContext {
 export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWsMessage[], context?: ExtractionContext): EndpointDescriptor[] {
   const seen = new Set<string>();
   const endpoints: EndpointDescriptor[] = [];
+  const traceRows: Array<Record<string, unknown>> = [];
 
   // Extract the registrable domain(s) for affinity filtering.
   // Include both pageUrl and finalUrl domains to handle redirects
@@ -183,19 +448,38 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     try { affinityDomains.add(getRegistrableDomain(new URL(u).hostname)); } catch { /* bad url */ }
   }
 
-  const scored = requests
-    .map((r) => ({ req: r, score: scoreRequest(r) }))
-    .filter(({ req, score }) => isApiLike(req) && score > 0)
-    .filter(({ req }) => {
-      if (affinityDomains.size === 0) return true; // no target domain — keep everything
+  const scored: Array<{ req: RawRequest; score: number }> = [];
+  for (const req of requests) {
+    const score = scoreRequest(req);
+    if (!isApiLike(req)) {
+      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "not_api_like" });
+      continue;
+    }
+    if (score <= 0) {
+      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "score_non_positive" });
+      continue;
+    }
+    if (!hasAdmissibleParsedBody(req.response_body)) {
+      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
+      continue;
+    }
+    if (affinityDomains.size > 0) {
       try {
         const reqHost = new URL(req.url).hostname;
         const reqDomain = getRegistrableDomain(reqHost);
-        // Keep same-domain and API subdomains (e.g. api.swaggystocks.com)
-        return affinityDomains.has(reqDomain);
-      } catch { return false; }
-    })
-    .sort((a, b) => b.score - a.score);
+        if (!affinityDomains.has(reqDomain)) {
+          traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "domain_mismatch" });
+          continue;
+        }
+      } catch {
+        traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "bad_url" });
+        continue;
+      }
+    }
+    traceRows.push({ url: req.url, method: req.method, score, kept: true, reason: "candidate" });
+    scored.push({ req, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
 
   for (const { req } of scored) {
     const normalized = normalizeUrl(req.url);
@@ -204,14 +488,23 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     seen.add(key);
 
     // Schema-level ad detection: skip endpoints whose response body looks like ad-server data
-    if (looksLikeAdResponse(req.response_body)) continue;
+    if (looksLikeAdResponse(req.response_body)) {
+      traceRows.push({ url: req.url, method: req.method, kept: false, reason: "ad_response" });
+      continue;
+    }
 
     // BUG-008: Detect Cloudflare challenge responses — exclude from skill
-    if (isCloudflareChallenge(req.response_body)) continue;
+    if (isCloudflareChallenge(req.response_body)) {
+      traceRows.push({ url: req.url, method: req.method, kept: false, reason: "cloudflare_challenge" });
+      continue;
+    }
 
     // BUG-GC-006: Skip protobuf-only endpoints — we can't parse their bodies
     const ct = req.response_headers?.["content-type"] ?? "";
-    if ((ct.includes("x-protobuf") || ct.includes("json+protobuf")) && !isJsonParseable(req.response_body)) continue;
+    if ((ct.includes("x-protobuf") || ct.includes("json+protobuf")) && !isJsonParseable(req.response_body)) {
+      traceRows.push({ url: req.url, method: req.method, kept: false, reason: "protobuf_unparseable" });
+      continue;
+    }
 
     const isGet = req.method === "GET";
 
@@ -231,7 +524,10 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const verificationStatus = req.response_body ? "unverified" as const : "pending" as const;
 
     // Skip endpoints with invalid URL templates
-    if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) continue;
+    if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+      traceRows.push({ url: req.url, method: req.method, kept: false, reason: "normalized_url_invalid" });
+      continue;
+    }
 
     // Build url_template with templatized query params so callers know what to pass.
     // normalizeUrl strips the query string; we rebuild it with {param} placeholders.
@@ -246,10 +542,18 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const { url: templatizedPath, pathParams } = templatizePathSegments(pathTemplate, req.url, context);
     pathTemplate = templatizedPath;
 
-    endpoints.push({
+    const sampleResponse = req.response_body ? tryParseBody(req.response_body) : undefined;
+    const sampleRequest = flattenRequestExample({
+      path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
+      query: sanitizedQParams,
+      body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
+    });
+
+    const endpoint: EndpointDescriptor = {
       endpoint_id: nanoid(),
       method: req.method as EndpointDescriptor["method"],
       url_template: qTemplateStr ? `${pathTemplate}?${qTemplateStr}` : pathTemplate,
+      description: buildEndpointDescription(req, sampleRequest, sampleResponse),
       headers_template: sanitizeHeaders(req.request_headers),
       query: sanitizedQParams,
       path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
@@ -260,7 +564,34 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       response_schema,
       // Record which page triggered this API call — used for trigger-and-intercept execution
       trigger_url: context?.pageUrl,
+    };
+    endpoint.semantic = inferEndpointSemantic(endpoint, {
+      sampleResponse: compactForSemanticExample(sampleResponse),
+      sampleRequest,
+      observedAt: req.timestamp,
+      sampleRequestUrl: req.url,
     });
+    const admission = isSemanticallyAdmissibleResponse(req, sampleResponse, context);
+    if (!admission.ok) {
+      traceRows.push({
+        url: req.url,
+        method: req.method,
+        kept: false,
+        reason: admission.reason,
+      });
+      continue;
+    }
+    traceRows.push({
+      url: req.url,
+      method: req.method,
+      kept: true,
+      reason: admission.reason === "semantic_match" ? "accepted_endpoint" : admission.reason,
+      endpoint_id: endpoint.endpoint_id,
+      description: endpoint.description,
+      action_kind: endpoint.semantic?.action_kind,
+      resource_kind: endpoint.semantic?.resource_kind,
+    });
+    endpoints.push(endpoint);
   }
 
   // Collapse sibling endpoints into templatized ones
@@ -298,7 +629,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         response_schema = inferSchema(jsonSamples);
       }
 
-      endpoints.push({
+      const endpoint: EndpointDescriptor = {
         endpoint_id: nanoid(),
         method: "WS",
         url_template: wsUrl,
@@ -307,9 +638,32 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         reliability_score: jsonSamples.length > 0 ? 0.7 : 0.3,
         response_schema,
         ws_messages: wsMsgList,
+      };
+      endpoint.semantic = inferEndpointSemantic(endpoint, {
+        sampleResponse: jsonSamples[0],
+        observedAt: msgs[0]?.timestamp,
+        sampleRequestUrl: wsUrl,
       });
+      endpoints.push(endpoint);
     }
   }
+
+  writeDebugTrace("generation", {
+    page_url: context?.pageUrl ?? null,
+    final_url: context?.finalUrl ?? null,
+    intent: context?.intent ?? null,
+    candidate_count: scored.length,
+    accepted_count: endpoints.length,
+    decisions: traceRows,
+    accepted_endpoints: endpoints.map((endpoint) => ({
+      endpoint_id: endpoint.endpoint_id,
+      method: endpoint.method,
+      url_template: endpoint.url_template,
+      description: endpoint.description,
+      action_kind: endpoint.semantic?.action_kind,
+      resource_kind: endpoint.semantic?.resource_kind,
+    })),
+  });
 
   return endpoints;
 }
