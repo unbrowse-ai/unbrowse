@@ -8,6 +8,7 @@
   },
   "files": [
     "dist",
+    "runtime-src",
     "README.md",
     "LICENSE"
   ],

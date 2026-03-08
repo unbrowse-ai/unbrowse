@@ -23,6 +23,187 @@ function hasAnyPath(obj: unknown, paths: string[]): boolean {
   });
 }
 
+function toStringArray(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    const out = value
+      .filter((item): item is string => hasNonEmptyString(item))
+      .map((item) => String(item).trim());
+    return out.length > 0 ? out : undefined;
+  }
+  if (hasNonEmptyString(value)) return [String(value).trim()];
+  return undefined;
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (hasNonEmptyString(value)) return String(value).trim();
+  }
+  return undefined;
+}
+
+function normalizePackageSearchResults(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.objects)
+      ? data.objects
+      : isRecord(data) && Array.isArray(data.packages)
+        ? data.packages
+        : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const pkg = isRecord(item.package) ? item.package : item;
+    const name = getPath(pkg, "name");
+    if (!hasNonEmptyString(name) || seen.has(String(name))) continue;
+    const version = firstNonEmptyString(getPath(pkg, "version"));
+    const description = firstNonEmptyString(getPath(pkg, "description"), getPath(pkg, "summary"));
+    const url =
+      firstNonEmptyString(
+        getPath(pkg, "links.npm"),
+        getPath(pkg, "project_url"),
+        getPath(pkg, "package_url"),
+        getPath(pkg, "url"),
+      ) ?? `https://www.npmjs.com/package/${encodeURIComponent(String(name))}`;
+    const keywords = toStringArray(getPath(pkg, "keywords"));
+    rows.push({
+      name: String(name),
+      ...(version ? { version } : {}),
+      ...(description ? { description } : {}),
+      ...(keywords ? { keywords } : {}),
+      url,
+    });
+    seen.add(String(name));
+  }
+
+  return rows;
+}
+
+function normalizeNpmPackageInfo(data: unknown): Record<string, unknown> | null {
+  if (!isRecord(data) || !hasNonEmptyString(data.name)) return null;
+  const distTags = isRecord(data["dist-tags"]) ? data["dist-tags"] : undefined;
+  const versions = isRecord(data.versions) ? data.versions : undefined;
+  const latestVersion = firstNonEmptyString(distTags?.latest, data.version);
+  const latestRecord =
+    latestVersion && versions && isRecord(versions[latestVersion])
+      ? versions[latestVersion]
+      : undefined;
+  const description = firstNonEmptyString(
+    getPath(latestRecord, "description"),
+    getPath(data, "description"),
+  );
+  const homepage = firstNonEmptyString(
+    getPath(latestRecord, "homepage"),
+    getPath(data, "homepage"),
+    getPath(latestRecord, "repository.url"),
+    getPath(data, "repository.url"),
+  );
+  const dependencies = isRecord(getPath(latestRecord, "dependencies"))
+    ? Object.keys(getPath(latestRecord, "dependencies") as Record<string, unknown>)
+    : undefined;
+  const keywords = toStringArray(getPath(latestRecord, "keywords") ?? getPath(data, "keywords"));
+  const author = firstNonEmptyString(
+    getPath(latestRecord, "author.name"),
+    getPath(latestRecord, "author"),
+    getPath(data, "author.name"),
+    getPath(data, "author"),
+  );
+
+  return {
+    name: String(data.name),
+    ...(latestVersion ? { version: latestVersion } : {}),
+    ...(description ? { description } : {}),
+    ...(keywords ? { keywords } : {}),
+    ...(dependencies && dependencies.length > 0 ? { dependencies } : {}),
+    ...(author ? { author } : {}),
+    url: homepage ?? `https://www.npmjs.com/package/${encodeURIComponent(String(data.name))}`,
+  };
+}
+
+function normalizePyPIPackageInfo(data: unknown): Record<string, unknown> | null {
+  if (!isRecord(data)) return null;
+  const info = isRecord(data.info) ? data.info : data;
+  const name = getPath(info, "name");
+  if (!hasNonEmptyString(name)) return null;
+  const summary = firstNonEmptyString(getPath(info, "summary"), getPath(info, "description"));
+  const version = firstNonEmptyString(getPath(info, "version"));
+  const author = firstNonEmptyString(getPath(info, "author"));
+  const requiresDist = Array.isArray(getPath(info, "requires_dist"))
+    ? (getPath(info, "requires_dist") as unknown[]).filter((item) => hasNonEmptyString(item)).map(String)
+    : undefined;
+  const url = firstNonEmptyString(
+    getPath(info, "project_url"),
+    getPath(info, "package_url"),
+    getPath(info, "home_page"),
+    getPath(info, "project_urls.Homepage"),
+  );
+
+  return {
+    name: String(name),
+    ...(version ? { version } : {}),
+    ...(summary ? { summary, description: summary } : {}),
+    ...(author ? { author } : {}),
+    ...(requiresDist && requiresDist.length > 0 ? { requires_dist: requiresDist } : {}),
+    ...(url ? { url } : {}),
+  };
+}
+
+function normalizeDockerImageSearchResults(data: unknown): Record<string, unknown>[] {
+  const sourceRows = isRecord(data) && Array.isArray(data.results)
+    ? data.results
+    : Array.isArray(data)
+      ? data
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const repoName = firstNonEmptyString(getPath(item, "repo_name"), getPath(item, "name"));
+    if (!repoName || seen.has(repoName)) continue;
+    rows.push({
+      repo_name: repoName,
+      ...(firstNonEmptyString(getPath(item, "short_description"), getPath(item, "description")) ? {
+        short_description: firstNonEmptyString(getPath(item, "short_description"), getPath(item, "description")),
+      } : {}),
+      ...(typeof getPath(item, "star_count") === "number" ? { star_count: getPath(item, "star_count") } : {}),
+      ...(typeof getPath(item, "pull_count") === "number" ? { pull_count: getPath(item, "pull_count") } : {}),
+      url: `https://hub.docker.com/r/${repoName}`,
+    });
+    seen.add(repoName);
+  }
+
+  return rows;
+}
+
+function normalizeDockerTagResults(data: unknown): Record<string, unknown>[] {
+  const sourceRows = isRecord(data) && Array.isArray(data.results)
+    ? data.results
+    : Array.isArray(data)
+      ? data
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const name = firstNonEmptyString(getPath(item, "name"), getPath(item, "tag"));
+    if (!name || seen.has(name)) continue;
+    rows.push({
+      name,
+      ...(typeof getPath(item, "full_size") === "number" ? { full_size: getPath(item, "full_size") } : {}),
+      ...(firstNonEmptyString(getPath(item, "last_updated"), getPath(item, "updated_at")) ? {
+        last_updated: firstNonEmptyString(getPath(item, "last_updated"), getPath(item, "updated_at")),
+      } : {}),
+      ...(firstNonEmptyString(getPath(item, "digest")) ? { digest: firstNonEmptyString(getPath(item, "digest")) } : {}),
+    });
+    seen.add(name);
+  }
+
+  return rows;
+}
+
 function collectNestedObjects(value: unknown, visit: (obj: Record<string, unknown>) => void): void {
   if (Array.isArray(value)) {
     for (const item of value) collectNestedObjects(item, visit);
@@ -78,6 +259,47 @@ function normalizeXUsers(data: unknown): Record<string, unknown>[] {
     });
     seen.add(String(screenName));
   });
+  return rows;
+}
+
+function normalizeGenericPeopleRows(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.results)
+      ? data.results
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    if (
+      hasAnyPath(item, ["full_name", "repository.name", "path_with_namespace", "stargazers_count", "stars", "star_count", "forks_count", "version", "price"])
+    ) {
+      continue;
+    }
+    const name = firstNonEmptyString(getPath(item, "name"), getPath(item, "title"));
+    const headline = firstNonEmptyString(
+      getPath(item, "headline"),
+      getPath(item, "description"),
+      getPath(item, "subtitle"),
+      getPath(item, "bio"),
+    );
+    const url = firstNonEmptyString(getPath(item, "url"), getPath(item, "link"));
+    const publicIdentifier = firstNonEmptyString(getPath(item, "public_identifier"), getPath(item, "username"));
+    if (!name || name.includes("/") || name.includes("://")) continue;
+    if (!headline && !url && !publicIdentifier) continue;
+    const id = publicIdentifier ?? url ?? name;
+    if (seen.has(id)) continue;
+    rows.push({
+      name,
+      ...(headline ? { headline } : {}),
+      ...(url ? { url } : {}),
+      ...(publicIdentifier ? { public_identifier: publicIdentifier } : {}),
+    });
+    seen.add(id);
+  }
+
   return rows;
 }
 
@@ -205,6 +427,40 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
   if (!intent) return unwrapped;
   const lower = intent.toLowerCase();
 
+  if (/\b(package|packages)\b/.test(lower)) {
+    if (/\bsearch\b/.test(lower)) {
+      const normalizedPackageSearch = normalizePackageSearchResults(unwrapped);
+      if (normalizedPackageSearch.length > 0) return normalizedPackageSearch;
+      if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).packages)) {
+        return (unwrapped as Record<string, unknown>).packages;
+      }
+    } else {
+      const normalizedNpmPackage = normalizeNpmPackageInfo(unwrapped);
+      if (normalizedNpmPackage) return normalizedNpmPackage;
+      const normalizedPyPIPackage = normalizePyPIPackageInfo(unwrapped);
+      if (normalizedPyPIPackage) return normalizedPyPIPackage;
+      if (isRecord(unwrapped) && isRecord((unwrapped as Record<string, unknown>).package)) {
+        return (unwrapped as Record<string, unknown>).package;
+      }
+    }
+  }
+
+  if (/\bsearch images\b/.test(lower)) {
+    const normalizedImageSearch = normalizeDockerImageSearchResults(unwrapped);
+    if (normalizedImageSearch.length > 0) return normalizedImageSearch;
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).images)) {
+      return (unwrapped as Record<string, unknown>).images;
+    }
+  }
+
+  if (/\b(get )?image tags\b/.test(lower)) {
+    const normalizedImageTags = normalizeDockerTagResults(unwrapped);
+    if (normalizedImageTags.length > 0) return normalizedImageTags;
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).tags)) {
+      return (unwrapped as Record<string, unknown>).tags;
+    }
+  }
+
   if (/\b(comment|comments)\b/.test(lower)) {
     const normalizedRedditComments = normalizeRedditComments(unwrapped);
     if (normalizedRedditComments.length > 0) return normalizedRedditComments;
@@ -227,7 +483,7 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
     }
   }
 
-  if (!isRecord(unwrapped)) return unwrapped;
+  if (!isRecord(unwrapped) && !Array.isArray(unwrapped)) return unwrapped;
 
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) {
     if (Array.isArray(unwrapped.statuses)) return unwrapped.statuses;
@@ -247,6 +503,8 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
     if (Array.isArray(unwrapped.included)) return unwrapped.included;
     const normalizedXUsers = normalizeXUsers(unwrapped);
     if (normalizedXUsers.length > 0) return normalizedXUsers;
+    const normalizedGenericPeople = normalizeGenericPeopleRows(unwrapped);
+    if (normalizedGenericPeople.length > 0) return normalizedGenericPeople;
   }
 
   if (/\b(topic|topics|trend|trending|hashtag|hashtags)\b/.test(lower)) {
@@ -275,9 +533,10 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
     if (Array.isArray(unwrapped.hashtags)) return unwrapped.hashtags;
   }
 
-  if (/\b(repo|repository|repositories)\b/.test(lower)) {
+  if (/\b(repo|repository|repositories|project|projects)\b/.test(lower)) {
     if (Array.isArray(unwrapped.repositories)) return unwrapped.repositories;
     if (Array.isArray(unwrapped.items)) return unwrapped.items;
+    if (Array.isArray(unwrapped.projects)) return unwrapped.projects;
   }
 
   return unwrapped;
@@ -292,12 +551,36 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
 
   const lower = intent.toLowerCase();
 
-  if (/\b(repo|repository|repositories)\b/.test(lower)) {
+  if (/\b(repo|repository|repositories|project|projects)\b/.test(lower)) {
     const matching = objects.filter((row) =>
-      hasAnyPath(row, ["full_name", "name", "repository.name"]) &&
-      hasAnyPath(row, ["url", "description", "stargazers_count", "stars", "owner.login", "owner"])
+      hasAnyPath(row, ["full_name", "name", "repository.name", "path_with_namespace"]) &&
+      hasAnyPath(row, ["url", "web_url", "description", "stargazers_count", "stars", "star_count", "forks_count", "owner.login", "owner"])
     );
     return matching.length >= 1 ? { verdict: "pass", reason: "repository_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(package|packages)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["name", "package.name"]) &&
+      hasAnyPath(row, ["version", "description", "summary", "url", "keywords", "requires_dist", "dependencies"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "package_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\bsearch images\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["repo_name", "name", "full_name"]) &&
+      hasAnyPath(row, ["short_description", "description", "star_count", "pull_count", "url"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "image_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(get )?image tags\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["name", "tag"]) &&
+      hasAnyPath(row, ["last_updated", "updated_at", "full_size", "digest"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "tag_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
   if (/\b(company|companies|organization|organisations|business)\b/.test(lower)) {
@@ -387,7 +670,7 @@ export function assessIntentResult(data: unknown, intent?: string): {
       return { verdict: "fail", reason: "message_only", projected };
     }
     const lower = (intent ?? "").toLowerCase();
-    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users)\b/.test(lower)) {
+    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages)\b/.test(lower)) {
       const classified = classifyRows([projected], intent ?? "");
       return { ...classified, projected };
     }
