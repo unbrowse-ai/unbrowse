@@ -184,6 +184,10 @@ function sanitizeNavigationQueryParams(url: URL): URL {
   return out;
 }
 
+function restoreTemplatePlaceholderEncoding(url: string): string {
+  return url.replace(/%7B/gi, "{").replace(/%7D/gi, "}");
+}
+
 function isDocumentLikeUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -215,6 +219,91 @@ export function deriveStructuredDataReplayUrl(url: string): string {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.replace(/^www\./, "");
+    const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+
+    if (host === "mastodon.social") {
+      if ((pathname === "/search" || pathname === "/search/") && parsed.searchParams.get("q")) {
+        const replay = new URL("https://mastodon.social/api/v2/search");
+        replay.searchParams.set("q", parsed.searchParams.get("q") ?? "");
+        replay.searchParams.set("resolve", "false");
+        replay.searchParams.set("type", "statuses");
+        replay.searchParams.set("limit", "20");
+        return replay.toString();
+      }
+      if (pathname === "/public") {
+        const replay = new URL("https://mastodon.social/api/v1/timelines/public");
+        replay.searchParams.set("limit", "20");
+        return replay.toString();
+      }
+    }
+
+    if (host === "gitlab.com") {
+      if (pathname === "/explore/projects" && (parsed.searchParams.get("name") || parsed.searchParams.get("search"))) {
+        const replay = new URL("https://gitlab.com/api/v4/projects");
+        replay.searchParams.set("search", parsed.searchParams.get("name") ?? parsed.searchParams.get("search") ?? "");
+        replay.searchParams.set("simple", "true");
+        replay.searchParams.set("per_page", "20");
+        return replay.toString();
+      }
+
+      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
+      const reserved = new Set([
+        "-",
+        "api",
+        "admin",
+        "dashboard",
+        "explore",
+        "groups",
+        "help",
+        "oauth",
+        "profile",
+        "projects",
+        "search",
+        "session",
+        "users",
+      ]);
+      if (segments.length === 2 && !reserved.has(segments[0])) {
+        return `https://gitlab.com/api/v4/projects/${encodeURIComponent(`${segments[0]}/${segments[1]}`)}`;
+      }
+    }
+
+    if (host === "npmjs.com") {
+      if ((pathname === "/search" || pathname === "/search/") && parsed.searchParams.get("q")) {
+        const replay = new URL("https://registry.npmjs.org/-/v1/search");
+        replay.searchParams.set("text", parsed.searchParams.get("q") ?? "");
+        replay.searchParams.set("size", "20");
+        return replay.toString();
+      }
+
+      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
+      if (segments[0] === "package" && segments.length >= 2) {
+        const versionIndex = segments.indexOf("v");
+        const packageName = segments.slice(1, versionIndex === -1 ? undefined : versionIndex).join("/");
+        if (packageName) return `https://registry.npmjs.org/${encodeURIComponent(packageName)}`;
+      }
+    }
+
+    if (host === "pypi.org") {
+      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
+      if (segments[0] === "project" && segments[1]) {
+        return `https://pypi.org/pypi/${encodeURIComponent(segments[1])}/json`;
+      }
+    }
+
+    if (host === "hub.docker.com") {
+      if ((pathname === "/search" || pathname === "/search/") && (parsed.searchParams.get("q") || parsed.searchParams.get("query"))) {
+        const replay = new URL("https://hub.docker.com/v2/search/repositories/");
+        replay.searchParams.set("query", parsed.searchParams.get("q") ?? parsed.searchParams.get("query") ?? "");
+        replay.searchParams.set("page_size", "20");
+        return replay.toString();
+      }
+
+      const segments = pathname.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
+      if (segments[0] === "r" && segments.length >= 4 && segments[3] === "tags") {
+        return `https://hub.docker.com/v2/repositories/${encodeURIComponent(segments[1])}/${encodeURIComponent(segments[2])}/tags/?page_size=25`;
+      }
+    }
+
     if (host !== "reddit.com" && host !== "old.reddit.com" && host !== "np.reddit.com") return url;
     if (/\.json$/i.test(parsed.pathname) || /\/api\/|\/svc\/|graphql/i.test(parsed.pathname)) return url;
     if (parsed.pathname === "/search" || parsed.pathname === "/search/") {
@@ -257,6 +346,15 @@ export function buildStructuredReplayHeaders(
     const replayTarget = new URL(replayUrl);
     const originalTarget = new URL(originalUrl);
     const host = replayTarget.hostname.replace(/^www\./, "");
+    const needsApiReplayHeaders =
+      replayTarget.hostname !== originalTarget.hostname ||
+      /\/api\/|graphql|\/rest\/|\/rpc\/|\/v\d+\//i.test(replayTarget.pathname);
+    if (needsApiReplayHeaders) {
+      headers["user-agent"] ??= DEFAULT_BROWSER_UA;
+      headers["accept-language"] ??= "en-US,en;q=0.9";
+      headers["referer"] ??= originalTarget.toString();
+      headers["accept"] ??= "application/json,text/plain,*/*";
+    }
     if (host === "reddit.com" || host === "old.reddit.com" || host === "np.reddit.com") {
       headers["user-agent"] ??= DEFAULT_BROWSER_UA;
       headers["accept-language"] ??= "en-US,en;q=0.9";
@@ -1108,7 +1206,7 @@ export async function executeEndpoint(
           u.searchParams.set(k, String(v));
         }
       }
-      urlTemplate = u.toString();
+      urlTemplate = restoreTemplatePlaceholderEncoding(u.toString());
     } catch {
       // URL parse failure — skip query merge
     }
@@ -1117,8 +1215,6 @@ export async function executeEndpoint(
   const body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
 
   const isSafe = endpoint.method === "GET";
-  const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
-  const hasStructuredReplay = structuredReplayUrl !== url;
 
   // Append leftover params as query string on GET requests.
   // Params already consumed by path_params, endpoint.query, or {template} vars are skipped.
@@ -1145,6 +1241,9 @@ export async function executeEndpoint(
       } catch { /* URL parse failure — skip */ }
     }
   }
+
+  const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
+  const hasStructuredReplay = structuredReplayUrl !== url;
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
     // Default accept to JSON, but never overwrite the endpoint's own accept header

@@ -29,6 +29,11 @@ const SKIP_EXTENSIONS = /\.(js|mjs|css|json|html|xml|svg|png|jpg|jpeg|gif|ico|wo
 // Too-generic single-segment paths
 const TOO_GENERIC = /^\/[a-z]{1,3}$/i;
 
+// Public-site bundle scans often surface account/settings/bootstrap routes first.
+// Skip obviously non-public app-management surfaces so root captures don't learn junk.
+const SKIP_NON_PUBLIC_ROUTE_PATHS =
+  /^(\/manage\/account\/|\/account\/webauthn|\/settings(?:\/|$)|\/org\/create(?:\/|$)|\/login(?:\/|$)|\/logout(?:\/|$)|\/signin(?:\/|$)|\/sign-in(?:\/|$)|\/signup(?:\/|$)|\/register(?:\/|$)|\/oauth(?:\/|$)|\/sso(?:\/|$)|\/session(?:\/|$)|\/admin(?:\/|$)|\/billing(?:\/|$))/i;
+
 // Sensitive query param names that should not be included
 const SENSITIVE_PARAM = /^(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|secret|password|key|token|session[_-]?id|client[_-]?secret|private[_-]?key|bearer)$/i;
 
@@ -85,6 +90,7 @@ export function scanBundlesForRoutes(
       if (SKIP_BUNDLE_PATHS.test(normalized)) continue;
       if (SKIP_EXTENSIONS.test(normalized)) continue;
       if (TOO_GENERIC.test(normalized)) continue;
+      if (SKIP_NON_PUBLIC_ROUTE_PATHS.test(normalized)) continue;
       if (normalized.length < 4) continue;
 
       // Collect query params from this occurrence

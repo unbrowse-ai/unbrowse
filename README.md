@@ -180,6 +180,10 @@ src/
 └── logger.ts             # Logging
 ```
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/image?repos=unbrowse-ai/unbrowse&type=date&legend=top-left)](https://www.star-history.com/?repos=unbrowse-ai%2Funbrowse&type=date&legend=top-left)
+
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE).

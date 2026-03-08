@@ -91,6 +91,11 @@ export function isBlockedAppShell(html?: string): boolean {
   );
 }
 
+function shouldRetryEphemeralProfileError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
+}
+
 /**
  * Extract a route hint keyword from a URL path for intent-aware API waiting.
  * e.g., "/i/bookmarks" → "bookmark", "/dashboard/analytics" → "analytic"
@@ -293,30 +298,30 @@ export async function captureSession(
   await acquireBrowserSlot();
   const browser = new BrowserManager();
   activeBrowserRegistry.add(browser);
+  const domain = new URL(url).hostname;
+  const profileDir = getProfilePath(domain);
+  const hasPersistentProfile = !options?.forceEphemeral && existsSync(profileDir);
   let captureTimedOut = false;
   let retryEphemeral = false;
+  let captureError: unknown;
   const timeoutHandle = setTimeout(async () => {
     captureTimedOut = true;
     await closeBrowserSafely(browser);
   }, CAPTURE_TIMEOUT_MS);
   try {
-  const domain = new URL(url).hostname;
-
-  // Use persistent profile if one exists (from prior interactiveLogin).
-  // This preserves localStorage/sessionStorage auth that cookie injection can't cover.
-  // Falls back to ephemeral headless with cookie injection (bird pattern).
-  const profileDir = getProfilePath(domain);
-  const hasPersistentProfile = !options?.forceEphemeral && existsSync(profileDir);
-  if (hasPersistentProfile) {
-    log("capture", `using persistent profile for ${domain}: ${profileDir}`);
-  }
-  await browser.launch({
-    action: "launch",
-    id: nanoid(),
-    headless: true,
-    userAgent: CHROME_UA,
-    ...(hasPersistentProfile ? { profile: profileDir } : {}),
-  });
+    // Use persistent profile if one exists (from prior interactiveLogin).
+    // This preserves localStorage/sessionStorage auth that cookie injection can't cover.
+    // Falls back to ephemeral headless with cookie injection (bird pattern).
+    if (hasPersistentProfile) {
+      log("capture", `using persistent profile for ${domain}: ${profileDir}`);
+    }
+    await browser.launch({
+      action: "launch",
+      id: nanoid(),
+      headless: true,
+      userAgent: CHROME_UA,
+      ...(hasPersistentProfile ? { profile: profileDir } : {}),
+    });
 
   // Override Chromium's auto-set Client Hints headers — without this, Chromium 145+
   // sends sec-ch-ua: "HeadlessChrome" even when user-agent is spoofed to Chrome 131,
@@ -540,17 +545,25 @@ export async function captureSession(
   if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
   log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
   const responseBodyCount = responseBodies.size;
-  if (
-    hasPersistentProfile &&
-    isBlockedAppShell(html) &&
-    responseBodyCount < 10 &&
-    !hasUsefulCapturedResponses(responseBodies.keys(), url, intent)
-  ) {
-    retryEphemeral = true;
-    log("capture", `persistent profile rendered blocked app shell for ${url}; retrying with fresh ephemeral browser`);
-  } else {
-    return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html, js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined };
-  }
+    if (
+      hasPersistentProfile &&
+      isBlockedAppShell(html) &&
+      responseBodyCount < 10 &&
+      !hasUsefulCapturedResponses(responseBodies.keys(), url, intent)
+    ) {
+      retryEphemeral = true;
+      log("capture", `persistent profile rendered blocked app shell for ${url}; retrying with fresh ephemeral browser`);
+    } else {
+      return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html, js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined };
+    }
+  } catch (error) {
+    captureError = error;
+    if (hasPersistentProfile && shouldRetryEphemeralProfileError(error)) {
+      retryEphemeral = true;
+      log("capture", `persistent profile failed for ${url}; retrying with fresh ephemeral browser (${error instanceof Error ? error.message : String(error)})`);
+    } else {
+      throw error;
+    }
   } finally {
     clearTimeout(timeoutHandle);
     await closeBrowserSafely(browser);
@@ -559,6 +572,7 @@ export async function captureSession(
   if (retryEphemeral) {
     return captureSession(url, authHeaders, cookies, intent, { forceEphemeral: true });
   }
+  if (captureError) throw captureError;
   throw new Error(`captureSession failed without returning a result for ${url}`);
 }
 

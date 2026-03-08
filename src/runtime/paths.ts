@@ -38,7 +38,14 @@ export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): s
 
 export function isMainModule(metaUrl: string): boolean {
   const entry = process.argv[1];
-  return !!entry && path.resolve(entry) === fileURLToPath(metaUrl);
+  if (!entry) return false;
+
+  const modulePath = fileURLToPath(metaUrl);
+  try {
+    return realpathSync(entry) === realpathSync(modulePath);
+  } catch {
+    return path.resolve(entry) === path.resolve(modulePath);
+  }
 }
 
 export function getUnbrowseHome(): string {
