@@ -384,6 +384,33 @@ function extractLinkedInSpecial(html: string, intent: string): ExtractedStructur
   return people.length >= 2 ? [{ type: "repeated-elements", data: people.slice(0, 10), element_count: people.length }] : [];
 }
 
+function extractPackageSearchSpecial(html: string, intent: string): ExtractedStructure[] {
+  const intentLower = intent.toLowerCase();
+  if (!/\bsearch\b/.test(intentLower) || !/\b(package|packages|crate|crates)\b/.test(intentLower)) return [];
+  if (!/package-snippet/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const rows: Record<string, string>[] = [];
+  const seen = new Set<string>();
+
+  $("a.package-snippet[href], .package-snippet").each((_, el) => {
+    const $el = $(el);
+    const name = cleanText($el.find(".package-snippet__name").first().text());
+    if (!name || seen.has(name)) return;
+    const version = cleanText($el.find(".package-snippet__version").first().text());
+    const description = cleanText($el.find(".package-snippet__description").first().text());
+    const href = $el.attr("href") ?? "";
+    rows.push({
+      name,
+      ...(version ? { version } : {}),
+      ...(description ? { description } : {}),
+      url: href ? new URL(href, "https://pypi.org").toString() : `https://pypi.org/project/${encodeURIComponent(name)}/`,
+    });
+    seen.add(name);
+  });
+
+  return rows.length >= 2 ? [{ type: "repeated-elements", data: rows.slice(0, 20), element_count: rows.length }] : [];
+}
+
 function extractXProfileSpecial(html: string, intent: string): ExtractedStructure[] {
   const intentLower = intent.toLowerCase();
   if (!/(person|people|profile|profiles|user|users|member)/.test(intentLower)) return [];
@@ -677,7 +704,7 @@ function detectRepeatingPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
         type: "repeated-elements",
         data: items,
         element_count: items.length,
-        selector,
+        selector: buildReplaySelector($(elements[0])) ?? selector,
       });
     }
   }
@@ -908,10 +935,11 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const cleaned = cleanDOM(html);
   const githubStructures = extractGitHubSpecial(html, intent);
   const linkedInStructures = extractLinkedInSpecial(html, intent);
+  const packageSearchStructures = extractPackageSearchSpecial(html, intent);
   const xProfileStructures = extractXProfileSpecial(html, intent);
   const postStructures = extractPostSpecial(html, intent);
   const trendStructures = extractTrendSpecial(html, intent);
-  const structures = [...githubStructures, ...linkedInStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...spaStructures, ...parseStructured(cleaned)];
+  const structures = [...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...spaStructures, ...parseStructured(cleaned)];
 
   if (structures.length === 0) {
     return { data: null, extraction_method: "none", confidence: 0 };
