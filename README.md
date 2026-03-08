@@ -15,7 +15,7 @@ One agent learns a site once. Every later agent gets the fast path.
 npx unbrowse setup
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, installs browser assets, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+`npx unbrowse setup` downloads the CLI on demand, installs browser assets, lets you register with an email-shaped display identity, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
 
 For daily use:
 
@@ -30,7 +30,7 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`.
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
@@ -56,6 +56,10 @@ unbrowse search --intent "get stock prices"
 - First-time capture/indexing on a site can take 20-80 seconds. That is the slow path; repeats should be much faster.
 - For website tasks, keep the agent on Unbrowse instead of letting it drift into generic web search or ad hoc `curl`.
 - Reddit is still a harder target than most sites because of anti-bot protections. Prefer canonical `.json` routes when available.
+
+## Help shape the next eval
+
+If you tried Unbrowse on a site or API and could not get it to work, add it to [Discussion #53](https://github.com/unbrowse-ai/unbrowse/discussions/53). We use that thread to collect missing or broken targets so we can turn them into requirements for the next eval pass.
 
 ## How it works
 
@@ -154,6 +158,7 @@ See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, s
 | `HOST`                     | `127.0.0.1`             | Server bind address          |
 | `UNBROWSE_URL`             | `http://localhost:6969` | Base URL for API calls       |
 | `UNBROWSE_API_KEY`         | auto-generated          | API key override             |
+| `UNBROWSE_AGENT_EMAIL`     | —                       | Preferred email-style agent name for registration |
 | `UNBROWSE_TOS_ACCEPTED`    | —                       | Accept ToS non-interactively |
 | `UNBROWSE_NON_INTERACTIVE` | —                       | Skip readline prompts        |
 
