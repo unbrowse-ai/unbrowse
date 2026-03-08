@@ -57,6 +57,25 @@ function saveConfig(config: UnbrowseConfig): void {
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+export function normalizeAgentEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function isValidAgentEmail(value: string): boolean {
+  return EMAIL_RE.test(normalizeAgentEmail(value));
+}
+
+export function buildDefaultAgentName(): string {
+  return `${hostname()}-${randomBytes(3).toString("hex")}`;
+}
+
+export function resolveAgentName(preferredEmail: string | undefined, fallbackName: string): string {
+  const normalized = normalizeAgentEmail(preferredEmail ?? "");
+  return isValidAgentEmail(normalized) ? normalized : fallbackName;
+}
+
 export function getApiKey(): string {
   if (LOCAL_ONLY) return "local-only";
   // Env var takes priority, then cached config
@@ -148,6 +167,34 @@ async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boo
   });
 }
 
+async function promptAgentEmail(defaultName: string): Promise<string> {
+  const envEmail = process.env.UNBROWSE_AGENT_EMAIL;
+  if (envEmail) {
+    const resolved = resolveAgentName(envEmail, defaultName);
+    if (resolved !== defaultName) return resolved;
+    console.warn(`[unbrowse] Ignoring invalid UNBROWSE_AGENT_EMAIL: ${envEmail}`);
+  }
+
+  if (process.env.UNBROWSE_NON_INTERACTIVE === "1" || !process.stdin.isTTY || !process.stdout.isTTY) {
+    return defaultName;
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    for (;;) {
+      const answer = await new Promise<string>((resolve) => {
+        rl.question("\nEmail for this agent (leave blank to use a local device id): ", resolve);
+      });
+      const trimmed = answer.trim();
+      if (!trimmed) return defaultName;
+      if (isValidAgentEmail(trimmed)) return normalizeAgentEmail(trimmed);
+      console.log("Please enter a valid email address or press Enter to skip.");
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 async function checkTosStatus(): Promise<void> {
   const config = loadConfig();
 
@@ -190,7 +237,7 @@ async function checkTosStatus(): Promise<void> {
 }
 
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
-export async function ensureRegistered(): Promise<void> {
+export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
   if (getApiKey()) {
     // Already have a key — check if ToS re-acceptance is needed
@@ -216,7 +263,8 @@ export async function ensureRegistered(): Promise<void> {
   }
 
   // Step 3: Register with ToS version
-  const name = `${hostname()}-${randomBytes(3).toString("hex")}`;
+  const fallbackName = buildDefaultAgentName();
+  const name = options?.promptForEmail ? await promptAgentEmail(fallbackName) : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
   console.log(`Registering as "${name}"...`);
 
   try {
@@ -234,7 +282,7 @@ export async function ensureRegistered(): Promise<void> {
       tos_accepted_at: new Date().toISOString(),
     });
 
-    console.log(`Registered as agent ${agent_id}. API key saved to ~/.unbrowse/config.json`);
+    console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
     console.warn("Set UNBROWSE_API_KEY manually or try again.");
