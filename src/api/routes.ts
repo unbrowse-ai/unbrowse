@@ -10,6 +10,7 @@ import { recordFeedback, recordDiagnostics, getApiKey, getRecentLocalSkill } fro
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
+import { listRecentSessionsForDomain } from "../session-logs.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -276,6 +277,18 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // GET /health
   app.get("/health", async (_req, reply) => reply.send({ status: "ok", trace_version: TRACE_VERSION, code_hash: CODE_HASH, git_sha: GIT_SHA }));
+
+  // GET /v1/sessions/:domain — read local trace/debug files instead of proxying to backend
+  app.get("/v1/sessions/:domain", async (req, reply) => {
+    const { domain } = req.params as { domain: string };
+    const query = req.query as { limit?: string | number };
+    const limitRaw = typeof query.limit === "number" ? query.limit : Number(query.limit ?? 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 50) : 10;
+    return reply.send({
+      domain,
+      sessions: listRecentSessionsForDomain(TRACES_DIR, domain, limit),
+    });
+  });
 
   // Catch-all proxy: forward unmatched /v1/* routes to beta-api.unbrowse.ai
   app.all("/v1/*", async (req, reply) => {

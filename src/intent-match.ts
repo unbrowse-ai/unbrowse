@@ -262,6 +262,90 @@ function normalizeXUsers(data: unknown): Record<string, unknown>[] {
   return rows;
 }
 
+function joinNameParts(...values: unknown[]): string | undefined {
+  const parts = values.filter((value) => hasNonEmptyString(value)).map((value) => String(value).trim());
+  return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
+function absoluteLinkedInUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return value.startsWith("http") ? value : `https://www.linkedin.com${value.startsWith("/") ? "" : "/"}${value}`;
+}
+
+function normalizeLinkedInFeedPosts(data: unknown): Record<string, unknown>[] {
+  if (!isRecord(data)) return [];
+
+  const included = Array.isArray(getPath(data, "included"))
+    ? getPath(data, "included") as unknown[]
+    : Array.isArray(getPath(data, "data.included"))
+      ? getPath(data, "data.included") as unknown[]
+      : [];
+  if (included.length === 0) return [];
+
+  const elementRefs = Array.isArray(getPath(data, "data.data.feedDashMainFeedByMainFeed.*elements"))
+    ? getPath(data, "data.data.feedDashMainFeedByMainFeed.*elements") as unknown[]
+    : Array.isArray(getPath(data, "data.feedDashMainFeedByMainFeed.*elements"))
+      ? getPath(data, "data.feedDashMainFeedByMainFeed.*elements") as unknown[]
+      : Array.isArray(getPath(data, "feedDashMainFeedByMainFeed.*elements"))
+        ? getPath(data, "feedDashMainFeedByMainFeed.*elements") as unknown[]
+        : [];
+  if (elementRefs.length === 0) return [];
+
+  const entityIndex = new Map<string, Record<string, unknown>>();
+  for (const item of included) {
+    if (!isRecord(item)) continue;
+    const urn = getPath(item, "entityUrn");
+    if (!hasNonEmptyString(urn)) continue;
+    entityIndex.set(String(urn), item);
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const ref of elementRefs) {
+    if (!hasNonEmptyString(ref) || seen.has(String(ref))) continue;
+    const update = entityIndex.get(String(ref));
+    if (!update) continue;
+
+    const actorProfileUrn = firstNonEmptyString(getPath(update, "actor.*profileUrn"), getPath(update, "actor.entityUrn"));
+    const actorProfile = actorProfileUrn ? entityIndex.get(actorProfileUrn) : undefined;
+    const author = firstNonEmptyString(
+      getPath(update, "actor.name.text"),
+      getPath(actorProfile, "name"),
+      joinNameParts(getPath(actorProfile, "firstName"), getPath(actorProfile, "lastName")),
+    );
+    const username = firstNonEmptyString(getPath(actorProfile, "publicIdentifier"));
+    const content = firstNonEmptyString(
+      getPath(update, "commentary.text.text"),
+      getPath(update, "commentary.accessibilityText"),
+      getPath(update, "content.text"),
+      getPath(update, "content.title"),
+      getPath(update, "header.text"),
+      getPath(update, "header.title"),
+    );
+    const permalink = firstNonEmptyString(
+      getPath(update, "permalink"),
+      getPath(update, "socialContent.shareUrl"),
+      getPath(update, "url"),
+    );
+    const url = absoluteLinkedInUrl(permalink) ?? `https://www.linkedin.com/feed/update/${encodeURIComponent(String(ref))}/`;
+
+    if (!content && !username && !author) continue;
+
+    rows.push({
+      id: String(ref),
+      url,
+      ...(content ? { content } : {}),
+      ...(author ? { author } : {}),
+      ...(username ? { username, public_identifier: username } : {}),
+      ...(typeof getPath(update, "createdAt") === "number" ? { created_at: getPath(update, "createdAt") } : {}),
+    });
+    seen.add(String(ref));
+  }
+
+  return rows;
+}
+
 function normalizeGenericPeopleRows(data: unknown): Record<string, unknown>[] {
   const sourceRows = Array.isArray(data)
     ? data
@@ -416,7 +500,9 @@ function normalizeCompanies(data: unknown): Record<string, unknown>[] {
 
 function unwrapCarrier(data: unknown): unknown {
   if (!isRecord(data)) return data;
-  if ("data" in data && ("_extraction" in data || Array.isArray(data.data) || isRecord(data.data))) {
+  const keys = Object.keys(data);
+  const isCarrierOnly = keys.every((key) => key === "data" || key === "_extraction");
+  if (isCarrierOnly && "data" in data && ("_extraction" in data || Array.isArray(data.data) || isRecord(data.data))) {
     return unwrapCarrier(data.data);
   }
   return data;
@@ -489,6 +575,8 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
     if (Array.isArray(unwrapped.statuses)) return unwrapped.statuses;
     if (Array.isArray(unwrapped.posts)) return unwrapped.posts;
     if (Array.isArray(unwrapped.tweets)) return unwrapped.tweets;
+    const normalizedLinkedInFeed = normalizeLinkedInFeedPosts(unwrapped);
+    if (normalizedLinkedInFeed.length > 0) return normalizedLinkedInFeed;
     const normalizedRedditPosts = normalizeRedditPosts(unwrapped);
     if (normalizedRedditPosts.length > 0) return normalizedRedditPosts;
     const normalizedXTweets = normalizeXTweets(unwrapped);
