@@ -7,6 +7,8 @@
 import { describe, it, expect } from "bun:test";
 
 const API_URL = "https://beta-api.unbrowse.ai";
+const LOCAL_API_URL = process.env.UNBROWSE_URL ?? "http://localhost:6969";
+const PERF_IT = process.env.UNBROWSE_RUN_MARKETPLACE_PERF === "1" ? it : it.skip;
 
 // Load API key from config
 function getApiKey(): string {
@@ -48,7 +50,7 @@ async function timedFetch(
 
 describe("Marketplace Pipeline Perf", () => {
   // Step 0: Basic connectivity
-  it("health check to beta-api", async () => {
+  PERF_IT("health check to beta-api", async () => {
     const t0 = performance.now();
     const res = await fetch(`${API_URL}/health`);
     const ms = Math.round(performance.now() - t0);
@@ -58,7 +60,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 10_000);
 
   // Step 1a: Domain-scoped search
-  it("search/domain latency (linkedin)", async () => {
+  PERF_IT("search/domain latency (linkedin)", async () => {
     const { ms, data, status } = await timedFetch(
       "search/domain",
       "POST",
@@ -71,7 +73,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 60_000);
 
   // Step 1b: Global search
-  it("search intent latency (global)", async () => {
+  PERF_IT("search intent latency (global)", async () => {
     const { ms, data, status } = await timedFetch(
       "search/global",
       "POST",
@@ -84,7 +86,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 60_000);
 
   // Step 1c: Both in parallel (mirrors orchestrator)
-  it("parallel search (domain + global) latency", async () => {
+  PERF_IT("parallel search (domain + global) latency", async () => {
     const t0 = performance.now();
     const [domain, global_] = await Promise.all([
       timedFetch("search/domain", "POST", "/v1/search/domain", {
@@ -105,7 +107,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 60_000);
 
   // Step 2: getSkill latency for marketplace candidates
-  it("getSkill latency (single skill)", async () => {
+  PERF_IT("getSkill latency (single skill)", async () => {
     // First find a skill via search
     const { data: searchData } = await timedFetch(
       "search",
@@ -139,7 +141,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 60_000);
 
   // Step 2b: getSkill for N candidates in parallel
-  it("getSkill latency (5 candidates in parallel)", async () => {
+  PERF_IT("getSkill latency (5 candidates in parallel)", async () => {
     const { data: searchData } = await timedFetch(
       "search",
       "POST",
@@ -177,7 +179,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 60_000);
 
   // Step 3: Local disk cache read performance
-  it("disk cache read latency", async () => {
+  PERF_IT("disk cache read latency", async () => {
     const { readFileSync, readdirSync, existsSync } = await import("fs");
     const { join } = await import("path");
     const { homedir } = await import("os");
@@ -205,7 +207,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 10_000);
 
   // Step 4: findExistingSkillForDomain performance
-  it("findExistingSkillForDomain latency", async () => {
+  PERF_IT("findExistingSkillForDomain latency", async () => {
     const { readFileSync, readdirSync, existsSync } = await import("fs");
     const { join } = await import("path");
     const { homedir } = await import("os");
@@ -242,7 +244,7 @@ describe("Marketplace Pipeline Perf", () => {
   }, 10_000);
 
   // Step 5: DNS + TLS overhead to beta-api
-  it("DNS + TLS overhead (3 sequential fetches)", async () => {
+  PERF_IT("DNS + TLS overhead (3 sequential fetches)", async () => {
     const times: number[] = [];
     for (let i = 0; i < 3; i++) {
       const t0 = performance.now();
@@ -256,9 +258,25 @@ describe("Marketplace Pipeline Perf", () => {
   }, 30_000);
 
   // Step 6: End-to-end orchestrator timing via local server
-  it("local intent/resolve timing breakdown", async () => {
+  PERF_IT("local intent/resolve timing breakdown", async () => {
+    if (process.env.UNBROWSE_RUN_LOCAL_PERF !== "1") {
+      console.log("  [skip] set UNBROWSE_RUN_LOCAL_PERF=1 to run local intent/resolve perf diagnostics");
+      return;
+    }
+
+    try {
+      const health = await fetch(`${LOCAL_API_URL}/health`, { signal: AbortSignal.timeout(2_000) });
+      if (!health.ok) {
+        console.log(`  [skip] local server unhealthy at ${LOCAL_API_URL}`);
+        return;
+      }
+    } catch {
+      console.log(`  [skip] no local server at ${LOCAL_API_URL}`);
+      return;
+    }
+
     const t0 = performance.now();
-    const res = await fetch("http://localhost:6969/v1/intent/resolve", {
+    const res = await fetch(`${LOCAL_API_URL}/v1/intent/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

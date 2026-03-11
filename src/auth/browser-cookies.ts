@@ -33,21 +33,54 @@ export interface ExtractionResult {
   warnings: string[];
 }
 
+export type BrowserSource = "auto" | "firefox" | "chrome" | "chromium";
+
+export interface ChromiumCookieSourceOptions {
+  profile?: string;
+  userDataDir?: string;
+  cookieDbPath?: string;
+  safeStorageService?: string;
+  browserName?: string;
+}
+
+export interface ExtractBrowserCookiesOptions {
+  browser?: BrowserSource;
+  chromeProfile?: string;
+  firefoxProfile?: string;
+  chromium?: ChromiumCookieSourceOptions;
+}
+
 // ---------------------------------------------------------------------------
 // Path helpers
 // ---------------------------------------------------------------------------
 
-function getChromeCookiesPath(profile?: string): string {
+function getChromeUserDataDir(): string {
   const home = homedir();
-  const profileDir = profile || "Default";
   if (platform() === "darwin") {
-    return join(home, "Library", "Application Support", "Google", "Chrome", profileDir, "Cookies");
+    return join(home, "Library", "Application Support", "Google", "Chrome");
   }
   if (platform() === "win32") {
     const appData = process.env.LOCALAPPDATA ?? join(home, "AppData", "Local");
-    return join(appData, "Google", "Chrome", "User Data", profileDir, "Cookies");
+    return join(appData, "Google", "Chrome", "User Data");
   }
-  return join(home, ".config", "google-chrome", profileDir, "Cookies");
+  return join(home, ".config", "google-chrome");
+}
+
+export function resolveChromiumCookiesPath(opts?: ChromiumCookieSourceOptions): string | null {
+  if (opts?.cookieDbPath) {
+    return opts.cookieDbPath.replace(/^~\//, homedir() + "/");
+  }
+
+  const profileDir = opts?.profile || "Default";
+  const userDataDir = (opts?.userDataDir || getChromeUserDataDir()).replace(/^~\//, homedir() + "/");
+  const candidates = [
+    join(userDataDir, profileDir, "Network", "Cookies"),
+    join(userDataDir, profileDir, "Cookies"),
+    join(userDataDir, "Network", "Cookies"),
+    join(userDataDir, "Cookies"),
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0] ?? null;
 }
 
 function getFirefoxProfilesRoot(): string | null {
@@ -89,27 +122,35 @@ function getFirefoxCookiesPath(profile?: string): string | null {
 // Chrome decryption (macOS — uses keychain + PBKDF2 + AES-128-CBC)
 // ---------------------------------------------------------------------------
 
-let _chromeKeyCache: Buffer | null = null;
+const _chromiumKeyCache = new Map<string, Buffer>();
 
-function getChromeDecryptionKey(): Buffer | null {
-  if (_chromeKeyCache) return _chromeKeyCache;
+function getChromiumKeychainServiceName(opts?: ChromiumCookieSourceOptions): string {
+  if (opts?.safeStorageService) return opts.safeStorageService;
+  return `${opts?.browserName || "Chrome"} Safe Storage`;
+}
+
+function getChromiumDecryptionKey(opts?: ChromiumCookieSourceOptions): Buffer | null {
+  const service = getChromiumKeychainServiceName(opts);
+  const cached = _chromiumKeyCache.get(service);
+  if (cached) return cached;
   if (platform() !== "darwin") return null; // TODO: Linux/Windows support
 
   try {
     const keyOutput = execSync(
-      'security find-generic-password -s "Chrome Safe Storage" -w 2>/dev/null || echo ""',
+      `security find-generic-password -s "${service.replace(/"/g, '\\"')}" -w 2>/dev/null || echo ""`,
       { encoding: "utf8" },
     ).trim();
     if (!keyOutput) return null;
 
-    _chromeKeyCache = pbkdf2Sync(keyOutput, "saltysalt", 1003, 16, "sha1");
-    return _chromeKeyCache;
+    const derived = pbkdf2Sync(keyOutput, "saltysalt", 1003, 16, "sha1");
+    _chromiumKeyCache.set(service, derived);
+    return derived;
   } catch {
     return null;
   }
 }
 
-function decryptChromeValue(encryptedHex: string): string | null {
+function decryptChromiumValue(encryptedHex: string, opts?: ChromiumCookieSourceOptions): string | null {
   try {
     const buf = Buffer.from(encryptedHex, "hex");
     if (buf.length < 4) return null;
@@ -120,7 +161,7 @@ function decryptChromeValue(encryptedHex: string): string | null {
       return buf.toString("utf8");
     }
 
-    const key = getChromeDecryptionKey();
+    const key = getChromiumDecryptionKey(opts);
     if (!key) return null;
 
     const payload = buf.subarray(3);
@@ -150,6 +191,12 @@ function decryptChromeValue(encryptedHex: string): string | null {
   } catch {
     return null;
   }
+}
+
+export function decodeChromiumCookieValue(rawValue: string, encryptedHex: string, opts?: ChromiumCookieSourceOptions): string | null {
+  if (rawValue) return rawValue;
+  if (!encryptedHex) return null;
+  return decryptChromiumValue(encryptedHex, opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -208,27 +255,38 @@ export function extractFromChrome(
   domain: string,
   opts?: { profile?: string },
 ): ExtractionResult {
-  const warnings: string[] = [];
-  const dbPath = getChromeCookiesPath(opts?.profile);
+  return extractFromChromium(domain, {
+    profile: opts?.profile,
+    browserName: "Chrome",
+  });
+}
 
-  if (!existsSync(dbPath)) {
-    warnings.push(`Chrome cookies DB not found at ${dbPath}`);
+export function extractFromChromium(
+  domain: string,
+  opts?: ChromiumCookieSourceOptions,
+): ExtractionResult {
+  const warnings: string[] = [];
+  const dbPath = resolveChromiumCookiesPath(opts);
+  const sourceLabel = opts?.browserName || "Chromium";
+
+  if (!dbPath || !existsSync(dbPath)) {
+    warnings.push(`${sourceLabel} cookies DB not found${dbPath ? ` at ${dbPath}` : ""}`);
     return { cookies: [], source: null, warnings };
   }
 
   try {
     const cookies = withTempCopy(dbPath, (tempDb) => {
       const where = buildDomainWhereClause(domain, "host_key");
-      const sql = `SELECT name, hex(encrypted_value) as ev, host_key, path, is_secure, is_httponly, samesite, expires_utc FROM cookies WHERE ${where};`;
+      const sql = `SELECT name, value, hex(encrypted_value) as ev, host_key, path, is_secure, is_httponly, samesite, expires_utc FROM cookies WHERE ${where};`;
       const rows = sqliteQuery(tempDb, sql);
       if (!rows) return [];
 
       const results: BrowserCookie[] = [];
       for (const line of rows.split("\n")) {
         const parts = line.split("|");
-        if (parts.length < 8) continue;
-        const [name, encHex, host, cookiePath, secure, httpOnly, sameSite, expiresUtc] = parts;
-        const value = decryptChromeValue(encHex);
+        if (parts.length < 9) continue;
+        const [name, rawValue, encHex, host, cookiePath, secure, httpOnly, sameSite, expiresUtc] = parts;
+        const value = decodeChromiumCookieValue(rawValue, encHex, opts);
         if (!value) continue;
 
         results.push({
@@ -248,14 +306,20 @@ export function extractFromChrome(
       return results;
     });
 
-    const source = opts?.profile ? `Chrome profile "${opts.profile}"` : "Chrome default profile";
+    const source = opts?.cookieDbPath
+      ? `${sourceLabel} cookie DB "${dbPath}"`
+      : opts?.userDataDir
+        ? `${sourceLabel} user data "${opts.userDataDir}"${opts.profile ? ` profile "${opts.profile}"` : ""}`
+        : opts?.profile
+          ? `${sourceLabel} profile "${opts.profile}"`
+          : `${sourceLabel} default profile`;
     if (cookies.length === 0) {
       warnings.push(`No cookies for ${domain} found in ${source}`);
     }
     log("auth", `extracted ${cookies.length} cookies for ${domain} from ${source}`);
     return { cookies, source: cookies.length > 0 ? source : null, warnings };
   } catch (err) {
-    warnings.push(`Chrome extraction failed: ${err instanceof Error ? err.message : err}`);
+    warnings.push(`${sourceLabel} extraction failed: ${err instanceof Error ? err.message : err}`);
     return { cookies: [], source: null, warnings };
   }
 }
@@ -322,11 +386,30 @@ export function extractFromFirefox(
 
 export function extractBrowserCookies(
   domain: string,
-  opts?: { chromeProfile?: string; firefoxProfile?: string },
+  opts?: ExtractBrowserCookiesOptions,
 ): ExtractionResult {
+  if (opts?.browser === "firefox") {
+    return extractFromFirefox(domain, { profile: opts.firefoxProfile });
+  }
+
+  if (opts?.browser === "chrome") {
+    return extractFromChrome(domain, { profile: opts.chromeProfile });
+  }
+
+  if (opts?.browser === "chromium") {
+    return extractFromChromium(domain, opts.chromium);
+  }
+
   // Try Firefox first (no decryption needed, more reliable)
   const ff = extractFromFirefox(domain, { profile: opts?.firefoxProfile });
   if (ff.cookies.length > 0) return ff;
+
+  // If caller provided an explicit Chromium-family source, try that next.
+  if (opts?.chromium?.cookieDbPath || opts?.chromium?.userDataDir) {
+    const chromium = extractFromChromium(domain, opts.chromium);
+    chromium.warnings.push(...ff.warnings);
+    return chromium;
+  }
 
   // Fall back to Chrome
   const chrome = extractFromChrome(domain, { profile: opts?.chromeProfile });

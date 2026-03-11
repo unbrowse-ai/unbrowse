@@ -1,15 +1,17 @@
 "use client";
 
 import type { SkillManifest, StatsSummary, AgentProfile } from "@/lib/api";
+import type { AnalyticsData } from "./loader";
 import { useEffect, useState } from "react";
 
 interface Props {
   stats: StatsSummary;
   skills: SkillManifest[];
   agents: AgentProfile[];
+  analytics: AnalyticsData;
 }
 
-/* ── helpers ──────────────────────────────────────────── */
+/* -- helpers -- */
 
 function timeAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -32,28 +34,19 @@ function reliabilityColor(score: number): string {
 
 function methodColor(m: string): string {
   const map: Record<string, string> = {
-    GET: "#22c55e",
-    POST: "#3b82f6",
-    PUT: "#a855f7",
-    PATCH: "#eab308",
-    DELETE: "#ef4444",
-    WS: "#06b6d4",
-    HEAD: "#6b7280",
-    OPTIONS: "#6b7280",
+    GET: "#22c55e", POST: "#3b82f6", PUT: "#a855f7", PATCH: "#eab308",
+    DELETE: "#ef4444", WS: "#06b6d4", HEAD: "#6b7280", OPTIONS: "#6b7280",
   };
   return map[m] ?? "#6b7280";
 }
 
 const VERIFICATION_COLORS: Record<string, string> = {
-  verified: "#22c55e",
-  unverified: "#6b7280",
-  failed: "#ef4444",
-  pending: "#eab308",
+  verified: "#22c55e", unverified: "#6b7280", failed: "#ef4444", pending: "#eab308",
 };
 
-/* ── main component ──────────────────────────────────── */
+/* -- main component -- */
 
-export function OpsDashboard({ stats, skills, agents }: Props) {
+export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
   const [now, setNow] = useState("");
 
   useEffect(() => {
@@ -63,103 +56,58 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
     return () => clearInterval(i);
   }, []);
 
-  // ── derived data ──
+  const health = analytics.agentHealth;
+  const activation = analytics.activation;
+  const engagement = analytics.engagement;
+
+  // -- derived data --
+  const activeSkills = skills.filter(s => s.lifecycle === "active");
+  const activeEndpoints = activeSkills.flatMap(s => s.endpoints);
+  const verifiedEndpoints = activeEndpoints.filter(e => e.verification_status === "verified");
+  const activeDomains = new Set(activeSkills.map(s => s.domain)).size;
 
   // Domain distribution
   const domainMap = new Map<string, number>();
-  for (const s of skills) {
-    domainMap.set(s.domain, (domainMap.get(s.domain) ?? 0) + 1);
-  }
-  const domains = [...domainMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 14);
+  for (const s of activeSkills) domainMap.set(s.domain, (domainMap.get(s.domain) ?? 0) + s.endpoints.length);
+  const domains = [...domainMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   const maxDomainCount = Math.max(1, ...domains.map(([, c]) => c));
 
   // Method distribution
   const methodMap = new Map<string, number>();
-  for (const s of skills) {
-    for (const ep of s.endpoints) {
-      methodMap.set(ep.method, (methodMap.get(ep.method) ?? 0) + 1);
-    }
-  }
+  for (const ep of activeEndpoints) methodMap.set(ep.method, (methodMap.get(ep.method) ?? 0) + 1);
   const methods = [...methodMap.entries()].sort((a, b) => b[1] - a[1]);
-  const totalEndpointsCounted = methods.reduce((a, [, c]) => a + c, 0);
 
   // Verification breakdown
   const verificationMap = new Map<string, number>();
-  for (const s of skills) {
-    for (const ep of s.endpoints) {
-      verificationMap.set(ep.verification_status, (verificationMap.get(ep.verification_status) ?? 0) + 1);
-    }
-  }
+  for (const ep of activeEndpoints) verificationMap.set(ep.verification_status, (verificationMap.get(ep.verification_status) ?? 0) + 1);
   const totalVerification = [...verificationMap.values()].reduce((a, b) => a + b, 0);
 
-  // Reliability distribution (buckets)
-  const reliabilityBuckets = [0, 0, 0, 0, 0]; // 0-20, 20-40, 40-60, 60-80, 80-100
-  for (const s of skills) {
-    for (const ep of s.endpoints) {
-      const idx = Math.min(4, Math.floor(ep.reliability_score * 5));
-      reliabilityBuckets[idx]++;
-    }
-  }
-  const maxBucket = Math.max(1, ...reliabilityBuckets);
+  // Reliability
+  const reliabilities = activeEndpoints.map(e => e.reliability_score);
+  const avgReliability = reliabilities.length > 0 ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length : 0;
 
-  // Recent skills (sorted by updated_at)
+  // Churn rate
+  const churnRate = health && health.total_agents > 0
+    ? Math.round((health.churned_30d / health.total_agents) * 100) : 0;
+
+  // Activation rate (registered -> first exec)
+  const activationRate = activation && activation.total_registered > 0
+    ? Math.round(activation.rates.registration_to_first_exec * 100) : 0;
+
+  // Stickiness (DAU/WAU)
+  const stickiness = engagement ? Math.round(engagement.dau_wau_ratio * 100) : 0;
+
+  // Recent skills
   const recentSkills = [...skills]
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-    .slice(0, 8);
-
-  // Top agents
-  const topAgents = [...agents]
-    .sort((a, b) => (b.skills_discovered.length + b.total_executions) - (a.skills_discovered.length + a.total_executions))
-    .slice(0, 8);
-
-  // Lifecycle breakdown
-  const lifecycleMap = new Map<string, number>();
-  for (const s of skills) {
-    lifecycleMap.set(s.lifecycle, (lifecycleMap.get(s.lifecycle) ?? 0) + 1);
-  }
-
-  // Average reliability
-  let totalReliability = 0;
-  let reliabilityCount = 0;
-  for (const s of skills) {
-    for (const ep of s.endpoints) {
-      totalReliability += ep.reliability_score;
-      reliabilityCount++;
-    }
-  }
-  const avgReliability = reliabilityCount > 0 ? totalReliability / reliabilityCount : 0;
-
-  // Endpoints per skill distribution
-  const epPerSkill = skills.map((s) => s.endpoints.length);
-  const avgEpPerSkill = epPerSkill.length > 0 ? epPerSkill.reduce((a, b) => a + b, 0) / epPerSkill.length : 0;
-  const maxEpPerSkill = Math.max(0, ...epPerSkill);
-
-  // Schema coverage
-  let withSchema = 0;
-  let withoutSchema = 0;
-  for (const s of skills) {
-    for (const ep of s.endpoints) {
-      if (ep.response_schema) withSchema++;
-      else withoutSchema++;
-    }
-  }
-
-  // Execution type breakdown
-  const execTypeMap = new Map<string, number>();
-  for (const s of skills) {
-    execTypeMap.set(s.execution_type, (execTypeMap.get(s.execution_type) ?? 0) + 1);
-  }
+    .slice(0, 6);
 
   return (
     <div className="ops-root">
       <style>{OPS_STYLES}</style>
-
-      {/* ── scanline overlay ── */}
       <div className="ops-scanlines" />
 
-      {/* ── header ── */}
+      {/* -- header -- */}
       <header className="ops-header">
         <div className="ops-header-left">
           <div className="ops-pulse" />
@@ -171,23 +119,121 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
         </div>
       </header>
 
-      {/* ── big numbers ── */}
+      {/* -- primary metrics strip -- */}
       <section className="ops-stats-strip">
-        <StatCard label="SKILLS" value={stats.skills} />
-        <StatCard label="ENDPOINTS" value={stats.endpoints} />
-        <StatCard label="DOMAINS" value={stats.domains} />
-        <StatCard label="EXECUTIONS" value={stats.executions} />
-        <StatCard label="AGENTS" value={stats.agents} />
+        <StatCard label="ACTIVE SKILLS" value={activeSkills.length} sub={`${skills.length} total`} />
+        <StatCard label="ENDPOINTS" value={activeEndpoints.length} sub={`${verifiedEndpoints.length} verified`} />
+        <StatCard label="DOMAINS" value={activeDomains} />
+        <StatCard label="AGENTS" value={health?.total_agents ?? stats.agents} sub={`${health?.active_today ?? 0} today`} />
+        <StatCard label="EXECUTIONS" value={stats.executions} sub={`${health?.avg_executions_per_agent ?? 0} avg/agent`} />
       </section>
 
-      {/* ── grid ── */}
+      {/* -- growth metrics strip -- */}
+      <section className="ops-growth-strip">
+        <GrowthCard label="DAU" value={health?.active_today ?? 0} />
+        <GrowthCard label="WAU" value={health?.active_this_week ?? 0} />
+        <GrowthCard label="MAU" value={health?.active_this_month ?? 0} />
+        <GrowthCard label="STICKINESS" value={`${stickiness}%`} hint="DAU/WAU" good={stickiness >= 20} />
+        <GrowthCard label="CHURN (30D)" value={`${churnRate}%`} hint={`${health?.churned_30d ?? 0} agents`} good={churnRate < 20} />
+        <GrowthCard label="ACTIVATION" value={`${activationRate}%`} hint="reg -> exec" good={activationRate >= 50} />
+        <GrowthCard label="AVG RELIABILITY" value={`${(avgReliability * 100).toFixed(0)}%`} good={avgReliability >= 0.7} />
+      </section>
+
+      {/* -- grid -- */}
       <div className="ops-grid">
+
+        {/* Activation funnel */}
+        <div className="ops-panel">
+          <div className="ops-panel-header">
+            <span className="ops-panel-title">ACTIVATION FUNNEL</span>
+          </div>
+          {activation && activation.total_registered > 0 ? (
+            <div className="ops-funnel">
+              <FunnelStep label="Registered" value={activation.total_registered} max={activation.total_registered} />
+              <FunnelStep label="First Execution" value={activation.executed_once} max={activation.total_registered} />
+              <FunnelStep label="Discovered Skill" value={activation.discovered_skill} max={activation.total_registered} />
+              <FunnelStep label="Repeat (5+)" value={activation.repeat_user} max={activation.total_registered} />
+              <FunnelStep label="Power (20+)" value={activation.power_user} max={activation.total_registered} />
+            </div>
+          ) : (
+            <div className="ops-funnel">
+              <FunnelStep label="Registered" value={health?.total_agents ?? stats.agents} max={health?.total_agents ?? stats.agents} />
+              <FunnelStep label="Active (7d)" value={health?.active_this_week ?? 0} max={health?.total_agents ?? stats.agents} />
+              <FunnelStep label="Active (30d)" value={health?.active_this_month ?? 0} max={health?.total_agents ?? stats.agents} />
+              <FunnelStep label="Churned" value={health?.churned_30d ?? 0} max={health?.total_agents ?? stats.agents} color="#ef4444" />
+            </div>
+          )}
+        </div>
+
+        {/* Agent leaderboard */}
+        <div className="ops-panel">
+          <div className="ops-panel-header">
+            <span className="ops-panel-title">TOP AGENTS</span>
+            <span className="ops-panel-count">{health?.total_agents ?? agents.length} total</span>
+          </div>
+          <div className="ops-leaderboard">
+            {(health?.top_agents ?? []).slice(0, 8).map((agent, i) => (
+              <div key={agent.agent_id} className="ops-leader-row">
+                <span className="ops-leader-rank">
+                  {i === 0 ? "I" : i === 1 ? "II" : i === 2 ? "III" : String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="ops-leader-info">
+                  <span className="ops-leader-name">{agent.name || agent.agent_id.slice(0, 12)}</span>
+                  <span className="ops-leader-meta">
+                    {agent.executions} exec / {agent.skills_discovered} skills
+                    {agent.last_active ? ` / ${timeAgo(agent.last_active)}` : ""}
+                  </span>
+                </div>
+                <div className="ops-leader-bar-track">
+                  <div
+                    className="ops-leader-bar"
+                    style={{
+                      width: `${pct(agent.executions, health?.top_agents[0]?.executions ?? 1)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+            {(!health?.top_agents || health.top_agents.length === 0) && (
+              <div className="ops-empty">No agent data</div>
+            )}
+          </div>
+        </div>
+
+        {/* Daily trend */}
+        <div className="ops-panel">
+          <div className="ops-panel-header">
+            <span className="ops-panel-title">DAILY ACTIVE (14D)</span>
+          </div>
+          {engagement?.daily_trend && engagement.daily_trend.length > 0 ? (
+            <div className="ops-sparkline">
+              {(() => {
+                const trend = [...engagement.daily_trend].reverse();
+                const max = Math.max(1, ...trend.map(d => d.active));
+                return trend.map((d, i) => (
+                  <div key={i} className="ops-spark-col">
+                    <div className="ops-spark-bar-wrapper">
+                      <div
+                        className="ops-spark-bar"
+                        style={{ height: `${(d.active / max) * 100}%` }}
+                      />
+                    </div>
+                    <span className="ops-spark-value">{d.active}</span>
+                    <span className="ops-spark-label">{d.date.slice(5)}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          ) : (
+            <div className="ops-empty">Engagement data unavailable</div>
+          )}
+        </div>
 
         {/* Domain distribution */}
         <div className="ops-panel ops-panel-wide">
           <div className="ops-panel-header">
-            <span className="ops-panel-title">DOMAIN DISTRIBUTION</span>
-            <span className="ops-panel-count">{domainMap.size} domains</span>
+            <span className="ops-panel-title">ENDPOINTS BY DOMAIN</span>
+            <span className="ops-panel-count">{activeDomains} domains</span>
           </div>
           <div className="ops-bar-chart">
             {domains.map(([domain, count]) => (
@@ -196,10 +242,7 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
                   {domain.length > 22 ? domain.slice(0, 20) + ".." : domain}
                 </span>
                 <div className="ops-bar-track">
-                  <div
-                    className="ops-bar-fill"
-                    style={{ width: `${(count / maxDomainCount) * 100}%` }}
-                  />
+                  <div className="ops-bar-fill" style={{ width: `${(count / maxDomainCount) * 100}%` }} />
                 </div>
                 <span className="ops-bar-value">{count}</span>
               </div>
@@ -207,11 +250,10 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
           </div>
         </div>
 
-        {/* Method donut */}
+        {/* Method + Verification */}
         <div className="ops-panel">
           <div className="ops-panel-header">
-            <span className="ops-panel-title">METHOD BREAKDOWN</span>
-            <span className="ops-panel-count">{totalEndpointsCounted} endpoints</span>
+            <span className="ops-panel-title">METHOD & VERIFICATION</span>
           </div>
           <div className="ops-donut-container">
             <DonutChart data={methods.map(([m, c]) => ({ label: m, value: c, color: methodColor(m) }))} />
@@ -221,39 +263,27 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
                   <span className="ops-legend-dot" style={{ background: methodColor(m) }} />
                   <span className="ops-legend-label">{m}</span>
                   <span className="ops-legend-value">{c}</span>
-                  <span className="ops-legend-pct">{pct(c, totalEndpointsCounted)}%</span>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-
-        {/* Verification status */}
-        <div className="ops-panel">
-          <div className="ops-panel-header">
-            <span className="ops-panel-title">VERIFICATION STATUS</span>
-          </div>
+          {/* Verification stacked bar */}
           <div className="ops-stacked-bar-container">
             <div className="ops-stacked-bar">
               {["verified", "unverified", "pending", "failed"].map((status) => {
                 const count = verificationMap.get(status) ?? 0;
                 if (count === 0) return null;
                 return (
-                  <div
-                    key={status}
-                    className="ops-stacked-segment"
-                    style={{
-                      width: `${(count / totalVerification) * 100}%`,
-                      background: VERIFICATION_COLORS[status],
-                    }}
-                    title={`${status}: ${count}`}
-                  />
+                  <div key={status} className="ops-stacked-segment"
+                    style={{ width: `${(count / totalVerification) * 100}%`, background: VERIFICATION_COLORS[status] }}
+                    title={`${status}: ${count}`} />
                 );
               })}
             </div>
             <div className="ops-verification-legend">
               {["verified", "unverified", "pending", "failed"].map((status) => {
                 const count = verificationMap.get(status) ?? 0;
+                if (count === 0) return null;
                 return (
                   <div key={status} className="ops-legend-item">
                     <span className="ops-legend-dot" style={{ background: VERIFICATION_COLORS[status] }} />
@@ -263,120 +293,6 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
                 );
               })}
             </div>
-          </div>
-
-          {/* Quick metrics */}
-          <div className="ops-metrics-row">
-            <div className="ops-metric">
-              <span className="ops-metric-value">{(avgReliability * 100).toFixed(1)}%</span>
-              <span className="ops-metric-label">AVG RELIABILITY</span>
-            </div>
-            <div className="ops-metric">
-              <span className="ops-metric-value">{avgEpPerSkill.toFixed(1)}</span>
-              <span className="ops-metric-label">AVG EP/SKILL</span>
-            </div>
-            <div className="ops-metric">
-              <span className="ops-metric-value">{maxEpPerSkill}</span>
-              <span className="ops-metric-label">MAX EP/SKILL</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Reliability histogram */}
-        <div className="ops-panel">
-          <div className="ops-panel-header">
-            <span className="ops-panel-title">RELIABILITY DISTRIBUTION</span>
-          </div>
-          <div className="ops-histogram">
-            {reliabilityBuckets.map((count, i) => {
-              const labels = ["0-20%", "20-40%", "40-60%", "60-80%", "80-100%"];
-              const colors = ["#ef4444", "#f97316", "#eab308", "#84cc16", "#22c55e"];
-              return (
-                <div key={i} className="ops-histogram-col">
-                  <div className="ops-histogram-bar-wrapper">
-                    <div
-                      className="ops-histogram-bar"
-                      style={{
-                        height: `${(count / maxBucket) * 100}%`,
-                        background: colors[i],
-                      }}
-                    />
-                  </div>
-                  <span className="ops-histogram-count">{count}</span>
-                  <span className="ops-histogram-label">{labels[i]}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Schema & lifecycle gauges */}
-        <div className="ops-panel">
-          <div className="ops-panel-header">
-            <span className="ops-panel-title">COVERAGE & LIFECYCLE</span>
-          </div>
-          <div className="ops-gauge-grid">
-            <GaugeRing
-              label="SCHEMA"
-              value={withSchema}
-              total={withSchema + withoutSchema}
-              color="#3b82f6"
-            />
-            <GaugeRing
-              label="ACTIVE"
-              value={lifecycleMap.get("active") ?? 0}
-              total={skills.length}
-              color="#22c55e"
-            />
-            <GaugeRing
-              label="HTTP"
-              value={execTypeMap.get("http") ?? 0}
-              total={skills.length}
-              color="#FF6D00"
-            />
-            <GaugeRing
-              label="VERIFIED"
-              value={verificationMap.get("verified") ?? 0}
-              total={totalVerification}
-              color="#a855f7"
-            />
-          </div>
-        </div>
-
-        {/* Agent leaderboard */}
-        <div className="ops-panel">
-          <div className="ops-panel-header">
-            <span className="ops-panel-title">AGENT LEADERBOARD</span>
-            <span className="ops-panel-count">{agents.length} agents</span>
-          </div>
-          <div className="ops-leaderboard">
-            {topAgents.map((agent, i) => (
-              <div key={agent.agent_id} className="ops-leader-row">
-                <span className="ops-leader-rank">
-                  {i === 0 ? "I" : i === 1 ? "II" : i === 2 ? "III" : String(i + 1).padStart(2, "0")}
-                </span>
-                <div className="ops-leader-info">
-                  <span className="ops-leader-name">{agent.name || agent.agent_id.slice(0, 12)}</span>
-                  <span className="ops-leader-meta">
-                    {agent.skills_discovered.length} skills / {agent.total_executions} exec
-                  </span>
-                </div>
-                <div className="ops-leader-bar-track">
-                  <div
-                    className="ops-leader-bar"
-                    style={{
-                      width: `${pct(
-                        agent.skills_discovered.length + agent.total_executions,
-                        (topAgents[0]?.skills_discovered.length ?? 0) + (topAgents[0]?.total_executions ?? 0)
-                      )}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-            {topAgents.length === 0 && (
-              <div className="ops-empty">No agents registered yet</div>
-            )}
           </div>
         </div>
 
@@ -402,9 +318,6 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
                     <span className="ops-tag" style={{ color: skill.lifecycle === "active" ? "#22c55e" : "#6b7280" }}>
                       {skill.lifecycle}
                     </span>
-                    {skill.endpoints.some((e) => e.response_schema) && (
-                      <span className="ops-tag" style={{ color: "#3b82f6" }}>schema</span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -413,23 +326,18 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
         </div>
 
         {/* Endpoint reliability heatmap */}
-        <div className="ops-panel ops-panel-wide">
+        <div className="ops-panel">
           <div className="ops-panel-header">
-            <span className="ops-panel-title">ENDPOINT RELIABILITY HEATMAP</span>
-            <span className="ops-panel-count">top 80 endpoints</span>
+            <span className="ops-panel-title">RELIABILITY HEATMAP</span>
           </div>
           <div className="ops-heatmap">
-            {skills
-              .flatMap((s) => s.endpoints.map((ep) => ({ ...ep, domain: s.domain })))
+            {activeEndpoints
               .sort((a, b) => b.reliability_score - a.reliability_score)
-              .slice(0, 80)
+              .slice(0, 60)
               .map((ep) => (
-                <div
-                  key={ep.endpoint_id}
-                  className="ops-heatmap-cell"
+                <div key={ep.endpoint_id} className="ops-heatmap-cell"
                   style={{ background: reliabilityColor(ep.reliability_score) }}
-                  title={`${ep.method} ${ep.domain}\n${(ep.reliability_score * 100).toFixed(0)}% reliability`}
-                />
+                  title={`${ep.method} ${ep.url_template?.slice(0, 40)}\n${(ep.reliability_score * 100).toFixed(0)}%`} />
               ))}
           </div>
           <div className="ops-heatmap-legend">
@@ -440,21 +348,47 @@ export function OpsDashboard({ stats, skills, agents }: Props) {
         </div>
       </div>
 
-      {/* ── footer ── */}
       <footer className="ops-footer">
-        <span>UNBROWSE OPS v1.0 // INTERNAL USE ONLY</span>
+        <span>UNBROWSE OPS v2.0 // INTERNAL USE ONLY</span>
       </footer>
     </div>
   );
 }
 
-/* ── sub-components ──────────────────────────────────── */
+/* -- sub-components -- */
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="ops-stat-card">
       <span className="ops-stat-value">{value.toLocaleString()}</span>
       <span className="ops-stat-label">{label}</span>
+      {sub && <span className="ops-stat-sub">{sub}</span>}
+    </div>
+  );
+}
+
+function GrowthCard({ label, value, hint, good }: { label: string; value: number | string; hint?: string; good?: boolean }) {
+  const color = good === undefined ? "var(--ops-text)" : good ? "#22c55e" : "#ef4444";
+  return (
+    <div className="ops-growth-card">
+      <span className="ops-growth-value" style={{ color }}>{typeof value === "number" ? value.toLocaleString() : value}</span>
+      <span className="ops-growth-label">{label}</span>
+      {hint && <span className="ops-growth-hint">{hint}</span>}
+    </div>
+  );
+}
+
+function FunnelStep({ label, value, max, color }: { label: string; value: number; max: number; color?: string }) {
+  const w = max > 0 ? (value / max) * 100 : 0;
+  return (
+    <div className="ops-funnel-step">
+      <div className="ops-funnel-bar-track">
+        <div className="ops-funnel-bar" style={{ width: `${w}%`, background: color ?? "var(--ops-accent)" }} />
+      </div>
+      <div className="ops-funnel-meta">
+        <span className="ops-funnel-label">{label}</span>
+        <span className="ops-funnel-value">{value} <span className="ops-funnel-pct">({max > 0 ? Math.round(w) : 0}%)</span></span>
+      </div>
     </div>
   );
 }
@@ -462,7 +396,6 @@ function StatCard({ label, value }: { label: string; value: number }) {
 function DonutChart({ data }: { data: Array<{ label: string; value: number; color: string }> }) {
   const total = data.reduce((a, d) => a + d.value, 0);
   if (total === 0) return <div className="ops-empty">No data</div>;
-
   let cumulative = 0;
   const segments = data.map((d) => {
     const start = cumulative;
@@ -470,12 +403,8 @@ function DonutChart({ data }: { data: Array<{ label: string; value: number; colo
     cumulative += angle;
     return { ...d, start, angle };
   });
-
-  // Build conic-gradient
   let gradient = "";
-  for (const seg of segments) {
-    gradient += `${seg.color} ${seg.start}deg ${seg.start + seg.angle}deg, `;
-  }
+  for (const seg of segments) gradient += `${seg.color} ${seg.start}deg ${seg.start + seg.angle}deg, `;
   gradient = gradient.slice(0, -2);
 
   return (
@@ -489,38 +418,7 @@ function DonutChart({ data }: { data: Array<{ label: string; value: number; colo
   );
 }
 
-function GaugeRing({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const p = total > 0 ? (value / total) * 100 : 0;
-  const circumference = 2 * Math.PI * 36;
-  const offset = circumference - (p / 100) * circumference;
-
-  return (
-    <div className="ops-gauge">
-      <svg width="88" height="88" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r="36" fill="none" stroke="#1E1A16" strokeWidth="6" />
-        <circle
-          cx="44"
-          cy="44"
-          r="36"
-          fill="none"
-          stroke={color}
-          strokeWidth="6"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          transform="rotate(-90 44 44)"
-          style={{ transition: "stroke-dashoffset 1s ease" }}
-        />
-      </svg>
-      <div className="ops-gauge-inner">
-        <span className="ops-gauge-pct">{Math.round(p)}%</span>
-      </div>
-      <span className="ops-gauge-label">{label}</span>
-    </div>
-  );
-}
-
-/* ── styles ──────────────────────────────────────────── */
+/* -- styles -- */
 
 const OPS_STYLES = `
   .ops-root {
@@ -532,7 +430,6 @@ const OPS_STYLES = `
     --ops-accent: #FF6D00;
     --ops-accent-dim: rgba(255, 109, 0, 0.15);
     --ops-mono: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
-
     position: relative;
     min-height: 100vh;
     background: var(--ops-bg);
@@ -543,620 +440,181 @@ const OPS_STYLES = `
     padding: 0;
     overflow-x: hidden;
   }
-
-  /* CRT scanlines */
   .ops-scanlines {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 100;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 0, 0, 0.03) 2px,
-      rgba(0, 0, 0, 0.03) 4px
-    );
+    position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
   }
 
-  /* ─── Header ─── */
+  /* Header */
   .ops-header {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
     padding: 12px 24px;
     background: linear-gradient(180deg, var(--ops-bg) 0%, rgba(3,2,1,0.95) 100%);
     border-bottom: 1px solid var(--ops-border);
     backdrop-filter: blur(12px);
   }
-  .ops-header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+  .ops-header-left { display: flex; align-items: center; gap: 12px; }
   .ops-pulse {
-    width: 8px;
-    height: 8px;
-    background: var(--ops-accent);
-    border-radius: 50%;
+    width: 8px; height: 8px; background: var(--ops-accent); border-radius: 50%;
     box-shadow: 0 0 8px var(--ops-accent), 0 0 24px rgba(255,109,0,0.3);
     animation: ops-pulse 2s ease-in-out infinite;
   }
   @keyframes ops-pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--ops-accent); }
+    0%, 100% { opacity: 1; }
     50% { opacity: 0.5; box-shadow: 0 0 16px var(--ops-accent), 0 0 32px rgba(255,109,0,0.4); }
   }
-  .ops-logo {
-    font-family: 'Fonetika', var(--ops-mono);
-    font-size: 20px;
-    letter-spacing: 6px;
-    color: var(--ops-accent);
-    text-shadow: 0 0 20px rgba(255,109,0,0.4);
-  }
-  .ops-subtitle {
-    color: var(--ops-muted);
-    font-size: 10px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-  }
-  .ops-header-right {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .ops-clock {
-    color: var(--ops-muted);
-    font-size: 11px;
-    letter-spacing: 1px;
-    font-variant-numeric: tabular-nums;
-  }
+  .ops-logo { font-size: 20px; letter-spacing: 6px; color: var(--ops-accent); text-shadow: 0 0 20px rgba(255,109,0,0.4); }
+  .ops-subtitle { color: var(--ops-muted); font-size: 10px; letter-spacing: 3px; text-transform: uppercase; }
+  .ops-header-right { display: flex; align-items: center; gap: 16px; }
+  .ops-clock { color: var(--ops-muted); font-size: 11px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
 
-  /* ─── Stats Strip ─── */
+  /* Stats Strip */
   .ops-stats-strip {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 1px;
-    background: var(--ops-border);
-    margin: 0;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+    background: var(--ops-border); margin: 0;
   }
   .ops-stat-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 28px 16px;
-    background: var(--ops-surface);
-    gap: 6px;
-    transition: background 0.3s;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px 16px; background: var(--ops-surface); gap: 4px; transition: background 0.3s;
   }
-  .ops-stat-card:hover {
-    background: #0F0D0B;
-  }
-  .ops-stat-value {
-    font-family: 'Fonetika', var(--ops-mono);
-    font-size: 36px;
-    color: var(--ops-text);
-    line-height: 1;
-    letter-spacing: 2px;
-  }
-  .ops-stat-label {
-    font-size: 9px;
-    letter-spacing: 4px;
-    color: var(--ops-muted);
-    text-transform: uppercase;
-  }
+  .ops-stat-card:hover { background: #0F0D0B; }
+  .ops-stat-value { font-size: 32px; color: var(--ops-text); line-height: 1; letter-spacing: 2px; }
+  .ops-stat-label { font-size: 9px; letter-spacing: 4px; color: var(--ops-muted); text-transform: uppercase; }
+  .ops-stat-sub { font-size: 10px; color: var(--ops-muted); opacity: 0.7; }
 
-  /* ─── Grid ─── */
+  /* Growth Strip */
+  .ops-growth-strip {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px;
+    background: var(--ops-border); margin-top: 1px;
+  }
+  .ops-growth-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 16px 8px; background: var(--ops-bg); gap: 3px;
+  }
+  .ops-growth-value { font-size: 22px; line-height: 1; letter-spacing: 1px; }
+  .ops-growth-label { font-size: 8px; letter-spacing: 3px; color: var(--ops-muted); text-transform: uppercase; }
+  .ops-growth-hint { font-size: 9px; color: var(--ops-muted); opacity: 0.5; }
+
+  /* Grid */
   .ops-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1px;
-    background: var(--ops-border);
-    margin-top: 1px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--ops-border); margin-top: 1px;
   }
 
-  /* ─── Panel ─── */
+  /* Panel */
   .ops-panel {
-    background: var(--ops-surface);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    min-height: 280px;
+    background: var(--ops-surface); padding: 20px;
+    display: flex; flex-direction: column; gap: 16px; min-height: 260px;
   }
-  .ops-panel-wide {
-    grid-column: span 2;
-  }
+  .ops-panel-wide { grid-column: span 2; }
   .ops-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--ops-border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 12px; border-bottom: 1px solid var(--ops-border);
   }
-  .ops-panel-title {
-    font-size: 10px;
-    letter-spacing: 3px;
-    color: var(--ops-accent);
-    text-transform: uppercase;
-  }
-  .ops-panel-count {
-    font-size: 10px;
-    color: var(--ops-muted);
-  }
+  .ops-panel-title { font-size: 10px; letter-spacing: 3px; color: var(--ops-accent); text-transform: uppercase; }
+  .ops-panel-count { font-size: 10px; color: var(--ops-muted); }
 
-  /* ─── Bar Chart ─── */
-  .ops-bar-chart {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1;
-    justify-content: center;
-  }
-  .ops-bar-row {
-    display: grid;
-    grid-template-columns: 160px 1fr 36px;
-    align-items: center;
-    gap: 10px;
-  }
-  .ops-bar-label {
-    font-size: 11px;
-    color: var(--ops-text);
-    text-align: right;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .ops-bar-track {
-    height: 18px;
-    background: var(--ops-accent-dim);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .ops-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--ops-accent), #FF8F33);
-    border-radius: 2px;
-    transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
-    position: relative;
-  }
-  .ops-bar-fill::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #fff;
-    opacity: 0.6;
-    border-radius: 1px;
-  }
-  .ops-bar-value {
-    font-size: 11px;
-    color: var(--ops-muted);
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
+  /* Funnel */
+  .ops-funnel { display: flex; flex-direction: column; gap: 10px; flex: 1; justify-content: center; }
+  .ops-funnel-step { display: flex; flex-direction: column; gap: 4px; }
+  .ops-funnel-bar-track { height: 24px; background: var(--ops-accent-dim); border-radius: 3px; overflow: hidden; }
+  .ops-funnel-bar { height: 100%; border-radius: 3px; transition: width 1s cubic-bezier(0.22, 1, 0.36, 1); }
+  .ops-funnel-meta { display: flex; justify-content: space-between; align-items: center; }
+  .ops-funnel-label { font-size: 10px; color: var(--ops-text); }
+  .ops-funnel-value { font-size: 11px; color: var(--ops-muted); font-variant-numeric: tabular-nums; }
+  .ops-funnel-pct { font-size: 9px; opacity: 0.6; }
 
-  /* ─── Donut ─── */
-  .ops-donut-container {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    flex: 1;
-  }
-  .ops-donut {
-    flex-shrink: 0;
-  }
-  .ops-donut-ring {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-  .ops-donut-hole {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    background: var(--ops-surface);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .ops-donut-total {
-    font-family: 'Fonetika', var(--ops-mono);
-    font-size: 22px;
-    color: var(--ops-text);
-  }
-  .ops-donut-legend {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1;
-  }
-  .ops-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .ops-legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
-    flex-shrink: 0;
-  }
-  .ops-legend-label {
-    font-size: 11px;
-    color: var(--ops-text);
-    min-width: 60px;
-  }
-  .ops-legend-value {
-    font-size: 11px;
-    color: var(--ops-muted);
-    font-variant-numeric: tabular-nums;
-    min-width: 28px;
-    text-align: right;
-  }
-  .ops-legend-pct {
-    font-size: 10px;
-    color: var(--ops-muted);
-    opacity: 0.6;
-  }
-
-  /* ─── Stacked bar ─── */
-  .ops-stacked-bar-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .ops-stacked-bar {
-    display: flex;
-    height: 28px;
-    border-radius: 4px;
-    overflow: hidden;
-    gap: 1px;
-  }
-  .ops-stacked-segment {
-    transition: width 1s ease;
-    min-width: 2px;
-  }
-  .ops-verification-legend {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-
-  /* ─── Metrics row ─── */
-  .ops-metrics-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1px;
-    background: var(--ops-border);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: auto;
-  }
-  .ops-metric {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 14px 8px;
-    background: var(--ops-bg);
-    gap: 4px;
-  }
-  .ops-metric-value {
-    font-family: 'Fonetika', var(--ops-mono);
-    font-size: 20px;
-    color: var(--ops-text);
-  }
-  .ops-metric-label {
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: var(--ops-muted);
-  }
-
-  /* ─── Histogram ─── */
-  .ops-histogram {
-    display: flex;
-    gap: 8px;
-    align-items: flex-end;
-    flex: 1;
-    padding-top: 12px;
-  }
-  .ops-histogram-col {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-  }
-  .ops-histogram-bar-wrapper {
-    width: 100%;
-    height: 120px;
-    display: flex;
-    align-items: flex-end;
-  }
-  .ops-histogram-bar {
-    width: 100%;
-    min-height: 3px;
-    border-radius: 2px 2px 0 0;
+  /* Sparkline */
+  .ops-sparkline { display: flex; gap: 4px; align-items: flex-end; flex: 1; padding-top: 12px; }
+  .ops-spark-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ops-spark-bar-wrapper { width: 100%; height: 100px; display: flex; align-items: flex-end; }
+  .ops-spark-bar {
+    width: 100%; min-height: 3px; border-radius: 2px 2px 0 0;
+    background: linear-gradient(180deg, var(--ops-accent), rgba(255,109,0,0.4));
     transition: height 1s cubic-bezier(0.22, 1, 0.36, 1);
-    position: relative;
   }
-  .ops-histogram-bar::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
-    border-radius: inherit;
-  }
-  .ops-histogram-count {
-    font-size: 12px;
-    color: var(--ops-text);
-    font-variant-numeric: tabular-nums;
-  }
-  .ops-histogram-label {
-    font-size: 9px;
-    color: var(--ops-muted);
-    white-space: nowrap;
-  }
+  .ops-spark-value { font-size: 10px; color: var(--ops-text); font-variant-numeric: tabular-nums; }
+  .ops-spark-label { font-size: 8px; color: var(--ops-muted); }
 
-  /* ─── Gauge rings ─── */
-  .ops-gauge-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    flex: 1;
-    align-items: center;
+  /* Bar Chart */
+  .ops-bar-chart { display: flex; flex-direction: column; gap: 6px; flex: 1; justify-content: center; }
+  .ops-bar-row { display: grid; grid-template-columns: 160px 1fr 36px; align-items: center; gap: 10px; }
+  .ops-bar-label { font-size: 11px; color: var(--ops-text); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ops-bar-track { height: 18px; background: var(--ops-accent-dim); border-radius: 2px; overflow: hidden; }
+  .ops-bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--ops-accent), #FF8F33);
+    border-radius: 2px; transition: width 1s cubic-bezier(0.22, 1, 0.36, 1); position: relative;
   }
-  .ops-gauge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    position: relative;
-  }
-  .ops-gauge-inner {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 88px;
-    height: 88px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .ops-gauge-pct {
-    font-family: 'Fonetika', var(--ops-mono);
-    font-size: 18px;
-    color: var(--ops-text);
-  }
-  .ops-gauge-label {
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: var(--ops-muted);
-  }
+  .ops-bar-fill::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: #fff; opacity: 0.6; border-radius: 1px; }
+  .ops-bar-value { font-size: 11px; color: var(--ops-muted); text-align: right; font-variant-numeric: tabular-nums; }
 
-  /* ─── Leaderboard ─── */
-  .ops-leaderboard {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    justify-content: center;
-  }
-  .ops-leader-row {
-    display: grid;
-    grid-template-columns: 28px 1fr 80px;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(30, 26, 22, 0.5);
-  }
-  .ops-leader-row:last-child {
-    border-bottom: none;
-  }
-  .ops-leader-rank {
-    font-size: 11px;
-    color: var(--ops-accent);
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
-  .ops-leader-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    overflow: hidden;
-  }
-  .ops-leader-name {
-    font-size: 11px;
-    color: var(--ops-text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .ops-leader-meta {
-    font-size: 9px;
-    color: var(--ops-muted);
-  }
-  .ops-leader-bar-track {
-    height: 4px;
-    background: var(--ops-accent-dim);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .ops-leader-bar {
-    height: 100%;
-    background: var(--ops-accent);
-    border-radius: 2px;
-    transition: width 1s ease;
-  }
+  /* Donut */
+  .ops-donut-container { display: flex; align-items: center; gap: 20px; }
+  .ops-donut { flex-shrink: 0; }
+  .ops-donut-ring { width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .ops-donut-hole { width: 60px; height: 60px; border-radius: 50%; background: var(--ops-surface); display: flex; align-items: center; justify-content: center; }
+  .ops-donut-total { font-size: 18px; color: var(--ops-text); }
+  .ops-donut-legend { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+  .ops-legend-item { display: flex; align-items: center; gap: 8px; }
+  .ops-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .ops-legend-label { font-size: 11px; color: var(--ops-text); min-width: 60px; }
+  .ops-legend-value { font-size: 11px; color: var(--ops-muted); font-variant-numeric: tabular-nums; }
 
-  /* ─── Timeline ─── */
-  .ops-timeline {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0 24px;
-  }
-  .ops-timeline-item {
-    display: flex;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(30, 26, 22, 0.5);
-    align-items: flex-start;
-  }
-  .ops-timeline-dot {
-    width: 6px;
-    height: 6px;
-    background: var(--ops-accent);
-    border-radius: 50%;
-    margin-top: 5px;
-    flex-shrink: 0;
-    box-shadow: 0 0 6px rgba(255, 109, 0, 0.3);
-  }
-  .ops-timeline-content {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    flex: 1;
-    min-width: 0;
-  }
-  .ops-timeline-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .ops-timeline-domain {
-    font-size: 11px;
-    color: var(--ops-accent);
-    font-weight: 500;
-  }
-  .ops-timeline-time {
-    font-size: 9px;
-    color: var(--ops-muted);
-    flex-shrink: 0;
-  }
-  .ops-timeline-intent {
-    font-size: 11px;
-    color: var(--ops-text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .ops-timeline-tags {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .ops-tag {
-    font-size: 9px;
-    color: var(--ops-muted);
-    padding: 1px 6px;
-    border: 1px solid var(--ops-border);
-    border-radius: 3px;
-    white-space: nowrap;
-  }
+  /* Stacked bar */
+  .ops-stacked-bar-container { display: flex; flex-direction: column; gap: 8px; }
+  .ops-stacked-bar { display: flex; height: 20px; border-radius: 4px; overflow: hidden; gap: 1px; }
+  .ops-stacked-segment { transition: width 1s ease; min-width: 2px; }
+  .ops-verification-legend { display: flex; gap: 12px; flex-wrap: wrap; }
 
-  /* ─── Heatmap ─── */
-  .ops-heatmap {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    flex: 1;
-    align-content: flex-start;
-  }
-  .ops-heatmap-cell {
-    width: 22px;
-    height: 22px;
-    border-radius: 3px;
-    opacity: 0.85;
-    transition: opacity 0.2s, transform 0.2s;
-    cursor: default;
-  }
-  .ops-heatmap-cell:hover {
-    opacity: 1;
-    transform: scale(1.3);
-    z-index: 2;
-  }
-  .ops-heatmap-legend {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 9px;
-    color: var(--ops-muted);
-    margin-top: 8px;
-  }
-  .ops-heatmap-gradient {
-    height: 6px;
-    width: 120px;
-    background: linear-gradient(90deg, #ef4444, #f97316, #eab308, #84cc16, #22c55e);
-    border-radius: 3px;
-  }
+  /* Leaderboard */
+  .ops-leaderboard { display: flex; flex-direction: column; gap: 4px; flex: 1; justify-content: center; }
+  .ops-leader-row { display: grid; grid-template-columns: 28px 1fr 80px; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(30,26,22,0.5); }
+  .ops-leader-row:last-child { border-bottom: none; }
+  .ops-leader-rank { font-size: 11px; color: var(--ops-accent); text-align: center; }
+  .ops-leader-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+  .ops-leader-name { font-size: 11px; color: var(--ops-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ops-leader-meta { font-size: 9px; color: var(--ops-muted); }
+  .ops-leader-bar-track { height: 4px; background: var(--ops-accent-dim); border-radius: 2px; overflow: hidden; }
+  .ops-leader-bar { height: 100%; background: var(--ops-accent); border-radius: 2px; transition: width 1s ease; }
 
-  /* ─── Footer ─── */
-  .ops-footer {
-    padding: 16px 24px;
-    text-align: center;
-    font-size: 9px;
-    letter-spacing: 3px;
-    color: var(--ops-muted);
-    border-top: 1px solid var(--ops-border);
-    background: var(--ops-bg);
-    text-transform: uppercase;
-  }
+  /* Timeline */
+  .ops-timeline { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 24px; }
+  .ops-timeline-item { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(30,26,22,0.5); align-items: flex-start; }
+  .ops-timeline-dot { width: 6px; height: 6px; background: var(--ops-accent); border-radius: 50%; margin-top: 5px; flex-shrink: 0; box-shadow: 0 0 6px rgba(255,109,0,0.3); }
+  .ops-timeline-content { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+  .ops-timeline-top { display: flex; justify-content: space-between; align-items: center; }
+  .ops-timeline-domain { font-size: 11px; color: var(--ops-accent); font-weight: 500; }
+  .ops-timeline-time { font-size: 9px; color: var(--ops-muted); flex-shrink: 0; }
+  .ops-timeline-intent { font-size: 11px; color: var(--ops-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ops-timeline-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ops-tag { font-size: 9px; color: var(--ops-muted); padding: 1px 6px; border: 1px solid var(--ops-border); border-radius: 3px; white-space: nowrap; }
 
-  /* ─── Empty state ─── */
-  .ops-empty {
-    color: var(--ops-muted);
-    font-size: 11px;
-    padding: 20px;
-    text-align: center;
-  }
+  /* Heatmap */
+  .ops-heatmap { display: flex; flex-wrap: wrap; gap: 3px; flex: 1; align-content: flex-start; }
+  .ops-heatmap-cell { width: 20px; height: 20px; border-radius: 3px; opacity: 0.85; transition: opacity 0.2s, transform 0.2s; cursor: default; }
+  .ops-heatmap-cell:hover { opacity: 1; transform: scale(1.3); z-index: 2; }
+  .ops-heatmap-legend { display: flex; align-items: center; gap: 8px; font-size: 9px; color: var(--ops-muted); margin-top: 8px; }
+  .ops-heatmap-gradient { height: 6px; width: 120px; background: linear-gradient(90deg, #ef4444, #f97316, #eab308, #84cc16, #22c55e); border-radius: 3px; }
 
-  /* ─── Responsive ─── */
+  /* Footer */
+  .ops-footer { padding: 16px 24px; text-align: center; font-size: 9px; letter-spacing: 3px; color: var(--ops-muted); border-top: 1px solid var(--ops-border); background: var(--ops-bg); text-transform: uppercase; }
+  .ops-empty { color: var(--ops-muted); font-size: 11px; padding: 20px; text-align: center; }
+
+  /* Responsive */
   @media (max-width: 1024px) {
-    .ops-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .ops-panel-wide {
-      grid-column: span 2;
-    }
-    .ops-stats-strip {
-      grid-template-columns: repeat(3, 1fr);
-    }
-    .ops-stat-card:nth-child(4),
-    .ops-stat-card:nth-child(5) {
-      grid-column: span 1;
-    }
-    .ops-timeline {
-      grid-template-columns: 1fr;
-    }
-    .ops-gauge-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    .ops-grid { grid-template-columns: repeat(2, 1fr); }
+    .ops-panel-wide { grid-column: span 2; }
+    .ops-stats-strip { grid-template-columns: repeat(3, 1fr); }
+    .ops-growth-strip { grid-template-columns: repeat(4, 1fr); }
+    .ops-timeline { grid-template-columns: 1fr; }
   }
   @media (max-width: 640px) {
-    .ops-grid {
-      grid-template-columns: 1fr;
-    }
-    .ops-panel-wide {
-      grid-column: span 1;
-    }
-    .ops-stats-strip {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .ops-bar-row {
-      grid-template-columns: 100px 1fr 28px;
-    }
-    .ops-stat-value {
-      font-size: 28px;
-    }
+    .ops-grid { grid-template-columns: 1fr; }
+    .ops-panel-wide { grid-column: span 1; }
+    .ops-stats-strip { grid-template-columns: repeat(2, 1fr); }
+    .ops-growth-strip { grid-template-columns: repeat(2, 1fr); }
+    .ops-bar-row { grid-template-columns: 100px 1fr 28px; }
+    .ops-stat-value { font-size: 28px; }
   }
 `;

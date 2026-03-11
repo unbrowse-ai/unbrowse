@@ -1,22 +1,24 @@
 import type { Context, Next } from "hono";
 import type { Env } from "../types.js";
 import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
-import { getAgent } from "../services/agents.js";
+import { getAgent, recordAgentActivity } from "../services/agents.js";
 
 type AuthEnv = { Bindings: Env; Variables: { agent_id: string } };
 
-async function verifyUnkey(rootKey: string, key: string, env?: Env): Promise<{ valid: boolean; keyId?: string; code?: string }> {
+async function verifyUnkey(rootKey: string, key: string, env?: Env, tags?: string[]): Promise<{ valid: boolean; keyId?: string; code?: string }> {
   // Staging: skip Unkey verification — accept any bearer token
   if (env?.ENVIRONMENT === "staging") {
     return { valid: true, keyId: `staging_${key.slice(0, 8)}` };
   }
+  const body: Record<string, unknown> = { key };
+  if (tags?.length) body.tags = tags;
   const res = await fetch("https://api.unkey.com/v2/keys.verifyKey", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${rootKey}`,
     },
-    body: JSON.stringify({ key }),
+    body: JSON.stringify(body),
   });
   const json = await res.json() as { data?: { valid: boolean; keyId?: string; code?: string } };
   return json.data ?? { valid: false, code: "FETCH_ERROR" };
@@ -40,8 +42,13 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
     return;
   }
 
-  // Verify via Unkey v2 REST API
-  const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env);
+  // Extract endpoint tag from request path for analytics
+  const path = new URL(c.req.url).pathname;
+  const endpoint = path.replace(/^\/v1\//, "").split("/")[0] || "unknown";
+  const tags = [`endpoint:${endpoint}`];
+
+  // Verify via Unkey v2 REST API (with endpoint tag)
+  const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env, tags);
 
   if (!result.valid) {
     return c.json({
@@ -65,6 +72,7 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   }
 
   c.set("agent_id", result.keyId!);
+  c.executionCtx.waitUntil(recordAgentActivity(c.env, result.keyId!));
   await next();
 }
 
@@ -85,12 +93,15 @@ export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
     return;
   }
 
-  const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env);
+  const pathNoTos = new URL(c.req.url).pathname;
+  const epNoTos = pathNoTos.replace(/^\/v1\//, "").split("/")[0] || "unknown";
+  const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env, [`endpoint:${epNoTos}`]);
   if (!result.valid) {
     return c.json({ error: "Invalid API key", code: result.code }, 403);
   }
 
   c.set("agent_id", result.keyId!);
+  c.executionCtx.waitUntil(recordAgentActivity(c.env, result.keyId!));
   await next();
 }
 
@@ -102,9 +113,12 @@ export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
     if (token === c.env.API_KEY) {
       c.set("agent_id", "__admin__");
     } else {
-      const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env);
+      const pathOpt = new URL(c.req.url).pathname;
+      const epOpt = pathOpt.replace(/^\/v1\//, "").split("/")[0] || "unknown";
+      const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env, [`endpoint:${epOpt}`]);
       if (result.valid) {
         c.set("agent_id", result.keyId!);
+        c.executionCtx.waitUntil(recordAgentActivity(c.env, result.keyId!));
       }
     }
   }

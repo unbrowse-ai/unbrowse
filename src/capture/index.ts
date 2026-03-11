@@ -19,6 +19,14 @@ const activeBrowserRegistry = new Set<InstanceType<typeof BrowserManager>>();
 
 // Hard timeout per capture: 90s prevents stuck browsers from holding slots forever
 const CAPTURE_TIMEOUT_MS = 90_000;
+const BROWSER_CLOSE_TIMEOUT_MS = 4_000;
+
+async function closeBrowserSafely(browser: InstanceType<typeof BrowserManager>): Promise<void> {
+  await Promise.race([
+    browser.close().catch(() => {}),
+    new Promise<void>((resolve) => setTimeout(resolve, BROWSER_CLOSE_TIMEOUT_MS)),
+  ]);
+}
 
 async function acquireBrowserSlot(): Promise<void> {
   if (activeBrowsers < MAX_CONCURRENT_BROWSERS) {
@@ -39,7 +47,7 @@ function releaseBrowserSlot(browser?: InstanceType<typeof BrowserManager>): void
 
 /** Close all active browser instances — called on server shutdown. */
 export async function shutdownAllBrowsers(): Promise<void> {
-  await Promise.allSettled([...activeBrowserRegistry].map((b) => b.close()));
+  await Promise.allSettled([...activeBrowserRegistry].map((b) => closeBrowserSafely(b)));
   activeBrowserRegistry.clear();
 }
 
@@ -72,6 +80,22 @@ export interface RawRequest {
   timestamp: string;
 }
 
+export function isBlockedAppShell(html?: string): boolean {
+  if (!html) return false;
+  return (
+    /JavaScript is not available\./i.test(html) ||
+    /switch to a supported browser/i.test(html) ||
+    /Something went wrong, but don.?t fret/i.test(html) ||
+    /class=["']errorContainer["']/i.test(html) ||
+    /#placeholder,\s*#react-root\s*\{\s*display:\s*none/i.test(html)
+  );
+}
+
+function shouldRetryEphemeralProfileError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
+}
+
 /**
  * Extract a route hint keyword from a URL path for intent-aware API waiting.
  * e.g., "/i/bookmarks" → "bookmark", "/dashboard/analytics" → "analytic"
@@ -83,15 +107,126 @@ function extractRouteHint(url: string): string | null {
     // Walk path segments from the end — the last meaningful segment is most specific
     const segments = pathname.split("/").filter(Boolean);
     // Skip generic SPA prefixes
-    const GENERIC = /^(i|app|dashboard|page|view|en|es|fr|de|#|_|index|home|main)$/i;
+    const GENERIC = /^(i|app|dashboard|page|view|en|es|fr|de|#|_|index|home|main|me|@me|users?|channels?|guilds?|servers?|messages?|threads?|conversations?)$/i;
     for (let i = segments.length - 1; i >= 0; i--) {
       const seg = segments[i];
-      if (seg.length <= 2 || GENERIC.test(seg)) continue;
+      if (seg.length <= 2 || GENERIC.test(seg) || /^\d+$/.test(seg) || /^\{.+\}$/.test(seg) || /^[0-9a-f-]{8,}$/i.test(seg)) continue;
       // Return lowercased stem (strip trailing 's' for simple plural handling)
       return seg.toLowerCase().replace(/s$/, "");
     }
   } catch { /* bad URL */ }
   return null;
+}
+
+function deriveIntentHints(captureUrl?: string, intent?: string): string[] {
+  const derivedHints = new Set<string>();
+  if (captureUrl) {
+    const routeHint = extractRouteHint(captureUrl);
+    if (routeHint) derivedHints.add(routeHint);
+  }
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  if (/\b(person|people|profile|profiles|user|users|member|members)\b/.test(lowerIntent)) {
+    derivedHints.add("profile");
+    derivedHints.add("users");
+    derivedHints.add("userby");
+  }
+  if (/\b(company|companies|organization|organisations|business)\b/.test(lowerIntent)) {
+    derivedHints.add("company");
+    derivedHints.add("organization");
+    derivedHints.add("about");
+  }
+  if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lowerIntent)) {
+    derivedHints.add("tweet");
+    derivedHints.add("timeline");
+    derivedHints.add("status");
+  }
+  if (/\b(guild|guilds|server|servers)\b/.test(lowerIntent)) {
+    derivedHints.add("guild");
+    derivedHints.add("guilds");
+  }
+  if (/\b(channel|channels)\b/.test(lowerIntent)) {
+    derivedHints.add("channel");
+    derivedHints.add("channels");
+  }
+  if (/\b(message|messages|dm|dms|chat|thread|threads|conversation|conversations)\b/.test(lowerIntent)) {
+    derivedHints.add("message");
+    derivedHints.add("messages");
+    derivedHints.add("thread");
+    derivedHints.add("threads");
+  }
+  if (/\b(topic|topics|trend|trending|hashtag|hashtags)\b/.test(lowerIntent)) {
+    derivedHints.add("trend");
+    derivedHints.add("explore");
+    derivedHints.add("topic");
+  }
+  return [...derivedHints];
+}
+
+function hasCapturedHint(responseUrls: Iterable<string>, hint: string): boolean {
+  const lowerHint = hint.toLowerCase();
+  for (const url of responseUrls) {
+    if (url.toLowerCase().includes(lowerHint)) return true;
+  }
+  return false;
+}
+
+async function maybeProbeIntentApis(
+  browser: InstanceType<typeof BrowserManager>,
+  captureUrl: string | undefined,
+  intent: string | undefined,
+  responseBodies: Map<string, string> | undefined,
+): Promise<void> {
+  if (!captureUrl || !responseBodies) return;
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  let hostname = "";
+  try {
+    hostname = new URL(captureUrl).hostname.toLowerCase();
+  } catch {
+    return;
+  }
+
+  if (/discord\.com$/.test(hostname) && /\b(guild|guilds|server|servers)\b/.test(lowerIntent)) {
+    if (hasCapturedHint(responseBodies.keys(), "/guild")) return;
+    const probes = [
+      { label: "User affinities guilds", path: "/api/v9/users/@me/affinities/guilds" },
+      { label: "User guilds", path: "/api/v9/users/@me/guilds?with_counts=true" },
+    ];
+    try {
+      const page = browser.getPage();
+      for (const probe of probes) {
+        if (hasCapturedHint(responseBodies.keys(), "/guild")) break;
+        log("spa", `probing ${probe.label}: GET https://discord.com${probe.path}`);
+        await page.evaluate(async (path: string) => {
+          try {
+            const response = await fetch(path, { credentials: "include" });
+            await response.text();
+          } catch {
+            // best-effort probe
+          }
+        }, probe.path);
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+}
+
+const CAPTURE_RESPONSE_NOISE = /user_flow|datasavermode|ces\/p2|intercom|badge_count|settings\.json|paymentfailure|saved_searches|launcher_settings|conversations|\/ping\b|verifiedorg|xchatdmsettings|scheduledpromotions|storytopic|sidebaruserrecommendations|subscriptions|live_pipeline|fleetline|authorizetoken|logintwittertoken/i;
+
+export function hasUsefulCapturedResponses(
+  responseUrls: Iterable<string>,
+  captureUrl?: string,
+  intent?: string,
+): boolean {
+  const usefulUrls = [...responseUrls].filter((url) => !CAPTURE_RESPONSE_NOISE.test(url));
+  if (usefulUrls.length === 0) return false;
+  const hints = deriveIntentHints(captureUrl, intent);
+  if (hints.length === 0) return usefulUrls.length > 0;
+  return usefulUrls.some((url) => {
+    const lower = url.toLowerCase();
+    return hints.some((hint) => lower.includes(hint));
+  });
 }
 
 /**
@@ -105,7 +240,8 @@ function extractRouteHint(url: string): string | null {
 async function waitForContentReady(
   browser: InstanceType<typeof BrowserManager>,
   captureUrl?: string,
-  capturedUrls?: Set<string>,
+  intent?: string,
+  responseBodies?: Map<string, string>,
 ): Promise<void> {
   // Phase 1: Initial settle — let the page start rendering
   await new Promise((r) => setTimeout(r, 2000));
@@ -159,69 +295,99 @@ async function waitForContentReady(
   // Phase 4: Intent-aware API wait — catch SPA lazy-loaded route-specific APIs
   // SPAs like x.com fire route-specific GraphQL queries (e.g., Bookmarks) after
   // the initial homepage APIs. If we have a route hint, wait for a matching response.
-  if (captureUrl && capturedUrls) {
-    const hint = extractRouteHint(captureUrl);
-    if (hint) {
-      // Check if any already-captured URL contains the hint
-      const alreadyHave = [...capturedUrls].some((u) => u.toLowerCase().includes(hint));
-      if (!alreadyHave) {
-        log("capture", `intent-aware wait: looking for API matching "${hint}" (from ${captureUrl})`);
-        try {
-          const page = browser.getPage();
-          await new Promise<void>((resolve) => {
-            const timeout = setTimeout(resolve, 15000);
-            const handler = (response: { url(): string }) => {
-              if (response.url().toLowerCase().includes(hint)) {
-                log("capture", `intent-aware wait: matched ${response.url().substring(0, 120)}`);
-                clearTimeout(timeout);
-                page.off("response", handler);
-                // Give the response body time to arrive
-                setTimeout(resolve, 500);
-              }
-            };
-            page.on("response", handler);
-          });
-        } catch {
-          // Non-fatal — proceed with what we have
-        }
-      } else {
-        log("capture", `intent-aware wait: already captured API matching "${hint}", skipping`);
+  if (captureUrl && responseBodies) {
+    const derivedHints = new Set(deriveIntentHints(captureUrl, intent));
+    const wantedHints = [...derivedHints].filter((hint) =>
+      ![...responseBodies.keys()].some((u) => u.toLowerCase().includes(hint))
+    );
+    if (wantedHints.length > 0) {
+      log("capture", `intent-aware wait: looking for API matching one of [${wantedHints.join(", ")}] (from ${captureUrl})`);
+      try {
+        const page = browser.getPage();
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(resolve, 15000);
+          const handler = (response: { url(): string }) => {
+            const responseUrl = response.url().toLowerCase();
+            const matchedHint = wantedHints.find((hint) => responseUrl.includes(hint));
+            if (matchedHint) {
+              log("capture", `intent-aware wait: matched ${matchedHint} via ${response.url().substring(0, 120)}`);
+              clearTimeout(timeout);
+              page.off("response", handler);
+              setTimeout(resolve, 500);
+            }
+          };
+          page.on("response", handler);
+        });
+      } catch {
+        // Non-fatal — proceed with what we have
       }
+    } else if (derivedHints.size > 0) {
+      log("capture", `intent-aware wait: already captured API matching one of [${[...derivedHints].join(", ")}], skipping`);
     }
   }
+
+  // Phase 5: generic SPA stimulus. Some sites only fire route-specific APIs after
+  // a short scroll/viewport change on search/explore/tab pages.
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  if (
+    captureUrl &&
+    responseBodies &&
+    (
+      /search|explore|trending|tabs|discover/i.test(captureUrl) ||
+      /\b(person|people|profile|profiles|user|users|member|members|company|companies|organization|organisations|business|post|posts|tweet|tweets|status|statuses)\b/.test(lowerIntent)
+    )
+  ) {
+    try {
+      const before = responseBodies.size;
+      const page = browser.getPage();
+      await page.evaluate(() => window.scrollTo(0, Math.max(window.innerHeight, Math.min(document.body.scrollHeight, window.innerHeight * 2))));
+      await new Promise((r) => setTimeout(r, 1200));
+      await page.evaluate(() => window.scrollTo(0, 0));
+      if (responseBodies.size === before) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+
+  await maybeProbeIntentApis(browser, captureUrl, intent, responseBodies);
 }
 
 export async function captureSession(
   url: string,
   authHeaders?: Record<string, string>,
-  cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
+  cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
+  intent?: string,
+  options?: { forceEphemeral?: boolean },
 ): Promise<CaptureResult> {
   await acquireBrowserSlot();
   const browser = new BrowserManager();
   activeBrowserRegistry.add(browser);
+  const domain = new URL(url).hostname;
+  const profileDir = getProfilePath(domain);
+  const hasPersistentProfile = !options?.forceEphemeral && existsSync(profileDir);
   let captureTimedOut = false;
+  let retryEphemeral = false;
+  let captureError: unknown;
   const timeoutHandle = setTimeout(async () => {
     captureTimedOut = true;
-    await browser.close().catch(() => {});
+    await closeBrowserSafely(browser);
   }, CAPTURE_TIMEOUT_MS);
   try {
-  const domain = new URL(url).hostname;
-
-  // Use persistent profile if one exists (from prior interactiveLogin).
-  // This preserves localStorage/sessionStorage auth that cookie injection can't cover.
-  // Falls back to ephemeral headless with cookie injection (bird pattern).
-  const profileDir = getProfilePath(domain);
-  const hasPersistentProfile = existsSync(profileDir);
-  if (hasPersistentProfile) {
-    log("capture", `using persistent profile for ${domain}: ${profileDir}`);
-  }
-  await browser.launch({
-    action: "launch",
-    id: nanoid(),
-    headless: true,
-    userAgent: CHROME_UA,
-    ...(hasPersistentProfile ? { profile: profileDir } : {}),
-  });
+    // Use persistent profile if one exists (from prior interactiveLogin).
+    // This preserves localStorage/sessionStorage auth that cookie injection can't cover.
+    // Falls back to ephemeral headless with cookie injection (bird pattern).
+    if (hasPersistentProfile) {
+      log("capture", `using persistent profile for ${domain}: ${profileDir}`);
+    }
+    await browser.launch({
+      action: "launch",
+      id: nanoid(),
+      headless: true,
+      userAgent: CHROME_UA,
+      ...(hasPersistentProfile ? { profile: profileDir } : {}),
+    });
 
   // Override Chromium's auto-set Client Hints headers — without this, Chromium 145+
   // sends sec-ch-ua: "HeadlessChrome" even when user-agent is spoofed to Chrome 131,
@@ -248,8 +414,29 @@ export async function captureSession(
   const jsBundleBodies = new Map<string, string>();
   const MAX_JS_BUNDLE_SIZE = 2 * 1024 * 1024; // 2MB per bundle
   const MAX_JS_BUNDLES = 20;
+  const MAX_WS_FRAME_SIZE = 128 * 1024; // 128KB
   let pageDomain: string | undefined;
   try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
+
+  const wsMessages: CapturedWsMessage[] = [];
+  const wsUrlMap = new Map<string, string>(); // requestId -> url
+  const wsSeen = new Set<string>();
+  const recordWsMessage = (
+    wsUrl: string,
+    direction: "sent" | "received",
+    raw: unknown,
+    timestamp: string,
+  ): void => {
+    let data = "";
+    if (typeof raw === "string") data = raw;
+    else if (Buffer.isBuffer(raw)) data = raw.toString("utf8");
+    else if (raw != null) data = String(raw);
+    if (!data || data.length > MAX_WS_FRAME_SIZE) return;
+    const key = `${wsUrl}|${direction}|${timestamp}|${data}`;
+    if (wsSeen.has(key)) return;
+    wsSeen.add(key);
+    wsMessages.push({ url: wsUrl, direction, data, timestamp });
+  };
 
   try {
     const page = browser.getPage();
@@ -291,13 +478,24 @@ export async function captureSession(
         // Response body may be unavailable for redirects/aborted
       }
     });
+
+    page.on("websocket", (ws: {
+      url(): string;
+      on(event: "framereceived" | "framesent", listener: (frame: { payload?: unknown }) => void): void;
+    }) => {
+      const wsUrl = ws.url();
+      ws.on("framereceived", (frame) => {
+        recordWsMessage(wsUrl, "received", frame?.payload, new Date().toISOString());
+      });
+      ws.on("framesent", (frame) => {
+        recordWsMessage(wsUrl, "sent", frame?.payload, new Date().toISOString());
+      });
+    });
   } catch {
     // page not available — skip body capture
   }
 
   // CDP-based WebSocket capture
-  const wsMessages: CapturedWsMessage[] = [];
-  const wsUrlMap = new Map<string, string>(); // requestId -> url
   try {
     const page = browser.getPage();
     const cdp = await page.context().newCDPSession(page);
@@ -308,21 +506,21 @@ export async function captureSession(
     });
 
     cdp.on("Network.webSocketFrameReceived", (params: { requestId: string; timestamp: number; response: { payloadData: string } }) => {
-      wsMessages.push({
-        url: wsUrlMap.get(params.requestId) ?? params.requestId,
-        direction: "received",
-        data: params.response.payloadData,
-        timestamp: new Date(params.timestamp * 1000).toISOString(),
-      });
+      recordWsMessage(
+        wsUrlMap.get(params.requestId) ?? params.requestId,
+        "received",
+        params.response.payloadData,
+        new Date(params.timestamp * 1000).toISOString(),
+      );
     });
 
     cdp.on("Network.webSocketFrameSent", (params: { requestId: string; timestamp: number; response: { payloadData: string } }) => {
-      wsMessages.push({
-        url: wsUrlMap.get(params.requestId) ?? params.requestId,
-        direction: "sent",
-        data: params.response.payloadData,
-        timestamp: new Date(params.timestamp * 1000).toISOString(),
-      });
+      recordWsMessage(
+        wsUrlMap.get(params.requestId) ?? params.requestId,
+        "sent",
+        params.response.payloadData,
+        new Date(params.timestamp * 1000).toISOString(),
+      );
     });
   } catch {
     // CDP session unavailable — skip WS capture
@@ -331,8 +529,7 @@ export async function captureSession(
   await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
 
   // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
-  const capturedUrlKeys = new Set(responseBodies.keys());
-  await waitForContentReady(browser, url, capturedUrlKeys);
+  await waitForContentReady(browser, url, intent, responseBodies);
 
   // BUG-008: Share Cloudflare clearance cookies across subdomains
   try {
@@ -413,11 +610,36 @@ export async function captureSession(
 
   if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
   log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
-  return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html, js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined };
+  const responseBodyCount = responseBodies.size;
+    if (
+      hasPersistentProfile &&
+      isBlockedAppShell(html) &&
+      responseBodyCount < 10 &&
+      !hasUsefulCapturedResponses(responseBodies.keys(), url, intent)
+    ) {
+      retryEphemeral = true;
+      log("capture", `persistent profile rendered blocked app shell for ${url}; retrying with fresh ephemeral browser`);
+    } else {
+      return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html, js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined };
+    }
+  } catch (error) {
+    captureError = error;
+    if (hasPersistentProfile && shouldRetryEphemeralProfileError(error)) {
+      retryEphemeral = true;
+      log("capture", `persistent profile failed for ${url}; retrying with fresh ephemeral browser (${error instanceof Error ? error.message : String(error)})`);
+    } else {
+      throw error;
+    }
   } finally {
     clearTimeout(timeoutHandle);
+    await closeBrowserSafely(browser);
     releaseBrowserSlot(browser);
   }
+  if (retryEphemeral) {
+    return captureSession(url, authHeaders, cookies, intent, { forceEphemeral: true });
+  }
+  if (captureError) throw captureError;
+  throw new Error(`captureSession failed without returning a result for ${url}`);
 }
 
 export async function executeInBrowser(

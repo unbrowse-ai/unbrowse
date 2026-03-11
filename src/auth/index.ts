@@ -150,7 +150,18 @@ export async function interactiveLogin(
  */
 export async function extractBrowserAuth(
   domain: string,
-  opts?: { chromeProfile?: string; firefoxProfile?: string }
+  opts?: {
+    browser?: "auto" | "firefox" | "chrome" | "chromium";
+    chromeProfile?: string;
+    firefoxProfile?: string;
+    chromium?: {
+      profile?: string;
+      userDataDir?: string;
+      cookieDbPath?: string;
+      safeStorageService?: string;
+      browserName?: string;
+    };
+  }
 ): Promise<LoginResult> {
   const { extractBrowserCookies } = await import("./browser-cookies.js");
 
@@ -257,11 +268,15 @@ export async function getStoredAuth(
  * call /v1/auth/steal first.
  */
 export async function getAuthCookies(
-  domain: string
+  domain: string,
+  opts?: {
+    autoExtract?: boolean;
+  },
 ): Promise<AuthCookie[] | null> {
   // 1. Try vault (fast)
   const vaultCookies = await getStoredAuth(domain);
   if (vaultCookies && vaultCookies.length > 0) return vaultCookies;
+  if (!opts?.autoExtract) return null;
 
   // 2. Auto-extract from browser (bird pattern)
   log("auth", `no vault cookies for ${domain} — auto-extracting from browser`);
@@ -294,5 +309,3 @@ export async function refreshAuthFromBrowser(domain: string): Promise<boolean> {
   }
   return false;
 }
-
-

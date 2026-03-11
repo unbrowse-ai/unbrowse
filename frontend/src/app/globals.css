@@ -76,9 +76,9 @@
   --color-text-muted: var(--text-muted);
   --color-code-bg: var(--code-bg);
   --color-glow: var(--glow);
-  --font-sans: var(--font-google-sans);
-  --font-mono: var(--font-jetbrains-mono);
-  --font-display: 'Fonetika', var(--font-google-sans);
+    --font-sans: var(--font-google-sans);
+    --font-mono: var(--font-jetbrains-mono);
+    --font-display: 'Fonetika', 'Google Sans', system-ui, sans-serif;
 }
 
 /* ═══ Base ═══ */
@@ -201,4 +201,12 @@ h1, h2, .font-display {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--orange-400);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }

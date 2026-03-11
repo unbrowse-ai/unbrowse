@@ -49,3 +49,19 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
         name: Typecheck backend
+
+  package-cli:
+    name: Package CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/sync-skill-md.ts --check
+        name: Check SKILL.md sync
+      - run: npm pack --dry-run
+        name: Validate npm package
+        working-directory: packages/skill

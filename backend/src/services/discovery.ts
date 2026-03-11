@@ -8,7 +8,7 @@ const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
 // Namespace version — old "unbrowse--" namespaces remain as backup.
 // Staging uses a separate prefix so migrations can be tested without touching prod vectors.
 function nsPrefix(env: Env): string {
-  return env.ENVIRONMENT === "staging" ? "unbrowse-stg4--" : "unbrowse-v3--";
+  return env.ENVIRONMENT === "staging" ? "unbrowse-stg4--" : "unbrowse-v2--";
 }
 
 function domainNamespace(env: Env, domain: string): string {

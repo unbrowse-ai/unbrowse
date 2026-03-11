@@ -32,6 +32,51 @@ interface ArrayCandidate {
   depth: number;
 }
 
+interface IntentProfile {
+  preferredPaths: string[];
+  discouragedPaths: string[];
+  preferredFields: string[];
+  discouragedFields: string[];
+  wantsStructuredRecords: boolean;
+}
+
+function buildIntentProfile(intent?: string): IntentProfile {
+  const text = intent?.toLowerCase() ?? "";
+  const profile: IntentProfile = {
+    preferredPaths: [],
+    discouragedPaths: [],
+    preferredFields: [],
+    discouragedFields: [],
+    wantsStructuredRecords: /\b(search|list|find|get|fetch|timeline|feed|trending)\b/.test(text),
+  };
+
+  if (/\b(repo|repos|repository|repositories|code|projects?)\b/.test(text)) {
+    profile.preferredPaths.push("repositories", "repos", "results", "items", "data");
+    profile.preferredFields.push("full_name", "name", "description", "stargazers_count", "stars", "language", "owner", "url");
+    profile.discouragedPaths.push("accounts", "users", "hashtags", "topics");
+  }
+
+  if (/\b(post|posts|tweet|tweets|status|statuses|timeline|feed|thread|threads)\b/.test(text)) {
+    profile.preferredPaths.push("statuses", "posts", "tweets", "timeline", "entries", "results");
+    profile.preferredFields.push("content", "text", "body", "created_at", "url", "account", "username", "replies_count", "reblogs_count", "favourites_count");
+    profile.discouragedPaths.push("accounts", "users", "people", "profiles", "hashtags");
+  }
+
+  if (/\b(person|people|user|users|profile|profiles|member|members|account|accounts)\b/.test(text)) {
+    profile.preferredPaths.push("people", "users", "accounts", "profiles", "included", "elements");
+    profile.preferredFields.push("name", "headline", "title", "public_identifier", "username", "handle", "url");
+    profile.discouragedPaths.push("hashtags", "statuses", "posts");
+  }
+
+  if (/\b(trend|trending|topic|topics)\b/.test(text)) {
+    profile.preferredPaths.push("trends", "topics", "timeline", "entries", "results", "data");
+    profile.preferredFields.push("name", "query", "topic", "post_count", "tweet_volume", "url");
+    profile.discouragedPaths.push("accounts", "users");
+  }
+
+  return profile;
+}
+
 /** Walk the schema tree and collect all array-of-objects paths */
 function findArrayCandidates(
   schema: ResponseSchema,
@@ -107,8 +152,9 @@ function scoreField(name: string, schema: ResponseSchema): number {
 }
 
 /** Pick the best data array from candidates */
-function selectBestArray(candidates: ArrayCandidate[]): ArrayCandidate | null {
+function selectBestArray(candidates: ArrayCandidate[], intent?: string): ArrayCandidate | null {
   if (candidates.length === 0) return null;
+  const profile = buildIntentProfile(intent);
 
   // Score each candidate
   const scored = candidates.map((c) => {
@@ -122,6 +168,23 @@ function selectBestArray(candidates: ArrayCandidate[]): ArrayCandidate | null {
       score += 8;
     }
     if (/included|nodes|edges/i.test(pathLower)) score += 6;
+    for (const token of profile.preferredPaths) {
+      if (pathLower.includes(token)) score += 14;
+    }
+    for (const token of profile.discouragedPaths) {
+      if (pathLower.includes(token)) score -= 18;
+    }
+    const fieldNames = Object.keys(c.itemSchema.properties ?? {}).map((name) => name.toLowerCase());
+    for (const token of profile.preferredFields) {
+      if (fieldNames.includes(token.toLowerCase())) score += 7;
+    }
+    for (const token of profile.discouragedFields) {
+      if (fieldNames.includes(token.toLowerCase())) score -= 8;
+    }
+    if (profile.wantsStructuredRecords && c.fieldCount < 3) score -= 12;
+    if (fieldNames.length > 0 && fieldNames.every((name) => /^(link|title|label|text|value)$/i.test(name))) {
+      score -= 16;
+    }
     // Penalize tiny items (likely metadata, not data)
     if (c.fieldCount < 3) score -= 5;
     return { candidate: c, score };
@@ -182,6 +245,21 @@ export function generateExtractionHints(
 ): ExtractionHint | null {
   // Simple schemas don't need hints
   if (schema.type !== "object" && schema.type !== "array") return null;
+  const profile = buildIntentProfile(intent);
+
+  if (schema.type === "object" && schema.properties) {
+    for (const token of profile.preferredPaths) {
+      const prop = schema.properties[token];
+      if (prop?.type === "array" && (!prop.items || prop.items.type !== "object")) {
+        return finalize({
+          path: `${token}[]`,
+          fields: [],
+          item_field_count: 0,
+          confidence: "medium",
+        }, schema);
+      }
+    }
+  }
 
   const candidates: ArrayCandidate[] = [];
   findArrayCandidates(schema, "", 0, candidates);
@@ -206,7 +284,7 @@ export function generateExtractionHints(
     return null;
   }
 
-  const best = selectBestArray(candidates);
+  const best = selectBestArray(candidates, intent);
   if (!best) return null;
 
   // Rank fields within the best array's item schema

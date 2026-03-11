@@ -4,10 +4,72 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: read
+
 jobs:
+  publish-cli:
+    name: Publish CLI (npm)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Resolve npm token
+        id: npm-auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+          NODE_AUTH_TOKEN_INPUT: ${{ secrets.NODE_AUTH_TOKEN }}
+        run: |
+          TOKEN="${NPM_TOKEN:-${NPM_PUBLISH_TOKEN:-${NODE_AUTH_TOKEN_INPUT:-}}}"
+          if [ -z "$TOKEN" ]; then
+            if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
+              echo "::error::Missing npm publish secret. Set NPM_TOKEN or NPM_PUBLISH_TOKEN."
+              exit 1
+            fi
+            echo "::notice::Skipping npm publish; no npm token configured for $GITHUB_REPOSITORY."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "NODE_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Validate package tarball
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        working-directory: packages/skill
+        run: npm pack --dry-run
+
+      - name: Check if version already exists
+        if: steps.npm-auth.outputs.skip_publish != '1'
+        id: version-check
+        run: |
+          PKG_NAME="$(node -p "require('./packages/skill/package.json').name")"
+          PKG_VERSION="$(node -p "require('./packages/skill/package.json').version")"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published; skipping npm publish."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish CLI to npm
+        if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
+        working-directory: packages/skill
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+        run: npm publish --provenance
+
   deploy-backend:
     name: Deploy Backend (CF Worker)
     runs-on: ubuntu-latest
+    needs: publish-cli
     defaults:
       run:
         working-directory: backend
@@ -23,6 +85,7 @@ jobs:
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
     runs-on: ubuntu-latest
+    needs: publish-cli
     defaults:
       run:
         working-directory: frontend
@@ -38,12 +101,31 @@ jobs:
   sync-skill:
     name: Sync Skill Repo
     runs-on: ubuntu-latest
+    needs: publish-cli
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
 
+      - name: Resolve skill repo token
+        id: skill-auth
+        env:
+          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          if [ -n "$SKILL_REPO_TOKEN" ]; then
+            echo "skip_sync=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
+            echo "::error::Missing SKILL_REPO_TOKEN for canonical release."
+            exit 1
+          fi
+          echo "::notice::Skipping skill repo sync; no SKILL_REPO_TOKEN configured for $GITHUB_REPOSITORY."
+          echo "skip_sync=1" >> "$GITHUB_OUTPUT"
+          exit 0
+
       - name: Checkout skill repo
+        if: steps.skill-auth.outputs.skip_sync != '1'
         uses: actions/checkout@v4
         with:
           repository: unbrowse-ai/unbrowse
@@ -51,6 +133,7 @@ jobs:
           path: _skill-repo
 
       - name: Sync and push
+        if: steps.skill-auth.outputs.skip_sync != '1'
         env:
           CI: "true"
           UNBROWSE_SKILL_REPO: ${{ github.workspace }}/_skill-repo

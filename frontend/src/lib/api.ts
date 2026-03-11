@@ -49,6 +49,46 @@ export interface StatsSummary {
   agents: number;
 }
 
+export interface AgentHealth {
+  total_agents: number;
+  active_today: number;
+  active_this_week: number;
+  active_this_month: number;
+  churned_30d: number;
+  avg_executions_per_agent: number;
+  median_executions_per_agent: number;
+  top_agents: Array<{
+    agent_id: string;
+    name: string;
+    executions: number;
+    skills_discovered: number;
+    last_active: string | null;
+  }>;
+}
+
+export interface ActivationFunnel {
+  total_registered: number;
+  executed_once: number;
+  discovered_skill: number;
+  repeat_user: number;
+  power_user: number;
+  rates: {
+    registration_to_first_exec: number;
+    first_exec_to_discovery: number;
+    discovery_to_repeat: number;
+    repeat_to_power: number;
+  };
+}
+
+export interface EngagementMetrics {
+  dau: number;
+  wau: number;
+  mau: number;
+  dau_wau_ratio: number;
+  dau_mau_ratio: number;
+  daily_trend: Array<{ date: string; active: number }>;
+}
+
 // --- Unauthenticated API helper ---
 
 async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {

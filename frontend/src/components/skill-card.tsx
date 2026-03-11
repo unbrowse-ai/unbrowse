@@ -21,17 +21,17 @@ export function SkillCard({ skill }: { skill: SkillManifest }) {
     ? skill.endpoints.reduce((s, e) => s + e.reliability_score, 0) / skill.endpoints.length
     : 0;
 
-  return (
-    <Link
-      href={`/skills/${skill.skill_id}`}
-      className="group block p-6 bg-surface rounded-2xl border border-border
-                 hover:border-orange-300 hover:shadow-lg hover:shadow-glow
-                 transition-all duration-300"
-    >
+    return (
+      <Link
+        href={`/skills/${skill.skill_id}`}
+        className="group flex flex-col h-full p-6 bg-surface rounded-2xl border border-border
+                   hover:border-border-strong hover:bg-surface-raised
+                   transition-all duration-200"
+      >
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0">
-          <h3 className="font-bold text-base truncate group-hover:text-orange-500 transition-colors">
+          <h3 className="font-bold text-base truncate text-text-primary">
             {skill.name}
           </h3>
           <p className="text-sm text-text-muted font-mono mt-0.5">{skill.domain}</p>
@@ -46,7 +46,7 @@ export function SkillCard({ skill }: { skill: SkillManifest }) {
       </div>
 
       {/* Intent */}
-      <p className="text-sm text-text-secondary leading-relaxed mb-5 line-clamp-2">
+      <p className="text-sm text-text-secondary leading-relaxed mb-5 line-clamp-2 flex-grow">
         {skill.intent_signature}
       </p>
 
@@ -69,11 +69,11 @@ export function SkillCard({ skill }: { skill: SkillManifest }) {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-4 border-t border-border">
+      <div className="flex items-center justify-between pt-4 border-t border-border mt-auto">
         <div className="flex items-center gap-2">
-          <div className="h-1.5 w-16 bg-surface-sunken rounded-full overflow-hidden">
+          <div className="h-1.5 w-16 bg-surface-sunken rounded-full overflow-hidden border border-border">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all"
+              className="h-full rounded-full bg-text-primary transition-all"
               style={{ width: `${Math.round(avgScore * 100)}%` }}
             />
           </div>

@@ -1,0 +1,1378 @@
+{
+  "version": "1.0.0",
+  "description": "Unbrowse eval suite — 100 website targets across 10 categories for testing skill discovery, capture, and execution",
+  "generated": "2026-03-04",
+  "stats": {
+    "total_targets": 100,
+    "total_test_cases": 228,
+    "auth_required": 50,
+    "no_auth": 50,
+    "difficulty_easy": 34,
+    "difficulty_medium": 38,
+    "difficulty_hard": 28
+  },
+  "categories": [
+    {
+      "name": "Social Media",
+      "targets": [
+        {
+          "id": "social-01",
+          "domain": "x.com",
+          "auth_required": true,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search tweets", "endpoint_hint": "/i/api/graphql/*/SearchTimeline", "expected_fields": ["text", "user", "created_at", "retweet_count"] },
+            { "intent": "get user profile", "endpoint_hint": "/i/api/graphql/*/UserByScreenName", "expected_fields": ["name", "screen_name", "followers_count", "description"] },
+            { "intent": "get trending topics", "endpoint_hint": "/i/api/2/guide.json", "expected_fields": ["trends", "name", "tweet_count"] }
+          ],
+          "notes": "Uses GraphQL internally with guest tokens. Heavy anti-bot. Requires x-csrf-token and bearer token extraction."
+        },
+        {
+          "id": "social-02",
+          "domain": "linkedin.com",
+          "auth_required": true,
+          "api_type": "normalized-json",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search people", "endpoint_hint": "/voyager/api/graphql?*=peopleSearch", "expected_fields": ["name", "headline", "location", "profileUrl"] },
+            { "intent": "get company info", "endpoint_hint": "/voyager/api/graphql?*=companyInfo", "expected_fields": ["name", "industry", "employeeCount", "description"] }
+          ],
+          "notes": "Voyager API with normalized JSON ($type fields). CSRF from jsessionid cookie. Trigger-intercept likely needed."
+        },
+        {
+          "id": "social-03",
+          "domain": "reddit.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get subreddit posts", "endpoint_hint": "/r/{subreddit}/hot.json", "expected_fields": ["title", "author", "score", "num_comments", "url"] },
+            { "intent": "search reddit", "endpoint_hint": "/search.json?q={query}", "expected_fields": ["title", "subreddit", "score", "permalink"] },
+            { "intent": "get post comments", "endpoint_hint": "/r/{subreddit}/comments/{id}.json", "expected_fields": ["body", "author", "score", "replies"] }
+          ],
+          "notes": "Append .json to any URL. Public, no auth needed. Rate-limited but generous."
+        },
+        {
+          "id": "social-04",
+          "domain": "instagram.com",
+          "auth_required": true,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "get user profile", "endpoint_hint": "/api/v1/users/web_profile_info/", "expected_fields": ["username", "full_name", "follower_count", "biography", "media_count"] },
+            { "intent": "get user posts", "endpoint_hint": "/graphql/query/?query_hash=*", "expected_fields": ["shortcode", "caption", "like_count", "comment_count", "timestamp"] }
+          ],
+          "notes": "GraphQL with rolling query hashes. Aggressive bot detection. Requires session cookies."
+        },
+        {
+          "id": "social-05",
+          "domain": "tiktok.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search videos", "endpoint_hint": "/api/search/general/full/", "expected_fields": ["desc", "author", "stats", "video"] },
+            { "intent": "get trending videos", "endpoint_hint": "/api/recommend/item_list/", "expected_fields": ["desc", "author", "playCount", "diggCount"] }
+          ],
+          "notes": "VM-based signature obfuscation (X-Bogus, msToken). One of the hardest targets. May need trigger-intercept."
+        },
+        {
+          "id": "social-06",
+          "domain": "threads.net",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get user profile", "endpoint_hint": "/api/graphql", "expected_fields": ["username", "full_name", "biography", "follower_count"] },
+            { "intent": "get user threads", "endpoint_hint": "/api/graphql", "expected_fields": ["text", "like_count", "reply_count", "timestamp"] }
+          ],
+          "notes": "Meta's GraphQL API. Shares patterns with Instagram. Some public data available without auth."
+        },
+        {
+          "id": "social-07",
+          "domain": "mastodon.social",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get public timeline", "endpoint_hint": "/api/v1/timelines/public", "expected_fields": ["content", "account", "created_at", "reblogs_count"] },
+            { "intent": "search posts", "endpoint_hint": "/api/v2/search?q={query}", "expected_fields": ["accounts", "statuses", "hashtags"] }
+          ],
+          "notes": "Well-documented public REST API. Easy target, returns clean JSON."
+        },
+        {
+          "id": "social-08",
+          "domain": "bsky.app",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get user profile", "endpoint_hint": "/xrpc/app.bsky.actor.getProfile", "expected_fields": ["handle", "displayName", "description", "followersCount"] },
+            { "intent": "search posts", "endpoint_hint": "/xrpc/app.bsky.feed.searchPosts", "expected_fields": ["text", "author", "likeCount", "replyCount"] }
+          ],
+          "notes": "AT Protocol. Clean REST JSON API at public.api.bsky.app. Very easy target."
+        },
+        {
+          "id": "social-09",
+          "domain": "pinterest.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search pins", "endpoint_hint": "/resource/BaseSearchResource/get/", "expected_fields": ["id", "description", "images", "pinner", "repin_count"] },
+            { "intent": "get board pins", "endpoint_hint": "/resource/BoardFeedResource/get/", "expected_fields": ["id", "description", "images", "link"] }
+          ],
+          "notes": "Internal resource API with JSON payloads. Requires extracting app_version and csrftoken cookie."
+        },
+        {
+          "id": "social-10",
+          "domain": "discord.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get guild channels", "endpoint_hint": "/api/v9/guilds/{id}/channels", "expected_fields": ["id", "name", "type", "position"] },
+            { "intent": "get channel messages", "endpoint_hint": "/api/v9/channels/{id}/messages", "expected_fields": ["content", "author", "timestamp", "attachments"] }
+          ],
+          "notes": "Well-structured REST API but requires auth token. WebSocket gateway for real-time."
+        }
+      ]
+    },
+    {
+      "name": "Developer Tools",
+      "targets": [
+        {
+          "id": "dev-01",
+          "domain": "github.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search repositories", "endpoint_hint": "/search/repositories?q={query}", "expected_fields": ["full_name", "description", "stargazers_count", "language"] },
+            { "intent": "get repository info", "endpoint_hint": "/repos/{owner}/{repo}", "expected_fields": ["name", "description", "stars", "forks", "language"] },
+            { "intent": "get trending repositories", "endpoint_hint": "/trending", "expected_fields": ["name", "description", "language", "stars_today"] }
+          ],
+          "notes": "Public REST API. /trending is HTML-only (no JSON endpoint), good DOM extraction test. API endpoints return clean JSON."
+        },
+        {
+          "id": "dev-02",
+          "domain": "gitlab.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search projects", "endpoint_hint": "/api/v4/projects?search={query}", "expected_fields": ["name", "description", "star_count", "web_url"] },
+            { "intent": "get project details", "endpoint_hint": "/api/v4/projects/{id}", "expected_fields": ["name", "description", "star_count", "forks_count"] }
+          ],
+          "notes": "Clean public REST API v4. Easy target."
+        },
+        {
+          "id": "dev-03",
+          "domain": "npmjs.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search packages", "endpoint_hint": "/-/v1/search?text={query}", "expected_fields": ["name", "version", "description", "keywords"] },
+            { "intent": "get package info", "endpoint_hint": "/{package}", "expected_fields": ["name", "version", "description", "dependencies", "downloads"] }
+          ],
+          "notes": "Registry API at registry.npmjs.org. Clean JSON. Very easy target."
+        },
+        {
+          "id": "dev-04",
+          "domain": "stackoverflow.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search questions", "endpoint_hint": "/api/2.3/search?intitle={query}", "expected_fields": ["title", "score", "answer_count", "tags", "link"] },
+            { "intent": "get question answers", "endpoint_hint": "/api/2.3/questions/{id}/answers", "expected_fields": ["body", "score", "is_accepted", "owner"] }
+          ],
+          "notes": "Public API at api.stackexchange.com. Also has internal JSON endpoints on the SPA. Gzip-compressed responses."
+        },
+        {
+          "id": "dev-05",
+          "domain": "pypi.org",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get package info", "endpoint_hint": "/pypi/{package}/json", "expected_fields": ["name", "version", "summary", "author", "requires_dist"] },
+            { "intent": "search packages", "endpoint_hint": "/search/?q={query}", "expected_fields": ["name", "version", "description"] }
+          ],
+          "notes": "/pypi/{name}/json is a perfect clean API. Search is HTML-only, good DOM test."
+        },
+        {
+          "id": "dev-06",
+          "domain": "hub.docker.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search images", "endpoint_hint": "/v2/search/repositories/?query={query}", "expected_fields": ["repo_name", "short_description", "star_count", "pull_count"] },
+            { "intent": "get image tags", "endpoint_hint": "/v2/repositories/{namespace}/{repo}/tags/", "expected_fields": ["name", "full_size", "last_updated"] }
+          ],
+          "notes": "Public REST API. Clean JSON responses."
+        },
+        {
+          "id": "dev-07",
+          "domain": "crates.io",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search crates", "endpoint_hint": "/api/v1/crates?q={query}", "expected_fields": ["name", "description", "downloads", "max_version"] },
+            { "intent": "get crate info", "endpoint_hint": "/api/v1/crates/{name}", "expected_fields": ["name", "description", "downloads", "versions"] }
+          ],
+          "notes": "Clean public REST API. Very easy target."
+        },
+        {
+          "id": "dev-08",
+          "domain": "hackernews.firebaseio.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get top stories", "endpoint_hint": "/v0/topstories.json", "expected_fields": ["id"] },
+            { "intent": "get story details", "endpoint_hint": "/v0/item/{id}.json", "expected_fields": ["title", "url", "score", "by", "descendants"] }
+          ],
+          "notes": "Firebase REST API. Extremely clean. Two-step: get IDs then fetch items."
+        },
+        {
+          "id": "dev-09",
+          "domain": "dev.to",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get articles", "endpoint_hint": "/api/articles?tag={tag}", "expected_fields": ["title", "description", "url", "user", "positive_reactions_count"] },
+            { "intent": "search articles", "endpoint_hint": "/search/feed_content?q={query}", "expected_fields": ["title", "path", "tag_list", "user"] }
+          ],
+          "notes": "Public REST API. Clean JSON. Forem-based platform."
+        },
+        {
+          "id": "dev-10",
+          "domain": "producthunt.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get today's products", "endpoint_hint": "/frontend/graphql", "expected_fields": ["name", "tagline", "votesCount", "website", "topics"] },
+            { "intent": "search products", "endpoint_hint": "/frontend/graphql", "expected_fields": ["name", "tagline", "votesCount", "description"] }
+          ],
+          "notes": "Internal GraphQL API. Requires extracting CSRF token from meta tags."
+        }
+      ]
+    },
+    {
+      "name": "E-commerce",
+      "targets": [
+        {
+          "id": "ecom-01",
+          "domain": "amazon.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search products", "endpoint_hint": "/s?k={query}", "expected_fields": ["title", "price", "rating", "reviews_count", "asin"] },
+            { "intent": "get product details", "endpoint_hint": "/dp/{asin}", "expected_fields": ["title", "price", "rating", "description", "features"] },
+            { "intent": "get best sellers", "endpoint_hint": "/gp/bestsellers/", "expected_fields": ["title", "price", "rank", "rating"] }
+          ],
+          "notes": "Primarily server-rendered HTML. Some internal JSON APIs but heavily protected. DOM extraction is the reliable path."
+        },
+        {
+          "id": "ecom-02",
+          "domain": "ebay.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search items", "endpoint_hint": "/sch/i.html?_nkw={query}", "expected_fields": ["title", "price", "condition", "seller", "shipping"] },
+            { "intent": "get item details", "endpoint_hint": "/itm/{id}", "expected_fields": ["title", "price", "condition", "seller_info", "shipping_cost"] }
+          ],
+          "notes": "Mix of SSR HTML and internal JSON APIs. Search results have JSON embedded in script tags."
+        },
+        {
+          "id": "ecom-03",
+          "domain": "etsy.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search listings", "endpoint_hint": "/api/v3/ajax/bespoke/member/listings/search", "expected_fields": ["title", "price", "shop_name", "rating", "num_favorers"] },
+            { "intent": "get shop info", "endpoint_hint": "/api/v3/ajax/bespoke/member/shops/{shop}", "expected_fields": ["shop_name", "num_favorers", "listing_count", "location"] }
+          ],
+          "notes": "Internal bespoke API. Clean JSON but needs cookie/CSRF token extraction."
+        },
+        {
+          "id": "ecom-04",
+          "domain": "walmart.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search products", "endpoint_hint": "/orchestra/graphql/search", "expected_fields": ["name", "price", "rating", "reviews_count", "availability"] },
+            { "intent": "get product details", "endpoint_hint": "/orchestra/graphql/product", "expected_fields": ["name", "price", "description", "specifications"] }
+          ],
+          "notes": "GraphQL via /orchestra/. Some anti-bot protection. JSON embedded in SSR pages too."
+        },
+        {
+          "id": "ecom-05",
+          "domain": "target.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search products", "endpoint_hint": "/redsky_aggregations/v1/web/plp_search_v2", "expected_fields": ["title", "price", "rating", "reviews_count"] },
+            { "intent": "get product details", "endpoint_hint": "/redsky_aggregations/v1/web/pdp_client_v1", "expected_fields": ["title", "price", "description", "specifications"] }
+          ],
+          "notes": "Redsky API. Requires API key extracted from page JS. Medium difficulty."
+        },
+        {
+          "id": "ecom-06",
+          "domain": "bestbuy.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search products", "endpoint_hint": "/api/tcfb/model.json?paths=*search*", "expected_fields": ["name", "price", "rating", "sku"] },
+            { "intent": "get product details", "endpoint_hint": "/api/tcfb/model.json?paths=*productDetail*", "expected_fields": ["name", "price", "specifications", "rating"] }
+          ],
+          "notes": "Falcor-based JSON graph API. Unique pattern - good edge case test."
+        },
+        {
+          "id": "ecom-07",
+          "domain": "aliexpress.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search products", "endpoint_hint": "/aer/glosearch/api/product/search", "expected_fields": ["title", "price", "rating", "orders", "store_name"] },
+            { "intent": "get product details", "endpoint_hint": "/aer/glosearch/api/product/detail", "expected_fields": ["title", "price", "description", "specifications"] }
+          ],
+          "notes": "Heavy anti-bot (Alibaba). Multiple internal API patterns. Aggressive fingerprinting."
+        },
+        {
+          "id": "ecom-08",
+          "domain": "shopify.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get products", "endpoint_hint": "/products.json", "expected_fields": ["title", "price", "variants", "images", "description"] },
+            { "intent": "search products", "endpoint_hint": "/search/suggest.json?q={query}", "expected_fields": ["title", "price", "url", "image"] }
+          ],
+          "notes": "Universal pattern for ALL Shopify stores. /products.json always works. Great easy baseline."
+        },
+        {
+          "id": "ecom-09",
+          "domain": "wayfair.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search products", "endpoint_hint": "/graphql", "expected_fields": ["name", "price", "rating", "reviews_count", "image_url"] }
+          ],
+          "notes": "GraphQL API. Anti-bot protection. Needs session setup."
+        },
+        {
+          "id": "ecom-10",
+          "domain": "costco.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search products", "endpoint_hint": "/AjaxSearchProductDisplayView", "expected_fields": ["name", "price", "rating", "productId"] }
+          ],
+          "notes": "Internal AJAX API. Some anti-bot protection. IBM WebSphere-based."
+        }
+      ]
+    },
+    {
+      "name": "Finance",
+      "targets": [
+        {
+          "id": "fin-01",
+          "domain": "finance.yahoo.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get stock quote", "endpoint_hint": "/v8/finance/chart/{symbol}", "expected_fields": ["regularMarketPrice", "regularMarketChange", "volume", "marketCap"] },
+            { "intent": "search tickers", "endpoint_hint": "/v1/finance/search?q={query}", "expected_fields": ["symbol", "shortname", "exchange", "quoteType"] },
+            { "intent": "get trending tickers", "endpoint_hint": "/v1/finance/trending/US", "expected_fields": ["symbol", "regularMarketPrice", "regularMarketChange"] }
+          ],
+          "notes": "Public JSON API at query2.finance.yahoo.com. Well-known, stable endpoints. Easy target."
+        },
+        {
+          "id": "fin-02",
+          "domain": "coingecko.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get coin price", "endpoint_hint": "/api/v3/simple/price?ids={coin}&vs_currencies=usd", "expected_fields": ["usd", "usd_24h_change", "usd_market_cap"] },
+            { "intent": "get trending coins", "endpoint_hint": "/api/v3/search/trending", "expected_fields": ["name", "symbol", "market_cap_rank", "price_btc"] },
+            { "intent": "search coins", "endpoint_hint": "/api/v3/search?query={query}", "expected_fields": ["id", "name", "symbol", "market_cap_rank"] }
+          ],
+          "notes": "Public API. Clean REST JSON. Very easy, but rate-limited."
+        },
+        {
+          "id": "fin-03",
+          "domain": "coinmarketcap.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get top cryptocurrencies", "endpoint_hint": "/data-api/v3/cryptocurrency/listing", "expected_fields": ["name", "symbol", "price", "marketCap", "volume24h"] },
+            { "intent": "get coin details", "endpoint_hint": "/data-api/v3/cryptocurrency/detail", "expected_fields": ["name", "price", "description", "links"] }
+          ],
+          "notes": "Internal data-api endpoints. Different from their paid pro API. Needs cookie extraction."
+        },
+        {
+          "id": "fin-04",
+          "domain": "robinhood.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "get portfolio", "endpoint_hint": "/api/v1/accounts/positions/", "expected_fields": ["instrument", "quantity", "average_buy_price"] },
+            { "intent": "get stock fundamentals", "endpoint_hint": "/api/v1/fundamentals/{symbol}/", "expected_fields": ["open", "high", "low", "volume", "pe_ratio"] }
+          ],
+          "notes": "Auth required. Device token + OAuth2. Internal REST API."
+        },
+        {
+          "id": "fin-05",
+          "domain": "tradingview.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search symbols", "endpoint_hint": "/symbol_search/?text={query}", "expected_fields": ["symbol", "description", "type", "exchange"] },
+            { "intent": "get stock screener", "endpoint_hint": "/screener/america/scan", "expected_fields": ["symbol", "price", "change", "volume", "market_cap"] }
+          ],
+          "notes": "Mix of public and internal APIs. Screener uses POST with filter body. WebSocket for real-time data."
+        },
+        {
+          "id": "fin-06",
+          "domain": "seekingalpha.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get stock analysis", "endpoint_hint": "/api/v3/symbols/{symbol}/analysis", "expected_fields": ["title", "summary", "author", "publish_date"] },
+            { "intent": "get stock ratings", "endpoint_hint": "/api/v3/symbols/{symbol}/ratings", "expected_fields": ["rating", "score", "analysts_count"] }
+          ],
+          "notes": "Internal API with versioned endpoints. Some content paywalled."
+        },
+        {
+          "id": "fin-07",
+          "domain": "stockanalysis.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get stock financials", "endpoint_hint": "/api/financials/{symbol}", "expected_fields": ["revenue", "netIncome", "eps", "pe"] },
+            { "intent": "get IPO calendar", "endpoint_hint": "/api/ipos/", "expected_fields": ["name", "symbol", "date", "price_range"] }
+          ],
+          "notes": "Clean internal JSON API. Next.js SPA with __NEXT_DATA__ and fetch APIs."
+        },
+        {
+          "id": "fin-08",
+          "domain": "dexscreener.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search tokens", "endpoint_hint": "/latest/dex/search?q={query}", "expected_fields": ["pairAddress", "baseToken", "priceUsd", "volume", "liquidity"] },
+            { "intent": "get token pairs", "endpoint_hint": "/latest/dex/tokens/{address}", "expected_fields": ["pairAddress", "priceUsd", "priceChange", "volume"] }
+          ],
+          "notes": "Public API. Clean REST JSON. Popular for DeFi/crypto."
+        },
+        {
+          "id": "fin-09",
+          "domain": "finviz.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "screen stocks", "endpoint_hint": "/screener.ashx?v=111&f={filters}", "expected_fields": ["ticker", "company", "sector", "price", "change", "volume"] },
+            { "intent": "get stock overview", "endpoint_hint": "/quote.ashx?t={symbol}", "expected_fields": ["price", "target_price", "pe", "eps", "market_cap"] }
+          ],
+          "notes": "Primarily HTML tables. Good DOM extraction test case. No JSON API."
+        },
+        {
+          "id": "fin-10",
+          "domain": "defillama.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get top protocols", "endpoint_hint": "/protocols", "expected_fields": ["name", "tvl", "change_1d", "category", "chains"] },
+            { "intent": "get chain TVL", "endpoint_hint": "/v2/chains", "expected_fields": ["name", "tvl", "tokenSymbol"] }
+          ],
+          "notes": "Fully public API at api.llama.fi. Clean JSON. No auth needed."
+        }
+      ]
+    },
+    {
+      "name": "News & Content",
+      "targets": [
+        {
+          "id": "news-01",
+          "domain": "news.ycombinator.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get front page", "endpoint_hint": "/", "expected_fields": ["title", "url", "points", "author", "comments_count"] },
+            { "intent": "get new stories", "endpoint_hint": "/newest", "expected_fields": ["title", "url", "points", "author", "time"] }
+          ],
+          "notes": "HTML-only site (no JSON on HN itself). Use Firebase API (hackernews.firebaseio.com) or DOM extraction. Good test of both paths."
+        },
+        {
+          "id": "news-02",
+          "domain": "medium.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get article content", "endpoint_hint": "/_/graphql", "expected_fields": ["title", "content", "author", "claps", "readingTime"] },
+            { "intent": "get trending articles", "endpoint_hint": "/_/graphql", "expected_fields": ["title", "subtitle", "author", "readingTime", "claps"] }
+          ],
+          "notes": "Internal GraphQL API. Some content behind metered paywall. Requires extracting operation names."
+        },
+        {
+          "id": "news-03",
+          "domain": "nytimes.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search articles", "endpoint_hint": "/svc/search/v2/articlesearch.json", "expected_fields": ["headline", "abstract", "pub_date", "section_name", "web_url"] },
+            { "intent": "get top stories", "endpoint_hint": "/svc/topstories/v2/{section}.json", "expected_fields": ["title", "abstract", "url", "published_date"] }
+          ],
+          "notes": "Mix of public API (limited) and internal endpoints. Hard paywall on full content."
+        },
+        {
+          "id": "news-04",
+          "domain": "techcrunch.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get latest articles", "endpoint_hint": "/wp-json/wp/v2/posts", "expected_fields": ["title", "excerpt", "date", "link", "author"] },
+            { "intent": "search articles", "endpoint_hint": "/wp-json/wp/v2/posts?search={query}", "expected_fields": ["title", "excerpt", "date", "link"] }
+          ],
+          "notes": "WordPress REST API. Clean JSON. Very easy target — universal WP pattern."
+        },
+        {
+          "id": "news-05",
+          "domain": "theverge.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get latest articles", "endpoint_hint": "/api/stories", "expected_fields": ["title", "excerpt", "author", "published_at", "url"] },
+            { "intent": "search articles", "endpoint_hint": "/api/search?q={query}", "expected_fields": ["title", "excerpt", "url", "published_at"] }
+          ],
+          "notes": "Coral/Duet CMS. Internal JSON APIs available. Clean responses."
+        },
+        {
+          "id": "news-06",
+          "domain": "substack.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get publication posts", "endpoint_hint": "/api/v1/posts?publication_id={id}", "expected_fields": ["title", "subtitle", "post_date", "slug", "description"] },
+            { "intent": "search publications", "endpoint_hint": "/api/v1/search?query={query}", "expected_fields": ["name", "description", "author_name", "subscriber_count"] }
+          ],
+          "notes": "Clean REST API. Individual subdomains (e.g., newsletter.substack.com) also work."
+        },
+        {
+          "id": "news-07",
+          "domain": "reuters.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get latest news", "endpoint_hint": "/pf/api/v3/content/fetch/articles-by-section-alias-or-id-v1", "expected_fields": ["title", "description", "published_time", "authors"] },
+            { "intent": "search articles", "endpoint_hint": "/pf/api/v3/content/fetch/search-by-query-v1", "expected_fields": ["title", "description", "published_time", "section"] }
+          ],
+          "notes": "Arc XP / Fusion CMS pattern. Internal content API."
+        },
+        {
+          "id": "news-08",
+          "domain": "bbc.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get top stories", "endpoint_hint": "/wc-data/container/topic-page?urn=*", "expected_fields": ["title", "summary", "lastPublished", "section"] },
+            { "intent": "search articles", "endpoint_hint": "/search?q={query}", "expected_fields": ["title", "description", "url", "published"] }
+          ],
+          "notes": "Internal content API with URN-based routing. SSR with embedded JSON state."
+        },
+        {
+          "id": "news-09",
+          "domain": "arstechnica.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get latest articles", "endpoint_hint": "/wp-json/wp/v2/posts", "expected_fields": ["title", "excerpt", "date", "link", "author"] }
+          ],
+          "notes": "WordPress REST API. Same pattern as TechCrunch."
+        },
+        {
+          "id": "news-10",
+          "domain": "apnews.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get top stories", "endpoint_hint": "/api/v2/feed/tag/{topic}", "expected_fields": ["headline", "body", "published", "authors", "images"] },
+            { "intent": "search articles", "endpoint_hint": "/api/v2/search?q={query}", "expected_fields": ["headline", "summary", "published", "url"] }
+          ],
+          "notes": "Internal API. Some endpoints require API key from page JS."
+        }
+      ]
+    },
+    {
+      "name": "Productivity & SaaS",
+      "targets": [
+        {
+          "id": "prod-01",
+          "domain": "notion.so",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search pages", "endpoint_hint": "/api/v3/search", "expected_fields": ["id", "title", "type", "last_edited_time"] },
+            { "intent": "get page content", "endpoint_hint": "/api/v3/loadPageChunk", "expected_fields": ["block", "type", "properties", "content"] }
+          ],
+          "notes": "Internal API at /api/v3/. Block-based content model. Requires auth cookies. Complex nested JSON."
+        },
+        {
+          "id": "prod-02",
+          "domain": "docs.google.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "list documents", "endpoint_hint": "/drive/v2beta/files?q=*", "expected_fields": ["title", "mimeType", "modifiedDate", "owners"] }
+          ],
+          "notes": "Google Workspace. Complex auth (OAuth2 + session). Internal APIs differ from public Drive API."
+        },
+        {
+          "id": "prod-03",
+          "domain": "trello.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get board cards", "endpoint_hint": "/1/boards/{id}/cards", "expected_fields": ["name", "desc", "labels", "due", "idMembers"] },
+            { "intent": "get board lists", "endpoint_hint": "/1/boards/{id}/lists", "expected_fields": ["name", "pos", "cards"] }
+          ],
+          "notes": "REST API with API key + token. Well-structured but requires auth."
+        },
+        {
+          "id": "prod-04",
+          "domain": "linear.app",
+          "auth_required": true,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get team issues", "endpoint_hint": "/graphql", "expected_fields": ["title", "state", "priority", "assignee", "labels"] },
+            { "intent": "search issues", "endpoint_hint": "/graphql", "expected_fields": ["title", "description", "state", "team"] }
+          ],
+          "notes": "GraphQL API. Requires auth token. Clean, well-structured responses."
+        },
+        {
+          "id": "prod-05",
+          "domain": "figma.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "get file info", "endpoint_hint": "/api/v1/files/{key}", "expected_fields": ["name", "lastModified", "document", "components"] },
+            { "intent": "get comments", "endpoint_hint": "/api/v1/files/{key}/comments", "expected_fields": ["message", "user", "created_at", "resolved_at"] }
+          ],
+          "notes": "REST API. Auth required. Complex nested document model."
+        },
+        {
+          "id": "prod-06",
+          "domain": "airtable.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "list records", "endpoint_hint": "/v0/{baseId}/{tableName}", "expected_fields": ["id", "fields", "createdTime"] },
+            { "intent": "get record", "endpoint_hint": "/v0/{baseId}/{tableName}/{recordId}", "expected_fields": ["id", "fields", "createdTime"] }
+          ],
+          "notes": "Clean REST API but requires API key / OAuth token."
+        },
+        {
+          "id": "prod-07",
+          "domain": "calendly.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get event types", "endpoint_hint": "/api/booking/event_types/{user}", "expected_fields": ["name", "duration", "slug", "active"] },
+            { "intent": "get availability", "endpoint_hint": "/api/booking/calendars/{user}/availability", "expected_fields": ["date", "spots", "invitees_remaining"] }
+          ],
+          "notes": "Internal booking API. Availability check is public for scheduling links."
+        },
+        {
+          "id": "prod-08",
+          "domain": "canva.com",
+          "auth_required": true,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search templates", "endpoint_hint": "/graphql", "expected_fields": ["title", "thumbnail", "category", "tags"] }
+          ],
+          "notes": "GraphQL API. Heavy auth and anti-bot. Complex SPA."
+        },
+        {
+          "id": "prod-09",
+          "domain": "typeform.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get form responses", "endpoint_hint": "/forms/{id}/responses", "expected_fields": ["answers", "submitted_at", "landed_at"] }
+          ],
+          "notes": "REST API. Auth required. Clean JSON responses."
+        },
+        {
+          "id": "prod-10",
+          "domain": "miro.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get board items", "endpoint_hint": "/v2/boards/{id}/items", "expected_fields": ["type", "data", "position", "createdBy"] },
+            { "intent": "get board info", "endpoint_hint": "/v2/boards/{id}", "expected_fields": ["name", "description", "createdBy", "modifiedAt"] }
+          ],
+          "notes": "REST API v2. Requires OAuth token. Clean, well-documented."
+        }
+      ]
+    },
+    {
+      "name": "Travel & Local",
+      "targets": [
+        {
+          "id": "travel-01",
+          "domain": "yelp.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search businesses", "endpoint_hint": "/gql/batch", "expected_fields": ["name", "rating", "review_count", "categories", "address", "phone"] },
+            { "intent": "get business reviews", "endpoint_hint": "/gql/batch", "expected_fields": ["text", "rating", "user", "date", "photos"] }
+          ],
+          "notes": "Internal GraphQL batch API. Anti-bot protection. Needs CSRF and session cookies."
+        },
+        {
+          "id": "travel-02",
+          "domain": "google.com/maps",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search places", "endpoint_hint": "/maps/api/place/textsearch/json", "expected_fields": ["name", "address", "rating", "user_ratings_total", "types"] },
+            { "intent": "get place details", "endpoint_hint": "/maps/api/place/details/json", "expected_fields": ["name", "address", "phone", "website", "reviews", "opening_hours"] }
+          ],
+          "notes": "Internal protobuf-like APIs. The official Places API is separate. Reverse-engineering Maps uses complex encoded params."
+        },
+        {
+          "id": "travel-03",
+          "domain": "airbnb.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search listings", "endpoint_hint": "/api/v3/StaysSearch", "expected_fields": ["name", "price", "rating", "reviews_count", "type", "location"] },
+            { "intent": "get listing details", "endpoint_hint": "/api/v3/StayListing", "expected_fields": ["name", "description", "amenities", "host", "price", "availability"] }
+          ],
+          "notes": "API v3 with encoded operation params. Heavy anti-bot. Requires extracting API key from page JS."
+        },
+        {
+          "id": "travel-04",
+          "domain": "booking.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search hotels", "endpoint_hint": "/dml/graphql", "expected_fields": ["name", "price", "rating", "review_score", "location", "photos"] },
+            { "intent": "get hotel details", "endpoint_hint": "/dml/graphql", "expected_fields": ["name", "description", "amenities", "reviews", "price"] }
+          ],
+          "notes": "GraphQL API. Heavy anti-bot (Akamai). Complex query structures."
+        },
+        {
+          "id": "travel-05",
+          "domain": "tripadvisor.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search attractions", "endpoint_hint": "/data/graphql/ids", "expected_fields": ["name", "rating", "reviews_count", "category", "address"] },
+            { "intent": "get restaurant reviews", "endpoint_hint": "/data/graphql/ids", "expected_fields": ["title", "text", "rating", "date", "user"] }
+          ],
+          "notes": "Internal GraphQL API with numeric IDs. Heavy anti-bot. Complex nested responses."
+        },
+        {
+          "id": "travel-06",
+          "domain": "opentable.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search restaurants", "endpoint_hint": "/dapi/fe/gql", "expected_fields": ["name", "cuisine", "price_range", "rating", "availability"] },
+            { "intent": "check availability", "endpoint_hint": "/dapi/fe/gql", "expected_fields": ["date", "time", "party_size", "available"] }
+          ],
+          "notes": "GraphQL at /dapi/fe/gql. Availability is the key use case."
+        },
+        {
+          "id": "travel-07",
+          "domain": "uber.com",
+          "auth_required": true,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "get ride estimate", "endpoint_hint": "/graphql", "expected_fields": ["product_type", "estimated_price", "estimated_duration", "surge_multiplier"] }
+          ],
+          "notes": "GraphQL API. Heavy auth + session. Complex request signing."
+        },
+        {
+          "id": "travel-08",
+          "domain": "doordash.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search restaurants", "endpoint_hint": "/graphql", "expected_fields": ["name", "rating", "delivery_fee", "delivery_time", "distance"] },
+            { "intent": "get restaurant menu", "endpoint_hint": "/graphql", "expected_fields": ["name", "items", "price", "description", "photo_url"] }
+          ],
+          "notes": "GraphQL API. Menu data is public. Ordering requires auth."
+        },
+        {
+          "id": "travel-09",
+          "domain": "maps.apple.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search places", "endpoint_hint": "/geo/api/v2/search", "expected_fields": ["name", "address", "latitude", "longitude", "category"] }
+          ],
+          "notes": "Internal API. Complex auth token from page JS. Limited compared to Google Maps."
+        },
+        {
+          "id": "travel-10",
+          "domain": "alltrails.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search trails", "endpoint_hint": "/graphql", "expected_fields": ["name", "difficulty", "length", "elevation_gain", "rating", "location"] },
+            { "intent": "get trail details", "endpoint_hint": "/graphql", "expected_fields": ["name", "description", "reviews", "photos", "route_type"] }
+          ],
+          "notes": "GraphQL API. Popular for hiking data. Some content gated."
+        }
+      ]
+    },
+    {
+      "name": "Entertainment",
+      "targets": [
+        {
+          "id": "ent-01",
+          "domain": "youtube.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search videos", "endpoint_hint": "/youtubei/v1/search", "expected_fields": ["title", "videoId", "channelName", "viewCount", "publishedTime"] },
+            { "intent": "get video details", "endpoint_hint": "/youtubei/v1/player", "expected_fields": ["title", "description", "viewCount", "likeCount", "channelName"] },
+            { "intent": "get trending videos", "endpoint_hint": "/youtubei/v1/browse", "expected_fields": ["title", "videoId", "viewCount", "channelName"] }
+          ],
+          "notes": "InnerTube API. Complex protobuf-like params. Requires extracting API key and client context from page. One of the hardest targets."
+        },
+        {
+          "id": "ent-02",
+          "domain": "open.spotify.com",
+          "auth_required": true,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search tracks", "endpoint_hint": "/v1/search?q={query}&type=track", "expected_fields": ["name", "artist", "album", "duration_ms", "preview_url"] },
+            { "intent": "get playlist tracks", "endpoint_hint": "/v1/playlists/{id}/tracks", "expected_fields": ["name", "artist", "album", "added_at", "duration_ms"] }
+          ],
+          "notes": "Well-structured REST API. Requires OAuth token. Web player uses internal partner API too."
+        },
+        {
+          "id": "ent-03",
+          "domain": "twitch.tv",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search channels", "endpoint_hint": "/gql", "expected_fields": ["displayName", "game", "viewers", "title", "language"] },
+            { "intent": "get top streams", "endpoint_hint": "/gql", "expected_fields": ["displayName", "game", "viewers", "title", "thumbnailURL"] }
+          ],
+          "notes": "Public GraphQL endpoint at gql.twitch.tv. Client-ID required but can be extracted from page. Well-known operation names."
+        },
+        {
+          "id": "ent-04",
+          "domain": "imdb.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search titles", "endpoint_hint": "/caching/find/v1?q={query}", "expected_fields": ["title", "year", "type", "principals", "image"] },
+            { "intent": "get movie details", "endpoint_hint": "/title/{id}/", "expected_fields": ["title", "rating", "year", "genres", "plot", "directors", "cast"] }
+          ],
+          "notes": "Mix of internal JSON APIs and __NEXT_DATA__. Some GraphQL at graphql.imdb.com. Amazon-owned."
+        },
+        {
+          "id": "ent-05",
+          "domain": "letterboxd.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search films", "endpoint_hint": "/s/autocompletefilm?q={query}", "expected_fields": ["name", "year", "directors"] },
+            { "intent": "get popular films", "endpoint_hint": "/films/popular/", "expected_fields": ["title", "year", "rating", "poster"] }
+          ],
+          "notes": "Mostly HTML. Autocomplete has JSON. Popular page is DOM-only. Good hybrid test."
+        },
+        {
+          "id": "ent-06",
+          "domain": "soundcloud.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search tracks", "endpoint_hint": "/search/tracks?q={query}", "expected_fields": ["title", "user", "duration", "playback_count", "likes_count"] },
+            { "intent": "get user tracks", "endpoint_hint": "/users/{id}/tracks", "expected_fields": ["title", "duration", "playback_count", "genre"] }
+          ],
+          "notes": "API at api-v2.soundcloud.com. Requires client_id extracted from page JS bundles."
+        },
+        {
+          "id": "ent-07",
+          "domain": "rottentomatoes.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search movies", "endpoint_hint": "/napi/search?query={query}", "expected_fields": ["title", "year", "tomatoScore", "audienceScore", "type"] },
+            { "intent": "get movie details", "endpoint_hint": "/m/{slug}", "expected_fields": ["title", "tomatoScore", "audienceScore", "consensus", "cast"] }
+          ],
+          "notes": "Mix of internal napi JSON and HTML. Score data in ld+json schema. Good structured data extraction test."
+        },
+        {
+          "id": "ent-08",
+          "domain": "genius.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search songs", "endpoint_hint": "/api/search?q={query}", "expected_fields": ["title", "artist_names", "url", "song_art_image_url"] },
+            { "intent": "get song lyrics", "endpoint_hint": "/{artist}-{song}-lyrics", "expected_fields": ["lyrics", "title", "artist", "album"] }
+          ],
+          "notes": "Search API is public JSON. Lyrics page is HTML — good DOM extraction test."
+        },
+        {
+          "id": "ent-09",
+          "domain": "goodreads.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search books", "endpoint_hint": "/search?q={query}", "expected_fields": ["title", "author", "rating", "ratings_count", "year"] },
+            { "intent": "get book details", "endpoint_hint": "/book/show/{id}", "expected_fields": ["title", "author", "rating", "description", "genres", "pages"] }
+          ],
+          "notes": "Primarily SSR HTML. Some internal React JSON. Amazon-owned. Good DOM-heavy test."
+        },
+        {
+          "id": "ent-10",
+          "domain": "myanimelist.net",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search anime", "endpoint_hint": "/v4/anime?q={query}", "expected_fields": ["title", "score", "episodes", "type", "synopsis"] },
+            { "intent": "get top anime", "endpoint_hint": "/v4/top/anime", "expected_fields": ["title", "score", "rank", "episodes", "type"] }
+          ],
+          "notes": "Jikan API (api.jikan.moe) wraps MAL. Public, clean JSON. Easy target."
+        }
+      ]
+    },
+    {
+      "name": "Jobs & Careers",
+      "targets": [
+        {
+          "id": "jobs-01",
+          "domain": "linkedin.com/jobs",
+          "auth_required": true,
+          "api_type": "normalized-json",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search jobs", "endpoint_hint": "/voyager/api/graphql?*=jobSearch", "expected_fields": ["title", "company", "location", "salary", "posted_date", "applicants"] },
+            { "intent": "get job details", "endpoint_hint": "/voyager/api/graphql?*=jobPosting", "expected_fields": ["title", "description", "company", "requirements", "benefits"] }
+          ],
+          "notes": "Same Voyager API as LinkedIn profiles. Normalized JSON. Requires auth."
+        },
+        {
+          "id": "jobs-02",
+          "domain": "indeed.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search jobs", "endpoint_hint": "/rpc/search", "expected_fields": ["title", "company", "location", "salary", "snippet", "date"] },
+            { "intent": "get job details", "endpoint_hint": "/rpc/jobdescs", "expected_fields": ["title", "description", "company", "requirements", "benefits"] }
+          ],
+          "notes": "Internal RPC/GraphQL API. Anti-bot protection. Needs session cookies."
+        },
+        {
+          "id": "jobs-03",
+          "domain": "glassdoor.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search jobs", "endpoint_hint": "/graph", "expected_fields": ["title", "company", "location", "salary_estimate", "rating"] },
+            { "intent": "get company reviews", "endpoint_hint": "/graph", "expected_fields": ["title", "rating", "pros", "cons", "date", "role"] },
+            { "intent": "get salary data", "endpoint_hint": "/graph", "expected_fields": ["job_title", "base_pay", "total_pay", "company"] }
+          ],
+          "notes": "GraphQL at /graph. Heavy anti-bot (Akamai). Requires session setup."
+        },
+        {
+          "id": "jobs-04",
+          "domain": "levels.fyi",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get salary data", "endpoint_hint": "/api/v1/salaries", "expected_fields": ["company", "title", "level", "base", "stock", "bonus", "total_comp"] },
+            { "intent": "search companies", "endpoint_hint": "/api/v1/companies?search={query}", "expected_fields": ["name", "logo", "avg_comp"] }
+          ],
+          "notes": "Clean internal API. JSON responses. Popular for tech salary research."
+        },
+        {
+          "id": "jobs-05",
+          "domain": "wellfound.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search startup jobs", "endpoint_hint": "/graphql", "expected_fields": ["title", "company", "salary_range", "equity", "remote"] },
+            { "intent": "get company profile", "endpoint_hint": "/graphql", "expected_fields": ["name", "description", "funding", "team_size", "industry"] }
+          ],
+          "notes": "Formerly AngelList Talent. GraphQL API. Startup-focused job data."
+        },
+        {
+          "id": "jobs-06",
+          "domain": "ziprecruiter.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search jobs", "endpoint_hint": "/api/search", "expected_fields": ["title", "company", "location", "salary", "snippet"] }
+          ],
+          "notes": "Internal search API. Anti-bot protection. Rate-limited."
+        },
+        {
+          "id": "jobs-07",
+          "domain": "remoteok.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get remote jobs", "endpoint_hint": "/api", "expected_fields": ["position", "company", "salary_min", "salary_max", "tags", "location"] }
+          ],
+          "notes": "Public JSON API. Single endpoint returns all jobs. Very easy target."
+        },
+        {
+          "id": "jobs-08",
+          "domain": "builtin.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search tech jobs", "endpoint_hint": "/api/jobs?search={query}", "expected_fields": ["title", "company", "location", "salary", "remote"] },
+            { "intent": "get company profile", "endpoint_hint": "/api/companies/{slug}", "expected_fields": ["name", "description", "size", "industry", "perks"] }
+          ],
+          "notes": "Internal API. Tech-focused job board. Next.js SPA."
+        },
+        {
+          "id": "jobs-09",
+          "domain": "dice.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search tech jobs", "endpoint_hint": "/jobs/q-{query}-jobs", "expected_fields": ["title", "company", "location", "date", "skills"] }
+          ],
+          "notes": "Tech job board. Mix of internal API and SSR. Some anti-bot."
+        },
+        {
+          "id": "jobs-10",
+          "domain": "simplyhired.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search jobs", "endpoint_hint": "/api/jobs?q={query}&l={location}", "expected_fields": ["title", "company", "location", "salary_estimate", "date"] }
+          ],
+          "notes": "Internal search API. Simpler than Indeed/Glassdoor. Less anti-bot."
+        }
+      ]
+    },
+    {
+      "name": "Real Estate & Classifieds",
+      "targets": [
+        {
+          "id": "re-01",
+          "domain": "zillow.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search homes", "endpoint_hint": "/async-create-search-page-state", "expected_fields": ["address", "price", "bedrooms", "bathrooms", "sqft", "zpid"] },
+            { "intent": "get property details", "endpoint_hint": "/graphql", "expected_fields": ["address", "price", "zestimate", "bedrooms", "bathrooms", "sqft", "year_built", "tax_history"] }
+          ],
+          "notes": "Mix of REST and GraphQL. Heavy anti-bot (Incapsula). Complex encoded search params. One of the most-scraped sites."
+        },
+        {
+          "id": "re-02",
+          "domain": "redfin.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search homes", "endpoint_hint": "/stingray/api/gis?al=1&*", "expected_fields": ["address", "price", "beds", "baths", "sqft", "url"] },
+            { "intent": "get property details", "endpoint_hint": "/stingray/api/home/details/belowTheFold", "expected_fields": ["address", "price", "description", "features", "tax_info"] }
+          ],
+          "notes": "Stingray API. Returns JSON with '}&&{' prefix (security wrapper). Need to strip prefix."
+        },
+        {
+          "id": "re-03",
+          "domain": "realtor.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search homes", "endpoint_hint": "/api/v1/hulk?*", "expected_fields": ["address", "price", "beds", "baths", "sqft", "photo"] },
+            { "intent": "get property details", "endpoint_hint": "/api/v1/hulk_main_slice?*", "expected_fields": ["address", "price", "description", "features", "schools"] }
+          ],
+          "notes": "Hulk API. Internal JSON endpoints. Anti-bot protection."
+        },
+        {
+          "id": "re-04",
+          "domain": "apartments.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search apartments", "endpoint_hint": "/services/search/", "expected_fields": ["name", "address", "rent_range", "beds", "baths", "amenities"] }
+          ],
+          "notes": "Internal search API. CoStar-owned. Returns JSON."
+        },
+        {
+          "id": "re-05",
+          "domain": "craigslist.org",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search listings", "endpoint_hint": "/search/{city}/{category}?query={query}", "expected_fields": ["title", "price", "location", "date", "url"] },
+            { "intent": "get listing details", "endpoint_hint": "/{city}/{category}/{id}.html", "expected_fields": ["title", "description", "price", "location", "images"] }
+          ],
+          "notes": "Pure HTML, no JavaScript APIs. Classic DOM extraction target. Very stable structure."
+        },
+        {
+          "id": "re-06",
+          "domain": "trulia.com",
+          "auth_required": false,
+          "api_type": "GraphQL",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search homes", "endpoint_hint": "/graphql", "expected_fields": ["address", "price", "beds", "baths", "sqft", "photos"] }
+          ],
+          "notes": "Zillow-owned. GraphQL API. Similar patterns to Zillow but slightly simpler."
+        },
+        {
+          "id": "re-07",
+          "domain": "facebook.com/marketplace",
+          "auth_required": true,
+          "api_type": "GraphQL",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search marketplace listings", "endpoint_hint": "/api/graphql/", "expected_fields": ["title", "price", "location", "condition", "seller", "image"] }
+          ],
+          "notes": "Facebook's GraphQL API. Heavy auth. Doc ID-based queries. Very complex."
+        },
+        {
+          "id": "re-08",
+          "domain": "compass.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search homes", "endpoint_hint": "/api/v2/search", "expected_fields": ["address", "price", "beds", "baths", "sqft", "agent"] }
+          ],
+          "notes": "Internal REST API. Clean JSON. Moderate anti-bot."
+        },
+        {
+          "id": "re-09",
+          "domain": "hotpads.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search rentals", "endpoint_hint": "/api/v2/listings/search", "expected_fields": ["address", "price", "beds", "baths", "type", "photos"] }
+          ],
+          "notes": "Zillow-owned rental platform. Internal API. Simpler than Zillow."
+        },
+        {
+          "id": "re-10",
+          "domain": "offerup.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search items", "endpoint_hint": "/api/search/v4/", "expected_fields": ["title", "price", "condition", "location", "photos", "seller"] },
+            { "intent": "get item details", "endpoint_hint": "/api/listing/v2/{id}", "expected_fields": ["title", "description", "price", "condition", "seller", "photos"] }
+          ],
+          "notes": "Internal REST API. Local marketplace / classifieds. Clean JSON."
+        }
+      ]
+    },
+    {
+      "name": "Reference & Data",
+      "targets": [
+        {
+          "id": "ref-01",
+          "domain": "wikipedia.org",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search articles", "endpoint_hint": "/w/api.php?action=opensearch&search={query}", "expected_fields": ["title", "description", "url"] },
+            { "intent": "get article summary", "endpoint_hint": "/api/rest_v1/page/summary/{title}", "expected_fields": ["title", "extract", "thumbnail", "description"] }
+          ],
+          "notes": "Public API. Clean JSON. Multiple API versions available. Very easy target."
+        },
+        {
+          "id": "ref-02",
+          "domain": "weather.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "get weather forecast", "endpoint_hint": "/api/v1/map/dynamic", "expected_fields": ["temperature", "humidity", "wind_speed", "description", "forecast"] },
+            { "intent": "get current conditions", "endpoint_hint": "/api/v3/aggcommon/v3-wx-observations-current", "expected_fields": ["temperature", "humidity", "windSpeed", "uvIndex", "condition"] }
+          ],
+          "notes": "Internal Sun API. Requires API key from page JS. IBM-owned."
+        },
+        {
+          "id": "ref-03",
+          "domain": "google.com/search",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search web", "endpoint_hint": "/search?q={query}", "expected_fields": ["title", "url", "snippet", "position"] },
+            { "intent": "get knowledge panel", "endpoint_hint": "/search?q={query}", "expected_fields": ["title", "description", "facts", "image"] }
+          ],
+          "notes": "The holy grail of scraping targets. Heavy anti-bot. Mostly DOM. Some internal JSON in script tags. CAPTCHA-heavy."
+        },
+        {
+          "id": "ref-04",
+          "domain": "bing.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "medium",
+          "functionalities": [
+            { "intent": "search web", "endpoint_hint": "/search?q={query}", "expected_fields": ["title", "url", "snippet", "position"] }
+          ],
+          "notes": "DOM-based results. Less anti-bot than Google. Some JSON in page state."
+        },
+        {
+          "id": "ref-05",
+          "domain": "archive.org",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search items", "endpoint_hint": "/advancedsearch.php?q={query}&output=json", "expected_fields": ["identifier", "title", "creator", "date", "mediatype"] },
+            { "intent": "get item metadata", "endpoint_hint": "/metadata/{identifier}", "expected_fields": ["title", "creator", "description", "date", "files"] }
+          ],
+          "notes": "Public API. Clean JSON. Very easy target."
+        },
+        {
+          "id": "ref-06",
+          "domain": "wolframalpha.com",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "compute answer", "endpoint_hint": "/input/json.jsp?input={query}", "expected_fields": ["pods", "title", "plaintext", "img"] }
+          ],
+          "notes": "Internal JSON API. Complex response format with pods. Requires session setup."
+        },
+        {
+          "id": "ref-07",
+          "domain": "wiktionary.org",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get word definition", "endpoint_hint": "/api/rest_v1/page/definition/{word}", "expected_fields": ["definitions", "partOfSpeech", "examples"] }
+          ],
+          "notes": "Same MediaWiki API as Wikipedia. Clean JSON. Easy target."
+        },
+        {
+          "id": "ref-08",
+          "domain": "scholar.google.com",
+          "auth_required": false,
+          "api_type": "DOM-only",
+          "difficulty": "hard",
+          "functionalities": [
+            { "intent": "search papers", "endpoint_hint": "/scholar?q={query}", "expected_fields": ["title", "authors", "year", "citations", "url", "snippet"] }
+          ],
+          "notes": "HTML-only. Very aggressive anti-bot / CAPTCHA. High-value target for researchers."
+        },
+        {
+          "id": "ref-09",
+          "domain": "semanticscholar.org",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "search papers", "endpoint_hint": "/graph/v1/paper/search?query={query}", "expected_fields": ["title", "authors", "year", "citationCount", "abstract"] },
+            { "intent": "get paper details", "endpoint_hint": "/graph/v1/paper/{paperId}", "expected_fields": ["title", "abstract", "authors", "references", "citations"] }
+          ],
+          "notes": "Public API at api.semanticscholar.org. Clean REST JSON. Great alternative to Google Scholar."
+        },
+        {
+          "id": "ref-10",
+          "domain": "openweathermap.org",
+          "auth_required": false,
+          "api_type": "REST-JSON",
+          "difficulty": "easy",
+          "functionalities": [
+            { "intent": "get weather", "endpoint_hint": "/data/2.5/weather?q={city}", "expected_fields": ["temp", "humidity", "wind_speed", "description", "icon"] },
+            { "intent": "get forecast", "endpoint_hint": "/data/2.5/forecast?q={city}", "expected_fields": ["dt", "temp", "description", "humidity", "wind_speed"] }
+          ],
+          "notes": "Public API. Requires appid key but free tier available. Clean JSON."
+        }
+      ]
+    }
+  ]
+}

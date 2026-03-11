@@ -1,5 +1,5 @@
 {
-  "name": "unbrowse",
+  "name": "unbrowse-monorepo",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -9,11 +9,23 @@
   "scripts": {
     "prepare": "husky",
     "test": "bun test tests/path-params.test.ts tests/utils.test.ts evals/quality-gate.test.ts",
+    "test:cli": "bun test tests/cli-e2e.test.ts",
     "test:backend": "bun test backend/tests/",
     "test:all": "bun test tests/ evals/quality-gate.test.ts backend/tests/",
-    "eval": "bun evals/perf.ts",
-    "eval:full": "bun evals/perf.ts --full",
-    "eval:update": "bun evals/perf.ts --update-baseline",
+    "precommit": "bash scripts/precommit.sh",
+    "precommit:full": "bash scripts/precommit-full.sh",
+    "eval:codex": "bun -e 'import { runHarnessCli } from \"./evals/codex-harness.js\"; await runHarnessCli()' --",
+    "eval:codex:product-success": "UNBROWSE_FORCE_CAPTURE=0 bun -e 'import { runHarnessCli } from \"./evals/codex-harness.js\"; await runHarnessCli()' -- --cases evals/codex-cases.product-success.json",
+    "eval:codex:stress": "UNBROWSE_FORCE_CAPTURE=0 bun -e 'import { runHarnessCli } from \"./evals/codex-harness.js\"; await runHarnessCli()' -- --cases evals/codex-cases.stress.json",
+    "eval:codex:public": "bun run eval:codex:product-success",
+    "eval:codex:agent-targets": "bun run eval:codex:stress",
+    "preset:prod": "bun scripts/profile.ts use prod",
+    "preset:testing": "bun scripts/profile.ts use testing",
+    "preset:show": "bun scripts/profile.ts show",
+    "preset:clear": "bun scripts/profile.ts clear",
+    "sync:skill-md": "bun scripts/sync-skill-md.ts",
+    "check:skill-md": "bun scripts/sync-skill-md.ts --check",
+    "release:announce": "bun scripts/release-announce.ts",
     "cli": "bun src/cli.ts",
     "release": "release-it"
   },
@@ -32,5 +44,5 @@
     "husky": "^9.1.7",
     "release-it": "^19.2.4"
   },
-  "version": "1.1.0"
+  "version": "1.1.2"
 }

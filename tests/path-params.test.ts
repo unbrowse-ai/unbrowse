@@ -8,7 +8,7 @@ function makeReq(method: string, url: string, responseBody?: string): RawRequest
     method,
     request_headers: { "accept": "application/json", "user-agent": "test" },
     response_headers: { "content-type": "application/json" },
-    response_body: responseBody ?? JSON.stringify({ ok: true }),
+    response_body: responseBody ?? JSON.stringify({ ok: true, data: { id: 1, name: "test", value: 42 } }),
     status: 200,
   } as RawRequest;
 }
@@ -132,5 +132,18 @@ describe("path parameterization (BUG-006)", () => {
 
     // "report.json" has a dot — should NOT be parameterized
     expect(ep.url_template).toContain("report.json");
+  });
+
+  it("preserves self sentinel segments like @me", () => {
+    const reqs = [makeReq("GET", "https://discord.com/api/v9/users/@me/guilds")];
+    const context: ExtractionContext = {
+      pageUrl: "https://discord.com/channels/@me",
+    };
+    const endpoints = extractEndpoints(reqs, undefined, context);
+
+    expect(endpoints.length).toBe(1);
+    const ep = endpoints[0];
+    expect(ep.url_template).toContain("/users/@me/guilds");
+    expect(ep.path_params).toBeUndefined();
   });
 });

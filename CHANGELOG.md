@@ -1,5 +1,89 @@
 # Changelog
 
+## Unreleased
+
+### Authentication
+
+- Added custom Chromium-family cookie import for `/v1/auth/steal`, including explicit browser selection plus optional user-data dir, cookie DB path, and macOS Safe Storage service overrides so Electron-style app sessions can be reused without re-login when their cookie store is local.
+- Broken `keytar` native-binding shims from the Bun-built npm bundle now demote cleanly to the encrypted file vault at runtime, so `resolve`/auth reads no longer crash under Node 25 when the optional native module is present but unusable.
+
+### Setup & onboarding
+
+- Added a skill README callout asking users to post sites/APIs they could not get working in GitHub Discussion #53 so those failures can become explicit requirements in the next eval cycle.
+- Added `unbrowse setup` as the one-command bootstrap for npm/npx installs. It checks prerequisites, installs browser assets, registers Open Code's `/unbrowse` command, and can skip server start with `--no-start`.
+- `unbrowse setup` now asks for an email-style agent identity up front and `UNBROWSE_AGENT_EMAIL` can preseed the same display identity in headless setups, while opaque backend agent ids stay unchanged.
+- Added the repository's Star History chart to the synced skill README so marketplace installs keep the same social proof/docs surface as the main repo.
+- Switched public onboarding to the npm-backed `unbrowse` CLI, with `npx unbrowse` for zero-install trials and `npm install -g unbrowse` for repeat use.
+- Removed runtime skill self-update. npm/npx is now the code update path, while `SKILL.md` stays repo-managed and is checked during pack/release flows.
+- Every CLI command now auto-starts the local server using package-relative bootstrap paths, pid tracking, and local log files.
+- Shrunk the npm tarball to the runnable CLI/runtime only, dropping skill metadata and other non-runtime publish clutter while keeping the local server boot path intact.
+- Browser installation now runs through the bundled `agent-browser` dependency instead of shelling out through `npx`, making fresh installs more reliable.
+- Added skill-level installer metadata plus a standalone OpenClaw plugin for hosts that want a native Unbrowse-first integration.
+- Release CI now validates the npm tarball on every main/PR build, publishes `packages/skill` to npm on release tags, and refuses canonical releases when npm or skill-sync secrets are missing.
+
+### Agent behavior & demo UX
+
+- Tightened the skill and Open Code command prompts so agents stay on Unbrowse instead of drifting into Brave Search, ad hoc `curl`, or other fallback web tools unless the user explicitly allows it.
+- Cut the pre-commit hook down to fast staged-file checks only; the old server boot plus eval sweep now lives behind `bun run precommit:full` instead of blocking every commit.
+- Added CLI progress notices during slow first-time capture/indexing so demos read as "working" instead of "hung."
+- Preserve structured LinkedIn feed results in the CLI instead of wrapping them with stale raw extraction hints from the pre-projection payload.
+- Added `bun run release:announce` to turn release notes or the unreleased changelog into a short announcement summary and X-ready post draft.
+- Release hooks now also write `.release-announcement.md` and `.release-announcement.json` during `bun run release`.
+- Added generator/resolve debug traces in `traces/` for testing mode so capture admission, ranking, and auto-exec failures are easier to inspect.
+
+### Retrieval accuracy & reliability
+
+- Prefer same-trigger structured timeline/search APIs over captured page artifacts for post-search intents, so X search resolves to `SearchTimeline`-style endpoints before page-shell artifacts.
+- Added more public structured replay rewrites for DEV tag pages, pub.dev package pages, RubyGems gem pages, Stack Overflow tag pages, and Jmail search pages, so those routes resolve through stable APIs instead of slow browser capture.
+- Added a public document-fetch fast path before browser capture, letting server-rendered public pages seed reusable page-artifact skills without paying browser startup cost when plain HTML extraction already passes intent/quality checks.
+- Normalized bracketed/indexed HTML query params like `filters[0][value]` into stable agent bindings (for example `filters_0_value`) across capture, page-artifact templating, DAG bindings, and execution-time param merging.
+- Stopped public resolve/execute paths from auto-scraping browser cookies on vault misses; public replayable sites now stay on fast unauthenticated fetch paths, while browser auth refresh remains reserved for explicitly auth-backed endpoints.
+- Added canonical public replay rewrites for GitHub repository search and MDN docs search so those task URLs can resolve through fast server fetch instead of falling through to slow browser capture in the product-success eval lane.
+- Tightened the generic support gate so bundle-inferred ghost routes no longer count as a successful site capture by themselves, public no-data captures stop defaulting to misleading auth hints, and generic intent judging now rejects weak DOM junk for questions/definitions/posts while recognizing docs/recipes/courses.
+- Fixed canonical structured replay learning to keep the public API URL as the learned endpoint instead of collapsing back onto the source page URL, so Hacker News / Hugging Face style public sites stop reusing stale DOM artifacts when a replayable JSON endpoint exists.
+- Stopped canonical replay endpoints from inheriting duplicate source-page query params during execution, and ranked replay endpoints above sibling DOM artifacts, so public API-backed searches auto-execute the real JSON route instead of 400ing on extra params or reporting stale page-artifact metadata.
+- Canonical structured replay learning now keeps generic query templates for public search pages and materializes blank search roots into replayable API templates, so the agent path can populate `--params` inputs instead of depending on whatever query happened to be in the original page URL.
+- Graph planning now treats DOM/HTML form pages as first-class provider nodes by inferring dropdown/filter bindings from extracted option fields, so dependency walks can model page -> selected form value -> downstream API chains instead of assuming every dependency comes from JSON endpoints.
+- Normalized Hacker News DOM rows and Jmail public email search rows into judged story/email records so niche public canaries no longer fail just because the page fallback used site-shaped field names.
+- Replaced generic reverse-engineered endpoint descriptions with semantic descriptions derived from the actual route/schema, added Discord guild probes for server intents, and demoted referral/promotion/billing/page-shell noise so server/channel intents stop ranking meta endpoints above real guild APIs.
+- Hardened Reddit retrieval with canonical `.json` normalization, browser-like replay headers, queue bypass for known structured routes, and `old.reddit.com` fallback candidates.
+- Improved concrete entity-detail retrieval so LinkedIn, profile, and company URLs prefer observed APIs over page-shell artifacts, sidebar noise, and stale browser routes.
+- Materialize more public eval roots into concrete public pages for GitLab, npm, PyPI, Docker Hub, and Pinterest so auth-free captures start from real search/detail surfaces instead of barren homepages.
+- Added canonical public replay rewrites and intent normalization for Mastodon, GitLab, npm, PyPI, and Docker Hub so public package/image/project pages resolve against real JSON APIs and package/tag payloads judge correctly.
+- Drop PyPI search and Mastodon timeline/search from the public no-auth eval materialization when the live site now serves a client challenge, auth wall, or empty public post results instead of real public data.
+- Eject stale warm-cache and captured-cache entries when endpoint ids 404, degrade semantically, or fail auto-exec, allowing resolve to recover through fresh ranking and capture.
+- Drop empty or unreplayable learned skills before publish/reuse and skip empty endpoint drafts centrally so dead capture branches stop polluting the marketplace.
+- Ignore bundle-inferred settings/login/webauthn routes during public root captures and stop crashing when a live capture only learns unusable endpoints.
+- Preserve `{placeholder}` query templates when merging captured/default query params so context-derived and CLI-provided inputs actually interpolate into GET executions.
+- Added regression coverage for captured request-body learning plus CLI `--params` payload ingress on both resolve and execute paths.
+- Prefer more specific DOM replay selectors for generic people-card captures, and keep non-API same-page replays from inheriting the new browser-like structured replay headers.
+- Retry browser capture once with a fresh ephemeral profile when a persistent profile collapses its page/context, reducing public CLI flake on GitHub-style captures.
+- Prefer structured document replay or server fetch when a canonical data URL or observed API exists, instead of getting trapped on stale browser strategies.
+- Scope route-cache reuse to the concrete task URL and client id so warm retrieval replays the same good path instead of drifting across tasks or callers.
+- Tightened skill-generation gates so only parsed JSON/HTML responses with intent-matching semantics become reusable endpoints.
+- Improved route ranking and auto-exec by preferring immediately executable endpoints, inferring templated params from the request URL, and demoting page-shell routes when a real internal API exists.
+- Improved GitHub, Mastodon, X, and other high-traffic domains by ranking repo/search/trending endpoints higher when the page context and query params match.
+- Replay DOM extraction from a rendered browser page when needed and unwrap extracted payloads before intent projection.
+- Restored LinkedIn feed support after the CLI/server wrap by splitting camelCase query ids during semantic admission and ranking, so `voyagerFeedDashMainFeed` beats profile/news noise again; also restored local `unbrowse sessions` output instead of proxying that debug command to the backend.
+
+### Evals, testing, and infra
+
+- Removed the old overlapping eval entrypoints and consolidated interactive agent validation around the Codex harness so local debugging and `precommit:full` have one canonical product-path eval flow.
+- Eval harness now shuts down its locally booted server on exit, reducing sticky long-tail runs between repeated stress passes.
+- Added a Codex-facing CLI harness for one-off or file-backed cases. It runs the real `resolve`/`execute` path, records local verdicts plus execution evidence, and writes a local artifact for Codex to inspect during interactive debugging.
+- Added a canonical public no-auth Codex suite covering popular, replay-friendly targets (GitHub, npm, PyPI, GitLab, Docker Hub) so there is always a stable baseline to run without local browser auth.
+- Added param-seeded public cases plus graph/DAG selection and dependency-walk summaries directly into the canonical Codex harness artifact, so the single eval path now covers query population and multi-step pipeline traversal in the same run.
+- Added fixture-backed HTML form DAG coverage and deduped repeated dependency edges, so graph artifacts stay readable when the same binding appears in both query and template form.
+- Expanded the stable public suite with Reddit and added a broader benchmark-inspired agent-target suite covering popular public sites agents hit in WebVoyager/WebArena-style tasks, plus niche public targets like Hacker News search and Jmail search.
+- Expanded the broader agent-target suite again with long-tail public sites agents commonly touch for docs, Q&A, package lookup, and dev communities: Stack Overflow, MDN, DEV, crates.io, RubyGems, pub.dev, and Lobsters.
+- Removed the external model ordering/judging path from the Codex harness. It is now collector-only, and the canonical eval flow is agent-in-thread review of the recorded artifact.
+- Serialized judge requests and same-domain live captures to reduce timeout noise and self-conflicts in strict real-world benchmarks.
+- Made judged evals stricter and closer to the real CLI path: execute deferred endpoints after resolve, retry on HTML/empty/wrong-entity payloads, normalize judge outputs, and score raw CLI payloads directly.
+- Preserved `NEBIUS_API_KEY` across runtime preset switches and added file-backed `prod` / isolated `testing` presets to avoid env drift.
+- Expanded CLI/e2e and graph-v2 coverage with auth-aware runs, dependency-aware endpoint fixtures, and local harnesses for endpoint selection testing.
+- Queue agent telemetry writes so execution and feedback stats stop dropping under concurrent load.
+- Fixed release version bumping so the root `package.json` stays in sync with `packages/skill/package.json` and `version.json`.
+
 ## [1.0.0] — 2025-01-01
 
 ## fix: bundle-inferred endpoints now capture query param names from JS source
@@ -183,6 +267,7 @@ Future executions auto-return clean, structured output — for all users via the
 ## fix: speed, coverage, and accuracy overhaul (bird-style parity)
 
 ### Speed: 20s→2s (trigger-intercept), 120s→100ms (server-fetch)
+
 - **trigger-intercept: domcontentloaded not networkidle**: The page.goto was waiting
   for ALL network activity to settle (networkidle). SPAs like LinkedIn never fully
   idle. Now uses domcontentloaded — the intercept promise resolves as soon as the
@@ -212,6 +297,7 @@ Future executions auto-return clean, structured output — for all users via the
   instead of serial loop.
 
 ### Coverage: SPA intent-aware API wait
+
 - **Phase 4 in waitForContentReady**: After networkidle, extract a route hint from
   the capture URL (e.g., "bookmark" from /i/bookmarks) and wait up to 5s for a
   matching API response. Catches SPA lazy-loaded APIs like Twitter's Bookmarks
@@ -220,6 +306,7 @@ Future executions auto-return clean, structured output — for all users via the
   request tracking are now synthesized as RawRequests so they reach extractEndpoints.
 
 ### Accuracy: Better endpoint ranking
+
 - **CamelCase tokenization**: GraphQL operation names like `BookmarkFoldersSlice` are
   now split into `["Bookmark", "Folders", "Slice"]` for BM25 matching. Previously the
   entire name was one token, never matching intent words.
@@ -236,6 +323,7 @@ Future executions auto-return clean, structured output — for all users via the
   of sanitizeHeaders — all headers that would be stripped from the skill manifest.
 
 ### Stale skill prevention
+
 - **Reuse existing skill_id**: Re-captures find the existing cached skill for
   the same domain and reuse its skill_id. Preserves learned exec_strategy across
   re-captures and server restarts.
@@ -243,12 +331,14 @@ Future executions auto-return clean, structured output — for all users via the
   to matching new endpoints by URL template on re-capture.
 
 ### Execution strategy fixes
+
 - **Removed domain strategy cache**: One 400 on LinkedIn was locking ALL endpoints
   into trigger-intercept. Strategy is now per-endpoint only.
 - **Always try server-fetch first** for new endpoints before falling back.
 - **Marketplace race timeout 15s→30s**: Trigger-intercept takes 20s on authed sites.
 
 ### Bug fix: Remove persistent profile from captureSession
+
 - captureSession no longer tries to launch headed Playwright with a persistent
   profile directory. Eliminates SingletonLock crashes. Always uses ephemeral
   headless browsers with bird-style cookie injection.
@@ -259,6 +349,7 @@ After capturing a site, unbrowse would return "Discovered N endpoints, pick one"
 instead of executing the best match. Three root causes fixed:
 
 ### `src/reverse-engineer/index.ts` — smarter endpoint collapsing
+
 `collapseEndpoints` was too aggressive — it merged distinct API actions
 (e.g. `/relationships/connectionsSummary` + `/invitationsSummary`) into
 `/relationships/{relationship}`. Added `looksLikeEntityId()` guard that only
@@ -266,6 +357,7 @@ allows collapsing when leaf segments look like entity IDs (UUIDs, numbers,
 tickers), not camelCase action names or REST resource words.
 
 ### `src/execution/index.ts` — expanded BM25 synonyms + camelCase tokenization + stemmer fix
+
 - Added synonym groups for social/content domains: feed, post, comment, message,
   notification, connection, profile, recommend, news, dashboard.
 - `endpointToTokens` now splits long query param values on camelCase boundaries,
@@ -274,12 +366,15 @@ tickers), not camelCase action names or REST resource words.
   synonym expansion for words ending in -ses, -ges, -ces, -zes.
 
 ### `src/orchestrator/index.ts` — auto-execute on confident ranking
+
 Instead of always deferring, the orchestrator now auto-executes when:
+
 - Top endpoint scores >= 30 (strong BM25 match)
 - Top endpoint has a response_schema (confirmed JSON data)
 - Score gap >= 5 over runner-up (clear winner)
 
 ### `src/capture/index.ts` — queryId-aware trigger-and-intercept
+
 For graphql endpoints, the intercept now matches on the queryId name prefix
 (e.g. `voyagerFeedDashMainFeed`) instead of just the base path (`/graphql`),
 preventing it from intercepting the wrong graphql response.
@@ -294,11 +389,13 @@ Inspired by [bird](https://github.com/jawond/bird) which reads cookies fresh
 from browser SQLite every time for zero-staleness auth.
 
 ### `src/domain.ts` — fix bidirectional domain matching
+
 `isDomainMatch` had `c.endsWith("." + t)` which allowed `notgoogle.com` to match
 `google.com`. Removed — now only matches when target equals or is a subdomain of
 cookie domain.
 
 ### `src/auth/index.ts` — bird-style cookie resolution
+
 - **`getAuthCookies(domain)`**: new unified resolver with fallback chain:
   vault cookies (fast) → auto-extract from Chrome/Firefox SQLite (fresh).
   No more manual `/v1/auth/steal` calls needed.
@@ -310,6 +407,7 @@ cookie domain.
   `auth:api.example.com`) with backward-compat fallback.
 
 ### `src/execution/index.ts` — CSRF replay + auto-refresh
+
 - CSRF token auto-detection: scans cookies for `ct0`, `csrf_token`, `_csrf`,
   `XSRF-TOKEN`, `csrftoken` and sends as `x-csrf-token` header automatically.
 - On 401/403: tries `refreshAuthFromBrowser()` before deleting credentials.
@@ -318,11 +416,13 @@ cookie domain.
   (bird-style auto-extract) instead of manual vault lookups.
 
 ### `src/auth/browser-cookies.ts` — subdomain cookie extraction
+
 `buildDomainWhereClause` only matched exact domain variants (`.linkedin.com`)
 but missed subdomain-scoped cookies (`.www.linkedin.com` where `li_at` lives).
 Added LIKE clause to match all subdomains, fixing LinkedIn/similar sites.
 
 ### `src/capture/index.ts` — trigger-and-intercept execution
+
 New `triggerAndIntercept()` function: navigate to the page that originally
 triggered an API call, let the site's own JS make the request (passing CSRF,
 TLS fingerprinting, session validation), and intercept the response. This is
@@ -332,15 +432,18 @@ let the site's code handle auth and just capture the result.
 Also: cookie injection logging, CSRF auto-detection in browser execution.
 
 ### `src/execution/index.ts` — 3-tier authed execution fallback
+
 1. Server fetch (bird pattern — fast, works for Twitter/simple APIs)
 2. Trigger-and-intercept (navigate page, intercept API call — works for LinkedIn)
 3. Browser in-page fetch (last resort)
 
 ### `src/reverse-engineer/index.ts` — record trigger_url
+
 Each endpoint now stores `trigger_url` — the page URL that triggered the API
 call during capture. Used by trigger-and-intercept execution.
 
 ### `src/types/skill.ts` — trigger_url field
+
 Added `trigger_url` to `EndpointDescriptor`.
 
 ## fix: skill not found after intent/resolve (cache-first publish)
@@ -351,22 +454,26 @@ cache was only written after a successful remote publish to `beta-api.unbrowse.a
 and EmergentDB's eventual consistency meant the backend hadn't indexed it yet.
 
 ### `src/marketplace/index.ts` — cache-first publish
+
 `publishSkill()` now writes to `~/.unbrowse/skill-cache/` **before** calling the
 remote backend. If the remote publish fails, the skill is still locally available
 and the function returns the pre-cached version instead of throwing.
 
 ### `src/api/routes.ts` — add local `GET /v1/skills/:skill_id` route
+
 Previously this fell through to the catch-all proxy which forwarded to the remote
 backend. Now there's a dedicated local route that checks the disk cache first via
 `getSkill()`, so recently published skills resolve immediately.
 
 ### `src/orchestrator/index.ts` — log publish errors
+
 Fire-and-forget `.catch(() => {})` calls now log the error message instead of
 silently swallowing failures.
 
 ## fix: stale skill auto-recovery + playwright auto-install
 
 ### `src/index.ts` + `scripts/setup.sh` — auto-install browser engine
+
 `agent-browser` depends on `playwright-core` for browser automation, but browser binaries
 are NOT bundled — users had to manually run `npx agent-browser install` after
 `bun install`, which was undocumented and broke first-run experience.
@@ -376,6 +483,7 @@ and auto-runs `npx agent-browser install` if missing. `setup.sh` also runs the i
 after dependency installation. Both fall back gracefully with a warning if the install fails.
 
 ### `src/api/routes.ts` — auto-recovery on stale 404
+
 When executing a marketplace skill via `POST /v1/skills/:id/execute`, if the remote endpoint
 returns HTTP 404 (stale/changed API), the handler now automatically falls through to
 `resolveAndExecute()` to re-capture the site and get fresh endpoints. The response includes
@@ -384,17 +492,20 @@ a `_recovery` field explaining what happened.
 Previously, agents received the raw 404 from the remote API with no context or recovery path.
 
 ### `src/execution/index.ts` — improved 404 error messages
+
 When an endpoint returns 404, the error message now explains that the endpoint may be stale
 and suggests re-running via `/v1/intent/resolve` to get fresh endpoints. Previously, the error
 was just `"HTTP 404"` with the raw remote response body forwarded verbatim.
 
 ### `SKILL.md` — browser setup documentation
+
 Added playwright chromium install step to the server startup section so users know the
 browser engine needs to be installed on first run.
 
 ## fix: sec-ch-ua headless leak + token savings baseline
 
 ### `src/capture/index.ts` — sec-ch-ua override
+
 Chromium 145+ auto-sets `sec-ch-ua: "HeadlessChrome";v="145"` independently of the spoofed `user-agent` string. LinkedIn, Google, and Cloudflare all read this header to detect headless browsers, causing them to return reduced/blocked responses.
 
 Fix: always call `browser.setExtraHeaders()` with the correct Client Hints headers for Chrome 131 before navigation, regardless of whether `authHeaders` are provided. Auth headers are merged on top so they still take precedence.
@@ -406,14 +517,15 @@ sec-ch-ua-platform: "macOS"
 ```
 
 ### `src/orchestrator/index.ts` — token savings baseline
+
 `discovery_cost.capture_tokens` was being stamped with `ceil(deferralMessage.length / 4) ≈ 18 tokens` (the size of the tiny agent-first deferral JSON) instead of `DEFAULT_CAPTURE_TOKENS = 30_000`. This caused every subsequent marketplace cache hit to compute `tokens_saved = max(0, 18 - responseTokens) = 0`, making `total_tokens_saved` and `avg_tokens_saved_pct` always 0 in the platform stats.
 
 Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which correctly represents the LLM-browsing cost a downstream agent would incur doing this manually.
 
-
 ## fix: graceful browser shutdown + orphan cleanup (fixes #4)
 
 ### `src/capture/index.ts`
+
 - **Browser registry**: `activeBrowserRegistry: Set<BrowserManager>` tracks every live browser instance. Registered on creation, removed in `releaseBrowserSlot()`.
 - **`shutdownAllBrowsers()`** exported — calls `browser.close()` on all active instances in parallel via `Promise.allSettled`. Used by shutdown handlers in `src/index.ts`.
 - **Per-capture hard timeout** (`CAPTURE_TIMEOUT_MS = 90_000`): each `captureSession()` race includes a 90-second wall-clock kill. If triggered, `browser.close()` is called before throwing a timeout error, freeing the slot and the process.
@@ -421,13 +533,14 @@ Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which
 - `executeInBrowser()` updated with the same registry pattern.
 
 ### `src/index.ts`
+
 - **Startup orphan cleanup**: `pkill -f chrome-headless-shell` runs before `app.listen()` to kill leftover browser processes from previous crashed sessions.
 - **`SIGTERM` / `SIGINT` handlers**: call `shutdownAllBrowsers()` then `app.close()` before exiting — ensures in-flight captures close cleanly on Ctrl-C or container stop.
-
 
 ## URN path segment parameterization
 
 ### `normalizeUrl()` now detects URN identifiers (`src/reverse-engineer/index.ts`)
+
 - **URN pattern**: Path segments like `urn:li:fsd_profile:ACoAAB3fei4B...` are now replaced with `/{urn}` during URL normalization, just like UUIDs and numeric IDs.
 - **`templatizePathSegments()`** handles the new `{urn}` placeholder — captures the original URN as a default value and renames the param based on the preceding path segment.
 - Fixes skills for LinkedIn (and other URN-based APIs) hardcoding specific profile/entity URNs instead of parameterizing them.
@@ -435,70 +548,84 @@ Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which
 ## Real discovery cost tracking + token savings in traces
 
 ### Discovery cost on skills (`src/types/skill.ts`, `backend/src/types.ts`)
+
 - **`DiscoveryCost` interface**: New optional `discovery_cost` field on `SkillManifest` records `capture_ms`, `capture_tokens`, `response_bytes`, and `captured_at` from the original live capture.
 - **Stamped during live capture** (`src/orchestrator/index.ts`): After a browser capture discovers a skill, the actual capture time and token cost are measured and attached to the skill before publishing. Future marketplace cache hits use these real baselines instead of hardcoded estimates (22s / 30K tokens).
 
 ### Token fields in ExecutionTrace (`src/types/skill.ts`, `backend/src/types.ts`)
+
 - **`tokens_used`**: Estimated tokens consumed by the response.
 - **`tokens_saved`**: Tokens saved vs original capture cost (0 for live captures).
 - **`tokens_saved_pct`**: Percentage tokens saved vs original capture cost.
 - These fields are stamped by the orchestrator and persist in trace files (`traces/*.json`) and backend reporting.
 
 ### Real baselines in finalize (`src/orchestrator/index.ts`)
+
 - **`finalize()` reads `skill.discovery_cost`** when computing token/time savings. Falls back to the old hardcoded estimates (30K tokens, 22s) only for legacy skills without `discovery_cost`.
 - **Console log indicates baseline source**: `[real baseline]` vs `[estimated]` so you can tell at a glance which skills have been re-measured.
 
 ## Agent-first endpoint selection + ad schema filtering
 
 ### Always defer to agent on fresh captures (`src/orchestrator/index.ts`)
+
 - **Removed BM25 ambiguity heuristic**: The old logic auto-executed when the top endpoint had a score lead, which often picked wrong (ad endpoints, tracking, config blobs). Now fresh captures always return the endpoint list and let the calling LLM agent choose.
 - **Agent-specified endpoint_id still auto-executes**: When the agent has already picked an endpoint, it executes directly without deferral.
 
 ### Schema-based ad endpoint filtering (`src/reverse-engineer/index.ts`)
+
 - **`looksLikeAdResponse()`**: Detects ad/tracking endpoints by response body vocabulary (campaignId, creativeId, creativeContent, etc.) regardless of hostname. Prevents junk skills from being published.
 - **`facet-futures.` added to AD_HOSTS**: Blocks the betting/odds ad network that Dotabuff uses.
 
 ### Always surface available_endpoints (`src/api/routes.ts`)
+
 - **Removed `length > 1` gate**: `available_endpoints` is now returned even when only 1 endpoint exists, so the agent always sees what was discovered.
 
 ## LLM-driven endpoint selection — expose endpoints to the agent
 
 ### Endpoint labeling (`src/execution/index.ts`)
+
 - **`deriveEndpointLabel()` generates human-readable labels**: Extracts meaningful names from endpoint URLs. GraphQL queryIds like `voyagerFeedDashMainFeed.abc123` become "Feed Main Feed". REST paths like `/voyager/api/relationships/dash/connections` become "Relationships: Connections". Labels are derived by splitting camelCase, dropping common prefixes (voyager, dash, com), and capitalizing meaningful words.
 - **Exported for use by routes**: Both `rankEndpoints` and `deriveEndpointLabel` are exported so the API layer can build rich endpoint metadata.
 
 ### Enriched `available_endpoints` in API responses (`src/api/routes.ts`)
+
 - **Labels added**: Each endpoint in `available_endpoints` now includes a `label` field with the human-readable name.
 - **Response hints**: When an endpoint has a response schema, `response_hint` lists the top-level property keys (e.g. `["data", "included"]`).
 - **Limit increased from 5 to 15**: Complex sites (LinkedIn, Facebook) can have 40+ endpoints — surfacing only 5 was insufficient for the agent to find the right one.
 - **Execute route also surfaces endpoints**: `POST /v1/skills/:id/execute` now includes `available_endpoints` so the agent can pick a different endpoint without going back to intent/resolve.
 
 ### Ambiguous score deferral (`src/orchestrator/index.ts`)
+
 - **BM25 ambiguity detection**: When a newly captured skill has 5+ endpoints and the top two scores are within 5 points, the orchestrator does NOT auto-execute. Instead it returns the skill + ranked endpoints with a message telling the agent to pick.
 - **Clear winner auto-executes**: When the top endpoint has a significant score lead, it auto-executes as before.
 
 ## Fix: SPA capture rewrite — direct request/response pair capture
 
 ### Capture rewrite (`src/capture/index.ts`)
+
 - **Direct request/response pair capture**: Replaced the broken two-source approach with a single `page.on("response")` handler that captures the full request+response pair. Now captures 40+ endpoints from LinkedIn vs 3 before.
 - **Network idle detection replaces fixed 5s wait**: Polls until no new responses arrive for 2s (max 8s).
 - **Scroll simulation triggers lazy-loaded content**: 3 scroll steps with network idle waits between.
 
 ### Endpoint collapse fix (`src/reverse-engineer/index.ts`)
+
 - **GraphQL endpoints exempt from collapse**: Endpoints with `queryId` or `query` params, or paths containing `graphql`, are never collapsed.
 - **API sub-resource endpoints exempt from collapse**: Paths matching `/api/` with 3+ segments are kept separate.
 - **Vendor JSON types scored correctly**: `scoreRequest()` now awards the +4 content-type bonus for `+json` types.
 
 ### Orchestrator quality gate (`src/orchestrator/index.ts`)
+
 - **HTML-postprocessed results rejected**: When a marketplace skill returns HTML that gets DOM-extracted, the orchestrator rejects it and falls through to the next candidate or live capture.
 
 ### DOM skill publishing gate (`src/execution/index.ts`)
+
 - **Low-confidence DOM skills not published**: DOM-extracted skills below 0.4 confidence are no longer published.
 - **CamelCase tokenization in BM25 endpoint selection**: `endpointToTokens()` now splits camelCase identifiers.
 
 ## BUG-006: Path segments now parameterized instead of hardcoded
 
 ### Bug fix
+
 - **Dynamic path segments are now templatized**: When a live capture discovers API endpoints like `/api/v3/quote/SPY,QQQ`, the reverse-engineer now detects dynamic segments and replaces them with named template variables (e.g. `{quote}`), storing the original values as defaults in `endpoint.path_params`. Previously, these values were hardcoded, making skills unusable for different inputs (e.g. requesting TSLA data would always return SPY/QQQ).
 - **Two detection strategies**: (1) Comma-separated path segments are always parameterized — a strong signal for lists of identifiers. (2) Context-aware matching — path segments that appear in the captured page URL are detected as entities and parameterized (e.g. capturing `/en/coins/bitcoin` parameterizes `bitcoin` in API paths like `/price_charts/bitcoin/usd/24_hours.json`).
 - **Execution merges path_params as defaults**: `executeEndpoint()` now merges `endpoint.path_params` into the params object before URL interpolation. User-provided params override defaults, so `{quote: "TSLA"}` replaces the captured `SPY,QQQ`.
@@ -507,6 +634,7 @@ Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which
 ## Fix: Endpoint ranking noise filter and data-relevance scoring
 
 ### Bug fix
+
 - **Comprehensive noise host filtering in rankEndpoints**: The endpoint auto-selector was choosing ad trackers, consent managers, and analytics endpoints (id5-sync, btloader, onetrust, adsrvr, googlesyndication, etc.) over actual data endpoints. Added a NOISE_HOSTS blocklist matching 30+ known noise domains, aligned with the reverse-engineer's existing `SKIP_HOSTS` filter.
 - **Off-domain penalty (-20)**: Endpoints hosted on third-party domains now receive a -20 score penalty instead of just missing the +15 on-domain bonus. This prevents ad/tracking endpoints from outranking on-domain data.
 - **Auth/config path penalty (-15)**: On-domain noise like `/csrf_meta`, `/logged_in_user`, `/analytics_user_data`, `/onboarding` paths are now penalized.
@@ -517,6 +645,7 @@ Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which
 ## BUG-005: Captured query params not applied during skill execution
 
 ### Bug fix
+
 - **Query params now merged into URL during execution**: When an endpoint was captured with query parameters (e.g. `?query=FDRY`), the reverse-engineer correctly stored them in `endpoint.query`, but `executeEndpoint()` never applied them to the outbound request URL. This caused 400 errors for any endpoint that required query parameters. Now merges `endpoint.query` into the URL via `URL.searchParams`, with user params overriding captured defaults.
 
 ## Fix: Skill Publishing Race Condition
@@ -525,13 +654,14 @@ Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which
 - **KV write errors surfaced**: `putBatch()` now checks `qdkv/set` response status and throws on failure instead of silently ignoring write errors.
 - **Client uses returned manifest**: Local `publishSkill()` no longer re-fetches from backend after publishing, fixing "Published skill not found in backend after retries".
 
-
 ### Breaking changes
+
 - **Registration now requires ToS acceptance**: `POST /v1/agents/register` requires a `tos_version` field matching the current version. Requests without it receive a 400 error with instructions.
 - **All local routes gated behind API key**: The local Fastify server now returns 401 on all routes (except `/health`) when no API key is configured.
 - **Existing agents must re-accept ToS**: Agents registered before this change will receive a 403 `tos_update_required` error on authenticated requests until they accept the current ToS.
 
 ### New features
+
 - **ToS version tracking**: Agent profiles now store `tos_accepted_version` and `tos_accepted_at`. When ToS is updated, agents must re-accept before their key works.
 - **CLI ToS prompt**: On first startup (or when ToS is updated), the CLI displays a ToS summary and prompts for explicit acceptance before proceeding.
 - **`GET /v1/tos/current`**: New public endpoint returning the current ToS version, summary, and URL.
@@ -548,22 +678,27 @@ Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which
 ## Security & Legal Hardening
 
 ### Marketing language
+
 - Removed "bypass the need for official API documentation" and "discover hidden APIs" from all docs
 - Replaced with neutral language: "discover API endpoints", "work without official API documentation"
 
 ### Data privacy
+
 - `recordExecution()` no longer sends `trace.result` (actual API response data) to the backend — only metadata (success, status_code, latency, drift) is transmitted for scoring
 
 ### Network security
+
 - Default bind address changed from `0.0.0.0` to `127.0.0.1` — server is localhost-only by default
 
 ### Credential sanitization
+
 - Added `x-api-key`, `api-key`, `x-auth-token`, `x-app-key`, `x-app-secret` to header strip list
 - Added prefix stripping for `x-auth-*`, `x-amz-security-*`, `x-stripe-*`, `x-firebase-*`
 - Added catch-all: any header containing `token`, `key`, `secret`, `credential`, or `password` is stripped (unless on the safe-header allowlist)
 - New: query parameters with sensitive names (`api_key`, `access_token`, `secret`, etc.) are stripped from URL templates before publishing
 
 ### Licensing
+
 - Expanded LICENSE to full MIT text with copyright notice
 - Added LICENSE file to packages/skill/ for the published repo
 
@@ -574,6 +709,7 @@ Fix: always use `DEFAULT_CAPTURE_TOKENS` as the `capture_tokens` baseline, which
 SKILL.md, README.md, and packages/skill/README.md previously described unbrowse as a local-only tool. Updated all docs to surface the shared marketplace architecture.
 
 ### SKILL.md
+
 - Rewrote overview to describe marketplace-first architecture
 - Added "How Intent Resolution Works" section (orchestrator priority chain, composite scoring)
 - Added "Reporting Issues" section with API example and category list
@@ -584,6 +720,7 @@ SKILL.md, README.md, and packages/skill/README.md previously described unbrowse 
 - Added rule about issue reporting
 
 ### README.md
+
 - Added "How it works" section explaining local + marketplace hybrid architecture
 - Added "Architecture" section covering backend components (KV, EmergentDB, Gemini, Unkey, scoring)
 - Added "Marketplace" section covering discovery, lifecycle, reliability scoring, issues, agents
@@ -591,6 +728,7 @@ SKILL.md, README.md, and packages/skill/README.md previously described unbrowse 
 - Added `UNBROWSE_API_KEY` to environment variables
 
 ### packages/skill/
+
 - Updated README.md opening description and "How it works" to mention shared marketplace
 - Added "Marketplace" section with auto-registration details
 - Converted SKILL.md to symlink pointing to root SKILL.md (single source of truth)
@@ -602,14 +740,17 @@ SKILL.md, README.md, and packages/skill/README.md previously described unbrowse 
 When no API endpoints are discovered (SSR sites, static pages, JS-rendered content with no XHR), unbrowse now automatically falls back to extracting structured data from the rendered DOM.
 
 ### New `src/extraction/` Module
+
 - **`cleanDOM(html)`:** Strips scripts, styles, nav/footer chrome, ads, hidden elements. Prefers content inside `<main>`, `<article>`, `[role="main"]`
 - **`parseStructured(html)`:** Heuristic extraction of tables, lists, repeated card patterns, definition lists, JSON-LD, and Open Graph meta tags
 - **`extractFromDOM(html, intent)`:** Scores extracted structures by relevance to user intent, returns best match with confidence score
 
 ### Capture Layer
+
 - `captureSession()` now returns rendered HTML (`html` field on `CaptureResult`) via `page.content()` before closing the browser
 
 ### Execution Layer
+
 - When `extractEndpoints()` finds 0 API endpoints, the execution layer now tries DOM extraction, **publishes a DOM skill** with the mapping, and returns structured data
 - **HTML post-processing:** when any endpoint returns HTML instead of JSON, it's automatically piped through `extractFromDOM()` to produce structured data (source: `html-postprocess`)
 - DOM extraction results include `_extraction` metadata (method, confidence, source)
@@ -623,20 +764,24 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 ## Chrome Cookie Extraction, Direct HTTP Execution & CSRF Support
 
 ### Chrome Cookie Extraction (macOS)
+
 - **`extractChromeCookies(domain)`:** Reads cookies directly from Chrome's SQLite database at `~/Library/Application Support/Google/Chrome/Default/Cookies`, decrypts using the Chrome Safe Storage key from macOS Keychain (PBKDF2 + AES-128-CBC)
 - **`yoloExtract(domain)`:** One-call auth — extracts and stores cookies in the vault with yolo flag. No browser launch, no profile locks, instant
 - **Clean filtering:** Only extracts exact domain matches (`.x.com`, `x.com`), rejects cookies with non-printable characters from incomplete decryption
 - **Wired into `/v1/auth/login`:** When `yolo: true` on macOS, uses cookie extraction first before falling back to browser-based login
 
 ### Direct HTTP Execution
+
 - **Skip browser for API calls:** When auth cookies exist and the endpoint URL contains `/api/`, uses `fetch()` directly instead of launching a browser. Eliminates headless detection issues (HeadlessChrome in sec-ch-ua)
 - **Cookie header construction:** Builds cookie header from vault cookies for direct HTTP requests
 
 ### CSRF Auto-Injection
+
 - **`csrf_plan` support:** If an endpoint has a `csrf_plan`, extracts the named cookie and sets it as `x-csrf-token` header
 - **x.com heuristic:** Automatically injects `ct0` cookie as `x-csrf-token` when endpoint uses `x-twitter-auth-type`
 
 ### Other Improvements
+
 - **Fixed vault location:** Changed from `process.cwd()/.vault/` to `~/.unbrowse/vault/` so vault works regardless of server CWD
 - **Endpoint targeting:** Added `endpoint_id` param to `executeSkill` to bypass auto-endpoint selection
 - **URL-safe interpolation:** Query string params are now `encodeURIComponent`-encoded during URL template interpolation
@@ -658,23 +803,27 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 ## WebSocket Capture, Endpoint Filtering & Validator Fixes
 
 ### WebSocket Support
+
 - **CDP-based WebSocket capture:** Hook `Network.webSocketCreated`, `webSocketFrameReceived`, `webSocketFrameSent` via Chrome DevTools Protocol to capture real-time WS traffic during browser sessions
 - **WS endpoint extraction:** Group captured messages by URL, infer response schemas from received JSON frames, create `method: "WS"` endpoints with `ws_messages` array
 - **WS execution:** Connect to WebSocket endpoints, collect messages for 7s, parse JSON, apply projection
 - **Type updates:** Added `"WS"` to `EndpointDescriptor.method` union and `WsMessage` interface in both `src/types/skill.ts` and `backend/src/types.ts`
 
 ### Backend Validator Fixes
+
 - **Accept WS method:** Added `"WS"` to `VALID_METHODS` in `backend/src/services/validator.ts`
 - **Accept wss:// URLs:** Changed `URL_RE` from `/^https?:\/\//` to `/^(https?|wss?):\/\//`
 - **Local workaround:** Strip WS endpoints before publishing to remote backend (pending deployment) — keeps WS endpoints for local execution
 
 ### Endpoint Filtering Improvements
+
 - **Fixed SKIP_EXTENSIONS regex:** Changed `$` anchor to `([?#]|$)` so URLs with query strings are properly filtered (`.js?v=hash`, `.css?t=123`)
 - **Added SKIP_PATHS:** Filter `/_next/static/`, `/static/chunks/`, `/static/media/`, `/cdn-cgi/` paths
 - **Added CDN image path filter:** Skip `/coin-image/`, `/avatar/`, `/profile-image/` paths
 - **Expanded SKIP_HOSTS:** Added 16 new infrastructure/telemetry domains: datadoghq, fullstory, launchdarkly, intercom, privy, mypinata, sentry, segment, amplitude, mixpanel, hotjar, clarity, googletagmanager, walletconnect, imagedelivery, cloudflareinsights
 
 ### Endpoint Selection Improvements
+
 - **Domain affinity scoring:** `selectBestEndpoint` now takes `skillDomain` param and adds +15 score for endpoints on the skill's own domain (prevents selecting third-party CDN/analytics endpoints)
 - **WS schema bonus:** WS endpoints with response schemas get +3 score
 
@@ -691,6 +840,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 ## Agent Identity, Issue Reporting & Agent-First Frontend
 
 ### Backend: Agent Identity via Unkey
+
 - **Unkey integration:** API key management via Unkey REST API (v2). Keys prefixed `ubr_`, verified on every request. Agent profiles stored in `STATS_KV`.
 - **Auth middleware rewrite:** Dual-check legacy admin key OR Unkey-verified agent keys, sets `agent_id` in Hono context. Added `optionalAuth` for public-but-identity-aware routes.
 - **Agent service:** `registerAgent()` creates Unkey key + KV profile. `incrementAgentExecutions()`, `incrementAgentFeedback()`, `addSkillDiscovered()` track contributions.
@@ -699,11 +849,13 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - Backward-compatible: existing `UNBROWSE_API_KEY` env continues to work
 
 ### Backend: Issue Reporting
+
 - **Issue service:** Agents can report problems with skills for repair. Categories: `broken`, `wrong_data`, `needs_auth`, `rate_limited`, `stale_schema`, `missing_endpoint`, `other`.
 - **Issue routes:** `POST /v1/skills/:id/issues` (auth), `GET /v1/skills/:id/issues` (public), `PATCH /v1/skills/:id/issues/:issue_id` (admin)
 - Issues stored in `STATS_KV` with per-skill index (capped at 100)
 
 ### Frontend: Agent-First Onboarding
+
 - **Auth context:** `auth-context.tsx` — localStorage-backed API key management
 - **Landing page:** Added "Get Your API Key" onboarding section with registration API docs, interactive key generator, tabbed install instructions (Claude Code, Cursor, cURL, Python)
 - **New components:** `ApiKeyGenerator`, `InstallInstructions`
@@ -711,6 +863,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - **Updated:** Navbar (Dashboard link), StatsStrip (agents count), Footer (Dashboard link)
 
 ### CLI Client
+
 - Added `registerAgent()`, `getAgent()`, `getMyProfile()` in `src/client/index.ts`
 
 ---
@@ -718,6 +871,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 ## Committed Changes (8 commits)
 
 ### 1. Frontend: Full Landing Page Revamp (`e2f4711`)
+
 - Replaced the entire landing page with a new design
 - **Constellation background** — animated particle system with mouse interaction
 - **Interactive chat demo** — shows an Airbnb API discovery flow step-by-step
@@ -730,6 +884,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - Darkened the CSS color palette (surface, border, glow values)
 
 ### 2. Live Stats Strip & Value Prop Cards (`f27c9d8`)
+
 - **New public endpoint:** `GET /v1/stats/summary` — returns skills, endpoints, domains, executions counts
 - Split stats routes into public (summary) and protected (execution/feedback)
 - Added 3 value prop cards: save money (40x fewer tokens), save time (100x faster), make money (any site = API)
@@ -738,34 +893,41 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - Fixed GitHub URLs: `anthropics/unbrowse` → `getfoundry/unbrowse`
 
 ### 3. Backend CORS & Public Routes (`7baae52`, `8ca2989`)
+
 - Added global CORS middleware (`origin: *`, all methods)
 - Made search routes public (no auth required)
 - Added explicit `Access-Control-Allow-Origin` header on stats summary
 - Reduced stats cache from default to 60s
 
 ### 4. Headed Capture & GraphQL Dedup (`9d4647a`)
+
 **Capture improvements:**
+
 - Always use persistent browser profile in **headed mode** (not headless) for auth-gated sites like LinkedIn
 - Hook `page.on('response')` BEFORE navigation to catch all XHR/fetch during initial load
 - Broadened response body capture: now includes `text/plain`, protobuf, `batchexecute`, `/api/` paths
 - Increased settle wait from 2.5s to 5s for SPAs like Google Trends
 
 **Reverse-engineer improvements:**
+
 - Preserve `queryId` param in GraphQL URL normalization so different queries aren't deduped
 - Strip Google-style JSON prefixes (`)]}'`) before parsing response bodies
 - Added `batchexecute` and `/api/` to RPC hint patterns
 - Skip endpoints with invalid (non-http) URL templates
 
 **Other:**
+
 - Hardcoded backend API URL to `https://beta-api.unbrowse.ai`
 - Generate `skill_id` with `nanoid()` in draft to fix backend validation
 - Raised confidence threshold from 0.25 to 0.5
 
 ### 5. Remove DELETE Skills Route (`334bf51`)
+
 - Removed `DELETE /v1/skills/:id` — skills should not be deletable via API
 - Cleaned up unused `deprecateSkill` import
 
 ### 6. Bug Fixes (`baf28f6`, `0af0908`)
+
 - Added `POST /v1/feedback` route (proxies to backend, accepts both `skill_id` and `target_id`)
 - Fixed logger import paths (`./logger.js` to `../logger.js`) in auth and capture modules
 - Removed duplicate `har_lineage_id` declaration
@@ -778,33 +940,120 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 ## Uncommitted Changes (working tree)
 
 ### 7. Make Read Routes Public, Keep Writes Protected
+
 - **Skills routes split:** `GET /skills`, `GET /skills/:id`, `GET /skills/:id/endpoints/:eid/schema` are now public (no auth)
 - Only `POST /skills` and `PATCH /skills/:id/endpoints/:eid` still require auth
 - **Validate route made public:** `POST /v1/validate` moved out of auth-protected group
 
 ### 8. API Client Auth Flag
+
 - Added `auth` parameter to the `api()` helper in `src/client/index.ts`
 - Read-only calls (GET) no longer send `Authorization` header
 - Write calls (`POST`, `PATCH`, `DELETE`) explicitly pass `auth = true`
 
 ### 9. KV Fallback Search in Discovery
+
 - Vector search (`searchIntent`, `searchIntentInDomain`) now catches errors and falls back to **keyword search over KV**
 - New `kvFallbackSearch()` does term matching against skill name, intent_signature, description, and domain
 - Changed global namespace from `unbrowse--global` to `unbrowse-skill`
 
 ### 10. Confidence Threshold Tuned Down
+
 - Lowered confidence threshold from 0.5 to 0.3 (was originally 0.25 before previous commits)
+
+### 11. Local Graph Harness Expanded
+
+- Added local cache case generation so graph-v2 retrieval can be evaluated against real cached skills without the remote server
+- Added dependency-walk simulation using example bindings to validate that graph edges unlock the right downstream operation
+- Added local timing metrics for selection speed and time-to-correct-operation, plus wrong-selection counts before the right operation
+
+### 12. Remote Truth, Local Debug Only
+
+- Removed disk-snapshot skill reads from the default resolver path so runtime selection no longer prefers stale local cache over shared remote skills
+- Changed `getSkill()` to fetch remote first; local disk snapshots now remain explicit harness/debug artifacts instead of runtime truth
+
+### 13. Better Local Semantic Authoring
+
+- Reverse-engineering now writes richer local endpoint descriptions from captured request/response context before publish
+- Semantic examples now flatten request inputs and compact response examples so future skills carry clearer action/resource hints and dependency inputs
+- Auth-backed captures now mark learned endpoints as `auth_required` so graph retrieval and local evals can keep public/auth-gated coverage separate
+- Graph inference now derives stronger `provides` bindings from fields like `full_name`, `public_identifier`, `owner`, `username`, and `slug` so real captured skills form better dependency edges
+- Graph selection now uses a hybrid filter path: hard-drop near-certain junk (`telemetry`, `experiments`, `ads`, wrong-status/auth/config endpoints) and soft-penalize ambiguous helper/settings/recommendation endpoints before semantic ranking
+- Product-truth CLI coverage now includes explicit public and auth-gated resolve/execute flows, and `AGENTS.md` now requires product-behavior tests to go through the CLI/orchestrator path instead of raw capture primitives
+- Local API routes now reopen freshly learned in-memory skills before remote publish/index catch-up, so a deferred CLI `resolve` can immediately follow with `execute` on the same server process
+- Added a dedicated CLI judged eval runner that grades actual CLI/orchestrator output with the Nebius judge model across public and auth-gated cases, instead of relying on plumbing heuristics alone
+- Root-cause quality gates now reject low-quality DOM fallback output before returning success, learned skills retain the actual capture intent instead of only the domain, extraction hints rank arrays by intent semantics, and CLI auto-extract only fires on high-confidence hints
+- Browser-capture execute now falls back to trigger URLs from the learned skill when the caller has no explicit `params.url`, and merged endpoints are normalized to valid manifest verification states before republish
+- The judged CLI eval now preserves original `url` and `intent` when it follows a deferred `resolve` with `execute`, so browser-capture and dynamic skills are graded through the real end-user context
+- DOM extraction now has stronger GitHub/LinkedIn HTML parsers, and auto-exec now synthesizes safe defaults for common missing query params (`limit`, `page`, `resolve`, some `type` values) instead of deferring immediately
+- Runtime is API-first again: HTML from non-DOM endpoints now fails clean instead of being treated as content, internal API candidates get a stronger preference over DOM during auto-exec, and multi-entity API payloads are projected to the intent-matching entity set before return/judging
+- GitHub search fallback now reads the embedded JSON result payload directly, and Mastodon-style search endpoints now infer public-safe defaults like `type=statuses` with `resolve=false` for post intents
+- Browser capture now learns a replayable page-artifact endpoint alongside discovered APIs when the captured page already contains structured data, so the orchestrator can try API replay first and then fall back to the captured page artifact on the next attempt
 
 ---
 
 ## Summary by Area
 
-| Area | What changed |
-|------|-------------|
-| **Frontend** | Complete landing page redesign with constellation bg, chat demo, privacy page, NVIDIA badge |
-| **Backend API** | Global CORS, public stats/search/skills/validate routes, removed DELETE skills |
-| **Capture** | Headed mode for auth sites, pre-nav response hooking, broader body capture, longer settle |
-| **Reverse-engineer** | GraphQL dedup fix, JSON prefix stripping, batchexecute support |
-| **Discovery** | KV fallback search when vector search fails, new namespace |
-| **Client** | Hardcoded prod API URL, auth flag on write-only calls |
-| **Orchestrator** | Confidence threshold tuning (0.25 → 0.5 → 0.3) |
+| Area                 | What changed                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| **Frontend**         | Complete landing page redesign with constellation bg, chat demo, privacy page, NVIDIA badge |
+| **Backend API**      | Global CORS, public stats/search/skills/validate routes, removed DELETE skills              |
+| **Capture**          | Headed mode for auth sites, pre-nav response hooking, broader body capture, longer settle   |
+| **Reverse-engineer** | GraphQL dedup fix, JSON prefix stripping, batchexecute support                              |
+| **Discovery**        | KV fallback search when vector search fails, new namespace                                  |
+| **Client**           | Hardcoded prod API URL, auth flag on write-only calls                                       |
+| **Orchestrator**     | Confidence threshold tuning (0.25 → 0.5 → 0.3)                                              |
+
+- fix: reject auto-exec results unless they semantically satisfy the intent; judge skips no longer count as success
+- fix: add generic DOM extraction for social post rows and trending topic rows so page-artifact fallback rescues empty API captures
+- fix: CLI judged eval now falls back to local semantic grading when the remote judge returns skip
+- fix: make browser capture actively stimulate dynamic search/explore pages after navigation so SPA-only APIs have a chance to fire before skill generation
+
+- fix: normalize nested trend payloads into topic rows so runtime/evals can accept valid trending results
+- fix: DOM replay now rejects stale selector hits that no longer match the requested entity type and falls back to fresh page extraction
+- feat: add local agent-phase eval harness over the 100-site project dataset with separate index and retrieve phases plus concurrent client support
+- fix: agent-phase eval now groups by target id for exact 100-site coverage and auto-restarts the local server if it dies mid-run
+- feat: agent-phase eval now uses an LLM judge on returned data, with local semantic fallback when the judge skips or times out
+- fix: route-cache reuse now applies to normal resolve calls, and capture-cache reuse is marked as a real cache hit for phase evals
+
+# Unreleased
+
+- fix: materialize under-specified root eval cases into real-world intent URLs before strict judged agent-phase runs
+- fix: reuse learned skills by domain plus compatible intent instead of merging unrelated captures into one polluted skill
+- fix: strip self-referential page URL params before minting replayable page-artifact endpoints
+- fix: thread original context URL and intent through execute so page-artifact skills replay against the real page, not generic domain fallbacks
+- fix: rank endpoints with semantic action/resource intent matching so wrong-entity auth-page APIs stop outranking the correct search surface
+- fix: queue concurrent live captures per client/domain instead of failing fast when multiple agent requests hit the same site at once
+- fix: serialize live captures per domain across clients so shared browser profiles do not corrupt concurrent auth-site captures
+- fix: fall through from wrong-entity marketplace candidates to real live capture instead of deferring same-domain junk skills
+
+# Unreleased
+
+- fix: retry browser capture without persistent profile only for sparse blocked-shell captures; keep rich API captures and bound browser close time so x profile/trending resolves no longer hang
+- test: add focused graph dependency-inference unit coverage so DAG edge generation is asserted directly, not only through higher-level walk tests
+- feat: agent-facing chunk responses now show only runnable operations in a readable format with a suggested next step, while raw graph/dependency data stays internal
+- fix: agent-phase eval now kills hung CLI subprocesses, times out stalled phases, and rewrites artifacts after every completed case so benchmark runs stay observable
+- fix: agent-phase eval now records which stage timed out (`auth`, `resolve`, `execute`, `judge`) so benchmark failures point to the real bottleneck
+- fix: agent-phase eval now kills leaked `src/cli.ts --no-auto-start` clients before and after runs, and force-kills timed-out CLI subprocesses so stale benchmark traffic no longer poisons the local server
+- fix: stale eval cleanup now matches both relative and absolute `src/cli.ts` / `evals/agent-phases.ts` process paths, which were the real leaked-process source on local benchmark runs
+- fix: stale eval cleanup now excludes the currently running harness process instead of killing its own benchmark run on startup
+- fix: orchestrator live-capture queue now has a hard timeout around both in-flight waits and browser-capture execution, so one hung capture cannot poison all later requests for that domain
+- fix: normal-mode skill reopen now falls back to recent in-memory skills when remote read-after-write lags, so same-process route-cache retrieve stops recapturing freshly learned domains
+- fix: same-process skill lookups now prefer the fresh in-memory learned skill over remote merged copies, preventing retrieve from reopening polluted domain-wide skills during strict evals
+- fix: freshly generated live-capture skills are now promoted into broad route/domain reuse only after they actually answer the originating intent, instead of caching bad deferrals for later retrieves
+- fix: generation-time semantic admission now understands company/org and stricter post/comment entities, blocking metadata/subreddit-shell captures from becoming reusable skills
+
+# Unreleased
+
+- fix: planner now treats captured query/path/example defaults as satisfiable bindings, so replayable APIs stop losing readiness to page artifacts on warm resolve
+- fix: semantic ranking now demotes linkedin sharebox/mailbox ui payloads for people/company intents and boosts real search/detail surfaces
+- fix: semantic intent scoring now distrusts mislabeled ui-scaffold endpoints, so generated sharebox/mailbox/notification skills stop stealing people/company search intents
+- fix: scoped warm-result cache now reuses recently validated results on the same route/intent, preventing slow recapture on immediate retrieve
+- pre-commit now runs DAG/replay regressions plus strict real-world `agent-phases` smoke instead of `evals/perf.ts`.
+- fix: codex harness deferred cases now stop at resolve and emit agent-review execute commands instead of auto-running fallback endpoint attempts inside the harness
+- fix: orchestrator `resolve` no longer auto-executes based on marketplace/ranking confidence; execution now happens only after the agent explicitly chooses `endpoint_id`
+- fix: codex harness artifacts now store collector status (`ready_for_review` / `fail` / `skip`) instead of auto-grading `needs_review`, so pass/fail/skip comes from the in-thread agent review rather than the harness itself
+- fix: codex harness now writes a compact review-queue sidecar with top candidates, signal tags, and execute commands so batch shortlist judging can happen in-thread without reopening the full artifact
+- fix: codex harness now shells out to the CLI through explicit child-process buffering instead of Bun pipe readers, avoiding stuck batch evals after CLI timeouts/kill paths
+- fix: review-queue fallback ordering now prefers replay/API candidates over schema-bearing page artifacts, so GitHub/MDN-style shortlist review stops surfacing the document shell above the real data endpoint
+- docs: split Codex eval lanes into task-shaped `product-success` and broader `stress`, with `public` / `agent-targets` kept as aliases so product claims stop leaning on hostile homepage sweeps

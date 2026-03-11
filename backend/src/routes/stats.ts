@@ -3,8 +3,7 @@ import type { Env, OrchestrationTiming } from "../types.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { recordPerf, getPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
-import { incrementAgentExecutions, incrementAgentFeedback, countAgents } from "../services/agents.js";
-import { recordActivity } from "../services/analytics.js";
+import { recordAgentExecution, recordAgentFeedback, countAgents } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 
@@ -19,12 +18,14 @@ publicStatsRoutes.get("/stats/summary", async (c) => {
     statsKV(c.env).listWithValues("stats:"),
   ]);
 
-  const skillCount = skillEntries.length;
+  let skillCount = 0;
   let endpointCount = 0;
   const domainSet = new Set<string>();
   for (const { value } of skillEntries) {
     try {
-      const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string };
+      const s = JSON.parse(value) as { endpoints?: unknown[]; domain?: string; lifecycle?: string };
+      if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
+      skillCount++;
       endpointCount += s.endpoints?.length ?? 0;
       if (s.domain) domainSet.add(s.domain);
     } catch { /* skip malformed */ }
@@ -140,11 +141,10 @@ statsRoutes.post("/stats/execution", async (c) => {
     return c.json({ error: "skill_id, endpoint_id, and trace required" }, 400);
   }
   await recordExecution(c.env, skill_id, endpoint_id, trace);
-  // Track agent contribution + daily activity (non-blocking)
+  // Track agent contribution + activity in one queued profile write.
   const agentId = c.get("agent_id");
   if (agentId) {
-    c.executionCtx.waitUntil(incrementAgentExecutions(c.env, agentId));
-    c.executionCtx.waitUntil(recordActivity(c.env, agentId));
+    c.executionCtx.waitUntil(recordAgentExecution(c.env, agentId));
   }
   return c.json({ ok: true });
 });
@@ -160,12 +160,10 @@ statsRoutes.post("/stats/feedback", async (c) => {
     return c.json({ error: "skill_id, endpoint_id, and rating required" }, 400);
   }
   const avgRating = await recordFeedback(c.env, skill_id, endpoint_id, rating);
-  // Track agent contribution + daily activity (non-blocking)
+  // Track agent contribution + activity in one queued profile write.
   const agentId = c.get("agent_id");
   if (agentId) {
-    c.executionCtx.waitUntil(incrementAgentFeedback(c.env, agentId));
-    c.executionCtx.waitUntil(recordActivity(c.env, agentId));
+    c.executionCtx.waitUntil(recordAgentFeedback(c.env, agentId));
   }
   return c.json({ ok: true, avg_rating: avgRating });
 });
-

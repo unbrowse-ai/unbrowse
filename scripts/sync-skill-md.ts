@@ -57,6 +57,7 @@ function generateMarkdown(): string {
 
 function main(): void {
   const content = readFileSync(SKILL_MD_PATH, "utf-8");
+  const checkOnly = process.argv.includes("--check");
 
   const startIdx = content.indexOf(START_MARKER);
   const endIdx = content.indexOf(END_MARKER);
@@ -71,8 +72,13 @@ function main(): void {
   const updated = before + generateMarkdown() + after;
 
   if (updated === content) {
-    console.log("SKILL.md is already in sync.");
+    console.log("SKILL.md is in sync.");
     return;
+  }
+
+  if (checkOnly) {
+    console.error("SKILL.md is out of sync with src/cli.ts. Run `bun scripts/sync-skill-md.ts`.");
+    process.exit(1);
   }
 
   writeFileSync(SKILL_MD_PATH, updated);

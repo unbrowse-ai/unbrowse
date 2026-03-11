@@ -17,6 +17,50 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
 
+## Codex Eval Harness
+
+- Refresh the local npm package first for manual smoke checks:
+  - `cd packages/skill && npm pack`
+  - install the tarball into a temp dir
+  - use the installed `./node_modules/.bin/unbrowse` binary
+- Canonical interactive eval path: `bun run eval:codex`
+- Canonical product-success suite: `bun run eval:codex:product-success`
+- Stress suite: `bun run eval:codex:stress`
+- Compatibility aliases:
+  - `bun run eval:codex:public` -> product-success
+  - `bun run eval:codex:agent-targets` -> stress
+- Use product-success for product claims:
+  - task/result pages
+  - param-seeded search tasks
+  - resolve -> agent review -> optional execute
+- Use stress for breadth only:
+  - benchmark-style sites
+  - niche public forums/search pages
+  - homepage-heavy / hostile surfaces
+- Final evaluation happens in-thread by the agent reviewing the artifact
+- Every eval case stops at resolve; artifact stores collector status only (`ready_for_review`, `fail`, `skip`)
+- The agent judges shortlist quality in-thread; execute is optional and only for deeper validation
+- Pass `--params '{...}'` when you need to prove the agent populated query/template inputs instead of relying on query state already present in the page URL
+- Use one case first; only use case files after the single case passes
+- Prefer `--intent ... --url ... --force-capture` while fixing regressions
+- Artifact of record: `evals/codex-harness-last-run.json`
+- Compact shortlist view: `evals/codex-harness-last-run.review-queue.json`
+- Read artifact before patching again:
+  - resolve excerpt
+  - deferred endpoint shortlist
+  - selected order
+  - `agent_review.execute_candidates`
+  - direct-result excerpt when resolve already returned structured data
+  - query source (`url`, `params`, or `mixed`)
+  - graph selection + dependency-walk summary
+  - local signals
+- Use the review-queue sidecar for batch agent judging:
+  - top candidates only
+  - compact signals (`schema`, `templated_url`, `page_artifact_risk`, ...)
+  - direct execute commands
+- If auth is needed, make sure local vault/browser cookies already exist first
+- Do not add new parallel eval harnesses; extend `evals/codex-harness.ts` or its helpers instead
+
 ## Releases
 
 When asked to release, follow this flow:

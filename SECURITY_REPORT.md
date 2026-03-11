@@ -156,13 +156,13 @@ The server API key is read from `~/.unbrowse/config.json`. Unlike vault credenti
 
 ---
 
-### [INFO-1] Pre-commit Hook Runs Network-Dependent Evals
+### [INFO-1] Full Pre-commit Sweep Still Includes a Networked Smoke
 
-**File:** `.husky/pre-commit` + `evals/perf.ts` (added in PR #35)
+**File:** `scripts/precommit-full.sh`
 
-The pre-commit hook runs `bun evals/perf.ts` which requires a running local server and makes real HTTP calls. This will block commits in offline environments or on CI without a running server.
+The default staged-file pre-commit path is fast-only now, but `bun run precommit:full` still runs one live Codex harness smoke against a public site. That remains opt-in and can still fail in offline environments or when the local server cannot start cleanly.
 
-**Recommendation:** Guard with `if [ "$CI" = "true" ]; then exit 0; fi` or make it opt-in via a git config flag.
+**Recommendation:** Keep `precommit:full` opt-in and treat it as a local release gate, not a mandatory offline-safe hook.
 
 ---
 
