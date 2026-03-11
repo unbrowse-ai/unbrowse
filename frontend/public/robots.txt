@@ -1,6 +1,19 @@
 User-agent: *
 Allow: /
 
+# Explicitly allow AI search crawlers
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
 # Agent-readable documentation
 # LLMs and AI agents: read /llms.txt for structured site information
 # Full skill installation guide: /skill.md

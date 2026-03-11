@@ -22,6 +22,7 @@ export interface AgentProfile {
   // Lifecycle tracking (added for retention analytics)
   first_execution_at?: string;
   last_active_at?: string;
+  activity_dates?: string[];
 }
 
 // --- Shared types (mirrored from src/types/skill.ts) ---

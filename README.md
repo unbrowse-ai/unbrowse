@@ -1,47 +1,65 @@
 # Unbrowse
 
-Analyze any website's network traffic and turn it into reusable API skills, backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
+Turn any website into a reusable API interface for agents. Unbrowse captures network traffic, reverse-engineers the real endpoints underneath the UI, and stores what it learns in a shared marketplace so the next agent can reuse it instantly.
 
-## How it works
+One agent learns a site once. Every later agent gets the fast path.
 
-Unbrowse captures browser network traffic, reverse-engineers API endpoints, and publishes reusable "skills" to a shared marketplace. When an agent asks for something, the orchestrator first searches the marketplace for an existing skill. If one exists with sufficient confidence, it executes immediately (50-200ms). If not, a headless browser captures the site, discovers its APIs, publishes a new skill, and executes it.
-
-Every skill published by any agent becomes discoverable by all agents via semantic search. A reliability scoring engine tracks execution success, user feedback, schema drift, and verification status to surface the best skills and auto-deprecate broken ones.
-
-The result is a flywheel: one agent discovers an API, publishes it, and every future agent benefits. Feedback and issue reports improve skill quality over time.
+> Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
 ## Quick start
 
 ```bash
-bun install
-bun src/index.ts
+# Fastest full setup
+npx unbrowse setup
 ```
 
-The server runs on `http://localhost:6969` by default. Override with `PORT` or `HOST` env vars. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`.
+`npx unbrowse setup` downloads the CLI on demand, installs browser assets, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
 
-## Usage
+For daily use:
 
 ```bash
-# Resolve an intent (search marketplace → capture if needed → execute)
-curl -s -X POST http://localhost:6969/v1/intent/resolve \
-  -H "Content-Type: application/json" \
-  -d '{"intent": "get trending searches", "params": {"url": "https://google.com"}, "context": {"url": "https://google.com"}}'
-
-# Interactive login for auth-gated sites
-curl -s -X POST http://localhost:6969/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://calendar.google.com"}'
-
-# List skills in the marketplace
-curl -s http://localhost:6969/v1/skills | jq .
-
-# Semantic search for skills
-curl -s -X POST http://localhost:6969/v1/search \
-  -H "Content-Type: application/json" \
-  -d '{"intent": "get stock prices", "k": 5}'
+npm install -g unbrowse
+unbrowse setup
 ```
 
-See [SKILL.md](./SKILL.md) for the full API reference.
+If your agent host uses skills:
+
+```bash
+npx skills add unbrowse-ai/unbrowse
+```
+
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`.
+
+Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
+
+## What setup does
+
+- Checks local prerequisites for the npm/npx flow.
+- Installs browser assets needed for live capture.
+- Registers the Open Code `/unbrowse` command when Open Code is present.
+- Starts the local Unbrowse server unless `--no-start` is passed.
+
+## Common commands
+
+```bash
+unbrowse health
+unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
+unbrowse login --url "https://calendar.google.com"
+unbrowse skills
+unbrowse search --intent "get stock prices"
+```
+
+## Demo notes
+
+- First-time capture/indexing on a site can take 20-80 seconds. That is the slow path; repeats should be much faster.
+- For website tasks, keep the agent on Unbrowse instead of letting it drift into generic web search or ad hoc `curl`.
+- Reddit is still a harder target than most sites because of anti-bot protections. Prefer canonical `.json` routes when available.
+
+## How it works
+
+When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse captures the site, learns the APIs behind it, publishes a reusable skill, and executes that instead.
+
+Every learned skill becomes discoverable by every future agent. Reliability scoring, feedback, schema drift, and verification keep the good paths hot and the broken ones out of the way.
 
 ## Architecture
 
@@ -50,6 +68,7 @@ Unbrowse is a monorepo with two tiers:
 **Local server** (`localhost:6969`) -- Handles the core workflow: intent resolution, browser capture, skill execution, auth management. Local routes are handled directly; marketplace routes are proxied transparently.
 
 **Backend API** (`beta-api.unbrowse.ai`) -- Cloudflare Worker that powers the shared marketplace:
+
 - **Skill storage** -- KV-backed skill manifests with versioning and intent-based dedup
 - **Discovery** -- Semantic vector search using Gemini embeddings (1536-dim) indexed in EmergentDB, with KV keyword fallback
 - **Scoring** -- EMA-based reliability scoring factoring success ratio, consecutive failures, feedback ratings, schema drift, and verification status
@@ -58,12 +77,12 @@ Unbrowse is a monorepo with two tiers:
 
 ### Monorepo structure
 
-| Directory | Purpose |
-|-----------|---------|
-| `src/` | Shared skill engine (capture, reverse-engineer, execute, orchestrate) |
-| `backend/` | Cloudflare Worker API (marketplace, stats, agents, issues) |
-| `frontend/` | Next.js landing page |
-| `packages/skill/` | Publishable skill package (src/ symlinks to root) |
+| Directory         | Purpose                                                               |
+| ----------------- | --------------------------------------------------------------------- |
+| `src/`            | Shared skill engine (capture, reverse-engineer, execute, orchestrate) |
+| `backend/`        | Cloudflare Worker API (marketplace, stats, agents, issues)            |
+| `frontend/`       | Next.js landing page                                                  |
+| `packages/skill/` | Publishable skill package (src/ symlinks to root)                     |
 
 ## Marketplace
 
@@ -78,6 +97,7 @@ Skills are versioned (semver). Re-publishing the same intent+domain bumps the mi
 ### Reliability scoring
 
 Each endpoint has a reliability score (0-1) computed from:
+
 - Success/failure ratio (EMA-weighted)
 - Consecutive failures (penalized)
 - Verification status (verified = bonus, failed/disabled = penalty)
@@ -116,21 +136,21 @@ Many sites redirect unauthenticated users to a marketing or product page (e.g. `
 
 Built-in providers:
 
-| Service | Sign-in URL used |
-|---------|-----------------|
+| Service                            | Sign-in URL used                                     |
+| ---------------------------------- | ---------------------------------------------------- |
 | Google (Calendar, Drive, Gmail...) | `accounts.google.com/ServiceLogin?continue=<target>` |
-| Microsoft / Office 365 / Teams | `login.microsoftonline.com/...` |
-| GitHub | `github.com/login?return_to=<path>` |
-| Notion | `notion.so/login` |
-| LinkedIn | `linkedin.com/login` |
-| Twitter / X | `x.com/i/flow/login` |
-| Slack | `slack.com/signin` |
-| Atlassian (Jira, Confluence) | `id.atlassian.com/login` |
-| Salesforce | `login.salesforce.com` |
-| Figma | `figma.com/login` |
-| Airtable | `airtable.com/login` |
-| Dropbox | `dropbox.com/login` |
-| HubSpot | `app.hubspot.com/login` |
+| Microsoft / Office 365 / Teams     | `login.microsoftonline.com/...`                      |
+| GitHub                             | `github.com/login?return_to=<path>`                  |
+| Notion                             | `notion.so/login`                                    |
+| LinkedIn                           | `linkedin.com/login`                                 |
+| Twitter / X                        | `x.com/i/flow/login`                                 |
+| Slack                              | `slack.com/signin`                                   |
+| Atlassian (Jira, Confluence)       | `id.atlassian.com/login`                             |
+| Salesforce                         | `login.salesforce.com`                               |
+| Figma                              | `figma.com/login`                                    |
+| Airtable                           | `airtable.com/login`                                 |
+| Dropbox                            | `dropbox.com/login`                                  |
+| HubSpot                            | `app.hubspot.com/login`                              |
 
 For anything not in this table, unbrowse falls back to `<origin>/login`. If that's wrong, pass the login URL directly instead of the app URL:
 
@@ -162,17 +182,17 @@ Log files are plain text and safe to share when reporting issues (cookie values 
 
 ## Data directories
 
-| Path | Contents |
-|------|----------|
+| Path                             | Contents                                                    |
+| -------------------------------- | ----------------------------------------------------------- |
 | `~/.unbrowse/profiles/<domain>/` | Persistent browser profile (cookies, localStorage, session) |
-| `~/.unbrowse/config.json` | Agent credentials and marketplace API key |
-| `~/.unbrowse/logs/` | Daily debug logs |
+| `~/.unbrowse/config.json`        | Agent credentials and marketplace API key                   |
+| `~/.unbrowse/logs/`              | Daily debug logs                                            |
 
 ## Environment variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `6969` | Server port |
-| `HOST` | `127.0.0.1` | Server bind address (localhost only by default) |
-| `UNBROWSE_URL` | `http://localhost:6969` | Base URL used by the skill |
-| `UNBROWSE_API_KEY` | (auto-generated) | Marketplace API key (auto-registered on first startup) |
+| Variable           | Default                 | Description                                            |
+| ------------------ | ----------------------- | ------------------------------------------------------ |
+| `PORT`             | `6969`                  | Server port                                            |
+| `HOST`             | `127.0.0.1`             | Server bind address (localhost only by default)        |
+| `UNBROWSE_URL`     | `http://localhost:6969` | Base URL used by the skill                             |
+| `UNBROWSE_API_KEY` | (auto-generated)        | Marketplace API key (auto-registered on first startup) |

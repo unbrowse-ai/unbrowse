@@ -75,7 +75,7 @@ export default function DashboardPage() {
               <div className="p-8 rounded-2xl border border-border bg-surface text-center">
                 <p className="text-text-muted">No skills discovered yet.</p>
                 <p className="text-text-muted text-sm mt-2">
-                  Use <code className="text-orange-500">/unbrowse</code> to capture a website and your first skill will appear here.
+                  Use <code className="text-orange-500">unbrowse resolve</code> to capture a website and your first skill will appear here.
                 </p>
               </div>
             ) : (

@@ -1,12 +1,9 @@
 /**
  * Analytics service — retention cohorts, activation funnels, engagement metrics.
  *
- * Storage design (all in statsKV):
- *   active:{YYYY-MM-DD}  → JSON string[] of agent_ids active that day (TTL 90d)
- *   cohort:{YYYY-MM-DD}  → JSON string[] of agent_ids registered that day (TTL 180d)
- *
- * Agent lifecycle fields on AgentProfile:
- *   first_execution_at, last_active_at (set by agents.ts)
+ * Source of truth: agent profiles in statsKV.
+ * Each profile tracks lifecycle counters plus a bounded `activity_dates[]`
+ * set, which avoids shared-key races during high-write telemetry periods.
  */
 
 import type { Env, AgentProfile } from "../types.js";
@@ -18,6 +15,12 @@ function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
+function addDays(date: string, days: number): string {
+  const next = new Date(`${date}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + days);
+  return dateKey(next);
+}
+
 function daysAgo(n: number): Date {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - n);
@@ -25,48 +28,40 @@ function daysAgo(n: number): Date {
   return d;
 }
 
-// ─── Record activity (called on every execution/feedback) ───
+function normalizeActivityDates(dates: string[] | undefined): string[] {
+  return Array.from(new Set((dates ?? []).filter(Boolean))).sort().slice(-90);
+}
 
-export async function recordActivity(env: Env, agentId: string): Promise<void> {
-  const today = dateKey(new Date());
-  const key = `active:${today}`;
-  const kv = statsKV(env);
+async function loadProfiles(env: Env): Promise<AgentProfile[]> {
+  const entries = await statsKV(env).listWithValues("agent:");
+  return entries.map((entry) => {
+    try {
+      const profile = JSON.parse(entry.value) as AgentProfile;
+      profile.activity_dates = normalizeActivityDates(profile.activity_dates);
+      return profile;
+    } catch {
+      return null;
+    }
+  }).filter((profile): profile is AgentProfile => profile !== null);
+}
 
-  const raw = await kv.get(key) as string | null;
-  const agents: string[] = raw ? JSON.parse(raw) : [];
-
-  if (!agents.includes(agentId)) {
-    agents.push(agentId);
-    await kv.put(key, JSON.stringify(agents), { expirationTtl: 90 * 86400 });
+function buildActivityIndex(profiles: AgentProfile[]): Map<string, Set<string>> {
+  const byDate = new Map<string, Set<string>>();
+  for (const profile of profiles) {
+    for (const day of normalizeActivityDates(profile.activity_dates)) {
+      const set = byDate.get(day) ?? new Set<string>();
+      set.add(profile.agent_id);
+      byDate.set(day, set);
+    }
   }
+  return byDate;
 }
 
-// ─── Record registration cohort ───
-
-export async function recordRegistration(env: Env, agentId: string): Promise<void> {
-  const today = dateKey(new Date());
-  const key = `cohort:${today}`;
-  const kv = statsKV(env);
-
-  const raw = await kv.get(key) as string | null;
-  const agents: string[] = raw ? JSON.parse(raw) : [];
-
-  if (!agents.includes(agentId)) {
-    agents.push(agentId);
-    await kv.put(key, JSON.stringify(agents), { expirationTtl: 180 * 86400 });
-  }
-}
-
-// ─── Daily active set loader ───
-
-async function getActiveSet(env: Env, date: string): Promise<Set<string>> {
-  const raw = await statsKV(env).get(`active:${date}`) as string | null;
-  return new Set(raw ? JSON.parse(raw) : []);
-}
-
-async function getCohort(env: Env, date: string): Promise<string[]> {
-  const raw = await statsKV(env).get(`cohort:${date}`) as string | null;
-  return raw ? JSON.parse(raw) : [];
+function profileLastActiveDate(profile: AgentProfile): string | null {
+  const activityDates = normalizeActivityDates(profile.activity_dates);
+  if (activityDates.length > 0) return activityDates[activityDates.length - 1];
+  if (profile.last_active_at) return profile.last_active_at.slice(0, 10);
+  return null;
 }
 
 // ─── Engagement: DAU / WAU / MAU ───
@@ -81,13 +76,14 @@ export interface EngagementMetrics {
 }
 
 export async function getEngagement(env: Env): Promise<EngagementMetrics> {
-  // Fetch last 30 days of daily active sets in parallel
+  const profiles = await loadProfiles(env);
+  const activityByDate = buildActivityIndex(profiles);
   const dates: string[] = [];
   for (let i = 0; i < 30; i++) {
     dates.push(dateKey(daysAgo(i)));
   }
 
-  const sets = await Promise.all(dates.map(d => getActiveSet(env, d)));
+  const sets = dates.map((date) => activityByDate.get(date) ?? new Set<string>());
 
   const today = sets[0];
   const weekSet = new Set<string>();
@@ -129,6 +125,8 @@ export interface RetentionCohort {
 }
 
 export async function getRetention(env: Env, days = 30): Promise<RetentionCohort[]> {
+  const profiles = await loadProfiles(env);
+  const activityByDate = buildActivityIndex(profiles);
   const checkpoints = [1, 3, 7, 14, 30];
   const cohorts: RetentionCohort[] = [];
 
@@ -136,37 +134,23 @@ export async function getRetention(env: Env, days = 30): Promise<RetentionCohort
   const startDay = 2;
   const endDay = Math.min(days + 30, 60); // cap to avoid too many KV reads
 
-  // Pre-fetch all needed active sets
-  const allDates: string[] = [];
-  for (let i = 0; i <= endDay + 30; i++) {
-    allDates.push(dateKey(daysAgo(i)));
-  }
-  const activeSetPromises = new Map<string, Promise<Set<string>>>();
-  for (const d of allDates) {
-    if (!activeSetPromises.has(d)) {
-      activeSetPromises.set(d, getActiveSet(env, d));
-    }
-  }
-
-  // Pre-fetch cohorts
   for (let daysBack = startDay; daysBack <= endDay; daysBack++) {
     const cohortDate = dateKey(daysAgo(daysBack));
-    const cohortAgents = await getCohort(env, cohortDate);
-    if (cohortAgents.length === 0) continue;
+    const cohortProfiles = profiles.filter((profile) => profile.created_at.slice(0, 10) === cohortDate);
+    if (cohortProfiles.length === 0) continue;
 
     const retention: Record<string, number> = {};
 
     for (const cp of checkpoints) {
       if (cp > daysBack) break; // can't compute d30 for a 7-day-old cohort
-      const checkDate = dateKey(daysAgo(daysBack - cp));
-      const activeOnDay = await (activeSetPromises.get(checkDate) ?? Promise.resolve(new Set()));
-      const retained = cohortAgents.filter(id => activeOnDay.has(id)).length;
-      retention[`d${cp}`] = Math.round((retained / cohortAgents.length) * 100) / 100;
+      const activeOnDay = activityByDate.get(addDays(cohortDate, cp)) ?? new Set<string>();
+      const retained = cohortProfiles.filter((profile) => activeOnDay.has(profile.agent_id)).length;
+      retention[`d${cp}`] = Math.round((retained / cohortProfiles.length) * 100) / 100;
     }
 
     cohorts.push({
       cohort_date: cohortDate,
-      cohort_size: cohortAgents.length,
+      cohort_size: cohortProfiles.length,
       retention,
     });
   }
@@ -191,11 +175,7 @@ export interface ActivationFunnel {
 }
 
 export async function getActivation(env: Env): Promise<ActivationFunnel> {
-  const entries = await statsKV(env).listWithValues("agent:");
-  const profiles: AgentProfile[] = entries.map(e => {
-    try { return JSON.parse(e.value) as AgentProfile; }
-    catch { return null; }
-  }).filter((p): p is AgentProfile => p !== null);
+  const profiles = await loadProfiles(env);
 
   const total = profiles.length;
   const executedOnce = profiles.filter(p => p.total_executions >= 1).length;
@@ -238,31 +218,28 @@ export interface AgentHealth {
 }
 
 export async function getAgentHealth(env: Env): Promise<AgentHealth> {
-  const entries = await statsKV(env).listWithValues("agent:");
-  const profiles: AgentProfile[] = entries.map(e => {
-    try { return JSON.parse(e.value) as AgentProfile; }
-    catch { return null; }
-  }).filter((p): p is AgentProfile => p !== null);
+  const profiles = await loadProfiles(env);
+  const activityByDate = buildActivityIndex(profiles);
+  const today = dateKey(new Date());
+  const last7 = new Set<string>();
+  const last30 = new Set<string>();
 
-  const now = Date.now();
-  const dayMs = 86400_000;
+  for (let i = 0; i < 30; i++) {
+    const day = dateKey(daysAgo(i));
+    const active = activityByDate.get(day);
+    if (!active) continue;
+    for (const agentId of active) {
+      last30.add(agentId);
+      if (i < 7) last7.add(agentId);
+    }
+  }
 
-  const activeToday = profiles.filter(p =>
-    p.last_active_at && (now - new Date(p.last_active_at).getTime()) < dayMs
-  ).length;
-
-  const activeWeek = profiles.filter(p =>
-    p.last_active_at && (now - new Date(p.last_active_at).getTime()) < 7 * dayMs
-  ).length;
-
-  const activeMonth = profiles.filter(p =>
-    p.last_active_at && (now - new Date(p.last_active_at).getTime()) < 30 * dayMs
-  ).length;
-
-  const churned = profiles.filter(p =>
-    p.total_executions > 0 &&
-    (!p.last_active_at || (now - new Date(p.last_active_at).getTime()) > 30 * dayMs)
-  ).length;
+  const churnCutoff = dateKey(daysAgo(30));
+  const churned = profiles.filter((profile) => {
+    if (profile.total_executions === 0) return false;
+    const lastActive = profileLastActiveDate(profile);
+    return !lastActive || lastActive < churnCutoff;
+  }).length;
 
   const execCounts = profiles.map(p => p.total_executions).sort((a, b) => a - b);
   const avg = execCounts.length > 0
@@ -285,9 +262,9 @@ export async function getAgentHealth(env: Env): Promise<AgentHealth> {
 
   return {
     total_agents: profiles.length,
-    active_today: activeToday,
-    active_this_week: activeWeek,
-    active_this_month: activeMonth,
+    active_today: activityByDate.get(today)?.size ?? 0,
+    active_this_week: last7.size,
+    active_this_month: last30.size,
     churned_30d: churned,
     avg_executions_per_agent: avg,
     median_executions_per_agent: median,
@@ -304,64 +281,29 @@ export interface BackfillResult {
 }
 
 /**
- * One-time backfill: reads all existing AgentProfiles and seeds
- * cohort:{date} from created_at and active:{date} from last_active_at.
- * Safe to run multiple times — deduplicates agent_ids in each set.
+ * One-time backfill: reads existing AgentProfiles and adds a bounded
+ * `activity_dates` history from `last_active_at` (or `created_at` as fallback
+ * for older agents with executions). Safe to run multiple times.
  */
 export async function backfillFromProfiles(env: Env): Promise<BackfillResult> {
-  const entries = await statsKV(env).listWithValues("agent:");
-  const profiles: AgentProfile[] = entries.map(e => {
-    try { return JSON.parse(e.value) as AgentProfile; }
-    catch { return null; }
-  }).filter((p): p is AgentProfile => p !== null);
-
-  // Group by registration date
-  const cohortMap = new Map<string, string[]>();
-  // Group by last active date (best we can do without full history)
-  const activeMap = new Map<string, string[]>();
-
-  for (const p of profiles) {
-    // Seed cohort from created_at
-    if (p.created_at) {
-      const date = p.created_at.slice(0, 10);
-      const arr = cohortMap.get(date) ?? [];
-      if (!arr.includes(p.agent_id)) arr.push(p.agent_id);
-      cohortMap.set(date, arr);
-    }
-
-    // Seed active day from last_active_at (if available) or created_at as fallback
-    const activeDate = p.last_active_at ?? (p.total_executions > 0 ? p.created_at : null);
-    if (activeDate) {
-      const date = activeDate.slice(0, 10);
-      const arr = activeMap.get(date) ?? [];
-      if (!arr.includes(p.agent_id)) arr.push(p.agent_id);
-      activeMap.set(date, arr);
-    }
-  }
-
   const kv = statsKV(env);
+  const profiles = await loadProfiles(env);
+  let activeDaysSeeded = 0;
 
-  // Write cohort sets
-  for (const [date, agents] of cohortMap) {
-    const key = `cohort:${date}`;
-    const existing = await kv.get(key) as string | null;
-    const merged = new Set<string>(existing ? JSON.parse(existing) : []);
-    for (const id of agents) merged.add(id);
-    await kv.put(key, JSON.stringify([...merged]), { expirationTtl: 180 * 86400 });
-  }
-
-  // Write active sets
-  for (const [date, agents] of activeMap) {
-    const key = `active:${date}`;
-    const existing = await kv.get(key) as string | null;
-    const merged = new Set<string>(existing ? JSON.parse(existing) : []);
-    for (const id of agents) merged.add(id);
-    await kv.put(key, JSON.stringify([...merged]), { expirationTtl: 90 * 86400 });
+  for (const profile of profiles) {
+    const existing = normalizeActivityDates(profile.activity_dates);
+    const derived = profile.last_active_at
+      ? profile.last_active_at.slice(0, 10)
+      : (profile.total_executions > 0 ? profile.created_at.slice(0, 10) : null);
+    if (!derived || existing.includes(derived)) continue;
+    profile.activity_dates = normalizeActivityDates([...existing, derived]);
+    await kv.put(`agent:${profile.agent_id}`, JSON.stringify(profile));
+    activeDaysSeeded++;
   }
 
   return {
     agents_processed: profiles.length,
-    cohorts_seeded: cohortMap.size,
-    active_days_seeded: activeMap.size,
+    cohorts_seeded: new Set(profiles.map((profile) => profile.created_at.slice(0, 10))).size,
+    active_days_seeded: activeDaysSeeded,
   };
 }

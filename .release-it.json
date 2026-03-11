@@ -1,40 +1,41 @@
 {
-	"plugins": {
-		"@release-it/bumper": {
-			"out": ["packages/skill/package.json", "version.json"]
-		},
-		"@release-it/conventional-changelog": {
-			"preset": {
-				"name": "conventionalcommits",
-				"types": [
-					{ "type": "feat", "section": "Features" },
-					{ "type": "fix", "section": "Bug Fixes" },
-					{ "type": "perf", "section": "Performance" },
-					{ "type": "refactor", "section": "Refactoring" }
-				]
-			},
-			"infile": "CHANGELOG.md"
-		}
-	},
-	"git": {
-		"commitMessage": "chore: release v${version}",
-		"tagName": "v${version}",
-		"tagAnnotation": "Release v${version}",
-		"push": true
-	},
-	"npm": {
-		"publish": false
-	},
-	"github": {
-		"release": true,
-		"releaseName": "v${version}",
-		"releaseNotes": "cat .release-notes.md"
-	},
-	"hooks": {
-		"before:init": "bun test tests/path-params.test.ts tests/utils.test.ts",
-		"after:bump": [
-			"bun scripts/sync-skill-md.ts",
-			"bun scripts/generate-release-notes.ts --version ${version}"
-		]
-	}
+  "plugins": {
+    "@release-it/bumper": {
+      "out": ["package.json", "packages/skill/package.json", "version.json"]
+    },
+    "@release-it/conventional-changelog": {
+      "preset": {
+        "name": "conventionalcommits",
+        "types": [
+          { "type": "feat", "section": "Features" },
+          { "type": "fix", "section": "Bug Fixes" },
+          { "type": "perf", "section": "Performance" },
+          { "type": "refactor", "section": "Refactoring" }
+        ]
+      },
+      "infile": "CHANGELOG.md"
+    }
+  },
+  "git": {
+    "commitMessage": "chore: release v${version}",
+    "tagName": "v${version}",
+    "tagAnnotation": "Release v${version}",
+    "push": true
+  },
+  "npm": {
+    "publish": false
+  },
+  "github": {
+    "release": true,
+    "releaseName": "v${version}",
+    "releaseNotes": "cat .release-notes.md"
+  },
+  "hooks": {
+    "before:init": "bun test tests/path-params.test.ts tests/utils.test.ts",
+    "after:bump": [
+      "bun scripts/sync-skill-md.ts",
+      "bun scripts/generate-release-notes.ts --version ${version}",
+      "bun scripts/release-announce.ts --write"
+    ]
+  }
 }

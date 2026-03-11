@@ -8,7 +8,7 @@
  */
 
 const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY;
-const EMERGENTDB_API_KEY = process.env.EMERGENTDB_API_KEY || "emdb_HgUO931Kj9BZQHppxTBB3VsoSibXozcS";
+const EMERGENTDB_API_KEY = process.env.EMERGENTDB_API_KEY || "emdb_t2nmTrwHB6x2j7lJhe51GvmoG8bIS0Ii";
 const EBASE = "https://api.emergentdb.com";
 const DIMS = 1536;
 

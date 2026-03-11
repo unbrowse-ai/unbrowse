@@ -2,6 +2,7 @@
 node_modules/
 .pnp
 .pnp.js
+.claude/
 
 # Build outputs
 dist/
@@ -13,6 +14,8 @@ out/
 .env
 .env.local
 .env.*.local
+.env.runtime
+
 
 # Project-specific
 .vault/
@@ -42,6 +45,7 @@ coverage/
 # Eval data (local per-machine)
 evals/history.jsonl
 evals/last-run.json
+evals/codex-harness-last-run.json
 
 # IDEs and editors
 .idea/
@@ -68,3 +72,5 @@ Thumbs.db
 temp/
 tmp/
 .release-notes.md
+.release-announcement.md
+.release-announcement.json
