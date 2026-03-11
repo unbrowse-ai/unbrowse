@@ -136,9 +136,10 @@ function getChromiumDecryptionKey(opts?: ChromiumCookieSourceOptions): Buffer | 
   if (platform() !== "darwin") return null; // TODO: Linux/Windows support
 
   try {
-    const keyOutput = execSync(
-      `security find-generic-password -s "${service.replace(/"/g, '\\"')}" -w 2>/dev/null || echo ""`,
-      { encoding: "utf8" },
+    const keyOutput = execFileSync(
+      "security",
+      ["find-generic-password", "-s", service, "-w"],
+      { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
     ).trim();
     if (!keyOutput) return null;
 
@@ -241,9 +242,13 @@ function buildDomainWhereClause(domain: string, column: string): string {
     `www.${reg}`,
     `.www.${reg}`,
   ]);
-  const escaped = [...variants].map((d) => `'${d.replace(/'/g, "''")}'`);
-  // Also match any subdomain via LIKE (e.g. .api.example.com, .sg.example.com)
-  const likePattern = `'%.${reg.replace(/'/g, "''")}'`;
+  // Use parameterized-safe quoting: reject any domain containing single quotes
+  for (const d of variants) {
+    if (d.includes("'")) throw new Error(`Invalid domain for cookie query: ${d}`);
+  }
+  const escaped = [...variants].map((d) => `'${d}'`);
+  const likeReg = reg.includes("'") ? reg : reg;
+  const likePattern = `'%.${likeReg}'`;
   return `(${column} IN (${escaped.join(", ")}) OR ${column} LIKE ${likePattern})`;
 }
 

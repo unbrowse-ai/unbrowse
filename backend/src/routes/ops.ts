@@ -14,7 +14,7 @@ export const opsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string
  * Returns stats + skills + agents in one Worker invocation so the
  * qdkv index cache is shared across all three reads.
  */
-opsRoutes.get("/ops", async (c) => {
+opsRoutes.get("/ops", bearerAuth, async (c) => {
   const [skillEntries, statEntries, skills, agents] = await Promise.all([
     skillsKV(c.env).listWithValues("skill:"),
     statsKV(c.env).listWithValues("stats:"),

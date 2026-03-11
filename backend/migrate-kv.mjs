@@ -6,7 +6,8 @@
 
 import { execSync } from "child_process";
 
-const EMERGENTDB_API_KEY = process.env.EMERGENTDB_API_KEY || "emdb_t2nmTrwHB6x2j7lJhe51GvmoG8bIS0Ii";
+const EMERGENTDB_API_KEY = process.env.EMERGENTDB_API_KEY;
+if (!EMERGENTDB_API_KEY) { console.error("EMERGENTDB_API_KEY required"); process.exit(1); }
 const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY || "";
 const EBASE = "https://api.emergentdb.com";
 const DIMS = 1536;
