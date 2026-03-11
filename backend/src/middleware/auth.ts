@@ -5,6 +5,19 @@ import { ensureAgentProfile, recordAgentActivity } from "../services/agents.js";
 
 type AuthEnv = { Bindings: Env; Variables: { agent_id: string } };
 
+/** Timing-safe string comparison to prevent timing attacks on API key checks. */
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  let diff = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    diff |= bufA[i] ^ bufB[i];
+  }
+  return diff === 0;
+}
+
 function queueAgentActivity(c: Context<AuthEnv>, agentId: string): void {
   try {
     c.executionCtx.waitUntil(recordAgentActivity(c.env, agentId));
@@ -44,7 +57,7 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   const token = authHeader.slice(7);
 
   // Legacy admin key (backward compat for existing CLI installs)
-  if (token === c.env.API_KEY) {
+  if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
     c.set("agent_id", "__admin__");
     await next();
     return;
@@ -66,8 +79,12 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
     }, 403);
   }
 
+  if (!result.keyId) {
+    return c.json({ error: "Invalid API key", code: "MISSING_KEY_ID" }, 401);
+  }
+
   // Enforce ToS acceptance
-  const profile = await ensureAgentProfile(c.env, result.keyId!);
+  const profile = await ensureAgentProfile(c.env, result.keyId);
   if (profile && profile.tos_accepted_version !== CURRENT_TOS_VERSION) {
     return c.json({
       error: "tos_update_required",
@@ -79,8 +96,8 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
     }, 403);
   }
 
-  c.set("agent_id", result.keyId!);
-  queueAgentActivity(c, result.keyId!);
+  c.set("agent_id", result.keyId);
+  queueAgentActivity(c, result.keyId);
   await next();
 }
 
@@ -95,7 +112,7 @@ export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
   }
   const token = authHeader.slice(7);
 
-  if (token === c.env.API_KEY) {
+  if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
     c.set("agent_id", "__admin__");
     await next();
     return;
@@ -107,10 +124,13 @@ export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
   if (!result.valid) {
     return c.json({ error: "Invalid API key", code: result.code }, 403);
   }
+  if (!result.keyId) {
+    return c.json({ error: "Invalid API key", code: "MISSING_KEY_ID" }, 401);
+  }
 
-  await ensureAgentProfile(c.env, result.keyId!);
-  c.set("agent_id", result.keyId!);
-  queueAgentActivity(c, result.keyId!);
+  await ensureAgentProfile(c.env, result.keyId);
+  c.set("agent_id", result.keyId);
+  queueAgentActivity(c, result.keyId);
   await next();
 }
 
@@ -119,16 +139,16 @@ export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
-    if (token === c.env.API_KEY) {
+    if (c.env.API_KEY && safeCompare(token, c.env.API_KEY)) {
       c.set("agent_id", "__admin__");
     } else {
       const pathOpt = new URL(c.req.url).pathname;
       const epOpt = pathOpt.replace(/^\/v1\//, "").split("/")[0] || "unknown";
       const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env, [`endpoint:${epOpt}`]);
-      if (result.valid) {
-        await ensureAgentProfile(c.env, result.keyId!);
-        c.set("agent_id", result.keyId!);
-        queueAgentActivity(c, result.keyId!);
+      if (result.valid && result.keyId) {
+        await ensureAgentProfile(c.env, result.keyId);
+        c.set("agent_id", result.keyId);
+        queueAgentActivity(c, result.keyId);
       }
     }
   }

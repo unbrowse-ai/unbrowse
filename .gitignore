@@ -15,7 +15,7 @@ out/
 .env.local
 .env.*.local
 .env.runtime
-
+backend/.dev.vars
 
 # Project-specific
 .vault/

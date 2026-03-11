@@ -1,8 +1,12 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { getEngagement, getRetention, getActivation, getAgentHealth } from "../services/analytics.js";
+import { bearerAuth } from "../middleware/auth.js";
 
-export const analyticsRoutes = new Hono<{ Bindings: Env }>();
+export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
+
+// All analytics routes require authentication
+analyticsRoutes.use("*", bearerAuth);
 
 // GET /v1/analytics/engagement — DAU/WAU/MAU and stickiness ratios
 analyticsRoutes.get("/analytics/engagement", async (c) => {
