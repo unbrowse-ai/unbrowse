@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.5 (2026-03-11)
+
+### Bug Fixes
+
+- **resolvePath**: changed URN fallback condition from `val === undefined` to `val == null` so references resolve when normalized APIs set inline fields to explicit `null` (LinkedIn Voyager, Facebook Graph, REST-li)
+- **detectEntityIndex**: replaced hardcoded `obj.included` / `obj.data.included` lookups with generic scan of all top-level and one-level-nested arrays, picking the largest `entityUrn`-keyed array
+
 ## Unreleased
 
 ### Authentication
