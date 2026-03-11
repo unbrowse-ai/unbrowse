@@ -9,6 +9,8 @@
 
 ### Setup & onboarding
 
+- Added a publish guard around `packages/skill` so direct folder-level npm publishes now fail closed with instructions to use the repo-root release flow, plus explicit root scripts for `bun run pack:cli` and `bun run publish:cli` when a synced local publish is intentional.
+- Release config now sets `npm.ignoreVersion=true` so `release-it` does not re-run `npm version` after `@release-it/bumper` has already synced the root package, skill package, and `version.json`.
 - Added a skill README callout asking users to post sites/APIs they could not get working in GitHub Discussion #53 so those failures can become explicit requirements in the next eval cycle.
 - Added `unbrowse setup` as the one-command bootstrap for npm/npx installs. It checks prerequisites, installs browser assets, registers Open Code's `/unbrowse` command, and can skip server start with `--no-start`.
 - `unbrowse setup` now asks for an email-style agent identity up front and `UNBROWSE_AGENT_EMAIL` can preseed the same display identity in headless setups, while opaque backend agent ids stay unchanged.
