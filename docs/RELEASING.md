@@ -14,6 +14,16 @@ Unbrowse releases are driven locally, then finished by GitHub Actions.
 4. `release-it` updates `CHANGELOG.md`, tags `vX.Y.Z`, pushes, and creates the GitHub Release.
 5. During `after:bump`, release hooks also write `.release-announcement.md` and `.release-announcement.json` for announcement drafting.
 
+Do not bump or publish only from `packages/skill/`.
+
+- `packages/skill` can still build/package locally, but direct `npm publish` there is now guarded and fails with instructions.
+- explicit local CLI publish path lives at repo root:
+  - `bun run pack:cli`
+  - `bun run publish:cli`
+- local `bun run publish:cli` intentionally skips `--provenance`; provenance stays on the GitHub Actions release workflow, where npm supports automatic attestations.
+- canonical path is still `bun run release`, which keeps `package.json`, `packages/skill/package.json`, and `version.json` in sync before the tag-triggered workflow publishes the CLI.
+- `release-it` is configured with `npm.ignoreVersion=true` because `@release-it/bumper` already owns the version bump across all three files. That avoids the duplicate `npm version` pass that can otherwise fail with `Version not changed`.
+
 ## Tag-triggered GitHub Actions
 
 Pushing `v*` tags runs `.github/workflows/release.yml`, which now:

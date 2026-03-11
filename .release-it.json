@@ -23,7 +23,8 @@
     "push": true
   },
   "npm": {
-    "publish": false
+    "publish": false,
+    "ignoreVersion": true
   },
   "github": {
     "release": true,
