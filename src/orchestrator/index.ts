@@ -360,6 +360,21 @@ function inferDefaultParam(
  * Returns a map of param_name → inferred_value for params the LLM could resolve.
  * Params it can't resolve are omitted.
  */
+/** Strip meta-phrases from intent to get raw search terms. Returns null if intent is too complex. */
+function extractSearchTermsFromIntent(intent: string): string | null {
+  let terms = intent.trim().toLowerCase();
+  // Strip common prefixes
+  terms = terms
+    .replace(/^(search\s+for|find\s+me|find|look\s+for|looking\s+for|show\s+me|get\s+me|get|browse|shop\s+for|buy)\s+/i, "")
+    .replace(/\s+(on|at|from|in|via)\s+\S+$/i, "") // strip "on amazon", "at walmart"
+    .trim();
+  // If there are multiple clauses (dates, locations, filters), fall back to LLM
+  if (/\b(from|to|between|before|after|near|in\s+\w+,?\s+\w+|under\s+\$|over\s+\$|cheaper\s+than|more\s+than)\b/i.test(terms)) {
+    return null;
+  }
+  return terms || null;
+}
+
 async function inferParamsFromIntent(
   urlTemplate: string,
   intent: string,
@@ -367,6 +382,15 @@ async function inferParamsFromIntent(
   endpointDescription?: string,
 ): Promise<Record<string, string>> {
   if (unboundParams.length === 0) return {};
+
+  // Fast path: single search-like param — extract search terms directly, skip LLM
+  if (unboundParams.length === 1) {
+    const param = unboundParams[0];
+    const searchTerms = extractSearchTermsFromIntent(intent);
+    if (searchTerms) {
+      return { [param]: searchTerms };
+    }
+  }
 
   const system = `You extract URL query/path parameter values from a user's natural-language intent.
 Given a URL template with placeholder parameters and the user's intent, return a JSON object mapping parameter names to their values.
@@ -804,7 +828,11 @@ export async function resolveAndExecute(
     if (intent && intent.trim().length > 0) {
       try {
         const autoResult = await tryAutoExecute(skill, source);
-        if (autoResult) return autoResult;
+        if (autoResult) {
+          // Promote to marketplace cache so subsequent requests skip live-capture
+          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "");
+          return autoResult;
+        }
       } catch (err) {
         console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
       }
