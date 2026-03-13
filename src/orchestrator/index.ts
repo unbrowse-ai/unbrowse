@@ -16,6 +16,8 @@ import type {
 import { TRACE_VERSION } from "../version.js";
 import { nanoid } from "nanoid";
 import { assessIntentResult } from "../intent-match.js";
+import { existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY ?? "";
@@ -58,6 +60,38 @@ const skillRouteCache = new Map<
   string,
   { skillId: string; domain: string; endpointId?: string; ts: number }
 >();
+const ROUTE_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "route-cache.json");
+
+// Persist route cache to disk (debounced)
+let _routeCacheDirty = false;
+function persistRouteCache() {
+  _routeCacheDirty = true;
+}
+setInterval(() => {
+  if (!_routeCacheDirty) return;
+  _routeCacheDirty = false;
+  try {
+    const dir = dirname(ROUTE_CACHE_FILE);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const entries = Object.fromEntries(skillRouteCache);
+    writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(entries), "utf-8");
+  } catch { /* best effort */ }
+}, 5_000);
+
+// Load route cache from disk on startup
+try {
+  if (existsSync(ROUTE_CACHE_FILE)) {
+    const data = JSON.parse(readFileSync(ROUTE_CACHE_FILE, "utf-8"));
+    for (const [k, v] of Object.entries(data)) {
+      const entry = v as { skillId: string; domain: string; endpointId?: string; ts: number };
+      // Only load entries less than 24h old
+      if (Date.now() - entry.ts < 24 * 60 * 60_000) {
+        skillRouteCache.set(k, entry);
+      }
+    }
+    console.log(`[route-cache] loaded ${skillRouteCache.size} entries from disk`);
+  }
+} catch { /* fresh start */ }
 const routeResultCache = new Map<
   string,
   {
@@ -70,7 +104,7 @@ const routeResultCache = new Map<
     expires: number;
   }
 >();
-const ROUTE_CACHE_TTL = 5 * 60_000; // 5 minutes
+const ROUTE_CACHE_TTL = 24 * 60 * 60_000; // 24 hours (persisted to disk)
 const MARKETPLACE_HYDRATE_LIMIT = Math.max(1, Number(process.env.UNBROWSE_MARKETPLACE_HYDRATE_LIMIT ?? 4));
 const MARKETPLACE_GET_SKILL_TIMEOUT_MS = Math.max(250, Number(process.env.UNBROWSE_MARKETPLACE_GET_SKILL_TIMEOUT_MS ?? 2500));
 const MARKETPLACE_DOMAIN_SEARCH_K = Math.max(1, Number(process.env.UNBROWSE_MARKETPLACE_DOMAIN_SEARCH_K ?? 5));
@@ -114,6 +148,7 @@ function promoteLearnedSkill(
     endpointId,
     ts: Date.now(),
   });
+  persistRouteCache();
 }
 
 function promoteResultSnapshot(
@@ -1384,6 +1419,7 @@ export async function resolveAndExecute(
       skipped_global: false,
     }));
     timing.search_ms = Date.now() - ts0;
+    console.log(`[marketplace] search: ${domainResults.length} domain + ${globalResults.length} global results (${timing.search_ms}ms)`);
 
     // Merge: domain results first (higher precision), then global (broader recall)
     // Dedup by skill_id+endpoint_id — search now returns per-endpoint vectors
@@ -1441,6 +1477,7 @@ export async function resolveAndExecute(
     // If marketplace found viable skills, defer to the agent unless they already chose an endpoint.
     const viable = ranked.filter((c) => c.composite >= CONFIDENCE_THRESHOLD).slice(0, 3);
     timing.candidates_tried = viable.length;
+    console.log(`[marketplace] viable=${viable.length}/${ranked.length} candidates (threshold=${CONFIDENCE_THRESHOLD}), top=${viable[0]?.composite?.toFixed(1) ?? "n/a"} skill=${viable[0]?.skill?.skill_id?.slice(0,10) ?? "n/a"}`);
     if (viable.length > 0) {
       if (agentChoseEndpoint) {
         // Agent already picked an endpoint — race top candidates to execute it
