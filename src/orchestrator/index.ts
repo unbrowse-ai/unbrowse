@@ -622,7 +622,7 @@ function isDocumentLikeCandidate(candidate: RankedCandidate, contextUrl?: string
 function isConcreteEntityDetailIntent(intent: string, contextUrl?: string): boolean {
   if (!/\b(get|fetch|view)\b/i.test(intent)) return false;
   if (
-    !/\b(company|companies|organization|organisations|business|org|person|people|profile|profiles|member|members|user|users)\b/i.test(
+    !/\b(company|companies|organization|organisations|business|org|person|people|profile|profiles|member|members|user|users|product|products|item|items|listing|listings)\b/i.test(
       intent,
     )
   )
@@ -641,6 +641,37 @@ function isConcreteEntityDetailIntent(intent: string, contextUrl?: string): bool
   } catch {
     return false;
   }
+}
+
+export function marketplaceSkillMatchesContext(
+  skill: SkillManifest,
+  intent: string,
+  contextUrl?: string,
+): boolean {
+  if (!contextUrl || !isConcreteEntityDetailIntent(intent, contextUrl)) return true;
+  let contextPath = "";
+  try {
+    contextPath = new URL(contextUrl).pathname;
+  } catch {
+    return true;
+  }
+  if (!contextPath) return true;
+
+  let hasApiLikeEndpoint = false;
+  for (const endpoint of skill.endpoints ?? []) {
+    let path = "";
+    let triggerPath = "";
+    try { path = new URL(endpoint.url_template).pathname; } catch { /* ignore */ }
+    try { triggerPath = endpoint.trigger_url ? new URL(endpoint.trigger_url).pathname : ""; } catch { /* ignore */ }
+    if (path === contextPath || triggerPath === contextPath) return true;
+
+    const apiLike =
+      /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(endpoint.url_template) ||
+      (!endpoint.dom_extraction && !!endpoint.response_schema && !/captured page artifact/i.test(endpoint.description ?? ""));
+    if (apiLike) hasApiLikeEndpoint = true;
+  }
+
+  return hasApiLikeEndpoint;
 }
 
 function prioritizeIntentMatchedApis(
@@ -1377,13 +1408,14 @@ export async function resolveAndExecute(
     const cached = skillRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
       const skill = await getSkill(cached.skillId, clientScope);
-      if (skill) {
+      if (skill && hasUsableEndpoints(skill)) {
         timing.cache_hit = true;
         const deferred = await buildDeferralWithAutoExec(skill, "marketplace");
         deferred.timing.cache_hit = true;
         return deferred;
       }
       skillRouteCache.delete(cacheKey);
+      persistRouteCache();
     }
   }
 
@@ -1393,7 +1425,7 @@ export async function resolveAndExecute(
     const domainCached = regDomain ? domainSkillCache.get(regDomain) : null;
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
       const skill = await getSkill(domainCached.skillId, clientScope);
-      if (skill) {
+      if (skill && hasUsableEndpoints(skill)) {
         timing.cache_hit = true;
         console.log(`[domain-cache] hit for ${regDomain} → skill ${skill.skill_id.slice(0, 15)}`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
@@ -1510,6 +1542,7 @@ export async function resolveAndExecute(
       if (!skill) continue;
       if (skill.lifecycle !== "active") continue;
       if (!hasUsableEndpoints(skill)) continue;
+      if (!marketplaceSkillMatchesContext(skill, intent, context?.url)) continue;
       if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
       const endpointId = extractEndpointId(c.metadata) ?? undefined;
       ranked.push({
