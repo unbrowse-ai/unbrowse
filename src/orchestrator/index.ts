@@ -62,6 +62,32 @@ const skillRouteCache = new Map<
 >();
 const ROUTE_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "route-cache.json");
 
+// Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
+// This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it
+const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; ts: number }>();
+const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-skill-cache.json");
+
+function persistDomainCache() {
+  try {
+    const dir = dirname(DOMAIN_CACHE_FILE);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(DOMAIN_CACHE_FILE, JSON.stringify(Object.fromEntries(domainSkillCache)), "utf-8");
+  } catch { /* best effort */ }
+}
+
+try {
+  if (existsSync(DOMAIN_CACHE_FILE)) {
+    const data = JSON.parse(readFileSync(DOMAIN_CACHE_FILE, "utf-8"));
+    for (const [k, v] of Object.entries(data)) {
+      const entry = v as { skillId: string; endpointId?: string; ts: number };
+      if (Date.now() - entry.ts < 7 * 24 * 60 * 60_000) { // 7 day TTL
+        domainSkillCache.set(k, entry);
+      }
+    }
+    console.log(`[domain-cache] loaded ${domainSkillCache.size} entries from disk`);
+  }
+} catch { /* fresh start */ }
+
 // Persist route cache to disk (debounced)
 let _routeCacheDirty = false;
 function persistRouteCache() {
@@ -149,6 +175,12 @@ function promoteLearnedSkill(
     ts: Date.now(),
   });
   persistRouteCache();
+  // Also cache at domain level for cross-intent reuse
+  const regDomain = getRegistrableDomain(skill.domain);
+  if (regDomain) {
+    domainSkillCache.set(regDomain, { skillId: skill.skill_id, endpointId, ts: Date.now() });
+    persistDomainCache();
+  }
 }
 
 function promoteResultSnapshot(
@@ -1340,8 +1372,7 @@ export async function resolveAndExecute(
     }
   }
 
-  // Route-cache fast path for normal resolve. If the same intent/domain was solved recently,
-  // try that skill first before marketplace search.
+  // Route-cache fast path: exact intent+url match from prior resolve
   if (!forceCapture && !agentChoseEndpoint) {
     const cached = skillRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
@@ -1353,6 +1384,22 @@ export async function resolveAndExecute(
         return deferred;
       }
       skillRouteCache.delete(cacheKey);
+    }
+  }
+
+  // Domain-level cache: different intent, same domain → reuse skill with new params
+  if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
+    const regDomain = getRegistrableDomain(requestedDomain);
+    const domainCached = regDomain ? domainSkillCache.get(regDomain) : null;
+    if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
+      const skill = await getSkill(domainCached.skillId, clientScope);
+      if (skill) {
+        timing.cache_hit = true;
+        console.log(`[domain-cache] hit for ${regDomain} → skill ${skill.skill_id.slice(0, 15)}`);
+        const result = await buildDeferralWithAutoExec(skill, "marketplace");
+        result.timing.cache_hit = true;
+        return result;
+      }
     }
   }
 
@@ -1748,6 +1795,18 @@ export async function resolveAndExecute(
           const backendEp = published.endpoints.find((e) => e.endpoint_id === ep.endpoint_id);
           if (backendEp?.description) ep.description = backendEp.description;
         }
+      }
+      // Cache at domain level for cross-intent reuse
+      const regDomain = getRegistrableDomain(learned_skill.domain);
+      if (regDomain) {
+        const bestEp = learned_skill.endpoints.find(e => e.dom_extraction) ?? learned_skill.endpoints[0];
+        domainSkillCache.set(regDomain, {
+          skillId: learned_skill.skill_id,
+          endpointId: bestEp?.endpoint_id,
+          ts: Date.now(),
+        });
+        persistDomainCache();
+        console.log(`[domain-cache] cached ${regDomain} → ${learned_skill.skill_id.slice(0, 15)}`);
       }
     } catch (err) {
       console.error("[publish] discovery_cost update failed:", (err as Error).message);
