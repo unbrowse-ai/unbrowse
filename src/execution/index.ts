@@ -2492,6 +2492,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const SESSION_BOUND_QUERY = /[?&](?:[^=]*?(crumb|csrf|xsrf|token|session|auth|signature|nonce))=\{/i;
   const COMPANY_INTENT = /\b(company|companies|organization|organisations|business|org)\b/i;
   const PROFILE_INTENT = /\b(person|people|profile|profiles|user|users|member|members)\b/i;
+  const PRODUCT_DETAIL_INTENT = /\b(product|products|item|items|listing|listings)\b/i.test(intent ?? "");
   const ENTITY_DETAIL_INTENT = isEntityDetailIntent(intent);
 
   const scored = rankedCandidates.map((ep, i) => {
@@ -2642,12 +2643,31 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
     const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
+    const triggerPath = (() => {
+      try {
+        return ep.trigger_url ? new URL(ep.trigger_url).pathname : "";
+      } catch {
+        return "";
+      }
+    })();
+    const exactContextDocument =
+      PRODUCT_DETAIL_INTENT &&
+      !!contextPath &&
+      (pathname === contextPath || triggerPath === contextPath);
+    const mismatchedContextDocument =
+      !!contextPath &&
+      (isCapturedPageArtifact || looksLikeDocumentRoute) &&
+      pathname !== contextPath &&
+      triggerPath !== contextPath;
 
-    if (ENTITY_DETAIL_INTENT && looksLikeDocumentRoute) {
+    if (ENTITY_DETAIL_INTENT && looksLikeDocumentRoute && !exactContextDocument) {
       score -= 55;
     }
-    if (ENTITY_DETAIL_INTENT && isCapturedPageArtifact) {
+    if (ENTITY_DETAIL_INTENT && isCapturedPageArtifact && !exactContextDocument) {
       score -= 200;
+    }
+    if (ENTITY_DETAIL_INTENT && mismatchedContextDocument) {
+      score -= 420;
     }
     if (intent && COMMS_INTENT.test(intent) && looksLikeDocumentRoute) {
       score -= 180;

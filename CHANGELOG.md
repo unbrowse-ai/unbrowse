@@ -39,6 +39,7 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 - Added an autonomous Codex eval harness that runs auth-aware resolve/execute loops, checks DAG reachability, escalates through force-capture plus deeper `trigger_url` retries, and stops with explicit `pass`/`fail`/`skip`/`blocked` outcomes instead of a manual-only shortlist.
 - Expanded eval case schema/product-truth judging with auth persona metadata plus `entity_type`, `min_rows`, `side_effect`, `echo_params`, and `terminal_ok` validation so site coverage can assert discovery, DAG selection, and real execution outcomes in one artifact.
 - Added autonomous benchmark mode for explicit cold-vs-warm comparisons, surfacing per-round source/latency/token telemetry plus per-case speedup and token deltas between first capture and second reuse runs.
+- Added a dedicated auth eval runner plus a popularity-backed auth corpus. It bootstraps vault auth via browser-cookie reuse or scripted demo logins, then runs each case through the autonomous harness with a top-level auth artifact and per-site child artifacts.
 
 ### Reverse Engineering
 
@@ -80,6 +81,8 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 
 ### Retrieval accuracy & reliability
 
+- Added generic single-record detail-page DOM extraction plus broader `*desc*` class handling, so product/detail/profile-style pages can be judged as structured key-value records instead of falling through as empty captures.
+- Resolver marketplace hydration now rejects mismatched page-artifact-only skills for concrete detail URLs, and endpoint ranking more aggressively demotes wrong page artifacts when the requested detail page is a different path on the same domain.
 - Prefer same-trigger structured timeline/search APIs over captured page artifacts for post-search intents, so X search resolves to `SearchTimeline`-style endpoints before page-shell artifacts.
 - Added more public structured replay rewrites for DEV tag pages, pub.dev package pages, RubyGems gem pages, Stack Overflow tag pages, and Jmail search pages, so those routes resolve through stable APIs instead of slow browser capture.
 - Added a public document-fetch fast path before browser capture, letting server-rendered public pages seed reusable page-artifact skills without paying browser startup cost when plain HTML extraction already passes intent/quality checks.
