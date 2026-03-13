@@ -7,12 +7,50 @@
 - **resolvePath**: changed URN fallback condition from `val === undefined` to `val == null` so references resolve when normalized APIs set inline fields to explicit `null` (LinkedIn Voyager, Facebook Graph, REST-li)
 - **detectEntityIndex**: replaced hardcoded `obj.included` / `obj.data.included` lookups with generic scan of all top-level and one-level-nested arrays, picking the largest `entityUrn`-keyed array
 
+## 1.2.0 (2026-03-13)
+
+### Auto-Execute — Intent-Driven Parameterization
+
+Skills with URL template parameters (e.g. `?k={k}`) now auto-execute by filling params from the user's intent instead of deferring with "pick an endpoint." This eliminates the manual execute step for search-style queries across any website.
+
+- **`buildDeferralWithAutoExec()`** — every deferral path now attempts auto-execution first. Single entry point, catches all code paths.
+- **`inferParamsFromIntent()`** — LLM-based (gpt-4.1-mini) param inference maps natural language intent to URL template params. Generalizes to any site: Amazon's `k`, Yelp's `find_desc`/`find_loc`, Booking's `ss`, etc.
+- **Fast-path for single params** — simple search intents (e.g. "find wireless headphones") extract terms directly without LLM, saving ~2s per request.
+- **DOM extraction endpoints trusted** — skip LLM judge for `dom_extraction` endpoints since cheerio-extracted data uses heading-based schemas that confuse the judge.
+
+### SSR Fast-Path — HTTP Fetch Instead of Browser
+
+Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached skills. Plain HTTP fetch + cheerio extraction replaces Playwright navigation.
+
+- **`tryHttpFetch()`** — plain `fetch()` with realistic browser headers and cookie injection, 10s timeout, fails fast on non-200/non-HTML/small responses (<1KB).
+- **Silent browser fallback** — if HTTP fetch fails (bot detection, JS-rendered content), falls back to full browser capture automatically.
+- **Result**: cached SSR queries dropped from **15s → 3.6s** (4x faster). No browser launched, no GPU/memory overhead.
+
+### Skill Promotion
+
+- Auto-executed skills from live-capture are now promoted to marketplace cache via `promoteLearnedSkill()`, so subsequent requests hit the fast marketplace path instead of re-capturing.
+
+---
+
 ## Unreleased
+
+### Evals
+
+- Added an autonomous Codex eval harness that runs auth-aware resolve/execute loops, checks DAG reachability, escalates through force-capture plus deeper `trigger_url` retries, and stops with explicit `pass`/`fail`/`skip`/`blocked` outcomes instead of a manual-only shortlist.
+- Expanded eval case schema/product-truth judging with auth persona metadata plus `entity_type`, `min_rows`, `side_effect`, `echo_params`, and `terminal_ok` validation so site coverage can assert discovery, DAG selection, and real execution outcomes in one artifact.
+- Added autonomous benchmark mode for explicit cold-vs-warm comparisons, surfacing per-round source/latency/token telemetry plus per-case speedup and token deltas between first capture and second reuse runs.
+
+### Reverse Engineering
+
+- Reverse-engineered mutation endpoints now templatize replayable request-body inputs into `body` placeholders plus `body_params` defaults, infer cookie-backed CSRF plans from captured traffic, and feed request-body semantics into endpoint admission so authenticated action flows are more likely to replay cleanly instead of being stored as one-off captured payloads.
 
 ### Authentication
 
 - Added custom Chromium-family cookie import for `/v1/auth/steal`, including explicit browser selection plus optional user-data dir, cookie DB path, and macOS Safe Storage service overrides so Electron-style app sessions can be reused without re-login when their cookie store is local.
 - Broken `keytar` native-binding shims from the Bun-built npm bundle now demote cleanly to the encrypted file vault at runtime, so `resolve`/auth reads no longer crash under Node 25 when the optional native module is present but unusable.
+- CLI startup now validates the active API key against `/v1/agents/me`, ignores stale env/config keys that no longer have agent profiles, and re-registers instead of silently dropping agent activity/execution telemetry.
+- Backend auth now recreates missing `agent:*` profiles on first valid key use, so orphaned keys stop disappearing from lifecycle/activity analytics.
+- Fixed EmergentDB KV `listWithValues()` so prefixes with more than 30 trimmed/overflowed entries no longer silently undercount after the first backfill batch.
 
 ### Setup & onboarding
 
@@ -1065,4 +1103,18 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: codex harness now writes a compact review-queue sidecar with top candidates, signal tags, and execute commands so batch shortlist judging can happen in-thread without reopening the full artifact
 - fix: codex harness now shells out to the CLI through explicit child-process buffering instead of Bun pipe readers, avoiding stuck batch evals after CLI timeouts/kill paths
 - fix: review-queue fallback ordering now prefers replay/API candidates over schema-bearing page artifacts, so GitHub/MDN-style shortlist review stops surfacing the document shell above the real data endpoint
+- fix: review-queue fallback ordering now demotes third-party negative-score adtech/tracking endpoints below strong page artifacts, so recipe search shortlist review stops preferring DoubleVerify-style junk over real extracted results
+- fix: browser-capture session persistence now keeps only first-party cookies for the captured site, reducing replay pollution from third-party adtech cookies
+- fix: restore Food Network and Epicurious public recipe-search cases to the Codex stress/agent-targets site lists after they were overwritten
+- fix: repair `/v1/stats` npm range fetch helper so Bun can parse `src/api/routes.ts` and the Codex stress harness boots again
+- feat: live skill writing can now call the core agent to refine endpoint descriptions plus typed `requires` / `provides` metadata before building the operation graph, with safe heuristic fallback if the model is unavailable
+- fix: live semantic skill augmentation now runs on a bounded, relevance-filtered endpoint subset with a hard timeout, so noisy captures stop stalling skill writing on giant adtech payloads
+- fix: operation-graph edge building now refuses generic `id` / `identifier` matches, so noisy captures stop chaining unrelated endpoints purely on placeholder bindings
+- fix: execute-time truth gating now checks every successful endpoint response against the effective intent, so news blobs, affinity tables, and other wrong-entity payloads stop masquerading as product success
+- fix: intent normalization/classification now understands product search rows, stock quotes, and channel/server lists, improving both direct execute projection and false-positive rejection on fresh domains
+- fix: browser capture now navigates with `domcontentloaded` + a 20s cap before intent-aware waits, avoiding 60s+ ad-heavy page loads during fresh skill baking
+- fix: marketplace resolve now hydrates only a small, domain-prioritized skill subset with per-skill timeouts, so remote-first repeat resolves stop stalling behind slow `getSkill` fanout
+- fix: marketplace resolve now uses a shared-embedding remote search pass with conditional global fallback, so remote-first repeat resolves stop paying duplicate domain/global search cost on strong domain hits
+- fix: backend search embeddings now clamp/pad to the indexed vector dimensions, preventing marketplace resolve failures when the embedding provider drifts from the requested size
+- fix: CLI marketplace resolve now falls back to legacy `/v1/search` + `/v1/search/domain` when the new shared search route is not deployed yet, preventing repeat resolves from regressing to forced live capture during rollout
 - docs: split Codex eval lanes into task-shaped `product-success` and broader `stress`, with `public` / `agent-targets` kept as aliases so product claims stop leaning on hostile homepage sweeps
