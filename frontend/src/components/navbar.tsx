@@ -32,6 +32,15 @@ export function Navbar() {
         {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-1">
             <NavLink href="/search">Registry</NavLink>
+            <a
+              href="https://discord.gg/VWugEeFNsG"
+              target="_blank"
+              rel="noopener"
+              className="px-4 py-2 rounded-xl text-sm font-medium text-text-secondary
+                         hover:text-orange-500 hover:bg-orange-50 transition-all"
+            >
+              Discord
+            </a>
             {isAuthenticated && <NavLink href="/dashboard">Dashboard</NavLink>}
 
             <div className="w-px h-5 bg-border mx-3" />
@@ -124,6 +133,16 @@ export function Navbar() {
         <div className="md:hidden border-t border-border bg-surface/95 backdrop-blur-lg">
           <div className="px-6 py-4 space-y-1">
             <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>Registry</MobileNavLink>
+            <a
+              href="https://discord.gg/VWugEeFNsG"
+              target="_blank"
+              rel="noopener"
+              onClick={() => setMobileOpen(false)}
+              className="block px-4 py-3 rounded-xl text-base font-medium text-text-secondary
+                         hover:text-orange-500 hover:bg-orange-50 transition-all"
+            >
+              Discord
+            </a>
             {isAuthenticated && <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</MobileNavLink>}
           </div>
         </div>

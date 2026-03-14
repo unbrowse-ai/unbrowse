@@ -7,7 +7,7 @@ import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
-import { ArrowRight, Terminal, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -58,7 +58,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup for a one-command installation that sets up browser assets and configures your agent host. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
+        text: "Run npx unbrowse setup for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
       },
     },
     {
@@ -86,7 +86,9 @@ export default function Home() {
             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
           <p>Setup: npx unbrowse setup</p>
+          <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
           <p>For skill hosts: npx skills add unbrowse-ai/unbrowse</p>
+          <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
       </section>
@@ -124,38 +126,28 @@ export default function Home() {
                            via direct API call. Not a headless browser.
                          </p>
 
-            {/* Terminal UI */}
-            <div className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-3xl group text-left">
-                <div className="bg-surface-sunken border border-border rounded-xl overflow-hidden font-mono text-[11px] sm:text-sm shadow-sm">
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-surface">
-                    <Terminal className="w-4 h-4 text-text-muted" />
-                    <span className="text-text-muted">terminal</span>
+            <div id="install" className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-4xl text-left">
+              <div className="rounded-2xl border border-border bg-surface shadow-sm overflow-hidden">
+                <div className="border-b border-border bg-surface-raised px-5 py-4 sm:px-6 sm:py-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">Install First</p>
+                      <h2 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-text-primary">
+                        Use the real setup commands, not a demo terminal.
+                      </h2>
+                    </div>
+                    <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
+                      Already installed? Upgrade to latest before testing a new release.
+                    </p>
                   </div>
-                  <div className="p-4 sm:p-5 space-y-3 overflow-hidden">
-                    <div className="flex items-start gap-2 sm:gap-3 text-text-primary">
-                      <span className="text-text-muted shrink-0">$</span>
-                      <span className="select-all break-all">npx unbrowse setup</span>
-                    </div>
-                    <div className="flex items-start gap-2 sm:gap-3 text-text-muted">
-                      <span className="text-text-muted shrink-0">#</span>
-                      <span className="break-all">Installs browser assets, sets up Open Code, and starts the local server</span>
-                    </div>
-                    <div className="flex items-start gap-2 sm:gap-3 text-text-primary">
-                      <span className="text-text-muted shrink-0">$</span>
-                      <span className="select-all break-all">npx unbrowse resolve --intent &quot;search stays&quot; --url &quot;https://www.airbnb.com/s/Tokyo--Japan/homes&quot;</span>
-                    </div>
-                    <div className="flex items-start gap-2 sm:gap-3 text-text-muted">
-                      <span className="text-text-muted shrink-0">#</span>
-                      <span className="break-all">For agent hosts: npx skills add unbrowse-ai/unbrowse</span>
-                    </div>
-                    <div className="flex items-start gap-2 sm:gap-3 text-text-muted">
-                      <Activity className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span className="break-all">Executing GET /api/v3/StaysSearch...</span>
-                    </div>
-                    <div className="flex items-start gap-2 sm:gap-3 text-text-primary">
-                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-text-primary" />
-                      <span className="break-words">243 listings retrieved in 0.4s. Top result: Shibuya Loft — $89/night</span>
-                    </div>
+                </div>
+                <div className="p-4 sm:p-6">
+                  <InstallInstructions />
+                </div>
+                <div className="border-t border-border bg-orange-50 px-5 py-4 sm:px-6 text-sm leading-relaxed text-orange-900">
+                  <span className="font-medium">Already installed?</span>
+                  <code className="ml-2 text-orange-700 font-medium">npm install -g unbrowse@latest</code>
+                  <code className="ml-2 text-orange-700 font-medium">unbrowse setup</code>
                 </div>
               </div>
             </div>
@@ -180,6 +172,17 @@ export default function Home() {
               >
                 See Demo
               </Link>
+              <a
+                href="https://discord.gg/VWugEeFNsG"
+                target="_blank"
+                rel="noopener"
+                className="flex items-center justify-center gap-2 px-6 py-3
+                           bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
+                           hover:border-orange-500/40 hover:bg-orange-50/50
+                           active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Join Discord
+              </a>
             </div>
 
               {/* Supported Agents */}
@@ -360,24 +363,32 @@ export default function Home() {
         </div>
       </section>
 
-       {/* ═══ Install ═══ */}
-       <section id="install" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
+       {/* ═══ Post-Install ═══ */}
+       <section className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
          <div className="relative max-w-4xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-500/20 text-orange-600 text-xs font-mono font-medium uppercase tracking-widest mb-6">
-                <Terminal className="w-3.5 h-3.5" />
-                Install
+                <Activity className="w-3.5 h-3.5" />
+                After Install
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-text-primary">
-                One package. <span className="text-orange-500">Infinite endpoints.</span>
+                Register, verify, and <span className="text-orange-500">start using it.</span>
               </h2>
                 <p className="text-text-secondary text-lg max-w-xl mx-auto leading-relaxed">
-                  Install Unbrowse to instantly execute actions on any site via direct API calls. No headless browsers. No HTML parsing.
+                  Once the CLI is installed, grab your key, verify the local server, and jump into the docs and community.
                 </p>
             </div>
 
           <div className="space-y-8">
-            <InstallInstructions />
+            <div className="rounded-2xl border border-border bg-surface px-5 py-4 text-sm leading-relaxed text-text-secondary">
+              Verify the install with
+              <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
+              and rerun
+              <code className="mx-2 text-orange-700 font-medium">npm install -g unbrowse@latest</code>
+              plus
+              <code className="ml-2 text-orange-700 font-medium">unbrowse setup</code>
+              after each release.
+            </div>
 
             <ApiKeyGenerator />
 
@@ -387,6 +398,8 @@ export default function Home() {
               <a href="/llms.txt" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> llms.txt</a>
               <span className="hidden sm:block text-border-strong">•</span>
               <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><Github className="w-4 h-4"/> GitHub</a>
+              <span className="hidden sm:block text-border-strong">•</span>
+              <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> Discord</a>
             </div>
           </div>
         </div>
@@ -419,7 +432,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for a one-command installation that sets up browser assets and configures your agent host. For skill-based agent platforms like OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For skill-based agent platforms like OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>
@@ -447,6 +460,7 @@ export default function Home() {
            </div>
            <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm font-medium">
              <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">GitHub</a>
+             <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Discord</a>
              <Link href="/search" className="hover:text-text-primary transition-colors">Registry</Link>
              <Link href="/dashboard" className="hover:text-text-primary transition-colors">Dashboard</Link>
              <Link href="/terms" className="hover:text-text-primary transition-colors">Terms</Link>
