@@ -30,6 +30,7 @@ const CARD_SELECTORS = [
   ".entry", ".post", ".tile", ".row",
   "[class*='card']", "[class*='item']", "[class*='result']",
   "[class*='product']", "[class*='listing']",
+  ".cds-ProductCard-card", ".cds-ProductCard", "[class*='ProductCard-card']", "[class*='ProductCard']",
   // Semantic HTML patterns — articles/sections as repeated items
   "article", "section > div > div",
   // Common e-commerce / catalog patterns
@@ -615,19 +616,62 @@ function extractDefinitionSpecial(html: string, intent: string): ExtractedStruct
   const root = $("main, article, [role='main'], .entry-body, .di-body").first();
   const scope = root.length > 0 ? root : $("body");
   const term = cleanText(scope.find("h1").first().text()) || cleanText($("h1").first().text());
-  const definition = cleanText(
+  let definition = cleanText(
     scope.find("dd, [class*='def'], [class*='meaning'], [class*='definition']").first().text(),
   );
-  if (!term || !definition || definition.length < 10) return [];
+  let normalizedTerm = term;
+  if ((!normalizedTerm || !definition || definition.length < 10)) {
+    const ogTitle = cleanText($('meta[property="og:title"]').attr("content") ?? "");
+    const metaDescription = cleanText($('meta[name="description"]').attr("content") ?? $('meta[itemprop="headline"]').attr("content") ?? "");
+    const canonical = cleanText($('link[rel="canonical"]').attr("href") ?? "");
+    if (!normalizedTerm) {
+      normalizedTerm = ogTitle
+        || canonical.split("/").filter(Boolean).pop()?.replace(/[-_]+/g, " ")
+        || "";
+    }
+    if (!definition && metaDescription) {
+      definition = metaDescription
+        .replace(/^[A-Z0-9 _-]+\s+definition:\s*/i, "")
+        .replace(/\s*Learn more\.?$/i, "")
+        .replace(/&hellip;/g, "...")
+        .trim();
+    }
+  }
+  if (!normalizedTerm || !definition || definition.length < 10) return [];
   return [{
     type: "key-value",
     data: {
-      term,
-      title: term,
+      term: normalizedTerm,
+      title: normalizedTerm,
       definition,
     },
     element_count: 1,
   }];
+}
+
+function extractCourseSearchSpecial(html: string, intent: string): ExtractedStructure[] {
+  if (!/\b(course|courses)\b/i.test(intent)) return [];
+  if (!/ProductCard|CommonCard-titleLink|RatingStat|partnerNames/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const rows: Record<string, string>[] = [];
+  const seen = new Set<string>();
+
+  $(".cds-ProductCard-card, .cds-ProductCard, [class*='ProductCard-card'], [class*='ProductCard']").each((_, el) => {
+    const $el = $(el);
+    const fields = extractCardFields($, $el);
+    const title = fields.title?.trim();
+    const url = (fields.url ?? fields.link ?? "").trim();
+    if (!title || !url || title === "All Results") return;
+    const stable = `${title}|${url}`;
+    if (seen.has(stable)) return;
+    if (!fields.rating && !fields.partner && !fields.description) return;
+    rows.push(fields);
+    seen.add(stable);
+  });
+
+  return rows.length >= 2
+    ? [{ type: "repeated-elements", data: rows.slice(0, 20), element_count: rows.length, selector: ".cds-ProductCard-card" }]
+    : [];
 }
 
 function extractTrendSpecial(html: string, intent: string): ExtractedStructure[] {
@@ -1078,16 +1122,33 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     if (answersText && answersText.length < 80) fields["answer_count"] = answersText;
   }
 
-  const ratingEl = $el.find("[class*='rating'], [aria-label*='rating'], [data-rating]").first();
+  const ratingEl = $el.find("[class*='rating'], [aria-label*='rating'], [aria-label*='Rating'], [aria-valuenow], [aria-valuetext], [data-rating]").first();
   if (ratingEl.length > 0) {
-    const ratingText = ratingEl.text().trim() || ratingEl.attr("aria-label")?.trim() || ratingEl.attr("data-rating")?.trim();
-    if (ratingText && ratingText.length < 80) fields["rating"] = ratingText;
+    const ratingProbe = ratingEl.find("[aria-valuenow], [aria-valuetext], [aria-label*='rating'], [aria-label*='Rating']").first();
+    const ratingText = ratingProbe.attr("aria-valuenow")?.trim()
+      || ratingProbe.attr("aria-valuetext")?.trim()
+      || ratingProbe.attr("aria-label")?.trim()
+      || ratingEl.attr("aria-valuenow")?.trim()
+      || ratingEl.attr("aria-valuetext")?.trim()
+      || ratingEl.attr("aria-label")?.trim()
+      || ratingEl.attr("data-rating")?.trim()
+      || ratingProbe.text().trim()
+      || ratingEl.text().trim();
+    const numeric = ratingText?.match(/\b([0-5](?:\.\d)?)\b/)?.[1];
+    if (numeric) fields["rating"] = numeric;
+    else if (ratingText && ratingText.length < 80 && !/^rating$/i.test(ratingText)) fields["rating"] = ratingText;
   }
 
   const authorEl = $el.find("[class*='author'], [class*='byline'], [class*='user'], [rel='author']").first();
   if (authorEl.length > 0) {
     const authorText = authorEl.text().trim();
     if (authorText && authorText.length < 120) fields["author"] = authorText;
+  }
+
+  const partnerEl = $el.find("[class*='partnerName'], [class*='partnerNames'], [class*='partner']").first();
+  if (partnerEl.length > 0) {
+    const partnerText = partnerEl.text().trim();
+    if (partnerText && partnerText.length < 160) fields["partner"] = partnerText;
   }
 
   const definitionEl = $el.find("dd, [class*='def'], [class*='meaning'], [class*='definition']").first();
@@ -1228,7 +1289,8 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const postStructures = extractPostSpecial(html, intent);
   const trendStructures = extractTrendSpecial(html, intent);
   const definitionStructures = extractDefinitionSpecial(html, intent);
-  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const courseStructures = extractCourseSearchSpecial(html, intent);
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {

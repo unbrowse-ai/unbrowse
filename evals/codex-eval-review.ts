@@ -22,6 +22,11 @@ function fieldAliases(field: string): string[] {
   const lower = field.trim().toLowerCase();
   if (lower === "url") return ["url", "link", "permalink", "html_url", "web_url", "mdn_url", "http_url_to_repo"];
   if (lower === "summary") return ["summary", "description", "excerpt", "snippet"];
+  if (lower === "description") return ["description", "summary", "info", "excerpt", "snippet"];
+  if (lower === "score") return ["score", "points", "votes"];
+  if (lower === "rating") return ["rating", "averageRating", "average_rating", "avg_rating", "stars"];
+  if (lower === "sender") return ["sender", "from"];
+  if (lower === "term") return ["term", "word", "title", "name"];
   return [field];
 }
 
@@ -245,15 +250,18 @@ export async function reviewEvalPayload(args: {
   void _judgeMode;
 
   const sourceKind = inferSourceKind(args.payload);
-  const matchedFields = [...new Set(args.expected_fields.filter((field) => collectFieldMatches(args.payload, field)))];
-  const missingFields = args.expected_fields.filter((field) => !matchedFields.includes(field));
   const intentVerdict = assessIntentResult(args.payload, args.intent);
-  const rowCount = estimateRowCount(args.payload);
-  const entityTypes = observedEntityTypes(args.payload, intentVerdict);
+  const projectedPayload = intentVerdict.projected ?? args.payload;
+  const matchedFields = [...new Set(args.expected_fields.filter((field) =>
+    collectFieldMatches(projectedPayload, field) || collectFieldMatches(args.payload, field)
+  ))];
+  const missingFields = args.expected_fields.filter((field) => !matchedFields.includes(field));
+  const rowCount = estimateRowCount(projectedPayload);
+  const entityTypes = observedEntityTypes(projectedPayload, intentVerdict);
   const echoedParams = args.validate?.echo_params?.length && args.params
-    ? findEchoedParams(args.payload, args.params, args.validate.echo_params)
+    ? findEchoedParams(projectedPayload, args.params, args.validate.echo_params)
     : [];
-  const sideEffectObserved = detectSideEffect(args.payload);
+  const sideEffectObserved = detectSideEffect(projectedPayload);
 
   const validationFailures: string[] = [];
   if (args.validate?.entity_type) {
@@ -307,7 +315,7 @@ export async function reviewEvalPayload(args: {
     source_kind: sourceKind,
     matched_fields: matchedFields,
     missing_fields: missingFields,
-    projected_excerpt: compactForArtifact(args.payload),
+    projected_excerpt: compactForArtifact(projectedPayload),
     row_count: rowCount,
     observed_entity_types: entityTypes,
     validation_failures: validationFailures,

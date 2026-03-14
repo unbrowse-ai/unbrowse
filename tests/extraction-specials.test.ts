@@ -205,6 +205,68 @@ describe("special HTML extraction", () => {
     expect((extracted.data as Record<string, string>).definition).toContain("represents another");
   });
 
+  it("falls back to dictionary meta description when body extraction is hostile", () => {
+    const html = `
+      <html><head>
+        <meta property="og:title" content="agent" />
+        <meta name="description" content="AGENT definition: 1. a person who acts for or represents another: 2. a person who represents an actor, artist, or…. Learn more." />
+        <link rel="canonical" href="https://dictionary.cambridge.org/dictionary/english/agent" />
+      </head><body>
+        <header>chrome</header>
+        <div>nothing useful rendered</div>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "get definition");
+    expect(extracted.extraction_method).toBe("key-value");
+    expect((extracted.data as Record<string, string>).term).toBe("agent");
+    expect((extracted.data as Record<string, string>).definition).toContain("a person who acts for or represents another");
+  });
+
+  it("extracts Coursera-style course cards with rating and partner", () => {
+    const html = `
+      <html><body>
+        <main>
+          <div class="cds-ProductCard-card">
+            <a class="cds-CommonCard-titleLink" href="/learn/machine-learning-with-python">
+              <h3 class="cds-CommonCard-title">Machine Learning with Python</h3>
+            </a>
+            <div class="cds-ProductCard-body">
+              <p>Build ML skills with Python and scikit-learn.</p>
+            </div>
+            <div class="cds-ProductCard-footer">
+              <div class="cds-ProductCard-partnerNames">IBM</div>
+              <div class="cds-RatingStat-sizeLabel">
+                <div aria-label="Rating" aria-valuenow="4.7">4.7</div>
+              </div>
+            </div>
+          </div>
+          <div class="cds-ProductCard-card">
+            <a class="cds-CommonCard-titleLink" href="/learn/machine-learning">
+              <h3 class="cds-CommonCard-title">Supervised Machine Learning: Regression and Classification</h3>
+            </a>
+            <div class="cds-ProductCard-body">
+              <p>Learn core supervised learning patterns.</p>
+            </div>
+            <div class="cds-ProductCard-footer">
+              <div class="cds-ProductCard-partnerNames">DeepLearning.AI</div>
+              <div class="cds-RatingStat-sizeLabel">
+                <div aria-label="Rating" aria-valuenow="4.9">4.9</div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "search courses");
+    expect(extracted.extraction_method).toBe("repeated-elements");
+    expect(Array.isArray(extracted.data)).toBe(true);
+    expect((extracted.data as Array<Record<string, string>>)[0]?.title).toBe("Machine Learning with Python");
+    expect((extracted.data as Array<Record<string, string>>)[0]?.rating).toBe("4.7");
+    expect((extracted.data as Array<Record<string, string>>)[0]?.partner).toBe("IBM");
+  });
+
   it("extracts single-record product detail pages", () => {
     const html = `
       <html><body>
