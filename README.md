@@ -30,6 +30,25 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+## Upgrading
+
+Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
+
+If you installed the CLI globally:
+
+```bash
+npm install -g unbrowse@latest
+unbrowse setup
+```
+
+If your agent host uses skills, rerun its skill install/update command too:
+
+```bash
+npx skills add unbrowse-ai/unbrowse
+```
+
+Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
+
 Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
