@@ -1,0 +1,498 @@
+/**
+ * Kuri HTTP client — thin wrapper over Kuri's browser automation API.
+ *
+ * Kuri is a Zig-native CDP broker (464KB binary, 3ms cold start).
+ * This client replaces agent-browser (Playwright, 80-150MB, 1-3s cold start).
+ *
+ * Lifecycle: start() launches kuri + Chrome, stop() tears them down.
+ * All browser ops go through HTTP — no Playwright, no Node CDP bindings.
+ */
+
+import { spawn, type ChildProcess } from "node:child_process";
+import { log } from "../logger.js";
+
+const KURI_DEFAULT_PORT = 7700;
+const KURI_STARTUP_TIMEOUT_MS = 10_000;
+const KURI_REQUEST_TIMEOUT_MS = 30_000;
+
+export interface KuriTab {
+  id: string;
+  url: string;
+  title?: string;
+}
+
+export interface KuriCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: string;
+  expires?: number;
+}
+
+export interface KuriHarEntry {
+  request: {
+    method: string;
+    url: string;
+    headers: Array<{ name: string; value: string }>;
+    postData?: { text: string };
+  };
+  response: {
+    status: number;
+    headers: Array<{ name: string; value: string }>;
+    content?: { text?: string; mimeType?: string };
+  };
+  startedDateTime: string;
+}
+
+let kuriProcess: ChildProcess | null = null;
+let kuriPort = KURI_DEFAULT_PORT;
+let kuriCdpPort: number | null = null;
+let kuriReady = false;
+
+/** Try common CDP ports to find where Chrome is listening. */
+async function discoverCdpPort(): Promise<void> {
+  const portsToTry = [9222, 9223, 9224, 9225];
+  for (const port of portsToTry) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/json/version`, {
+        signal: AbortSignal.timeout(500),
+      });
+      if (res.ok) {
+        kuriCdpPort = port;
+        log("kuri", `found Chrome CDP on port ${port}`);
+        return;
+      }
+    } catch {
+      // Not on this port
+    }
+  }
+  log("kuri", "could not discover CDP port — tab discovery may fail");
+}
+
+/** Find a free port for CDP starting from 9222. */
+async function findFreeCdpPort(): Promise<number> {
+  for (let port = 9222; port < 9230; port++) {
+    try {
+      await fetch(`http://127.0.0.1:${port}/json/version`, {
+        signal: AbortSignal.timeout(300),
+      });
+      // Port is in use, try next
+    } catch {
+      return port; // Not in use
+    }
+  }
+  return 9222; // Fallback
+}
+
+function kuriUrl(path: string, params?: Record<string, string>): string {
+  const base = `http://127.0.0.1:${kuriPort}${path}`;
+  if (!params || Object.keys(params).length === 0) return base;
+  // Build query string manually — URLSearchParams encodes values which breaks
+  // URL parameters (Kuri's getQueryParam doesn't decode percent-encoding)
+  const parts = Object.entries(params).map(([k, v]) => `${k}=${v}`);
+  return `${base}?${parts.join("&")}`;
+}
+
+async function kuriGet(path: string, params?: Record<string, string>): Promise<unknown> {
+  const url = kuriUrl(path, params);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KURI_REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return text; }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function kuriPost(path: string, params: Record<string, string>, body: unknown): Promise<unknown> {
+  const url = kuriUrl(path, params);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KURI_REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return text; }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Find the kuri binary — check env, then common build locations. */
+function findKuriBinary(): string {
+  if (process.env.KURI_BIN) return process.env.KURI_BIN;
+  const kuriRepoPath = process.env.KURI_PATH ?? `${process.env.HOME}/kuri`;
+  return `${kuriRepoPath}/zig-out/bin/kuri`;
+}
+
+/**
+ * Start Kuri server + managed Chrome.
+ * Idempotent — returns immediately if already running.
+ */
+export async function start(port?: number): Promise<void> {
+  if (kuriReady) return;
+  kuriPort = port ?? KURI_DEFAULT_PORT;
+
+  // Check if kuri is already running on this port
+  try {
+    const health = await fetch(`http://127.0.0.1:${kuriPort}/health`, {
+      signal: AbortSignal.timeout(1000),
+    });
+    if (health.ok) {
+      log("kuri", `already running on port ${kuriPort}`);
+      kuriReady = true;
+      await discoverCdpPort();
+      await ensureTabsDiscovered();
+      return;
+    }
+  } catch {
+    // Not running — we'll start it
+  }
+
+  const binary = findKuriBinary();
+  log("kuri", `starting: ${binary} on port ${kuriPort}`);
+
+  // Check if Chrome is already running — if so, pass CDP_URL to connect
+  // If not, omit CDP_URL so Kuri launches its own managed Chrome
+  await discoverCdpPort();
+
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    PORT: String(kuriPort),
+    HOST: "127.0.0.1",
+  };
+  if (kuriCdpPort) {
+    env.CDP_URL = `ws://127.0.0.1:${kuriCdpPort}`;
+    log("kuri", `connecting to existing Chrome on port ${kuriCdpPort}`);
+  } else {
+    log("kuri", "no existing Chrome found — Kuri will launch managed Chrome");
+  }
+
+  kuriProcess = spawn(binary, [], {
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  // Parse CDP port from stderr output
+  kuriProcess.stderr?.on("data", (chunk: Buffer) => {
+    const line = chunk.toString().trim();
+    if (line) log("kuri", `[stderr] ${line}`);
+    const cdpMatch = line.match(/CDP port:\s*(\d+)/);
+    if (cdpMatch) {
+      kuriCdpPort = parseInt(cdpMatch[1], 10);
+      log("kuri", `discovered CDP port: ${kuriCdpPort}`);
+    }
+  });
+
+  kuriProcess.on("exit", (code) => {
+    log("kuri", `process exited with code ${code}`);
+    kuriReady = false;
+    kuriProcess = null;
+  });
+
+  // Wait for health endpoint
+  const deadline = Date.now() + KURI_STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${kuriPort}/health`, {
+        signal: AbortSignal.timeout(500),
+      });
+      if (res.ok) {
+        kuriReady = true;
+        log("kuri", `ready on port ${kuriPort}`);
+        await new Promise((r) => setTimeout(r, 300));
+        if (!kuriCdpPort) await discoverCdpPort();
+        // Auto-discover tabs so they're registered for immediate use
+        await ensureTabsDiscovered();
+        return;
+      }
+    } catch {
+      // Not ready yet
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`Kuri failed to start within ${KURI_STARTUP_TIMEOUT_MS}ms`);
+}
+
+/** Stop Kuri and managed Chrome. */
+export async function stop(): Promise<void> {
+  if (kuriProcess) {
+    kuriProcess.kill("SIGTERM");
+    kuriProcess = null;
+  }
+  kuriReady = false;
+  kuriCdpPort = null;
+}
+
+/** List discovered Chrome tabs. */
+export async function discoverTabs(): Promise<KuriTab[]> {
+  // Trigger Kuri's /discover to sync Chrome tabs
+  await ensureTabsDiscovered();
+
+  // List registered tabs
+  try {
+    const tabs = (await kuriGet("/tabs")) as Array<{ id: string; url: string; title?: string }>;
+    if (Array.isArray(tabs) && tabs.length > 0) return tabs;
+  } catch { /* empty */ }
+
+  return [];
+}
+
+/** Get or discover the first usable tab. */
+export async function getDefaultTab(): Promise<string> {
+  // Ensure Kuri's /discover works by triggering it (it registers tabs from Chrome)
+  await ensureTabsDiscovered();
+
+  // Now list Kuri's registered tabs
+  try {
+    const tabs = (await kuriGet("/tabs")) as Array<{ id: string; url: string }>;
+    if (Array.isArray(tabs) && tabs.length > 0) return tabs[0].id;
+  } catch { /* no tabs registered */ }
+
+  // Create a new tab via Chrome CDP and re-discover
+  if (kuriCdpPort) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${kuriCdpPort}/json/new?about:blank`, {
+        method: "PUT",
+        signal: AbortSignal.timeout(5000),
+      });
+      const target = (await res.json()) as { id: string };
+      if (target?.id) {
+        log("kuri", `created new Chrome tab: ${target.id}`);
+        // Re-discover to register it with Kuri
+        await new Promise((r) => setTimeout(r, 300));
+        await ensureTabsDiscovered();
+        return target.id;
+      }
+    } catch (err) {
+      log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  throw new Error("No tabs available and failed to create one");
+}
+
+/** Trigger Kuri's /discover to sync Chrome tabs into Kuri's registry. */
+async function ensureTabsDiscovered(): Promise<void> {
+  try {
+    await kuriGet("/discover");
+  } catch {
+    // /discover may fail if CDP_URL not set — that's handled by start()
+  }
+}
+
+/** Navigate tab to URL. */
+export async function navigate(tabId: string, url: string): Promise<void> {
+  await kuriGet("/navigate", { tab_id: tabId, url });
+}
+
+/** Evaluate JavaScript in tab context. */
+export async function evaluate(tabId: string, expression: string): Promise<unknown> {
+  const raw = (await kuriGet("/evaluate", { tab_id: tabId, expression })) as {
+    id?: number;
+    result?: { result?: { type?: string; value?: unknown; description?: string }; exceptionDetails?: unknown };
+  };
+  // CDP Runtime.evaluate response: { id, result: { result: { type, value } } }
+  const inner = raw?.result?.result;
+  if (!inner) return raw;
+  if (inner.type === "undefined") return undefined;
+  if ("value" in inner) return inner.value;
+  return inner.description ?? raw;
+}
+
+/** Get all cookies for a tab. */
+export async function getCookies(tabId: string): Promise<KuriCookie[]> {
+  const raw = (await kuriGet("/cookies", { tab_id: tabId })) as {
+    id?: number;
+    result?: { cookies?: KuriCookie[] };
+  };
+  return raw?.result?.cookies ?? [];
+}
+
+/** Set a single cookie. */
+export async function setCookie(tabId: string, cookie: KuriCookie): Promise<void> {
+  await kuriGet("/cookies", {
+    tab_id: tabId,
+    name: cookie.name,
+    value: cookie.value,
+    domain: cookie.domain,
+    ...(cookie.path ? { path: cookie.path } : {}),
+  });
+}
+
+/** Set multiple cookies. */
+export async function setCookies(tabId: string, cookies: KuriCookie[]): Promise<void> {
+  for (const cookie of cookies) {
+    await setCookie(tabId, cookie);
+  }
+}
+
+/** Set extra HTTP headers for a tab. */
+export async function setHeaders(tabId: string, headers: Record<string, string>): Promise<void> {
+  await kuriPost("/headers", { tab_id: tabId }, headers);
+}
+
+/** Start HAR recording for a tab. */
+export async function harStart(tabId: string): Promise<void> {
+  await kuriGet("/har/start", { tab_id: tabId });
+}
+
+/** Stop HAR recording and return entries. */
+export async function harStop(tabId: string): Promise<{ entries: KuriHarEntry[]; raw: unknown }> {
+  const result = (await kuriGet("/har/stop", { tab_id: tabId })) as {
+    entries?: number;
+    har?: { log?: { entries?: KuriHarEntry[] } };
+  };
+  return {
+    entries: result?.har?.log?.entries ?? [],
+    raw: result,
+  };
+}
+
+/** Enable Network domain (needed for cookies/interception). */
+export async function networkEnable(tabId: string): Promise<void> {
+  await kuriGet("/network", { tab_id: tabId, mode: "enable" });
+}
+
+/** Start Fetch interception. */
+export async function interceptStart(tabId: string): Promise<void> {
+  await kuriGet("/intercept/start", { tab_id: tabId });
+}
+
+/** Get page text content. */
+export async function getText(tabId: string): Promise<string> {
+  const result = (await kuriGet("/text", { tab_id: tabId })) as { text?: string };
+  return result?.text ?? "";
+}
+
+/** Get page as markdown. */
+export async function getMarkdown(tabId: string): Promise<string> {
+  const result = (await kuriGet("/markdown", { tab_id: tabId })) as { markdown?: string };
+  return result?.markdown ?? "";
+}
+
+/** Take screenshot (returns base64 PNG). */
+export async function screenshot(tabId: string): Promise<string> {
+  const result = (await kuriGet("/screenshot", { tab_id: tabId })) as { data?: string; screenshot?: string };
+  return result?.data ?? result?.screenshot ?? "";
+}
+
+/** Get accessibility tree snapshot. */
+export async function snapshot(tabId: string, filter?: string): Promise<string> {
+  const params: Record<string, string> = { tab_id: tabId };
+  if (filter) params.filter = filter;
+  const result = (await kuriGet("/snapshot", params)) as { snapshot?: string };
+  return result?.snapshot ?? "";
+}
+
+/** Close a tab. */
+export async function closeTab(tabId: string): Promise<void> {
+  await kuriGet("/close", { tab_id: tabId });
+}
+
+/** Create a new tab. */
+export async function newTab(url?: string): Promise<string> {
+  const params: Record<string, string> = {};
+  if (url) params.url = url;
+  const result = (await kuriGet("/tab/new", params)) as { tab_id?: string };
+  return result?.tab_id ?? "";
+}
+
+/** Get current page URL via evaluate. */
+export async function getCurrentUrl(tabId: string): Promise<string> {
+  const result = await evaluate(tabId, "window.location.href");
+  return String(result ?? "");
+}
+
+/** Get page HTML content via evaluate. */
+export async function getPageHtml(tabId: string): Promise<string> {
+  const result = await evaluate(tabId, "document.documentElement.outerHTML");
+  return String(result ?? "");
+}
+
+/** Check if page has Cloudflare challenge. */
+export async function hasCloudflareChallenge(tabId: string): Promise<boolean> {
+  const result = await evaluate(tabId, `(function() {
+    var html = document.documentElement.innerHTML;
+    return html.indexOf('challenge-platform') !== -1 ||
+           html.indexOf('cf_chl_opt') !== -1 ||
+           document.title === 'Just a moment...' ||
+           !!document.querySelector('#challenge-running, #challenge-form, .cf-browser-verification');
+  })()`);
+  return result === true;
+}
+
+/** Wait for Cloudflare challenge to clear. */
+export async function waitForCloudflare(tabId: string, maxWaitMs = 15000): Promise<boolean> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWaitMs) {
+    const blocked = await hasCloudflareChallenge(tabId);
+    if (!blocked) return true;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return false;
+}
+
+/**
+ * Execute fetch() inside the browser page context.
+ * Runs from the page's origin, inheriting cookies/CSRF.
+ */
+export async function executeInPageFetch(
+  tabId: string,
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: unknown,
+): Promise<{ status: number; data: unknown }> {
+  const fetchScript = `(async function() {
+    try {
+      var res = await fetch(${JSON.stringify(url)}, {
+        method: ${JSON.stringify(method)},
+        headers: ${JSON.stringify(headers)},
+        ${body ? `body: ${JSON.stringify(JSON.stringify(body))},` : ""}
+      });
+      var text = await res.text();
+      var data;
+      try { data = JSON.parse(text); } catch(e) { data = text; }
+      return JSON.stringify({ status: res.status, data: data });
+    } catch(e) {
+      return JSON.stringify({ status: 0, data: { error: e.message } });
+    }
+  })()`;
+
+  const result = await evaluate(tabId, fetchScript);
+  try {
+    return JSON.parse(String(result)) as { status: number; data: unknown };
+  } catch {
+    return { status: 0, data: result };
+  }
+}
+
+/** Health check. */
+export async function health(): Promise<{ ok: boolean; tabs?: number }> {
+  try {
+    const result = (await kuriGet("/health")) as { ok?: boolean; status?: string; tabs?: number };
+    return { ok: result?.ok === true || result?.status === "ok", tabs: result?.tabs };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Get the currently configured port. */
+export function getPort(): number {
+  return kuriPort;
+}
+
+/** Check if kuri is ready. */
+export function isReady(): boolean {
+  return kuriReady;
+}

@@ -8,7 +8,7 @@ import { registerRateLimiter } from "./ratelimit/index.js";
 import { schedulePeriodicVerification } from "./verification/index.js";
 import { ensureRegistered } from "./client/index.js";
 import { shutdownAllBrowsers } from "./capture/index.js";
-import { ensureBrowserEngineInstalled } from "./runtime/setup.js";
+import * as kuri from "./kuri/client.js";
 
 type StartServerOptions = {
   host?: string;
@@ -61,13 +61,13 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
     // no orphans
   }
 
-  const browserEngine = await ensureBrowserEngineInstalled();
-  if (browserEngine.action === "installed") {
-    console.log("[startup] Chromium installed.");
-  } else if (browserEngine.action === "failed") {
-    console.warn(
-      `[startup] WARNING: Could not verify/install browser engine. ${browserEngine.message ?? "Run: npx agent-browser install"}`,
-    );
+  // Pre-start Kuri (Zig-native CDP broker — replaces agent-browser/Playwright)
+  try {
+    await kuri.start();
+    const h = await kuri.health();
+    console.log(`[startup] Kuri ready — ${h.tabs ?? 0} tabs`);
+  } catch (err) {
+    console.warn(`[startup] WARNING: Kuri not available. Capture will start it on demand. ${err instanceof Error ? err.message : err}`);
   }
 
   await ensureRegistered();
