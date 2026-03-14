@@ -10,6 +10,7 @@ import type {
   SkillOperationGraph,
   SkillOperationNode,
 } from "../types/index.js";
+import { normalizeQueryBindingKey } from "../template-params.js";
 
 function normalizeTokenText(text: string): string {
   return text
@@ -32,6 +33,20 @@ function singularize(word: string): string {
   if (word.endsWith("ses") || word.endsWith("ges") || word.endsWith("zes")) return word.slice(0, -2);
   if (word.endsWith("s") && !word.endsWith("ss") && word.length > 3) return word.slice(0, -1);
   return word;
+}
+
+function pluralize(word: string): string {
+  if (word === "person") return "people";
+  if (word === "repository") return "repositories";
+  if (word === "status") return "statuses";
+  if (word.endsWith("y") && word.length > 2 && !/[aeiou]y$/.test(word)) return `${word.slice(0, -1)}ies`;
+  if (/(s|x|z|ch|sh)$/.test(word)) return `${word}es`;
+  if (word.endsWith("s")) return word;
+  return `${word}s`;
+}
+
+function humanizeToken(token: string): string {
+  return normalizeTokenText(token.replace(/[{}]/g, "").replace(/[_-]+/g, " ")).toLowerCase().trim();
 }
 
 function compactExample(value: unknown, depth = 0): unknown {
@@ -98,13 +113,18 @@ function inferActionKind(text: string): string {
   return "fetch";
 }
 
-function inferResourceKind(text: string): string {
+function inferResourceKind(text: string, urlTemplate?: string): string {
+  const pathHint = inferPathResourceHint(urlTemplate);
+  if (pathHint) return pathHint;
+  if (/\b(form|dropdown|select|option|field)\b/.test(text)) return "form";
   if (/\bpeople\b/.test(text)) return "person";
   if (/\b(feed|timeline|stream|home|update|updates|commentary|actor|socialdetail)\b/.test(text)) return "post";
   const candidates = [
     "channel", "guild", "message", "thread", "conversation", "repo", "repository",
     "profile", "person", "user", "post", "comment", "listing", "document", "issue", "job",
-    "article", "video", "product", "event", "notification", "topic", "status",
+    "article", "video", "product", "event", "notification", "topic", "status", "form", "option",
+    "referral", "promotion", "entitlement", "billing", "payment", "preference", "setting",
+    "experiment", "assignment", "config",
   ];
   for (const candidate of candidates) {
     if (new RegExp(`\\b${candidate}s?\\b`).test(text)) return candidate;
@@ -126,8 +146,136 @@ function inferNegativeTags(text: string): string[] {
   if (/\b(settings|preferences|badge_count|counts|counter)\b/.test(text)) tags.push("settings");
   if (/\b(message|messaging|dm|conversation|mailbox|inbox)\b/.test(text)) tags.push("messaging");
   if (/\b(promoted|promotion|ads?)\b/.test(text)) tags.push("ads");
-  if (/\b(affinit|promotion)\b/.test(text)) tags.push("adjacent");
+  if (/\b(affinit|promotions?|referrals?|entitlements?|billing|subscriptions?|collectibles?|gifts?|perk)\b/.test(text)) tags.push("adjacent");
   return unique(tags);
+}
+
+function inferPathResourceHint(urlTemplate?: string): string | null {
+  if (!urlTemplate) return null;
+  try {
+    const pathname = new URL(urlTemplate).pathname;
+    const generic = new Set([
+      "api", "graphql", "rpc", "rest", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9",
+      "users", "user", "me", "@me", "self", "app", "apps", "i",
+    ]);
+    const candidates = new Set([
+      "channel", "guild", "message", "thread", "conversation", "repo", "repository",
+      "profile", "person", "user", "post", "comment", "listing", "document", "issue", "job",
+      "article", "video", "product", "event", "notification", "topic", "status", "form", "option",
+      "referral", "promotion", "entitlement", "billing", "payment", "preference", "setting",
+      "experiment", "assignment", "config",
+    ]);
+    const segments = pathname.split("/").filter(Boolean);
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const raw = humanizeToken(segments[i] ?? "");
+      const token = singularize(raw);
+      if (!token || generic.has(token)) continue;
+      if (/^\d+$/.test(token) || /^[0-9a-f-]{8,}$/.test(token) || /^(true|false)$/.test(token)) continue;
+      if (/^\{.+\}$/.test(segments[i] ?? "")) continue;
+      if (token === "server") return "guild";
+      if (candidates.has(token)) return token;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function fieldLeaf(field: string): string {
+  return field.replace(/\[\]/g, "").split(".").pop()?.toLowerCase() ?? "";
+}
+
+function summarizeDescriptionFields(fields: string[]): string[] {
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  for (const field of fields) {
+    const leaf = fieldLeaf(field);
+    if (!leaf || seen.has(leaf)) continue;
+    if (/^(data|item|items|result|results|response|entry|entries|node|nodes|edge|edges|payload|value|values|__typename|type|flags?)$/.test(leaf)) continue;
+    let label = "";
+    if (/(^|_)id$/.test(leaf) || leaf === "id") label = "ids";
+    else if (leaf === "name" || /_name$/.test(leaf)) label = "names";
+    else if (leaf === "title") label = "titles";
+    else if (/^(username|screen_name|handle|login|slug|public_identifier)$/.test(leaf)) label = "handles";
+    else if (/^(content|body|text|message)$/.test(leaf)) label = "content";
+    else if (/^(description|headline|summary)$/.test(leaf)) label = leaf === "headline" ? "headlines" : `${leaf}s`;
+    else if (/^(status|indicator|state)$/.test(leaf)) label = "status";
+    else if (/^(price|amount|value|score)$/.test(leaf)) label = leaf === "value" ? "values" : `${leaf}s`;
+    else if (/(_count|count|total)$/.test(leaf)) label = "counts";
+    else if (/^(created_at|updated_at|timestamp|date)$/.test(leaf)) label = "timestamps";
+    else label = humanizeToken(leaf);
+    if (seen.has(label)) continue;
+    seen.add(leaf);
+    seen.add(label);
+    labels.push(label);
+    if (labels.length >= 3) break;
+  }
+  return labels;
+}
+
+function joinLabels(labels: string[]): string {
+  if (labels.length <= 1) return labels[0] ?? "";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels[0]}, ${labels[1]}, and ${labels[2]}`;
+}
+
+function descriptionSubject(resourceKind: string, actionKind: string, text: string): string {
+  const pathHint = inferPathResourceHint(text);
+  const base = resourceKind && resourceKind !== "resource" ? resourceKind : (pathHint ?? "resource");
+  const normalized = base === "repo" ? "repository" : base;
+  return ["search", "list", "timeline", "trending"].includes(actionKind) ? pluralize(normalized) : normalized;
+}
+
+function isGenericDescription(description?: string): boolean {
+  const normalized = normalizeTokenText(description ?? "").toLowerCase().trim();
+  if (!normalized) return true;
+  if (/^returns details for\b/.test(normalized)) return true;
+  if (/^returns [a-z0-9 ]+ data\b/.test(normalized)) return true;
+  if (/\bwith data\b/.test(normalized)) return true;
+  if (/\busing (?:variables|queryid|decorationid)\b/.test(normalized)) return true;
+  if (/^searches [a-z0-9 ]+ with\b/.test(normalized) && /\b(elements|data|queryid)\b/.test(normalized)) return true;
+  return false;
+}
+
+function buildSemanticDescription(
+  endpoint: EndpointDescriptor,
+  actionKind: string,
+  resourceKind: string,
+  fields: string[],
+): string {
+  const subject = descriptionSubject(resourceKind, actionKind, endpoint.url_template);
+  let description: string;
+  switch (actionKind) {
+    case "search":
+      description = `Searches ${subject}`;
+      break;
+    case "timeline":
+      description = `Returns ${subject} timeline`;
+      break;
+    case "trending":
+      description = `Returns trending ${subject}`;
+      break;
+    case "detail":
+      description = `Returns ${subject} details`;
+      break;
+    case "status":
+      description = resourceKind === "status" ? "Returns status" : `Returns ${subject} status`;
+      break;
+    case "create":
+      description = `Creates ${subject}`;
+      break;
+    case "update":
+      description = `Updates ${subject}`;
+      break;
+    case "delete":
+      description = `Deletes ${subject}`;
+      break;
+    default:
+      description = `Returns ${subject}`;
+      break;
+  }
+  const fieldLabels = summarizeDescriptionFields(fields);
+  return fieldLabels.length > 0 ? `${description} with ${joinLabels(fieldLabels)}` : description;
 }
 
 function inferRequires(endpoint: EndpointDescriptor): OperationBinding[] {
@@ -144,7 +292,7 @@ function inferRequires(endpoint: EndpointDescriptor): OperationBinding[] {
     });
   };
   for (const key of Object.keys(endpoint.path_params ?? {})) add(key, "path_params");
-  for (const key of Object.keys(endpoint.query ?? {})) add(key, "query", false);
+  for (const key of Object.keys(endpoint.query ?? {})) add(normalizeQueryBindingKey(key), "query", false);
   for (const match of endpoint.url_template.matchAll(/\{([^}]+)\}/g)) add(match[1], "url_template");
   return requires;
 }
@@ -156,6 +304,21 @@ function inferProvidesFromFields(fields: string[], resourceKind: string): Operat
     if (!key || seen.has(key)) return;
     seen.add(key);
     provides.push({ key, semantic_type: semanticType, source: "response" });
+  };
+  const addFormBinding = (key: string) => {
+    add(key, `${key}_option`);
+    add(`${key}_value`, `${key}_option_value`);
+  };
+  const inferFormBindingKey = (field: string): string | null => {
+    const normalized = field.replace(/\[\]/g, "");
+    const match = normalized.match(/(?:^|\.)([a-z0-9_]+?)(?:_options?|_dropdowns?|_select)?\.(?:options?|choices?)\.(?:value|label)$/i)
+      ?? normalized.match(/(?:^|\.)([a-z0-9_]+?)(?:_options?|_dropdowns?|_select)?\.(?:value|label)$/i);
+    if (!match) return null;
+    const key = singularize(match[1].toLowerCase())
+      .replace(/^(field|form|filter)_/, "")
+      .replace(/_(field|form|filter)$/, "");
+    if (!key || ["option", "options", "choice", "choices", "value", "label"].includes(key)) return null;
+    return key;
   };
   const resourceAliases: Record<string, string[]> = {
     repository: ["repo", "repository"],
@@ -191,8 +354,10 @@ function inferProvidesFromFields(fields: string[], resourceKind: string): Operat
       add("repo", "repository_name");
     } else if (/^(domain|hostname|host)$/.test(key)) {
       add("domain", "domain");
-    }
-    else if (/(slug|name|title|url|path)$/.test(key)) add(key, key);
+    } else if (/(slug|name|title|url|path)$/.test(key)) add(key, key);
+
+    const formKey = inferFormBindingKey(field);
+    if (formKey) addFormBinding(formKey);
   }
   if (!seen.has(`${resourceKind}_id`) && fields.some((field) => /(^|\.)(id|rest_id|public_identifier|urn)(\.|$)/.test(field))) {
     add(`${resourceKind}_id`, `${resourceKind}_identifier`);
@@ -212,6 +377,12 @@ function inferProvidesFromFields(fields: string[], resourceKind: string): Operat
   if ((resourceKind === "channel" || aliases.includes("channel")) && fields.some((field) => /(id|name|channel)/.test(field))) {
     add("channel_id", "channel_identifier");
     add("channel_name", "channel_name");
+  }
+  if (resourceKind === "form") {
+    for (const field of fields) {
+      const formKey = inferFormBindingKey(field);
+      if (formKey) addFormBinding(formKey);
+    }
   }
   return provides.slice(0, 8);
 }
@@ -233,6 +404,16 @@ function bindingIdentity(binding: OperationBinding): string {
     binding.type ?? "",
     binding.required ? "1" : "0",
   ].join("|");
+}
+
+function isGenericBindingKey(key: string | undefined): boolean {
+  if (!key) return true;
+  return /^(id|ids|url|urls|page|cursor|offset|limit|slug(?:_\d+)?|pathname|domain|query|q|type|name)$/.test(key);
+}
+
+function isGenericSemanticType(type: string | undefined): boolean {
+  if (!type) return true;
+  return /^(identifier|input|resource|value|string|number|flag)$/.test(type);
 }
 
 function mergeBindings(primary: OperationBinding[] = [], secondary: OperationBinding[] = []): OperationBinding[] {
@@ -300,11 +481,14 @@ export function inferEndpointSemantic(
   ]).slice(0, 20);
   const text = normalizeTokenText(`${semanticText(endpoint)} ${fields.join(" ")}`).toLowerCase();
   const actionKind = inferActionKind(text);
-  const resourceKind = inferResourceKind(text);
+  const resourceKind = inferResourceKind(text, endpoint.url_template);
   const requires = inferRequires(endpoint);
   const provides = inferProvidesFromFields(fields, resourceKind);
   const negativeTags = inferNegativeTags(text);
-  const descriptionOut = endpoint.description ?? `Returns ${resourceKind} ${actionKind} data`;
+  const generatedDescription = buildSemanticDescription(endpoint, actionKind, resourceKind, fields);
+  const descriptionOut = endpoint.description && !isGenericDescription(endpoint.description)
+    ? endpoint.description
+    : generatedDescription;
   const descriptionIn = requires.length > 0
     ? `Requires ${requires.map((binding) => binding.key).join(", ")}`
     : "No additional inputs required";
@@ -471,18 +655,27 @@ function isBefore(lhs?: string, rhs?: string): boolean {
 export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): SkillOperationGraph {
   const operations = endpoints.map(buildOperationNode);
   const edges: SkillOperationEdge[] = [];
+  const seenEdges = new Set<string>();
   for (const target of operations) {
     for (const required of target.requires) {
       for (const source of operations) {
         if (source.operation_id === target.operation_id) continue;
-        const match = source.provides.find((provided) =>
-          provided.key === required.key ||
-          (provided.semantic_type && required.semantic_type && provided.semantic_type === required.semantic_type)
-        );
+        const match = source.provides.find((provided) => {
+          const exactKeyMatch = provided.key === required.key && !isGenericBindingKey(required.key);
+          const semanticMatch =
+            !!provided.semantic_type &&
+            !!required.semantic_type &&
+            provided.semantic_type === required.semantic_type &&
+            !isGenericSemanticType(required.semantic_type);
+          return exactKeyMatch || semanticMatch;
+        });
         if (!match) continue;
         if (!isBefore(source.observed_at, target.observed_at)) continue;
+        const edgeId = `${source.operation_id}:${target.operation_id}:${required.key}`;
+        if (seenEdges.has(edgeId)) continue;
+        seenEdges.add(edgeId);
         edges.push({
-          edge_id: `${source.operation_id}:${target.operation_id}:${required.key}`,
+          edge_id: edgeId,
           from_operation_id: source.operation_id,
           to_operation_id: target.operation_id,
           binding_key: required.key,
@@ -527,6 +720,8 @@ export function knownBindingsFromInputs(
     }
     for (const [key, value] of url.searchParams.entries()) {
       if (known[key] == null) known[key] = value;
+      const normalized = normalizeQueryBindingKey(key);
+      if (known[normalized] == null) known[normalized] = value;
     }
   } catch { /* ignore */ }
   return known;
@@ -596,7 +791,7 @@ export function getSkillChunk(
 }
 
 function summarizeBindingKeys(bindings: OperationBinding[] | undefined): string[] {
-  return (bindings ?? []).map((binding) => binding.key);
+  return unique((bindings ?? []).map((binding) => binding.key));
 }
 
 function readableOperationTitle(operation: SkillOperationNode): string {
@@ -606,6 +801,7 @@ function readableOperationTitle(operation: SkillOperationNode): string {
 }
 
 function toAgentAvailableOperation(operation: SkillOperationNode): AgentAvailableOperation {
+  const required = summarizeBindingKeys(operation.requires);
   const yields = summarizeBindingKeys(operation.provides);
   return {
     operation_id: operation.operation_id,
@@ -613,11 +809,11 @@ function toAgentAvailableOperation(operation: SkillOperationNode): AgentAvailabl
     action_kind: operation.action_kind,
     resource_kind: operation.resource_kind,
     title: readableOperationTitle(operation),
-    why_available: operation.requires.length === 0
+    why_available: required.length === 0
       ? "Runnable now; no missing dependencies."
-      : `Runnable now; required bindings already known: ${summarizeBindingKeys(operation.requires).join(", ")}.`,
+      : `Runnable now; required bindings already known: ${required.join(", ")}.`,
     url_template: operation.url_template,
-    requires: summarizeBindingKeys(operation.requires),
+    requires: required,
     yields,
     example_request: operation.example_request,
     example_response_compact: operation.example_response_compact,

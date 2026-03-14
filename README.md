@@ -100,7 +100,7 @@ A background verification loop runs every 6 hours, executing safe (GET) endpoint
 
 ## Authentication for gated sites
 
-For most sites, auth is automatic. If you're logged into a site in Chrome or Firefox, Unbrowse reads your cookies directly from the browser's SQLite database — no extra steps needed. Cookies are resolved fresh on every call, so sessions stay current.
+For most sites, auth is automatic. If you're logged into a site in Chrome or Firefox, Unbrowse reads your cookies directly from the browser's SQLite database — no extra steps needed. Cookies are resolved fresh on every call, so sessions stay current. For Chromium-family apps and Electron shells, `/v1/auth/steal` also accepts a custom cookie DB path or user-data dir plus an optional macOS Safe Storage service name.
 
 | Strategy            | How it works                                       | When to use                                          |
 | ------------------- | -------------------------------------------------- | ---------------------------------------------------- |
@@ -128,6 +128,7 @@ See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, s
 | POST   | `/v1/intent/resolve`     | Search marketplace, capture if needed, execute |
 | POST   | `/v1/skills/:id/execute` | Execute a specific skill                       |
 | POST   | `/v1/auth/login`         | Interactive browser login                      |
+| POST   | `/v1/auth/steal`         | Import cookies from browser/Electron storage   |
 | POST   | `/v1/search`             | Semantic search across all domains             |
 | POST   | `/v1/search/domain`      | Semantic search scoped to a domain             |
 | POST   | `/v1/feedback`           | Submit feedback (affects reliability scores)   |

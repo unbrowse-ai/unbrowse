@@ -1,10 +1,11 @@
 import type { RawRequest, CapturedWsMessage } from "../capture/index.js";
-import type { EndpointDescriptor, WsMessage } from "../types/index.js";
+import type { CsrfPlan, EndpointDescriptor, WsMessage } from "../types/index.js";
 import { inferSchema } from "../transform/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
+import { buildQueryBindingMap } from "../template-params.js";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -274,6 +275,8 @@ function collectSemanticTokens(value: unknown, out = new Set<string>(), depth = 
 
 type IntentEntityKind = "comment" | "post" | "person" | "company" | "repository" | "topic" | "channel" | "listing";
 
+type IntentActionKind = "create" | "update" | "delete" | "send" | "read";
+
 function inferIntentEntityKind(intent: string | undefined): IntentEntityKind | null {
   const text = intent?.toLowerCase() ?? "";
   if (/\b(comment|comments|reply|replies)\b/.test(text)) return "comment";
@@ -285,6 +288,121 @@ function inferIntentEntityKind(intent: string | undefined): IntentEntityKind | n
   if (/\b(channel|channels|thread|threads|conversation|conversations)\b/.test(text)) return "channel";
   if (/\b(listing|listings|product|products|item|items|marketplace)\b/.test(text)) return "listing";
   return null;
+}
+
+function inferIntentActionKind(intent: string | undefined): IntentActionKind {
+  const text = intent?.toLowerCase() ?? "";
+  if (/\b(create|add|new|compose|draft)\b/.test(text)) return "create";
+  if (/\b(update|edit|patch|modify)\b/.test(text)) return "update";
+  if (/\b(delete|remove|archive)\b/.test(text)) return "delete";
+  if (/\b(send|submit|post|publish)\b/.test(text)) return "send";
+  return "read";
+}
+
+function parseCookieHeader(header: string | undefined): Record<string, string> {
+  if (!header) return {};
+  const out: Record<string, string> = {};
+  for (const segment of header.split(";")) {
+    const idx = segment.indexOf("=");
+    if (idx <= 0) continue;
+    const key = segment.slice(0, idx).trim();
+    const value = segment.slice(idx + 1).trim();
+    if (key && !(key in out)) out[key] = value;
+  }
+  return out;
+}
+
+function normalizeBodyBindingKey(path: string): string {
+  const normalized = path
+    .replace(/\.(\d+)\./g, "_$1_")
+    .replace(/\[(\d+)\]/g, "_$1")
+    .replace(/[.[\]]+/g, "_")
+    .replace(/[^a-zA-Z0-9_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+  return normalized || "value";
+}
+
+function shouldTemplateBodyValue(path: string, value: unknown, context?: ExtractionContext): boolean {
+  const lowerPath = path.toLowerCase();
+  if (value == null) return false;
+  if (typeof value === "boolean") return false;
+  if (typeof value === "number") {
+    return /(?:^|_)(id|count|offset|limit|page|cursor|index|position)(?:$|_)/.test(lowerPath);
+  }
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.length > 280) return false;
+  if (/^(true|false|null)$/i.test(trimmed)) return false;
+  if (/^[A-Z_]{2,24}$/.test(trimmed) && !/(id|slug|urn|token|email|name|title|query|search|message|text)/.test(lowerPath)) return false;
+  if (/(?:^|_)(title|name|description|content|text|message|body|query|search|keyword|email|username|slug|handle|identifier|id|urn|url)(?:$|_)/.test(lowerPath)) {
+    return true;
+  }
+  if (/^urn:[\w:-]+$/i.test(trimmed) || /^[0-9a-f]{8,}$/i.test(trimmed.replace(/-/g, ""))) return true;
+  if (context?.pageUrl) {
+    try {
+      const pageUrl = new URL(context.pageUrl);
+      if (pageUrl.searchParams.has(trimmed)) return true;
+      if (pageUrl.pathname.toLowerCase().includes(trimmed.toLowerCase())) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
+}
+
+function templatizeBodyObject(
+  value: unknown,
+  context?: ExtractionContext,
+  path = "",
+  bodyParams: Record<string, unknown> = {},
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => templatizeBodyObject(entry, context, `${path}[${index}]`, bodyParams));
+  }
+  if (!value || typeof value !== "object") {
+    if (!path || !shouldTemplateBodyValue(path, value, context)) return value;
+    const binding = normalizeBodyBindingKey(path);
+    if (!(binding in bodyParams)) bodyParams[binding] = value;
+    return `{${binding}}`;
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, next]) => [
+      key,
+      templatizeBodyObject(next, context, path ? `${path}.${key}` : key, bodyParams),
+    ]),
+  );
+}
+
+function inferCsrfPlan(req: RawRequest, parsedBody?: unknown): CsrfPlan | undefined {
+  const headers = Object.fromEntries(
+    Object.entries(req.request_headers).map(([key, value]) => [key.toLowerCase(), value]),
+  );
+  const cookies = parseCookieHeader(headers["cookie"]);
+  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf)$/i.test(name));
+  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
+  if (headerName && csrfCookieNames.length > 0) {
+    return {
+      source: "cookie",
+      param_name: headerName,
+      refresh_on_401: true,
+      extractor_sequence: csrfCookieNames,
+    };
+  }
+  if (parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)) {
+    const formField = Object.keys(parsedBody as Record<string, unknown>).find((key) => /^(csrf|csrf_token|_csrf|authenticity_token|xsrf)$/i.test(key));
+    if (formField && csrfCookieNames.length > 0) {
+      return {
+        source: "form",
+        param_name: formField,
+        refresh_on_401: true,
+        extractor_sequence: csrfCookieNames,
+      };
+    }
+  }
+  return undefined;
 }
 
 function getIntentEntityRules(kind: IntentEntityKind): { strong: string[]; weak: string[]; negative: RegExp; negativeSignals?: string[] } {
@@ -346,10 +464,20 @@ function getIntentEntityRules(kind: IntentEntityKind): { strong: string[]; weak:
 function isSemanticallyAdmissibleResponse(
   req: RawRequest,
   sampleResponse: unknown,
+  sampleRequest: Record<string, unknown>,
   context?: ExtractionContext,
 ): { ok: boolean; reason: string } {
   const kind = inferIntentEntityKind(context?.intent);
-  if (!kind) return { ok: true, reason: "semantic_gate_not_applicable" };
+  const action = inferIntentActionKind(context?.intent);
+  if (!kind) {
+    if (action === "read") return { ok: true, reason: "semantic_gate_not_applicable" };
+    const requestSignals = collectSemanticTokens(sampleRequest);
+    const responseSignals = collectSemanticTokens(sampleResponse);
+    const signalCount = requestSignals.size + responseSignals.size;
+    return signalCount >= 2
+      ? { ok: true, reason: "semantic_action_request_match" }
+      : { ok: false, reason: "semantic_action_sparse" };
+  }
 
   const bodyIsJson = isJsonResponseBody(req.response_body);
   if (!bodyIsJson && isHtmlResponseBody(req.response_body)) {
@@ -368,6 +496,7 @@ function isSemanticallyAdmissibleResponse(
   if (negative.test(req.url)) return { ok: false, reason: "semantic_negative_url" };
 
   const signals = collectSemanticTokens(sampleResponse);
+  collectSemanticTokens(sampleRequest, signals);
   for (const token of tokenize(req.url)) signals.add(token);
   let strongHits = 0;
   let weakHits = 0;
@@ -383,6 +512,9 @@ function isSemanticallyAdmissibleResponse(
   }
   if (negativeHits >= 2 && strongHits < 2) {
     return { ok: false, reason: "semantic_negative_payload" };
+  }
+  if (action !== "read" && strongHits === 0 && weakHits >= 2) {
+    return { ok: true, reason: "semantic_action_request_match" };
   }
   return (strongHits >= 1) || (weakHits >= 3)
     ? { ok: true, reason: "semantic_match" }
@@ -542,20 +674,27 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // endpoint.query stores the captured defaults for execution-time fallback.
     const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
     let pathTemplate = sanitizeUrlTemplate(normalized);
+    const qBindings = sanitizedQParams ? buildQueryBindingMap(Object.keys(sanitizedQParams)) : {};
     const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
-      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${k}}`).join("&")
+      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${qBindings[k] ?? k}}`).join("&")
       : null;
 
     // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)
     const { url: templatizedPath, pathParams } = templatizePathSegments(pathTemplate, req.url, context);
     pathTemplate = templatizedPath;
 
+    const parsedRequestBody = !isGet && req.request_body ? tryParseBody(req.request_body) : undefined;
+    const bodyParams: Record<string, unknown> = {};
+    const templatedRequestBody = !isGet && parsedRequestBody && typeof parsedRequestBody === "object" && !Array.isArray(parsedRequestBody)
+      ? templatizeBodyObject(parsedRequestBody, context, "", bodyParams) as Record<string, unknown>
+      : parsedRequestBody;
     const sampleResponse = req.response_body ? tryParseBody(req.response_body) : undefined;
     const sampleRequest = flattenRequestExample({
       path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
       query: sanitizedQParams,
-      body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
+      body: templatedRequestBody,
     });
+    const csrfPlan = inferCsrfPlan(req, parsedRequestBody);
 
     const endpoint: EndpointDescriptor = {
       endpoint_id: nanoid(),
@@ -565,7 +704,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       headers_template: sanitizeHeaders(req.request_headers),
       query: sanitizedQParams,
       path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
-      body: !isGet && req.request_body ? tryParseBody(req.request_body) : undefined,
+      ...(Object.keys(bodyParams).length > 0 ? { body_params: bodyParams } : {}),
+      ...(templatedRequestBody && typeof templatedRequestBody === "object" && !Array.isArray(templatedRequestBody) ? { body: templatedRequestBody as Record<string, unknown> } : {}),
+      ...(csrfPlan ? { csrf_plan: csrfPlan } : {}),
       idempotency: isGet ? "safe" : "unsafe",
       verification_status: verificationStatus,
       reliability_score: 0.5,
@@ -579,7 +720,16 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       observedAt: req.timestamp,
       sampleRequestUrl: req.url,
     });
-    const admission = isSemanticallyAdmissibleResponse(req, sampleResponse, context);
+    if (csrfPlan) {
+      endpoint.semantic = {
+        ...(endpoint.semantic ?? {}),
+        action_kind: endpoint.semantic?.action_kind ?? (isGet ? "detail" : "create"),
+        resource_kind: endpoint.semantic?.resource_kind ?? "resource",
+        auth_required: true,
+      };
+    }
+    endpoint.description = endpoint.semantic?.description_out ?? endpoint.description;
+    const admission = isSemanticallyAdmissibleResponse(req, sampleResponse, sampleRequest, context);
     if (!admission.ok) {
       traceRows.push({
         url: req.url,
@@ -652,6 +802,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
         observedAt: msgs[0]?.timestamp,
         sampleRequestUrl: wsUrl,
       });
+      endpoint.description = endpoint.semantic?.description_out ?? endpoint.description;
       endpoints.push(endpoint);
     }
   }
@@ -894,6 +1045,7 @@ function templatizePathSegments(
       if (tSeg.startsWith("{")) continue;
       if (tSeg.includes(".")) continue; // e.g. "24_hours.json"
       if (/^(api|v\d+|www|en|es|fr|de|latest|dex|search)$/i.test(tSeg)) continue;
+      if (/^@?me$/i.test(tSeg) || /^self$/i.test(tSeg)) continue;
 
       // Pattern 2: Segment matches a page URL entity hint (case-insensitive)
       if (hints.size > 0 && hints.has(tSeg.toLowerCase())) {

@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { log } from "../logger.js";
 
 type KeytarClient = {
   setPassword: (service: string, account: string, password: string) => Promise<unknown>;
@@ -9,15 +10,20 @@ type KeytarClient = {
   deletePassword: (service: string, account: string) => Promise<boolean>;
 };
 
+const KEYTAR_UNAVAILABLE = Symbol("KEYTAR_UNAVAILABLE");
+const KEYTAR_BINDING_ERROR_RE = /(keytar(?:\.node)?|native bindings?|bindings file|no native build was found|could not locate the bindings file|module did not self-register|err_dlopen_failed|dlopen\(|compiled against a different node\.js version|cannot find module .*keytar|wasm is not supported on this platform|(set|get|delete)password is not a function)/i;
+
 export function normalizeKeytarModule(mod: unknown): KeytarClient | null {
-  const candidate = (mod && typeof mod === "object" && "default" in mod
-    ? (mod as { default?: unknown }).default
-    : mod) as Partial<KeytarClient> | undefined;
+  let candidate: unknown = mod;
+  for (let depth = 0; depth < 3; depth++) {
+    if (!candidate || typeof candidate !== "object" || !("default" in candidate)) break;
+    candidate = (candidate as { default?: unknown }).default;
+  }
   if (!candidate) return null;
   if (
-    typeof candidate.setPassword === "function" &&
-    typeof candidate.getPassword === "function" &&
-    typeof candidate.deletePassword === "function"
+    typeof (candidate as Partial<KeytarClient>).setPassword === "function" &&
+    typeof (candidate as Partial<KeytarClient>).getPassword === "function" &&
+    typeof (candidate as Partial<KeytarClient>).deletePassword === "function"
   ) {
     return candidate as KeytarClient;
   }
@@ -29,6 +35,42 @@ try {
   keytar = normalizeKeytarModule(await import("keytar"));
 } catch {
   // keytar unavailable -- use encrypted file fallback
+}
+const importedKeytar = keytar;
+let keytarFallbackLogged = false;
+
+function isKeytarBindingError(error: unknown): boolean {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return KEYTAR_BINDING_ERROR_RE.test(message);
+}
+
+function disableKeytar(error: unknown): void {
+  keytar = null;
+  if (keytarFallbackLogged) return;
+  const summary = error instanceof Error ? error.message : String(error);
+  log("vault", `keytar runtime unavailable (${summary}); using encrypted file fallback`);
+  keytarFallbackLogged = true;
+}
+
+async function callKeytar<T>(op: (client: KeytarClient) => Promise<T>): Promise<T | typeof KEYTAR_UNAVAILABLE> {
+  if (!keytar) return KEYTAR_UNAVAILABLE;
+  try {
+    return await op(keytar);
+  } catch (error) {
+    if (!isKeytarBindingError(error)) throw error;
+    disableKeytar(error);
+    return KEYTAR_UNAVAILABLE;
+  }
+}
+
+export function setKeytarClientForTests(client: KeytarClient | null): void {
+  keytar = client;
+  keytarFallbackLogged = false;
+}
+
+export function resetKeytarClientForTests(): void {
+  keytar = importedKeytar;
+  keytarFallbackLogged = false;
 }
 
 export interface StoredCredential {
@@ -96,7 +138,8 @@ export async function storeCredential(
     max_age_ms: opts?.max_age_ms,
   };
   const serialized = JSON.stringify(wrapped);
-  if (keytar) { await keytar.setPassword(SERVICE, account, serialized); return; }
+  const keytarResult = await callKeytar((client) => client.setPassword(SERVICE, account, serialized));
+  if (keytarResult !== KEYTAR_UNAVAILABLE) return;
   await withVaultLock(() => {
     const data = readVaultFile();
     data[account] = serialized;
@@ -116,8 +159,9 @@ function isExpired(cred: StoredCredential): boolean {
 
 export async function getCredential(account: string): Promise<string | null> {
   let raw: string | null;
-  if (keytar) {
-    raw = await keytar.getPassword(SERVICE, account);
+  const keytarResult = await callKeytar((client) => client.getPassword(SERVICE, account));
+  if (keytarResult !== KEYTAR_UNAVAILABLE) {
+    raw = keytarResult;
   } else {
     const data = readVaultFile();
     raw = data[account] ?? null;
@@ -142,7 +186,8 @@ export async function getCredential(account: string): Promise<string | null> {
 }
 
 export async function deleteCredential(account: string): Promise<void> {
-  if (keytar) { await keytar.deletePassword(SERVICE, account); return; }
+  const keytarResult = await callKeytar((client) => client.deletePassword(SERVICE, account));
+  if (keytarResult !== KEYTAR_UNAVAILABLE) return;
   await withVaultLock(() => {
     const data = readVaultFile();
     delete data[account];

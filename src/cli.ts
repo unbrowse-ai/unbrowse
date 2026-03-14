@@ -118,28 +118,38 @@ function buildEntityIndex(items: unknown[]): Map<string, unknown> {
   return index;
 }
 
-/** Detect if an object contains a normalized entity array and build the index. */
+/** Detect if an object contains a normalized entity array and build the index.
+ *  Searches all top-level and one-level-nested arrays for entityUrn-keyed items,
+ *  picking the largest qualifying array. Works for any normalized API shape. */
 function detectEntityIndex(data: unknown): Map<string, unknown> | null {
   if (data == null || typeof data !== "object") return null;
-  const obj = data as Record<string, unknown>;
 
-  // Check common locations: { included: [...] }, { data: { included: [...] } }
-  const candidates: unknown[][] = [];
-  if (Array.isArray(obj.included)) candidates.push(obj.included);
-  if (obj.data && typeof obj.data === "object") {
-    const d = obj.data as Record<string, unknown>;
-    if (Array.isArray(d.included)) candidates.push(d.included);
-  }
+  let best: unknown[] | null = null;
 
-  for (const arr of candidates) {
-    if (arr.length < 2) continue;
-    const sample = arr.slice(0, 5);
+  const check = (arr: unknown[]) => {
+    if (arr.length < 2) return;
+    const sample = arr.slice(0, 10);
     const withUrn = sample.filter(
       (i) => i != null && typeof i === "object" && typeof (i as Record<string, unknown>).entityUrn === "string"
     ).length;
-    if (withUrn >= sample.length * 0.5) return buildEntityIndex(arr);
+    if (withUrn >= sample.length * 0.5 && (!best || arr.length > best.length)) {
+      best = arr;
+    }
+  };
+
+  const obj = data as Record<string, unknown>;
+  for (const val of Object.values(obj)) {
+    if (Array.isArray(val)) {
+      check(val);
+    } else if (val != null && typeof val === "object" && !Array.isArray(val)) {
+      // One level deep: { data: { included: [...] } }, { response: { entities: [...] } }, etc.
+      for (const nested of Object.values(val as Record<string, unknown>)) {
+        if (Array.isArray(nested)) check(nested);
+      }
+    }
   }
-  return null;
+
+  return best ? buildEntityIndex(best) : null;
 }
 
 /** Resolve a dot-path like "data.items[].name" against an object.
@@ -165,8 +175,10 @@ function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unkno
     const rec = cur as Record<string, unknown>;
     let val = rec[seg];
 
-    // URN reference resolution: if direct lookup fails, check for "*key" reference
-    if (val === undefined && entityIndex) {
+    // URN reference resolution: if direct lookup fails (or is null), check for "*key" reference.
+    // Normalized APIs (LinkedIn Voyager, Facebook Graph) set inline fields to null when
+    // the value is stored as a URN reference: e.g. socialDetail: null + *socialDetail: "urn:li:..."
+    if (val == null && entityIndex) {
       const ref = rec[`*${seg}`];
       if (typeof ref === "string") {
         val = entityIndex.get(ref);

@@ -20,12 +20,33 @@ const activeBrowserRegistry = new Set<InstanceType<typeof BrowserManager>>();
 // Hard timeout per capture: 90s prevents stuck browsers from holding slots forever
 const CAPTURE_TIMEOUT_MS = 90_000;
 const BROWSER_CLOSE_TIMEOUT_MS = 4_000;
+const CAPTURE_NAV_TIMEOUT_MS = 20_000;
 
 async function closeBrowserSafely(browser: InstanceType<typeof BrowserManager>): Promise<void> {
   await Promise.race([
     browser.close().catch(() => {}),
     new Promise<void>((resolve) => setTimeout(resolve, BROWSER_CLOSE_TIMEOUT_MS)),
   ]);
+}
+
+type CaptureNavigationPage = {
+  goto(url: string, options: { waitUntil: "domcontentloaded"; timeout: number }): Promise<unknown>;
+};
+
+export async function navigatePageForCapture(page: CaptureNavigationPage, url: string): Promise<void> {
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: CAPTURE_NAV_TIMEOUT_MS });
+}
+
+async function navigateBrowserForCapture(
+  browser: InstanceType<typeof BrowserManager>,
+  url: string,
+): Promise<void> {
+  try {
+    await navigatePageForCapture(browser.getPage(), url);
+    return;
+  } catch {
+    await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
+  }
 }
 
 async function acquireBrowserSlot(): Promise<void> {
@@ -80,6 +101,44 @@ export interface RawRequest {
   timestamp: string;
 }
 
+export type CapturedCookie = {
+  name: string;
+  value: string;
+  domain: string;
+  path?: string;
+  httpOnly?: boolean;
+  secure?: boolean;
+};
+
+export function filterFirstPartySessionCookies(
+  cookies: CapturedCookie[],
+  ...urls: Array<string | undefined>
+): CapturedCookie[] {
+  const hosts = new Set<string>();
+  const domains = new Set<string>();
+  for (const rawUrl of urls) {
+    if (!rawUrl) continue;
+    try {
+      const host = new URL(rawUrl).hostname.toLowerCase();
+      hosts.add(host);
+      domains.add(getRegistrableDomain(host));
+    } catch {
+      // ignore bad urls
+    }
+  }
+  if (hosts.size === 0 && domains.size === 0) return cookies;
+  return cookies.filter((cookie) => {
+    const cookieDomain = cookie.domain.replace(/^\./, "").toLowerCase();
+    if (!cookieDomain) return false;
+    if (hosts.has(cookieDomain)) return true;
+    try {
+      return domains.has(getRegistrableDomain(cookieDomain));
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function isBlockedAppShell(html?: string): boolean {
   if (!html) return false;
   return (
@@ -107,10 +166,10 @@ function extractRouteHint(url: string): string | null {
     // Walk path segments from the end — the last meaningful segment is most specific
     const segments = pathname.split("/").filter(Boolean);
     // Skip generic SPA prefixes
-    const GENERIC = /^(i|app|dashboard|page|view|en|es|fr|de|#|_|index|home|main)$/i;
+    const GENERIC = /^(i|app|dashboard|page|view|en|es|fr|de|#|_|index|home|main|me|@me|users?|channels?|guilds?|servers?|messages?|threads?|conversations?)$/i;
     for (let i = segments.length - 1; i >= 0; i--) {
       const seg = segments[i];
-      if (seg.length <= 2 || GENERIC.test(seg)) continue;
+      if (seg.length <= 2 || GENERIC.test(seg) || /^\d+$/.test(seg) || /^\{.+\}$/.test(seg) || /^[0-9a-f-]{8,}$/i.test(seg)) continue;
       // Return lowercased stem (strip trailing 's' for simple plural handling)
       return seg.toLowerCase().replace(/s$/, "");
     }
@@ -140,12 +199,76 @@ function deriveIntentHints(captureUrl?: string, intent?: string): string[] {
     derivedHints.add("timeline");
     derivedHints.add("status");
   }
+  if (/\b(guild|guilds|server|servers)\b/.test(lowerIntent)) {
+    derivedHints.add("guild");
+    derivedHints.add("guilds");
+  }
+  if (/\b(channel|channels)\b/.test(lowerIntent)) {
+    derivedHints.add("channel");
+    derivedHints.add("channels");
+  }
+  if (/\b(message|messages|dm|dms|chat|thread|threads|conversation|conversations)\b/.test(lowerIntent)) {
+    derivedHints.add("message");
+    derivedHints.add("messages");
+    derivedHints.add("thread");
+    derivedHints.add("threads");
+  }
   if (/\b(topic|topics|trend|trending|hashtag|hashtags)\b/.test(lowerIntent)) {
     derivedHints.add("trend");
     derivedHints.add("explore");
     derivedHints.add("topic");
   }
   return [...derivedHints];
+}
+
+function hasCapturedHint(responseUrls: Iterable<string>, hint: string): boolean {
+  const lowerHint = hint.toLowerCase();
+  for (const url of responseUrls) {
+    if (url.toLowerCase().includes(lowerHint)) return true;
+  }
+  return false;
+}
+
+async function maybeProbeIntentApis(
+  browser: InstanceType<typeof BrowserManager>,
+  captureUrl: string | undefined,
+  intent: string | undefined,
+  responseBodies: Map<string, string> | undefined,
+): Promise<void> {
+  if (!captureUrl || !responseBodies) return;
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  let hostname = "";
+  try {
+    hostname = new URL(captureUrl).hostname.toLowerCase();
+  } catch {
+    return;
+  }
+
+  if (/discord\.com$/.test(hostname) && /\b(guild|guilds|server|servers)\b/.test(lowerIntent)) {
+    if (hasCapturedHint(responseBodies.keys(), "/guild")) return;
+    const probes = [
+      { label: "User affinities guilds", path: "/api/v9/users/@me/affinities/guilds" },
+      { label: "User guilds", path: "/api/v9/users/@me/guilds?with_counts=true" },
+    ];
+    try {
+      const page = browser.getPage();
+      for (const probe of probes) {
+        if (hasCapturedHint(responseBodies.keys(), "/guild")) break;
+        log("spa", `probing ${probe.label}: GET https://discord.com${probe.path}`);
+        await page.evaluate(async (path: string) => {
+          try {
+            const response = await fetch(path, { credentials: "include" });
+            await response.text();
+          } catch {
+            // best-effort probe
+          }
+        }, probe.path);
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+    } catch {
+      // non-fatal
+    }
+  }
 }
 
 const CAPTURE_RESPONSE_NOISE = /user_flow|datasavermode|ces\/p2|intercom|badge_count|settings\.json|paymentfailure|saved_searches|launcher_settings|conversations|\/ping\b|verifiedorg|xchatdmsettings|scheduledpromotions|storytopic|sidebaruserrecommendations|subscriptions|live_pipeline|fleetline|authorizetoken|logintwittertoken/i;
@@ -286,6 +409,8 @@ async function waitForContentReady(
       // non-fatal
     }
   }
+
+  await maybeProbeIntentApis(browser, captureUrl, intent, responseBodies);
 }
 
 export async function captureSession(
@@ -460,7 +585,7 @@ export async function captureSession(
     // CDP session unavailable — skip WS capture
   }
 
-  await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
+  await navigateBrowserForCapture(browser, url);
 
   // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
   await waitForContentReady(browser, url, intent, responseBodies);
@@ -533,14 +658,18 @@ export async function captureSession(
   // Extract session cookies so callers can persist auth for future executions
   const ctx = browser.getContext();
   const rawCookies = ctx ? await ctx.cookies().catch(() => []) : [];
-  const sessionCookies = rawCookies.map((c) => ({
-    name: c.name,
-    value: c.value,
-    domain: c.domain,
-    path: c.path,
-    httpOnly: c.httpOnly,
-    secure: c.secure,
-  }));
+  const sessionCookies = filterFirstPartySessionCookies(
+    rawCookies.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      httpOnly: c.httpOnly,
+      secure: c.secure,
+    })),
+    url,
+    final_url,
+  );
 
   if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
   log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
@@ -601,7 +730,7 @@ export async function executeInBrowser(
   // No auth: use in-page fetch (original path)
   browser.startRequestTracking();
   const origin = new URL(url).origin;
-  await executeCommand({ action: "navigate", id: nanoid(), url: origin }, browser);
+  await navigateBrowserForCapture(browser, origin);
 
   const page = browser.getPage();
   const result = await page.evaluate(

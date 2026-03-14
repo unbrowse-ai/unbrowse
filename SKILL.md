@@ -270,7 +270,7 @@ The CLI handles things that break with raw curl:
 
 ## Authentication
 
-**Automatic.** Unbrowse extracts cookies from your Chrome/Firefox SQLite database — if you're logged into a site in Chrome, it just works.
+**Automatic.** Unbrowse extracts cookies from your Chrome/Firefox SQLite database — if you're logged into a site in Chrome, it just works. For Chromium-family apps and Electron shells, the raw API also supports importing from a custom cookie DB path or user-data dir via `/v1/auth/steal`.
 
 If `auth_required` is returned:
 
@@ -308,6 +308,7 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 | POST | `/v1/intent/resolve` | Resolve intent -> search/capture/execute |
 | POST | `/v1/skills/:id/execute` | Execute a specific skill |
 | POST | `/v1/auth/login` | Interactive browser login |
+| POST | `/v1/auth/steal` | Import cookies from browser/Electron storage |
 | POST | `/v1/feedback` | Submit feedback with diagnostics |
 | POST | `/v1/search` | Search marketplace globally |
 | POST | `/v1/search/domain` | Search marketplace by domain |
