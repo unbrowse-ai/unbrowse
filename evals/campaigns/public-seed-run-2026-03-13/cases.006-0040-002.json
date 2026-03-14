@@ -1,0 +1,138 @@
+{
+  "cases": [
+    {
+      "id": "practice-test-automation-success",
+      "suite": "scripted-demo",
+      "site": "practicetestautomation.com",
+      "intent": "get login success message",
+      "url": "https://practicetestautomation.com/logged-in-successfully/",
+      "auth": {
+        "domain": "practicetestautomation.com",
+        "persona": "qa-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": [
+        "title",
+        "message"
+      ],
+      "validate": {
+        "terminal_ok": [
+          "pass"
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://practicetestautomation.com/practice-test-login/",
+        "success_url": "https://practicetestautomation.com/logged-in-successfully/",
+        "username": "student",
+        "password": "Password123",
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "#username",
+            "value": "$USERNAME"
+          },
+          {
+            "action": "fill",
+            "selector": "#password",
+            "value": "$PASSWORD"
+          },
+          {
+            "action": "click",
+            "selector": "#submit"
+          },
+          {
+            "action": "wait_for_url",
+            "pattern": "**/logged-in-successfully/"
+          }
+        ]
+      }
+    },
+    {
+      "id": "orangehrm-dashboard",
+      "suite": "scripted-demo",
+      "site": "opensource-demo.orangehrmlive.com",
+      "intent": "get dashboard widgets",
+      "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+      "auth": {
+        "domain": "opensource-demo.orangehrmlive.com",
+        "persona": "qa-user",
+        "role": "admin",
+        "session": "primary"
+      },
+      "expected_fields": [
+        "title"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass",
+          "blocked"
+        ]
+      },
+      "workflow": {
+        "max_total_ms": 60000,
+        "max_failures": 0,
+        "steps": [
+          {
+            "id": "dashboard-widgets",
+            "intent": "get dashboard widgets",
+            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+            "expected_fields": [
+              "title"
+            ],
+            "validate": {
+              "min_rows": 2
+            }
+          }
+        ],
+        "verify": [
+          {
+            "id": "dashboard-widgets-warm",
+            "intent": "get dashboard widgets",
+            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+            "expected_fields": [
+              "title"
+            ],
+            "validate": {
+              "min_rows": 2
+            },
+            "max_total_ms": 30000
+          }
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+        "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+        "username": "Admin",
+        "password": "admin123",
+        "steps": [
+          {
+            "action": "wait_for_selector",
+            "selector": "input[name='username']"
+          },
+          {
+            "action": "fill",
+            "selector": "input[name='username']",
+            "value": "$USERNAME"
+          },
+          {
+            "action": "fill",
+            "selector": "input[name='password']",
+            "value": "$PASSWORD"
+          },
+          {
+            "action": "click",
+            "selector": "button[type='submit']"
+          },
+          {
+            "action": "wait_for_url",
+            "pattern": "**/dashboard/index"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -30,6 +30,7 @@ const CARD_SELECTORS = [
   ".entry", ".post", ".tile", ".row",
   "[class*='card']", "[class*='item']", "[class*='result']",
   "[class*='product']", "[class*='listing']",
+  ".cds-ProductCard-card", ".cds-ProductCard", "[class*='ProductCard-card']", "[class*='ProductCard']",
   // Semantic HTML patterns — articles/sections as repeated items
   "article", "section > div > div",
   // Common e-commerce / catalog patterns
@@ -42,6 +43,26 @@ const CARD_SELECTORS = [
 
 interface SPAExtraction extends ExtractedStructure {
   type: "spa-nextjs" | "spa-nuxt" | "spa-initial-state" | "spa-preloaded-state";
+}
+
+function extractFlashNoticeSpecial(html: string, intent: string): ExtractedStructure[] {
+  if (!/\b(flash|message|messages|alert|success|error|warning)\b/i.test(intent)) return [];
+  const $ = cheerio.load(html);
+  const flash = $("#flash, .flash, .alert, [role='alert']").first();
+  if (flash.length === 0) return [];
+  const flashText = flash.text().replace(/\s+/g, " ").replace(/[×x]\s*$/, "").trim();
+  if (!flashText || flashText.length < 4) return [];
+  const title = $("main h1, main h2, article h1, article h2, h1, h2").first().text().trim();
+  return [{
+    type: "key-value",
+    data: {
+      ...(title ? { title } : {}),
+      flash: flashText,
+      message: flashText,
+    },
+    element_count: title ? 2 : 1,
+    selector: buildReplaySelector(flash),
+  }];
 }
 
 /**
@@ -197,6 +218,21 @@ interface ExtractedStructure {
   data: unknown;
   element_count: number;
   selector?: string;
+}
+
+function hasMessageLikeRecord(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    (typeof record.title === "string" || typeof record.heading_1 === "string" || typeof record.heading === "string") &&
+    (typeof record.message === "string" || typeof record.description === "string" || typeof record.flash === "string")
+  );
+}
+
+function isMessageLikeStructure(structure: ExtractedStructure, intent: string): boolean {
+  if (!/\b(message|messages|flash|alert|success|error|warning)\b/i.test(intent)) return false;
+  if (Array.isArray(structure.data)) return structure.data.some((item) => hasMessageLikeRecord(item));
+  return hasMessageLikeRecord(structure.data);
 }
 
 function pruneRowsForIntent(rows: Record<string, string>[], intent: string): Record<string, string>[] {
@@ -580,19 +616,62 @@ function extractDefinitionSpecial(html: string, intent: string): ExtractedStruct
   const root = $("main, article, [role='main'], .entry-body, .di-body").first();
   const scope = root.length > 0 ? root : $("body");
   const term = cleanText(scope.find("h1").first().text()) || cleanText($("h1").first().text());
-  const definition = cleanText(
+  let definition = cleanText(
     scope.find("dd, [class*='def'], [class*='meaning'], [class*='definition']").first().text(),
   );
-  if (!term || !definition || definition.length < 10) return [];
+  let normalizedTerm = term;
+  if ((!normalizedTerm || !definition || definition.length < 10)) {
+    const ogTitle = cleanText($('meta[property="og:title"]').attr("content") ?? "");
+    const metaDescription = cleanText($('meta[name="description"]').attr("content") ?? $('meta[itemprop="headline"]').attr("content") ?? "");
+    const canonical = cleanText($('link[rel="canonical"]').attr("href") ?? "");
+    if (!normalizedTerm) {
+      normalizedTerm = ogTitle
+        || canonical.split("/").filter(Boolean).pop()?.replace(/[-_]+/g, " ")
+        || "";
+    }
+    if (!definition && metaDescription) {
+      definition = metaDescription
+        .replace(/^[A-Z0-9 _-]+\s+definition:\s*/i, "")
+        .replace(/\s*Learn more\.?$/i, "")
+        .replace(/&hellip;/g, "...")
+        .trim();
+    }
+  }
+  if (!normalizedTerm || !definition || definition.length < 10) return [];
   return [{
     type: "key-value",
     data: {
-      term,
-      title: term,
+      term: normalizedTerm,
+      title: normalizedTerm,
       definition,
     },
     element_count: 1,
   }];
+}
+
+function extractCourseSearchSpecial(html: string, intent: string): ExtractedStructure[] {
+  if (!/\b(course|courses)\b/i.test(intent)) return [];
+  if (!/ProductCard|CommonCard-titleLink|RatingStat|partnerNames/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const rows: Record<string, string>[] = [];
+  const seen = new Set<string>();
+
+  $(".cds-ProductCard-card, .cds-ProductCard, [class*='ProductCard-card'], [class*='ProductCard']").each((_, el) => {
+    const $el = $(el);
+    const fields = extractCardFields($, $el);
+    const title = fields.title?.trim();
+    const url = (fields.url ?? fields.link ?? "").trim();
+    if (!title || !url || title === "All Results") return;
+    const stable = `${title}|${url}`;
+    if (seen.has(stable)) return;
+    if (!fields.rating && !fields.partner && !fields.description) return;
+    rows.push(fields);
+    seen.add(stable);
+  });
+
+  return rows.length >= 2
+    ? [{ type: "repeated-elements", data: rows.slice(0, 20), element_count: rows.length, selector: ".cds-ProductCard-card" }]
+    : [];
 }
 
 function extractTrendSpecial(html: string, intent: string): ExtractedStructure[] {
@@ -726,6 +805,10 @@ export function parseStructured(html: string): ExtractedStructure[] {
   const cardResults = detectRepeatingPatterns($);
   results.push(...cardResults);
 
+  // --- Single-record detail pages ---
+  const detailResults = detectDetailPatterns($);
+  results.push(...detailResults);
+
   return results;
 }
 
@@ -827,6 +910,57 @@ function detectRepeatingPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
   return results;
 }
 
+function hasDetailFieldShape(fields: Record<string, string>): boolean {
+  if (!fields.title && !fields.name && !fields.term) return false;
+  return !!(
+    fields.description ||
+    fields.definition ||
+    fields.price ||
+    fields.rating ||
+    fields.author ||
+    fields.url ||
+    fields.link ||
+    fields.score ||
+    fields.image
+  );
+}
+
+function detectDetailPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
+  const results: ExtractedStructure[] = [];
+  const seen = new Set<string>();
+
+  for (const selector of [
+    "main",
+    "article",
+    "[role='main']",
+    "[class*='detail']",
+    "[class*='details']",
+    "[class*='product']",
+    "[class*='listing']",
+    "[class*='profile']",
+    "[class*='content']",
+  ]) {
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const signature = `${selector}|${getElementSignature($, $el)}`;
+      if (seen.has(signature)) return;
+      seen.add(signature);
+      if ($el.text().trim().length < 20) return;
+      const fields = extractCardFields($, $el);
+      if (Object.keys(fields).length < 2) return;
+      if (!hasDetailFieldShape(fields)) return;
+      results.push({
+        type: "key-value",
+        data: fields,
+        element_count: 1,
+        selector: buildReplaySelector($el) ?? selector,
+      });
+    });
+  }
+
+  return results;
+}
+
 /**
  * Detect repeating sibling elements that share the same full class string.
  * Works for Tailwind/utility-class sites where standard selectors fail.
@@ -895,6 +1029,9 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     const text = $(h).text().trim();
     if (text && text.length < 300) fields[i === 0 ? "title" : `heading_${i}`] = text;
   });
+  if (!fields["message"] && fields["heading_1"] && fields["heading_1"].length > 10) {
+    fields["message"] = fields["heading_1"];
+  }
 
   // Fallback title: strong/bold text or [class*='name']
   if (!fields["title"]) {
@@ -943,11 +1080,25 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
 
   // Generic summary/excerpt containers often hold the useful body text for docs/questions/cards.
   if (!fields["description"]) {
-    $el.find("[class*='summary'], [class*='excerpt'], [class*='description'], [class*='snippet']").each((_, node) => {
+    $el.find("[class*='summary'], [class*='excerpt'], [class*='description'], [class*='desc'], [class*='snippet']").each((_, node) => {
       if (fields["description"]) return;
       const text = $(node).text().trim();
       if (text && text.length > 10 && text.length < 500) fields["description"] = text;
     });
+  }
+
+  // Alerts / success pages often carry the user-facing payload in strong text or flash-like containers.
+  if (!fields["message"]) {
+    $el.find("[role='alert'], .flash, .alert, [class*='message'], [class*='flash'], [class*='alert'], p strong, p b").each((_, node) => {
+      if (fields["message"]) return;
+      const text = $(node).text().trim();
+      if (text && text.length > 5 && text.length < 500 && text !== fields["title"]) {
+        fields["message"] = text;
+      }
+    });
+  }
+  if (!fields["message"] && fields["description"] && /congratulations|successfully|logged in|logged out|welcome|error|invalid|warning|flash|alert/i.test(fields["description"])) {
+    fields["message"] = fields["description"];
   }
 
   // Extract price-like patterns — use the most specific (deepest) match
@@ -971,16 +1122,33 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     if (answersText && answersText.length < 80) fields["answer_count"] = answersText;
   }
 
-  const ratingEl = $el.find("[class*='rating'], [aria-label*='rating'], [data-rating]").first();
+  const ratingEl = $el.find("[class*='rating'], [aria-label*='rating'], [aria-label*='Rating'], [aria-valuenow], [aria-valuetext], [data-rating]").first();
   if (ratingEl.length > 0) {
-    const ratingText = ratingEl.text().trim() || ratingEl.attr("aria-label")?.trim() || ratingEl.attr("data-rating")?.trim();
-    if (ratingText && ratingText.length < 80) fields["rating"] = ratingText;
+    const ratingProbe = ratingEl.find("[aria-valuenow], [aria-valuetext], [aria-label*='rating'], [aria-label*='Rating']").first();
+    const ratingText = ratingProbe.attr("aria-valuenow")?.trim()
+      || ratingProbe.attr("aria-valuetext")?.trim()
+      || ratingProbe.attr("aria-label")?.trim()
+      || ratingEl.attr("aria-valuenow")?.trim()
+      || ratingEl.attr("aria-valuetext")?.trim()
+      || ratingEl.attr("aria-label")?.trim()
+      || ratingEl.attr("data-rating")?.trim()
+      || ratingProbe.text().trim()
+      || ratingEl.text().trim();
+    const numeric = ratingText?.match(/\b([0-5](?:\.\d)?)\b/)?.[1];
+    if (numeric) fields["rating"] = numeric;
+    else if (ratingText && ratingText.length < 80 && !/^rating$/i.test(ratingText)) fields["rating"] = ratingText;
   }
 
   const authorEl = $el.find("[class*='author'], [class*='byline'], [class*='user'], [rel='author']").first();
   if (authorEl.length > 0) {
     const authorText = authorEl.text().trim();
     if (authorText && authorText.length < 120) fields["author"] = authorText;
+  }
+
+  const partnerEl = $el.find("[class*='partnerName'], [class*='partnerNames'], [class*='partner']").first();
+  if (partnerEl.length > 0) {
+    const partnerText = partnerEl.text().trim();
+    if (partnerText && partnerText.length < 160) fields["partner"] = partnerText;
   }
 
   const definitionEl = $el.find("dd, [class*='def'], [class*='meaning'], [class*='definition']").first();
@@ -1112,6 +1280,7 @@ export function extractFromDOMWithHint(
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
   const spaStructures = extractSPAData(html);
+  const flashStructures = extractFlashNoticeSpecial(html, intent);
   const cleaned = cleanDOM(html);
   const githubStructures = extractGitHubSpecial(html, intent);
   const linkedInStructures = extractLinkedInSpecial(html, intent);
@@ -1120,7 +1289,8 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const postStructures = extractPostSpecial(html, intent);
   const trendStructures = extractTrendSpecial(html, intent);
   const definitionStructures = extractDefinitionSpecial(html, intent);
-  const structures = [...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const courseStructures = extractCourseSearchSpecial(html, intent);
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
@@ -1147,6 +1317,14 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   }
 
   const best = scored[0];
+  if (isMessageLikeStructure(best.structure, intent)) {
+    return {
+      data: best.structure.data,
+      extraction_method: best.structure.type,
+      confidence: computeConfidence(best.structure, best.score),
+      selector: best.structure.selector,
+    };
+  }
   const hasClearWinner = scored.length === 1 || best.score > scored[1].score * 1.5;
 
   if (hasClearWinner && best.score > 0) {

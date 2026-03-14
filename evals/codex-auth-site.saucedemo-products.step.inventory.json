@@ -1,0 +1,220 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "saucedemo-products:inventory",
+      "intent": "get products",
+      "auth": true,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "product_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "description"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.saucedemo.com/inventory.html"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.saucedemo.com/inventory.html",
+          "force_capture": false,
+          "resolve_ms": 25794,
+          "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_target_operation"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.saucedemo.com/inventory.html",
+              "domain": "www.saucedemo.com",
+              "pathname": "/inventory.html",
+              "slug_1": "inventory.html"
+            },
+            "chunk": {
+              "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+              "intent": "get products",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "zxkmIwGU59QU8_TQESGwq",
+              "available_operations": [
+                {
+                  "operation_id": "zxkmIwGU59QU8_TQESGwq",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "product",
+                  "title": "detail product",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://www.saucedemo.com/inventory.html",
+                  "requires": [],
+                  "yields": [
+                    "product_name"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "title": "Sauce Labs Backpack",
+                      "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
+                      "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29....",
+                      "price": "$29.99"
+                    },
+                    {
+                      "title": "Sauce Labs Backpack",
+                      "price": "$29.99"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+              "domain": "www.saucedemo.com",
+              "auth_required": true,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-13T20:35:27.887Z"
+            },
+            "source": "marketplace",
+            "total_ms": 25769,
+            "tokens_used": 545,
+            "tokens_saved": 29455,
+            "tokens_saved_pct": 98
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "Sauce Labs Backpack",
+                "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
+                "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29.99Add to cart",
+                "price": "$29.99"
+              },
+              {
+                "title": "Sauce Labs Bike Light",
+                "image": "/static/media/bike-light-1200x1500.37c843b09a7d77409d63.jpg",
+                "description": "Sauce Labs Bike LightA red light isn't the desired state in testing but it sure helps when riding your bike at night. Water-resistant with 3 lighting modes, 1 AAA battery included.$9.99Add to cart",
+                "price": "$9.99"
+              },
+              {
+                "title": "Sauce Labs Bolt T-Shirt",
+                "image": "/static/media/bolt-shirt-1200x1500.c2599ac5f0a35ed5931e.jpg",
+                "description": "Sauce Labs Bolt T-ShirtGet your testing superhero on with the Sauce Labs bolt T-shirt. From American Apparel, 100% ringspun combed cotton, heather gray with red bolt.$15.99Add to cart",
+                "price": "$15.99"
+              },
+              {
+                "title": "Sauce Labs Fleece Jacket",
+                "image": "/static/media/sauce-pullover-1200x1500.51d7ffaf301e698772c8.jpg",
+                "description": "Sauce Labs Fleece JacketIt's not every day that you come across a midweight quarter-zip fleece jacket capable of handling everything from a relaxing day outdoors to a busy day at the office.$49.99Add to cart",
+                "price": "$49.99"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "rendered-dom",
+              "final_url": "https://www.saucedemo.com/inventory.html",
+              "selector": "div.inventory_item"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "zxkmIwGU59QU8_TQESGwq",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "product_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 6,
+              "observed_entity_types": [
+                "product"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 545,
+              "tokens_saved": 29455,
+              "tokens_saved_pct": 98,
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "Sauce Labs Backpack",
+                    "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
+                    "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29.99Add to cart",
+                    "price": "$29.99"
+                  },
+                  {
+                    "title": "Sauce Labs Bike Light",
+                    "image": "/static/media/bike-light-1200x1500.37c843b09a7d77409d63.jpg",
+                    "description": "Sauce Labs Bike LightA red light isn't the desired state in testing but it sure helps when riding your bike at night. Water-resistant with 3 lighting modes, 1 AAA battery included.$9.99Add to cart",
+                    "price": "$9.99"
+                  },
+                  {
+                    "title": "Sauce Labs Bolt T-Shirt",
+                    "image": "/static/media/bolt-shirt-1200x1500.c2599ac5f0a35ed5931e.jpg",
+                    "description": "Sauce Labs Bolt T-ShirtGet your testing superhero on with the Sauce Labs bolt T-shirt. From American Apparel, 100% ringspun combed cotton, heather gray with red bolt.$15.99Add to cart",
+                    "price": "$15.99"
+                  },
+                  {
+                    "title": "Sauce Labs Fleece Jacket",
+                    "image": "/static/media/sauce-pullover-1200x1500.51d7ffaf301e698772c8.jpg",
+                    "description": "Sauce Labs Fleece JacketIt's not every day that you come across a midweight quarter-zip fleece jacket capable of handling everything from a relaxing day outdoors to a busy day at the office.$49.99Add to cart",
+                    "price": "$49.99"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.95,
+                  "source": "rendered-dom",
+                  "final_url": "https://www.saucedemo.com/inventory.html",
+                  "selector": "div.inventory_item"
+                }
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.saucedemo.com/inventory.html"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    }
+  ]
+}

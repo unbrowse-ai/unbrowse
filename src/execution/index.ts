@@ -17,6 +17,7 @@ import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
 import { buildSkillOperationGraph, inferEndpointSemantic, resolveEndpointSemantic } from "../graph/index.js";
+import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
 import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
@@ -47,6 +48,15 @@ function normalizeEndpointForManifest(endpoint: EndpointDescriptor): EndpointDes
     ? endpoint.verification_status
     : (endpoint.response_schema || endpoint.dom_extraction ? "verified" : "pending");
   return { ...endpoint, verification_status };
+}
+
+async function prepareLearnedEndpoints(
+  endpoints: EndpointDescriptor[],
+  intent: string,
+  domain: string,
+): Promise<EndpointDescriptor[]> {
+  const normalized = endpoints.map(normalizeEndpointForManifest);
+  return augmentEndpointsWithAgent(normalized, { intent, domain });
 }
 
 function intentWantsStructuredRecords(intent?: string): boolean {
@@ -734,9 +744,13 @@ async function trySeedStructuredDocumentSkill(
 
   const domain = getRegistrableDomain(targetDomain);
   const existingSkill = findExistingSkillForDomain(domain, intent);
-  const localEndpoints = (existingSkill
-    ? mergeEndpoints(existingSkill.endpoints, [canonicalDocumentEndpoint])
-    : [canonicalDocumentEndpoint]).map(normalizeEndpointForManifest);
+  const localEndpoints = await prepareLearnedEndpoints(
+    existingSkill
+      ? mergeEndpoints(existingSkill.endpoints, [canonicalDocumentEndpoint])
+      : [canonicalDocumentEndpoint],
+    intent,
+    domain,
+  );
 
   const localDraft: SkillManifest = {
     skill_id: existingSkill?.skill_id ?? nanoid(),
@@ -828,9 +842,13 @@ async function trySeedPublicDocumentFetchSkill(
 
   const domain = getRegistrableDomain(targetDomain);
   const existingSkill = findExistingSkillForDomain(domain, intent);
-  const localEndpoints = (existingSkill
-    ? mergeEndpoints(existingSkill.endpoints, [built.endpoint])
-    : [built.endpoint]).map(normalizeEndpointForManifest);
+  const localEndpoints = await prepareLearnedEndpoints(
+    existingSkill
+      ? mergeEndpoints(existingSkill.endpoints, [built.endpoint])
+      : [built.endpoint],
+    intent,
+    domain,
+  );
 
   const localDraft: SkillManifest = {
     skill_id: existingSkill?.skill_id ?? nanoid(),
@@ -1150,6 +1168,13 @@ async function executeBrowserCapture(
     // DOM fallback: extract structured data from rendered page, learn a DOM skill
     if (domArtifactEndpoint && domArtifactResult) {
         const existingDomSkill = findExistingSkillForDomain(domain, intent);
+        const domEndpoints = await prepareLearnedEndpoints(
+          existingDomSkill
+            ? mergeEndpoints(existingDomSkill.endpoints, [domArtifactEndpoint])
+            : [domArtifactEndpoint],
+          intent,
+          domain,
+        );
         const domDraft: SkillManifest = {
           skill_id: existingDomSkill?.skill_id ?? nanoid(),
           version: "1.0.0",
@@ -1163,12 +1188,8 @@ async function executeBrowserCapture(
           domain,
           description: `API skill for ${domain}`,
           owner_type: "agent" as const,
-          endpoints: existingDomSkill
-            ? mergeEndpoints(existingDomSkill.endpoints, [domArtifactEndpoint])
-            : [domArtifactEndpoint],
-          operation_graph: buildSkillOperationGraph(existingDomSkill
-            ? mergeEndpoints(existingDomSkill.endpoints, [domArtifactEndpoint])
-            : [domArtifactEndpoint]),
+          endpoints: domEndpoints,
+          operation_graph: buildSkillOperationGraph(domEndpoints),
           intents: Array.from(new Set([...(existingDomSkill?.intents ?? []), intent])),
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
@@ -1261,9 +1282,13 @@ async function executeBrowserCapture(
   const learnedEndpoints = domArtifactEndpoint
     ? [...cleanEndpoints, domArtifactEndpoint]
     : cleanEndpoints;
-  const localEndpoints = (existingSkill
-    ? mergeEndpoints(existingSkill.endpoints, learnedEndpoints)
-    : learnedEndpoints).map(normalizeEndpointForManifest);
+  const localEndpoints = await prepareLearnedEndpoints(
+    existingSkill
+      ? mergeEndpoints(existingSkill.endpoints, learnedEndpoints)
+      : learnedEndpoints,
+    intent,
+    domain,
+  );
   const publishableEndpoints = localEndpoints.filter((ep) => ep.method !== "WS");
 
   const localDraft: SkillManifest = {
@@ -1330,6 +1355,41 @@ async function executeBrowserCapture(
   };
 }
 
+async function tryHttpFetch(
+  url: string,
+  authHeaders: Record<string, string>,
+  cookies: Array<{ name: string; value: string; domain: string }>,
+): Promise<{ html: string; final_url: string } | null> {
+  try {
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cache-Control": "no-cache",
+      ...authHeaders,
+    };
+    if (cookies && cookies.length > 0) {
+      headers["Cookie"] = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const res = await fetch(url, {
+      headers,
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    clearTimeout(timeout);
+    if (res.status !== 200) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("text/html") && !ct.includes("application/xhtml")) return null;
+    const html = await res.text();
+    if (!html || html.length < 1024) return null;
+    return { html, final_url: res.url || url };
+  } catch {
+    return null;
+  }
+}
+
 async function executeDomExtractionEndpoint(
   endpoint: EndpointDescriptor,
   url: string,
@@ -1337,6 +1397,39 @@ async function executeDomExtractionEndpoint(
   authHeaders: Record<string, string>,
   cookies: Array<{ name: string; value: string; domain: string }>,
 ): Promise<{ data: unknown; status: number; trace_id: string }> {
+  // SSR fast-path: try plain HTTP fetch before browser
+  const ssrResult = await tryHttpFetch(url, authHeaders, cookies);
+  if (ssrResult) {
+    const ssrExtracted = extractFromDOMWithHint(ssrResult.html, intent, endpoint.dom_extraction);
+    if (ssrExtracted.data) {
+      const ssrQuality = validateExtractionQuality(ssrExtracted.data, ssrExtracted.confidence, intent);
+      if (ssrQuality.valid) {
+        const ssrSemantic = assessIntentResult(ssrExtracted.data, intent);
+        if (ssrSemantic.verdict !== "fail") {
+          console.log(`[ssr-fast] hit — extracted via HTTP fetch`);
+          return {
+            data: {
+              data: ssrExtracted.data,
+              _extraction: {
+                method: ssrExtracted.extraction_method,
+                confidence: ssrExtracted.confidence,
+                source: "ssr-fast",
+                final_url: ssrResult.final_url,
+                ...(ssrExtracted.selector ? { selector: ssrExtracted.selector } : {}),
+              },
+            },
+            status: 200,
+            trace_id: nanoid(),
+          };
+        }
+      }
+    }
+    console.log(`[ssr-fast] miss, falling back to browser`);
+  } else {
+    console.log(`[ssr-fast] miss, falling back to browser`);
+  }
+
+  // Browser fallback
   const captured = await captureSession(url, authHeaders, cookies, intent);
   const html = captured.html ?? "";
   const extracted = extractFromDOMWithHint(html, intent, endpoint.dom_extraction);
@@ -1446,6 +1539,11 @@ export async function executeEndpoint(
           if (dryParams[k] == null) dryParams[k] = v;
         }
       }
+      if (endpoint.body_params) {
+        for (const [k, v] of Object.entries(endpoint.body_params)) {
+          if (dryParams[k] == null) dryParams[k] = v;
+        }
+      }
       const url = interpolate(endpoint.url_template, dryParams);
       const body = endpoint.body ? interpolateObj(endpoint.body, dryParams) : undefined;
       return {
@@ -1540,6 +1638,13 @@ export async function executeEndpoint(
   let mergedParams = mergeContextTemplateParams(params, endpoint.url_template, options?.contextUrl);
   if (endpoint.path_params && typeof endpoint.path_params === "object") {
     for (const [k, v] of Object.entries(endpoint.path_params)) {
+      if (mergedParams[k] == null) {
+        mergedParams[k] = v;
+      }
+    }
+  }
+  if (endpoint.body_params && typeof endpoint.body_params === "object") {
+    for (const [k, v] of Object.entries(endpoint.body_params)) {
       if (mergedParams[k] == null) {
         mergedParams[k] = v;
       }
@@ -1648,6 +1753,20 @@ export async function executeEndpoint(
         if (csrfCookie) {
           const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
           headers["x-csrf-token"] = v;
+        }
+      }
+    }
+
+    if (endpoint.csrf_plan && cookies.length > 0) {
+      const csrfCookie = cookies.find((c) =>
+        endpoint.csrf_plan!.extractor_sequence.some((name) => name.toLowerCase() === c.name.toLowerCase()),
+      );
+      if (csrfCookie) {
+        const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
+        if (endpoint.csrf_plan.source === "cookie" || endpoint.csrf_plan.source === "header") {
+          headers[endpoint.csrf_plan.param_name.toLowerCase()] ??= v;
+        } else if (endpoint.csrf_plan.source === "form" && body && typeof body === "object" && !Array.isArray(body)) {
+          (body as Record<string, unknown>)[endpoint.csrf_plan.param_name] ??= v;
         }
       }
     }
@@ -1904,6 +2023,21 @@ export async function executeEndpoint(
     }
   }
 
+  const effectiveIntent = options?.intent ?? skill.intent_signature;
+  if (trace.success && effectiveIntent && data != null) {
+    const semanticAssessment = assessIntentResult(data, effectiveIntent);
+    if (semanticAssessment.verdict === "fail") {
+      trace.success = false;
+      trace.error = semanticAssessment.reason;
+      data = {
+        error: "intent_mismatch",
+        message: `Execution result did not satisfy intent "${effectiveIntent}": ${semanticAssessment.reason}`,
+        projected: semanticAssessment.projected,
+      };
+      trace.result = data;
+    }
+  }
+
   // Backfill response_schema on first successful execution — push to marketplace so all agents benefit
   if (trace.success && !endpoint.response_schema && data != null && typeof data !== "string") {
     try {
@@ -1928,7 +2062,7 @@ export async function executeEndpoint(
   } else if (projection && trace.success) {
     resultData = applyProjection(data, projection);
   } else if (trace.success) {
-    resultData = projectResultForIntent(data, options?.intent ?? skill.intent_signature);
+    resultData = projectResultForIntent(data, effectiveIntent);
   }
 
   const rawResultShape = resultData === data;
@@ -1937,7 +2071,7 @@ export async function executeEndpoint(
     trace, result: resultData,
     ...(endpoint.response_schema && rawResultShape ? { response_schema: endpoint.response_schema } : {}),
     ...(endpoint.response_schema && rawResultShape
-      ? { extraction_hints: generateExtractionHints(endpoint.response_schema, options?.intent ?? skill.intent_signature) ?? undefined }
+      ? { extraction_hints: generateExtractionHints(endpoint.response_schema, effectiveIntent) ?? undefined }
       : {}),
   };
 }
@@ -2271,14 +2405,51 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const nonDisabled = endpoints.filter((ep) => ep.verification_status !== "disabled");
   const candidates = filtered.length > 0 ? filtered : nonDisabled;
   if (candidates.length === 0) return [];
+  const intentLower = (intent ?? "").toLowerCase();
+
+  function endpointHaystack(ep: EndpointDescriptor): string {
+    return `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})} ${JSON.stringify(resolveEndpointSemantic(ep) ?? {})}`.toLowerCase();
+  }
+
+  function isPlausibleForIntent(ep: EndpointDescriptor): boolean {
+    if (!intentLower) return true;
+    const haystack = endpointHaystack(ep);
+
+    if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/.test(intentLower)) {
+      const hasPositive = /(symbol|ticker|regularmarketprice|currentprice|marketcap|currency|change_percent|changepercent|quote)/i.test(haystack);
+      const hasNegative = /(news|article|articles|video|story|stories|thumbnail|image|author)/i.test(haystack);
+      return hasPositive && !hasNegative;
+    }
+
+    if (/\b(product|products|item|items)\b/.test(intentLower)) {
+      const hasPositive = /(product|products|itemstacks|items\[\]|price|rating|review|reviewcount|numberofreviews|brand|sku|usitemid|catalogproducttype)/i.test(haystack);
+      const hasNegative = /(captcha|robot|human|bootstrapdata|traceparent|nonce|psych|isomorphicsessionid|persistedqueriesconfig|errorloggingconfig|renderviewid|headerobj|initialtempodata|wcpbeacon)/i.test(haystack);
+      return hasPositive && !hasNegative;
+    }
+
+    if (/\b(channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(intentLower)) {
+      const hasEntitySignal = /(\/guilds\b|\/channels\b|\bguilds?\b|\bchannels?\b|\bservers?\b|\bworkspaces?\b)/i.test(haystack);
+      const hasFieldSignal = /\b(ids?|names?|icon|member_count|topic|description)\b/i.test(haystack);
+      const hasPositive = hasEntitySignal && hasFieldSignal;
+      const hasNegative = /(affinit|preview|quests|survey|referrals?|promotions?|science|detectable|applications\/public|\/games\b|entitlements?|billing|subscriptions?|collectibles?|gifts?|experiments?|connections?|status|incidents?|scheduled-maintenances?)/i.test(haystack);
+      return hasPositive && !hasNegative;
+    }
+
+    return true;
+  }
+
+  const plausibilityScopedIntent = /\b(stock|stocks|ticker|tickers|quote|quotes|product|products|item|items|channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(intentLower);
+  const plausibleCandidates = candidates.filter((ep) => isPlausibleForIntent(ep));
+  if (plausibilityScopedIntent && plausibleCandidates.length === 0) return [];
+  const rankedCandidates = plausibleCandidates.length > 0 ? plausibleCandidates : candidates;
   const canonicalReplayTriggers = new Set(
-    candidates
+    rankedCandidates
       .filter((ep) => isCanonicalReplayEndpoint(ep))
       .map((ep) => ep.trigger_url)
       .filter((value): value is string => !!value),
   );
   const structuredApiTriggers = new Set(
-    candidates
+    rankedCandidates
       .filter((ep) => {
         const url = ep.url_template.toLowerCase();
         const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
@@ -2291,7 +2462,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   // Tokenize intent with synonym expansion for better recall
   const rawTokens = intent ? tokenize(intent) : [];
   const queryTokens = rawTokens.length > 0 ? expandQuery(rawTokens) : [];
-  const docs = candidates.map((ep) => endpointToTokens(ep));
+  const docs = rankedCandidates.map((ep) => endpointToTokens(ep));
   const avgDl = docs.reduce((sum, d) => sum + d.length, 0) / docs.length || 1;
 
   // Build corpus-level document frequencies for real IDF
@@ -2318,11 +2489,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const COMMS_INTENT = /\b(guilds?|channels?|messages?|dms?|servers?|threads?|chat)\b/i;
   const COMMS_PATH = /\/(guilds?|channels?|messages?|threads?|conversations?|affinities)\b/i;
   const DISCORD_META_PATHS = /\/(referrals?|promotions?|science|entitlements?|billing|subscriptions?|collectibles?|gifts?|experiments?)\b/i;
+  const SESSION_BOUND_QUERY = /[?&](?:[^=]*?(crumb|csrf|xsrf|token|session|auth|signature|nonce))=\{/i;
   const COMPANY_INTENT = /\b(company|companies|organization|organisations|business|org)\b/i;
   const PROFILE_INTENT = /\b(person|people|profile|profiles|user|users|member|members)\b/i;
+  const PRODUCT_DETAIL_INTENT = /\b(product|products|item|items|listing|listings)\b/i.test(intent ?? "");
   const ENTITY_DETAIL_INTENT = isEntityDetailIntent(intent);
 
-  const scored = candidates.map((ep, i) => {
+  const scored = rankedCandidates.map((ep, i) => {
     let score = 0;
     let pathname = "";
     let hostname = "";
@@ -2420,6 +2593,15 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (CURRENCY_TIME_PATTERNS.test(pathname)) score += 15;
     if (intent && COMMS_INTENT.test(intent) && COMMS_PATH.test(pathname)) score += 45;
     if (intent && COMMS_INTENT.test(intent) && DISCORD_META_PATHS.test(pathname)) score -= 220;
+    if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/i.test(intent ?? "")) {
+      const quoteHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})} ${JSON.stringify(semantic)}`.toLowerCase();
+      if (/\/chart\b/i.test(pathname) && /(regularmarketprice|currentprice|previousclose|chartpreviousclose|price)/i.test(quoteHaystack)) {
+        score += 120;
+      }
+      if (SESSION_BOUND_QUERY.test(ep.url_template)) {
+        score -= 170;
+      }
+    }
 
     // Deep paths with meaningful segments = likely data endpoints
     const pathDepth = pathname.split("/").filter((s) => s.length > 0).length;
@@ -2461,12 +2643,31 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
     const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
+    const triggerPath = (() => {
+      try {
+        return ep.trigger_url ? new URL(ep.trigger_url).pathname : "";
+      } catch {
+        return "";
+      }
+    })();
+    const exactContextDocument =
+      PRODUCT_DETAIL_INTENT &&
+      !!contextPath &&
+      (pathname === contextPath || triggerPath === contextPath);
+    const mismatchedContextDocument =
+      !!contextPath &&
+      (isCapturedPageArtifact || looksLikeDocumentRoute) &&
+      pathname !== contextPath &&
+      triggerPath !== contextPath;
 
-    if (ENTITY_DETAIL_INTENT && looksLikeDocumentRoute) {
+    if (ENTITY_DETAIL_INTENT && looksLikeDocumentRoute && !exactContextDocument) {
       score -= 55;
     }
-    if (ENTITY_DETAIL_INTENT && isCapturedPageArtifact) {
+    if (ENTITY_DETAIL_INTENT && isCapturedPageArtifact && !exactContextDocument) {
       score -= 200;
+    }
+    if (ENTITY_DETAIL_INTENT && mismatchedContextDocument) {
+      score -= 420;
     }
     if (intent && COMMS_INTENT.test(intent) && looksLikeDocumentRoute) {
       score -= 180;
@@ -2553,6 +2754,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   });
 
   scored.sort((a, b) => b.score - a.score);
+  if (plausibilityScopedIntent && scored[0] && scored[0].score < 0) return [];
   return scored;
 }
 

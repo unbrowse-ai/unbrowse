@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
-import { searchIntent, searchIntentInDomain } from "../services/discovery.js";
+import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 
 export const searchRoutes = new Hono<{ Bindings: Env }>();
@@ -8,6 +8,7 @@ export const searchRoutes = new Hono<{ Bindings: Env }>();
 // Rate limit: 6 searches per 60 seconds per IP
 searchRoutes.use("/search", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 searchRoutes.use("/search/domain", rateLimit({ limit: 30, window: 60, prefix: "search" }));
+searchRoutes.use("/search/resolve", rateLimit({ limit: 30, window: 60, prefix: "search" }));
 
 // POST /v1/search — global intent search
 searchRoutes.post("/search", async (c) => {
@@ -32,5 +33,23 @@ searchRoutes.post("/search/domain", async (c) => {
   } catch (err) {
     console.error("[search] domain search failed:", (err as Error).message);
     return c.json({ results: [] });
+  }
+});
+
+// POST /v1/search/resolve — shared-embed resolve search with optional domain bias
+searchRoutes.post("/search/resolve", async (c) => {
+  const { intent, domain, domain_k, global_k } = await c.req.json<{
+    intent: string;
+    domain?: string;
+    domain_k?: number;
+    global_k?: number;
+  }>();
+  if (!intent) return c.json({ error: "intent required" }, 400);
+  try {
+    const results = await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
+    return c.json(results);
+  } catch (err) {
+    console.error("[search] resolve search failed:", (err as Error).message);
+    return c.json({ domain_results: [], global_results: [], skipped_global: false });
   }
 });

@@ -1,0 +1,464 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 0,
+    "fail": 1,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 0,
+    "unsatisfied": 1,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "orangehrm-dashboard:dashboard-widgets",
+      "intent": "get dashboard widgets",
+      "auth": true,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "min_rows:1/2",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+        ],
+        "attempted_endpoint_counts": {
+          "alE0cUz1ehnIfzSpqJvyC": 1,
+          "ao2VfRTipUj4GPbuTP7VF": 1,
+          "Orm_PURy52iHZFYeBk2Yr": 1,
+          "zyeC3ZfnVPG8MkVYIhXN6": 1
+        },
+        "failure_class_counts": {
+          "fields": 4,
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "missing_fields:title",
+          "min_rows:1/2"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+          "force_capture": false,
+          "resolve_ms": 40991,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "domain": "opensource-demo.orangehrmlive.com",
+              "pathname": "/web/index.php/dashboard/index",
+              "slug_1": "web",
+              "slug_2": "index.php",
+              "slug_3": "dashboard",
+              "slug_4": "index"
+            }
+          },
+          "resolve_excerpt": {
+            "error": "The operation was aborted."
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+          "force_capture": true,
+          "resolve_ms": 26033,
+          "skill_id": "c_QP02MKRC2_gnm_YYqcp",
+          "available_endpoint_ids": [
+            "alE0cUz1ehnIfzSpqJvyC",
+            "zyeC3ZfnVPG8MkVYIhXN6",
+            "ao2VfRTipUj4GPbuTP7VF",
+            "Orm_PURy52iHZFYeBk2Yr"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "alE0cUz1ehnIfzSpqJvyC",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "domain": "opensource-demo.orangehrmlive.com",
+              "pathname": "/web/index.php/dashboard/index",
+              "slug_1": "web",
+              "slug_2": "index.php",
+              "slug_3": "dashboard",
+              "slug_4": "index"
+            },
+            "chunk": {
+              "skill_id": "c_QP02MKRC2_gnm_YYqcp",
+              "intent": "get dashboard widgets",
+              "missing_bindings": [
+                "slug",
+                "v2"
+              ],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "c_QP02MKRC2_gnm_YYqcp",
+              "domain": "opensource-demo.orangehrmlive.com",
+              "auth_required": true,
+              "endpoint_count": 114,
+              "operation_count": 114,
+              "edge_count": 0,
+              "updated_at": "2026-03-13T21:12:20.085Z"
+            },
+            "source": "live-capture",
+            "total_ms": 26007,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 109 endpoint(s). Pick one and call POST /v1/skills/c_QP02MKRC2_gnm_YYqcp/execute with params.endpoint_id.",
+            "skill_id": "c_QP02MKRC2_gnm_YYqcp",
+            "available_operations": [
+              {
+                "operation_id": "jVZBbifg7wgVSltXZqBYQ",
+                "endpoint_id": "jVZBbifg7wgVSltXZqBYQ",
+                "action_kind": "timeline",
+                "resource_kind": "form",
+                "description_out": "Returns forms timeline with ids, post, and liked",
+                "requires": [
+                  "slug",
+                  "limit",
+                  "offset",
+                  "sortOrder"
+                ],
+                "provides": [
+                  "id",
+                  "form_id"
+                ],
+                "runnable": false
+              },
+              {
+                "operation_id": "ZLm5uphKSI0v5suL1HT-I",
+                "endpoint_id": "ZLm5uphKSI0v5suL1HT-I",
+                "action_kind": "list",
+                "resource_kind": "user",
+                "description_out": "Returns users with workday, totaltime, and meta",
+                "requires": [
+                  "slug",
+                  "v2",
+                  "timezoneOffset",
+                  "currentDate"
+                ],
+                "provides": [
+                  "id",
+                  "user_id",
+                  "profile_id",
+                  "member_id"
+                ],
+                "runnable": false
+              },
+              {
+                "operation_id": "-kBRV8NOSSXGzFciX4Z0U",
+                "endpoint_id": "-kBRV8NOSSXGzFciX4Z0U",
+                "action_kind": "list",
+                "resource_kind": "resource",
+                "description_out": "Returns resources with assign leave, leave list, and apply leave",
+                "requires": [
+                  "slug",
+                  "v2"
+                ],
+                "provides": [],
+                "runnable": false
+              }
+            ],
+            "missing_bindings": [
+              "slug",
+              "v2"
+            ],
+            "available_endpoints": [
+              {
+                "endpoint_id": "e_8U9NXZfN84crWCm-tMB",
+                "method": "GET",
+                "description": "Captured page artifact for get dashboard widgets",
+                "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+                "score": 623.6,
+                "schema_summary": {
+                  "title": "string",
+                  "image": "string",
+                  "description": "string",
+                  "heading_1": "string",
+                  "heading_2": "string",
+                  "heading_3": "string",
+                  "message": "string"
+                },
+                "dom_extraction": true,
+                "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+              },
+              {
+                "endpoint_id": "alE0cUz1ehnIfzSpqJvyC",
+                "method": "GET",
+                "description": "Returns resources with ids, group, and counts",
+                "url": "https://opensource-demo.orangehrmlive.com/{slug}/index.php/api/v2/{v2}/employees/action-summary",
+                "score": 109.2,
+                "schema_summary": {
+                  "data": "array",
+                  "meta": "array",
+                  "rels": "array"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+              },
+              {
+                "endpoint_id": "zyeC3ZfnVPG8MkVYIhXN6",
+                "method": "GET",
+                "description": "Returns resources with subunit, counts, and meta",
+                "url": "https://opensource-demo.orangehrmlive.com/{slug}/index.php/api/v2/{v2}/employees/subunit",
+                "score": 38.6,
+                "schema_summary": {
+                  "data": "array",
+                  "meta": "object",
+                  "rels": "array"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+              },
+              {
+                "endpoint_id": "ao2VfRTipUj4GPbuTP7VF",
+                "method": "GET",
+                "description": "Returns resources with location, counts, and meta",
+                "url": "https://opensource-demo.orangehrmlive.com/{slug}/index.php/api/v2/{v2}/employees/locations",
+                "score": 38.6,
+                "schema_summary": {
+                  "data": "array",
+                  "meta": "object",
+                  "rels": "array"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "alE0cUz1ehnIfzSpqJvyC",
+              "endpoint_url": "https://opensource-demo.orangehrmlive.com/{slug}/index.php/api/v2/{v2}/employees/action-summary",
+              "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "execute_ms": 421,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:title",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 2,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [
+                  {
+                    "id": 4,
+                    "group": "Pending Self Reviews",
+                    "pendingActionCount": 1
+                  },
+                  {
+                    "id": 5,
+                    "group": "Candidates To Interview",
+                    "pendingActionCount": 1
+                  }
+                ],
+                "meta": [],
+                "rels": []
+              }
+            },
+            {
+              "endpoint_id": "zyeC3ZfnVPG8MkVYIhXN6",
+              "endpoint_url": "https://opensource-demo.orangehrmlive.com/{slug}/index.php/api/v2/{v2}/employees/subunit",
+              "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "execute_ms": 440,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:title",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 4,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [
+                  {
+                    "subunit": {
+                      "id": 3,
+                      "name": "Engineering"
+                    },
+                    "count": 2
+                  },
+                  {
+                    "subunit": {
+                      "id": 13,
+                      "name": "Human Resources"
+                    },
+                    "count": 2
+                  },
+                  {
+                    "subunit": {
+                      "id": 2,
+                      "name": "Administration"
+                    },
+                    "count": 1
+                  },
+                  {
+                    "subunit": {
+                      "id": 10,
+                      "name": "Client Services"
+                    },
+                    "count": 1
+                  }
+                ],
+                "meta": {
+                  "otherEmployeeCount": 0,
+                  "unassignedEmployeeCount": 113,
+                  "totalSubunitCount": 4
+                },
+                "rels": []
+              }
+            },
+            {
+              "endpoint_id": "ao2VfRTipUj4GPbuTP7VF",
+              "endpoint_url": "https://opensource-demo.orangehrmlive.com/{slug}/index.php/api/v2/{v2}/employees/locations",
+              "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "execute_ms": 384,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:title",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 2,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [
+                  {
+                    "location": {
+                      "id": 5,
+                      "name": "Texas R&D"
+                    },
+                    "count": 4
+                  },
+                  {
+                    "location": {
+                      "id": 2,
+                      "name": "New York Sales Office"
+                    },
+                    "count": 2
+                  }
+                ],
+                "meta": {
+                  "otherEmployeeCount": 0,
+                  "unassignedEmployeeCount": 113,
+                  "totalLocationCount": 2
+                },
+                "rels": []
+              }
+            },
+            {
+              "endpoint_id": "Orm_PURy52iHZFYeBk2Yr",
+              "endpoint_url": "https://opensource-demo.orangehrmlive.com/{slug}/index.php/api/v2/{v2}/employees/leaves?date={date}",
+              "trigger_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "execute_ms": 398,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "min_rows:1/2",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [
+                "min_rows:1/2"
+              ],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [],
+                "meta": {
+                  "total": 0,
+                  "leavePeriodDefined": true
+                },
+                "rels": []
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "min_rows:1/2",
+          "repair_memory": {
+            "visited_urls": [
+              "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+            ],
+            "attempted_endpoint_counts": {
+              "alE0cUz1ehnIfzSpqJvyC": 1,
+              "ao2VfRTipUj4GPbuTP7VF": 1,
+              "Orm_PURy52iHZFYeBk2Yr": 1,
+              "zyeC3ZfnVPG8MkVYIhXN6": 1
+            },
+            "failure_class_counts": {
+              "fields": 4,
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "missing_fields:title",
+              "min_rows:1/2"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

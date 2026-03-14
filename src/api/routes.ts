@@ -32,8 +32,8 @@ async function fetchStats() {
       .then(r => r.json() as Promise<{ downloads?: number }>);
 
   const npmRange = (pkg: string) =>
+    fetch(`https://api.npmjs.org/downloads/range/last-month/${pkg}`)
       .then(r => r.json() as Promise<{ downloads?: Array<{ day: string; downloads: number }> }>);
-      .then(r => r.json() as Promise<{ downloads?: number; downloads?: Array<{ day: string; downloads: number }> }>);
 
   const externalCalls: Promise<unknown>[] = [
     npmPoint("unbrowse", "last-month"),

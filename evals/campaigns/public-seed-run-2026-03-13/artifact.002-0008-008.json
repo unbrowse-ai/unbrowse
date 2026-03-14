@@ -1,0 +1,4433 @@
+{
+  "summary": {
+    "total": 8,
+    "pass": 5,
+    "fail": 3,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 5,
+    "unsatisfied": 3,
+    "max_rounds": 4,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "docker-image-tags",
+      "intent": "get image tags",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "tag_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "name",
+        "last_updated"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://hub.docker.com/r/library/nginx/tags"
+        ],
+        "attempted_endpoint_counts": {
+          "BidcYsdH7US4s5_g-j6Cm": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "tag_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://hub.docker.com/r/library/nginx/tags",
+          "force_capture": false,
+          "resolve_ms": 26055,
+          "skill_id": "e4TFb0FmVN0BEaDeHY_A2",
+          "available_endpoint_ids": [
+            "BidcYsdH7US4s5_g-j6Cm"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "BidcYsdH7US4s5_g-j6Cm",
+            "selected_path": [
+              "BidcYsdH7US4s5_g-j6Cm"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://hub.docker.com/r/library/nginx/tags",
+              "domain": "hub.docker.com",
+              "pathname": "/r/library/nginx/tags",
+              "slug_1": "r",
+              "slug_2": "library",
+              "slug_3": "nginx",
+              "slug_4": "tags"
+            },
+            "chunk": {
+              "skill_id": "e4TFb0FmVN0BEaDeHY_A2",
+              "intent": "get image tags",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "BidcYsdH7US4s5_g-j6Cm",
+              "available_operations": [
+                {
+                  "operation_id": "BidcYsdH7US4s5_g-j6Cm",
+                  "method": "GET",
+                  "action_kind": "list",
+                  "resource_kind": "repository",
+                  "title": "list repository",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=25",
+                  "requires": [],
+                  "yields": [
+                    "id",
+                    "last_updater_username",
+                    "repo_name",
+                    "repository_name",
+                    "repo",
+                    "repository_id",
+                    "repo_id"
+                  ],
+                  "example_request": {
+                    "url": "https://hub.docker.com/r/library/nginx/tags",
+                    "intent": "get image tags"
+                  },
+                  "example_response_compact": {
+                    "count": 1063,
+                    "next": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page=2&page_size=25",
+                    "previous": null,
+                    "results": [
+                      {
+                        "creator": 1156886,
+                        "id": 1037390956,
+                        "images": [
+                          "[truncated]",
+                          "[truncated]",
+                          "[truncated]"
+                        ],
+                        "last_updated": "2026-03-11T22:52:32.240201Z",
+                        "last_updater": 1156886,
+                        "last_updater_username": "doijanky",
+                        "name": "stable-alpine3.23-perl",
+                        "repository": 21171
+                      },
+                      {
+                        "creator": 2215,
+                        "id": 10128355,
+                        "images": [
+                          "[truncated]",
+                          "[truncated]",
+                          "[truncated]"
+                        ],
+                        "last_updated": "2026-03-11T22:52:26.313246Z",
+                        "last_updater": 1156886,
+                        "last_updater_username": "doijanky",
+                        "name": "stable-alpine-perl",
+                        "repository": 21171
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "e4TFb0FmVN0BEaDeHY_A2",
+              "domain": "docker.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T04:56:47.190Z"
+            },
+            "source": "live-capture",
+            "total_ms": 26024,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/e4TFb0FmVN0BEaDeHY_A2/execute with params.endpoint_id.",
+            "skill_id": "e4TFb0FmVN0BEaDeHY_A2",
+            "available_operations": [
+              {
+                "operation_id": "BidcYsdH7US4s5_g-j6Cm",
+                "endpoint_id": "BidcYsdH7US4s5_g-j6Cm",
+                "action_kind": "list",
+                "resource_kind": "repository",
+                "description_out": "Structured replay for get image tags",
+                "requires": [],
+                "provides": [
+                  "id",
+                  "last_updater_username",
+                  "repo_name",
+                  "repository_name"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "BidcYsdH7US4s5_g-j6Cm",
+                "method": "GET",
+                "description": "Structured replay for get image tags",
+                "url": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=25",
+                "score": 416.7,
+                "schema_summary": {
+                  "count": "integer",
+                  "next": "string",
+                  "previous": "null",
+                  "results": "array"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://hub.docker.com/r/library/nginx/tags"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "last_updated"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "repository",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/e4TFb0FmVN0BEaDeHY_A2/execute with params.endpoint_id.",
+                "skill_id": "e4TFb0FmVN0BEaDeHY_A2",
+                "available_operations": [
+                  {
+                    "operation_id": "BidcYsdH7US4s5_g-j6Cm",
+                    "endpoint_id": "BidcYsdH7US4s5_g-j6Cm",
+                    "action_kind": "list",
+                    "resource_kind": "repository",
+                    "description_out": "Structured replay for get image tags",
+                    "requires": [],
+                    "provides": [
+                      "id",
+                      "last_updater_username",
+                      "repo_name",
+                      "repository_name"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "BidcYsdH7US4s5_g-j6Cm",
+                    "method": "GET",
+                    "description": "Structured replay for get image tags",
+                    "url": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=25",
+                    "score": 416.7,
+                    "schema_summary": {
+                      "count": "integer",
+                      "next": "string",
+                      "previous": "null",
+                      "results": "array"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://hub.docker.com/r/library/nginx/tags"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "BidcYsdH7US4s5_g-j6Cm",
+              "endpoint_url": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=25",
+              "trigger_url": "https://hub.docker.com/r/library/nginx/tags",
+              "execute_ms": 313,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "tag_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "last_updated"
+              ],
+              "missing_fields": [],
+              "row_count": 25,
+              "observed_entity_types": [
+                "tag"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "count": 1063,
+                "next": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page=2&page_size=25",
+                "previous": null,
+                "results": [
+                  {
+                    "creator": 1156886,
+                    "id": 1037390956,
+                    "images": [
+                      {
+                        "architecture": "amd64",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:ae1c1755655909fbea023ff30135ef175a0b41efcf3117682b56ae1cc685f23b",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 36226462,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:43:35.311575139Z",
+                        "last_pushed": "2026-03-10T21:55:31.008935225Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:7cdbbad8aab97c8501d82fc3e9cbd5375ed0c74b2aa963786a16bdf1c038df3d",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 1873737,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:43:35.904845316Z",
+                        "last_pushed": "2026-03-10T21:55:31.508364306Z"
+                      },
+                      {
+                        "architecture": "arm",
+                        "features": "",
+                        "variant": "v6",
+                        "digest": "sha256:06bab3afb8ac636f250ddac3a152b35bfad5da63498d6e23b271dc84008ba6e2",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 29163852,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T03:27:27.17908536Z",
+                        "last_pushed": "2026-03-10T22:50:57.610891395Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:a67d6ce64a06a984eba35cc390d3e9250cb97fd994219bcd109a7f83168784f5",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 20126,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T03:27:28.946987536Z",
+                        "last_pushed": "2026-03-10T22:50:58.099155618Z"
+                      }
+                    ],
+                    "last_updated": "2026-03-11T22:52:32.240201Z",
+                    "last_updater": 1156886,
+                    "last_updater_username": "doijanky",
+                    "name": "stable-alpine3.23-perl",
+                    "repository": 21171,
+                    "full_size": 36226462,
+                    "v2": true,
+                    "tag_status": "active",
+                    "tag_last_pulled": "2026-03-14T04:52:50.600020877Z"
+                  },
+                  {
+                    "creator": 2215,
+                    "id": 10128355,
+                    "images": [
+                      {
+                        "architecture": "amd64",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:ae1c1755655909fbea023ff30135ef175a0b41efcf3117682b56ae1cc685f23b",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 36226462,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:43:35.311575139Z",
+                        "last_pushed": "2026-03-10T21:55:31.008935225Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:7cdbbad8aab97c8501d82fc3e9cbd5375ed0c74b2aa963786a16bdf1c038df3d",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 1873737,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:43:35.904845316Z",
+                        "last_pushed": "2026-03-10T21:55:31.508364306Z"
+                      },
+                      {
+                        "architecture": "arm",
+                        "features": "",
+                        "variant": "v6",
+                        "digest": "sha256:06bab3afb8ac636f250ddac3a152b35bfad5da63498d6e23b271dc84008ba6e2",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 29163852,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T03:27:27.17908536Z",
+                        "last_pushed": "2026-03-10T22:50:57.610891395Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:a67d6ce64a06a984eba35cc390d3e9250cb97fd994219bcd109a7f83168784f5",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 20126,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T03:27:28.946987536Z",
+                        "last_pushed": "2026-03-10T22:50:58.099155618Z"
+                      }
+                    ],
+                    "last_updated": "2026-03-11T22:52:26.313246Z",
+                    "last_updater": 1156886,
+                    "last_updater_username": "doijanky",
+                    "name": "stable-alpine-perl",
+                    "repository": 21171,
+                    "full_size": 36226462,
+                    "v2": true,
+                    "tag_status": "active",
+                    "tag_last_pulled": "2026-03-14T04:52:50.600020877Z"
+                  },
+                  {
+                    "creator": 1156886,
+                    "id": 1027759719,
+                    "images": [
+                      {
+                        "architecture": "amd64",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:b78717bf04d26651b615ec9fe97869d9e56fa1bbe7d7cfb5cf4d10ff7d1a9f2a",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 36271731,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:43:59.191163307Z",
+                        "last_pushed": "2026-03-11T01:51:10.994619898Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:190685eba7c3b3e873a6bf7dccbbc66f6edb7a03d37df1b32e561733f2c593b5",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 1876274,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T03:23:54.535137059Z",
+                        "last_pushed": "2026-03-11T01:51:11.513414369Z"
+                      },
+                      {
+                        "architecture": "arm",
+                        "features": "",
+                        "variant": "v6",
+                        "digest": "sha256:307fed574b092dd388eafe28a7fd1b3739828143d9ce9d48849ca02fb93577ca",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 29214243,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:22:37.287209224Z",
+                        "last_pushed": "2026-03-11T01:51:11.830973249Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:3ea71142ea215cffc98ed8e7efd2e38f4ea8683f801c70526bafe2d800059df8",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 21439,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T01:43:29.616364498Z",
+                        "last_pushed": "2026-03-11T01:51:12.393482162Z"
+                      }
+                    ],
+                    "last_updated": "2026-03-11T22:52:12.318837Z",
+                    "last_updater": 1156886,
+                    "last_updater_username": "doijanky",
+                    "name": "mainline-alpine3.23-perl",
+                    "repository": 21171,
+                    "full_size": 36271731,
+                    "v2": true,
+                    "tag_status": "active",
+                    "tag_last_pulled": "2026-03-14T04:51:18.373458346Z"
+                  },
+                  {
+                    "creator": 2215,
+                    "id": 10297160,
+                    "images": [
+                      {
+                        "architecture": "amd64",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:b78717bf04d26651b615ec9fe97869d9e56fa1bbe7d7cfb5cf4d10ff7d1a9f2a",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 36271731,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:43:59.191163307Z",
+                        "last_pushed": "2026-03-11T01:51:10.994619898Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:190685eba7c3b3e873a6bf7dccbbc66f6edb7a03d37df1b32e561733f2c593b5",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 1876274,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T03:23:54.535137059Z",
+                        "last_pushed": "2026-03-11T01:51:11.513414369Z"
+                      },
+                      {
+                        "architecture": "arm",
+                        "features": "",
+                        "variant": "v6",
+                        "digest": "sha256:307fed574b092dd388eafe28a7fd1b3739828143d9ce9d48849ca02fb93577ca",
+                        "os": "linux",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 29214243,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T04:22:37.287209224Z",
+                        "last_pushed": "2026-03-11T01:51:11.830973249Z"
+                      },
+                      {
+                        "architecture": "unknown",
+                        "features": "",
+                        "variant": null,
+                        "digest": "sha256:3ea71142ea215cffc98ed8e7efd2e38f4ea8683f801c70526bafe2d800059df8",
+                        "os": "unknown",
+                        "os_features": "",
+                        "os_version": null,
+                        "size": 21439,
+                        "status": "active",
+                        "last_pulled": "2026-03-14T01:43:29.616364498Z",
+                        "last_pushed": "2026-03-11T01:51:12.393482162Z"
+                      }
+                    ],
+                    "last_updated": "2026-03-11T22:52:06.279767Z",
+                    "last_updater": 1156886,
+                    "last_updater_username": "doijanky",
+                    "name": "mainline-alpine-perl",
+                    "repository": 21171,
+                    "full_size": 36271731,
+                    "v2": true,
+                    "tag_status": "active",
+                    "tag_last_pulled": "2026-03-14T04:51:18.373458346Z"
+                  }
+                ]
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hub.docker.com/r/library/nginx/tags"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "stack-overflow-tag-questions",
+      "intent": "get tag questions",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "question_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url",
+        "score"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://stackoverflow.com/questions/tagged/javascript"
+        ],
+        "attempted_endpoint_counts": {
+          "mYf-xwZn_9Kn6aPkug84s": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "question_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://stackoverflow.com/questions/tagged/javascript",
+          "force_capture": false,
+          "resolve_ms": 11629,
+          "skill_id": "0yzcaxrAqcVM--EMib4HT",
+          "available_endpoint_ids": [
+            "mYf-xwZn_9Kn6aPkug84s"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "mYf-xwZn_9Kn6aPkug84s",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://stackoverflow.com/questions/tagged/javascript",
+              "domain": "stackoverflow.com",
+              "pathname": "/questions/tagged/javascript",
+              "slug_1": "questions",
+              "slug_2": "tagged",
+              "slug_3": "javascript"
+            },
+            "chunk": {
+              "skill_id": "0yzcaxrAqcVM--EMib4HT",
+              "intent": "get tag questions",
+              "missing_bindings": [
+                "tag"
+              ],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "0yzcaxrAqcVM--EMib4HT",
+              "domain": "stackoverflow.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T04:57:04.928Z"
+            },
+            "source": "live-capture",
+            "total_ms": 11597,
+            "tokens_used": 26,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "learned_skill_id": "0yzcaxrAqcVM--EMib4HT",
+            "endpoints_discovered": 1,
+            "seeded_from": "canonical_document"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "learned_skill_only",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "score"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 26,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "learned_skill_id": "0yzcaxrAqcVM--EMib4HT",
+                "endpoints_discovered": 1,
+                "seeded_from": "canonical_document"
+              }
+            },
+            {
+              "endpoint_id": "mYf-xwZn_9Kn6aPkug84s",
+              "endpoint_url": "https://api.stackexchange.com/2.3/questions?site=stackoverflow&tagged={tag}&order=desc&sort=activity&pagesize=20&filter=default",
+              "trigger_url": "https://stackoverflow.com/questions/tagged/javascript",
+              "execute_ms": 198,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "question_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url",
+                "score"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "items": [
+                  {
+                    "tags": [
+                      "javascript",
+                      "reactjs",
+                      "react-native",
+                      "javascript-framework"
+                    ],
+                    "owner": {
+                      "account_id": 2790085,
+                      "reputation": 11444,
+                      "user_id": 2400485,
+                      "user_type": "registered",
+                      "accept_rate": 43,
+                      "profile_image": "https://www.gravatar.com/avatar/a59465ee1a63e2e1be13e789814957a0?s=256&d=identicon&r=PG",
+                      "display_name": "shiva kumar",
+                      "link": "https://stackoverflow.com/users/2400485/shiva-kumar"
+                    },
+                    "is_answered": true,
+                    "view_count": 441045,
+                    "protected_date": 1507723776,
+                    "accepted_answer_id": 34641772,
+                    "answer_count": 45,
+                    "score": 925,
+                    "locked_date": 1629849721,
+                    "last_activity_date": 1773463705,
+                    "creation_date": 1452109917,
+                    "last_edit_date": 1548074187
+                  },
+                  {
+                    "tags": [
+                      "javascript",
+                      "ide",
+                      "atom-editor"
+                    ],
+                    "owner": {
+                      "account_id": 10524440,
+                      "reputation": 599,
+                      "user_id": 7755882,
+                      "user_type": "registered",
+                      "accept_rate": 45,
+                      "profile_image": "https://www.gravatar.com/avatar/ac432c712995b4b0f9eb2a16e88bd399?s=256&d=identicon&r=PG&f=y&so-version=2",
+                      "display_name": "Gokhan Karadag",
+                      "link": "https://stackoverflow.com/users/7755882/gokhan-karadag"
+                    },
+                    "is_answered": false,
+                    "view_count": 9921,
+                    "answer_count": 1,
+                    "score": 8,
+                    "last_activity_date": 1773461125,
+                    "creation_date": 1493227854,
+                    "last_edit_date": 1493271795,
+                    "question_id": 43640917,
+                    "content_license": "CC BY-SA 3.0",
+                    "link": "https://stackoverflow.com/questions/43640917/how-to-find-references-or-usages-in-atom-editor"
+                  },
+                  {
+                    "tags": [
+                      "javascript",
+                      "random",
+                      "cryptography",
+                      "range"
+                    ],
+                    "owner": {
+                      "account_id": 2921390,
+                      "reputation": 671,
+                      "user_id": 2503552,
+                      "user_type": "registered",
+                      "accept_rate": 100,
+                      "profile_image": "https://www.gravatar.com/avatar/d15d1e58a790fd5e37f5e387fd44b561?s=256&d=identicon&r=PG",
+                      "display_name": "user2503552",
+                      "link": "https://stackoverflow.com/users/2503552/user2503552"
+                    },
+                    "is_answered": true,
+                    "view_count": 58939,
+                    "accepted_answer_id": 18230432,
+                    "answer_count": 8,
+                    "score": 37,
+                    "last_activity_date": 1773459272,
+                    "creation_date": 1376478841,
+                    "last_edit_date": 1520068938,
+                    "question_id": 18230217,
+                    "content_license": "CC BY-SA 3.0"
+                  },
+                  {
+                    "tags": [
+                      "javascript",
+                      "html",
+                      "jquery",
+                      "css"
+                    ],
+                    "owner": {
+                      "account_id": 27730345,
+                      "reputation": 125,
+                      "user_id": 21168982,
+                      "user_type": "registered",
+                      "profile_image": "https://lh3.googleusercontent.com/a/AEdFTp7wLvloUBBq98cM_c5wZBrhVVObBe77FbGn-FCP=k-s256",
+                      "display_name": "Theodore John",
+                      "link": "https://stackoverflow.com/users/21168982/theodore-john"
+                    },
+                    "is_answered": true,
+                    "view_count": 745,
+                    "answer_count": 2,
+                    "score": 0,
+                    "last_activity_date": 1773457382,
+                    "creation_date": 1676859993,
+                    "last_edit_date": 1773457382,
+                    "question_id": 75504750,
+                    "content_license": "CC BY-SA 4.0",
+                    "link": "https://stackoverflow.com/questions/75504750/simplify-svg-presentation-attributes-style-properties"
+                  }
+                ],
+                "has_more": true,
+                "quota_max": 300,
+                "quota_remaining": 292
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://stackoverflow.com/questions/tagged/javascript"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "devto-tag-posts",
+      "intent": "get tag posts",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "trigger_timeout",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "author"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://dev.to/t/javascript"
+        ],
+        "attempted_endpoint_counts": {
+          "0InpypKN5l5eYAceQph4U": 2
+        },
+        "failure_class_counts": {
+          "dag": 2,
+          "transport": 2
+        },
+        "reasons_seen": [
+          "trigger_timeout",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://dev.to/t/javascript",
+          "force_capture": false,
+          "resolve_ms": 28893,
+          "skill_id": "qOMhh9-G6lmjrfbpi9Y4c",
+          "available_endpoint_ids": [
+            "0InpypKN5l5eYAceQph4U"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "0InpypKN5l5eYAceQph4U",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://dev.to/t/javascript",
+              "domain": "dev.to",
+              "pathname": "/t/javascript",
+              "slug_1": "t",
+              "slug_2": "javascript"
+            },
+            "chunk": {
+              "skill_id": "qOMhh9-G6lmjrfbpi9Y4c",
+              "intent": "get tag posts",
+              "missing_bindings": [
+                "tag"
+              ],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "qOMhh9-G6lmjrfbpi9Y4c",
+              "domain": "dev.to",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T04:57:26.016Z"
+            },
+            "source": "live-capture",
+            "total_ms": 28858,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/qOMhh9-G6lmjrfbpi9Y4c/execute with params.endpoint_id.",
+            "skill_id": "qOMhh9-G6lmjrfbpi9Y4c",
+            "available_operations": [
+              {
+                "operation_id": "0InpypKN5l5eYAceQph4U",
+                "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                "action_kind": "list",
+                "resource_kind": "article",
+                "description_out": "Structured replay for get tag posts",
+                "requires": [
+                  "tag"
+                ],
+                "provides": [
+                  "id",
+                  "article_name",
+                  "slug",
+                  "article_id"
+                ],
+                "runnable": false
+              }
+            ],
+            "missing_bindings": [
+              "tag"
+            ],
+            "available_endpoints": [
+              {
+                "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                "method": "GET",
+                "description": "Structured replay for get tag posts",
+                "url": "https://dev.to/api/articles?tag={tag}&per_page=20",
+                "score": 334,
+                "schema_summary": {
+                  "type_of": "string",
+                  "id": "integer",
+                  "title": "string",
+                  "description": "string",
+                  "readable_publish_date": "string",
+                  "slug": "string",
+                  "path": "string",
+                  "url": "string",
+                  "comments_count": "integer",
+                  "public_reactions_count": "integer",
+                  "collection_id": "null",
+                  "published_timestamp": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://dev.to/t/javascript"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "author"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/qOMhh9-G6lmjrfbpi9Y4c/execute with params.endpoint_id.",
+                "skill_id": "qOMhh9-G6lmjrfbpi9Y4c",
+                "available_operations": [
+                  {
+                    "operation_id": "0InpypKN5l5eYAceQph4U",
+                    "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                    "action_kind": "list",
+                    "resource_kind": "article",
+                    "description_out": "Structured replay for get tag posts",
+                    "requires": [
+                      "tag"
+                    ],
+                    "provides": [
+                      "id",
+                      "article_name",
+                      "slug",
+                      "article_id"
+                    ],
+                    "runnable": false
+                  }
+                ],
+                "missing_bindings": [
+                  "tag"
+                ],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                    "method": "GET",
+                    "description": "Structured replay for get tag posts",
+                    "url": "https://dev.to/api/articles?tag={tag}&per_page=20",
+                    "score": 334,
+                    "schema_summary": {
+                      "type_of": "string",
+                      "id": "integer",
+                      "title": "string",
+                      "description": "string",
+                      "readable_publish_date": "string",
+                      "slug": "string",
+                      "path": "string",
+                      "url": "string",
+                      "comments_count": "integer",
+                      "public_reactions_count": "integer",
+                      "collection_id": "null",
+                      "published_timestamp": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://dev.to/t/javascript"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "0InpypKN5l5eYAceQph4U",
+              "endpoint_url": "https://dev.to/api/articles?tag={tag}&per_page=20",
+              "trigger_url": "https://dev.to/t/javascript",
+              "execute_ms": 48979,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "author"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://dev.to/t/javascript"
+            ],
+            "attempted_endpoint_counts": {
+              "0InpypKN5l5eYAceQph4U": 1
+            },
+            "failure_class_counts": {
+              "dag": 1,
+              "transport": 1
+            },
+            "reasons_seen": [
+              "trigger_timeout",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://dev.to/t/javascript",
+          "force_capture": true,
+          "resolve_ms": 8209,
+          "skill_id": "UTy657Byl84uTNIfyqmvl",
+          "available_endpoint_ids": [
+            "0InpypKN5l5eYAceQph4U"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "0InpypKN5l5eYAceQph4U",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://dev.to/t/javascript",
+              "domain": "dev.to",
+              "pathname": "/t/javascript",
+              "slug_1": "t",
+              "slug_2": "javascript"
+            },
+            "chunk": {
+              "skill_id": "UTy657Byl84uTNIfyqmvl",
+              "intent": "get tag posts",
+              "missing_bindings": [
+                "tag"
+              ],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "UTy657Byl84uTNIfyqmvl",
+              "domain": "dev.to",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T04:58:33.322Z"
+            },
+            "source": "live-capture",
+            "total_ms": 8178,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/UTy657Byl84uTNIfyqmvl/execute with params.endpoint_id.",
+            "skill_id": "UTy657Byl84uTNIfyqmvl",
+            "available_operations": [
+              {
+                "operation_id": "0InpypKN5l5eYAceQph4U",
+                "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                "action_kind": "list",
+                "resource_kind": "article",
+                "description_out": "Structured replay for get tag posts",
+                "requires": [
+                  "tag"
+                ],
+                "provides": [
+                  "id",
+                  "article_name",
+                  "slug",
+                  "article_id"
+                ],
+                "runnable": false
+              }
+            ],
+            "missing_bindings": [
+              "tag"
+            ],
+            "available_endpoints": [
+              {
+                "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                "method": "GET",
+                "description": "Structured replay for get tag posts",
+                "url": "https://dev.to/api/articles?tag={tag}&per_page=20",
+                "score": 334,
+                "schema_summary": {
+                  "type_of": "string",
+                  "id": "integer",
+                  "title": "string",
+                  "description": "string",
+                  "readable_publish_date": "string",
+                  "slug": "string",
+                  "path": "string",
+                  "url": "string",
+                  "comments_count": "integer",
+                  "public_reactions_count": "integer",
+                  "collection_id": "null",
+                  "published_timestamp": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://dev.to/t/javascript"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "author"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/UTy657Byl84uTNIfyqmvl/execute with params.endpoint_id.",
+                "skill_id": "UTy657Byl84uTNIfyqmvl",
+                "available_operations": [
+                  {
+                    "operation_id": "0InpypKN5l5eYAceQph4U",
+                    "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                    "action_kind": "list",
+                    "resource_kind": "article",
+                    "description_out": "Structured replay for get tag posts",
+                    "requires": [
+                      "tag"
+                    ],
+                    "provides": [
+                      "id",
+                      "article_name",
+                      "slug",
+                      "article_id"
+                    ],
+                    "runnable": false
+                  }
+                ],
+                "missing_bindings": [
+                  "tag"
+                ],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "0InpypKN5l5eYAceQph4U",
+                    "method": "GET",
+                    "description": "Structured replay for get tag posts",
+                    "url": "https://dev.to/api/articles?tag={tag}&per_page=20",
+                    "score": 334,
+                    "schema_summary": {
+                      "type_of": "string",
+                      "id": "integer",
+                      "title": "string",
+                      "description": "string",
+                      "readable_publish_date": "string",
+                      "slug": "string",
+                      "path": "string",
+                      "url": "string",
+                      "comments_count": "integer",
+                      "public_reactions_count": "integer",
+                      "collection_id": "null",
+                      "published_timestamp": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://dev.to/t/javascript"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "0InpypKN5l5eYAceQph4U",
+              "endpoint_url": "https://dev.to/api/articles?tag={tag}&per_page=20",
+              "trigger_url": "https://dev.to/t/javascript",
+              "execute_ms": 44332,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "author"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "trigger_timeout",
+          "repair_memory": {
+            "visited_urls": [
+              "https://dev.to/t/javascript"
+            ],
+            "attempted_endpoint_counts": {
+              "0InpypKN5l5eYAceQph4U": 2
+            },
+            "failure_class_counts": {
+              "dag": 2,
+              "transport": 2
+            },
+            "reasons_seen": [
+              "trigger_timeout",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rubygems-package-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "missing_fields:description",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "name",
+        "version"
+      ],
+      "missing_fields": [
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://rubygems.org/gems/rails"
+        ],
+        "attempted_endpoint_counts": {
+          "EXA6IMPytIQeLhba_qZ7o": 2
+        },
+        "failure_class_counts": {
+          "fields": 4
+        },
+        "reasons_seen": [
+          "missing_fields:description",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://rubygems.org/gems/rails",
+          "force_capture": false,
+          "resolve_ms": 17610,
+          "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+          "available_endpoint_ids": [
+            "EXA6IMPytIQeLhba_qZ7o"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "EXA6IMPytIQeLhba_qZ7o",
+            "selected_path": [
+              "EXA6IMPytIQeLhba_qZ7o"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://rubygems.org/gems/rails",
+              "domain": "rubygems.org",
+              "pathname": "/gems/rails",
+              "slug_1": "gems",
+              "slug_2": "rails"
+            },
+            "chunk": {
+              "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+              "intent": "get package info",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "EXA6IMPytIQeLhba_qZ7o",
+              "available_operations": [
+                {
+                  "operation_id": "EXA6IMPytIQeLhba_qZ7o",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://rubygems.org/api/v1/gems/rails.json",
+                  "requires": [],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "url": "https://rubygems.org/gems/rails",
+                    "intent": "get package info"
+                  },
+                  "example_response_compact": {
+                    "name": "rails",
+                    "downloads": 719616827,
+                    "version": "8.1.2",
+                    "version_created_at": "2026-01-08T20:18:51.400Z",
+                    "version_downloads": 3004355,
+                    "platform": "ruby",
+                    "authors": "David Heinemeier Hansson",
+                    "info": "Ruby on Rails is a full-stack web framework optimized for programmer happiness and sustainable productivity. It encourages beautiful code by favoring convent..."
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+              "domain": "rubygems.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T04:59:35.451Z"
+            },
+            "source": "live-capture",
+            "total_ms": 17563,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/-Njn-PKrvz9gy5J8pRX01/execute with params.endpoint_id.",
+            "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+            "available_operations": [
+              {
+                "operation_id": "EXA6IMPytIQeLhba_qZ7o",
+                "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Structured replay for get package info",
+                "requires": [],
+                "provides": [
+                  "resource_name"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                "method": "GET",
+                "description": "Structured replay for get package info",
+                "url": "https://rubygems.org/api/v1/gems/rails.json",
+                "score": 483.3,
+                "schema_summary": {
+                  "name": "string",
+                  "downloads": "integer",
+                  "version": "string",
+                  "version_created_at": "string",
+                  "version_downloads": "integer",
+                  "platform": "string",
+                  "authors": "string",
+                  "info": "string",
+                  "licenses": "array",
+                  "metadata": "object",
+                  "yanked": "boolean",
+                  "sha": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://rubygems.org/gems/rails"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 1,
+              "observed_entity_types": [
+                "package",
+                "paper",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/-Njn-PKrvz9gy5J8pRX01/execute with params.endpoint_id.",
+                "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+                "available_operations": [
+                  {
+                    "operation_id": "EXA6IMPytIQeLhba_qZ7o",
+                    "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Structured replay for get package info",
+                    "requires": [],
+                    "provides": [
+                      "resource_name"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                    "method": "GET",
+                    "description": "Structured replay for get package info",
+                    "url": "https://rubygems.org/api/v1/gems/rails.json",
+                    "score": 483.3,
+                    "schema_summary": {
+                      "name": "string",
+                      "downloads": "integer",
+                      "version": "string",
+                      "version_created_at": "string",
+                      "version_downloads": "integer",
+                      "platform": "string",
+                      "authors": "string",
+                      "info": "string",
+                      "licenses": "array",
+                      "metadata": "object",
+                      "yanked": "boolean",
+                      "sha": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://rubygems.org/gems/rails"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+              "endpoint_url": "https://rubygems.org/api/v1/gems/rails.json",
+              "trigger_url": "https://rubygems.org/gems/rails",
+              "execute_ms": 4122,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:description",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version"
+              ],
+              "missing_fields": [
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "package",
+                "paper"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "name": "rails",
+                "downloads": 719616827,
+                "version": "8.1.2",
+                "version_created_at": "2026-01-08T20:18:51.400Z",
+                "version_downloads": 3004355,
+                "platform": "ruby",
+                "authors": "David Heinemeier Hansson",
+                "info": "Ruby on Rails is a full-stack web framework optimized for programmer happiness and sustainable productivity. It encourages beautiful code by favoring convention over configuration.",
+                "licenses": [
+                  "MIT"
+                ],
+                "metadata": {
+                  "changelog_uri": "https://github.com/rails/rails/releases/tag/v8.1.2",
+                  "bug_tracker_uri": "https://github.com/rails/rails/issues",
+                  "source_code_uri": "https://github.com/rails/rails/tree/v8.1.2",
+                  "mailing_list_uri": "https://discuss.rubyonrails.org/c/rubyonrails-talk",
+                  "documentation_uri": "https://api.rubyonrails.org/v8.1.2/",
+                  "rubygems_mfa_required": "true"
+                },
+                "yanked": false,
+                "sha": "5069061b23dfa8706b9f0159ae8b9d35727359103178a26962b868a680ba7d95"
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://rubygems.org/gems/rails"
+            ],
+            "attempted_endpoint_counts": {
+              "EXA6IMPytIQeLhba_qZ7o": 1
+            },
+            "failure_class_counts": {
+              "fields": 2
+            },
+            "reasons_seen": [
+              "missing_fields:description",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://rubygems.org/gems/rails",
+          "force_capture": true,
+          "resolve_ms": 16095,
+          "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+          "available_endpoint_ids": [
+            "EXA6IMPytIQeLhba_qZ7o"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "EXA6IMPytIQeLhba_qZ7o",
+            "selected_path": [
+              "EXA6IMPytIQeLhba_qZ7o"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://rubygems.org/gems/rails",
+              "domain": "rubygems.org",
+              "pathname": "/gems/rails",
+              "slug_1": "gems",
+              "slug_2": "rails"
+            },
+            "chunk": {
+              "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+              "intent": "get package info",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "EXA6IMPytIQeLhba_qZ7o",
+              "available_operations": [
+                {
+                  "operation_id": "EXA6IMPytIQeLhba_qZ7o",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://rubygems.org/api/v1/gems/rails.json",
+                  "requires": [],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "url": "https://rubygems.org/gems/rails",
+                    "intent": "get package info"
+                  },
+                  "example_response_compact": {
+                    "name": "rails",
+                    "downloads": 719616827,
+                    "version": "8.1.2",
+                    "version_created_at": "2026-01-08T20:18:51.400Z",
+                    "version_downloads": 3004355,
+                    "platform": "ruby",
+                    "authors": "David Heinemeier Hansson",
+                    "info": "Ruby on Rails is a full-stack web framework optimized for programmer happiness and sustainable productivity. It encourages beautiful code by favoring convent..."
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+              "domain": "rubygems.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T04:59:45.370Z"
+            },
+            "source": "live-capture",
+            "total_ms": 16062,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/-Njn-PKrvz9gy5J8pRX01/execute with params.endpoint_id.",
+            "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+            "available_operations": [
+              {
+                "operation_id": "EXA6IMPytIQeLhba_qZ7o",
+                "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Structured replay for get package info",
+                "requires": [],
+                "provides": [
+                  "resource_name"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                "method": "GET",
+                "description": "Structured replay for get package info",
+                "url": "https://rubygems.org/api/v1/gems/rails.json",
+                "score": 483.3,
+                "schema_summary": {
+                  "name": "string",
+                  "downloads": "integer",
+                  "version": "string",
+                  "version_created_at": "string",
+                  "version_downloads": "integer",
+                  "platform": "string",
+                  "authors": "string",
+                  "info": "string",
+                  "licenses": "array",
+                  "metadata": "object",
+                  "yanked": "boolean",
+                  "sha": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://rubygems.org/gems/rails"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 1,
+              "observed_entity_types": [
+                "package",
+                "paper",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/-Njn-PKrvz9gy5J8pRX01/execute with params.endpoint_id.",
+                "skill_id": "-Njn-PKrvz9gy5J8pRX01",
+                "available_operations": [
+                  {
+                    "operation_id": "EXA6IMPytIQeLhba_qZ7o",
+                    "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Structured replay for get package info",
+                    "requires": [],
+                    "provides": [
+                      "resource_name"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+                    "method": "GET",
+                    "description": "Structured replay for get package info",
+                    "url": "https://rubygems.org/api/v1/gems/rails.json",
+                    "score": 483.3,
+                    "schema_summary": {
+                      "name": "string",
+                      "downloads": "integer",
+                      "version": "string",
+                      "version_created_at": "string",
+                      "version_downloads": "integer",
+                      "platform": "string",
+                      "authors": "string",
+                      "info": "string",
+                      "licenses": "array",
+                      "metadata": "object",
+                      "yanked": "boolean",
+                      "sha": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://rubygems.org/gems/rails"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "EXA6IMPytIQeLhba_qZ7o",
+              "endpoint_url": "https://rubygems.org/api/v1/gems/rails.json",
+              "trigger_url": "https://rubygems.org/gems/rails",
+              "execute_ms": 126,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "missing_fields:description",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version"
+              ],
+              "missing_fields": [
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "package",
+                "paper"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "name": "rails",
+                "downloads": 719616827,
+                "version": "8.1.2",
+                "version_created_at": "2026-01-08T20:18:51.400Z",
+                "version_downloads": 3004355,
+                "platform": "ruby",
+                "authors": "David Heinemeier Hansson",
+                "info": "Ruby on Rails is a full-stack web framework optimized for programmer happiness and sustainable productivity. It encourages beautiful code by favoring convention over configuration.",
+                "licenses": [
+                  "MIT"
+                ],
+                "metadata": {
+                  "changelog_uri": "https://github.com/rails/rails/releases/tag/v8.1.2",
+                  "bug_tracker_uri": "https://github.com/rails/rails/issues",
+                  "source_code_uri": "https://github.com/rails/rails/tree/v8.1.2",
+                  "mailing_list_uri": "https://discuss.rubyonrails.org/c/rubyonrails-talk",
+                  "documentation_uri": "https://api.rubyonrails.org/v8.1.2/",
+                  "rubygems_mfa_required": "true"
+                },
+                "yanked": false,
+                "sha": "5069061b23dfa8706b9f0159ae8b9d35727359103178a26962b868a680ba7d95"
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "missing_fields:description",
+          "repair_memory": {
+            "visited_urls": [
+              "https://rubygems.org/gems/rails"
+            ],
+            "attempted_endpoint_counts": {
+              "EXA6IMPytIQeLhba_qZ7o": 2
+            },
+            "failure_class_counts": {
+              "fields": 4
+            },
+            "reasons_seen": [
+              "missing_fields:description",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pubdev-package-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "package_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://pub.dev/packages/http"
+        ],
+        "attempted_endpoint_counts": {
+          "0ipdE0weV-nm47OYk4iN8": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "package_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://pub.dev/packages/http",
+          "force_capture": false,
+          "resolve_ms": 17922,
+          "skill_id": "Pg3C1QnE9E_Z7iuBU51wJ",
+          "available_endpoint_ids": [
+            "0ipdE0weV-nm47OYk4iN8"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "0ipdE0weV-nm47OYk4iN8",
+            "selected_path": [
+              "0ipdE0weV-nm47OYk4iN8"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://pub.dev/packages/http",
+              "domain": "pub.dev",
+              "pathname": "/packages/http",
+              "slug_1": "packages",
+              "slug_2": "http"
+            },
+            "chunk": {
+              "skill_id": "Pg3C1QnE9E_Z7iuBU51wJ",
+              "intent": "get package info",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "0ipdE0weV-nm47OYk4iN8",
+              "available_operations": [
+                {
+                  "operation_id": "0ipdE0weV-nm47OYk4iN8",
+                  "method": "GET",
+                  "action_kind": "trending",
+                  "resource_kind": "repository",
+                  "title": "trending repository",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://pub.dev/api/packages/http",
+                  "requires": [],
+                  "yields": [
+                    "repo_name",
+                    "repository_name",
+                    "archive_url",
+                    "repo"
+                  ],
+                  "example_request": {
+                    "url": "https://pub.dev/packages/http",
+                    "intent": "get package info"
+                  },
+                  "example_response_compact": {
+                    "name": "http",
+                    "latest": {
+                      "version": "1.6.0",
+                      "pubspec": {
+                        "name": "http",
+                        "version": "1.6.0",
+                        "description": "A composable, multi-platform, Future-based API for HTTP requests.",
+                        "repository": "https://github.com/dart-lang/http/tree/master/pkgs/http",
+                        "topics": [
+                          "http",
+                          "network",
+                          "protocols"
+                        ],
+                        "environment": {
+                          "sdk": "^3.4.0"
+                        },
+                        "dependencies": {
+                          "async": "^2.5.0",
+                          "http_parser": "^4.0.0",
+                          "meta": "^1.3.0",
+                          "web": ">=0.5.0 <2.0.0"
+                        },
+                        "dev_dependencies": {
+                          "dart_flutter_team_lints": "^3.0.0",
+                          "fake_async": "^1.2.0",
+                          "http_client_conformance_tests": "[truncated]",
+                          "shelf": "^1.1.0",
+                          "stream_channel": "^2.1.1",
+                          "test": "^1.21.2"
+                        }
+                      },
+                      "archive_url": "https://pub.dev/api/archives/http-1.6.0.tar.gz",
+                      "archive_sha256": "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412",
+                      "published": "2025-11-10T18:27:56.434747Z"
+                    },
+                    "versions": [
+                      {
+                        "version": "0.2.7+0",
+                        "pubspec": {
+                          "dependencies": "[truncated]",
+                          "name": "http",
+                          "version": "0.2.7+0",
+                          "description": "A composable, Future-based API for making HTTP requests."
+                        },
+                        "archive_url": "https://pub.dev/api/archives/http-0.2.7%2B0.tar.gz",
+                        "archive_sha256": "cc4fedb40b3c48d1a7558fcfe8d0f479046f017337d7b6b883208d65dbf8724d",
+                        "published": "2012-11-30T20:40:39.500320Z"
+                      },
+                      {
+                        "version": "0.2.8+2",
+                        "pubspec": {
+                          "dependencies": "[truncated]",
+                          "description": "A composable, Future-based API for making HTTP requests.",
+                          "version": "0.2.8+2",
+                          "author": "Dart Team <misc@dartlang.org>",
+                          "homepage": "http://www.dartlang.org",
+                          "name": "http"
+                        },
+                        "archive_url": "https://pub.dev/api/archives/http-0.2.8%2B2.tar.gz",
+                        "archive_sha256": "9d1e1102615d985381ebbf6b05afb85d8f73099046e0af0aa1170b504fc580bc",
+                        "published": "2012-12-11T21:38:04.577020Z"
+                      }
+                    ],
+                    "advisoriesUpdated": "2024-04-28T09:27:57.869544Z"
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "Pg3C1QnE9E_Z7iuBU51wJ",
+              "domain": "pub.dev",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:00:13.839Z"
+            },
+            "source": "live-capture",
+            "total_ms": 17890,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/Pg3C1QnE9E_Z7iuBU51wJ/execute with params.endpoint_id.",
+            "skill_id": "Pg3C1QnE9E_Z7iuBU51wJ",
+            "available_operations": [
+              {
+                "operation_id": "0ipdE0weV-nm47OYk4iN8",
+                "endpoint_id": "0ipdE0weV-nm47OYk4iN8",
+                "action_kind": "trending",
+                "resource_kind": "repository",
+                "description_out": "Structured replay for get package info",
+                "requires": [],
+                "provides": [
+                  "repo_name",
+                  "repository_name",
+                  "archive_url",
+                  "repo"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "0ipdE0weV-nm47OYk4iN8",
+                "method": "GET",
+                "description": "Structured replay for get package info",
+                "url": "https://pub.dev/api/packages/http",
+                "score": 421.7,
+                "schema_summary": {
+                  "name": "string",
+                  "latest": "object",
+                  "versions": "array",
+                  "advisoriesUpdated": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://pub.dev/packages/http"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "description"
+              ],
+              "missing_fields": [
+                "version"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "repository",
+                "package",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/Pg3C1QnE9E_Z7iuBU51wJ/execute with params.endpoint_id.",
+                "skill_id": "Pg3C1QnE9E_Z7iuBU51wJ",
+                "available_operations": [
+                  {
+                    "operation_id": "0ipdE0weV-nm47OYk4iN8",
+                    "endpoint_id": "0ipdE0weV-nm47OYk4iN8",
+                    "action_kind": "trending",
+                    "resource_kind": "repository",
+                    "description_out": "Structured replay for get package info",
+                    "requires": [],
+                    "provides": [
+                      "repo_name",
+                      "repository_name",
+                      "archive_url",
+                      "repo"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "0ipdE0weV-nm47OYk4iN8",
+                    "method": "GET",
+                    "description": "Structured replay for get package info",
+                    "url": "https://pub.dev/api/packages/http",
+                    "score": 421.7,
+                    "schema_summary": {
+                      "name": "string",
+                      "latest": "object",
+                      "versions": "array",
+                      "advisoriesUpdated": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://pub.dev/packages/http"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "0ipdE0weV-nm47OYk4iN8",
+              "endpoint_url": "https://pub.dev/api/packages/http",
+              "trigger_url": "https://pub.dev/packages/http",
+              "execute_ms": 20480,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "package_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 130,
+              "observed_entity_types": [
+                "package"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "name": "http",
+                "latest": {
+                  "version": "1.6.0",
+                  "pubspec": {
+                    "name": "http",
+                    "version": "1.6.0",
+                    "description": "A composable, multi-platform, Future-based API for HTTP requests.",
+                    "repository": "https://github.com/dart-lang/http/tree/master/pkgs/http",
+                    "topics": [
+                      "http",
+                      "network",
+                      "protocols"
+                    ],
+                    "environment": {
+                      "sdk": "^3.4.0"
+                    },
+                    "dependencies": {
+                      "async": "^2.5.0",
+                      "http_parser": "^4.0.0",
+                      "meta": "^1.3.0",
+                      "web": ">=0.5.0 <2.0.0"
+                    },
+                    "dev_dependencies": {
+                      "dart_flutter_team_lints": "^3.0.0",
+                      "fake_async": "^1.2.0",
+                      "http_client_conformance_tests": {
+                        "path": "../http_client_conformance_tests/"
+                      },
+                      "shelf": "^1.1.0",
+                      "stream_channel": "^2.1.1",
+                      "test": "^1.21.2"
+                    }
+                  },
+                  "archive_url": "https://pub.dev/api/archives/http-1.6.0.tar.gz",
+                  "archive_sha256": "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412",
+                  "published": "2025-11-10T18:27:56.434747Z"
+                },
+                "versions": [
+                  {
+                    "version": "0.2.7+0",
+                    "pubspec": {
+                      "dependencies": {
+                        "unittest": null
+                      },
+                      "name": "http",
+                      "version": "0.2.7+0",
+                      "description": "A composable, Future-based API for making HTTP requests."
+                    },
+                    "archive_url": "https://pub.dev/api/archives/http-0.2.7%2B0.tar.gz",
+                    "archive_sha256": "cc4fedb40b3c48d1a7558fcfe8d0f479046f017337d7b6b883208d65dbf8724d",
+                    "published": "2012-11-30T20:40:39.500320Z"
+                  },
+                  {
+                    "version": "0.2.8+2",
+                    "pubspec": {
+                      "dependencies": {
+                        "unittest": null
+                      },
+                      "description": "A composable, Future-based API for making HTTP requests.",
+                      "version": "0.2.8+2",
+                      "author": "Dart Team <misc@dartlang.org>",
+                      "homepage": "http://www.dartlang.org",
+                      "name": "http"
+                    },
+                    "archive_url": "https://pub.dev/api/archives/http-0.2.8%2B2.tar.gz",
+                    "archive_sha256": "9d1e1102615d985381ebbf6b05afb85d8f73099046e0af0aa1170b504fc580bc",
+                    "published": "2012-12-11T21:38:04.577020Z"
+                  },
+                  {
+                    "version": "0.2.9+7",
+                    "pubspec": {
+                      "dependencies": {
+                        "unittest": null
+                      },
+                      "name": "http",
+                      "version": "0.2.9+7",
+                      "author": "Dart Team <misc@dartlang.org>",
+                      "homepage": "http://www.dartlang.org",
+                      "description": "A composable, Future-based API for making HTTP requests."
+                    },
+                    "archive_url": "https://pub.dev/api/archives/http-0.2.9%2B7.tar.gz",
+                    "archive_sha256": "dc86d403c212c9a5ef2f44a6df76e42465022a2bef044a9a0a8341599319d4e1",
+                    "published": "2012-12-18T18:00:14.561230Z"
+                  },
+                  {
+                    "version": "0.2.10+1",
+                    "pubspec": {
+                      "dependencies": {
+                        "unittest": null
+                      },
+                      "name": "http",
+                      "version": "0.2.10+1",
+                      "author": "Dart Team <misc@dartlang.org>",
+                      "homepage": "http://www.dartlang.org",
+                      "description": "A composable, Future-based API for making HTTP requests."
+                    },
+                    "archive_url": "https://pub.dev/api/archives/http-0.2.10%2B1.tar.gz",
+                    "archive_sha256": "6aa53de6179af158b47a0d69ae5d9ac5e0d12b779a7919e84f5398367ea2cb42",
+                    "published": "2013-01-09T01:29:13.679820Z"
+                  }
+                ],
+                "advisoriesUpdated": "2024-04-28T09:27:57.869544Z"
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://pub.dev/packages/http"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "jmail-search",
+      "intent": "search emails",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "email_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "subject",
+        "sender",
+        "preview"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://jmail.world/search?q=clinton"
+        ],
+        "attempted_endpoint_counts": {
+          "_ZNCLnOJlNo26LWw-9GvI": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "email_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://jmail.world/search?q=clinton",
+          "force_capture": false,
+          "resolve_ms": 27557,
+          "skill_id": "VFTAtd-CnaCbiFUGvPxqg",
+          "available_endpoint_ids": [
+            "_ZNCLnOJlNo26LWw-9GvI"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "_ZNCLnOJlNo26LWw-9GvI",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://jmail.world/search?q=clinton",
+              "domain": "jmail.world",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "clinton"
+            },
+            "chunk": {
+              "skill_id": "VFTAtd-CnaCbiFUGvPxqg",
+              "intent": "search emails",
+              "missing_bindings": [
+                "limit",
+                "page",
+                "source"
+              ],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "VFTAtd-CnaCbiFUGvPxqg",
+              "domain": "jmail.world",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:00:51.450Z"
+            },
+            "source": "live-capture",
+            "total_ms": 27523,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/VFTAtd-CnaCbiFUGvPxqg/execute with params.endpoint_id.",
+            "skill_id": "VFTAtd-CnaCbiFUGvPxqg",
+            "available_operations": [
+              {
+                "operation_id": "_ZNCLnOJlNo26LWw-9GvI",
+                "endpoint_id": "_ZNCLnOJlNo26LWw-9GvI",
+                "action_kind": "search",
+                "resource_kind": "form",
+                "description_out": "Structured replay for search emails",
+                "requires": [
+                  "q",
+                  "limit",
+                  "page",
+                  "source"
+                ],
+                "provides": [
+                  "doc_id",
+                  "latest_sender_name"
+                ],
+                "runnable": false
+              }
+            ],
+            "missing_bindings": [
+              "limit",
+              "page",
+              "source"
+            ],
+            "available_endpoints": [
+              {
+                "endpoint_id": "_ZNCLnOJlNo26LWw-9GvI",
+                "method": "GET",
+                "description": "Structured replay for search emails",
+                "url": "https://jmail.world/api/emails/search?q={q}&limit={limit}&page={page}&source={source}",
+                "score": 518.4,
+                "schema_summary": {
+                  "results": "array",
+                  "total": "integer",
+                  "page": "integer",
+                  "totalPages": "integer",
+                  "nextCursor": "string",
+                  "operators": "array"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://jmail.world/search?q=clinton"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "subject",
+                "sender",
+                "preview"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/VFTAtd-CnaCbiFUGvPxqg/execute with params.endpoint_id.",
+                "skill_id": "VFTAtd-CnaCbiFUGvPxqg",
+                "available_operations": [
+                  {
+                    "operation_id": "_ZNCLnOJlNo26LWw-9GvI",
+                    "endpoint_id": "_ZNCLnOJlNo26LWw-9GvI",
+                    "action_kind": "search",
+                    "resource_kind": "form",
+                    "description_out": "Structured replay for search emails",
+                    "requires": [
+                      "q",
+                      "limit",
+                      "page",
+                      "source"
+                    ],
+                    "provides": [
+                      "doc_id",
+                      "latest_sender_name"
+                    ],
+                    "runnable": false
+                  }
+                ],
+                "missing_bindings": [
+                  "limit",
+                  "page",
+                  "source"
+                ],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "_ZNCLnOJlNo26LWw-9GvI",
+                    "method": "GET",
+                    "description": "Structured replay for search emails",
+                    "url": "https://jmail.world/api/emails/search?q={q}&limit={limit}&page={page}&source={source}",
+                    "score": 518.4,
+                    "schema_summary": {
+                      "results": "array",
+                      "total": "integer",
+                      "page": "integer",
+                      "totalPages": "integer",
+                      "nextCursor": "string",
+                      "operators": "array"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://jmail.world/search?q=clinton"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "_ZNCLnOJlNo26LWw-9GvI",
+              "endpoint_url": "https://jmail.world/api/emails/search?q={q}&limit={limit}&page={page}&source={source}",
+              "trigger_url": "https://jmail.world/search?q=clinton",
+              "execute_ms": 4953,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "email_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "subject",
+                "sender",
+                "preview"
+              ],
+              "missing_fields": [],
+              "row_count": 50,
+              "observed_entity_types": [
+                "email"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "results": [
+                  {
+                    "thread": {
+                      "doc_id": "EFTA02393777",
+                      "subject": "(no subject)",
+                      "latest_sender_name": "Richard Kahn",
+                      "formatted_date": "Apr 15, 2016",
+                      "preview": "No problem.\n\nClinton Hedrington Jr.",
+                      "avatar_color": "#0f9d58",
+                      "count": 5,
+                      "attachments": 0,
+                      "latest_is_from_epstein": false,
+                      "isRedacted": true,
+                      "starCount": 81,
+                      "unredactCount": 24
+                    },
+                    "matchedEmail": {
+                      "id": "EFTA02393777-3",
+                      "sender": "Clinton T. Hedrington <█████████>",
+                      "content_markdown": "No problem.\n\nClinton Hedrington Jr."
+                    },
+                    "field": "sender",
+                    "rank": 22.109337
+                  },
+                  {
+                    "thread": {
+                      "doc_id": "vol00009-efta00151188-pdf",
+                      "subject": "RE Bill Clinton",
+                      "latest_sender_name": "Andy Kay",
+                      "formatted_date": "Jul 6, 2020",
+                      "preview": "Former President Bill <b>Clinton</b> made 32 plane trips to Jeffrey Epstein island. Inquiry into why Bill <b>Clinton</b> is not being interviewed and charged",
+                      "avatar_color": "#ff6d01",
+                      "count": 2,
+                      "attachments": 0,
+                      "latest_is_from_epstein": false,
+                      "isRedacted": true,
+                      "starCount": 106,
+                      "unredactCount": 68
+                    },
+                    "matchedEmail": {
+                      "id": "vol00009-efta00151188-pdf",
+                      "sender": "Andy Kay <andygkay@gmail.com>",
+                      "content_markdown": "Former President Bill Clinton made 32 plane trips to Jeffrey Epstein island. Inquiry into why Bill Clinton is not being interviewed and charged."
+                    },
+                    "field": "subject",
+                    "rank": 20.96006
+                  },
+                  {
+                    "thread": {
+                      "doc_id": "EFTA02332289",
+                      "subject": "Clinton Flight",
+                      "latest_sender_name": "Philip Levine",
+                      "formatted_date": "Feb 5, 2002",
+                      "preview": "Philip:\n\nI&#x27;m working on <b>Clinton</b> flight details and should have some information shortly. Sorry for delay.\n\nSteve",
+                      "avatar_color": "#673ab7",
+                      "count": 4,
+                      "attachments": 0,
+                      "latest_is_from_epstein": false,
+                      "isRedacted": false,
+                      "starCount": 95,
+                      "unredactCount": 5
+                    },
+                    "matchedEmail": {
+                      "id": "EFTA02332289-3",
+                      "sender": "Steve Morton",
+                      "content_markdown": "Philip:\n\nI'm working on Clinton flight details and should have some information shortly. Sorry for delay.\n\nSteve"
+                    },
+                    "field": "subject",
+                    "rank": 20.864908
+                  },
+                  {
+                    "thread": {
+                      "doc_id": "EFTA02582566",
+                      "subject": "Clinton news",
+                      "latest_sender_name": "Unknown",
+                      "formatted_date": "Mar 20, 2014",
+                      "preview": "I&#x27;ve noticed that none of the negative stuff shows up under bill <b>Clinton</b>&#x27;s g=ogle which is a major plus. So hopefully this will have the same course",
+                      "avatar_color": "#db4437",
+                      "count": 3,
+                      "attachments": 0,
+                      "latest_is_from_epstein": false,
+                      "isRedacted": true,
+                      "starCount": 94,
+                      "unredactCount": 41
+                    },
+                    "matchedEmail": {
+                      "id": "EFTA02582566-0",
+                      "sender": null,
+                      "content_markdown": "I've noticed that none of the negative stuff shows up under bill Clinton's g=ogle which is a major plus. So hopefully this will have the same course as t=e woody Allen piece 2 months ago."
+                    },
+                    "field": "subject",
+                    "rank": 19.794092
+                  }
+                ],
+                "total": 2700,
+                "page": 1,
+                "totalPages": 54,
+                "nextCursor": "eyJ0eXBlIjoicmFuayIsInJhbmsiOjE0LjEwMTA0MiwiZG9jX2lkIjoidm9sMDAwMDktZWZ0YTAwOTI4ODU1LXBkZiJ9",
+                "operators": []
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://jmail.world/search?q=clinton"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "hacker-news-search",
+      "intent": "search hacker news",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "story_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url",
+        "author"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://hn.algolia.com/?q=openai"
+        ],
+        "attempted_endpoint_counts": {
+          "4yEYnG3BcAHL6fb2gktWD": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "story_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://hn.algolia.com/?q=openai",
+          "force_capture": false,
+          "resolve_ms": 16680,
+          "skill_id": "ZRLBCOAb-UAEuFBTcpnQ1",
+          "available_endpoint_ids": [
+            "4yEYnG3BcAHL6fb2gktWD"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "4yEYnG3BcAHL6fb2gktWD",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://hn.algolia.com/?q=openai",
+              "domain": "hn.algolia.com",
+              "pathname": "/",
+              "q": "openai"
+            },
+            "chunk": {
+              "skill_id": "ZRLBCOAb-UAEuFBTcpnQ1",
+              "intent": "search hacker news",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "4yEYnG3BcAHL6fb2gktWD",
+              "available_operations": [
+                {
+                  "operation_id": "4yEYnG3BcAHL6fb2gktWD",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: q.",
+                  "url_template": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+                  "requires": [
+                    "q"
+                  ],
+                  "yields": [
+                    "author",
+                    "owner"
+                  ],
+                  "example_request": {
+                    "q": "openai",
+                    "url": "https://hn.algolia.com/?q=openai",
+                    "intent": "search hacker news"
+                  },
+                  "example_response_compact": {
+                    "exhaustive": {
+                      "nbHits": true,
+                      "typo": true
+                    },
+                    "exhaustiveNbHits": true,
+                    "exhaustiveTypo": true,
+                    "hits": [
+                      {
+                        "_highlightResult": {
+                          "author": "[truncated]",
+                          "title": "[truncated]",
+                          "url": "[truncated]"
+                        },
+                        "_tags": [
+                          "story",
+                          "author_davidbarker",
+                          "story_38309611"
+                        ],
+                        "author": "davidbarker",
+                        "children": [
+                          38309635,
+                          38309640,
+                          38309648
+                        ],
+                        "created_at": "2023-11-17T20:28:50Z",
+                        "created_at_i": 1700252930,
+                        "num_comments": 2530,
+                        "objectID": "38309611"
+                      },
+                      {
+                        "_highlightResult": {
+                          "author": "[truncated]",
+                          "title": "[truncated]",
+                          "url": "[truncated]"
+                        },
+                        "_tags": [
+                          "story",
+                          "author_klelatti",
+                          "story_35813322"
+                        ],
+                        "author": "klelatti",
+                        "children": [
+                          35813355,
+                          35813629,
+                          35814019
+                        ],
+                        "created_at": "2023-05-04T10:19:13Z",
+                        "created_at_i": 1683195553,
+                        "num_comments": 1039,
+                        "objectID": "35813322"
+                      }
+                    ],
+                    "hitsPerPage": 20,
+                    "nbHits": 23961,
+                    "nbPages": 50,
+                    "page": 0
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "ZRLBCOAb-UAEuFBTcpnQ1",
+              "domain": "algolia.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:01:23.307Z"
+            },
+            "source": "live-capture",
+            "total_ms": 16646,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/ZRLBCOAb-UAEuFBTcpnQ1/execute with params.endpoint_id.",
+            "skill_id": "ZRLBCOAb-UAEuFBTcpnQ1",
+            "available_operations": [
+              {
+                "operation_id": "4yEYnG3BcAHL6fb2gktWD",
+                "endpoint_id": "4yEYnG3BcAHL6fb2gktWD",
+                "action_kind": "search",
+                "resource_kind": "resource",
+                "description_out": "Structured replay for search hacker news",
+                "requires": [
+                  "q"
+                ],
+                "provides": [
+                  "author",
+                  "owner"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "4yEYnG3BcAHL6fb2gktWD",
+                "method": "GET",
+                "description": "Structured replay for search hacker news",
+                "url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+                "score": 668,
+                "schema_summary": {
+                  "exhaustive": "object",
+                  "exhaustiveNbHits": "boolean",
+                  "exhaustiveTypo": "boolean",
+                  "hits": "array",
+                  "hitsPerPage": "integer",
+                  "nbHits": "integer",
+                  "nbPages": "integer",
+                  "page": "integer",
+                  "params": "string",
+                  "processingTimeMS": "integer",
+                  "processingTimingsMS": "object",
+                  "query": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://hn.algolia.com/?q=openai"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "url"
+              ],
+              "missing_fields": [
+                "title",
+                "author"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 1 endpoint(s). Pick one and call POST /v1/skills/ZRLBCOAb-UAEuFBTcpnQ1/execute with params.endpoint_id.",
+                "skill_id": "ZRLBCOAb-UAEuFBTcpnQ1",
+                "available_operations": [
+                  {
+                    "operation_id": "4yEYnG3BcAHL6fb2gktWD",
+                    "endpoint_id": "4yEYnG3BcAHL6fb2gktWD",
+                    "action_kind": "search",
+                    "resource_kind": "resource",
+                    "description_out": "Structured replay for search hacker news",
+                    "requires": [
+                      "q"
+                    ],
+                    "provides": [
+                      "author",
+                      "owner"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "4yEYnG3BcAHL6fb2gktWD",
+                    "method": "GET",
+                    "description": "Structured replay for search hacker news",
+                    "url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+                    "score": 668,
+                    "schema_summary": {
+                      "exhaustive": "object",
+                      "exhaustiveNbHits": "boolean",
+                      "exhaustiveTypo": "boolean",
+                      "hits": "array",
+                      "hitsPerPage": "integer",
+                      "nbHits": "integer",
+                      "nbPages": "integer",
+                      "page": "integer",
+                      "params": "string",
+                      "processingTimeMS": "integer",
+                      "processingTimingsMS": "object",
+                      "query": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://hn.algolia.com/?q=openai"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "4yEYnG3BcAHL6fb2gktWD",
+              "endpoint_url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+              "trigger_url": "https://hn.algolia.com/?q=openai",
+              "execute_ms": 416,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "story_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url",
+                "author"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "story"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "exhaustive": {
+                  "nbHits": true,
+                  "typo": true
+                },
+                "exhaustiveNbHits": true,
+                "exhaustiveTypo": true,
+                "hits": [
+                  {
+                    "_highlightResult": {
+                      "author": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "sethbannon"
+                      },
+                      "title": {
+                        "fullyHighlighted": false,
+                        "matchLevel": "full",
+                        "matchedWords": [
+                          "q"
+                        ],
+                        "value": "Edward Snowden <em>Q</em>&A"
+                      },
+                      "url": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "http://www.guardian.co.uk/world/2013/jun/17/edward-snowden-nsa-files-whistleblower"
+                      }
+                    },
+                    "_tags": [
+                      "story",
+                      "author_sethbannon",
+                      "story_5892905"
+                    ],
+                    "author": "sethbannon",
+                    "children": [
+                      5893006,
+                      5893013,
+                      5893108,
+                      5893145
+                    ],
+                    "created_at": "2013-06-17T13:08:13Z",
+                    "created_at_i": 1371474493,
+                    "num_comments": 299,
+                    "objectID": "5892905",
+                    "points": 588,
+                    "story_id": 5892905,
+                    "title": "Edward Snowden Q&A",
+                    "updated_at": "2024-09-19T19:43:15Z"
+                  },
+                  {
+                    "_highlightResult": {
+                      "author": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "kraktoos"
+                      },
+                      "title": {
+                        "fullyHighlighted": false,
+                        "matchLevel": "full",
+                        "matchedWords": [
+                          "q"
+                        ],
+                        "value": "Don't use Discord as your <em>Q</em>&A forum"
+                      },
+                      "url": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "https://kraktoos.com/posts/dont-use-discord-as-forum/"
+                      }
+                    },
+                    "_tags": [
+                      "story",
+                      "author_kraktoos",
+                      "story_37502258"
+                    ],
+                    "author": "kraktoos",
+                    "children": [
+                      37502606,
+                      37504252,
+                      37504347,
+                      37504440
+                    ],
+                    "created_at": "2023-09-13T21:54:49Z",
+                    "created_at_i": 1694642089,
+                    "num_comments": 342,
+                    "objectID": "37502258",
+                    "points": 523,
+                    "story_id": 37502258,
+                    "title": "Don't use Discord as your Q&A forum",
+                    "updated_at": "2026-02-18T14:12:52Z"
+                  },
+                  {
+                    "_highlightResult": {
+                      "author": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "goranmoomin"
+                      },
+                      "title": {
+                        "fullyHighlighted": false,
+                        "matchLevel": "full",
+                        "matchedWords": [
+                          "q"
+                        ],
+                        "value": "Escaping strings in Bash using !:<em>q</em>"
+                      },
+                      "url": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "https://til.simonwillison.net/til/til/bash_escaping-a-string.md"
+                      }
+                    },
+                    "_tags": [
+                      "story",
+                      "author_goranmoomin",
+                      "story_24659282"
+                    ],
+                    "author": "goranmoomin",
+                    "children": [
+                      24659461,
+                      24659571,
+                      24659685,
+                      24659744
+                    ],
+                    "created_at": "2020-10-02T05:43:25Z",
+                    "created_at_i": 1601617405,
+                    "num_comments": 81,
+                    "objectID": "24659282",
+                    "points": 482,
+                    "story_id": 24659282,
+                    "title": "Escaping strings in Bash using !:q",
+                    "updated_at": "2024-09-20T07:07:11Z"
+                  },
+                  {
+                    "_highlightResult": {
+                      "author": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "croes"
+                      },
+                      "title": {
+                        "fullyHighlighted": false,
+                        "matchLevel": "full",
+                        "matchedWords": [
+                          "q"
+                        ],
+                        "value": "Large language models reduce public knowledge sharing on online <em>Q</em>&A platforms"
+                      },
+                      "url": {
+                        "matchLevel": "none",
+                        "matchedWords": [],
+                        "value": "https://academic.oup.com/pnasnexus/article/3/9/pgae400/7754871"
+                      }
+                    },
+                    "_tags": [
+                      "story",
+                      "author_croes",
+                      "story_41827043"
+                    ],
+                    "author": "croes",
+                    "children": [
+                      41827386,
+                      41827635,
+                      41827636,
+                      41827664
+                    ],
+                    "created_at": "2024-10-13T11:26:42Z",
+                    "created_at_i": 1728818802,
+                    "num_comments": 358,
+                    "objectID": "41827043",
+                    "points": 448,
+                    "story_id": 41827043,
+                    "title": "Large language models reduce public knowledge sharing on online Q&A platforms",
+                    "updated_at": "2026-02-25T23:11:19Z"
+                  }
+                ],
+                "hitsPerPage": 20,
+                "nbHits": 11663,
+                "nbPages": 50,
+                "page": 0,
+                "params": "query=%7Bq%7D&tags=story&advancedSyntax=true&analyticsTags=backend",
+                "processingTimeMS": 3,
+                "processingTimingsMS": {
+                  "_request": {
+                    "roundTrip": 14
+                  },
+                  "fetch": {
+                    "scanning": 1,
+                    "total": 2
+                  },
+                  "total": 3
+                },
+                "query": "{q}"
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hn.algolia.com/?q=openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "crates-search-packages",
+      "intent": "search packages",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "intent_mismatch",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "description",
+        "version"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://crates.io/search?q=tokio"
+        ],
+        "attempted_endpoint_counts": {
+          "3WEwxsMZtXTZwJ1NeIiUq": 1,
+          "ADprmSycut9iWVZyW79RL": 2,
+          "fLuN-CxhkEODgiy284RI3": 1,
+          "g2CzZzOlzd8Qu9SrZ_Jhm": 1,
+          "gl8ye3WtVG3lef2QerDfp": 1,
+          "KiFX_6lTEOsY4zmygVFsL": 2
+        },
+        "failure_class_counts": {
+          "intent": 10
+        },
+        "reasons_seen": [
+          "wrong_entity_type",
+          "escalate_force_capture",
+          "intent_mismatch"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://crates.io/search?q=tokio",
+          "force_capture": false,
+          "resolve_ms": 56064,
+          "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+          "available_endpoint_ids": [
+            "ADprmSycut9iWVZyW79RL",
+            "KiFX_6lTEOsY4zmygVFsL",
+            "gl8ye3WtVG3lef2QerDfp",
+            "fLuN-CxhkEODgiy284RI3"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "ADprmSycut9iWVZyW79RL",
+            "selected_path": [
+              "ADprmSycut9iWVZyW79RL"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://crates.io/search?q=tokio",
+              "domain": "crates.io",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "tokio"
+            },
+            "chunk": {
+              "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+              "intent": "search packages",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "ADprmSycut9iWVZyW79RL",
+              "available_operations": [
+                {
+                  "operation_id": "ADprmSycut9iWVZyW79RL",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; required bindings already known: page, per_page, q.",
+                  "url_template": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+                  "requires": [
+                    "page",
+                    "per_page",
+                    "q"
+                  ],
+                  "yields": [
+                    "id",
+                    "resource_name",
+                    "query",
+                    "resource_id"
+                  ],
+                  "example_request": {
+                    "page": "1",
+                    "per_page": "10",
+                    "q": "tokio"
+                  },
+                  "example_response_compact": {
+                    "crates": [
+                      {
+                        "id": "tokio",
+                        "name": "tokio",
+                        "updated_at": "2026-03-03T09:40:42.375310Z",
+                        "versions": null,
+                        "keywords": null,
+                        "categories": null,
+                        "badges": [],
+                        "created_at": "2016-07-01T20:39:07.497766Z"
+                      },
+                      {
+                        "id": "oxide-tokio-rt",
+                        "name": "oxide-tokio-rt",
+                        "updated_at": "2026-03-05T00:28:04.774429Z",
+                        "versions": null,
+                        "keywords": null,
+                        "categories": null,
+                        "badges": [],
+                        "created_at": "2025-06-25T23:13:56.645421Z"
+                      }
+                    ],
+                    "meta": {
+                      "total": 15408,
+                      "next_page": "?per_page=10&q=tokio&page=2",
+                      "prev_page": null
+                    }
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+              "domain": "crates.io",
+              "auth_required": false,
+              "endpoint_count": 7,
+              "operation_count": 7,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:02:09.567Z"
+            },
+            "source": "live-capture",
+            "total_ms": 56022,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 6 endpoint(s). Pick one and call POST /v1/skills/8Jv_yNSK9KEpEYNH0bp8B/execute with params.endpoint_id.",
+            "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+            "available_operations": [
+              {
+                "operation_id": "ADprmSycut9iWVZyW79RL",
+                "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                "requires": [
+                  "page",
+                  "per_page",
+                  "q"
+                ],
+                "provides": [
+                  "id",
+                  "resource_name",
+                  "query",
+                  "resource_id"
+                ],
+                "runnable": true
+              },
+              {
+                "operation_id": "KiFX_6lTEOsY4zmygVFsL",
+                "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Returns resource details with deployed sha, commit, and read only",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                "method": "GET",
+                "description": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+                "score": 150.8,
+                "schema_summary": {
+                  "crates": "array",
+                  "meta": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              },
+              {
+                "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                "method": "GET",
+                "description": "Returns resource details with deployed sha, commit, and read only",
+                "url": "https://crates.io/api/v1/site_metadata",
+                "score": 22,
+                "schema_summary": {
+                  "deployed_sha": "string",
+                  "commit": "string",
+                  "read_only": "boolean",
+                  "banner_message": "null"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              },
+              {
+                "endpoint_id": "fLuN-CxhkEODgiy284RI3",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://crates.io/api/v1/me",
+                "score": -212.4,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              },
+              {
+                "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://crates.io/api/private/crate_owner_invitations",
+                "score": -212.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "description"
+              ],
+              "missing_fields": [
+                "name",
+                "version"
+              ],
+              "row_count": 6,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 6 endpoint(s). Pick one and call POST /v1/skills/8Jv_yNSK9KEpEYNH0bp8B/execute with params.endpoint_id.",
+                "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+                "available_operations": [
+                  {
+                    "operation_id": "ADprmSycut9iWVZyW79RL",
+                    "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                    "requires": [
+                      "page",
+                      "per_page",
+                      "q"
+                    ],
+                    "provides": [
+                      "id",
+                      "resource_name",
+                      "query",
+                      "resource_id"
+                    ],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "KiFX_6lTEOsY4zmygVFsL",
+                    "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Returns resource details with deployed sha, commit, and read only",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                    "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                    "method": "GET",
+                    "description": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                    "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+                    "score": 150.8,
+                    "schema_summary": {
+                      "crates": "array",
+                      "meta": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  },
+                  {
+                    "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                    "method": "GET",
+                    "description": "Returns resource details with deployed sha, commit, and read only",
+                    "url": "https://crates.io/api/v1/site_metadata",
+                    "score": 22,
+                    "schema_summary": {
+                      "deployed_sha": "string",
+                      "commit": "string",
+                      "read_only": "boolean",
+                      "banner_message": "null"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  },
+                  {
+                    "endpoint_id": "fLuN-CxhkEODgiy284RI3",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://crates.io/api/v1/me",
+                    "score": -212.4,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  },
+                  {
+                    "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://crates.io/api/private/crate_owner_invitations",
+                    "score": -212.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "ADprmSycut9iWVZyW79RL",
+              "endpoint_url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 1942,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "description"
+              ],
+              "missing_fields": [
+                "version"
+              ],
+              "row_count": 10,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "crates": [
+                  {
+                    "id": "tokio",
+                    "name": "tokio",
+                    "updated_at": "2026-03-03T09:40:42.375310Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2016-07-01T20:39:07.497766Z",
+                    "downloads": 563934132,
+                    "recent_downloads": 99040434,
+                    "default_version": "1.50.0",
+                    "num_versions": 181
+                  },
+                  {
+                    "id": "oxide-tokio-rt",
+                    "name": "oxide-tokio-rt",
+                    "updated_at": "2026-03-05T00:28:04.774429Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2025-06-25T23:13:56.645421Z",
+                    "downloads": 85113,
+                    "recent_downloads": 34411,
+                    "default_version": "0.1.3",
+                    "num_versions": 4
+                  },
+                  {
+                    "id": "tokio-netem",
+                    "name": "tokio-netem",
+                    "updated_at": "2025-10-05T20:58:12.637290Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2025-10-05T20:48:31.049997Z",
+                    "downloads": 660,
+                    "recent_downloads": 116,
+                    "default_version": "0.1.1",
+                    "num_versions": 2
+                  },
+                  {
+                    "id": "tokio-process-tools",
+                    "name": "tokio-process-tools",
+                    "updated_at": "2025-11-11T10:38:13.544201Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2025-01-17T15:45:10.164157Z",
+                    "downloads": 9464,
+                    "recent_downloads": 339,
+                    "default_version": "0.7.2",
+                    "num_versions": 19
+                  }
+                ],
+                "meta": {
+                  "total": 15408,
+                  "next_page": "?per_page=10&q=tokio&page=2",
+                  "prev_page": null
+                }
+              }
+            },
+            {
+              "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+              "endpoint_url": "https://crates.io/api/v1/site_metadata",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 163,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "description",
+                "version"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "deployed_sha": "9397c63d94220bfbdb7a48d322a6690dbf1372a4",
+                "commit": "9397c63d94220bfbdb7a48d322a6690dbf1372a4",
+                "read_only": false,
+                "banner_message": null
+              }
+            },
+            {
+              "endpoint_id": "gl8ye3WtVG3lef2QerDfp",
+              "endpoint_url": "https://crates.io/api/v1/me/updates?page={page}",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 174,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "description",
+                "version"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "errors": [
+                  {
+                    "detail": "this action requires authentication"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "fLuN-CxhkEODgiy284RI3",
+              "endpoint_url": "https://crates.io/api/v1/me",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 159,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "description",
+                "version"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "errors": [
+                  {
+                    "detail": "this action requires authentication"
+                  }
+                ]
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://crates.io/search?q=tokio"
+            ],
+            "attempted_endpoint_counts": {
+              "ADprmSycut9iWVZyW79RL": 1,
+              "fLuN-CxhkEODgiy284RI3": 1,
+              "gl8ye3WtVG3lef2QerDfp": 1,
+              "KiFX_6lTEOsY4zmygVFsL": 1
+            },
+            "failure_class_counts": {
+              "intent": 5
+            },
+            "reasons_seen": [
+              "wrong_entity_type",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://crates.io/search?q=tokio",
+          "force_capture": true,
+          "resolve_ms": 34988,
+          "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+          "available_endpoint_ids": [
+            "3WEwxsMZtXTZwJ1NeIiUq",
+            "g2CzZzOlzd8Qu9SrZ_Jhm",
+            "ADprmSycut9iWVZyW79RL",
+            "KiFX_6lTEOsY4zmygVFsL"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "3WEwxsMZtXTZwJ1NeIiUq",
+            "selected_path": [
+              "3WEwxsMZtXTZwJ1NeIiUq"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://crates.io/search?q=tokio",
+              "domain": "crates.io",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "tokio"
+            },
+            "chunk": {
+              "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+              "intent": "search packages",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "3WEwxsMZtXTZwJ1NeIiUq",
+              "available_operations": [
+                {
+                  "operation_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://crates.io/api/private/crate_owner_invitations",
+                  "requires": [],
+                  "yields": []
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+              "domain": "crates.io",
+              "auth_required": false,
+              "endpoint_count": 7,
+              "operation_count": 7,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:02:50.459Z"
+            },
+            "source": "live-capture",
+            "total_ms": 34953,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 6 endpoint(s). Pick one and call POST /v1/skills/8Jv_yNSK9KEpEYNH0bp8B/execute with params.endpoint_id.",
+            "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+            "available_operations": [
+              {
+                "operation_id": "ADprmSycut9iWVZyW79RL",
+                "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                "requires": [
+                  "page",
+                  "per_page",
+                  "q"
+                ],
+                "provides": [
+                  "id",
+                  "resource_name",
+                  "query",
+                  "resource_id"
+                ],
+                "runnable": true
+              },
+              {
+                "operation_id": "KiFX_6lTEOsY4zmygVFsL",
+                "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Returns resource details with deployed sha, commit, and read only",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                "method": "GET",
+                "description": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+                "score": 150.8,
+                "schema_summary": {
+                  "crates": "array",
+                  "meta": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              },
+              {
+                "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                "method": "GET",
+                "description": "Returns resource details with deployed sha, commit, and read only",
+                "url": "https://crates.io/api/v1/site_metadata",
+                "score": 22,
+                "schema_summary": {
+                  "deployed_sha": "string",
+                  "commit": "string",
+                  "read_only": "boolean",
+                  "banner_message": "null"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              },
+              {
+                "endpoint_id": "fLuN-CxhkEODgiy284RI3",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://crates.io/api/v1/me",
+                "score": -212.4,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              },
+              {
+                "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://crates.io/api/private/crate_owner_invitations",
+                "score": -212.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://crates.io/search?q=tokio"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "description"
+              ],
+              "missing_fields": [
+                "name",
+                "version"
+              ],
+              "row_count": 6,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 6 endpoint(s). Pick one and call POST /v1/skills/8Jv_yNSK9KEpEYNH0bp8B/execute with params.endpoint_id.",
+                "skill_id": "8Jv_yNSK9KEpEYNH0bp8B",
+                "available_operations": [
+                  {
+                    "operation_id": "ADprmSycut9iWVZyW79RL",
+                    "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                    "requires": [
+                      "page",
+                      "per_page",
+                      "q"
+                    ],
+                    "provides": [
+                      "id",
+                      "resource_name",
+                      "query",
+                      "resource_id"
+                    ],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "KiFX_6lTEOsY4zmygVFsL",
+                    "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Returns resource details with deployed sha, commit, and read only",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                    "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "ADprmSycut9iWVZyW79RL",
+                    "method": "GET",
+                    "description": "Searches Crate with id, name, updated_at, versions, keywords, categories using page, per_page, q",
+                    "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+                    "score": 150.8,
+                    "schema_summary": {
+                      "crates": "array",
+                      "meta": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  },
+                  {
+                    "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+                    "method": "GET",
+                    "description": "Returns resource details with deployed sha, commit, and read only",
+                    "url": "https://crates.io/api/v1/site_metadata",
+                    "score": 22,
+                    "schema_summary": {
+                      "deployed_sha": "string",
+                      "commit": "string",
+                      "read_only": "boolean",
+                      "banner_message": "null"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  },
+                  {
+                    "endpoint_id": "fLuN-CxhkEODgiy284RI3",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://crates.io/api/v1/me",
+                    "score": -212.4,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  },
+                  {
+                    "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://crates.io/api/private/crate_owner_invitations",
+                    "score": -212.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://crates.io/search?q=tokio"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "3WEwxsMZtXTZwJ1NeIiUq",
+              "endpoint_url": "https://crates.io/api/private/crate_owner_invitations",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 254,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "description",
+                "version"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "errors": [
+                  {
+                    "detail": "this action requires authentication"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "g2CzZzOlzd8Qu9SrZ_Jhm",
+              "endpoint_url": "https://crates.io/api/v1/summary",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 236,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "description"
+              ],
+              "missing_fields": [
+                "version"
+              ],
+              "row_count": 10,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "num_downloads": 255946429393,
+                "num_crates": 238199,
+                "new_crates": [
+                  {
+                    "id": "shunt-rs",
+                    "name": "shunt-rs",
+                    "updated_at": "2026-03-14T04:46:02.584430Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2026-03-14T04:46:02.584430Z",
+                    "downloads": 0,
+                    "recent_downloads": null,
+                    "default_version": "0.1.0",
+                    "num_versions": 1
+                  },
+                  {
+                    "id": "shunt_web",
+                    "name": "shunt_web",
+                    "updated_at": "2026-03-14T04:45:50.285516Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2026-03-14T04:45:50.285516Z",
+                    "downloads": 0,
+                    "recent_downloads": null,
+                    "default_version": "0.1.0",
+                    "num_versions": 1
+                  },
+                  {
+                    "id": "shunt_sms",
+                    "name": "shunt_sms",
+                    "updated_at": "2026-03-14T04:45:26.322045Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2026-03-14T04:45:26.322045Z",
+                    "downloads": 0,
+                    "recent_downloads": null,
+                    "default_version": "0.1.0",
+                    "num_versions": 1
+                  },
+                  {
+                    "id": "shunt_email",
+                    "name": "shunt_email",
+                    "updated_at": "2026-03-14T04:45:17.917807Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2026-03-14T04:45:17.917807Z",
+                    "downloads": 0,
+                    "recent_downloads": null,
+                    "default_version": "0.1.0",
+                    "num_versions": 1
+                  }
+                ],
+                "most_downloaded": [
+                  {
+                    "id": "syn",
+                    "name": "syn",
+                    "updated_at": "2026-02-20T02:40:03.575209Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2016-09-07T15:22:40.491981Z",
+                    "downloads": 1451992447,
+                    "recent_downloads": 221736218,
+                    "default_version": "2.0.117",
+                    "num_versions": 350
+                  },
+                  {
+                    "id": "hashbrown",
+                    "name": "hashbrown",
+                    "updated_at": "2025-11-20T16:47:18.741054Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2018-10-29T14:28:15.767024Z",
+                    "downloads": 1285967426,
+                    "recent_downloads": 268555313,
+                    "default_version": "0.16.1",
+                    "num_versions": 54
+                  },
+                  {
+                    "id": "bitflags",
+                    "name": "bitflags",
+                    "updated_at": "2026-02-14T00:39:21.717451Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2015-01-15T08:35:24.901276Z",
+                    "downloads": 1105375025,
+                    "recent_downloads": 184792717,
+                    "default_version": "2.11.0",
+                    "num_versions": 58
+                  },
+                  {
+                    "id": "getrandom",
+                    "name": "getrandom",
+                    "updated_at": "2026-03-03T11:54:42.276733Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2019-01-19T12:56:49.379182Z",
+                    "downloads": 1020601641,
+                    "recent_downloads": 221713073,
+                    "default_version": "0.4.2",
+                    "num_versions": 47
+                  }
+                ],
+                "most_recently_downloaded": [
+                  {
+                    "id": "hashbrown",
+                    "name": "hashbrown",
+                    "updated_at": "2025-11-20T16:47:18.741054Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2018-10-29T14:28:15.767024Z",
+                    "downloads": 1285967426,
+                    "recent_downloads": 268555313,
+                    "default_version": "0.16.1",
+                    "num_versions": 54
+                  },
+                  {
+                    "id": "syn",
+                    "name": "syn",
+                    "updated_at": "2026-02-20T02:40:03.575209Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2016-09-07T15:22:40.491981Z",
+                    "downloads": 1451992447,
+                    "recent_downloads": 221736218,
+                    "default_version": "2.0.117",
+                    "num_versions": 350
+                  },
+                  {
+                    "id": "getrandom",
+                    "name": "getrandom",
+                    "updated_at": "2026-03-03T11:54:42.276733Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2019-01-19T12:56:49.379182Z",
+                    "downloads": 1020601641,
+                    "recent_downloads": 221713073,
+                    "default_version": "0.4.2",
+                    "num_versions": 47
+                  },
+                  {
+                    "id": "windows-sys",
+                    "name": "windows-sys",
+                    "updated_at": "2025-10-06T19:18:30.163595Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2021-10-18T14:47:07.495906Z",
+                    "downloads": 777901379,
+                    "recent_downloads": 221163915,
+                    "default_version": "0.61.2",
+                    "num_versions": 23
+                  }
+                ],
+                "just_updated": [
+                  {
+                    "id": "haruspex",
+                    "name": "haruspex",
+                    "updated_at": "2026-03-14T05:02:38.633127Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2024-11-22T11:43:29.728112Z",
+                    "downloads": 16050,
+                    "recent_downloads": 358,
+                    "default_version": "0.8.1",
+                    "num_versions": 31
+                  },
+                  {
+                    "id": "zng-wgt-text-input",
+                    "name": "zng-wgt-text-input",
+                    "updated_at": "2026-03-14T05:02:25.873233Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2024-04-08T04:54:44.283651Z",
+                    "downloads": 68407,
+                    "recent_downloads": 744,
+                    "default_version": "0.13.5",
+                    "num_versions": 101
+                  },
+                  {
+                    "id": "taskmill",
+                    "name": "taskmill",
+                    "updated_at": "2026-03-14T05:02:19.145563Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2026-03-05T06:34:13.939586Z",
+                    "downloads": 82,
+                    "recent_downloads": 82,
+                    "default_version": "0.3.0",
+                    "num_versions": 4
+                  },
+                  {
+                    "id": "gitrub",
+                    "name": "gitrub",
+                    "updated_at": "2026-03-14T05:01:47.214679Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2026-03-14T02:46:17.483011Z",
+                    "downloads": 0,
+                    "recent_downloads": null,
+                    "default_version": "1.1.12",
+                    "num_versions": 15
+                  }
+                ],
+                "popular_keywords": [
+                  {
+                    "id": "cli",
+                    "keyword": "cli",
+                    "created_at": "2014-12-13T23:17:17.651770Z",
+                    "crates_cnt": 10080
+                  },
+                  {
+                    "id": "async",
+                    "keyword": "async",
+                    "created_at": "2015-02-18T16:50:54.176224Z",
+                    "crates_cnt": 4089
+                  },
+                  {
+                    "id": "api",
+                    "keyword": "api",
+                    "created_at": "2014-11-29T17:51:55.405929Z",
+                    "crates_cnt": 3899
+                  },
+                  {
+                    "id": "parser",
+                    "keyword": "parser",
+                    "created_at": "2014-11-14T20:00:40.785931Z",
+                    "crates_cnt": 3206
+                  }
+                ],
+                "popular_categories": [
+                  {
+                    "id": "command-line-utilities",
+                    "category": "Command line utilities",
+                    "slug": "command-line-utilities",
+                    "description": "Applications to run at the command line.",
+                    "created_at": "2017-01-17T19:13:05.112025Z",
+                    "crates_cnt": 18477
+                  },
+                  {
+                    "id": "development-tools",
+                    "category": "Development tools",
+                    "slug": "development-tools",
+                    "description": "Crates that provide developer-facing features such as testing, debugging, linting, performance profiling, autocompletion, formatting, and more.",
+                    "created_at": "2016-12-30T23:42:37.777395Z",
+                    "crates_cnt": 17649
+                  },
+                  {
+                    "id": "no-std",
+                    "category": "No standard library",
+                    "slug": "no-std",
+                    "description": "Crates that are able to function without the Rust standard library.",
+                    "created_at": "2017-02-10T01:52:09.447906Z",
+                    "crates_cnt": 10679
+                  },
+                  {
+                    "id": "web-programming",
+                    "category": "Web programming",
+                    "slug": "web-programming",
+                    "description": "Crates to create applications for the web.",
+                    "created_at": "2017-01-17T19:13:05.112025Z",
+                    "crates_cnt": 9331
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "ADprmSycut9iWVZyW79RL",
+              "endpoint_url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 761,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "description"
+              ],
+              "missing_fields": [
+                "version"
+              ],
+              "row_count": 10,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "crates": [
+                  {
+                    "id": "tokio",
+                    "name": "tokio",
+                    "updated_at": "2026-03-03T09:40:42.375310Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2016-07-01T20:39:07.497766Z",
+                    "downloads": 563934132,
+                    "recent_downloads": 99040434,
+                    "default_version": "1.50.0",
+                    "num_versions": 181
+                  },
+                  {
+                    "id": "oxide-tokio-rt",
+                    "name": "oxide-tokio-rt",
+                    "updated_at": "2026-03-05T00:28:04.774429Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2025-06-25T23:13:56.645421Z",
+                    "downloads": 85113,
+                    "recent_downloads": 34411,
+                    "default_version": "0.1.3",
+                    "num_versions": 4
+                  },
+                  {
+                    "id": "tokio-netem",
+                    "name": "tokio-netem",
+                    "updated_at": "2025-10-05T20:58:12.637290Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2025-10-05T20:48:31.049997Z",
+                    "downloads": 660,
+                    "recent_downloads": 116,
+                    "default_version": "0.1.1",
+                    "num_versions": 2
+                  },
+                  {
+                    "id": "tokio-process-tools",
+                    "name": "tokio-process-tools",
+                    "updated_at": "2025-11-11T10:38:13.544201Z",
+                    "versions": null,
+                    "keywords": null,
+                    "categories": null,
+                    "badges": [],
+                    "created_at": "2025-01-17T15:45:10.164157Z",
+                    "downloads": 9464,
+                    "recent_downloads": 339,
+                    "default_version": "0.7.2",
+                    "num_versions": 19
+                  }
+                ],
+                "meta": {
+                  "total": 15408,
+                  "next_page": "?per_page=10&q=tokio&page=2",
+                  "prev_page": null
+                }
+              }
+            },
+            {
+              "endpoint_id": "KiFX_6lTEOsY4zmygVFsL",
+              "endpoint_url": "https://crates.io/api/v1/site_metadata",
+              "trigger_url": "https://crates.io/search?q=tokio",
+              "execute_ms": 145,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "wrong_entity_type",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "description",
+                "version"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "deployed_sha": "9397c63d94220bfbdb7a48d322a6690dbf1372a4",
+                "commit": "9397c63d94220bfbdb7a48d322a6690dbf1372a4",
+                "read_only": false,
+                "banner_message": null
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://crates.io/search?q=tokio"
+            ],
+            "attempted_endpoint_counts": {
+              "3WEwxsMZtXTZwJ1NeIiUq": 1,
+              "ADprmSycut9iWVZyW79RL": 2,
+              "fLuN-CxhkEODgiy284RI3": 1,
+              "g2CzZzOlzd8Qu9SrZ_Jhm": 1,
+              "gl8ye3WtVG3lef2QerDfp": 1,
+              "KiFX_6lTEOsY4zmygVFsL": 2
+            },
+            "failure_class_counts": {
+              "intent": 10
+            },
+            "reasons_seen": [
+              "wrong_entity_type",
+              "escalate_force_capture",
+              "intent_mismatch"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

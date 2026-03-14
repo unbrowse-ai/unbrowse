@@ -1,0 +1,83 @@
+{
+  "cases": [
+    {
+      "id": "lobsters-frontpage",
+      "intent": "get posts",
+      "url": "https://lobste.rs/",
+      "expected_fields": [
+        "title",
+        "url",
+        "score"
+      ]
+    },
+    {
+      "id": "arxiv-search-papers",
+      "intent": "search papers",
+      "url": "https://arxiv.org/search/?query=openai&searchtype=all&source=header",
+      "expected_fields": [
+        "title",
+        "url",
+        "summary"
+      ]
+    },
+    {
+      "id": "huggingface-search-models",
+      "intent": "search models",
+      "url": "https://huggingface.co/models?search=openai",
+      "expected_fields": [
+        "name",
+        "url",
+        "downloads"
+      ]
+    },
+    {
+      "id": "allrecipes-search-recipes",
+      "intent": "search recipes",
+      "url": "https://www.allrecipes.com/search?q=lasagna",
+      "expected_fields": [
+        "title",
+        "url",
+        "rating"
+      ]
+    },
+    {
+      "id": "foodnetwork-search-recipes",
+      "intent": "search recipes",
+      "url": "https://www.foodnetwork.com/search/lasagna-",
+      "expected_fields": [
+        "title",
+        "url",
+        "review_count"
+      ]
+    },
+    {
+      "id": "epicurious-search-recipes",
+      "intent": "search recipes",
+      "url": "https://www.epicurious.com/search?q=lasagna",
+      "expected_fields": [
+        "title",
+        "url",
+        "description"
+      ]
+    },
+    {
+      "id": "coursera-search-courses",
+      "intent": "search courses",
+      "url": "https://www.coursera.org/search?query=machine%20learning",
+      "expected_fields": [
+        "title",
+        "url",
+        "rating"
+      ]
+    },
+    {
+      "id": "cambridge-get-definition",
+      "intent": "get definition",
+      "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+      "expected_fields": [
+        "term",
+        "definition"
+      ]
+    }
+  ]
+}

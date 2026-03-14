@@ -89,6 +89,33 @@ export function deriveTemplateParamsFromContextUrl(
   }
 }
 
+function deriveSemanticTemplateParams(
+  urlTemplate: string,
+  contextUrl?: string,
+): Record<string, string> {
+  if (!contextUrl) return {};
+  try {
+    const templateNames = [...urlTemplate.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]).filter(Boolean);
+    if (templateNames.length === 0) return {};
+    const actualUrl = new URL(contextUrl);
+    const actualParts = actualUrl.pathname.split("/").filter(Boolean).map((part) => decodeURIComponent(part));
+    const lowerParts = actualParts.map((part) => part.toLowerCase());
+    const out: Record<string, string> = {};
+
+    for (const name of templateNames) {
+      const lower = name.toLowerCase();
+      if (lower === "tag" || lower === "tags") {
+        const prefixIndex = lowerParts.findIndex((part) => part === "t" || part === "tag" || part === "tags");
+        if (prefixIndex >= 0 && actualParts[prefixIndex + 1]) out[name] = actualParts[prefixIndex + 1]!;
+      }
+    }
+
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export function mergeContextTemplateParams(
   params: Record<string, unknown>,
   urlTemplate: string,
@@ -97,6 +124,9 @@ export function mergeContextTemplateParams(
   const merged: Record<string, unknown> = { ...params };
   const inferred = deriveTemplateParamsFromContextUrl(urlTemplate, contextUrl);
   for (const [key, value] of Object.entries(inferred)) {
+    if (merged[key] == null || merged[key] === "") merged[key] = value;
+  }
+  for (const [key, value] of Object.entries(deriveSemanticTemplateParams(urlTemplate, contextUrl))) {
     if (merged[key] == null || merged[key] === "") merged[key] = value;
   }
   for (const [rawKey, placeholder] of Object.entries(extractTemplateQueryBindings(urlTemplate))) {

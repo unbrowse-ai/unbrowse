@@ -14,6 +14,8 @@ export interface AgentProfile {
   agent_id: string;       // Unkey keyId
   name: string;
   created_at: string;
+  profile_origin?: "registered" | "recovered";
+  recovered_at?: string;
   skills_discovered: string[];
   total_executions: number;
   total_feedback_given: number;

@@ -7,10 +7,6 @@ import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationT
 
 const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
-const CONFIG_DIR = PROFILE_NAME
-  ? join(homedir(), ".unbrowse", "profiles", PROFILE_NAME)
-  : join(homedir(), ".unbrowse");
-const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const recentLocalSkills = new Map<string, SkillManifest>();
 const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
 
@@ -19,7 +15,18 @@ function scopedSkillKey(skillId: string, scopeId?: string): string {
 }
 
 function getSkillCacheDir(): string {
-  return process.env.UNBROWSE_SKILL_CACHE_DIR || join(CONFIG_DIR, "skill-cache");
+  return process.env.UNBROWSE_SKILL_CACHE_DIR || join(getConfigDir(), "skill-cache");
+}
+
+function getConfigDir(): string {
+  if (process.env.UNBROWSE_CONFIG_DIR) return process.env.UNBROWSE_CONFIG_DIR;
+  return PROFILE_NAME
+    ? join(homedir(), ".unbrowse", "profiles", PROFILE_NAME)
+    : join(homedir(), ".unbrowse");
+}
+
+function getConfigPath(): string {
+  return join(getConfigDir(), "config.json");
 }
 
 function sanitizeProfileName(value: string): string {
@@ -43,18 +50,29 @@ interface UnbrowseConfig {
   tos_accepted_at: string | null;
 }
 
+type ApiKeySource = "env" | "config";
+type ApiKeyValidationStatus = "ok" | "missing_profile" | "invalid" | "offline";
+
+interface ApiKeyValidationResult {
+  status: ApiKeyValidationStatus;
+  detail?: string;
+}
+
 function loadConfig(): UnbrowseConfig | null {
   try {
-    if (existsSync(CONFIG_PATH)) {
-      return JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+    const configPath = getConfigPath();
+    if (existsSync(configPath)) {
+      return JSON.parse(readFileSync(configPath, "utf-8"));
     }
   } catch { /* corrupt file, re-register */ }
   return null;
 }
 
 function saveConfig(config: UnbrowseConfig): void {
-  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), { mode: 0o600 });
+  const configDir = getConfigDir();
+  const configPath = getConfigPath();
+  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
+  writeFileSync(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -89,6 +107,67 @@ export function getApiKey(): string {
 }
 
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
+
+async function validateApiKey(key: string): Promise<ApiKeyValidationResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${API_URL}/v1/agents/me`, {
+      method: "GET",
+      headers: {
+        "Accept-Encoding": "gzip, deflate",
+        Authorization: `Bearer ${key}`,
+      },
+      signal: controller.signal,
+    });
+
+    let detail = "";
+    try {
+      const body = await res.json() as { error?: string; message?: string };
+      detail = body.error ?? body.message ?? "";
+    } catch {}
+
+    if (res.ok) return { status: "ok" };
+    if (res.status === 404 && /agent profile not found/i.test(detail)) {
+      return { status: "missing_profile", detail };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { status: "invalid", detail: detail || `HTTP ${res.status}` };
+    }
+    return { status: "offline", detail: detail || `HTTP ${res.status}` };
+  } catch (err) {
+    return { status: "offline", detail: (err as Error).message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource } | null> {
+  const envKey = process.env.UNBROWSE_API_KEY?.trim() ?? "";
+  const configKey = loadConfig()?.api_key?.trim() ?? "";
+
+  if (envKey) {
+    const envStatus = await validateApiKey(envKey);
+    if (envStatus.status === "ok") return { key: envKey, source: "env" };
+    if (envStatus.status === "offline") return { key: envKey, source: "env" };
+    console.warn(`[unbrowse] Ignoring ${envStatus.status === "missing_profile" ? "stale" : "invalid"} UNBROWSE_API_KEY${envStatus.detail ? ` (${envStatus.detail})` : ""}.`);
+  }
+
+  if (configKey && configKey !== envKey) {
+    const configStatus = await validateApiKey(configKey);
+    if (configStatus.status === "ok") {
+      process.env.UNBROWSE_API_KEY = configKey;
+      return { key: configKey, source: "config" };
+    }
+    if (configStatus.status === "offline") {
+      process.env.UNBROWSE_API_KEY = configKey;
+      return { key: configKey, source: "config" };
+    }
+    console.warn(`[unbrowse] Saved registration is ${configStatus.status === "missing_profile" ? "stale" : "invalid"}${configStatus.detail ? ` (${configStatus.detail})` : ""}. Re-registering.`);
+  }
+
+  return null;
+}
 
 async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean }): Promise<T> {
   const key = opts?.noAuth ? "" : getApiKey();
@@ -239,8 +318,11 @@ async function checkTosStatus(): Promise<void> {
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
-  if (getApiKey()) {
-    // Already have a key — check if ToS re-acceptance is needed
+  const usableKey = await findUsableApiKey();
+  if (usableKey) {
+    if (usableKey.source === "config") {
+      console.log("[unbrowse] Restored saved registration.");
+    }
     await checkTosStatus();
     return;
   }
@@ -518,6 +600,39 @@ export async function searchIntentInDomain(
     "POST", "/v1/search/domain", { intent, domain, k }
   );
   return data.results;
+}
+
+export async function searchIntentResolve(
+  intent: string,
+  domain?: string,
+  domainK = 5,
+  globalK = 10,
+): Promise<{
+  domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+  global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+  skipped_global: boolean;
+}> {
+  if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
+  try {
+    return await api<{
+      domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+      global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+      skipped_global: boolean;
+    }>("POST", "/v1/search/resolve", {
+      intent,
+      domain,
+      domain_k: domainK,
+      global_k: globalK,
+    });
+  } catch {
+    const [domain_results, global_results] = await Promise.all([
+      domain
+        ? searchIntentInDomain(intent, domain, domainK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>)
+        : Promise.resolve([] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
+      searchIntent(intent, globalK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
+    ]);
+    return { domain_results, global_results, skipped_global: false };
+  }
 }
 
 // --- Stats ---

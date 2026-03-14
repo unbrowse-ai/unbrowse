@@ -1,0 +1,50 @@
+{
+  "summary": {
+    "total": 1,
+    "source_artifact": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-last-run.the-internet-basic-login.json",
+    "max_review_candidates": 3
+  },
+  "queue": [
+    {
+      "id": "the-internet-basic-login",
+      "intent": "get login flash message",
+      "url": "https://the-internet.herokuapp.com/secure",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "o2cf0VuO8eoL8JPrzzLCF",
+      "local_signal": {
+        "verdict": "fail",
+        "reason": "deferral_payload"
+      },
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "o2cf0VuO8eoL8JPrzzLCF",
+          "score": -485.3,
+          "description": "Captured page artifact for get login flash message",
+          "url": "https://the-internet.herokuapp.com/login",
+          "trigger_url": "https://the-internet.herokuapp.com/login",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "page_artifact_risk"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "1m1rLZZmkZ77hFy7kX4k6",
+            "--endpoint",
+            "o2cf0VuO8eoL8JPrzzLCF",
+            "--intent",
+            "get login flash message",
+            "--url",
+            "https://the-internet.herokuapp.com/secure",
+            "--raw"
+          ]
+        }
+      ]
+    }
+  ]
+}
