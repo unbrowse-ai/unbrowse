@@ -1,15 +1,8 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
 import "./globals.css";
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Unbrowse — Reverse-engineer any website into API skills for AI agents",
@@ -83,6 +76,7 @@ export default function RootLayout({
           />
         <style>{`
           :root {
+            --font-jetbrains-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
             --font-google-sans: 'Google Sans', 'Google Sans Display', system-ui, sans-serif;
             --font-fonetika: 'Fonetika', 'Google Sans', system-ui, sans-serif;
           }
@@ -167,7 +161,7 @@ export default function RootLayout({
         />
         <script defer src="https://cloud.umami.is/script.js" data-website-id="66d811d2-a320-4b38-87b9-b15a60022313"></script>
       </head>
-      <body className={`${jetbrainsMono.variable} antialiased`}>
+      <body className="antialiased">
         <ThemeProvider>
           <AuthProvider>
             <Navbar />
