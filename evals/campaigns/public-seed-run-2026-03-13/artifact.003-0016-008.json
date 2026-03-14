@@ -1,0 +1,4225 @@
+{
+  "summary": {
+    "total": 8,
+    "pass": 1,
+    "fail": 7,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 7,
+    "max_rounds": 4,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "lobsters-frontpage",
+      "intent": "get posts",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "missing_fields:score",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url"
+      ],
+      "missing_fields": [
+        "score"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://lobste.rs/"
+        ],
+        "attempted_endpoint_counts": {
+          "fET5tHhTfF7TOWfhVb8DB": 2
+        },
+        "failure_class_counts": {
+          "fields": 4
+        },
+        "reasons_seen": [
+          "missing_fields:score",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://lobste.rs/",
+          "force_capture": false,
+          "resolve_ms": 46461,
+          "skill_id": "aJtm9e0p4dJ0Lw6S_8I_l",
+          "available_endpoint_ids": [
+            "fET5tHhTfF7TOWfhVb8DB"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "fET5tHhTfF7TOWfhVb8DB",
+            "selected_path": [
+              "fET5tHhTfF7TOWfhVb8DB"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://lobste.rs/",
+              "domain": "lobste.rs",
+              "pathname": "/"
+            },
+            "chunk": {
+              "skill_id": "aJtm9e0p4dJ0Lw6S_8I_l",
+              "intent": "get posts",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "fET5tHhTfF7TOWfhVb8DB",
+              "available_operations": [
+                {
+                  "operation_id": "fET5tHhTfF7TOWfhVb8DB",
+                  "method": "GET",
+                  "action_kind": "list",
+                  "resource_kind": "post",
+                  "title": "list post",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://lobste.rs/",
+                  "requires": [],
+                  "yields": [
+                    "id",
+                    "username",
+                    "post_id",
+                    "status_id",
+                    "tweet_id",
+                    "post_url",
+                    "status_url",
+                    "tweet_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "id": "WqwsCnFE8E",
+                      "username": "via rjzak 17 hours ago | caches | 22 comments",
+                      "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                      "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                      "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com vi...",
+                      "author": "via rjzak 17 hours ago | caches | 22 comments"
+                    },
+                    {
+                      "id": "ddrcpa",
+                      "username": "rjzak",
+                      "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                      "title": "22 comments",
+                      "author": "rjzak"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "aJtm9e0p4dJ0Lw6S_8I_l",
+              "domain": "lobste.rs",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:04:15.285Z"
+            },
+            "source": "live-capture",
+            "total_ms": 46422,
+            "tokens_used": 1808,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "id": "WqwsCnFE8E",
+                "username": "via rjzak 17 hours ago | caches | 22 comments",
+                "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com via rjzak 17 hours ago | caches | 22 comments Archive.org | Ghostarchive",
+                "author": "via rjzak 17 hours ago | caches | 22 comments"
+              },
+              {
+                "id": "ddrcpa",
+                "username": "rjzak",
+                "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                "title": "22 comments",
+                "author": "rjzak"
+              },
+              {
+                "id": "zcmoab",
+                "username": "authored by freetonik 13 hours ago | caches | 7 comments",
+                "url": "/s/zcmoab/windows_11_after_two_decades_macos_okay",
+                "title": "7 comments",
+                "text": "28 Windows 11 after two decades of macOS: okay, but also awful windows rakhim.exotext.com authored by freetonik 13 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                "author": "authored by freetonik 13 hours ago | caches | 7 comments"
+              },
+              {
+                "id": "rb8pas",
+                "username": "authored by lr0 4 hours ago | caches | 7 comments",
+                "url": "/s/rb8pas/i_beg_you_follow_crocker_s_rules_even_if_you",
+                "title": "7 comments",
+                "text": "10 I beg you to follow Crocker's Rules, even if you will be rude to me culture practices lr0.org authored by lr0 4 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                "author": "authored by lr0 4 hours ago | caches | 7 comments"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.9000000000000001,
+              "source": "ssr-fast",
+              "final_url": "https://lobste.rs/"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "fET5tHhTfF7TOWfhVb8DB",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:score",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "score"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "post"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1808,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "data": [
+                  {
+                    "id": "WqwsCnFE8E",
+                    "username": "via rjzak 17 hours ago | caches | 22 comments",
+                    "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                    "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                    "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com via rjzak 17 hours ago | caches | 22 comments Archive.org | Ghostarchive",
+                    "author": "via rjzak 17 hours ago | caches | 22 comments"
+                  },
+                  {
+                    "id": "ddrcpa",
+                    "username": "rjzak",
+                    "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                    "title": "22 comments",
+                    "author": "rjzak"
+                  },
+                  {
+                    "id": "zcmoab",
+                    "username": "authored by freetonik 13 hours ago | caches | 7 comments",
+                    "url": "/s/zcmoab/windows_11_after_two_decades_macos_okay",
+                    "title": "7 comments",
+                    "text": "28 Windows 11 after two decades of macOS: okay, but also awful windows rakhim.exotext.com authored by freetonik 13 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by freetonik 13 hours ago | caches | 7 comments"
+                  },
+                  {
+                    "id": "rb8pas",
+                    "username": "authored by lr0 4 hours ago | caches | 7 comments",
+                    "url": "/s/rb8pas/i_beg_you_follow_crocker_s_rules_even_if_you",
+                    "title": "7 comments",
+                    "text": "10 I beg you to follow Crocker's Rules, even if you will be rude to me culture practices lr0.org authored by lr0 4 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by lr0 4 hours ago | caches | 7 comments"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.9000000000000001,
+                  "source": "ssr-fast",
+                  "final_url": "https://lobste.rs/"
+                }
+              }
+            },
+            {
+              "endpoint_id": "fET5tHhTfF7TOWfhVb8DB",
+              "endpoint_url": "https://lobste.rs/",
+              "trigger_url": "https://lobste.rs/",
+              "execute_ms": 2606,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:score",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "score"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "post"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [
+                  {
+                    "id": "WqwsCnFE8E",
+                    "username": "via rjzak 17 hours ago | caches | 22 comments",
+                    "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                    "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                    "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com via rjzak 17 hours ago | caches | 22 comments Archive.org | Ghostarchive",
+                    "author": "via rjzak 17 hours ago | caches | 22 comments"
+                  },
+                  {
+                    "id": "ddrcpa",
+                    "username": "rjzak",
+                    "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                    "title": "22 comments",
+                    "author": "rjzak"
+                  },
+                  {
+                    "id": "zcmoab",
+                    "username": "authored by freetonik 13 hours ago | caches | 7 comments",
+                    "url": "/s/zcmoab/windows_11_after_two_decades_macos_okay",
+                    "title": "7 comments",
+                    "text": "28 Windows 11 after two decades of macOS: okay, but also awful windows rakhim.exotext.com authored by freetonik 13 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by freetonik 13 hours ago | caches | 7 comments"
+                  },
+                  {
+                    "id": "rb8pas",
+                    "username": "authored by lr0 4 hours ago | caches | 7 comments",
+                    "url": "/s/rb8pas/i_beg_you_follow_crocker_s_rules_even_if_you",
+                    "title": "7 comments",
+                    "text": "10 I beg you to follow Crocker's Rules, even if you will be rude to me culture practices lr0.org authored by lr0 4 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by lr0 4 hours ago | caches | 7 comments"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.9000000000000001,
+                  "source": "ssr-fast",
+                  "final_url": "https://lobste.rs/"
+                }
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://lobste.rs/"
+            ],
+            "attempted_endpoint_counts": {
+              "fET5tHhTfF7TOWfhVb8DB": 1
+            },
+            "failure_class_counts": {
+              "fields": 2
+            },
+            "reasons_seen": [
+              "missing_fields:score",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://lobste.rs/",
+          "force_capture": true,
+          "resolve_ms": 6096,
+          "skill_id": "aJtm9e0p4dJ0Lw6S_8I_l",
+          "available_endpoint_ids": [
+            "fET5tHhTfF7TOWfhVb8DB"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "fET5tHhTfF7TOWfhVb8DB",
+            "selected_path": [
+              "fET5tHhTfF7TOWfhVb8DB"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://lobste.rs/",
+              "domain": "lobste.rs",
+              "pathname": "/"
+            },
+            "chunk": {
+              "skill_id": "aJtm9e0p4dJ0Lw6S_8I_l",
+              "intent": "get posts",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "fET5tHhTfF7TOWfhVb8DB",
+              "available_operations": [
+                {
+                  "operation_id": "fET5tHhTfF7TOWfhVb8DB",
+                  "method": "GET",
+                  "action_kind": "list",
+                  "resource_kind": "post",
+                  "title": "list post",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://lobste.rs/",
+                  "requires": [],
+                  "yields": [
+                    "id",
+                    "username",
+                    "post_id",
+                    "status_id",
+                    "tweet_id",
+                    "post_url",
+                    "status_url",
+                    "tweet_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "id": "WqwsCnFE8E",
+                      "username": "via rjzak 17 hours ago | caches | 22 comments",
+                      "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                      "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                      "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com vi...",
+                      "author": "via rjzak 17 hours ago | caches | 22 comments"
+                    },
+                    {
+                      "id": "ddrcpa",
+                      "username": "rjzak",
+                      "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                      "title": "22 comments",
+                      "author": "rjzak"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "aJtm9e0p4dJ0Lw6S_8I_l",
+              "domain": "lobste.rs",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:04:25.947Z"
+            },
+            "source": "live-capture",
+            "total_ms": 6063,
+            "tokens_used": 1808,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "id": "WqwsCnFE8E",
+                "username": "via rjzak 17 hours ago | caches | 22 comments",
+                "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com via rjzak 17 hours ago | caches | 22 comments Archive.org | Ghostarchive",
+                "author": "via rjzak 17 hours ago | caches | 22 comments"
+              },
+              {
+                "id": "ddrcpa",
+                "username": "rjzak",
+                "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                "title": "22 comments",
+                "author": "rjzak"
+              },
+              {
+                "id": "zcmoab",
+                "username": "authored by freetonik 13 hours ago | caches | 7 comments",
+                "url": "/s/zcmoab/windows_11_after_two_decades_macos_okay",
+                "title": "7 comments",
+                "text": "28 Windows 11 after two decades of macOS: okay, but also awful windows rakhim.exotext.com authored by freetonik 13 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                "author": "authored by freetonik 13 hours ago | caches | 7 comments"
+              },
+              {
+                "id": "rb8pas",
+                "username": "authored by lr0 4 hours ago | caches | 7 comments",
+                "url": "/s/rb8pas/i_beg_you_follow_crocker_s_rules_even_if_you",
+                "title": "7 comments",
+                "text": "10 I beg you to follow Crocker's Rules, even if you will be rude to me culture practices lr0.org authored by lr0 4 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                "author": "authored by lr0 4 hours ago | caches | 7 comments"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.9000000000000001,
+              "source": "ssr-fast",
+              "final_url": "https://lobste.rs/"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "fET5tHhTfF7TOWfhVb8DB",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:score",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "score"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "post"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1808,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "data": [
+                  {
+                    "id": "WqwsCnFE8E",
+                    "username": "via rjzak 17 hours ago | caches | 22 comments",
+                    "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                    "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                    "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com via rjzak 17 hours ago | caches | 22 comments Archive.org | Ghostarchive",
+                    "author": "via rjzak 17 hours ago | caches | 22 comments"
+                  },
+                  {
+                    "id": "ddrcpa",
+                    "username": "rjzak",
+                    "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                    "title": "22 comments",
+                    "author": "rjzak"
+                  },
+                  {
+                    "id": "zcmoab",
+                    "username": "authored by freetonik 13 hours ago | caches | 7 comments",
+                    "url": "/s/zcmoab/windows_11_after_two_decades_macos_okay",
+                    "title": "7 comments",
+                    "text": "28 Windows 11 after two decades of macOS: okay, but also awful windows rakhim.exotext.com authored by freetonik 13 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by freetonik 13 hours ago | caches | 7 comments"
+                  },
+                  {
+                    "id": "rb8pas",
+                    "username": "authored by lr0 4 hours ago | caches | 7 comments",
+                    "url": "/s/rb8pas/i_beg_you_follow_crocker_s_rules_even_if_you",
+                    "title": "7 comments",
+                    "text": "10 I beg you to follow Crocker's Rules, even if you will be rude to me culture practices lr0.org authored by lr0 4 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by lr0 4 hours ago | caches | 7 comments"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.9000000000000001,
+                  "source": "ssr-fast",
+                  "final_url": "https://lobste.rs/"
+                }
+              }
+            },
+            {
+              "endpoint_id": "fET5tHhTfF7TOWfhVb8DB",
+              "endpoint_url": "https://lobste.rs/",
+              "trigger_url": "https://lobste.rs/",
+              "execute_ms": 258,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "missing_fields:score",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "score"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "post"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [
+                  {
+                    "id": "WqwsCnFE8E",
+                    "username": "via rjzak 17 hours ago | caches | 22 comments",
+                    "url": "https://www.reddit.com/r/linux/s/WqwsCnFE8E",
+                    "title": "I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills",
+                    "text": "159 I traced $2 billion in nonprofit grants and 45 states of lobbying records to figure out who's behind the age verification bills law privacy reddit.com via rjzak 17 hours ago | caches | 22 comments Archive.org | Ghostarchive",
+                    "author": "via rjzak 17 hours ago | caches | 22 comments"
+                  },
+                  {
+                    "id": "ddrcpa",
+                    "username": "rjzak",
+                    "url": "/s/ddrcpa/i_traced_2_billion_nonprofit_grants_45",
+                    "title": "22 comments",
+                    "author": "rjzak"
+                  },
+                  {
+                    "id": "zcmoab",
+                    "username": "authored by freetonik 13 hours ago | caches | 7 comments",
+                    "url": "/s/zcmoab/windows_11_after_two_decades_macos_okay",
+                    "title": "7 comments",
+                    "text": "28 Windows 11 after two decades of macOS: okay, but also awful windows rakhim.exotext.com authored by freetonik 13 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by freetonik 13 hours ago | caches | 7 comments"
+                  },
+                  {
+                    "id": "rb8pas",
+                    "username": "authored by lr0 4 hours ago | caches | 7 comments",
+                    "url": "/s/rb8pas/i_beg_you_follow_crocker_s_rules_even_if_you",
+                    "title": "7 comments",
+                    "text": "10 I beg you to follow Crocker's Rules, even if you will be rude to me culture practices lr0.org authored by lr0 4 hours ago | caches | 7 comments Archive.org | Ghostarchive",
+                    "author": "authored by lr0 4 hours ago | caches | 7 comments"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.9000000000000001,
+                  "source": "ssr-fast",
+                  "final_url": "https://lobste.rs/"
+                }
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "missing_fields:score",
+          "repair_memory": {
+            "visited_urls": [
+              "https://lobste.rs/"
+            ],
+            "attempted_endpoint_counts": {
+              "fET5tHhTfF7TOWfhVb8DB": 2
+            },
+            "failure_class_counts": {
+              "fields": 4
+            },
+            "reasons_seen": [
+              "missing_fields:score",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "arxiv-search-papers",
+      "intent": "search papers",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "paper_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url",
+        "summary"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://arxiv.org/search/?query=openai&searchtype=all&source=header"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://arxiv.org/search/?query=openai&searchtype=all&source=header",
+          "force_capture": false,
+          "resolve_ms": 11863,
+          "skill_id": "OkjjQhBFKLurCK1YJ7xJ5",
+          "available_endpoint_ids": [
+            "hAqLE6qOK8ImelQ3X5f0q"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "hAqLE6qOK8ImelQ3X5f0q",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://arxiv.org/search/?query=openai&searchtype=all&source=header",
+              "domain": "arxiv.org",
+              "pathname": "/search/",
+              "slug_1": "search",
+              "query": "openai",
+              "searchtype": "all",
+              "source": "header"
+            },
+            "chunk": {
+              "skill_id": "OkjjQhBFKLurCK1YJ7xJ5",
+              "intent": "search papers",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "hAqLE6qOK8ImelQ3X5f0q",
+              "available_operations": [
+                {
+                  "operation_id": "hAqLE6qOK8ImelQ3X5f0q",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "message",
+                  "title": "search message",
+                  "why_available": "Runnable now; required bindings already known: query, searchtype, source.",
+                  "url_template": "https://arxiv.org/search/?query={query}&searchtype={searchtype}&source={source}",
+                  "requires": [
+                    "query",
+                    "searchtype",
+                    "source"
+                  ],
+                  "yields": [
+                    "message_name",
+                    "post_name",
+                    "message_url",
+                    "post_url",
+                    "author",
+                    "owner"
+                  ],
+                  "example_request": {
+                    "query": "openai",
+                    "searchtype": "all",
+                    "source": "header"
+                  },
+                  "example_response_compact": [
+                    {
+                      "title": "arXiv:2603.11914\n         [pdf, ps, other]",
+                      "heading_1": "Understanding LLM Behavior When Encountering User-Supplied Harmful Content in Harmless Tasks",
+                      "message": "Understanding LLM Behavior When Encountering User-Supplied Harmful Content in Harmless Tasks",
+                      "link": "https://arxiv.org/abs/2603.11914",
+                      "url": "https://arxiv.org/abs/2603.11914",
+                      "description": "arXiv:2603.11914\n         [pdf, ps, other]"
+                    },
+                    {
+                      "title": "arXiv:2603.11504\n         [pdf, ps, other]",
+                      "heading_1": "LongFlow: Efficient KV Cache Compression for Reasoning M",
+                      "message": "LongFlow: Efficient KV Cache Compression for Reasoning M",
+                      "link": "https://arxiv.org/abs/2603.11504",
+                      "url": "https://arxiv.org/abs/2603.11504",
+                      "description": "arXiv:2603.11504\n         [pdf, ps, other]"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "OkjjQhBFKLurCK1YJ7xJ5",
+              "domain": "arxiv.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:04:37.717Z"
+            },
+            "source": "live-capture",
+            "total_ms": 11830,
+            "tokens_used": 5703,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "arXiv:2603.11914\n         [pdf, ps, other]",
+                "heading_1": "Understanding LLM Behavior When Encountering User-Supplied Harmful Content in Harmless Tasks",
+                "message": "Understanding LLM Behavior When Encountering User-Supplied Harmful Content in Harmless Tasks",
+                "link": "https://arxiv.org/abs/2603.11914",
+                "url": "https://arxiv.org/abs/2603.11914",
+                "description": "arXiv:2603.11914\n         [pdf, ps, other]"
+              },
+              {
+                "title": "arXiv:2603.11504\n         [pdf, ps, other]",
+                "heading_1": "LongFlow: Efficient KV Cache Compression for Reasoning M",
+                "message": "LongFlow: Efficient KV Cache Compression for Reasoning M",
+                "link": "https://arxiv.org/abs/2603.11504",
+                "url": "https://arxiv.org/abs/2603.11504",
+                "description": "arXiv:2603.11504\n         [pdf, ps, other]"
+              },
+              {
+                "title": "arXiv:2603.11495\n         [pdf, ps, other]",
+                "heading_1": "Try, Check and Retry: A Divide-and-Conquer Framework for Boosting Long-context Tool-Calling Performance of LLMs",
+                "message": "Try, Check and Retry: A Divide-and-Conquer Framework for Boosting Long-context Tool-Calling Performance of LLMs",
+                "link": "https://arxiv.org/abs/2603.11495",
+                "url": "https://arxiv.org/abs/2603.11495",
+                "description": "arXiv:2603.11495\n         [pdf, ps, other]"
+              },
+              {
+                "title": "arXiv:2603.11414\n         [pdf]",
+                "heading_1": "MaterialFigBENCH: benchmark dataset with figures for evaluating college-level materials science problem-solving abilities of multimodal large language models",
+                "message": "MaterialFigBENCH: benchmark dataset with figures for evaluating college-level materials science problem-solving abilities of multimodal large language models",
+                "link": "https://arxiv.org/abs/2603.11414",
+                "url": "https://arxiv.org/abs/2603.11414",
+                "description": "arXiv:2603.11414\n         [pdf]"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://arxiv.org/search/?query=openai&searchtype=all&source=header",
+              "selector": "li.arxiv-result"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "hAqLE6qOK8ImelQ3X5f0q",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "paper_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url",
+                "summary"
+              ],
+              "missing_fields": [],
+              "row_count": 50,
+              "observed_entity_types": [
+                "paper"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 5703,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "arXiv:2603.11914\n         [pdf, ps, other]",
+                    "heading_1": "Understanding LLM Behavior When Encountering User-Supplied Harmful Content in Harmless Tasks",
+                    "message": "Understanding LLM Behavior When Encountering User-Supplied Harmful Content in Harmless Tasks",
+                    "link": "https://arxiv.org/abs/2603.11914",
+                    "url": "https://arxiv.org/abs/2603.11914",
+                    "description": "arXiv:2603.11914\n         [pdf, ps, other]"
+                  },
+                  {
+                    "title": "arXiv:2603.11504\n         [pdf, ps, other]",
+                    "heading_1": "LongFlow: Efficient KV Cache Compression for Reasoning M",
+                    "message": "LongFlow: Efficient KV Cache Compression for Reasoning M",
+                    "link": "https://arxiv.org/abs/2603.11504",
+                    "url": "https://arxiv.org/abs/2603.11504",
+                    "description": "arXiv:2603.11504\n         [pdf, ps, other]"
+                  },
+                  {
+                    "title": "arXiv:2603.11495\n         [pdf, ps, other]",
+                    "heading_1": "Try, Check and Retry: A Divide-and-Conquer Framework for Boosting Long-context Tool-Calling Performance of LLMs",
+                    "message": "Try, Check and Retry: A Divide-and-Conquer Framework for Boosting Long-context Tool-Calling Performance of LLMs",
+                    "link": "https://arxiv.org/abs/2603.11495",
+                    "url": "https://arxiv.org/abs/2603.11495",
+                    "description": "arXiv:2603.11495\n         [pdf, ps, other]"
+                  },
+                  {
+                    "title": "arXiv:2603.11414\n         [pdf]",
+                    "heading_1": "MaterialFigBENCH: benchmark dataset with figures for evaluating college-level materials science problem-solving abilities of multimodal large language models",
+                    "message": "MaterialFigBENCH: benchmark dataset with figures for evaluating college-level materials science problem-solving abilities of multimodal large language models",
+                    "link": "https://arxiv.org/abs/2603.11414",
+                    "url": "https://arxiv.org/abs/2603.11414",
+                    "description": "arXiv:2603.11414\n         [pdf]"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.95,
+                  "source": "ssr-fast",
+                  "final_url": "https://arxiv.org/search/?query=openai&searchtype=all&source=header",
+                  "selector": "li.arxiv-result"
+                }
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://arxiv.org/search/?query=openai&searchtype=all&source=header"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "huggingface-search-models",
+      "intent": "search models",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "missing_fields:name,url",
+      "final_source_kind": "rows",
+      "matched_fields": [
+        "downloads"
+      ],
+      "missing_fields": [
+        "name",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://huggingface.co/models?search=openai"
+        ],
+        "attempted_endpoint_counts": {
+          "2BkelYAhUGyPqNZZCrbKc": 2
+        },
+        "failure_class_counts": {
+          "fields": 4
+        },
+        "reasons_seen": [
+          "missing_fields:name,url",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://huggingface.co/models?search=openai",
+          "force_capture": false,
+          "resolve_ms": 10374,
+          "skill_id": "IfY_tUeiDS1Trtl3tJcAw",
+          "available_endpoint_ids": [
+            "2BkelYAhUGyPqNZZCrbKc"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "2BkelYAhUGyPqNZZCrbKc",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://huggingface.co/models?search=openai",
+              "domain": "huggingface.co",
+              "pathname": "/models",
+              "slug_1": "models",
+              "search": "openai"
+            },
+            "chunk": {
+              "skill_id": "IfY_tUeiDS1Trtl3tJcAw",
+              "intent": "search models",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "2BkelYAhUGyPqNZZCrbKc",
+              "available_operations": [
+                {
+                  "operation_id": "2BkelYAhUGyPqNZZCrbKc",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: search.",
+                  "url_template": "https://huggingface.co/api/models?search={search}&limit=20",
+                  "requires": [
+                    "search"
+                  ],
+                  "yields": [
+                    "_id",
+                    "id",
+                    "library_name",
+                    "resource_id"
+                  ],
+                  "example_request": {
+                    "search": "openai",
+                    "url": "https://huggingface.co/models?search=openai",
+                    "intent": "search models"
+                  },
+                  "example_response_compact": [
+                    {
+                      "_id": "68913522f16f3c8aaffccf1f",
+                      "id": "openai/gpt-oss-120b",
+                      "likes": 4570,
+                      "trendingScore": 25,
+                      "private": false,
+                      "downloads": 4687441,
+                      "tags": [
+                        "transformers",
+                        "safetensors"
+                      ],
+                      "pipeline_tag": "text-generation"
+                    },
+                    {
+                      "_id": "68913539bd3d0a833438591d",
+                      "id": "openai/gpt-oss-20b",
+                      "likes": 4453,
+                      "trendingScore": 21,
+                      "private": false,
+                      "downloads": 7475088,
+                      "tags": [
+                        "transformers",
+                        "safetensors"
+                      ],
+                      "pipeline_tag": "text-generation"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "IfY_tUeiDS1Trtl3tJcAw",
+              "domain": "huggingface.co",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:04:48.033Z"
+            },
+            "source": "live-capture",
+            "total_ms": 10406,
+            "tokens_used": 3344,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": [
+            {
+              "_id": "68913522f16f3c8aaffccf1f",
+              "id": "openai/gpt-oss-120b",
+              "likes": 4570,
+              "trendingScore": 25,
+              "private": false,
+              "downloads": 4687441,
+              "tags": [
+                "transformers",
+                "safetensors",
+                "gpt_oss",
+                "text-generation"
+              ],
+              "pipeline_tag": "text-generation",
+              "library_name": "transformers",
+              "createdAt": "2025-08-04T22:33:06.000Z",
+              "modelId": "openai/gpt-oss-120b"
+            },
+            {
+              "_id": "68913539bd3d0a833438591d",
+              "id": "openai/gpt-oss-20b",
+              "likes": 4453,
+              "trendingScore": 21,
+              "private": false,
+              "downloads": 7475088,
+              "tags": [
+                "transformers",
+                "safetensors",
+                "gpt_oss",
+                "text-generation"
+              ],
+              "pipeline_tag": "text-generation",
+              "library_name": "transformers",
+              "createdAt": "2025-08-04T22:33:29.000Z",
+              "modelId": "openai/gpt-oss-20b"
+            },
+            {
+              "_id": "698df7e2dbf892964d271265",
+              "id": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF",
+              "likes": 33,
+              "trendingScore": 20,
+              "private": false,
+              "downloads": 89088,
+              "tags": [
+                "transformers",
+                "gguf",
+                "finetune",
+                "unsloth"
+              ],
+              "library_name": "transformers",
+              "createdAt": "2026-02-12T15:55:14.000Z",
+              "modelId": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF"
+            },
+            {
+              "_id": "654a84cadff2f49007ce6c37",
+              "id": "openai/whisper-large-v3",
+              "likes": 5470,
+              "trendingScore": 16,
+              "private": false,
+              "downloads": 5485033,
+              "tags": [
+                "transformers",
+                "pytorch",
+                "jax",
+                "safetensors"
+              ],
+              "pipeline_tag": "automatic-speech-recognition",
+              "library_name": "transformers",
+              "createdAt": "2023-11-07T18:41:14.000Z",
+              "modelId": "openai/whisper-large-v3"
+            }
+          ],
+          "candidates": [
+            {
+              "endpoint_id": "2BkelYAhUGyPqNZZCrbKc",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:name,url",
+              "failure_class": "fields",
+              "source_kind": "rows",
+              "matched_fields": [
+                "downloads"
+              ],
+              "missing_fields": [
+                "name",
+                "url"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "model"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 3344,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": [
+                {
+                  "_id": "68913522f16f3c8aaffccf1f",
+                  "id": "openai/gpt-oss-120b",
+                  "likes": 4570,
+                  "trendingScore": 25,
+                  "private": false,
+                  "downloads": 4687441,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:06.000Z",
+                  "modelId": "openai/gpt-oss-120b"
+                },
+                {
+                  "_id": "68913539bd3d0a833438591d",
+                  "id": "openai/gpt-oss-20b",
+                  "likes": 4453,
+                  "trendingScore": 21,
+                  "private": false,
+                  "downloads": 7475088,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:29.000Z",
+                  "modelId": "openai/gpt-oss-20b"
+                },
+                {
+                  "_id": "698df7e2dbf892964d271265",
+                  "id": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF",
+                  "likes": 33,
+                  "trendingScore": 20,
+                  "private": false,
+                  "downloads": 89088,
+                  "tags": [
+                    "transformers",
+                    "gguf",
+                    "finetune",
+                    "unsloth"
+                  ],
+                  "library_name": "transformers",
+                  "createdAt": "2026-02-12T15:55:14.000Z",
+                  "modelId": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF"
+                },
+                {
+                  "_id": "654a84cadff2f49007ce6c37",
+                  "id": "openai/whisper-large-v3",
+                  "likes": 5470,
+                  "trendingScore": 16,
+                  "private": false,
+                  "downloads": 5485033,
+                  "tags": [
+                    "transformers",
+                    "pytorch",
+                    "jax",
+                    "safetensors"
+                  ],
+                  "pipeline_tag": "automatic-speech-recognition",
+                  "library_name": "transformers",
+                  "createdAt": "2023-11-07T18:41:14.000Z",
+                  "modelId": "openai/whisper-large-v3"
+                }
+              ]
+            },
+            {
+              "endpoint_id": "2BkelYAhUGyPqNZZCrbKc",
+              "endpoint_url": "https://huggingface.co/api/models?search={search}&limit=20",
+              "trigger_url": "https://huggingface.co/models?search=openai",
+              "execute_ms": 196,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:name,url",
+              "failure_class": "fields",
+              "source_kind": "rows",
+              "matched_fields": [
+                "downloads"
+              ],
+              "missing_fields": [
+                "name",
+                "url"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "model"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": [
+                {
+                  "_id": "68913522f16f3c8aaffccf1f",
+                  "id": "openai/gpt-oss-120b",
+                  "likes": 4570,
+                  "trendingScore": 25,
+                  "private": false,
+                  "downloads": 4687441,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:06.000Z",
+                  "modelId": "openai/gpt-oss-120b"
+                },
+                {
+                  "_id": "68913539bd3d0a833438591d",
+                  "id": "openai/gpt-oss-20b",
+                  "likes": 4453,
+                  "trendingScore": 21,
+                  "private": false,
+                  "downloads": 7475088,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:29.000Z",
+                  "modelId": "openai/gpt-oss-20b"
+                },
+                {
+                  "_id": "698df7e2dbf892964d271265",
+                  "id": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF",
+                  "likes": 33,
+                  "trendingScore": 20,
+                  "private": false,
+                  "downloads": 89088,
+                  "tags": [
+                    "transformers",
+                    "gguf",
+                    "finetune",
+                    "unsloth"
+                  ],
+                  "library_name": "transformers",
+                  "createdAt": "2026-02-12T15:55:14.000Z",
+                  "modelId": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF"
+                },
+                {
+                  "_id": "654a84cadff2f49007ce6c37",
+                  "id": "openai/whisper-large-v3",
+                  "likes": 5470,
+                  "trendingScore": 16,
+                  "private": false,
+                  "downloads": 5485033,
+                  "tags": [
+                    "transformers",
+                    "pytorch",
+                    "jax",
+                    "safetensors"
+                  ],
+                  "pipeline_tag": "automatic-speech-recognition",
+                  "library_name": "transformers",
+                  "createdAt": "2023-11-07T18:41:14.000Z",
+                  "modelId": "openai/whisper-large-v3"
+                }
+              ]
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://huggingface.co/models?search=openai"
+            ],
+            "attempted_endpoint_counts": {
+              "2BkelYAhUGyPqNZZCrbKc": 1
+            },
+            "failure_class_counts": {
+              "fields": 2
+            },
+            "reasons_seen": [
+              "missing_fields:name,url",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://huggingface.co/models?search=openai",
+          "force_capture": true,
+          "resolve_ms": 4583,
+          "skill_id": "IfY_tUeiDS1Trtl3tJcAw",
+          "available_endpoint_ids": [
+            "2BkelYAhUGyPqNZZCrbKc"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "2BkelYAhUGyPqNZZCrbKc",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://huggingface.co/models?search=openai",
+              "domain": "huggingface.co",
+              "pathname": "/models",
+              "slug_1": "models",
+              "search": "openai"
+            },
+            "chunk": {
+              "skill_id": "IfY_tUeiDS1Trtl3tJcAw",
+              "intent": "search models",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "2BkelYAhUGyPqNZZCrbKc",
+              "available_operations": [
+                {
+                  "operation_id": "2BkelYAhUGyPqNZZCrbKc",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: search.",
+                  "url_template": "https://huggingface.co/api/models?search={search}&limit=20",
+                  "requires": [
+                    "search"
+                  ],
+                  "yields": [
+                    "_id",
+                    "id",
+                    "library_name",
+                    "resource_id"
+                  ],
+                  "example_request": {
+                    "search": "openai",
+                    "url": "https://huggingface.co/models?search=openai",
+                    "intent": "search models"
+                  },
+                  "example_response_compact": [
+                    {
+                      "_id": "68913522f16f3c8aaffccf1f",
+                      "id": "openai/gpt-oss-120b",
+                      "likes": 4570,
+                      "trendingScore": 25,
+                      "private": false,
+                      "downloads": 4687441,
+                      "tags": [
+                        "transformers",
+                        "safetensors"
+                      ],
+                      "pipeline_tag": "text-generation"
+                    },
+                    {
+                      "_id": "68913539bd3d0a833438591d",
+                      "id": "openai/gpt-oss-20b",
+                      "likes": 4453,
+                      "trendingScore": 21,
+                      "private": false,
+                      "downloads": 7475088,
+                      "tags": [
+                        "transformers",
+                        "safetensors"
+                      ],
+                      "pipeline_tag": "text-generation"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "IfY_tUeiDS1Trtl3tJcAw",
+              "domain": "huggingface.co",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:04:54.042Z"
+            },
+            "source": "live-capture",
+            "total_ms": 4547,
+            "tokens_used": 3344,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": [
+            {
+              "_id": "68913522f16f3c8aaffccf1f",
+              "id": "openai/gpt-oss-120b",
+              "likes": 4570,
+              "trendingScore": 25,
+              "private": false,
+              "downloads": 4687441,
+              "tags": [
+                "transformers",
+                "safetensors",
+                "gpt_oss",
+                "text-generation"
+              ],
+              "pipeline_tag": "text-generation",
+              "library_name": "transformers",
+              "createdAt": "2025-08-04T22:33:06.000Z",
+              "modelId": "openai/gpt-oss-120b"
+            },
+            {
+              "_id": "68913539bd3d0a833438591d",
+              "id": "openai/gpt-oss-20b",
+              "likes": 4453,
+              "trendingScore": 21,
+              "private": false,
+              "downloads": 7475088,
+              "tags": [
+                "transformers",
+                "safetensors",
+                "gpt_oss",
+                "text-generation"
+              ],
+              "pipeline_tag": "text-generation",
+              "library_name": "transformers",
+              "createdAt": "2025-08-04T22:33:29.000Z",
+              "modelId": "openai/gpt-oss-20b"
+            },
+            {
+              "_id": "698df7e2dbf892964d271265",
+              "id": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF",
+              "likes": 33,
+              "trendingScore": 20,
+              "private": false,
+              "downloads": 89088,
+              "tags": [
+                "transformers",
+                "gguf",
+                "finetune",
+                "unsloth"
+              ],
+              "library_name": "transformers",
+              "createdAt": "2026-02-12T15:55:14.000Z",
+              "modelId": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF"
+            },
+            {
+              "_id": "654a84cadff2f49007ce6c37",
+              "id": "openai/whisper-large-v3",
+              "likes": 5470,
+              "trendingScore": 16,
+              "private": false,
+              "downloads": 5485033,
+              "tags": [
+                "transformers",
+                "pytorch",
+                "jax",
+                "safetensors"
+              ],
+              "pipeline_tag": "automatic-speech-recognition",
+              "library_name": "transformers",
+              "createdAt": "2023-11-07T18:41:14.000Z",
+              "modelId": "openai/whisper-large-v3"
+            }
+          ],
+          "candidates": [
+            {
+              "endpoint_id": "2BkelYAhUGyPqNZZCrbKc",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:name,url",
+              "failure_class": "fields",
+              "source_kind": "rows",
+              "matched_fields": [
+                "downloads"
+              ],
+              "missing_fields": [
+                "name",
+                "url"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "model"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 3344,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": [
+                {
+                  "_id": "68913522f16f3c8aaffccf1f",
+                  "id": "openai/gpt-oss-120b",
+                  "likes": 4570,
+                  "trendingScore": 25,
+                  "private": false,
+                  "downloads": 4687441,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:06.000Z",
+                  "modelId": "openai/gpt-oss-120b"
+                },
+                {
+                  "_id": "68913539bd3d0a833438591d",
+                  "id": "openai/gpt-oss-20b",
+                  "likes": 4453,
+                  "trendingScore": 21,
+                  "private": false,
+                  "downloads": 7475088,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:29.000Z",
+                  "modelId": "openai/gpt-oss-20b"
+                },
+                {
+                  "_id": "698df7e2dbf892964d271265",
+                  "id": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF",
+                  "likes": 33,
+                  "trendingScore": 20,
+                  "private": false,
+                  "downloads": 89088,
+                  "tags": [
+                    "transformers",
+                    "gguf",
+                    "finetune",
+                    "unsloth"
+                  ],
+                  "library_name": "transformers",
+                  "createdAt": "2026-02-12T15:55:14.000Z",
+                  "modelId": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF"
+                },
+                {
+                  "_id": "654a84cadff2f49007ce6c37",
+                  "id": "openai/whisper-large-v3",
+                  "likes": 5470,
+                  "trendingScore": 16,
+                  "private": false,
+                  "downloads": 5485033,
+                  "tags": [
+                    "transformers",
+                    "pytorch",
+                    "jax",
+                    "safetensors"
+                  ],
+                  "pipeline_tag": "automatic-speech-recognition",
+                  "library_name": "transformers",
+                  "createdAt": "2023-11-07T18:41:14.000Z",
+                  "modelId": "openai/whisper-large-v3"
+                }
+              ]
+            },
+            {
+              "endpoint_id": "2BkelYAhUGyPqNZZCrbKc",
+              "endpoint_url": "https://huggingface.co/api/models?search={search}&limit=20",
+              "trigger_url": "https://huggingface.co/models?search=openai",
+              "execute_ms": 138,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "missing_fields:name,url",
+              "failure_class": "fields",
+              "source_kind": "rows",
+              "matched_fields": [
+                "downloads"
+              ],
+              "missing_fields": [
+                "name",
+                "url"
+              ],
+              "row_count": 20,
+              "observed_entity_types": [
+                "model"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": [
+                {
+                  "_id": "68913522f16f3c8aaffccf1f",
+                  "id": "openai/gpt-oss-120b",
+                  "likes": 4570,
+                  "trendingScore": 25,
+                  "private": false,
+                  "downloads": 4687441,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:06.000Z",
+                  "modelId": "openai/gpt-oss-120b"
+                },
+                {
+                  "_id": "68913539bd3d0a833438591d",
+                  "id": "openai/gpt-oss-20b",
+                  "likes": 4453,
+                  "trendingScore": 21,
+                  "private": false,
+                  "downloads": 7475088,
+                  "tags": [
+                    "transformers",
+                    "safetensors",
+                    "gpt_oss",
+                    "text-generation"
+                  ],
+                  "pipeline_tag": "text-generation",
+                  "library_name": "transformers",
+                  "createdAt": "2025-08-04T22:33:29.000Z",
+                  "modelId": "openai/gpt-oss-20b"
+                },
+                {
+                  "_id": "698df7e2dbf892964d271265",
+                  "id": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF",
+                  "likes": 33,
+                  "trendingScore": 20,
+                  "private": false,
+                  "downloads": 89088,
+                  "tags": [
+                    "transformers",
+                    "gguf",
+                    "finetune",
+                    "unsloth"
+                  ],
+                  "library_name": "transformers",
+                  "createdAt": "2026-02-12T15:55:14.000Z",
+                  "modelId": "mradermacher/OpenAI-gpt-oss-20B-Claude-4.5-Opus-Heretic-Uncensored-i1-GGUF"
+                },
+                {
+                  "_id": "654a84cadff2f49007ce6c37",
+                  "id": "openai/whisper-large-v3",
+                  "likes": 5470,
+                  "trendingScore": 16,
+                  "private": false,
+                  "downloads": 5485033,
+                  "tags": [
+                    "transformers",
+                    "pytorch",
+                    "jax",
+                    "safetensors"
+                  ],
+                  "pipeline_tag": "automatic-speech-recognition",
+                  "library_name": "transformers",
+                  "createdAt": "2023-11-07T18:41:14.000Z",
+                  "modelId": "openai/whisper-large-v3"
+                }
+              ]
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "missing_fields:name,url",
+          "repair_memory": {
+            "visited_urls": [
+              "https://huggingface.co/models?search=openai"
+            ],
+            "attempted_endpoint_counts": {
+              "2BkelYAhUGyPqNZZCrbKc": 2
+            },
+            "failure_class_counts": {
+              "fields": 4
+            },
+            "reasons_seen": [
+              "missing_fields:name,url",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "allrecipes-search-recipes",
+      "intent": "search recipes",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "confirmation_required",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "rating"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.allrecipes.com/search?q=lasagna"
+        ],
+        "attempted_endpoint_counts": {
+          "2jL1QFp8aU9lfXCGGSvGX": 2,
+          "JhU1IdlbdJYYEvqx0K5Q_": 2,
+          "zlDw2q-ps1YDkM7Ldmn0-": 2
+        },
+        "failure_class_counts": {
+          "transport": 8
+        },
+        "reasons_seen": [
+          "unexpected_html_response",
+          "confirmation_required",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.allrecipes.com/search?q=lasagna",
+          "force_capture": false,
+          "resolve_ms": 23238,
+          "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+          "available_endpoint_ids": [
+            "JhU1IdlbdJYYEvqx0K5Q_",
+            "zlDw2q-ps1YDkM7Ldmn0-",
+            "2jL1QFp8aU9lfXCGGSvGX"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+            "selected_path": [
+              "JhU1IdlbdJYYEvqx0K5Q_"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.allrecipes.com/search?q=lasagna",
+              "domain": "www.allrecipes.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "lasagna"
+            },
+            "chunk": {
+              "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+              "intent": "search recipes",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+              "available_operations": [
+                {
+                  "operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://www.allrecipes.com/v2/token/refresh",
+                  "requires": [],
+                  "yields": []
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+              "domain": "www.allrecipes.com",
+              "auth_required": true,
+              "endpoint_count": 3,
+              "operation_count": 3,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:05:13.524Z"
+            },
+            "source": "live-capture",
+            "total_ms": 23205,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/Tr8TK2la_08CGrsGIkMOK/execute with params.endpoint_id.",
+            "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+            "available_operations": [
+              {
+                "operation_id": "2jL1QFp8aU9lfXCGGSvGX",
+                "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                "action_kind": "search",
+                "resource_kind": "post",
+                "description_out": "Searches ExternalScript",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                "method": "POST",
+                "description": "Searches ExternalScript",
+                "url": "https://www.allrecipes.com/search",
+                "score": 247.5,
+                "schema_summary": {
+                  "externalScripts": "array",
+                  "externalStylesheets": "array",
+                  "inlineSVGs": "array",
+                  "mm-myrecipes-toast_1": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://www.allrecipes.com/v2/token/refresh",
+                "score": -216.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://www.allrecipes.com/v2/token/client-generate",
+                "score": -216.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "url"
+              ],
+              "missing_fields": [
+                "title",
+                "rating"
+              ],
+              "row_count": 3,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/Tr8TK2la_08CGrsGIkMOK/execute with params.endpoint_id.",
+                "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+                "available_operations": [
+                  {
+                    "operation_id": "2jL1QFp8aU9lfXCGGSvGX",
+                    "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                    "action_kind": "search",
+                    "resource_kind": "post",
+                    "description_out": "Searches ExternalScript",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                    "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                    "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                    "method": "POST",
+                    "description": "Searches ExternalScript",
+                    "url": "https://www.allrecipes.com/search",
+                    "score": 247.5,
+                    "schema_summary": {
+                      "externalScripts": "array",
+                      "externalStylesheets": "array",
+                      "inlineSVGs": "array",
+                      "mm-myrecipes-toast_1": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://www.allrecipes.com/v2/token/refresh",
+                    "score": -216.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://www.allrecipes.com/v2/token/client-generate",
+                    "score": -216.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+              "endpoint_url": "https://www.allrecipes.com/v2/token/refresh",
+              "trigger_url": "https://www.allrecipes.com/search?q=lasagna",
+              "execute_ms": 802,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "unexpected_html_response",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "unexpected_html_response",
+                "message": "Endpoint returned HTML instead of API data for intent \"search recipes\""
+              }
+            },
+            {
+              "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+              "endpoint_url": "https://www.allrecipes.com/v2/token/client-generate",
+              "trigger_url": "https://www.allrecipes.com/search?q=lasagna",
+              "execute_ms": 873,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "unexpected_html_response",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "unexpected_html_response",
+                "message": "Endpoint returned HTML instead of API data for intent \"search recipes\""
+              }
+            },
+            {
+              "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+              "endpoint_url": "https://www.allrecipes.com/search",
+              "trigger_url": "https://www.allrecipes.com/search?q=lasagna",
+              "execute_ms": 31,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "confirmation_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "confirmation_required",
+                "message": "This endpoint (POST https://www.allrecipes.com/search) is marked as unsafe. Pass confirm_unsafe: true to proceed."
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.allrecipes.com/search?q=lasagna"
+            ],
+            "attempted_endpoint_counts": {
+              "2jL1QFp8aU9lfXCGGSvGX": 1,
+              "JhU1IdlbdJYYEvqx0K5Q_": 1,
+              "zlDw2q-ps1YDkM7Ldmn0-": 1
+            },
+            "failure_class_counts": {
+              "transport": 4
+            },
+            "reasons_seen": [
+              "unexpected_html_response",
+              "confirmation_required",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.allrecipes.com/search?q=lasagna",
+          "force_capture": true,
+          "resolve_ms": 26018,
+          "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+          "available_endpoint_ids": [
+            "JhU1IdlbdJYYEvqx0K5Q_",
+            "zlDw2q-ps1YDkM7Ldmn0-",
+            "2jL1QFp8aU9lfXCGGSvGX"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+            "selected_path": [
+              "JhU1IdlbdJYYEvqx0K5Q_"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.allrecipes.com/search?q=lasagna",
+              "domain": "www.allrecipes.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "lasagna"
+            },
+            "chunk": {
+              "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+              "intent": "search recipes",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+              "available_operations": [
+                {
+                  "operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://www.allrecipes.com/v2/token/refresh",
+                  "requires": [],
+                  "yields": []
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+              "domain": "www.allrecipes.com",
+              "auth_required": true,
+              "endpoint_count": 3,
+              "operation_count": 3,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:05:39.854Z"
+            },
+            "source": "live-capture",
+            "total_ms": 25991,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/Tr8TK2la_08CGrsGIkMOK/execute with params.endpoint_id.",
+            "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+            "available_operations": [
+              {
+                "operation_id": "2jL1QFp8aU9lfXCGGSvGX",
+                "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                "action_kind": "search",
+                "resource_kind": "post",
+                "description_out": "Searches ExternalScript",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                "method": "POST",
+                "description": "Searches ExternalScript",
+                "url": "https://www.allrecipes.com/search",
+                "score": 247.5,
+                "schema_summary": {
+                  "externalScripts": "array",
+                  "externalStylesheets": "array",
+                  "inlineSVGs": "array",
+                  "mm-myrecipes-toast_1": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://www.allrecipes.com/v2/token/refresh",
+                "score": -216.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://www.allrecipes.com/v2/token/client-generate",
+                "score": -216.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "url"
+              ],
+              "missing_fields": [
+                "title",
+                "rating"
+              ],
+              "row_count": 3,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/Tr8TK2la_08CGrsGIkMOK/execute with params.endpoint_id.",
+                "skill_id": "Tr8TK2la_08CGrsGIkMOK",
+                "available_operations": [
+                  {
+                    "operation_id": "2jL1QFp8aU9lfXCGGSvGX",
+                    "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                    "action_kind": "search",
+                    "resource_kind": "post",
+                    "description_out": "Searches ExternalScript",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                    "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                    "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+                    "method": "POST",
+                    "description": "Searches ExternalScript",
+                    "url": "https://www.allrecipes.com/search",
+                    "score": 247.5,
+                    "schema_summary": {
+                      "externalScripts": "array",
+                      "externalStylesheets": "array",
+                      "inlineSVGs": "array",
+                      "mm-myrecipes-toast_1": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://www.allrecipes.com/v2/token/refresh",
+                    "score": -216.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://www.allrecipes.com/v2/token/client-generate",
+                    "score": -216.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.allrecipes.com/search?q=lasagna"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "JhU1IdlbdJYYEvqx0K5Q_",
+              "endpoint_url": "https://www.allrecipes.com/v2/token/refresh",
+              "trigger_url": "https://www.allrecipes.com/search?q=lasagna",
+              "execute_ms": 1056,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "unexpected_html_response",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "unexpected_html_response",
+                "message": "Endpoint returned HTML instead of API data for intent \"search recipes\""
+              }
+            },
+            {
+              "endpoint_id": "zlDw2q-ps1YDkM7Ldmn0-",
+              "endpoint_url": "https://www.allrecipes.com/v2/token/client-generate",
+              "trigger_url": "https://www.allrecipes.com/search?q=lasagna",
+              "execute_ms": 2093,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "unexpected_html_response",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "unexpected_html_response",
+                "message": "Endpoint returned HTML instead of API data for intent \"search recipes\""
+              }
+            },
+            {
+              "endpoint_id": "2jL1QFp8aU9lfXCGGSvGX",
+              "endpoint_url": "https://www.allrecipes.com/search",
+              "trigger_url": "https://www.allrecipes.com/search?q=lasagna",
+              "execute_ms": 30,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "confirmation_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "confirmation_required",
+                "message": "This endpoint (POST https://www.allrecipes.com/search) is marked as unsafe. Pass confirm_unsafe: true to proceed."
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "confirmation_required",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.allrecipes.com/search?q=lasagna"
+            ],
+            "attempted_endpoint_counts": {
+              "2jL1QFp8aU9lfXCGGSvGX": 2,
+              "JhU1IdlbdJYYEvqx0K5Q_": 2,
+              "zlDw2q-ps1YDkM7Ldmn0-": 2
+            },
+            "failure_class_counts": {
+              "transport": 8
+            },
+            "reasons_seen": [
+              "unexpected_html_response",
+              "confirmation_required",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "foodnetwork-search-recipes",
+      "intent": "search recipes",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "live_capture_execute_timeout:120000",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "review_count"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.foodnetwork.com/search/lasagna-"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "intent": 1,
+          "transport": 1
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "live_capture_execute_timeout:120000"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.foodnetwork.com/search/lasagna-",
+          "force_capture": false,
+          "resolve_ms": 24786,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.foodnetwork.com/search/lasagna-",
+              "domain": "www.foodnetwork.com",
+              "pathname": "/search/lasagna-",
+              "slug_1": "search",
+              "slug_2": "lasagna-"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "search recipes",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:03:50.077Z"
+            },
+            "source": "live-capture",
+            "total_ms": 24758,
+            "tokens_used": 39,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "low_quality_dom_extraction",
+            "message": "Structured DOM extraction was rejected for https://www.foodnetwork.com/search/lasagna-: wrong_entity_type"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "low_quality_dom_extraction",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "review_count"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 39,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "low_quality_dom_extraction",
+                "message": "Structured DOM extraction was rejected for https://www.foodnetwork.com/search/lasagna-: wrong_entity_type"
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.foodnetwork.com/search/lasagna-"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.foodnetwork.com/search/lasagna-",
+          "force_capture": true,
+          "resolve_ms": 120031,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.foodnetwork.com/search/lasagna-",
+              "domain": "www.foodnetwork.com",
+              "pathname": "/search/lasagna-",
+              "slug_1": "search",
+              "slug_2": "lasagna-"
+            }
+          },
+          "resolve_excerpt": {
+            "error": "live_capture_execute_timeout:120000"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "live_capture_execute_timeout:120000",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.foodnetwork.com/search/lasagna-"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 1,
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "live_capture_execute_timeout:120000"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "epicurious-search-recipes",
+      "intent": "search recipes",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "intent_mismatch",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.epicurious.com/search?q=lasagna"
+        ],
+        "attempted_endpoint_counts": {
+          "-37cf99e_aMOp0bnNppSO": 1,
+          "1agU6TAgZbDxXz9cPafio": 1,
+          "61UPx7g4_dzfH6FygJgkT": 1,
+          "hfUVy00wMkKhvwLgXsJmz": 1,
+          "lAHX-yEkyrMBeiuhB9tPp": 1,
+          "M_Fo_HUlqexDvJLD1iaES": 1,
+          "NCQYNrBd_7w53NXcyJ4Gm": 1,
+          "OaB8puRbW8uXYDM49-uoS": 1
+        },
+        "failure_class_counts": {
+          "intent": 2,
+          "transport": 8
+        },
+        "reasons_seen": [
+          "confirmation_required",
+          "trigger_timeout",
+          "escalate_force_capture",
+          "intent_mismatch",
+          "unexpected_html_response"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.epicurious.com/search?q=lasagna",
+          "force_capture": false,
+          "resolve_ms": 33071,
+          "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+          "available_endpoint_ids": [
+            "1agU6TAgZbDxXz9cPafio",
+            "M_Fo_HUlqexDvJLD1iaES",
+            "hfUVy00wMkKhvwLgXsJmz",
+            "61UPx7g4_dzfH6FygJgkT"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "1agU6TAgZbDxXz9cPafio",
+            "selected_path": [
+              "1agU6TAgZbDxXz9cPafio"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.epicurious.com/search?q=lasagna",
+              "domain": "www.epicurious.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "lasagna"
+            },
+            "chunk": {
+              "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+              "intent": "search recipes",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "1agU6TAgZbDxXz9cPafio",
+              "available_operations": [
+                {
+                  "operation_id": "1agU6TAgZbDxXz9cPafio",
+                  "method": "POST",
+                  "action_kind": "create",
+                  "resource_kind": "post",
+                  "title": "create post",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://permutive.epicurious.com/adv/v4/segment",
+                  "requires": [],
+                  "yields": [],
+                  "example_request": {},
+                  "example_response_compact": {
+                    "c": [
+                      [
+                        [
+                          "adv"
+                        ]
+                      ],
+                      []
+                    ],
+                    "ctx": "eyJpQXQiOjE3NzM0NjQ5MDQsImtBIjpbXX0="
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+              "domain": "www.epicurious.com",
+              "auth_required": true,
+              "endpoint_count": 10,
+              "operation_count": 10,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:08:34.868Z"
+            },
+            "source": "live-capture",
+            "total_ms": 33038,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 9 endpoint(s). Pick one and call POST /v1/skills/Q6XIMMdBra9yR_pnTbdA3/execute with params.endpoint_id.",
+            "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+            "available_operations": [
+              {
+                "operation_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                "endpoint_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                "action_kind": "create",
+                "resource_kind": "event",
+                "description_out": "Creates event with code, content, and ids",
+                "requires": [],
+                "provides": [
+                  "id",
+                  "event_id"
+                ],
+                "runnable": true
+              },
+              {
+                "operation_id": "lAHX-yEkyrMBeiuhB9tPp",
+                "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Returns resource details with geo info, continent, and country",
+                "requires": [
+                  "include",
+                  "k"
+                ],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "-37cf99e_aMOp0bnNppSO",
+                "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                "action_kind": "create",
+                "resource_kind": "post",
+                "description_out": "Creates post with url, entities, and keywords",
+                "requires": [],
+                "provides": [
+                  "post_url",
+                  "status_url",
+                  "tweet_url",
+                  "query"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "1agU6TAgZbDxXz9cPafio",
+                "method": "POST",
+                "description": "Creates post with c and ctx",
+                "url": "https://permutive.epicurious.com/adv/v4/segment",
+                "score": -37.3,
+                "schema_summary": {
+                  "c": "array",
+                  "ctx": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "M_Fo_HUlqexDvJLD1iaES",
+                "method": "POST",
+                "description": "Returns message status with ids, error, and status code",
+                "url": "https://permutive.epicurious.com/clm/v1/segment",
+                "score": -37.6,
+                "schema_summary": {
+                  "request_id": "string",
+                  "error": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                "method": "POST",
+                "description": "Creates post with url, entities, and keywords",
+                "url": "https://permutive.epicurious.com/v2.0/watson",
+                "score": -69.4,
+                "schema_summary": {
+                  "url": "string",
+                  "entities": "array",
+                  "keywords": "array",
+                  "concepts": "array",
+                  "taxonomy": "array",
+                  "updated": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                "method": "GET",
+                "description": "Returns resource details with geo info, continent, and country",
+                "url": "https://permutive.epicurious.com/v2.0/geoip?include={include}&k={k}",
+                "score": -72.6,
+                "schema_summary": {
+                  "geo_info": "object",
+                  "isp_info": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "url",
+                "description"
+              ],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 9,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "side_effect_observed": "updated",
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 9 endpoint(s). Pick one and call POST /v1/skills/Q6XIMMdBra9yR_pnTbdA3/execute with params.endpoint_id.",
+                "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+                "available_operations": [
+                  {
+                    "operation_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                    "endpoint_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                    "action_kind": "create",
+                    "resource_kind": "event",
+                    "description_out": "Creates event with code, content, and ids",
+                    "requires": [],
+                    "provides": [
+                      "id",
+                      "event_id"
+                    ],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "lAHX-yEkyrMBeiuhB9tPp",
+                    "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Returns resource details with geo info, continent, and country",
+                    "requires": [
+                      "include",
+                      "k"
+                    ],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "-37cf99e_aMOp0bnNppSO",
+                    "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                    "action_kind": "create",
+                    "resource_kind": "post",
+                    "description_out": "Creates post with url, entities, and keywords",
+                    "requires": [],
+                    "provides": [
+                      "post_url",
+                      "status_url",
+                      "tweet_url",
+                      "query"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "1agU6TAgZbDxXz9cPafio",
+                    "method": "POST",
+                    "description": "Creates post with c and ctx",
+                    "url": "https://permutive.epicurious.com/adv/v4/segment",
+                    "score": -37.3,
+                    "schema_summary": {
+                      "c": "array",
+                      "ctx": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "M_Fo_HUlqexDvJLD1iaES",
+                    "method": "POST",
+                    "description": "Returns message status with ids, error, and status code",
+                    "url": "https://permutive.epicurious.com/clm/v1/segment",
+                    "score": -37.6,
+                    "schema_summary": {
+                      "request_id": "string",
+                      "error": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                    "method": "POST",
+                    "description": "Creates post with url, entities, and keywords",
+                    "url": "https://permutive.epicurious.com/v2.0/watson",
+                    "score": -69.4,
+                    "schema_summary": {
+                      "url": "string",
+                      "entities": "array",
+                      "keywords": "array",
+                      "concepts": "array",
+                      "taxonomy": "array",
+                      "updated": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                    "method": "GET",
+                    "description": "Returns resource details with geo info, continent, and country",
+                    "url": "https://permutive.epicurious.com/v2.0/geoip?include={include}&k={k}",
+                    "score": -72.6,
+                    "schema_summary": {
+                      "geo_info": "object",
+                      "isp_info": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "1agU6TAgZbDxXz9cPafio",
+              "endpoint_url": "https://permutive.epicurious.com/adv/v4/segment",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 34,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "confirmation_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "confirmation_required",
+                "message": "This endpoint (POST https://permutive.epicurious.com/adv/v4/segment) is marked as unsafe. Pass confirm_unsafe: true to proceed."
+              }
+            },
+            {
+              "endpoint_id": "M_Fo_HUlqexDvJLD1iaES",
+              "endpoint_url": "https://permutive.epicurious.com/clm/v1/segment",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 30,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "confirmation_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "confirmation_required",
+                "message": "This endpoint (POST https://permutive.epicurious.com/clm/v1/segment) is marked as unsafe. Pass confirm_unsafe: true to proceed."
+              }
+            },
+            {
+              "endpoint_id": "hfUVy00wMkKhvwLgXsJmz",
+              "endpoint_url": "https://www.epicurious.com/api/payment/revalidate",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 15780,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            },
+            {
+              "endpoint_id": "61UPx7g4_dzfH6FygJgkT",
+              "endpoint_url": "https://www.epicurious.com/api/payment/validate",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 17566,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.epicurious.com/search?q=lasagna"
+            ],
+            "attempted_endpoint_counts": {
+              "1agU6TAgZbDxXz9cPafio": 1,
+              "61UPx7g4_dzfH6FygJgkT": 1,
+              "hfUVy00wMkKhvwLgXsJmz": 1,
+              "M_Fo_HUlqexDvJLD1iaES": 1
+            },
+            "failure_class_counts": {
+              "transport": 5
+            },
+            "reasons_seen": [
+              "confirmation_required",
+              "trigger_timeout",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.epicurious.com/search?q=lasagna",
+          "force_capture": true,
+          "resolve_ms": 34259,
+          "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+          "available_endpoint_ids": [
+            "NCQYNrBd_7w53NXcyJ4Gm",
+            "OaB8puRbW8uXYDM49-uoS",
+            "lAHX-yEkyrMBeiuhB9tPp",
+            "-37cf99e_aMOp0bnNppSO"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "NCQYNrBd_7w53NXcyJ4Gm",
+            "selected_path": [
+              "NCQYNrBd_7w53NXcyJ4Gm"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.epicurious.com/search?q=lasagna",
+              "domain": "www.epicurious.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "lasagna"
+            },
+            "chunk": {
+              "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+              "intent": "search recipes",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "NCQYNrBd_7w53NXcyJ4Gm",
+              "available_operations": [
+                {
+                  "operation_id": "NCQYNrBd_7w53NXcyJ4Gm",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://www.epicurious.com/api/access/revalidate",
+                  "requires": [],
+                  "yields": []
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+              "domain": "www.epicurious.com",
+              "auth_required": true,
+              "endpoint_count": 14,
+              "operation_count": 14,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:09:40.432Z"
+            },
+            "source": "live-capture",
+            "total_ms": 34218,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 13 endpoint(s). Pick one and call POST /v1/skills/Q6XIMMdBra9yR_pnTbdA3/execute with params.endpoint_id.",
+            "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+            "available_operations": [
+              {
+                "operation_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                "endpoint_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                "action_kind": "create",
+                "resource_kind": "event",
+                "description_out": "Creates event with code, content, and ids",
+                "requires": [],
+                "provides": [
+                  "id",
+                  "event_id"
+                ],
+                "runnable": true
+              },
+              {
+                "operation_id": "lAHX-yEkyrMBeiuhB9tPp",
+                "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Returns resource details with geo info, continent, and country",
+                "requires": [
+                  "include",
+                  "k"
+                ],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "-37cf99e_aMOp0bnNppSO",
+                "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                "action_kind": "create",
+                "resource_kind": "post",
+                "description_out": "Creates post with url, entities, and keywords",
+                "requires": [],
+                "provides": [
+                  "post_url",
+                  "status_url",
+                  "tweet_url",
+                  "query"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "1agU6TAgZbDxXz9cPafio",
+                "method": "POST",
+                "description": "Creates post with c and ctx",
+                "url": "https://permutive.epicurious.com/adv/v4/segment",
+                "score": -37.6,
+                "schema_summary": {
+                  "c": "array",
+                  "ctx": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "M_Fo_HUlqexDvJLD1iaES",
+                "method": "POST",
+                "description": "Returns message status with ids, error, and status code",
+                "url": "https://permutive.epicurious.com/clm/v1/segment",
+                "score": -37.8,
+                "schema_summary": {
+                  "request_id": "string",
+                  "error": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                "method": "POST",
+                "description": "Creates post with url, entities, and keywords",
+                "url": "https://permutive.epicurious.com/v2.0/watson",
+                "score": -69.7,
+                "schema_summary": {
+                  "url": "string",
+                  "entities": "array",
+                  "keywords": "array",
+                  "concepts": "array",
+                  "taxonomy": "array",
+                  "updated": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              },
+              {
+                "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                "method": "GET",
+                "description": "Returns resource details with geo info, continent, and country",
+                "url": "https://permutive.epicurious.com/v2.0/geoip?include={include}&k={k}",
+                "score": -72.9,
+                "schema_summary": {
+                  "geo_info": "object",
+                  "isp_info": "object"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "url",
+                "description"
+              ],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 10,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "side_effect_observed": "updated",
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 13 endpoint(s). Pick one and call POST /v1/skills/Q6XIMMdBra9yR_pnTbdA3/execute with params.endpoint_id.",
+                "skill_id": "Q6XIMMdBra9yR_pnTbdA3",
+                "available_operations": [
+                  {
+                    "operation_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                    "endpoint_id": "-fx1Bwl_ZhmA1EiN_Plum",
+                    "action_kind": "create",
+                    "resource_kind": "event",
+                    "description_out": "Creates event with code, content, and ids",
+                    "requires": [],
+                    "provides": [
+                      "id",
+                      "event_id"
+                    ],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "lAHX-yEkyrMBeiuhB9tPp",
+                    "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Returns resource details with geo info, continent, and country",
+                    "requires": [
+                      "include",
+                      "k"
+                    ],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "-37cf99e_aMOp0bnNppSO",
+                    "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                    "action_kind": "create",
+                    "resource_kind": "post",
+                    "description_out": "Creates post with url, entities, and keywords",
+                    "requires": [],
+                    "provides": [
+                      "post_url",
+                      "status_url",
+                      "tweet_url",
+                      "query"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "1agU6TAgZbDxXz9cPafio",
+                    "method": "POST",
+                    "description": "Creates post with c and ctx",
+                    "url": "https://permutive.epicurious.com/adv/v4/segment",
+                    "score": -37.6,
+                    "schema_summary": {
+                      "c": "array",
+                      "ctx": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "M_Fo_HUlqexDvJLD1iaES",
+                    "method": "POST",
+                    "description": "Returns message status with ids, error, and status code",
+                    "url": "https://permutive.epicurious.com/clm/v1/segment",
+                    "score": -37.8,
+                    "schema_summary": {
+                      "request_id": "string",
+                      "error": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+                    "method": "POST",
+                    "description": "Creates post with url, entities, and keywords",
+                    "url": "https://permutive.epicurious.com/v2.0/watson",
+                    "score": -69.7,
+                    "schema_summary": {
+                      "url": "string",
+                      "entities": "array",
+                      "keywords": "array",
+                      "concepts": "array",
+                      "taxonomy": "array",
+                      "updated": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  },
+                  {
+                    "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+                    "method": "GET",
+                    "description": "Returns resource details with geo info, continent, and country",
+                    "url": "https://permutive.epicurious.com/v2.0/geoip?include={include}&k={k}",
+                    "score": -72.9,
+                    "schema_summary": {
+                      "geo_info": "object",
+                      "isp_info": "object"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.epicurious.com/search?q=lasagna"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "NCQYNrBd_7w53NXcyJ4Gm",
+              "endpoint_url": "https://www.epicurious.com/api/access/revalidate",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 220,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "intent_mismatch",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "intent_mismatch",
+                "message": "Execution result did not satisfy intent \"search recipes\": wrong_entity_type",
+                "projected": {}
+              }
+            },
+            {
+              "endpoint_id": "OaB8puRbW8uXYDM49-uoS",
+              "endpoint_url": "https://www.epicurious.com/api/savePreference",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 111,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "confirmation_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "confirmation_required",
+                "message": "This endpoint (POST https://permutive.epicurious.com/adv/v4/segment) is marked as unsafe. Pass confirm_unsafe: true to proceed."
+              }
+            },
+            {
+              "endpoint_id": "lAHX-yEkyrMBeiuhB9tPp",
+              "endpoint_url": "https://permutive.epicurious.com/v2.0/geoip?include={include}&k={k}",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 8378,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "unexpected_html_response",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "unexpected_html_response",
+                "message": "Endpoint returned HTML instead of API data for intent \"search recipes\""
+              }
+            },
+            {
+              "endpoint_id": "-37cf99e_aMOp0bnNppSO",
+              "endpoint_url": "https://permutive.epicurious.com/v2.0/watson",
+              "trigger_url": "https://www.epicurious.com/search?q=lasagna",
+              "execute_ms": 68,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "confirmation_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "confirmation_required",
+                "message": "This endpoint (POST https://permutive.epicurious.com/v2.0/watson) is marked as unsafe. Pass confirm_unsafe: true to proceed."
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.epicurious.com/search?q=lasagna"
+            ],
+            "attempted_endpoint_counts": {
+              "-37cf99e_aMOp0bnNppSO": 1,
+              "1agU6TAgZbDxXz9cPafio": 1,
+              "61UPx7g4_dzfH6FygJgkT": 1,
+              "hfUVy00wMkKhvwLgXsJmz": 1,
+              "lAHX-yEkyrMBeiuhB9tPp": 1,
+              "M_Fo_HUlqexDvJLD1iaES": 1,
+              "NCQYNrBd_7w53NXcyJ4Gm": 1,
+              "OaB8puRbW8uXYDM49-uoS": 1
+            },
+            "failure_class_counts": {
+              "intent": 2,
+              "transport": 8
+            },
+            "reasons_seen": [
+              "confirmation_required",
+              "trigger_timeout",
+              "escalate_force_capture",
+              "intent_mismatch",
+              "unexpected_html_response"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "coursera-search-courses",
+      "intent": "search courses",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "missing_fields:rating",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url"
+      ],
+      "missing_fields": [
+        "rating"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.coursera.org/search?query=machine%20learning"
+        ],
+        "attempted_endpoint_counts": {
+          "frTvHs5vcr5dZ6W5Cjgpi": 2
+        },
+        "failure_class_counts": {
+          "fields": 4
+        },
+        "reasons_seen": [
+          "missing_fields:rating",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.coursera.org/search?query=machine%20learning",
+          "force_capture": false,
+          "resolve_ms": 10488,
+          "skill_id": "N-ach7KomdCLr1sfEtWGa",
+          "available_endpoint_ids": [
+            "frTvHs5vcr5dZ6W5Cjgpi"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "frTvHs5vcr5dZ6W5Cjgpi",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.coursera.org/search?query=machine%20learning",
+              "domain": "www.coursera.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "query": "machine learning"
+            },
+            "chunk": {
+              "skill_id": "N-ach7KomdCLr1sfEtWGa",
+              "intent": "search courses",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "frTvHs5vcr5dZ6W5Cjgpi",
+              "available_operations": [
+                {
+                  "operation_id": "frTvHs5vcr5dZ6W5Cjgpi",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: query.",
+                  "url_template": "https://www.coursera.org/search?query={query}",
+                  "requires": [
+                    "query"
+                  ],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "query": "machine learning"
+                  },
+                  "example_response_compact": [
+                    {
+                      "title": "Results for \"machine learning\"",
+                      "heading_1": "Machine Learning",
+                      "heading_2": "Machine Learning",
+                      "heading_3": "Machine Learning with Python",
+                      "heading_4": "Machine Learning with Python",
+                      "heading_5": "IBM Machine Learning",
+                      "heading_6": "IBM Machine Learning",
+                      "heading_7": "Mathematics for Machine Learning"
+                    },
+                    {
+                      "title": "Results for \"machine learning\"",
+                      "heading_1": "Machine Learning",
+                      "heading_2": "Machine Learning",
+                      "heading_3": "Machine Learning with Python",
+                      "heading_4": "Machine Learning with Python",
+                      "heading_5": "IBM Machine Learning",
+                      "heading_6": "IBM Machine Learning",
+                      "heading_7": "Mathematics for Machine Learning"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "N-ach7KomdCLr1sfEtWGa",
+              "domain": "coursera.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:10:11.177Z"
+            },
+            "source": "live-capture",
+            "total_ms": 10444,
+            "tokens_used": 974,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "All Results",
+                "heading_1": "Machine Learning",
+                "heading_2": "Machine Learning",
+                "heading_3": "Machine Learning with Python",
+                "heading_4": "Machine Learning with Python",
+                "heading_5": "IBM Machine Learning",
+                "heading_6": "IBM Machine Learning",
+                "heading_7": "Supervised Machine Learning: Regression and Classification",
+                "heading_8": "Supervised Machine Learning: Regression and Classification",
+                "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_11": "Mathematics for Machine Learning"
+              },
+              {
+                "title": "All Results",
+                "heading_1": "Machine Learning",
+                "heading_2": "Machine Learning",
+                "heading_3": "Machine Learning with Python",
+                "heading_4": "Machine Learning with Python",
+                "heading_5": "IBM Machine Learning",
+                "heading_6": "IBM Machine Learning",
+                "heading_7": "Supervised Machine Learning: Regression and Classification",
+                "heading_8": "Supervised Machine Learning: Regression and Classification",
+                "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_11": "Mathematics for Machine Learning"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://www.coursera.org/search?query=machine%20learning",
+              "selector": "div.cds-9.css-0.cds-11.cds-grid-item"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "frTvHs5vcr5dZ6W5Cjgpi",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:rating",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "rating"
+              ],
+              "row_count": 2,
+              "observed_entity_types": [
+                "course"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 974,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  },
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.95,
+                  "source": "ssr-fast",
+                  "final_url": "https://www.coursera.org/search?query=machine%20learning",
+                  "selector": "div.cds-9.css-0.cds-11.cds-grid-item"
+                }
+              }
+            },
+            {
+              "endpoint_id": "frTvHs5vcr5dZ6W5Cjgpi",
+              "endpoint_url": "https://www.coursera.org/search?query={query}",
+              "trigger_url": "https://www.coursera.org/search?query=machine%20learning",
+              "execute_ms": 861,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:rating",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "rating"
+              ],
+              "row_count": 2,
+              "observed_entity_types": [
+                "course"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  },
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.95,
+                  "source": "ssr-fast",
+                  "final_url": "https://www.coursera.org/search?query=machine%20learning",
+                  "selector": "div.cds-9.css-0.cds-11.cds-grid-item"
+                }
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.coursera.org/search?query=machine%20learning"
+            ],
+            "attempted_endpoint_counts": {
+              "frTvHs5vcr5dZ6W5Cjgpi": 1
+            },
+            "failure_class_counts": {
+              "fields": 2
+            },
+            "reasons_seen": [
+              "missing_fields:rating",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.coursera.org/search?query=machine%20learning",
+          "force_capture": true,
+          "resolve_ms": 5951,
+          "skill_id": "N-ach7KomdCLr1sfEtWGa",
+          "available_endpoint_ids": [
+            "frTvHs5vcr5dZ6W5Cjgpi"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "frTvHs5vcr5dZ6W5Cjgpi",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.coursera.org/search?query=machine%20learning",
+              "domain": "www.coursera.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "query": "machine learning"
+            },
+            "chunk": {
+              "skill_id": "N-ach7KomdCLr1sfEtWGa",
+              "intent": "search courses",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "frTvHs5vcr5dZ6W5Cjgpi",
+              "available_operations": [
+                {
+                  "operation_id": "frTvHs5vcr5dZ6W5Cjgpi",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: query.",
+                  "url_template": "https://www.coursera.org/search?query={query}",
+                  "requires": [
+                    "query"
+                  ],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "query": "machine learning"
+                  },
+                  "example_response_compact": [
+                    {
+                      "title": "All Results",
+                      "heading_1": "Machine Learning",
+                      "heading_2": "Machine Learning",
+                      "heading_3": "Machine Learning with Python",
+                      "heading_4": "Machine Learning with Python",
+                      "heading_5": "IBM Machine Learning",
+                      "heading_6": "IBM Machine Learning",
+                      "heading_7": "Supervised Machine Learning: Regression and Classification"
+                    },
+                    {
+                      "title": "All Results",
+                      "heading_1": "Machine Learning",
+                      "heading_2": "Machine Learning",
+                      "heading_3": "Machine Learning with Python",
+                      "heading_4": "Machine Learning with Python",
+                      "heading_5": "IBM Machine Learning",
+                      "heading_6": "IBM Machine Learning",
+                      "heading_7": "Supervised Machine Learning: Regression and Classification"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "N-ach7KomdCLr1sfEtWGa",
+              "domain": "coursera.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:10:19.489Z"
+            },
+            "source": "live-capture",
+            "total_ms": 5920,
+            "tokens_used": 974,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "All Results",
+                "heading_1": "Machine Learning",
+                "heading_2": "Machine Learning",
+                "heading_3": "Machine Learning with Python",
+                "heading_4": "Machine Learning with Python",
+                "heading_5": "IBM Machine Learning",
+                "heading_6": "IBM Machine Learning",
+                "heading_7": "Supervised Machine Learning: Regression and Classification",
+                "heading_8": "Supervised Machine Learning: Regression and Classification",
+                "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_11": "Mathematics for Machine Learning"
+              },
+              {
+                "title": "All Results",
+                "heading_1": "Machine Learning",
+                "heading_2": "Machine Learning",
+                "heading_3": "Machine Learning with Python",
+                "heading_4": "Machine Learning with Python",
+                "heading_5": "IBM Machine Learning",
+                "heading_6": "IBM Machine Learning",
+                "heading_7": "Supervised Machine Learning: Regression and Classification",
+                "heading_8": "Supervised Machine Learning: Regression and Classification",
+                "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                "heading_11": "Mathematics for Machine Learning"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://www.coursera.org/search?query=machine%20learning",
+              "selector": "div.cds-9.css-0.cds-11.cds-grid-item"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "frTvHs5vcr5dZ6W5Cjgpi",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:rating",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "rating"
+              ],
+              "row_count": 2,
+              "observed_entity_types": [
+                "course"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 974,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  },
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.95,
+                  "source": "ssr-fast",
+                  "final_url": "https://www.coursera.org/search?query=machine%20learning",
+                  "selector": "div.cds-9.css-0.cds-11.cds-grid-item"
+                }
+              }
+            },
+            {
+              "endpoint_id": "frTvHs5vcr5dZ6W5Cjgpi",
+              "endpoint_url": "https://www.coursera.org/search?query={query}",
+              "trigger_url": "https://www.coursera.org/search?query=machine%20learning",
+              "execute_ms": 624,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "missing_fields:rating",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [
+                "rating"
+              ],
+              "row_count": 2,
+              "observed_entity_types": [
+                "course"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  },
+                  {
+                    "title": "All Results",
+                    "heading_1": "Machine Learning",
+                    "heading_2": "Machine Learning",
+                    "heading_3": "Machine Learning with Python",
+                    "heading_4": "Machine Learning with Python",
+                    "heading_5": "IBM Machine Learning",
+                    "heading_6": "IBM Machine Learning",
+                    "heading_7": "Supervised Machine Learning: Regression and Classification",
+                    "heading_8": "Supervised Machine Learning: Regression and Classification",
+                    "heading_9": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_10": "Fundamentals of Machine Learning and Artificial Intelligence",
+                    "heading_11": "Mathematics for Machine Learning"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.95,
+                  "source": "ssr-fast",
+                  "final_url": "https://www.coursera.org/search?query=machine%20learning",
+                  "selector": "div.cds-9.css-0.cds-11.cds-grid-item"
+                }
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "missing_fields:rating",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.coursera.org/search?query=machine%20learning"
+            ],
+            "attempted_endpoint_counts": {
+              "frTvHs5vcr5dZ6W5Cjgpi": 2
+            },
+            "failure_class_counts": {
+              "fields": 4
+            },
+            "reasons_seen": [
+              "missing_fields:rating",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cambridge-get-definition",
+      "intent": "get definition",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "low_quality_dom_extraction",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "term",
+        "definition"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://dictionary.cambridge.org/dictionary/english/agent"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "dag": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "low_quality_dom_extraction"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+          "force_capture": false,
+          "resolve_ms": 11270,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+              "domain": "dictionary.cambridge.org",
+              "pathname": "/dictionary/english/agent",
+              "slug_1": "dictionary",
+              "slug_2": "english",
+              "slug_3": "agent"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get definition",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:03:50.077Z"
+            },
+            "source": "live-capture",
+            "total_ms": 11229,
+            "tokens_used": 54,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "low_quality_dom_extraction",
+            "message": "Structured DOM extraction was rejected for https://dictionary.cambridge.org/dictionary/english/agent: all items share the same \"link\" — likely navigation chrome"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "low_quality_dom_extraction",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "term",
+                "definition"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 54,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "low_quality_dom_extraction",
+                "message": "Structured DOM extraction was rejected for https://dictionary.cambridge.org/dictionary/english/agent: all items share the same \"link\" — likely navigation chrome"
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://dictionary.cambridge.org/dictionary/english/agent"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+          "force_capture": true,
+          "resolve_ms": 20532,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+              "domain": "dictionary.cambridge.org",
+              "pathname": "/dictionary/english/agent",
+              "slug_1": "dictionary",
+              "slug_2": "english",
+              "slug_3": "agent"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get definition",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:03:50.077Z"
+            },
+            "source": "live-capture",
+            "total_ms": 20496,
+            "tokens_used": 54,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "low_quality_dom_extraction",
+            "message": "Structured DOM extraction was rejected for https://dictionary.cambridge.org/dictionary/english/agent: all items share the same \"link\" — likely navigation chrome"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "low_quality_dom_extraction",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "term",
+                "definition"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 54,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "low_quality_dom_extraction",
+                "message": "Structured DOM extraction was rejected for https://dictionary.cambridge.org/dictionary/english/agent: all items share the same \"link\" — likely navigation chrome"
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "low_quality_dom_extraction",
+          "repair_memory": {
+            "visited_urls": [
+              "https://dictionary.cambridge.org/dictionary/english/agent"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "low_quality_dom_extraction"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -59,6 +59,17 @@ describe("root runtime regressions", () => {
     });
   });
 
+  it("hydrates semantic tag params from route context when the api template is query-based", () => {
+    const merged = mergeContextTemplateParams(
+      {},
+      "https://dev.to/api/articles?tag={tag}&per_page=20",
+      "https://dev.to/t/javascript",
+    );
+    expect(merged).toEqual({
+      tag: "javascript",
+    });
+  });
+
   it("unwraps extracted payload wrappers before intent projection", () => {
     const projected = projectResultForIntent({
       data: [

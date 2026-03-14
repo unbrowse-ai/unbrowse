@@ -104,12 +104,12 @@ describe("input payload ingestion", () => {
     expect(endpoints).toHaveLength(1);
     expect(endpoints[0].body).toEqual({
       q: "openai",
-      limit: 5,
+      limit: "{limit}",
       filters: { type: "package" },
     });
     expect(endpoints[0].semantic?.example_request).toMatchObject({
       q: "openai",
-      limit: 5,
+      limit: "{limit}",
       filters: { type: "package" },
     });
   });

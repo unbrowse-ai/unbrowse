@@ -1,0 +1,47 @@
+{
+  "summary": {
+    "final_state": "fail",
+    "goal_satisfied": false,
+    "final_reason": "step:dashboard-widgets:min_rows:1/2",
+    "total_ms": 68667,
+    "performance_total_ms": 68667,
+    "error_count": 2,
+    "failed_step_ids": [
+      "dashboard-widgets"
+    ],
+    "exceeded_step_budget_ids": [],
+    "exceeded_total_budget": true
+  },
+  "bootstrap": {
+    "strategy": "scripted_login",
+    "status": "ready",
+    "reason": "scripted_login_ok",
+    "cookies_found": 1,
+    "matched_required_cookies": [],
+    "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+    "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+    "elapsed_ms": 5270,
+    "used_existing_session": false
+  },
+  "workflow": {
+    "step_results": [
+      {
+        "id": "dashboard-widgets",
+        "phase": "step",
+        "required": true,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.orangehrm-dashboard.step.dashboard-widgets.json",
+        "final_state": "fail",
+        "goal_satisfied": false,
+        "final_reason": "min_rows:1/2",
+        "matched_fields": [],
+        "missing_fields": [
+          "title"
+        ],
+        "total_ms": 68667,
+        "performance_total_ms": 68667,
+        "performance_basis": "raw",
+        "rounds": 2
+      }
+    ]
+  }
+}

@@ -406,6 +406,16 @@ function bindingIdentity(binding: OperationBinding): string {
   ].join("|");
 }
 
+function isGenericBindingKey(key: string | undefined): boolean {
+  if (!key) return true;
+  return /^(id|ids|url|urls|page|cursor|offset|limit|slug(?:_\d+)?|pathname|domain|query|q|type|name)$/.test(key);
+}
+
+function isGenericSemanticType(type: string | undefined): boolean {
+  if (!type) return true;
+  return /^(identifier|input|resource|value|string|number|flag)$/.test(type);
+}
+
 function mergeBindings(primary: OperationBinding[] = [], secondary: OperationBinding[] = []): OperationBinding[] {
   const merged: OperationBinding[] = [];
   const seen = new Set<string>();
@@ -650,10 +660,15 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
     for (const required of target.requires) {
       for (const source of operations) {
         if (source.operation_id === target.operation_id) continue;
-        const match = source.provides.find((provided) =>
-          provided.key === required.key ||
-          (provided.semantic_type && required.semantic_type && provided.semantic_type === required.semantic_type)
-        );
+        const match = source.provides.find((provided) => {
+          const exactKeyMatch = provided.key === required.key && !isGenericBindingKey(required.key);
+          const semanticMatch =
+            !!provided.semantic_type &&
+            !!required.semantic_type &&
+            provided.semantic_type === required.semantic_type &&
+            !isGenericSemanticType(required.semantic_type);
+          return exactKeyMatch || semanticMatch;
+        });
         if (!match) continue;
         if (!isBefore(source.observed_at, target.observed_at)) continue;
         const edgeId = `${source.operation_id}:${target.operation_id}:${required.key}`;

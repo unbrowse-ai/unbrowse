@@ -1,5 +1,6 @@
 import type { Env, AgentProfile } from "../types.js";
 import { statsKV } from "./kv.js";
+import { CURRENT_TOS_VERSION } from "../tos.js";
 
 const MAX_ACTIVITY_DAYS = 90;
 const agentWriteQueue = new Map<string, Promise<void>>();
@@ -34,12 +35,41 @@ async function mutateAgentProfile(
 ): Promise<void> {
   if (agentId === "__admin__") return;
   await queueAgentWrite(agentId, async () => {
-    const profile = await getAgent(env, agentId);
-    if (!profile) return;
+    const profile = await ensureAgentProfile(env, agentId);
     await mutate(profile);
     profile.activity_dates = normalizeActivityDates(profile.activity_dates);
     await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
   });
+}
+
+function recoveredAgentName(agentId: string): string {
+  return `recovered-${agentId.slice(-8)}`;
+}
+
+export async function ensureAgentProfile(
+  env: Env,
+  agentId: string,
+  seed?: Partial<Pick<AgentProfile, "name" | "created_at" | "tos_accepted_version" | "tos_accepted_at">>,
+): Promise<AgentProfile> {
+  const existing = await getAgent(env, agentId);
+  if (existing) return existing;
+
+  const now = new Date().toISOString();
+  const profile: AgentProfile = {
+    agent_id: agentId,
+    name: seed?.name?.trim() || recoveredAgentName(agentId),
+    created_at: seed?.created_at || now,
+    profile_origin: "recovered",
+    recovered_at: now,
+    skills_discovered: [],
+    total_executions: 0,
+    total_feedback_given: 0,
+    tos_accepted_version: seed?.tos_accepted_version ?? CURRENT_TOS_VERSION,
+    tos_accepted_at: seed?.tos_accepted_at ?? now,
+    activity_dates: [],
+  };
+  await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
+  return profile;
 }
 
 async function createUnkeyKey(
@@ -83,6 +113,7 @@ export async function registerAgent(
     agent_id: data.keyId,
     name: trimmed,
     created_at: new Date().toISOString(),
+    profile_origin: "registered",
     skills_discovered: [],
     total_executions: 0,
     total_feedback_given: 0,

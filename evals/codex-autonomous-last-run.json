@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "total": 0,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 0,
+    "unsatisfied": 0,
+    "max_rounds": 2,
+    "max_candidates": 2,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": []
+}

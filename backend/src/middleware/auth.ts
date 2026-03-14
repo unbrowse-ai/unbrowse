@@ -1,9 +1,17 @@
 import type { Context, Next } from "hono";
 import type { Env } from "../types.js";
 import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
-import { getAgent, recordAgentActivity } from "../services/agents.js";
+import { ensureAgentProfile, recordAgentActivity } from "../services/agents.js";
 
 type AuthEnv = { Bindings: Env; Variables: { agent_id: string } };
+
+function queueAgentActivity(c: Context<AuthEnv>, agentId: string): void {
+  try {
+    c.executionCtx.waitUntil(recordAgentActivity(c.env, agentId));
+  } catch {
+    void recordAgentActivity(c.env, agentId);
+  }
+}
 
 async function verifyUnkey(rootKey: string, key: string, env?: Env, tags?: string[]): Promise<{ valid: boolean; keyId?: string; code?: string }> {
   // Staging: skip Unkey verification — accept any bearer token
@@ -59,7 +67,7 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   }
 
   // Enforce ToS acceptance
-  const profile = await getAgent(c.env, result.keyId!);
+  const profile = await ensureAgentProfile(c.env, result.keyId!);
   if (profile && profile.tos_accepted_version !== CURRENT_TOS_VERSION) {
     return c.json({
       error: "tos_update_required",
@@ -72,7 +80,7 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   }
 
   c.set("agent_id", result.keyId!);
-  c.executionCtx.waitUntil(recordAgentActivity(c.env, result.keyId!));
+  queueAgentActivity(c, result.keyId!);
   await next();
 }
 
@@ -100,8 +108,9 @@ export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
     return c.json({ error: "Invalid API key", code: result.code }, 403);
   }
 
+  await ensureAgentProfile(c.env, result.keyId!);
   c.set("agent_id", result.keyId!);
-  c.executionCtx.waitUntil(recordAgentActivity(c.env, result.keyId!));
+  queueAgentActivity(c, result.keyId!);
   await next();
 }
 
@@ -117,8 +126,9 @@ export async function optionalAuth(c: Context<AuthEnv>, next: Next) {
       const epOpt = pathOpt.replace(/^\/v1\//, "").split("/")[0] || "unknown";
       const result = await verifyUnkey(c.env.UNKEY_ROOT_KEY, token, c.env, [`endpoint:${epOpt}`]);
       if (result.valid) {
+        await ensureAgentProfile(c.env, result.keyId!);
         c.set("agent_id", result.keyId!);
-        c.executionCtx.waitUntil(recordAgentActivity(c.env, result.keyId!));
+        queueAgentActivity(c, result.keyId!);
       }
     }
   }

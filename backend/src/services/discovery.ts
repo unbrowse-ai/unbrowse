@@ -19,6 +19,11 @@ function globalNs(env: Env): string {
 }
 
 type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+export interface ResolvedSearchResult {
+  domain_results: SearchResult;
+  global_results: SearchResult;
+  skipped_global: boolean;
+}
 
 // In-memory search cache — survives within a single Worker isolate lifetime.
 // Avoids the 20s cold-start penalty of EdbKV._idxLoad() for TTL cache lookups.
@@ -27,6 +32,43 @@ const _memCache = new Map<string, { value: string; expires: number }>();
 function searchCacheKey(intent: string, k: number, domain?: string): string {
   const base = `${intent.toLowerCase().trim()}:${k}`;
   return domain ? `${base}:${domain}` : base;
+}
+
+function searchResolveCacheKey(intent: string, domain: string | undefined, domainK: number, globalK: number): string {
+  return `resolve:${intent.toLowerCase().trim()}:${domain ?? "global"}:${domainK}:${globalK}`;
+}
+
+function extractSkillId(metadata: Record<string, unknown>): string | null {
+  const direct = metadata.skill_id;
+  if (typeof direct === "string" && direct) return direct;
+  const content = metadata.content;
+  if (typeof content !== "string") return null;
+  try {
+    const parsed = JSON.parse(content) as { skill_id?: unknown };
+    return typeof parsed.skill_id === "string" ? parsed.skill_id : null;
+  } catch {
+    return null;
+  }
+}
+
+function uniqueSkillCount(results: SearchResult): number {
+  return new Set(results.map((result) => extractSkillId(result.metadata)).filter((value): value is string => !!value)).size;
+}
+
+export function shouldSkipGlobalSearch(domainResults: SearchResult, requestedDomain?: string | null): boolean {
+  if (!requestedDomain || domainResults.length === 0) return false;
+  const topScore = domainResults[0]?.score ?? 0;
+  const skillCount = uniqueSkillCount(domainResults);
+  return skillCount >= 2 || topScore >= 0.84;
+}
+
+export function normalizeEmbedding(raw: number[], dims = DIMS): number[] {
+  if (raw.length === 0) return raw;
+  const truncated = raw.length > dims ? raw.slice(0, dims) : raw;
+  if (truncated.length < dims) {
+    return [...truncated, ...new Array(dims - truncated.length).fill(0)];
+  }
+  return truncated;
 }
 
 /** Direct qdkv/get with timeout — bypasses the heavy EdbKV index load. */
@@ -113,9 +155,24 @@ async function embedIntent(
   const data = (await res.json()) as {
     data?: Array<{ embedding?: number[] }>;
   };
-  const raw = data.data?.[0]?.embedding ?? [];
+  const raw = normalizeEmbedding(data.data?.[0]?.embedding ?? []);
   const norm = Math.sqrt(raw.reduce((s, v) => s + v * v, 0));
   return norm > 0 ? raw.map((v) => v / norm) : raw;
+}
+
+async function searchNamespaceByVector(
+  env: Env,
+  namespace: string,
+  vector: number[],
+  k: number,
+): Promise<SearchResult> {
+  const data = (await edbRequest(env, "POST", "/vectors/search", {
+    vector,
+    k,
+    include_metadata: true,
+    namespace,
+  })) as { results?: SearchResult };
+  return (data.results ?? []).filter((result) => result.metadata);
 }
 
 /** @deprecated Use indexEndpoints() for per-endpoint vector indexing */
@@ -174,7 +231,7 @@ export async function indexEndpoints(
     data?: Array<{ embedding?: number[] }>;
   };
   const embeddings = (embedData.data ?? []).map((d) => {
-    const raw = d.embedding ?? [];
+    const raw = normalizeEmbedding(d.embedding ?? []);
     const norm = Math.sqrt(raw.reduce((s, v) => s + v * v, 0));
     return norm > 0 ? raw.map((v) => v / norm) : raw;
   });
@@ -245,6 +302,63 @@ export async function searchIntentInDomain(
   }
 
   return results;
+}
+
+export async function searchIntentResolve(
+  env: Env,
+  intent: string,
+  domain?: string,
+  domainK = 5,
+  globalK = 10,
+): Promise<ResolvedSearchResult> {
+  const t0 = Date.now();
+  const ckey = searchResolveCacheKey(intent, domain, domainK, globalK);
+  const hit = await cacheGet(env, ckey);
+  const t1 = Date.now();
+  console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
+  if (hit) try { return JSON.parse(hit) as ResolvedSearchResult; } catch { /* fall through */ }
+
+  const vector = await embedIntent(env, intent, "query");
+  const t2 = Date.now();
+  console.log(`[perf:search-resolve] embed: ${t2 - t1}ms`);
+
+  if (!domain) {
+    const global_results = await searchNamespaceByVector(env, globalNs(env), vector, globalK).catch((err) => {
+      console.error(`[search-resolve] global error:`, (err as Error).message);
+      return [] as SearchResult;
+    });
+    const t3 = Date.now();
+    const resolved = { domain_results: [] as SearchResult, global_results, skipped_global: false };
+    console.log(`[perf:search-resolve] global-only: ${t3 - t2}ms results=${global_results.length}`);
+    console.log(`[perf:search-resolve] TOTAL: ${t3 - t0}ms`);
+    if (global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
+    return resolved;
+  }
+
+  const globalPromise = searchNamespaceByVector(env, globalNs(env), vector, globalK).catch((err) => {
+    console.error(`[search-resolve] global error:`, (err as Error).message);
+    return [] as SearchResult;
+  });
+  const domain_results = await searchNamespaceByVector(env, domainNamespace(env, domain), vector, domainK).catch((err) => {
+    console.error(`[search-resolve] domain=${domain} error:`, (err as Error).message);
+    return [] as SearchResult;
+  });
+  const t3 = Date.now();
+  console.log(`[perf:search-resolve] domain-search: ${t3 - t2}ms results=${domain_results.length}`);
+
+  const skipped_global = shouldSkipGlobalSearch(domain_results, domain);
+  const global_results = skipped_global ? [] : await globalPromise;
+  const t4 = Date.now();
+  console.log(
+    `[perf:search-resolve] global-search: ${skipped_global ? "skipped" : `${t4 - t3}ms results=${global_results.length}`}`,
+  );
+  console.log(`[perf:search-resolve] TOTAL: ${t4 - t0}ms`);
+
+  const resolved = { domain_results, global_results, skipped_global };
+  if (domain_results.length > 0 || global_results.length > 0) {
+    cachePut(env, ckey, JSON.stringify(resolved));
+  }
+  return resolved;
 }
 
 export async function searchIntent(

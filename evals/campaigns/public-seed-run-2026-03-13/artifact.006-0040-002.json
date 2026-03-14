@@ -1,0 +1,265 @@
+{
+  "summary": {
+    "total": 2,
+    "pass": 0,
+    "fail": 1,
+    "skip": 1,
+    "blocked": 0,
+    "satisfied": 0,
+    "unsatisfied": 2,
+    "max_rounds": 4,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "practice-test-automation-success",
+      "intent": "get login success message",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "missing_practicetestautomation.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "message"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://practicetestautomation.com/logged-in-successfully/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_practicetestautomation.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "orangehrm-dashboard",
+      "intent": "get dashboard widgets",
+      "auth": true,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked"
+      ],
+      "final_reason": "auth_required",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "dag": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "auth_required"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+          "force_capture": false,
+          "resolve_ms": 22470,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "domain": "opensource-demo.orangehrmlive.com",
+              "pathname": "/web/index.php/dashboard/index",
+              "slug_1": "web",
+              "slug_2": "index.php",
+              "slug_3": "dashboard",
+              "slug_4": "index"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get dashboard widgets",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:03:50.077Z"
+            },
+            "source": "live-capture",
+            "total_ms": 22437,
+            "tokens_used": 97,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "auth_required",
+            "provider": "orangehrmlive.com",
+            "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+            "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://opensource-demo.orangehrmlive.com/web/index.php/auth/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "auth_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 97,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "auth_required",
+                "provider": "orangehrmlive.com",
+                "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+                "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://opensource-demo.orangehrmlive.com/web/index.php/auth/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+          "force_capture": true,
+          "resolve_ms": 19291,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "domain": "opensource-demo.orangehrmlive.com",
+              "pathname": "/web/index.php/dashboard/index",
+              "slug_1": "web",
+              "slug_2": "index.php",
+              "slug_3": "dashboard",
+              "slug_4": "index"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get dashboard widgets",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:03:50.077Z"
+            },
+            "source": "live-capture",
+            "total_ms": 19245,
+            "tokens_used": 97,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "auth_required",
+            "provider": "orangehrmlive.com",
+            "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+            "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://opensource-demo.orangehrmlive.com/web/index.php/auth/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "auth_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 97,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "auth_required",
+                "provider": "orangehrmlive.com",
+                "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+                "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://opensource-demo.orangehrmlive.com/web/index.php/auth/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "auth_required",
+          "repair_memory": {
+            "visited_urls": [
+              "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "auth_required"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

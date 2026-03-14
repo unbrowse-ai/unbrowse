@@ -86,6 +86,8 @@ export interface EndpointDescriptor {
   query?: Record<string, unknown>;
   /** Default values for templatized path segments (e.g. {symbol} → "SPY,QQQ") */
   path_params?: Record<string, string>;
+  /** Default values for templatized request-body placeholders */
+  body_params?: Record<string, unknown>;
   body?: Record<string, unknown>;
   csrf_plan?: CsrfPlan;
   oauth_plan?: OAuthPlan;

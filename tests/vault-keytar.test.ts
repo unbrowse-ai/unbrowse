@@ -74,6 +74,22 @@ describe("vault keytar fallback", () => {
     expect(await getCredential(TEST_ACCOUNT)).toBeNull();
   });
 
+  it("falls back when keytar methods are not functions", async () => {
+    // Simulates the case where normalizeKeytarModule passes type checks
+    // but the native binding is broken at runtime
+    const notAFunctionError = new TypeError("keytar.setPassword is not a function");
+    setKeytarClientForTests({
+      setPassword: async () => { throw notAFunctionError; },
+      getPassword: async () => { throw notAFunctionError; },
+      deletePassword: async () => { throw notAFunctionError; },
+    });
+
+    await storeCredential(TEST_ACCOUNT, "secret");
+    expect(await getCredential(TEST_ACCOUNT)).toBe("secret");
+    await deleteCredential(TEST_ACCOUNT);
+    expect(await getCredential(TEST_ACCOUNT)).toBeNull();
+  });
+
   it("does not swallow non-binding keytar errors", async () => {
     setKeytarClientForTests({
       setPassword: async () => { throw new Error("Keychain permission denied"); },

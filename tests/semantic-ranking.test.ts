@@ -352,10 +352,270 @@ describe("rankEndpoints semantic intent adjustment", () => {
     ], "list my discord servers", "discord.com", "https://discord.com/channels/@me");
 
     expect(ranked[0]?.endpoint.endpoint_id).toBe("guilds");
-    expect(ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "guilds")).toBeLessThan(
-      ranked.findIndex((candidate) => candidate.endpoint.endpoint_id === "page-artifact"),
-    );
-    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("page-artifact");
+    expect(ranked.some((candidate) => candidate.endpoint.endpoint_id === "referrals")).toBe(false);
+    expect(ranked.some((candidate) => candidate.endpoint.endpoint_id === "page-artifact")).toBe(false);
+  });
+
+  test("filters discord affinity and preview endpoints when no real server list is present", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "connections",
+        method: "GET",
+        url_template: "https://discord.com/api/v9/users/@me/connections",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns user details with ids, names, and friend sync",
+        response_schema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              type: { type: "string" },
+            },
+          },
+        },
+      } as any,
+      {
+        endpoint_id: "affinities",
+        method: "GET",
+        url_template: "https://discord.com/api/v9/users/@me/affinities/guilds",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns guilds with guild affinities, ids, and affinity",
+        response_schema: {
+          type: "object",
+          properties: {
+            guild_affinities: { type: "array" },
+          },
+        },
+      } as any,
+      {
+        endpoint_id: "preview",
+        method: "GET",
+        url_template: "https://discord.com/api/v9/streams/guild%3A123%3A456/preview",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "Returns guild details with url",
+        response_schema: {
+          type: "object",
+          properties: {
+            url: { type: "string" },
+          },
+        },
+      } as any,
+    ], "list my discord servers", "discord.com", "https://discord.com/channels/@me");
+
+    expect(ranked).toHaveLength(0);
+  });
+
+  test("drops negative-score discord page artifacts when they are the only remaining candidates", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "page-artifact",
+        method: "GET",
+        url_template: "https://discord.com",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.63,
+        description: "Captured page artifact for get guild channels",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        response_schema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string" },
+              data: { type: "object" },
+              relevance_score: { type: "number" },
+            },
+          },
+        },
+      } as any,
+    ], "list my discord servers", "discord.com", "https://discord.com/channels/@me");
+
+    expect(ranked).toHaveLength(0);
+  });
+
+  test("filters bootstrap-heavy product scaffolds from product search intents", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "bootstrap-page",
+        method: "GET",
+        url_template: "https://www.walmart.com/search?q={q}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.95,
+        description: "Captured page artifact for search products",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        response_schema: {
+          type: "object",
+          properties: {
+            initialData: { type: "object" },
+            bootstrapData: { type: "object" },
+            nonce: { type: "string" },
+            traceParents: { type: "array" },
+            psych: { type: "object" },
+          },
+        },
+      } as any,
+      {
+        endpoint_id: "home-page",
+        method: "GET",
+        url_template: "https://walmart.com",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "Captured page artifact for search products",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        response_schema: {
+          type: "object",
+          properties: {
+            initialTempoData: { type: "object" },
+            nonce: { type: "string" },
+          },
+        },
+      } as any,
+    ], "search products", "walmart.com", "https://www.walmart.com/search?q=wireless+headphones");
+
+    expect(ranked).toHaveLength(0);
+  });
+
+  test("rejects mismatched captured product pages for concrete detail urls", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "inventory-page",
+        method: "GET",
+        url_template: "https://www.saucedemo.com/inventory.html",
+        trigger_url: "https://www.saucedemo.com/inventory.html",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.95,
+        description: "Captured page artifact for get products",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        response_schema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              description: { type: "string" },
+              price: { type: "string" },
+            },
+          },
+        },
+      } as any,
+      {
+        endpoint_id: "detail-page",
+        method: "GET",
+        url_template: "https://www.saucedemo.com/inventory-item.html?id=4",
+        trigger_url: "https://www.saucedemo.com/inventory-item.html?id=4",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.8,
+        description: "Captured page artifact for get product details",
+        dom_extraction: { extraction_method: "key-value", confidence: 0.8 },
+        response_schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            price: { type: "string" },
+          },
+        },
+      } as any,
+    ], "get product details", "www.saucedemo.com", "https://www.saucedemo.com/inventory-item.html?id=4");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("detail-page");
+    expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("inventory-page");
+  });
+
+  test("filters news-style candidates for stock quote intents and keeps real quote endpoints", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "news-page",
+        method: "GET",
+        url_template: "https://finance.yahoo.com/quote/AAPL/",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Captured page artifact for get stock quote",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+        response_schema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              url: { type: "string" },
+              image: { type: "string" },
+            },
+          },
+        },
+      } as any,
+      {
+        endpoint_id: "quote-api",
+        method: "GET",
+        url_template: "https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns quote data with symbol, regular market price, and currency",
+        response_schema: {
+          type: "object",
+          properties: {
+            quoteResponse: { type: "object" },
+            symbol: { type: "string" },
+            regularMarketPrice: { type: "number" },
+            currency: { type: "string" },
+          },
+        },
+      } as any,
+    ], "get stock quote", "finance.yahoo.com", "https://finance.yahoo.com/quote/AAPL");
+
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("quote-api");
+  });
+
+  test("prefers public chart quote endpoints over crumb-bound quote urls", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "crumb-quote",
+        method: "GET",
+        url_template: "https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}&crumb={crumb}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns quote data with symbol and regular market price",
+        response_schema: {
+          type: "object",
+          properties: {
+            quoteResponse: { type: "object" },
+          },
+        },
+      } as any,
+      {
+        endpoint_id: "chart-quote",
+        method: "GET",
+        url_template: "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval={interval}",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Returns chart details with regularMarketPrice and current price",
+        response_schema: {
+          type: "object",
+          properties: {
+            chart: { type: "object" },
+          },
+        },
+      } as any,
+    ], "get stock quote", "finance.yahoo.com", "https://finance.yahoo.com/quote/AAPL");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("chart-quote");
   });
 
   test("prefers structured replay over sibling dom artifact for public search pages", () => {
