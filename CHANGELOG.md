@@ -1132,3 +1132,4 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: package/model projection now normalizes crates.io search rows and Hugging Face `modelId` rows into stable eval-friendly fields
 - fix: template param hydration now infers dev.to-style `tag` bindings from route context for query-based replay endpoints
 - fix: post projection now derives dev.to authors from article paths and recovers Lobsters scores from text-heavy list rows
+- docs: curated public expansion corpus now includes validated non-dev science/reference/news cases for arXiv, Wiktionary, and NPR, with exact blocked terminals where needed
