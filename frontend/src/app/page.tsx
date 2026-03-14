@@ -133,11 +133,11 @@ export default function Home() {
                     <div>
                       <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">Install First</p>
                       <h2 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-text-primary">
-                        Use the real setup commands, not a demo terminal.
+                        Install Unbrowse and start using it.
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Already installed? Upgrade to latest before testing a new release.
+                      Fresh install or quick upgrade. Same setup flow either way.
                     </p>
                   </div>
                 </div>
