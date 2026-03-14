@@ -87,6 +87,7 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 - Added the repository's Star History chart to the synced skill README so marketplace installs keep the same social proof/docs surface as the main repo.
 - Switched public onboarding to the npm-backed `unbrowse` CLI, with `npx unbrowse` for zero-install trials and `npm install -g unbrowse` for repeat use.
 - Removed runtime skill self-update. npm/npx is now the code update path, while `SKILL.md` stays repo-managed and is checked during pack/release flows.
+- Docs now explicitly tell existing users to rerun `npm install -g unbrowse`, `unbrowse setup`, and host-side skill update commands after releases so local installs do not stay stale.
 - Every CLI command now auto-starts the local server using package-relative bootstrap paths, pid tracking, and local log files.
 - Shrunk the npm tarball to the runnable CLI/runtime only, dropping skill metadata and other non-runtime publish clutter while keeping the local server boot path intact.
 - Browser installation now runs through the bundled `agent-browser` dependency instead of shelling out through `npx`, making fresh installs more reliable.

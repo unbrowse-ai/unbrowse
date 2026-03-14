@@ -14,6 +14,10 @@ npx unbrowse setup
 npm install -g unbrowse
 unbrowse setup
 
+# Already installed? Upgrade to latest after releases
+npm install -g unbrowse@latest
+unbrowse setup
+
 # Add the skill for agent workflows
 npx skills add unbrowse-ai/unbrowse
 
@@ -28,6 +32,10 @@ npx unbrowse setup
 
 # Install globally for repeat use
 npm install -g unbrowse
+unbrowse setup
+
+# Already installed? Upgrade to latest after releases
+npm install -g unbrowse@latest
 unbrowse setup
 
 # Add the skill in Cursor
