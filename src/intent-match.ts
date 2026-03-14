@@ -464,6 +464,194 @@ function normalizeEmailRows(data: unknown): Record<string, unknown>[] {
   return rows;
 }
 
+function normalizeProductRows(data: unknown): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  const blockedTitles = new Set(["results", "more results", "related searches", "need help?"]);
+
+  collectNestedObjects(data, (obj) => {
+    const headingKeys = Object.keys(obj).filter((key) => /^heading_\d+$/i.test(key));
+    const title = firstNonEmptyString(
+      getPath(obj, "title"),
+      getPath(obj, "name"),
+      getPath(obj, "productName"),
+      getPath(obj, "productTitle"),
+      getPath(obj, "title.text"),
+    );
+    const url = firstNonEmptyString(
+      getPath(obj, "url"),
+      getPath(obj, "link"),
+      getPath(obj, "href"),
+      getPath(obj, "canonicalUrl"),
+      getPath(obj, "productUrl"),
+      getPath(obj, "productPageUrl"),
+    );
+    const id = firstNonEmptyString(
+      getPath(obj, "id"),
+      getPath(obj, "usItemId"),
+      getPath(obj, "itemId"),
+      getPath(obj, "productId"),
+      getPath(obj, "sku"),
+    );
+    const priceString = firstNonEmptyString(
+      getPath(obj, "price"),
+      getPath(obj, "priceString"),
+      getPath(obj, "price.currentPrice.priceString"),
+      getPath(obj, "priceInfo.currentPrice.priceString"),
+      getPath(obj, "secondaryOfferPrice.currentPrice.priceString"),
+    );
+    const priceNumber = getPath(obj, "price.currentPrice.price")
+      ?? getPath(obj, "priceInfo.currentPrice.price")
+      ?? getPath(obj, "currentPrice.price")
+      ?? getPath(obj, "salePrice");
+    const rating = getPath(obj, "averageRating")
+      ?? getPath(obj, "rating")
+      ?? getPath(obj, "rating.average")
+      ?? getPath(obj, "customerRating")
+      ?? getPath(obj, "reviews.averageRating");
+    const reviewCount = getPath(obj, "numberOfReviews")
+      ?? getPath(obj, "reviewCount")
+      ?? getPath(obj, "reviews.count")
+      ?? getPath(obj, "ratingsTotal");
+    const image = firstNonEmptyString(
+      getPath(obj, "image"),
+      getPath(obj, "imageUrl"),
+      getPath(obj, "thumbnail"),
+      getPath(obj, "primaryImageUrl"),
+    );
+    const brand = firstNonEmptyString(getPath(obj, "brand"), getPath(obj, "brandName"), getPath(obj, "seller"));
+
+    if (!title && !id) return;
+    if (title && blockedTitles.has(title.trim().toLowerCase())) return;
+    if (headingKeys.length >= 6) return;
+    if (!url && !id) return;
+    if (
+      priceString == null &&
+      typeof priceNumber !== "number" &&
+      rating == null &&
+      reviewCount == null &&
+      !image &&
+      !brand
+    ) {
+      return;
+    }
+    if (url && /(amazon-adsystem|doubleclick|googlesyndication|pubmatic|taboola|outbrain|aax-|googleadservices|adservice)\./i.test(url)) {
+      return;
+    }
+
+    const stable = String(url ?? id ?? title);
+    if (seen.has(stable)) return;
+    rows.push({
+      ...(id ? { id } : {}),
+      ...(title ? { title } : {}),
+      ...(url ? { url } : {}),
+      ...(priceString ? { price: priceString } : typeof priceNumber === "number" ? { price: priceNumber } : {}),
+      ...(typeof rating === "number" || hasNonEmptyString(rating) ? { rating } : {}),
+      ...(typeof reviewCount === "number" || hasNonEmptyString(reviewCount) ? { review_count: reviewCount } : {}),
+      ...(image ? { image } : {}),
+      ...(brand ? { brand } : {}),
+    });
+    seen.add(stable);
+  });
+
+  return rows;
+}
+
+function normalizeStockQuote(data: unknown): Record<string, unknown> | null {
+  let best: Record<string, unknown> | null = null;
+
+  collectNestedObjects(data, (obj) => {
+    const symbol = firstNonEmptyString(
+      getPath(obj, "symbol"),
+      getPath(obj, "ticker"),
+      getPath(obj, "quote.symbol"),
+    );
+    const price = getPath(obj, "regularMarketPrice.raw")
+      ?? getPath(obj, "regularMarketPrice")
+      ?? getPath(obj, "postMarketPrice.raw")
+      ?? getPath(obj, "price.regularMarketPrice.raw")
+      ?? getPath(obj, "price.regularMarketPrice")
+      ?? getPath(obj, "price.currentPrice.raw")
+      ?? getPath(obj, "price.currentPrice");
+    if (!symbol || typeof price !== "number") return;
+    const name = firstNonEmptyString(
+      getPath(obj, "shortName"),
+      getPath(obj, "longName"),
+      getPath(obj, "displayName"),
+      getPath(obj, "price.shortName"),
+      getPath(obj, "price.longName"),
+    );
+    const currency = firstNonEmptyString(getPath(obj, "currency"), getPath(obj, "financialCurrency"), getPath(obj, "price.currency"));
+    const marketState = firstNonEmptyString(getPath(obj, "marketState"), getPath(obj, "price.marketState"));
+    const changePercent = getPath(obj, "regularMarketChangePercent.raw")
+      ?? getPath(obj, "regularMarketChangePercent")
+      ?? getPath(obj, "price.regularMarketChangePercent.raw")
+      ?? getPath(obj, "price.regularMarketChangePercent");
+    const marketCap = getPath(obj, "marketCap.raw")
+      ?? getPath(obj, "marketCap")
+      ?? getPath(obj, "price.marketCap.raw")
+      ?? getPath(obj, "price.marketCap");
+    best = {
+      symbol,
+      ...(name ? { name } : {}),
+      price,
+      ...(currency ? { currency } : {}),
+      ...(typeof changePercent === "number" ? { change_percent: changePercent } : {}),
+      ...(typeof marketCap === "number" ? { market_cap: marketCap } : {}),
+      ...(marketState ? { market_state: marketState } : {}),
+    };
+  });
+
+  return best;
+}
+
+function normalizeChannelRows(data: unknown): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  collectNestedObjects(data, (obj) => {
+    const name = firstNonEmptyString(
+      getPath(obj, "name"),
+      getPath(obj, "title"),
+      getPath(obj, "channel_name"),
+      getPath(obj, "workspace_name"),
+      getPath(obj, "team_name"),
+    );
+    const id = firstNonEmptyString(
+      getPath(obj, "id"),
+      getPath(obj, "channel_id"),
+      getPath(obj, "guild_id"),
+      getPath(obj, "server_id"),
+      getPath(obj, "workspace_id"),
+      getPath(obj, "team_id"),
+    );
+    const url = firstNonEmptyString(
+      getPath(obj, "url"),
+      getPath(obj, "channel_url"),
+      getPath(obj, "server_url"),
+      getPath(obj, "workspace_url"),
+    );
+    if (!name || (!id && !url)) return;
+    const stable = String(id ?? url ?? name);
+    if (seen.has(stable)) return;
+    rows.push({
+      ...(id ? { id } : {}),
+      name,
+      ...(url ? { url } : {}),
+      ...(firstNonEmptyString(getPath(obj, "topic"), getPath(obj, "purpose"), getPath(obj, "description")) ? {
+        description: firstNonEmptyString(getPath(obj, "topic"), getPath(obj, "purpose"), getPath(obj, "description")),
+      } : {}),
+      ...(typeof getPath(obj, "member_count") === "number" ? { member_count: getPath(obj, "member_count") } : {}),
+      ...(firstNonEmptyString(getPath(obj, "type"), getPath(obj, "channel_type"), getPath(obj, "kind")) ? {
+        type: firstNonEmptyString(getPath(obj, "type"), getPath(obj, "channel_type"), getPath(obj, "kind")),
+      } : {}),
+    });
+    seen.add(stable);
+  });
+
+  return rows;
+}
+
 function collectNestedObjects(value: unknown, visit: (obj: Record<string, unknown>) => void): void {
   if (Array.isArray(value)) {
     for (const item of value) collectNestedObjects(item, visit);
@@ -772,6 +960,36 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
   const unwrapped = unwrapCarrier(data);
   if (!intent) return unwrapped;
   const lower = intent.toLowerCase();
+
+  if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/.test(lower)) {
+    const normalizedQuote = normalizeStockQuote(unwrapped);
+    if (normalizedQuote) return normalizedQuote;
+  }
+
+  if (/\b(product|products|item|items)\b/.test(lower)) {
+    const normalizedProducts = normalizeProductRows(unwrapped);
+    if (normalizedProducts.length > 0) return normalizedProducts;
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).products)) {
+      return (unwrapped as Record<string, unknown>).products;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).items)) {
+      return (unwrapped as Record<string, unknown>).items;
+    }
+  }
+
+  if (/\b(channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
+    const normalizedChannels = normalizeChannelRows(unwrapped);
+    if (normalizedChannels.length > 0) return normalizedChannels;
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).channels)) {
+      return (unwrapped as Record<string, unknown>).channels;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).guilds)) {
+      return (unwrapped as Record<string, unknown>).guilds;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).workspaces)) {
+      return (unwrapped as Record<string, unknown>).workspaces;
+    }
+  }
 
   if (/\b(package|packages)\b/.test(lower)) {
     if (/\bsearch\b/.test(lower)) {
@@ -1113,6 +1331,41 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
     return matching.length >= 1 ? { verdict: "pass", reason: "definition_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
+  if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["symbol", "ticker"]) &&
+      hasAnyPath(row, ["price", "regularMarketPrice", "current_price"]) &&
+      hasAnyPath(row, ["name", "currency", "change_percent", "market_cap", "market_state"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "quote_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(product|products|item|items)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["title", "name", "product_name"]) &&
+      (
+        hasAnyPath(row, ["url", "id", "product_id", "sku"]) ||
+        hasAnyPath(row, ["description", "summary"])
+      ) &&
+      hasAnyPath(row, ["price", "rating", "review_count", "brand", "image"]) &&
+      !/^results?$/i.test(String(getPath(row, "title") ?? getPath(row, "name") ?? "")) &&
+      !Object.keys(row).some((key) => /^heading_\d+$/i.test(key)) &&
+      !/(amazon-adsystem|doubleclick|googlesyndication|pubmatic|taboola|outbrain|aax-|googleadservices|adservice)/i.test(
+        String(getPath(row, "url") ?? ""),
+      )
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "product_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["name", "title"]) &&
+      hasAnyPath(row, ["id", "url", "channel_id", "guild_id", "workspace_id"]) &&
+      hasAnyPath(row, ["description", "type", "member_count", "url"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "channel_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
   return { verdict: "skip", reason: "unclassified_array" };
 }
 
@@ -1146,11 +1399,14 @@ export function assessIntentResult(data: unknown, intent?: string): {
     if ("learned_skill_id" in projected && !("data" in projected)) {
       return { verdict: "fail", reason: "learned_skill_only", projected };
     }
-    if ("message" in projected && !("data" in projected)) {
+    const lower = (intent ?? "").toLowerCase();
+    if (("message" in projected || "flash" in projected) && !("data" in projected)) {
+      if (/\b(message|messages|flash|alert|success|error|warning)\b/.test(lower)) {
+        return { verdict: "skip", reason: "message_record", projected };
+      }
       return { verdict: "fail", reason: "message_only", projected };
     }
-    const lower = (intent ?? "").toLowerCase();
-    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages|doc|docs|documentation|question|questions|recipe|recipes|course|courses|definition|dictionary|meaning)\b/.test(lower)) {
+    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages|doc|docs|documentation|question|questions|recipe|recipes|course|courses|definition|dictionary|meaning|product|products|item|items|stock|stocks|ticker|tickers|quote|quotes|channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
       const classified = classifyRows([projected], intent ?? "");
       return { ...classified, projected };
     }

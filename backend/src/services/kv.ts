@@ -163,27 +163,30 @@ export class EdbKV {
 
     if (needFetch.length === 0) return results;
 
-    // Legacy entries with empty v — fetch in parallel (capped to stay under subrequest budget)
+    // Legacy/trimmed entries with empty v — fetch in bounded batches.
+    // The previous implementation only fetched the first batch and silently
+    // dropped the rest, which undercounted large prefixes like agent:.
     const BATCH_LIMIT = 30;
-    const batch = needFetch.slice(0, BATCH_LIMIT);
     let dirty = false;
 
-    const fetched = await Promise.all(batch.map(async (e) => {
-      try {
-        const res = await fetch(`${BASE}/qdkv/get/${encodeURIComponent(this.k(e.k))}`, { headers: this.h });
-        if (!res.ok) return null;
-        const data = await res.json() as { value?: string | null; found?: boolean };
-        if (!data.found || data.value == null) return null;
-        return { key: e.k, value: data.value };
-      } catch { return null; }
-    }));
+    for (let offset = 0; offset < needFetch.length; offset += BATCH_LIMIT) {
+      const batch = needFetch.slice(offset, offset + BATCH_LIMIT);
+      const fetched = await Promise.all(batch.map(async (e) => {
+        try {
+          const res = await fetch(`${BASE}/qdkv/get/${encodeURIComponent(this.k(e.k))}`, { headers: this.h });
+          if (!res.ok) return null;
+          const data = await res.json() as { value?: string | null; found?: boolean };
+          if (!data.found || data.value == null) return null;
+          return { key: e.k, value: data.value };
+        } catch { return null; }
+      }));
 
-    for (const r of fetched) {
-      if (!r) continue;
-      results.push({ name: r.key, value: r.value });
-      // Backfill inline value in the merged entries
-      const idx = all.findIndex(e => e.k === r.key);
-      if (idx >= 0) { all[idx].v = r.value; dirty = true; }
+      for (const r of fetched) {
+        if (!r) continue;
+        results.push({ name: r.key, value: r.value });
+        const idx = all.findIndex(e => e.k === r.key);
+        if (idx >= 0) { all[idx].v = r.value; dirty = true; }
+      }
     }
 
     // Self-healing: persist backfilled values so next call has them inline

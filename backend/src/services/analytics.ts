@@ -162,6 +162,7 @@ export async function getRetention(env: Env, days = 30): Promise<RetentionCohort
 
 export interface ActivationFunnel {
   total_registered: number;
+  recovered_profiles: number;
   executed_once: number;       // had at least 1 execution
   discovered_skill: number;    // discovered at least 1 skill
   repeat_user: number;         // 5+ executions
@@ -178,6 +179,7 @@ export async function getActivation(env: Env): Promise<ActivationFunnel> {
   const profiles = await loadProfiles(env);
 
   const total = profiles.length;
+  const recoveredProfiles = profiles.filter((p) => p.profile_origin === "recovered").length;
   const executedOnce = profiles.filter(p => p.total_executions >= 1).length;
   const discoveredSkill = profiles.filter(p => p.skills_discovered.length >= 1).length;
   const repeatUser = profiles.filter(p => p.total_executions >= 5).length;
@@ -185,6 +187,7 @@ export async function getActivation(env: Env): Promise<ActivationFunnel> {
 
   return {
     total_registered: total,
+    recovered_profiles: recoveredProfiles,
     executed_once: executedOnce,
     discovered_skill: discoveredSkill,
     repeat_user: repeatUser,
@@ -202,6 +205,7 @@ export async function getActivation(env: Env): Promise<ActivationFunnel> {
 
 export interface AgentHealth {
   total_agents: number;
+  recovered_profiles: number;
   active_today: number;
   active_this_week: number;
   active_this_month: number;
@@ -262,6 +266,7 @@ export async function getAgentHealth(env: Env): Promise<AgentHealth> {
 
   return {
     total_agents: profiles.length,
+    recovered_profiles: profiles.filter((profile) => profile.profile_origin === "recovered").length,
     active_today: activityByDate.get(today)?.size ?? 0,
     active_this_week: last7.size,
     active_this_month: last30.size,

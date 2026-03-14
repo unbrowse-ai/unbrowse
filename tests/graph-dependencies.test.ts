@@ -172,6 +172,53 @@ describe("graph dependency inference", () => {
     expect(reverseTimeEdge).toBeUndefined();
   });
 
+  it("rejects generic id-only dependency edges", () => {
+    const endpoints: EndpointDescriptor[] = [
+      {
+        endpoint_id: "generic-source",
+        method: "GET",
+        url_template: "https://api.example.com/source",
+        description: "Returns ids",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "list",
+          resource_kind: "resource",
+          description_out: "Returns ids",
+          requires: [],
+          provides: [{ key: "id", source: "response", semantic_type: "identifier" }],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:00.000Z",
+        },
+      },
+      {
+        endpoint_id: "generic-target",
+        method: "GET",
+        url_template: "https://api.example.com/target/{id}",
+        description: "Needs id",
+        path_params: { id: "" },
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        semantic: {
+          action_kind: "detail",
+          resource_kind: "resource",
+          description_out: "Needs id",
+          requires: [{ key: "id", required: true, source: "path_params", semantic_type: "identifier" }],
+          provides: [],
+          negative_tags: [],
+          confidence: 0.9,
+          observed_at: "2026-03-07T10:00:01.000Z",
+        },
+      },
+    ];
+
+    const graph = buildSkillOperationGraph(endpoints);
+    expect(graph.edges).toHaveLength(0);
+  });
+
   it("infers dropdown bindings from DOM-extracted form nodes and links them into downstream api steps", () => {
     const formEndpoint: EndpointDescriptor = {
       endpoint_id: "jobs-form-options",

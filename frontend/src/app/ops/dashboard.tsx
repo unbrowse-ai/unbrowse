@@ -62,8 +62,11 @@ export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
 
   // -- derived data --
   const activeSkills = skills.filter(s => s.lifecycle === "active");
+  const deprecatedSkills = skills.filter(s => s.lifecycle === "deprecated");
+  const totalEndpoints = skills.flatMap(s => s.endpoints).length;
   const activeEndpoints = activeSkills.flatMap(s => s.endpoints);
   const verifiedEndpoints = activeEndpoints.filter(e => e.verification_status === "verified");
+  const totalDomains = new Set(skills.map(s => s.domain)).size;
   const activeDomains = new Set(activeSkills.map(s => s.domain)).size;
 
   // Domain distribution
@@ -121,9 +124,9 @@ export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
 
       {/* -- primary metrics strip -- */}
       <section className="ops-stats-strip">
-        <StatCard label="ACTIVE SKILLS" value={activeSkills.length} sub={`${skills.length} total`} />
-        <StatCard label="ENDPOINTS" value={activeEndpoints.length} sub={`${verifiedEndpoints.length} verified`} />
-        <StatCard label="DOMAINS" value={activeDomains} />
+        <StatCard label="REGISTRY SKILLS" value={skills.length} sub={`${activeSkills.length} active / ${deprecatedSkills.length} deprecated`} />
+        <StatCard label="REGISTRY ENDPOINTS" value={totalEndpoints} sub={`${activeEndpoints.length} on active skills / ${verifiedEndpoints.length} verified-active`} />
+        <StatCard label="REGISTRY DOMAINS" value={totalDomains} sub={`${activeDomains} active`} />
         <StatCard label="AGENTS" value={health?.total_agents ?? stats.agents} sub={`${health?.active_today ?? 0} today`} />
         <StatCard label="EXECUTIONS" value={stats.executions} sub={`${health?.avg_executions_per_agent ?? 0} avg/agent`} />
       </section>
@@ -349,7 +352,7 @@ export function OpsDashboard({ stats, skills, agents, analytics }: Props) {
       </div>
 
       <footer className="ops-footer">
-        <span>UNBROWSE OPS v2.0 // INTERNAL USE ONLY</span>
+        <span>UNBROWSE OPS v2.0 // registry counts only, not EmergentDB vector totals</span>
       </footer>
     </div>
   );

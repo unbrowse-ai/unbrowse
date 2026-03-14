@@ -40,10 +40,17 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 - Expanded eval case schema/product-truth judging with auth persona metadata plus `entity_type`, `min_rows`, `side_effect`, `echo_params`, and `terminal_ok` validation so site coverage can assert discovery, DAG selection, and real execution outcomes in one artifact.
 - Added autonomous benchmark mode for explicit cold-vs-warm comparisons, surfacing per-round source/latency/token telemetry plus per-case speedup and token deltas between first capture and second reuse runs.
 - Added a dedicated auth eval runner plus a popularity-backed auth corpus. It bootstraps vault auth via browser-cookie reuse or scripted demo logins, then runs each case through the autonomous harness with a top-level auth artifact and per-site child artifacts.
+- Workflow auth evals now score latency budgets against warm-path timings while still recording raw cold timings, so discovery-first passes stop failing purely because the first capture was expensive.
+- Scripted auth bootstrap now supports profile-only success pages that do not persist reusable cookies, and the auth runner hands those cases to the harness without forcing a cookie-based auth skip.
+- Autonomous harness now trusts a passing direct resolve payload before it burns time on replay candidates, which prevents learned endpoint detours from regressing already-correct DOM captures during suite runs.
+- Autonomous public evals now follow `learned_skill_id` placeholders into the real learned skill, synthesize endpoint shortlists from that manifest, and accept common URL aliases like `link` / `mdn_url` / `html_url` when the product-truth case expects `url`, fixing npm/MDN/Stack Overflow bulk-site regressions.
+- Added a shard/resume Codex campaign runner for large eval sweeps. It slices case corpora into resumable shard files, runs the autonomous harness sequentially per shard, and writes merged campaign artifacts so larger runs can scale toward hundreds or thousands of cases without one giant fragile foreground process.
+- Added a generated bulk-seed corpus and builder script that merge the shipped public/product/auth suites into one deduped campaign file for larger-site smoke sweeps.
 
 ### Reverse Engineering
 
 - Reverse-engineered mutation endpoints now templatize replayable request-body inputs into `body` placeholders plus `body_params` defaults, infer cookie-backed CSRF plans from captured traffic, and feed request-body semantics into endpoint admission so authenticated action flows are more likely to replay cleanly instead of being stored as one-off captured payloads.
+- DOM extraction now promotes single-record detail pages and auth success/flash messages into stable `title`/`message`/`flash` records instead of low-confidence multi-candidate blobs, improving durable replay for logged-in demo flows like Practice Test Automation and The Internet.
 
 ### Authentication
 

@@ -1,0 +1,275 @@
+{
+  "summary": {
+    "total": 8,
+    "pass": 0,
+    "fail": 0,
+    "skip": 8,
+    "blocked": 0,
+    "satisfied": 8,
+    "unsatisfied": 0,
+    "max_rounds": 4,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "amazon-order-history",
+      "intent": "get order history",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_amazon.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "order_id",
+        "title",
+        "order_date"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.amazon.com/gp/css/order-history"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_amazon.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "reddit-message-inbox",
+      "intent": "get inbox messages",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_reddit.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "subject",
+        "author",
+        "permalink"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.reddit.com/message/inbox/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_reddit.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "x-bookmarks",
+      "intent": "get bookmarks",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_x.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "text",
+        "author",
+        "permalink"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://x.com/i/bookmarks"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_x.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "walmart-order-history",
+      "intent": "get order history",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_walmart.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "order_id",
+        "title",
+        "status"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.walmart.com/orders"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_walmart.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "ebay-watchlist",
+      "intent": "get watchlist items",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_ebay.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "price",
+        "item_id"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.ebay.com/mye/myebay/watchlist"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_ebay.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "linkedin-people-search",
+      "intent": "search people",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_linkedin.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "headline",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.linkedin.com/search/results/people/?keywords=openai"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_linkedin.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "tiktok-following-feed",
+      "intent": "get following feed",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_tiktok.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "author",
+        "description",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.tiktok.com/following"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_tiktok.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "netflix-my-list",
+      "intent": "get my list",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_netflix.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "synopsis",
+        "maturity_rating"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.netflix.com/browse/my-list"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_netflix.com_auth"
+        ]
+      },
+      "rounds": []
+    }
+  ]
+}

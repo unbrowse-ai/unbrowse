@@ -109,6 +109,18 @@
       "expected_fields": ["title", "url", "rating"]
     },
     {
+      "id": "foodnetwork-search-recipes",
+      "intent": "search recipes",
+      "url": "https://www.foodnetwork.com/search/lasagna-",
+      "expected_fields": ["title", "url", "review_count"]
+    },
+    {
+      "id": "epicurious-search-recipes",
+      "intent": "search recipes",
+      "url": "https://www.epicurious.com/search?q=lasagna",
+      "expected_fields": ["title", "url", "description"]
+    },
+    {
       "id": "coursera-search-courses",
       "intent": "search courses",
       "url": "https://www.coursera.org/search?query=machine%20learning",

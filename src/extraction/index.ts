@@ -44,6 +44,26 @@ interface SPAExtraction extends ExtractedStructure {
   type: "spa-nextjs" | "spa-nuxt" | "spa-initial-state" | "spa-preloaded-state";
 }
 
+function extractFlashNoticeSpecial(html: string, intent: string): ExtractedStructure[] {
+  if (!/\b(flash|message|messages|alert|success|error|warning)\b/i.test(intent)) return [];
+  const $ = cheerio.load(html);
+  const flash = $("#flash, .flash, .alert, [role='alert']").first();
+  if (flash.length === 0) return [];
+  const flashText = flash.text().replace(/\s+/g, " ").replace(/[×x]\s*$/, "").trim();
+  if (!flashText || flashText.length < 4) return [];
+  const title = $("main h1, main h2, article h1, article h2, h1, h2").first().text().trim();
+  return [{
+    type: "key-value",
+    data: {
+      ...(title ? { title } : {}),
+      flash: flashText,
+      message: flashText,
+    },
+    element_count: title ? 2 : 1,
+    selector: buildReplaySelector(flash),
+  }];
+}
+
 /**
  * Extract structured data embedded by SPA frameworks BEFORE cleanDOM strips scripts.
  * Must be called on raw HTML.
@@ -197,6 +217,21 @@ interface ExtractedStructure {
   data: unknown;
   element_count: number;
   selector?: string;
+}
+
+function hasMessageLikeRecord(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    (typeof record.title === "string" || typeof record.heading_1 === "string" || typeof record.heading === "string") &&
+    (typeof record.message === "string" || typeof record.description === "string" || typeof record.flash === "string")
+  );
+}
+
+function isMessageLikeStructure(structure: ExtractedStructure, intent: string): boolean {
+  if (!/\b(message|messages|flash|alert|success|error|warning)\b/i.test(intent)) return false;
+  if (Array.isArray(structure.data)) return structure.data.some((item) => hasMessageLikeRecord(item));
+  return hasMessageLikeRecord(structure.data);
 }
 
 function pruneRowsForIntent(rows: Record<string, string>[], intent: string): Record<string, string>[] {
@@ -726,6 +761,10 @@ export function parseStructured(html: string): ExtractedStructure[] {
   const cardResults = detectRepeatingPatterns($);
   results.push(...cardResults);
 
+  // --- Single-record detail pages ---
+  const detailResults = detectDetailPatterns($);
+  results.push(...detailResults);
+
   return results;
 }
 
@@ -827,6 +866,57 @@ function detectRepeatingPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
   return results;
 }
 
+function hasDetailFieldShape(fields: Record<string, string>): boolean {
+  if (!fields.title && !fields.name && !fields.term) return false;
+  return !!(
+    fields.description ||
+    fields.definition ||
+    fields.price ||
+    fields.rating ||
+    fields.author ||
+    fields.url ||
+    fields.link ||
+    fields.score ||
+    fields.image
+  );
+}
+
+function detectDetailPatterns($: cheerio.CheerioAPI): ExtractedStructure[] {
+  const results: ExtractedStructure[] = [];
+  const seen = new Set<string>();
+
+  for (const selector of [
+    "main",
+    "article",
+    "[role='main']",
+    "[class*='detail']",
+    "[class*='details']",
+    "[class*='product']",
+    "[class*='listing']",
+    "[class*='profile']",
+    "[class*='content']",
+  ]) {
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const signature = `${selector}|${getElementSignature($, $el)}`;
+      if (seen.has(signature)) return;
+      seen.add(signature);
+      if ($el.text().trim().length < 20) return;
+      const fields = extractCardFields($, $el);
+      if (Object.keys(fields).length < 2) return;
+      if (!hasDetailFieldShape(fields)) return;
+      results.push({
+        type: "key-value",
+        data: fields,
+        element_count: 1,
+        selector: buildReplaySelector($el) ?? selector,
+      });
+    });
+  }
+
+  return results;
+}
+
 /**
  * Detect repeating sibling elements that share the same full class string.
  * Works for Tailwind/utility-class sites where standard selectors fail.
@@ -895,6 +985,9 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
     const text = $(h).text().trim();
     if (text && text.length < 300) fields[i === 0 ? "title" : `heading_${i}`] = text;
   });
+  if (!fields["message"] && fields["heading_1"] && fields["heading_1"].length > 10) {
+    fields["message"] = fields["heading_1"];
+  }
 
   // Fallback title: strong/bold text or [class*='name']
   if (!fields["title"]) {
@@ -943,11 +1036,25 @@ function extractCardFields($: cheerio.CheerioAPI, $el: cheerio.Cheerio<CheerioEl
 
   // Generic summary/excerpt containers often hold the useful body text for docs/questions/cards.
   if (!fields["description"]) {
-    $el.find("[class*='summary'], [class*='excerpt'], [class*='description'], [class*='snippet']").each((_, node) => {
+    $el.find("[class*='summary'], [class*='excerpt'], [class*='description'], [class*='desc'], [class*='snippet']").each((_, node) => {
       if (fields["description"]) return;
       const text = $(node).text().trim();
       if (text && text.length > 10 && text.length < 500) fields["description"] = text;
     });
+  }
+
+  // Alerts / success pages often carry the user-facing payload in strong text or flash-like containers.
+  if (!fields["message"]) {
+    $el.find("[role='alert'], .flash, .alert, [class*='message'], [class*='flash'], [class*='alert'], p strong, p b").each((_, node) => {
+      if (fields["message"]) return;
+      const text = $(node).text().trim();
+      if (text && text.length > 5 && text.length < 500 && text !== fields["title"]) {
+        fields["message"] = text;
+      }
+    });
+  }
+  if (!fields["message"] && fields["description"] && /congratulations|successfully|logged in|logged out|welcome|error|invalid|warning|flash|alert/i.test(fields["description"])) {
+    fields["message"] = fields["description"];
   }
 
   // Extract price-like patterns — use the most specific (deepest) match
@@ -1112,6 +1219,7 @@ export function extractFromDOMWithHint(
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
   const spaStructures = extractSPAData(html);
+  const flashStructures = extractFlashNoticeSpecial(html, intent);
   const cleaned = cleanDOM(html);
   const githubStructures = extractGitHubSpecial(html, intent);
   const linkedInStructures = extractLinkedInSpecial(html, intent);
@@ -1120,7 +1228,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const postStructures = extractPostSpecial(html, intent);
   const trendStructures = extractTrendSpecial(html, intent);
   const definitionStructures = extractDefinitionSpecial(html, intent);
-  const structures = [...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
@@ -1147,6 +1255,14 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   }
 
   const best = scored[0];
+  if (isMessageLikeStructure(best.structure, intent)) {
+    return {
+      data: best.structure.data,
+      extraction_method: best.structure.type,
+      confidence: computeConfidence(best.structure, best.score),
+      selector: best.structure.selector,
+    };
+  }
   const hasClearWinner = scored.length === 1 || best.score > scored[1].score * 1.5;
 
   if (hasClearWinner && best.score > 0) {
