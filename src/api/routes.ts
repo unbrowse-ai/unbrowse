@@ -18,6 +18,125 @@ const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbro
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
+// ── /v1/stats cache ──────────────────────────────────────────────────
+let statsCache: { data: unknown; ts: number } | null = null;
+const STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function fetchStats() {
+  if (statsCache && Date.now() - statsCache.ts < STATS_CACHE_TTL) {
+    return statsCache.data;
+  }
+
+  const npmPoint = (pkg: string, range: string) =>
+    fetch(`https://api.npmjs.org/downloads/point/${range}/${pkg}`)
+      .then(r => r.json() as Promise<{ downloads?: number }>);
+
+  const npmRange = (pkg: string) =>
+    fetch(`https://api.npmjs.org/downloads/range/last-month/${pkg}`)
+      .then(r => r.json() as Promise<{ downloads?: Array<{ day: string; downloads: number }> }>);
+
+  const externalCalls: Promise<unknown>[] = [
+    npmPoint("unbrowse", "last-month"),
+    npmPoint("@getfoundry/unbrowse-openclaw", "last-month"),
+    npmPoint("unbrowse", "1970-01-01:2099-12-31"),
+    npmPoint("@getfoundry/unbrowse-openclaw", "1970-01-01:2099-12-31"),
+    npmRange("unbrowse"),
+    npmRange("@getfoundry/unbrowse-openclaw"),
+    fetch("https://api.github.com/repos/anthropic-ai/unbrowse", {
+      headers: { "User-Agent": "unbrowse-stats" },
+    }).then(r => r.json() as Promise<Record<string, unknown>>),
+  ];
+
+  // Only call Unkey analytics if the key is available as an env var
+  const unkeyAnalyticsKey = process.env.UNKEY_ANALYTICS_KEY;
+  if (unkeyAnalyticsKey) {
+    externalCalls.push(
+      fetch("https://api.unkey.com/v2/analytics.getVerifications", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${unkeyAnalyticsKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ apiId: "api_2bUScBc8U6JNsXLrhfHwfqzXHJDi" }),
+      }).then(r => r.json() as Promise<unknown>),
+    );
+  }
+
+  const [
+    unbrowse30d, plugin30d,
+    unbrowseAll, pluginAll,
+    unbrowseDaily, pluginDaily,
+    github,
+    ...rest
+  ] = await Promise.allSettled(externalCalls);
+  const unkey = rest[0]; // may be undefined if no key
+
+  const val = <T>(r: PromiseSettledResult<T> | undefined): T | null =>
+    r?.status === "fulfilled" ? r.value : null;
+
+  // npm numbers
+  const u30 = val(unbrowse30d)?.downloads ?? null;
+  const p30 = val(plugin30d)?.downloads ?? null;
+  const uAll = val(unbrowseAll)?.downloads ?? null;
+  const pAll = val(pluginAll)?.downloads ?? null;
+
+  // daily breakdown — merge the two packages by day
+  const uDays = val(unbrowseDaily)?.downloads ?? [];
+  const pDays = val(pluginDaily)?.downloads ?? [];
+  const dayMap = new Map<string, { unbrowse: number; plugin: number }>();
+  for (const d of uDays) dayMap.set(d.day, { unbrowse: d.downloads, plugin: 0 });
+  for (const d of pDays) {
+    const entry = dayMap.get(d.day);
+    if (entry) entry.plugin = d.downloads;
+    else dayMap.set(d.day, { unbrowse: 0, plugin: d.downloads });
+  }
+  const daily = [...dayMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, v]) => ({ day, unbrowse: v.unbrowse, plugin: v.plugin, total: v.unbrowse + v.plugin }));
+
+  // github
+  const gh = val(github);
+  const githubData = gh && typeof gh === "object"
+    ? {
+        stars: (gh as Record<string, number>).stargazers_count ?? null,
+        forks: (gh as Record<string, number>).forks_count ?? null,
+        open_issues: (gh as Record<string, number>).open_issues_count ?? null,
+        watchers: (gh as Record<string, number>).watchers_count ?? null,
+      }
+    : { stars: null, forks: null, open_issues: null, watchers: null };
+
+  // unkey
+  let agentsData: { total_api_calls_30d: number | null; note?: string } = {
+    total_api_calls_30d: null,
+    note: "unkey analytics unavailable",
+  };
+  const uk = val(unkey);
+  if (uk && Array.isArray(uk)) {
+    const total = (uk as Array<{ total?: number }>).reduce((s, v) => s + (v.total ?? 0), 0);
+    agentsData = { total_api_calls_30d: total };
+  } else if (uk && typeof uk === "object" && (uk as Record<string, unknown>).total != null) {
+    agentsData = { total_api_calls_30d: (uk as Record<string, number>).total };
+  }
+
+  const data = {
+    npm: {
+      unbrowse: { last_30d: u30, all_time: uAll },
+      openclaw_plugin: { last_30d: p30, all_time: pAll },
+      combined: {
+        last_30d: u30 != null && p30 != null ? u30 + p30 : (u30 ?? p30),
+        all_time: uAll != null && pAll != null ? uAll + pAll : (uAll ?? pAll),
+      },
+      daily,
+    },
+    github: githubData,
+    agents: agentsData,
+    fetched_at: new Date().toISOString(),
+  };
+
+  statsCache = { data, ts: Date.now() };
+  return data;
+}
+
 export async function registerRoutes(app: FastifyInstance) {
   const clientScopeFor = (req: { headers: Record<string, unknown>; id: string }) =>
     (typeof req.headers["x-unbrowse-client-id"] === "string" && req.headers["x-unbrowse-client-id"].trim())
@@ -26,7 +145,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Auth gate: block all routes except /health when no API key is configured
   app.addHook("onRequest", async (req, reply) => {
-    if (req.url === "/health") return;
+    if (req.url === "/health" || req.url === "/v1/stats") return;
 
     const key = getApiKey();
     if (!key) {
@@ -207,20 +326,44 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /v1/auth/steal — extract cookies from Chrome/Firefox SQLite DBs.
+  // POST /v1/auth/steal — extract cookies from Firefox/Chrome/custom Chromium-family SQLite DBs.
   // No browser launch, Chrome can stay open. Higher rate limit since it's instant.
   app.post("/v1/auth/steal", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
-    const { url, chrome_profile, firefox_profile } = req.body as {
+    const {
+      url,
+      browser,
+      chrome_profile,
+      firefox_profile,
+      chromium_profile,
+      chromium_user_data_dir,
+      chromium_cookie_db_path,
+      safe_storage_service,
+      browser_name,
+    } = req.body as {
       url: string;
+      browser?: "auto" | "firefox" | "chrome" | "chromium";
       chrome_profile?: string;
       firefox_profile?: string;
+      chromium_profile?: string;
+      chromium_user_data_dir?: string;
+      chromium_cookie_db_path?: string;
+      safe_storage_service?: string;
+      browser_name?: string;
     };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
       const domain = new URL(url).hostname;
       const result = await extractBrowserAuth(domain, {
+        browser,
         chromeProfile: chrome_profile,
         firefoxProfile: firefox_profile,
+        chromium: {
+          profile: chromium_profile,
+          userDataDir: chromium_user_data_dir,
+          cookieDbPath: chromium_cookie_db_path,
+          safeStorageService: safe_storage_service,
+          browserName: browser_name,
+        },
       });
       return reply.send(result);
     } catch (err) {
@@ -270,6 +413,16 @@ export async function registerRoutes(app: FastifyInstance) {
         recordDiagnostics(resolvedSkillId, endpoint_id, diagnostics).catch(() => {});
       }
       return reply.send({ ok: true, avg_rating });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  // GET /v1/stats — public, no auth required
+  app.get("/v1/stats", async (_req, reply) => {
+    try {
+      const data = await fetchStats();
+      return reply.send(data);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }

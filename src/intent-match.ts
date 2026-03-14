@@ -23,6 +23,14 @@ function hasAnyPath(obj: unknown, paths: string[]): boolean {
   });
 }
 
+function countMatchingGroups(obj: unknown, groups: string[][]): number {
+  let matches = 0;
+  for (const group of groups) {
+    if (hasAnyPath(obj, group)) matches++;
+  }
+  return matches;
+}
+
 function toStringArray(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
     const out = value
@@ -80,6 +88,34 @@ function normalizePackageSearchResults(data: unknown): Record<string, unknown>[]
   return rows;
 }
 
+function normalizeCratesPackageSearchResults(data: unknown): Record<string, unknown>[] {
+  const sourceRows = isRecord(data) && Array.isArray(data.crates)
+    ? data.crates
+    : Array.isArray(data)
+      ? data
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const name = firstNonEmptyString(getPath(item, "name"), getPath(item, "id"));
+    if (!name || seen.has(name)) continue;
+    const description = firstNonEmptyString(getPath(item, "description"), getPath(item, "summary"));
+    const version = firstNonEmptyString(getPath(item, "max_version"), getPath(item, "default_version"), getPath(item, "version"));
+    rows.push({
+      name,
+      ...(description ? { description, summary: description } : {}),
+      ...(version ? { version } : {}),
+      ...(typeof getPath(item, "downloads") === "number" ? { downloads: getPath(item, "downloads") } : {}),
+      url: `https://crates.io/crates/${encodeURIComponent(name)}`,
+    });
+    seen.add(name);
+  }
+
+  return rows;
+}
+
 function normalizeNpmPackageInfo(data: unknown): Record<string, unknown> | null {
   if (!isRecord(data) || !hasNonEmptyString(data.name)) return null;
   const distTags = isRecord(data["dist-tags"]) ? data["dist-tags"] : undefined;
@@ -117,8 +153,43 @@ function normalizeNpmPackageInfo(data: unknown): Record<string, unknown> | null 
     ...(keywords ? { keywords } : {}),
     ...(dependencies && dependencies.length > 0 ? { dependencies } : {}),
     ...(author ? { author } : {}),
-    url: homepage ?? `https://www.npmjs.com/package/${encodeURIComponent(String(data.name))}`,
+    url: homepage ?? firstNonEmptyString(getPath(data, "url"), getPath(data, "package_url"), getPath(data, "project_url"))
+      ?? `https://www.npmjs.com/package/${encodeURIComponent(String(data.name))}`,
   };
+}
+
+function normalizeDocumentRows(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.documents)
+      ? data.documents
+      : isRecord(data) && Array.isArray(data.results)
+        ? data.results
+        : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const title = firstNonEmptyString(getPath(item, "title"), getPath(item, "name"));
+    const url = firstNonEmptyString(getPath(item, "url"), getPath(item, "mdn_url"), getPath(item, "link"), getPath(item, "href"));
+    if (!title || !url) continue;
+    const id = `${title}|${url}`;
+    if (seen.has(id)) continue;
+    rows.push({
+      title,
+      url,
+      ...(firstNonEmptyString(getPath(item, "summary"), getPath(item, "description"), getPath(item, "slug")) ? {
+        summary: firstNonEmptyString(getPath(item, "summary"), getPath(item, "description"), getPath(item, "slug")),
+      } : {}),
+      ...(typeof getPath(item, "score") === "number" ? { score: getPath(item, "score") } : {}),
+      ...(typeof getPath(item, "popularity") === "number" ? { popularity: getPath(item, "popularity") } : {}),
+      ...(firstNonEmptyString(getPath(item, "locale")) ? { locale: firstNonEmptyString(getPath(item, "locale")) } : {}),
+    });
+    seen.add(id);
+  }
+
+  return rows;
 }
 
 function normalizePyPIPackageInfo(data: unknown): Record<string, unknown> | null {
@@ -146,6 +217,42 @@ function normalizePyPIPackageInfo(data: unknown): Record<string, unknown> | null
     ...(author ? { author } : {}),
     ...(requiresDist && requiresDist.length > 0 ? { requires_dist: requiresDist } : {}),
     ...(url ? { url } : {}),
+  };
+}
+
+function normalizePubDevPackageInfo(data: unknown): Record<string, unknown> | null {
+  if (!isRecord(data)) return null;
+  const latest = isRecord(data.latest) ? data.latest : undefined;
+  const pubspec = isRecord(latest?.pubspec) ? latest?.pubspec : undefined;
+  const name = firstNonEmptyString(getPath(data, "name"), getPath(pubspec, "name"));
+  if (!name) return null;
+  const version = firstNonEmptyString(getPath(latest, "version"), getPath(pubspec, "version"));
+  const description = firstNonEmptyString(getPath(pubspec, "description"));
+  const repository = firstNonEmptyString(getPath(pubspec, "repository"), getPath(pubspec, "homepage"));
+  const topics = toStringArray(getPath(pubspec, "topics"));
+  return {
+    name,
+    ...(version ? { version } : {}),
+    ...(description ? { description, summary: description } : {}),
+    ...(topics ? { keywords: topics } : {}),
+    url: repository ?? `https://pub.dev/packages/${encodeURIComponent(name)}`,
+  };
+}
+
+function normalizeRubyGemsPackageInfo(data: unknown): Record<string, unknown> | null {
+  if (!isRecord(data)) return null;
+  const name = firstNonEmptyString(getPath(data, "name"));
+  if (!name) return null;
+  const description = firstNonEmptyString(getPath(data, "info"));
+  const version = firstNonEmptyString(getPath(data, "version"));
+  const author = firstNonEmptyString(getPath(data, "authors"), getPath(data, "author"));
+  const homepage = firstNonEmptyString(getPath(data, "homepage_uri"), getPath(data, "project_uri"), getPath(data, "gem_uri"));
+  return {
+    name,
+    ...(version ? { version } : {}),
+    ...(description ? { description, summary: description } : {}),
+    ...(author ? { author } : {}),
+    url: homepage ?? `https://rubygems.org/gems/${encodeURIComponent(name)}`,
   };
 }
 
@@ -200,6 +307,442 @@ function normalizeDockerTagResults(data: unknown): Record<string, unknown>[] {
     });
     seen.add(name);
   }
+
+  return rows;
+}
+
+function normalizeHackerNewsStories(data: unknown): Record<string, unknown>[] {
+  const sourceRows = isRecord(data) && Array.isArray(data.hits)
+    ? data.hits
+    : Array.isArray(data)
+      ? data
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const id = firstNonEmptyString(getPath(item, "objectID"), getPath(item, "id"), getPath(item, "story_id"));
+    const title = firstNonEmptyString(getPath(item, "title"), getPath(item, "story_title"));
+    const url = firstNonEmptyString(getPath(item, "url"), getPath(item, "story_url"), getPath(item, "link"));
+    const author = firstNonEmptyString(getPath(item, "author"));
+    const meta = firstNonEmptyString(getPath(item, "meta"));
+    if (!title) continue;
+    const stableId = id ?? url ?? title;
+    if (seen.has(stableId)) continue;
+    const pointsMatch = meta?.match(/(^|\|)\s*([0-9,]+)\s+points?\b/i);
+    const commentsMatch = meta?.match(/(^|\|)\s*([0-9,]+)\s+comments?\b/i);
+
+    rows.push({
+      ...(stableId ? { id: stableId } : {}),
+      title,
+      ...(url ? { url } : {}),
+      ...(author ? { author } : {}),
+      ...(typeof getPath(item, "points") === "number"
+        ? { points: getPath(item, "points") }
+        : pointsMatch ? { points: Number(pointsMatch[2]?.replace(/,/g, "")) } : {}),
+      ...(typeof getPath(item, "num_comments") === "number"
+        ? { num_comments: getPath(item, "num_comments") }
+        : commentsMatch ? { num_comments: Number(commentsMatch[2]?.replace(/,/g, "")) } : {}),
+      ...(meta ? { meta } : {}),
+    });
+    seen.add(stableId);
+  }
+
+  return rows;
+}
+
+function normalizeStackExchangeQuestions(data: unknown): Record<string, unknown>[] {
+  const sourceRows = isRecord(data) && Array.isArray(data.items)
+    ? data.items
+    : Array.isArray(data)
+      ? data
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const title = firstNonEmptyString(getPath(item, "title"));
+    const url = firstNonEmptyString(getPath(item, "link"));
+    if (!title || !url || seen.has(url)) continue;
+    rows.push({
+      title,
+      url,
+      ...(typeof getPath(item, "score") === "number" ? { score: getPath(item, "score") } : {}),
+      ...(typeof getPath(item, "answer_count") === "number" ? { answer_count: getPath(item, "answer_count") } : {}),
+      ...(firstNonEmptyString(getPath(item, "owner.display_name")) ? { author: firstNonEmptyString(getPath(item, "owner.display_name")) } : {}),
+      ...(typeof getPath(item, "last_activity_date") === "number" ? { date: getPath(item, "last_activity_date") } : {}),
+    });
+    seen.add(url);
+  }
+  return rows;
+}
+
+function normalizeDevToPosts(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.result)
+      ? data.result
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  const inferAuthor = (value: unknown): string | undefined => {
+    const raw = hasNonEmptyString(value) ? String(value) : undefined;
+    if (!raw) return undefined;
+    try {
+      const pathname = raw.startsWith("http") ? new URL(raw).pathname : raw;
+      const segments = pathname.split("/").filter(Boolean);
+      const candidate = segments[0];
+      if (!candidate || candidate === "t" || candidate === "s" || candidate === "tag" || candidate === "tags" || candidate === "top" || candidate === "latest") {
+        return undefined;
+      }
+      return candidate;
+    } catch {
+      return undefined;
+    }
+  };
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const title = firstNonEmptyString(getPath(item, "title"));
+    const url = firstNonEmptyString(getPath(item, "url"), getPath(item, "path"));
+    if (!title || !url) continue;
+    const looksLikeDevTo = (
+      firstNonEmptyString(getPath(item, "type_of")) === "article" ||
+      hasNonEmptyString(getPath(item, "user.name")) ||
+      hasNonEmptyString(getPath(item, "user.username")) ||
+      typeof getPath(item, "positive_reactions_count") === "number" ||
+      typeof getPath(item, "comments_count") === "number" ||
+      hasNonEmptyString(getPath(item, "published_at")) ||
+      hasNonEmptyString(getPath(item, "readable_publish_date")) ||
+      url.startsWith("https://dev.to/") ||
+      url.startsWith("http://dev.to/") ||
+      (url.startsWith("/") && !!inferAuthor(url))
+    );
+    if (!looksLikeDevTo) continue;
+    const canonicalUrl = url.startsWith("http") ? url : `https://dev.to${url}`;
+    if (seen.has(canonicalUrl)) continue;
+    const author = firstNonEmptyString(
+      getPath(item, "user.name"),
+      getPath(item, "user.username"),
+      inferAuthor(getPath(item, "path")),
+      inferAuthor(canonicalUrl),
+    );
+    rows.push({
+      ...(firstNonEmptyString(getPath(item, "id")) ? { id: firstNonEmptyString(getPath(item, "id")) } : {}),
+      title,
+      url: canonicalUrl,
+      ...(firstNonEmptyString(getPath(item, "description")) ? { description: firstNonEmptyString(getPath(item, "description")) } : {}),
+      ...(author ? { author } : {}),
+      ...(typeof getPath(item, "positive_reactions_count") === "number" ? { likes: getPath(item, "positive_reactions_count") } : {}),
+      ...(typeof getPath(item, "comments_count") === "number" ? { comments: getPath(item, "comments_count") } : {}),
+      ...(firstNonEmptyString(getPath(item, "published_at"), getPath(item, "readable_publish_date")) ? { date: firstNonEmptyString(getPath(item, "published_at"), getPath(item, "readable_publish_date")) } : {}),
+    });
+    seen.add(canonicalUrl);
+  }
+  return rows;
+}
+
+function normalizeLobstersPosts(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.results)
+      ? data.results
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const title = firstNonEmptyString(getPath(item, "title"));
+    const rawUrl = firstNonEmptyString(getPath(item, "url"), getPath(item, "link"), getPath(item, "href"));
+    const text = firstNonEmptyString(getPath(item, "text"), getPath(item, "body"));
+    if (!title || !rawUrl || /^\d+\s+comments?$/i.test(title)) continue;
+    const scoreMatch = text?.match(/^\s*(\d{1,4})\s+/)?.[1];
+    const score = typeof getPath(item, "score") === "number"
+      ? getPath(item, "score")
+      : typeof getPath(item, "points") === "number"
+        ? getPath(item, "points")
+        : scoreMatch ? Number(scoreMatch) : undefined;
+    const url = rawUrl.startsWith("http") ? rawUrl : `https://lobste.rs${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+    const stable = `${title}|${url}`;
+    if (seen.has(stable)) continue;
+    rows.push({
+      title,
+      url,
+      ...(typeof score === "number" ? { score } : {}),
+      ...(firstNonEmptyString(getPath(item, "author"), getPath(item, "username")) ? { author: firstNonEmptyString(getPath(item, "author"), getPath(item, "username")) } : {}),
+    });
+    seen.add(stable);
+  }
+  return rows;
+}
+
+function normalizeHuggingFaceModels(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.models)
+      ? data.models
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const id = firstNonEmptyString(getPath(item, "id"), getPath(item, "modelId"), getPath(item, "name"), getPath(item, "title"));
+    if (!id || seen.has(id)) continue;
+    const name = firstNonEmptyString(getPath(item, "name"), getPath(item, "title"), getPath(item, "modelId"), getPath(item, "id"));
+    rows.push({
+      id,
+      ...(name ? { name } : {}),
+      ...(typeof getPath(item, "downloads") === "number" ? { downloads: getPath(item, "downloads") } : {}),
+      ...(typeof getPath(item, "likes") === "number" ? { likes: getPath(item, "likes") } : {}),
+      ...(firstNonEmptyString(getPath(item, "pipeline_tag"), getPath(item, "task")) ? {
+        pipeline_tag: firstNonEmptyString(getPath(item, "pipeline_tag"), getPath(item, "task")),
+      } : {}),
+      url: firstNonEmptyString(getPath(item, "url"), getPath(item, "link"))
+        ?? `https://huggingface.co/${encodeURI(id)}`,
+    });
+    seen.add(id);
+  }
+
+  return rows;
+}
+
+function normalizeEmailRows(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.results)
+      ? data.results
+      : isRecord(data) && Array.isArray(data.emails)
+        ? data.emails
+        : isRecord(data) && Array.isArray(data.messages)
+          ? data.messages
+          : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const thread = isRecord(getPath(item, "thread")) ? getPath(item, "thread") as Record<string, unknown> : item;
+    const message = isRecord(getPath(item, "matchedEmail")) ? getPath(item, "matchedEmail") as Record<string, unknown> : item;
+    const id = firstNonEmptyString(
+      getPath(message, "id"),
+      getPath(thread, "doc_id"),
+      getPath(item, "id"),
+      getPath(item, "doc_id"),
+    );
+    if (!id || seen.has(id)) continue;
+    const subject = firstNonEmptyString(getPath(thread, "subject"), getPath(item, "subject"), getPath(message, "subject"));
+    const from = firstNonEmptyString(
+      getPath(message, "sender"),
+      getPath(thread, "latest_sender_name"),
+      getPath(item, "from"),
+      getPath(item, "sender"),
+    );
+    const date = firstNonEmptyString(getPath(thread, "formatted_date"), getPath(item, "date"), getPath(message, "date"));
+    const preview = firstNonEmptyString(
+      getPath(thread, "preview"),
+      getPath(message, "content_markdown"),
+      getPath(item, "preview"),
+      getPath(item, "snippet"),
+    );
+    if (!subject && !from) continue;
+    rows.push({
+      id,
+      ...(subject ? { subject } : {}),
+      ...(from ? { from } : {}),
+      ...(date ? { date } : {}),
+      ...(preview ? { preview } : {}),
+    });
+    seen.add(id);
+  }
+
+  return rows;
+}
+
+function normalizeProductRows(data: unknown): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  const blockedTitles = new Set(["results", "more results", "related searches", "need help?"]);
+
+  collectNestedObjects(data, (obj) => {
+    const headingKeys = Object.keys(obj).filter((key) => /^heading_\d+$/i.test(key));
+    const title = firstNonEmptyString(
+      getPath(obj, "title"),
+      getPath(obj, "name"),
+      getPath(obj, "productName"),
+      getPath(obj, "productTitle"),
+      getPath(obj, "title.text"),
+    );
+    const url = firstNonEmptyString(
+      getPath(obj, "url"),
+      getPath(obj, "link"),
+      getPath(obj, "href"),
+      getPath(obj, "canonicalUrl"),
+      getPath(obj, "productUrl"),
+      getPath(obj, "productPageUrl"),
+    );
+    const id = firstNonEmptyString(
+      getPath(obj, "id"),
+      getPath(obj, "usItemId"),
+      getPath(obj, "itemId"),
+      getPath(obj, "productId"),
+      getPath(obj, "sku"),
+    );
+    const priceString = firstNonEmptyString(
+      getPath(obj, "price"),
+      getPath(obj, "priceString"),
+      getPath(obj, "price.currentPrice.priceString"),
+      getPath(obj, "priceInfo.currentPrice.priceString"),
+      getPath(obj, "secondaryOfferPrice.currentPrice.priceString"),
+    );
+    const priceNumber = getPath(obj, "price.currentPrice.price")
+      ?? getPath(obj, "priceInfo.currentPrice.price")
+      ?? getPath(obj, "currentPrice.price")
+      ?? getPath(obj, "salePrice");
+    const rating = getPath(obj, "averageRating")
+      ?? getPath(obj, "rating")
+      ?? getPath(obj, "rating.average")
+      ?? getPath(obj, "customerRating")
+      ?? getPath(obj, "reviews.averageRating");
+    const reviewCount = getPath(obj, "numberOfReviews")
+      ?? getPath(obj, "reviewCount")
+      ?? getPath(obj, "reviews.count")
+      ?? getPath(obj, "ratingsTotal");
+    const image = firstNonEmptyString(
+      getPath(obj, "image"),
+      getPath(obj, "imageUrl"),
+      getPath(obj, "thumbnail"),
+      getPath(obj, "primaryImageUrl"),
+    );
+    const brand = firstNonEmptyString(getPath(obj, "brand"), getPath(obj, "brandName"), getPath(obj, "seller"));
+
+    if (!title && !id) return;
+    if (title && blockedTitles.has(title.trim().toLowerCase())) return;
+    if (headingKeys.length >= 6) return;
+    if (!url && !id) return;
+    if (
+      priceString == null &&
+      typeof priceNumber !== "number" &&
+      rating == null &&
+      reviewCount == null &&
+      !image &&
+      !brand
+    ) {
+      return;
+    }
+    if (url && /(amazon-adsystem|doubleclick|googlesyndication|pubmatic|taboola|outbrain|aax-|googleadservices|adservice)\./i.test(url)) {
+      return;
+    }
+
+    const stable = String(url ?? id ?? title);
+    if (seen.has(stable)) return;
+    rows.push({
+      ...(id ? { id } : {}),
+      ...(title ? { title } : {}),
+      ...(url ? { url } : {}),
+      ...(priceString ? { price: priceString } : typeof priceNumber === "number" ? { price: priceNumber } : {}),
+      ...(typeof rating === "number" || hasNonEmptyString(rating) ? { rating } : {}),
+      ...(typeof reviewCount === "number" || hasNonEmptyString(reviewCount) ? { review_count: reviewCount } : {}),
+      ...(image ? { image } : {}),
+      ...(brand ? { brand } : {}),
+    });
+    seen.add(stable);
+  });
+
+  return rows;
+}
+
+function normalizeStockQuote(data: unknown): Record<string, unknown> | null {
+  let best: Record<string, unknown> | null = null;
+
+  collectNestedObjects(data, (obj) => {
+    const symbol = firstNonEmptyString(
+      getPath(obj, "symbol"),
+      getPath(obj, "ticker"),
+      getPath(obj, "quote.symbol"),
+    );
+    const price = getPath(obj, "regularMarketPrice.raw")
+      ?? getPath(obj, "regularMarketPrice")
+      ?? getPath(obj, "postMarketPrice.raw")
+      ?? getPath(obj, "price.regularMarketPrice.raw")
+      ?? getPath(obj, "price.regularMarketPrice")
+      ?? getPath(obj, "price.currentPrice.raw")
+      ?? getPath(obj, "price.currentPrice");
+    if (!symbol || typeof price !== "number") return;
+    const name = firstNonEmptyString(
+      getPath(obj, "shortName"),
+      getPath(obj, "longName"),
+      getPath(obj, "displayName"),
+      getPath(obj, "price.shortName"),
+      getPath(obj, "price.longName"),
+    );
+    const currency = firstNonEmptyString(getPath(obj, "currency"), getPath(obj, "financialCurrency"), getPath(obj, "price.currency"));
+    const marketState = firstNonEmptyString(getPath(obj, "marketState"), getPath(obj, "price.marketState"));
+    const changePercent = getPath(obj, "regularMarketChangePercent.raw")
+      ?? getPath(obj, "regularMarketChangePercent")
+      ?? getPath(obj, "price.regularMarketChangePercent.raw")
+      ?? getPath(obj, "price.regularMarketChangePercent");
+    const marketCap = getPath(obj, "marketCap.raw")
+      ?? getPath(obj, "marketCap")
+      ?? getPath(obj, "price.marketCap.raw")
+      ?? getPath(obj, "price.marketCap");
+    best = {
+      symbol,
+      ...(name ? { name } : {}),
+      price,
+      ...(currency ? { currency } : {}),
+      ...(typeof changePercent === "number" ? { change_percent: changePercent } : {}),
+      ...(typeof marketCap === "number" ? { market_cap: marketCap } : {}),
+      ...(marketState ? { market_state: marketState } : {}),
+    };
+  });
+
+  return best;
+}
+
+function normalizeChannelRows(data: unknown): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  collectNestedObjects(data, (obj) => {
+    const name = firstNonEmptyString(
+      getPath(obj, "name"),
+      getPath(obj, "title"),
+      getPath(obj, "channel_name"),
+      getPath(obj, "workspace_name"),
+      getPath(obj, "team_name"),
+    );
+    const id = firstNonEmptyString(
+      getPath(obj, "id"),
+      getPath(obj, "channel_id"),
+      getPath(obj, "guild_id"),
+      getPath(obj, "server_id"),
+      getPath(obj, "workspace_id"),
+      getPath(obj, "team_id"),
+    );
+    const url = firstNonEmptyString(
+      getPath(obj, "url"),
+      getPath(obj, "channel_url"),
+      getPath(obj, "server_url"),
+      getPath(obj, "workspace_url"),
+    );
+    if (!name || (!id && !url)) return;
+    const stable = String(id ?? url ?? name);
+    if (seen.has(stable)) return;
+    rows.push({
+      ...(id ? { id } : {}),
+      name,
+      ...(url ? { url } : {}),
+      ...(firstNonEmptyString(getPath(obj, "topic"), getPath(obj, "purpose"), getPath(obj, "description")) ? {
+        description: firstNonEmptyString(getPath(obj, "topic"), getPath(obj, "purpose"), getPath(obj, "description")),
+      } : {}),
+      ...(typeof getPath(obj, "member_count") === "number" ? { member_count: getPath(obj, "member_count") } : {}),
+      ...(firstNonEmptyString(getPath(obj, "type"), getPath(obj, "channel_type"), getPath(obj, "kind")) ? {
+        type: firstNonEmptyString(getPath(obj, "type"), getPath(obj, "channel_type"), getPath(obj, "kind")),
+      } : {}),
+    });
+    seen.add(stable);
+  });
 
   return rows;
 }
@@ -513,8 +1056,40 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
   if (!intent) return unwrapped;
   const lower = intent.toLowerCase();
 
+  if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/.test(lower)) {
+    const normalizedQuote = normalizeStockQuote(unwrapped);
+    if (normalizedQuote) return normalizedQuote;
+  }
+
+  if (/\b(product|products|item|items)\b/.test(lower)) {
+    const normalizedProducts = normalizeProductRows(unwrapped);
+    if (normalizedProducts.length > 0) return normalizedProducts;
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).products)) {
+      return (unwrapped as Record<string, unknown>).products;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).items)) {
+      return (unwrapped as Record<string, unknown>).items;
+    }
+  }
+
+  if (/\b(channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
+    const normalizedChannels = normalizeChannelRows(unwrapped);
+    if (normalizedChannels.length > 0) return normalizedChannels;
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).channels)) {
+      return (unwrapped as Record<string, unknown>).channels;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).guilds)) {
+      return (unwrapped as Record<string, unknown>).guilds;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).workspaces)) {
+      return (unwrapped as Record<string, unknown>).workspaces;
+    }
+  }
+
   if (/\b(package|packages)\b/.test(lower)) {
     if (/\bsearch\b/.test(lower)) {
+      const normalizedCratesSearch = normalizeCratesPackageSearchResults(unwrapped);
+      if (normalizedCratesSearch.length > 0) return normalizedCratesSearch;
       const normalizedPackageSearch = normalizePackageSearchResults(unwrapped);
       if (normalizedPackageSearch.length > 0) return normalizedPackageSearch;
       if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).packages)) {
@@ -525,9 +1100,21 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
       if (normalizedNpmPackage) return normalizedNpmPackage;
       const normalizedPyPIPackage = normalizePyPIPackageInfo(unwrapped);
       if (normalizedPyPIPackage) return normalizedPyPIPackage;
+      const normalizedPubDevPackage = normalizePubDevPackageInfo(unwrapped);
+      if (normalizedPubDevPackage) return normalizedPubDevPackage;
+      const normalizedRubyGemsPackage = normalizeRubyGemsPackageInfo(unwrapped);
+      if (normalizedRubyGemsPackage) return normalizedRubyGemsPackage;
       if (isRecord(unwrapped) && isRecord((unwrapped as Record<string, unknown>).package)) {
         return (unwrapped as Record<string, unknown>).package;
       }
+    }
+  }
+
+  if (/\b(doc|docs|documentation)\b/.test(lower)) {
+    const normalizedDocuments = normalizeDocumentRows(unwrapped);
+    if (normalizedDocuments.length > 0) return normalizedDocuments;
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).documents)) {
+      return (unwrapped as Record<string, unknown>).documents;
     }
   }
 
@@ -572,15 +1159,20 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
   if (!isRecord(unwrapped) && !Array.isArray(unwrapped)) return unwrapped;
 
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) {
-    if (Array.isArray(unwrapped.statuses)) return unwrapped.statuses;
-    if (Array.isArray(unwrapped.posts)) return unwrapped.posts;
-    if (Array.isArray(unwrapped.tweets)) return unwrapped.tweets;
+    const normalizedDevPosts = normalizeDevToPosts(unwrapped);
+    if (normalizedDevPosts.length > 0) return normalizedDevPosts;
+    const normalizedLobsters = normalizeLobstersPosts(unwrapped);
+    if (normalizedLobsters.length > 0) return normalizedLobsters;
     const normalizedLinkedInFeed = normalizeLinkedInFeedPosts(unwrapped);
     if (normalizedLinkedInFeed.length > 0) return normalizedLinkedInFeed;
     const normalizedRedditPosts = normalizeRedditPosts(unwrapped);
     if (normalizedRedditPosts.length > 0) return normalizedRedditPosts;
     const normalizedXTweets = normalizeXTweets(unwrapped);
     if (normalizedXTweets.length > 0) return normalizedXTweets;
+    if (Array.isArray(unwrapped)) return unwrapped;
+    if (Array.isArray(unwrapped.statuses)) return unwrapped.statuses;
+    if (Array.isArray(unwrapped.posts)) return unwrapped.posts;
+    if (Array.isArray(unwrapped.tweets)) return unwrapped.tweets;
   }
 
   if (/\b(person|people|user|users|profile|profiles|member|members)\b/.test(lower)) {
@@ -621,6 +1213,36 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
     if (Array.isArray(unwrapped.hashtags)) return unwrapped.hashtags;
   }
 
+  if (/\b(model|models)\b/.test(lower)) {
+    const normalizedModels = normalizeHuggingFaceModels(unwrapped);
+    if (normalizedModels.length > 0) return normalizedModels;
+    if (Array.isArray(unwrapped.models)) return unwrapped.models;
+  }
+
+  if (/\b(news|story|stories|article|articles|hacker news)\b/.test(lower)) {
+    if (Array.isArray(unwrapped)) return unwrapped;
+    const normalizedStories = normalizeHackerNewsStories(unwrapped);
+    if (normalizedStories.length > 0) return normalizedStories;
+    if (Array.isArray(unwrapped.hits)) return unwrapped.hits;
+    if (Array.isArray(unwrapped.stories)) return unwrapped.stories;
+    if (Array.isArray(unwrapped.articles)) return unwrapped.articles;
+  }
+
+  if (/\b(question|questions)\b/.test(lower)) {
+    if (Array.isArray(unwrapped)) return unwrapped;
+    const normalizedQuestions = normalizeStackExchangeQuestions(unwrapped);
+    if (normalizedQuestions.length > 0) return normalizedQuestions;
+    if (Array.isArray(unwrapped.items)) return unwrapped.items;
+  }
+
+  if (/\b(email|emails|mail|inbox)\b/.test(lower)) {
+    const normalizedEmails = normalizeEmailRows(unwrapped);
+    if (normalizedEmails.length > 0) return normalizedEmails;
+    if (Array.isArray(unwrapped.emails)) return unwrapped.emails;
+    if (Array.isArray(unwrapped.messages)) return unwrapped.messages;
+    if (Array.isArray(unwrapped.results)) return unwrapped.results;
+  }
+
   if (/\b(repo|repository|repositories|project|projects)\b/.test(lower)) {
     if (Array.isArray(unwrapped.repositories)) return unwrapped.repositories;
     if (Array.isArray(unwrapped.items)) return unwrapped.items;
@@ -653,6 +1275,22 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["version", "description", "summary", "url", "keywords", "requires_dist", "dependencies"])
     );
     return matching.length >= 1 ? { verdict: "pass", reason: "package_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(model|models)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["id", "modelId", "name"]) &&
+      hasAnyPath(row, ["downloads", "likes", "pipeline_tag", "url"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "model_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(news|story|stories|article|articles|hacker news)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["objectID", "id", "url", "link"]) &&
+      hasAnyPath(row, ["title", "story_title", "author", "points", "num_comments", "meta"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "story_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
   if (/\bsearch images\b/.test(lower)) {
@@ -696,10 +1334,24 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
     return matching.length >= 1 ? { verdict: "pass", reason: "comment_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
+  if (/\b(email|emails|mail|inbox)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["id", "thread.doc_id", "matchedEmail.id"]) &&
+      hasAnyPath(row, ["subject", "thread.subject", "from", "sender", "thread.latest_sender_name"]) &&
+      hasAnyPath(row, ["date", "thread.formatted_date", "preview", "thread.preview", "matchedEmail.content_markdown"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "email_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) {
     const matching = objects.filter((row) =>
-      hasAnyPath(row, ["id", "url", "uri"]) &&
-      hasAnyPath(row, ["content", "text", "title", "account.username", "account.acct", "username"])
+      hasAnyPath(row, ["id", "url", "uri", "permalink"]) &&
+      countMatchingGroups(row, [
+        ["content", "text", "title", "body"],
+        ["account.username", "account.acct", "username", "author", "user.name"],
+        ["score", "points", "likes", "favorite_count", "num_comments", "reply_count"],
+        ["date", "created_at", "published_at", "timestamp", "meta"],
+      ]) >= 2
     );
     return matching.length >= 1 ? { verdict: "pass", reason: "post_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
@@ -719,6 +1371,98 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["url", "name", "query"])
     );
     return matching.length >= 2 ? { verdict: "pass", reason: "topic_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(doc|docs|documentation)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["title", "name", "slug"]) &&
+      hasAnyPath(row, ["url", "link", "href", "mdn_url"]) &&
+      hasAnyPath(row, ["summary", "description", "slug", "popularity", "score"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "document_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(paper|papers)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["title", "name"]) &&
+      hasAnyPath(row, ["url", "link", "href"]) &&
+      hasAnyPath(row, ["summary", "description", "author", "authors", "date", "published", "meta"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "paper_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(question|questions)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["title", "name"]) &&
+      hasAnyPath(row, ["url", "link", "href", "permalink"]) &&
+      countMatchingGroups(row, [
+        ["votes", "score", "points"],
+        ["answers", "answer_count", "num_answers", "num_comments"],
+        ["author", "date", "created_at", "meta"],
+      ]) >= 2
+    );
+    return matching.length >= 2 ? { verdict: "pass", reason: "question_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(recipe|recipes)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["title", "name"]) &&
+      hasAnyPath(row, ["url", "link", "href"]) &&
+      hasAnyPath(row, ["rating", "review_count", "author", "description", "summary", "cook_time", "total_time"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "recipe_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(course|courses)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["title", "name"]) &&
+      hasAnyPath(row, ["url", "link", "href"]) &&
+      hasAnyPath(row, ["rating", "partner", "provider", "instructor", "description", "summary", "duration", "level"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "course_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(definition|dictionary|meaning)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["term", "title", "name", "word"]) &&
+      hasAnyPath(row, ["definition", "summary", "body", "description"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "definition_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(stock|stocks|ticker|tickers|quote|quotes)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["symbol", "ticker"]) &&
+      hasAnyPath(row, ["price", "regularMarketPrice", "current_price"]) &&
+      hasAnyPath(row, ["name", "currency", "change_percent", "market_cap", "market_state"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "quote_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(product|products|item|items)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["title", "name", "product_name"]) &&
+      (
+        hasAnyPath(row, ["url", "id", "product_id", "sku"]) ||
+        hasAnyPath(row, ["description", "summary"])
+      ) &&
+      hasAnyPath(row, ["price", "rating", "review_count", "brand", "image"]) &&
+      !/^results?$/i.test(String(getPath(row, "title") ?? getPath(row, "name") ?? "")) &&
+      !Object.keys(row).some((key) => /^heading_\d+$/i.test(key)) &&
+      !/(amazon-adsystem|doubleclick|googlesyndication|pubmatic|taboola|outbrain|aax-|googleadservices|adservice)/i.test(
+        String(getPath(row, "url") ?? ""),
+      )
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "product_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["name", "title"]) &&
+      hasAnyPath(row, ["id", "url", "channel_id", "guild_id", "workspace_id"]) &&
+      hasAnyPath(row, ["description", "type", "member_count", "url"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "channel_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
   return { verdict: "skip", reason: "unclassified_array" };
@@ -754,11 +1498,14 @@ export function assessIntentResult(data: unknown, intent?: string): {
     if ("learned_skill_id" in projected && !("data" in projected)) {
       return { verdict: "fail", reason: "learned_skill_only", projected };
     }
-    if ("message" in projected && !("data" in projected)) {
+    const lower = (intent ?? "").toLowerCase();
+    if (("message" in projected || "flash" in projected) && !("data" in projected)) {
+      if (/\b(message|messages|flash|alert|success|error|warning)\b/.test(lower)) {
+        return { verdict: "skip", reason: "message_record", projected };
+      }
       return { verdict: "fail", reason: "message_only", projected };
     }
-    const lower = (intent ?? "").toLowerCase();
-    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages)\b/.test(lower)) {
+    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages|doc|docs|documentation|question|questions|recipe|recipes|course|courses|definition|dictionary|meaning|product|products|item|items|stock|stocks|ticker|tickers|quote|quotes|channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
       const classified = classifyRows([projected], intent ?? "");
       return { ...classified, projected };
     }

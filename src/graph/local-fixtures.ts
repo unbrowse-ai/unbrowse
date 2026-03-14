@@ -246,7 +246,79 @@ export function buildLocalHarnessFixtures(): { skills: SkillManifest[]; cases: L
     }),
   ]);
 
-  const skills = [discord, github, marketplace, linkedin];
+  const formPage = {
+    ...endpoint("jobs-form-options", "GET", "https://jobs.example.com/roles", {
+      action_kind: "list",
+      resource_kind: "form",
+      description_in: "No additional inputs required",
+      description_out: "Returns form dropdown options for department and location filters",
+      response_summary: "department_options[].label, department_options[].value, location_options[].label, location_options[].value",
+      example_request: {},
+      example_response_compact: {
+        department_options: [{ label: "Engineering", value: "eng" }],
+        location_options: [{ label: "Remote", value: "remote" }],
+      },
+      example_fields: [
+        "department_options[].label",
+        "department_options[].value",
+        "location_options[].label",
+        "location_options[].value",
+      ],
+      requires: [],
+      provides: [
+        { key: "department", semantic_type: "department_option", source: "response", example_value: "eng" },
+        { key: "location", semantic_type: "location_option", source: "response", example_value: "remote" },
+      ],
+      negative_tags: [],
+      confidence: 0.95,
+    }),
+    dom_extraction: {
+      extraction_method: "form-options",
+      confidence: 0.95,
+      selector: "form[data-role='job-search']",
+    },
+  } satisfies EndpointDescriptor;
+
+  const formSearch = endpoint("jobs-search", "GET", "https://jobs.example.com/api/jobs?department={department}&location={location}", {
+    action_kind: "search",
+    resource_kind: "job",
+    description_in: "Requires department and location",
+    description_out: "Searches jobs using the selected form filters",
+    response_summary: "jobs[].job_id, jobs[].title, jobs[].location",
+    example_request: { department: "eng", location: "remote" },
+    example_response_compact: { jobs: [{ job_id: "j1", title: "Staff Engineer", location: "Remote" }] },
+    example_fields: ["jobs[].job_id", "jobs[].title", "jobs[].location"],
+    requires: [
+      { key: "department", semantic_type: "department_option", required: true, source: "query" },
+      { key: "location", semantic_type: "location_option", required: true, source: "query" },
+    ],
+    provides: [{ key: "job_id", semantic_type: "job_identifier", source: "response", example_value: "j1" }],
+    negative_tags: [],
+    confidence: 0.95,
+  });
+
+  const formDetail = endpoint("job-detail", "GET", "https://jobs.example.com/api/jobs/{job_id}", {
+    action_kind: "detail",
+    resource_kind: "job",
+    description_in: "Requires job_id",
+    description_out: "Returns job details for the selected listing",
+    response_summary: "job.title, job.team, job.description",
+    example_request: { job_id: "j1" },
+    example_response_compact: { job: { title: "Staff Engineer", team: "Platform", description: "..." } },
+    example_fields: ["job.title", "job.team", "job.description"],
+    requires: [{ key: "job_id", semantic_type: "job_identifier", required: true, source: "url_template" }],
+    provides: [],
+    negative_tags: [],
+    confidence: 0.95,
+  });
+
+  const formDriven = baseSkill("fixture-form-html", "jobs.example.com", [
+    formPage,
+    formSearch,
+    formDetail,
+  ]);
+
+  const skills = [discord, github, marketplace, linkedin, formDriven];
   const cases: LocalHarnessCase[] = [
     {
       id: "discord-root-channels",
@@ -297,6 +369,23 @@ export function buildLocalHarnessFixtures(): { skills: SkillManifest[]; cases: L
       expected_skill_id: "fixture-linkedin",
       expected_operation_id: "linkedin-profile-detail",
       expected_chunk_contains: ["linkedin-search-people", "linkedin-profile-detail"],
+    },
+    {
+      id: "html-form-options",
+      intent: "get form options",
+      contextUrl: "https://jobs.example.com/roles",
+      expected_skill_id: "fixture-form-html",
+      expected_operation_id: "jobs-form-options",
+      expected_chunk_contains: ["jobs-search"],
+    },
+    {
+      id: "html-form-search",
+      intent: "search jobs",
+      params: { department: "eng", location: "remote" },
+      contextUrl: "https://jobs.example.com/roles",
+      expected_skill_id: "fixture-form-html",
+      expected_operation_id: "jobs-search",
+      expected_chunk_contains: ["jobs-form-options", "job-detail"],
     },
   ];
 
