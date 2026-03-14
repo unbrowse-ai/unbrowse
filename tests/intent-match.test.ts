@@ -440,6 +440,31 @@ describe("intent result assessment", () => {
     expect(verdict.verdict).toBe("pass");
   });
 
+  test("passes crates package search payloads locally", () => {
+    const verdict = assessIntentResult({
+      crates: [
+        {
+          id: "tokio",
+          description: "An event-driven, non-blocking I/O platform.",
+          max_version: "1.44.1",
+          downloads: 123456789,
+        },
+      ],
+    }, "search packages");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("passes HuggingFace model search payloads when only modelId is present", () => {
+    const verdict = assessIntentResult([
+      {
+        modelId: "openai/gpt-oss-20b",
+        downloads: 4242,
+        pipeline_tag: "text-generation",
+      },
+    ], "search models");
+    expect(verdict.verdict).toBe("pass");
+  });
+
   test("fails question-like nav rows without question detail", () => {
     const verdict = assessIntentResult([
       { title: "Newest", link: "/questions/tagged/javascript?tab=Newest" },
@@ -515,6 +540,28 @@ describe("intent result assessment", () => {
         user: { name: "Programming Central" },
       },
     ], "get tag posts");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("passes DEV tag article payloads without embedded user objects", () => {
+    const verdict = assessIntentResult([
+      {
+        title: "WebGPU benchmark",
+        path: "/sylwia-lask/webgpu-demo",
+        url: "https://dev.to/sylwia-lask/webgpu-demo",
+      },
+    ], "get tag posts");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("passes Lobsters-style post rows when score is embedded in text", () => {
+    const verdict = assessIntentResult([
+      {
+        title: "Interesting systems post",
+        url: "/s/abc123/interesting_systems_post",
+        text: "162 Interesting systems post systems.example.com authored by alice 2 hours ago | 12 comments",
+      },
+    ], "get posts");
     expect(verdict.verdict).toBe("pass");
   });
 

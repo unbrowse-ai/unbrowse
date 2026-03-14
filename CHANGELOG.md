@@ -1128,3 +1128,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: backend search embeddings now clamp/pad to the indexed vector dimensions, preventing marketplace resolve failures when the embedding provider drifts from the requested size
 - fix: CLI marketplace resolve now falls back to legacy `/v1/search` + `/v1/search/domain` when the new shared search route is not deployed yet, preventing repeat resolves from regressing to forced live capture during rollout
 - docs: split Codex eval lanes into task-shaped `product-success` and broader `stress`, with `public` / `agent-targets` kept as aliases so product claims stop leaning on hostile homepage sweeps
+- fix: codex eval review now scores normalized projected payloads and fills common aliases for fields like description, score, rating, sender, and term
+- fix: package/model projection now normalizes crates.io search rows and Hugging Face `modelId` rows into stable eval-friendly fields
+- fix: template param hydration now infers dev.to-style `tag` bindings from route context for query-based replay endpoints
+- fix: post projection now derives dev.to authors from article paths and recovers Lobsters scores from text-heavy list rows

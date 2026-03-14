@@ -88,6 +88,34 @@ function normalizePackageSearchResults(data: unknown): Record<string, unknown>[]
   return rows;
 }
 
+function normalizeCratesPackageSearchResults(data: unknown): Record<string, unknown>[] {
+  const sourceRows = isRecord(data) && Array.isArray(data.crates)
+    ? data.crates
+    : Array.isArray(data)
+      ? data
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const name = firstNonEmptyString(getPath(item, "name"), getPath(item, "id"));
+    if (!name || seen.has(name)) continue;
+    const description = firstNonEmptyString(getPath(item, "description"), getPath(item, "summary"));
+    const version = firstNonEmptyString(getPath(item, "max_version"), getPath(item, "default_version"), getPath(item, "version"));
+    rows.push({
+      name,
+      ...(description ? { description, summary: description } : {}),
+      ...(version ? { version } : {}),
+      ...(typeof getPath(item, "downloads") === "number" ? { downloads: getPath(item, "downloads") } : {}),
+      url: `https://crates.io/crates/${encodeURIComponent(name)}`,
+    });
+    seen.add(name);
+  }
+
+  return rows;
+}
+
 function normalizeNpmPackageInfo(data: unknown): Record<string, unknown> | null {
   if (!isRecord(data) || !hasNonEmptyString(data.name)) return null;
   const distTags = isRecord(data["dist-tags"]) ? data["dist-tags"] : undefined;
@@ -358,24 +386,92 @@ function normalizeDevToPosts(data: unknown): Record<string, unknown>[] {
       : [];
   const rows: Record<string, unknown>[] = [];
   const seen = new Set<string>();
+  const inferAuthor = (value: unknown): string | undefined => {
+    const raw = hasNonEmptyString(value) ? String(value) : undefined;
+    if (!raw) return undefined;
+    try {
+      const pathname = raw.startsWith("http") ? new URL(raw).pathname : raw;
+      const segments = pathname.split("/").filter(Boolean);
+      const candidate = segments[0];
+      if (!candidate || candidate === "t" || candidate === "s" || candidate === "tag" || candidate === "tags" || candidate === "top" || candidate === "latest") {
+        return undefined;
+      }
+      return candidate;
+    } catch {
+      return undefined;
+    }
+  };
   for (const item of sourceRows) {
     if (!isRecord(item)) continue;
     const title = firstNonEmptyString(getPath(item, "title"));
     const url = firstNonEmptyString(getPath(item, "url"), getPath(item, "path"));
     if (!title || !url) continue;
+    const looksLikeDevTo = (
+      firstNonEmptyString(getPath(item, "type_of")) === "article" ||
+      hasNonEmptyString(getPath(item, "user.name")) ||
+      hasNonEmptyString(getPath(item, "user.username")) ||
+      typeof getPath(item, "positive_reactions_count") === "number" ||
+      typeof getPath(item, "comments_count") === "number" ||
+      hasNonEmptyString(getPath(item, "published_at")) ||
+      hasNonEmptyString(getPath(item, "readable_publish_date")) ||
+      url.startsWith("https://dev.to/") ||
+      url.startsWith("http://dev.to/") ||
+      (url.startsWith("/") && !!inferAuthor(url))
+    );
+    if (!looksLikeDevTo) continue;
     const canonicalUrl = url.startsWith("http") ? url : `https://dev.to${url}`;
     if (seen.has(canonicalUrl)) continue;
+    const author = firstNonEmptyString(
+      getPath(item, "user.name"),
+      getPath(item, "user.username"),
+      inferAuthor(getPath(item, "path")),
+      inferAuthor(canonicalUrl),
+    );
     rows.push({
       ...(firstNonEmptyString(getPath(item, "id")) ? { id: firstNonEmptyString(getPath(item, "id")) } : {}),
       title,
       url: canonicalUrl,
       ...(firstNonEmptyString(getPath(item, "description")) ? { description: firstNonEmptyString(getPath(item, "description")) } : {}),
-      ...(firstNonEmptyString(getPath(item, "user.name"), getPath(item, "user.username")) ? { author: firstNonEmptyString(getPath(item, "user.name"), getPath(item, "user.username")) } : {}),
+      ...(author ? { author } : {}),
       ...(typeof getPath(item, "positive_reactions_count") === "number" ? { likes: getPath(item, "positive_reactions_count") } : {}),
       ...(typeof getPath(item, "comments_count") === "number" ? { comments: getPath(item, "comments_count") } : {}),
       ...(firstNonEmptyString(getPath(item, "published_at"), getPath(item, "readable_publish_date")) ? { date: firstNonEmptyString(getPath(item, "published_at"), getPath(item, "readable_publish_date")) } : {}),
     });
     seen.add(canonicalUrl);
+  }
+  return rows;
+}
+
+function normalizeLobstersPosts(data: unknown): Record<string, unknown>[] {
+  const sourceRows = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.results)
+      ? data.results
+      : [];
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  for (const item of sourceRows) {
+    if (!isRecord(item)) continue;
+    const title = firstNonEmptyString(getPath(item, "title"));
+    const rawUrl = firstNonEmptyString(getPath(item, "url"), getPath(item, "link"), getPath(item, "href"));
+    const text = firstNonEmptyString(getPath(item, "text"), getPath(item, "body"));
+    if (!title || !rawUrl || /^\d+\s+comments?$/i.test(title)) continue;
+    const scoreMatch = text?.match(/^\s*(\d{1,4})\s+/)?.[1];
+    const score = typeof getPath(item, "score") === "number"
+      ? getPath(item, "score")
+      : typeof getPath(item, "points") === "number"
+        ? getPath(item, "points")
+        : scoreMatch ? Number(scoreMatch) : undefined;
+    const url = rawUrl.startsWith("http") ? rawUrl : `https://lobste.rs${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+    const stable = `${title}|${url}`;
+    if (seen.has(stable)) continue;
+    rows.push({
+      title,
+      url,
+      ...(typeof score === "number" ? { score } : {}),
+      ...(firstNonEmptyString(getPath(item, "author"), getPath(item, "username")) ? { author: firstNonEmptyString(getPath(item, "author"), getPath(item, "username")) } : {}),
+    });
+    seen.add(stable);
   }
   return rows;
 }
@@ -393,11 +489,10 @@ function normalizeHuggingFaceModels(data: unknown): Record<string, unknown>[] {
     if (!isRecord(item)) continue;
     const id = firstNonEmptyString(getPath(item, "id"), getPath(item, "modelId"), getPath(item, "name"), getPath(item, "title"));
     if (!id || seen.has(id)) continue;
+    const name = firstNonEmptyString(getPath(item, "name"), getPath(item, "title"), getPath(item, "modelId"), getPath(item, "id"));
     rows.push({
       id,
-      ...(firstNonEmptyString(getPath(item, "name"), getPath(item, "title")) ? {
-        name: firstNonEmptyString(getPath(item, "name"), getPath(item, "title")),
-      } : {}),
+      ...(name ? { name } : {}),
       ...(typeof getPath(item, "downloads") === "number" ? { downloads: getPath(item, "downloads") } : {}),
       ...(typeof getPath(item, "likes") === "number" ? { likes: getPath(item, "likes") } : {}),
       ...(firstNonEmptyString(getPath(item, "pipeline_tag"), getPath(item, "task")) ? {
@@ -993,6 +1088,8 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
 
   if (/\b(package|packages)\b/.test(lower)) {
     if (/\bsearch\b/.test(lower)) {
+      const normalizedCratesSearch = normalizeCratesPackageSearchResults(unwrapped);
+      if (normalizedCratesSearch.length > 0) return normalizedCratesSearch;
       const normalizedPackageSearch = normalizePackageSearchResults(unwrapped);
       if (normalizedPackageSearch.length > 0) return normalizedPackageSearch;
       if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).packages)) {
@@ -1062,18 +1159,20 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
   if (!isRecord(unwrapped) && !Array.isArray(unwrapped)) return unwrapped;
 
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) {
-    if (Array.isArray(unwrapped)) return unwrapped;
-    if (Array.isArray(unwrapped.statuses)) return unwrapped.statuses;
-    if (Array.isArray(unwrapped.posts)) return unwrapped.posts;
-    if (Array.isArray(unwrapped.tweets)) return unwrapped.tweets;
     const normalizedDevPosts = normalizeDevToPosts(unwrapped);
     if (normalizedDevPosts.length > 0) return normalizedDevPosts;
+    const normalizedLobsters = normalizeLobstersPosts(unwrapped);
+    if (normalizedLobsters.length > 0) return normalizedLobsters;
     const normalizedLinkedInFeed = normalizeLinkedInFeedPosts(unwrapped);
     if (normalizedLinkedInFeed.length > 0) return normalizedLinkedInFeed;
     const normalizedRedditPosts = normalizeRedditPosts(unwrapped);
     if (normalizedRedditPosts.length > 0) return normalizedRedditPosts;
     const normalizedXTweets = normalizeXTweets(unwrapped);
     if (normalizedXTweets.length > 0) return normalizedXTweets;
+    if (Array.isArray(unwrapped)) return unwrapped;
+    if (Array.isArray(unwrapped.statuses)) return unwrapped.statuses;
+    if (Array.isArray(unwrapped.posts)) return unwrapped.posts;
+    if (Array.isArray(unwrapped.tweets)) return unwrapped.tweets;
   }
 
   if (/\b(person|people|user|users|profile|profiles|member|members)\b/.test(lower)) {

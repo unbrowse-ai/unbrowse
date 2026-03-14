@@ -275,6 +275,64 @@ describe("codex autonomous harness helpers", () => {
     expect(mdnReview.missing_fields).toEqual([]);
   });
 
+  it("judges against projected normalized payloads, not just raw fields", async () => {
+    const gemReview = await reviewEvalPayload({
+      intent: "get package info",
+      expected_fields: ["name", "version", "description"],
+      payload: {
+        name: "rails",
+        version: "8.0.2",
+        info: "Ruby on Rails",
+      },
+    });
+    expect(gemReview.verdict).toBe("pass");
+    expect(gemReview.matched_fields).toContain("description");
+
+    const modelReview = await reviewEvalPayload({
+      intent: "search models",
+      expected_fields: ["name", "url", "downloads"],
+      payload: [
+        {
+          modelId: "openai/gpt-oss-20b",
+          downloads: 123,
+        },
+      ],
+    });
+    expect(modelReview.verdict).toBe("pass");
+    expect(modelReview.matched_fields).toContain("name");
+    expect(modelReview.matched_fields).toContain("url");
+  });
+
+  it("projects dev.to authors from article paths and lobsters scores from text", async () => {
+    const devtoReview = await reviewEvalPayload({
+      intent: "get tag posts",
+      expected_fields: ["title", "url", "author"],
+      payload: [
+        {
+          title: "WebGPU article",
+          path: "/sylwia-lask/webgpu-demo",
+          url: "https://dev.to/sylwia-lask/webgpu-demo",
+        },
+      ],
+    });
+    expect(devtoReview.verdict).toBe("pass");
+    expect(devtoReview.matched_fields).toContain("author");
+
+    const lobstersReview = await reviewEvalPayload({
+      intent: "get posts",
+      expected_fields: ["title", "url", "score"],
+      payload: [
+        {
+          title: "Interesting systems post",
+          url: "/s/abc123/interesting_systems_post",
+          text: "162 Interesting systems post systems.example.com authored by alice 2 hours ago | 12 comments",
+        },
+      ],
+    });
+    expect(lobstersReview.verdict).toBe("pass");
+    expect(lobstersReview.matched_fields).toContain("score");
+  });
+
   it("summarizes cold-vs-warm benchmark deltas", () => {
     expect(summarizeBenchmarkRuns(
       {
