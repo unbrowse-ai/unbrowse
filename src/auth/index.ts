@@ -1,5 +1,4 @@
-import { BrowserManager } from "agent-browser/dist/browser.js";
-import { executeCommand } from "agent-browser/dist/actions.js";
+import * as kuri from "../kuri/client.js";
 import { storeCredential, getCredential, deleteCredential } from "../vault/index.js";
 import { nanoid } from "nanoid";
 import { isDomainMatch, getRegistrableDomain } from "../domain.js";
@@ -10,16 +9,16 @@ import fs from "node:fs";
 
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
-const MIN_WAIT_MS = 15_000; // Always wait at least 15s so user has time to log in
+const MIN_WAIT_MS = 15_000;
 
 /**
  * Returns the persistent profile directory for a given domain.
  * Stored under ~/.unbrowse/profiles/<registrableDomain>.
- * Exporting so capture/execute can also launch with the profile if needed.
  */
 export function getProfilePath(domain: string): string {
   return path.join(os.homedir(), ".unbrowse", "profiles", getRegistrableDomain(domain));
 }
+
 export interface LoginResult {
   success: boolean;
   domain: string;
@@ -29,8 +28,10 @@ export interface LoginResult {
 
 /**
  * Open a visible browser for the user to complete login.
- * Waits up to 120s for navigation back to the target domain, then captures cookies.
- * Uses an isolated persistent profile per domain.
+ * Uses Kuri to manage the browser tab, polls for login completion via cookies.
+ *
+ * Note: Kuri manages Chrome — for interactive login, the user's Chrome
+ * needs to be visible. We navigate to the login URL and poll for cookie changes.
  */
 export async function interactiveLogin(
   url: string,
@@ -39,26 +40,23 @@ export async function interactiveLogin(
   const targetDomain = domain ?? new URL(url).hostname;
   const profileDir = getProfilePath(targetDomain);
 
-  const browser = new BrowserManager();
   log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}`);
 
   try {
     fs.mkdirSync(profileDir, { recursive: true });
-    await browser.launch({
-      action: "launch",
-      id: nanoid(),
-      headless: false,
-      profile: profileDir,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    });
-    await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
 
-    const page = browser.getPage();
+    // Start Kuri and get a tab
+    await kuri.start();
+    const tabId = await kuri.getDefaultTab();
+    await kuri.networkEnable(tabId);
+
+    // Navigate to login URL
+    await kuri.navigate(tabId, url);
+
     const startTime = Date.now();
 
-    // Snapshot initial cookies so we can detect new ones after login
-    const context = browser.getContext();
-    const initialCookies = context ? await context.cookies() : [];
+    // Snapshot initial cookies
+    const initialCookies = await kuri.getCookies(tabId);
     const initialCookieCount = initialCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
     log("auth", `initial cookies for ${targetDomain}: ${initialCookieCount}`);
 
@@ -70,7 +68,7 @@ export async function interactiveLogin(
       const elapsed = Date.now() - startTime;
 
       try {
-        const currentUrl = page.url();
+        const currentUrl = await kuri.getCurrentUrl(tabId);
         const currentDomain = new URL(currentUrl).hostname.toLowerCase();
         const targetNorm = targetDomain.toLowerCase();
 
@@ -79,15 +77,13 @@ export async function interactiveLogin(
           lastLoggedUrl = currentUrl;
         }
 
-        // Don't even check for login completion until MIN_WAIT_MS has passed
         if (elapsed < MIN_WAIT_MS) continue;
 
         const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
         if (isOnTarget) {
           const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/.test(new URL(currentUrl).pathname);
 
-          // Check if new cookies appeared (the real signal that login happened)
-          const currentCookies = context ? await context.cookies() : [];
+          const currentCookies = await kuri.getCookies(tabId);
           const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
           const gotNewCookies = currentCookieCount > initialCookieCount;
 
@@ -97,9 +93,6 @@ export async function interactiveLogin(
             break;
           }
 
-          // Handle "already logged in" — user was redirected away from login
-          // to a non-login page, and cookies already exist (even if count didn't change).
-          // This means the persistent profile already has the session.
           if (!isStillLogin && currentCookieCount > 0) {
             loggedIn = true;
             log("auth", `already logged in — ${currentUrl} (${currentCookieCount} cookies present)`);
@@ -110,14 +103,11 @@ export async function interactiveLogin(
     }
 
     if (!loggedIn) {
-      // Even on timeout, grab whatever cookies we have — the user may have logged in
-      // but the detection missed it
       log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — capturing cookies anyway`);
     }
 
     // Extract and store cookies
-    const finalContext = browser.getContext();
-    const cookies = finalContext ? await finalContext.cookies() : [];
+    const cookies = await kuri.getCookies(tabId);
     const domainCookies = cookies.filter((c) => isDomainMatch(c.domain, targetDomain));
 
     if (domainCookies.length === 0) {
@@ -135,33 +125,17 @@ export async function interactiveLogin(
 
     return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
   } finally {
-    try {
-      const context = browser.getContext();
-      if (context) await Promise.race([context.close(), new Promise<void>((r) => setTimeout(r, 4000))]);
-    } catch { /* ignore */ }
+    // Cleanup handled by Kuri's tab management
   }
 }
 
 /**
  * Extract cookies directly from Chrome/Firefox SQLite databases.
  * No browser launch needed, Chrome can stay open.
- * Stores extracted cookies in the vault for subsequent use.
- * Always stores under the registrable domain key for consistency.
  */
 export async function extractBrowserAuth(
   domain: string,
-  opts?: {
-    browser?: "auto" | "firefox" | "chrome" | "chromium";
-    chromeProfile?: string;
-    firefoxProfile?: string;
-    chromium?: {
-      profile?: string;
-      userDataDir?: string;
-      cookieDbPath?: string;
-      safeStorageService?: string;
-      browserName?: string;
-    };
-  }
+  opts?: { chromeProfile?: string; firefoxProfile?: string }
 ): Promise<LoginResult> {
   const { extractBrowserCookies } = await import("./browser-cookies.js");
 
@@ -176,7 +150,6 @@ export async function extractBrowserAuth(
     };
   }
 
-  // Store in vault under same format as interactiveLogin
   const storableCookies = result.cookies.map((c) => ({
     name: c.name,
     value: c.value,
@@ -188,7 +161,6 @@ export async function extractBrowserAuth(
     expires: c.expires,
   }));
 
-  // Normalize: always store under registrable domain for consistent lookups
   const vaultKey = `auth:${getRegistrableDomain(domain)}`;
   await storeCredential(
     vaultKey,
@@ -214,7 +186,7 @@ type AuthCookie = {
 function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
   const now = Math.floor(Date.now() / 1000);
   return cookies.filter((c) => {
-    if (c.expires == null || c.expires <= 0) return true; // session cookie
+    if (c.expires == null || c.expires <= 0) return true;
     return c.expires > now;
   });
 }
@@ -222,12 +194,10 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
 /**
  * Retrieve stored auth cookies for a domain from the vault.
  * Filters out expired cookies automatically.
- * Checks both registrable domain key and exact domain key for backward compat.
  */
 export async function getStoredAuth(
   domain: string
 ): Promise<AuthCookie[] | null> {
-  // Try registrable domain key first (new normalized format), then exact domain
   const regDomain = getRegistrableDomain(domain);
   const keysToTry = [`auth:${regDomain}`];
   if (domain !== regDomain) keysToTry.push(`auth:${domain}`);
@@ -263,22 +233,13 @@ export async function getStoredAuth(
  * Fallback chain:
  *   1. Vault cookies (fast path)
  *   2. Auto-extract from Chrome/Firefox SQLite (bird pattern — always fresh)
- *
- * This ensures cookies are available without requiring the user to manually
- * call /v1/auth/steal first.
  */
 export async function getAuthCookies(
-  domain: string,
-  opts?: {
-    autoExtract?: boolean;
-  },
+  domain: string
 ): Promise<AuthCookie[] | null> {
-  // 1. Try vault (fast)
   const vaultCookies = await getStoredAuth(domain);
   if (vaultCookies && vaultCookies.length > 0) return vaultCookies;
-  if (!opts?.autoExtract) return null;
 
-  // 2. Auto-extract from browser (bird pattern)
   log("auth", `no vault cookies for ${domain} — auto-extracting from browser`);
   try {
     const result = await extractBrowserAuth(domain);

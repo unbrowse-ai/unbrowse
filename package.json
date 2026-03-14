@@ -40,7 +40,6 @@
   "dependencies": {
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
-    "agent-browser": "^0.13.0",
     "cheerio": "^1.2.0",
     "dotenv": "^17.3.1",
     "fastify": "^5.7.4",
