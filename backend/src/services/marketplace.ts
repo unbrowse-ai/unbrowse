@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import type { Env, SkillManifest, EndpointDescriptor } from "../types.js";
 import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex } from "./discovery.js";
 import { generateDescriptions } from "./descriptions.js";
+import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
 import { skillsKV } from "./kv.js";
 
 function kvKey(skillId: string): string {
@@ -137,6 +138,43 @@ export async function publishSkill(
   } catch (err) {
     index_status = (err as Error).message;
     console.error(`[indexEndpoints] failed for ${skill.skill_id}:`, index_status);
+  }
+
+  // Infer DAG edges from endpoint URL templates and upsert them
+  try {
+    for (const ep of skill.endpoints) {
+      let path: string;
+      try { path = new URL(ep.url_template).pathname; } catch { path = ep.url_template; }
+
+      // Extract {param} patterns as requires bindings
+      const params = [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+
+      // Infer action_kind from HTTP method
+      const methodKind: Record<string, string> = { GET: "read", POST: "create", PUT: "update", PATCH: "update", DELETE: "delete" };
+      const actionKind = methodKind[ep.method.toUpperCase()] ?? "read";
+
+      // Infer resource_kind from last meaningful path segment
+      const segments = path.split("/").filter((s) => s && !s.startsWith("{"));
+      const resourceKind = segments.length > 0 ? segments[segments.length - 1] : undefined;
+
+      // Build node with requires/provides + action/resource kinds
+      const node: GraphNode = {
+        endpoint_id: ep.endpoint_id,
+        requires: params,
+        provides: [],
+        action_kind: actionKind,
+        resource_kind: resourceKind,
+        reliability_score: ep.reliability_score,
+      };
+
+      // Edges connect this endpoint to others that provide its required params
+      // (EmergentDB resolves these via the DAG; we just declare the bindings)
+      const edges: GraphEdge[] = params.map((p) => ({ to: "*", binding: p }));
+
+      await upsertEdges(env, skill.domain, node, edges);
+    }
+  } catch (err) {
+    console.error(`[upsertEdges] failed for ${skill.skill_id}:`, (err as Error).message);
   }
 
   return { ...skill, index_status };
