@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/justrach/unbrowse34/compare/v1.1.5...v2.0.0) (2026-03-14)
+
+### Features
+
+* auto-execute + SSR fast-path (15s → 3.6s) ([318c10f](https://github.com/justrach/unbrowse34/commit/318c10f243543857a945b34488ce0214780094c8))
+* auto-execute DOM extraction endpoints with LLM param inference ([b03b0d2](https://github.com/justrach/unbrowse34/commit/b03b0d25e403b86f930f49575b2f182fbfeb0859))
+* auto-execute, SSR fast-path, route/domain caching, evals, backend improvements ([0fd9346](https://github.com/justrach/unbrowse34/commit/0fd93468102e62364e1a31697cf8e6ea9e3b1a12))
+* domain-level skill cache for cross-intent reuse ([1aa8361](https://github.com/justrach/unbrowse34/commit/1aa8361f671bf91f3f31e1320e3caa9c6df965e1))
+* expand public eval corpus and prep v2.0.0 ([b75f8d2](https://github.com/justrach/unbrowse34/commit/b75f8d2f73e49bc9b96e38feadf3c2a0135c88a4))
+* persist route cache to disk (survives restarts) ([a6a5eae](https://github.com/justrach/unbrowse34/commit/a6a5eaeac33a264bfe099e07465e02e4f71f26d6))
+* replace agent-browser with Kuri — CLI-first Zig-native browser automation ([6053014](https://github.com/justrach/unbrowse34/commit/6053014c7c05411cac5988dd62ec2fa5ff417169)), closes [#71](https://github.com/justrach/unbrowse34/issues/71) [#71](https://github.com/justrach/unbrowse34/issues/71)
+
+### Bug Fixes
+
+* catch 'setPassword is not a function' keytar errors and fall back to encrypted file vault ([71a53af](https://github.com/justrach/unbrowse34/commit/71a53af4ff20e01e570cd7b51e3c2c21a63497e4))
+* stale route cache + domain cache persistence ([55bc5a4](https://github.com/justrach/unbrowse34/commit/55bc5a4a272972b20e24446ad3e2c8e5b860c59a))
+
 ## 1.1.5 (2026-03-11)
 
 ### Bug Fixes
