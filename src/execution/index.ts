@@ -157,13 +157,6 @@ export function validateExtractionQuality(data: unknown, confidence: number, int
 
   // 4. Diversity check — reject if all items share the same link/title (nav chrome)
   if (data.length >= 3) {
-    const hasInformativeDiversity = ["definition", "description", "summary", "text", "content", "message"]
-      .some((field) => {
-        const vals = data
-          .map((item) => (item && typeof item === "object" ? (item as Record<string, unknown>)[field] : undefined))
-          .filter((v): v is string => typeof v === "string" && v.trim().length >= 12);
-        return vals.length >= 2 && new Set(vals.map((v) => v.trim())).size >= 2;
-      });
     for (const field of ["link", "href", "url", "title"]) {
       const vals = data
         .map((item) => (item && typeof item === "object" ? (item as Record<string, unknown>)[field] : undefined))
@@ -171,7 +164,6 @@ export function validateExtractionQuality(data: unknown, confidence: number, int
       if (vals.length >= 3) {
         const uniqueVals = new Set(vals.map(String));
         if (uniqueVals.size === 1) {
-          if (hasInformativeDiversity) continue;
           return { valid: false, quality_note: `all items share the same "${field}" — likely navigation chrome` };
         }
       }
@@ -179,52 +171,6 @@ export function validateExtractionQuality(data: unknown, confidence: number, int
   }
 
   return { valid: true };
-}
-
-export function postProcessHtmlExecutionPayload(
-  html: string,
-  endpoint: Pick<EndpointDescriptor, "dom_extraction">,
-  intent: string,
-): { success: true; data: unknown } | { success: false; error: string; message: string } {
-  const extracted = extractFromDOM(html, intent);
-  if (extracted.data) {
-    const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
-    const semanticAssessment = quality.valid
-      ? assessIntentResult(extracted.data, intent)
-      : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
-    if (quality.valid && semanticAssessment.verdict !== "fail") {
-      return {
-        success: true,
-        data: {
-          data: extracted.data,
-          _extraction: {
-            method: extracted.extraction_method,
-            confidence: extracted.confidence,
-            source: "html-postprocess",
-          },
-        },
-      };
-    }
-    return {
-      success: false,
-      error: "low_quality_dom_extraction",
-      message: `Structured DOM extraction was rejected: ${semanticAssessment.reason ?? quality.quality_note ?? "low quality extraction"}`,
-    };
-  }
-
-  if (!endpoint.dom_extraction) {
-    return {
-      success: false,
-      error: "unexpected_html_response",
-      message: `Endpoint returned HTML instead of API data for intent "${intent}"`,
-    };
-  }
-
-  return {
-    success: false,
-    error: "low_quality_dom_extraction",
-    message: "Structured DOM extraction was rejected: low quality extraction",
-  };
 }
 
 export interface ExecutionResult {
@@ -2041,18 +1987,39 @@ export async function executeEndpoint(
   // Always extract — returning raw HTML to an agent is never useful.
   if (trace.success && typeof data === "string" && isHtml(data)) {
     const intent = options?.intent || skill.intent_signature;
-    const postProcessed = postProcessHtmlExecutionPayload(data, endpoint, intent);
-    if (postProcessed.success) {
-      data = postProcessed.data;
-      trace.result = data;
-    } else {
+    if (!endpoint.dom_extraction) {
       trace.success = false;
-      trace.error = postProcessed.error;
+      trace.error = "unexpected_html_response";
       data = {
-        error: postProcessed.error,
-        message: postProcessed.message,
+        error: "unexpected_html_response",
+        message: `Endpoint returned HTML instead of API data for intent "${intent}"`,
       };
       trace.result = data;
+    } else {
+      const extracted = extractFromDOM(data, intent);
+      if (extracted.data) {
+        const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
+        const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
+        if (quality.valid && semanticAssessment.verdict !== "fail") {
+          data = {
+            data: extracted.data,
+            _extraction: {
+              method: extracted.extraction_method,
+              confidence: extracted.confidence,
+              source: "html-postprocess",
+            },
+          };
+          trace.result = data;
+        } else {
+          trace.success = false;
+          trace.error = semanticAssessment.reason ?? quality.quality_note ?? "low_quality_dom_extraction";
+          data = {
+            error: "low_quality_dom_extraction",
+            message: `Structured DOM extraction was rejected: ${semanticAssessment.reason ?? quality.quality_note ?? "low quality extraction"}`,
+          };
+          trace.result = data;
+        }
+      }
     }
   }
 
