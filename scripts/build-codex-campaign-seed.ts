@@ -11,6 +11,7 @@ const INPUTS = [
   "evals/codex-cases.product-success.json",
   "evals/codex-cases.stress.json",
   "evals/codex-cases.public.json",
+  "evals/codex-cases.public-expansion.json",
   "evals/codex-cases.auth-popular.json",
 ];
 
