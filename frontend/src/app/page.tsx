@@ -18,7 +18,7 @@ const faqJsonLd = {
       name: "How does Unbrowse work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.",
+        text: "Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.",
       },
     },
     {
@@ -116,14 +116,14 @@ export default function Home() {
             </a>
             
                            <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
-                           The browser built{" "}
+                           100x faster. 95% cheaper.{" "}
                            <br className="hidden sm:block" />
-                           <span className="text-orange-500">for AI agents.</span>
+                           <span className="text-orange-500">The API-native browser.</span>
                          </h1>
 
-                          <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-lg leading-relaxed">
-                           Log in, search, book, submit — any action on any site,{" "}
-                           via direct API call. Not a headless browser.
+                          <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
+                           A drop-in replacement for browser automation for AI agents.
+                           Log in, search, book, and submit through direct API calls instead of driving a flaky browser.
                          </p>
 
             <div id="install" className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-4xl text-left">
@@ -204,7 +204,7 @@ export default function Home() {
          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6 text-text-primary">What is Unbrowse?</h2>
            <p className="text-text-secondary text-base sm:text-lg leading-relaxed">
-             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5–30 seconds to 50–200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+             Unbrowse is an open-source drop-in replacement for browser automation when you want API-native access to the web. It reverse-engineers the internal APIs behind any website so AI agents can make direct API calls instead of driving headless browsers. It reduces page interaction time from 5–30 seconds to 50–200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
            </p>
          </div>
        </section>
@@ -412,7 +412,7 @@ export default function Home() {
            <div className="space-y-8">
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How does Unbrowse work?</h3>
-               <p className="text-text-secondary leading-relaxed">Unbrowse opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.</p>
+               <p className="text-text-secondary leading-relaxed">Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How much faster is Unbrowse than headless browser automation?</h3>
