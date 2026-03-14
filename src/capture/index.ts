@@ -1,32 +1,34 @@
-import { BrowserManager } from "agent-browser/dist/browser.js";
-import { executeCommand } from "agent-browser/dist/actions.js";
+import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
-import { existsSync } from "node:fs";
 import { getRegistrableDomain } from "../domain.js";
-import { getProfilePath } from "../auth/index.js";
 import { log } from "../logger.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-// Browser launch semaphore: max 3 concurrent browsers
-const MAX_CONCURRENT_BROWSERS = 3;
-let activeBrowsers = 0;
+// Tab semaphore: max 3 concurrent capture tabs
+const MAX_CONCURRENT_TABS = 3;
+let activeTabs = 0;
 const waitQueue: Array<() => void> = [];
 
-// Active browser registry — tracked for graceful shutdown
-const activeBrowserRegistry = new Set<InstanceType<typeof BrowserManager>>();
+// Active tab registry — tracked for graceful shutdown
+const activeTabRegistry = new Set<string>();
 
-// Hard timeout per capture: 90s prevents stuck browsers from holding slots forever
+// Hard timeout per capture: 90s prevents stuck tabs from holding slots forever
 const CAPTURE_TIMEOUT_MS = 90_000;
-const BROWSER_CLOSE_TIMEOUT_MS = 4_000;
 const CAPTURE_NAV_TIMEOUT_MS = 20_000;
 
-async function closeBrowserSafely(browser: InstanceType<typeof BrowserManager>): Promise<void> {
-  await Promise.race([
-    browser.close().catch(() => {}),
-    new Promise<void>((resolve) => setTimeout(resolve, BROWSER_CLOSE_TIMEOUT_MS)),
-  ]);
+// Client hint headers to avoid headless detection
+const CLIENT_HINT_HEADERS: Record<string, string> = {
+  "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"macOS"',
+};
+
+async function resetTab(tabId: string): Promise<void> {
+  try {
+    await kuri.navigate(tabId, "about:blank");
+  } catch { /* best-effort */ }
 }
 
 type CaptureNavigationPage = {
@@ -37,39 +39,28 @@ export async function navigatePageForCapture(page: CaptureNavigationPage, url: s
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: CAPTURE_NAV_TIMEOUT_MS });
 }
 
-async function navigateBrowserForCapture(
-  browser: InstanceType<typeof BrowserManager>,
-  url: string,
-): Promise<void> {
-  try {
-    await navigatePageForCapture(browser.getPage(), url);
-    return;
-  } catch {
-    await executeCommand({ action: "navigate", id: nanoid(), url }, browser);
-  }
-}
-
-async function acquireBrowserSlot(): Promise<void> {
-  if (activeBrowsers < MAX_CONCURRENT_BROWSERS) {
-    activeBrowsers++;
+async function acquireTabSlot(): Promise<void> {
+  if (activeTabs < MAX_CONCURRENT_TABS) {
+    activeTabs++;
     return;
   }
   return new Promise<void>((resolve) => {
-    waitQueue.push(() => { activeBrowsers++; resolve(); });
+    waitQueue.push(() => { activeTabs++; resolve(); });
   });
 }
 
-function releaseBrowserSlot(browser?: InstanceType<typeof BrowserManager>): void {
-  if (browser) activeBrowserRegistry.delete(browser);
-  activeBrowsers--;
+function releaseTabSlot(tabId?: string): void {
+  if (tabId) activeTabRegistry.delete(tabId);
+  activeTabs--;
   const next = waitQueue.shift();
   if (next) next();
 }
 
-/** Close all active browser instances — called on server shutdown. */
+/** Close all active tabs — called on server shutdown. */
 export async function shutdownAllBrowsers(): Promise<void> {
-  await Promise.allSettled([...activeBrowserRegistry].map((b) => closeBrowserSafely(b)));
-  activeBrowserRegistry.clear();
+  await Promise.allSettled([...activeTabRegistry].map((t) => resetTab(t)));
+  activeTabRegistry.clear();
+  await kuri.stop();
 }
 
 export interface CapturedWsMessage {
@@ -230,7 +221,7 @@ function hasCapturedHint(responseUrls: Iterable<string>, hint: string): boolean 
 }
 
 async function maybeProbeIntentApis(
-  browser: InstanceType<typeof BrowserManager>,
+  tabId: string,
   captureUrl: string | undefined,
   intent: string | undefined,
   responseBodies: Map<string, string> | undefined,
@@ -251,18 +242,15 @@ async function maybeProbeIntentApis(
       { label: "User guilds", path: "/api/v9/users/@me/guilds?with_counts=true" },
     ];
     try {
-      const page = browser.getPage();
       for (const probe of probes) {
         if (hasCapturedHint(responseBodies.keys(), "/guild")) break;
         log("spa", `probing ${probe.label}: GET https://discord.com${probe.path}`);
-        await page.evaluate(async (path: string) => {
+        await kuri.evaluate(tabId, `(async function() {
           try {
-            const response = await fetch(path, { credentials: "include" });
+            var response = await fetch(${JSON.stringify(probe.path)}, { credentials: "include" });
             await response.text();
-          } catch {
-            // best-effort probe
-          }
-        }, probe.path);
+          } catch(e) { /* best-effort probe */ }
+        })()`);
         await new Promise((r) => setTimeout(r, 1200));
       }
     } catch {
@@ -289,15 +277,160 @@ export function hasUsefulCapturedResponses(
 }
 
 /**
+ * Inject a fetch/XHR interceptor into the page to capture request/response data.
+ * Returns captured entries via __unbrowse_intercepted global.
+ */
+const INTERCEPTOR_SCRIPT = `(function() {
+  if (window.__unbrowse_interceptor_installed) return;
+  window.__unbrowse_interceptor_installed = true;
+  window.__unbrowse_intercepted = [];
+  var MAX_BODY = 512 * 1024;
+  var MAX_JS_BODY = 2 * 1024 * 1024;
+  var MAX_ENTRIES = 500;
+
+  // Intercept fetch
+  var origFetch = window.fetch;
+  window.fetch = function() {
+    var args = arguments;
+    var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
+    var opts = args[1] || {};
+    var method = (opts.method || 'GET').toUpperCase();
+    var reqBody = opts.body ? String(opts.body).substring(0, MAX_BODY) : undefined;
+    var reqHeaders = {};
+    if (opts.headers) {
+      if (typeof opts.headers.forEach === 'function') {
+        opts.headers.forEach(function(v, k) { reqHeaders[k] = v; });
+      } else {
+        Object.keys(opts.headers).forEach(function(k) { reqHeaders[k] = opts.headers[k]; });
+      }
+    }
+    return origFetch.apply(this, args).then(function(response) {
+      if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return response;
+      var ct = response.headers.get('content-type') || '';
+      var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
+      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
+                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
+                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
+      if (!isJs && !isData) return response;
+      if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return response;
+      var clone = response.clone();
+      clone.text().then(function(body) {
+        var limit = isJs ? MAX_JS_BODY : MAX_BODY;
+        if (body.length > limit) return;
+        var respHeaders = {};
+        response.headers.forEach(function(v, k) { respHeaders[k] = v; });
+        window.__unbrowse_intercepted.push({
+          url: url,
+          method: method,
+          request_headers: reqHeaders,
+          request_body: reqBody,
+          response_status: response.status,
+          response_headers: respHeaders,
+          response_body: body,
+          content_type: ct,
+          is_js: isJs,
+          timestamp: new Date().toISOString()
+        });
+      }).catch(function() {});
+      return response;
+    }).catch(function(err) { throw err; });
+  };
+
+  // Intercept XMLHttpRequest
+  var origOpen = XMLHttpRequest.prototype.open;
+  var origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this.__unbrowse_method = method;
+    this.__unbrowse_url = url;
+    this.__unbrowse_reqHeaders = {};
+    var origSetHeader = this.setRequestHeader.bind(this);
+    this.setRequestHeader = function(k, v) {
+      this.__unbrowse_reqHeaders[k] = v;
+      origSetHeader(k, v);
+    }.bind(this);
+    return origOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function(body) {
+    var xhr = this;
+    xhr.addEventListener('load', function() {
+      if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return;
+      var ct = xhr.getResponseHeader('content-type') || '';
+      var url = xhr.__unbrowse_url || '';
+      var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
+      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
+                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
+                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
+      if (!isJs && !isData) return;
+      if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return;
+      var respBody = xhr.responseText || '';
+      var limit = isJs ? MAX_JS_BODY : MAX_BODY;
+      if (respBody.length > limit) return;
+      window.__unbrowse_intercepted.push({
+        url: url,
+        method: (xhr.__unbrowse_method || 'GET').toUpperCase(),
+        request_headers: xhr.__unbrowse_reqHeaders || {},
+        request_body: body ? String(body).substring(0, MAX_BODY) : undefined,
+        response_status: xhr.status,
+        response_headers: {},
+        response_body: respBody,
+        content_type: ct,
+        is_js: isJs,
+        timestamp: new Date().toISOString()
+      });
+    });
+    return origSend.apply(this, arguments);
+  };
+})()`;
+
+/**
+ * Collect intercepted requests from the page.
+ */
+async function collectInterceptedRequests(tabId: string): Promise<Array<{
+  url: string;
+  method: string;
+  request_headers: Record<string, string>;
+  request_body?: string;
+  response_status: number;
+  response_headers: Record<string, string>;
+  response_body?: string;
+  content_type?: string;
+  is_js?: boolean;
+  timestamp: string;
+}>> {
+  try {
+    const result = await kuri.evaluate(tabId, "JSON.stringify(window.__unbrowse_intercepted || [])");
+    if (typeof result === "string" && result.startsWith("[")) {
+      return JSON.parse(result);
+    }
+  } catch { /* non-fatal */ }
+  return [];
+}
+
+/**
+ * Poll document.readyState until "complete" or timeout.
+ * Replaces page.waitForLoadState("networkidle").
+ */
+async function waitForReadyState(tabId: string, timeoutMs = 8000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const state = await kuri.evaluate(tabId, "document.readyState");
+      if (state === "complete") return;
+    } catch { /* tab may not be ready */ }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
+/**
  * Adaptive content-ready wait. Replaces flat 5s timeout.
  * Phase 1: 2s initial settle
  * Phase 2: If Cloudflare challenge detected, poll up to 15s for clearance
- * Phase 3: Wait for network idle (SPA API calls to complete)
- * Phase 4: Intent-aware API wait — if a route hint exists, wait for a matching API response
- * Worst case: 2 + 15 + 8 + 5 = 30s, well within CAPTURE_TIMEOUT_MS (90s).
+ * Phase 3: Wait for document.readyState complete (replaces networkidle)
+ * Phase 4: Intent-aware API wait — poll intercepted requests for matching URLs
+ * Phase 5: SPA scroll stimulus for search/explore pages
  */
 async function waitForContentReady(
-  browser: InstanceType<typeof BrowserManager>,
+  tabId: string,
   captureUrl?: string,
   intent?: string,
   responseBodies?: Map<string, string>,
@@ -307,53 +440,22 @@ async function waitForContentReady(
 
   // Phase 2: Cloudflare challenge detection and wait
   try {
-    const page = browser.getPage();
-    const hasCfChallenge = await page.evaluate(() => {
-      const html = document.documentElement.innerHTML;
-      return (
-        html.includes("challenge-platform") ||
-        html.includes("cf_chl_opt") ||
-        document.title === "Just a moment..." ||
-        !!document.querySelector("#challenge-running, #challenge-form, .cf-browser-verification")
-      );
-    });
-
-    if (hasCfChallenge) {
+    const hasCf = await kuri.hasCloudflareChallenge(tabId);
+    if (hasCf) {
       log("capture", "Cloudflare challenge detected, waiting for clearance...");
-      const CF_POLL_INTERVAL = 1500;
-      const CF_MAX_WAIT = 15000;
-      const cfStart = Date.now();
-
-      while (Date.now() - cfStart < CF_MAX_WAIT) {
-        await new Promise((r) => setTimeout(r, CF_POLL_INTERVAL));
-        const stillBlocked = await page.evaluate(() => {
-          return (
-            document.title === "Just a moment..." ||
-            !!document.querySelector("#challenge-running, #challenge-form, .cf-browser-verification")
-          );
-        }).catch(() => false);
-
-        if (!stillBlocked) {
-          log("capture", `Cloudflare cleared after ${Date.now() - cfStart}ms`);
-          break;
-        }
+      const cleared = await kuri.waitForCloudflare(tabId, 15000);
+      if (cleared) {
+        log("capture", "Cloudflare cleared");
       }
     }
   } catch {
-    // Page not available — skip CF detection
+    // Tab not available — skip CF detection
   }
 
-  // Phase 3: Wait for network idle (SPA API calls to settle)
-  try {
-    const page = browser.getPage();
-    await page.waitForLoadState("networkidle", { timeout: 8000 });
-  } catch {
-    // networkidle timeout is non-fatal — some sites never fully idle
-  }
+  // Phase 3: Wait for document ready state (replaces networkidle)
+  await waitForReadyState(tabId, 8000);
 
-  // Phase 4: Intent-aware API wait — catch SPA lazy-loaded route-specific APIs
-  // SPAs like x.com fire route-specific GraphQL queries (e.g., Bookmarks) after
-  // the initial homepage APIs. If we have a route hint, wait for a matching response.
+  // Phase 4: Intent-aware API wait — poll intercepted requests for matching API URLs
   if (captureUrl && responseBodies) {
     const derivedHints = new Set(deriveIntentHints(captureUrl, intent));
     const wantedHints = [...derivedHints].filter((hint) =>
@@ -361,32 +463,33 @@ async function waitForContentReady(
     );
     if (wantedHints.length > 0) {
       log("capture", `intent-aware wait: looking for API matching one of [${wantedHints.join(", ")}] (from ${captureUrl})`);
-      try {
-        const page = browser.getPage();
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 15000);
-          const handler = (response: { url(): string }) => {
-            const responseUrl = response.url().toLowerCase();
-            const matchedHint = wantedHints.find((hint) => responseUrl.includes(hint));
-            if (matchedHint) {
-              log("capture", `intent-aware wait: matched ${matchedHint} via ${response.url().substring(0, 120)}`);
-              clearTimeout(timeout);
-              page.off("response", handler);
-              setTimeout(resolve, 500);
+      const intentStart = Date.now();
+      const INTENT_MAX_WAIT = 15000;
+      const INTENT_POLL_INTERVAL = 1500;
+      while (Date.now() - intentStart < INTENT_MAX_WAIT) {
+        await new Promise((r) => setTimeout(r, INTENT_POLL_INTERVAL));
+        // Check newly intercepted requests
+        const intercepted = await collectInterceptedRequests(tabId);
+        for (const entry of intercepted) {
+          const respUrl = entry.url.toLowerCase();
+          const matchedHint = wantedHints.find((hint) => respUrl.includes(hint));
+          if (matchedHint) {
+            log("capture", `intent-aware wait: matched ${matchedHint} via ${entry.url.substring(0, 120)}`);
+            // Add to responseBodies so downstream sees it
+            if (entry.response_body && !entry.is_js) {
+              responseBodies.set(entry.url, entry.response_body);
             }
-          };
-          page.on("response", handler);
-        });
-      } catch {
-        // Non-fatal — proceed with what we have
+            await new Promise((r) => setTimeout(r, 500));
+            return;
+          }
+        }
       }
     } else if (derivedHints.size > 0) {
       log("capture", `intent-aware wait: already captured API matching one of [${[...derivedHints].join(", ")}], skipping`);
     }
   }
 
-  // Phase 5: generic SPA stimulus. Some sites only fire route-specific APIs after
-  // a short scroll/viewport change on search/explore/tab pages.
+  // Phase 5: generic SPA stimulus via scroll
   const lowerIntent = intent?.toLowerCase() ?? "";
   if (
     captureUrl &&
@@ -398,10 +501,9 @@ async function waitForContentReady(
   ) {
     try {
       const before = responseBodies.size;
-      const page = browser.getPage();
-      await page.evaluate(() => window.scrollTo(0, Math.max(window.innerHeight, Math.min(document.body.scrollHeight, window.innerHeight * 2))));
+      await kuri.evaluate(tabId, "window.scrollTo(0, Math.max(window.innerHeight, Math.min(document.body.scrollHeight, window.innerHeight * 2)))");
       await new Promise((r) => setTimeout(r, 1200));
-      await page.evaluate(() => window.scrollTo(0, 0));
+      await kuri.evaluate(tabId, "window.scrollTo(0, 0)");
       if (responseBodies.size === before) {
         await new Promise((r) => setTimeout(r, 2000));
       }
@@ -410,7 +512,77 @@ async function waitForContentReady(
     }
   }
 
-  await maybeProbeIntentApis(browser, captureUrl, intent, responseBodies);
+  await maybeProbeIntentApis(tabId, captureUrl, intent, responseBodies);
+}
+
+/**
+ * Inject cookies into tab via kuri.setCookies.
+ */
+async function injectCookies(
+  tabId: string,
+  cookies: Array<{
+    name: string;
+    value: string;
+    domain: string;
+    path?: string;
+    secure?: boolean;
+    httpOnly?: boolean;
+    sameSite?: string;
+    expires?: number;
+  }>
+): Promise<void> {
+  const sanitized = cookies.map((c) => ({
+    name: c.name,
+    value: c.value,
+    domain: c.domain.startsWith(".") ? c.domain : `.${c.domain}`,
+    path: c.path ?? "/",
+    ...(c.secure != null ? { secure: c.secure } : {}),
+    ...(c.httpOnly != null ? { httpOnly: c.httpOnly } : {}),
+    ...(c.sameSite != null ? { sameSite: c.sameSite } : {}),
+    ...(c.expires != null && c.expires > 0 ? { expires: c.expires } : {}),
+  }));
+
+  log("capture", `injecting ${sanitized.length} cookies for domains: ${[...new Set(sanitized.map((c) => c.domain))].join(", ")}`);
+  try {
+    await kuri.setCookies(tabId, sanitized);
+  } catch (batchErr) {
+    log("capture", `batch cookie injection failed: ${batchErr instanceof Error ? batchErr.message : batchErr} — falling back to per-cookie`);
+    let injected = 0;
+    for (const cookie of sanitized) {
+      try {
+        await kuri.setCookie(tabId, cookie);
+        injected++;
+      } catch (err) {
+        log("capture", `failed to inject cookie "${cookie.name}" for ${cookie.domain}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+    log("capture", `per-cookie fallback: ${injected}/${sanitized.length} injected`);
+  }
+}
+
+/**
+ * Extract cookies from page via document.cookie (CDP getCookies crashes Kuri).
+ * Parses simple name=value pairs — httpOnly cookies are NOT visible via JS.
+ */
+async function extractCookiesFromPage(tabId: string, pageUrl: string): Promise<CapturedCookie[]> {
+  try {
+    const raw = await kuri.evaluate(tabId, "document.cookie");
+    if (typeof raw !== "string" || !raw) return [];
+    let hostname = "";
+    try { hostname = new URL(pageUrl).hostname; } catch { return []; }
+    const domain = hostname.startsWith(".") ? hostname : `.${hostname}`;
+    return raw.split(";").map((pair) => {
+      const eqIdx = pair.indexOf("=");
+      if (eqIdx < 0) return null;
+      return {
+        name: pair.substring(0, eqIdx).trim(),
+        value: pair.substring(eqIdx + 1).trim(),
+        domain,
+      };
+    }).filter((c): c is CapturedCookie => c !== null && c.name.length > 0);
+  } catch {
+    return [];
+  }
 }
 
 export async function captureSession(
@@ -420,285 +592,222 @@ export async function captureSession(
   intent?: string,
   options?: { forceEphemeral?: boolean },
 ): Promise<CaptureResult> {
-  await acquireBrowserSlot();
-  const browser = new BrowserManager();
-  activeBrowserRegistry.add(browser);
+  await acquireTabSlot();
+
+  // Ensure Kuri is running and tabs are discovered
+  await kuri.start();
+  await kuri.discoverTabs(); // Sync Chrome tabs into Kuri's registry
+
+  // Get a tab for this capture
+  let tabId: string;
+  try {
+    tabId = await kuri.getDefaultTab();
+  } catch {
+    // If no tabs available, try creating one
+    tabId = await kuri.newTab("about:blank");
+    if (!tabId) {
+      tabId = await kuri.getDefaultTab();
+    }
+  }
+  activeTabRegistry.add(tabId);
+
   const domain = new URL(url).hostname;
-  const profileDir = getProfilePath(domain);
-  const hasPersistentProfile = !options?.forceEphemeral && existsSync(profileDir);
   let captureTimedOut = false;
-  let retryEphemeral = false;
+  let retryFreshTab = false;
   let captureError: unknown;
   const timeoutHandle = setTimeout(async () => {
     captureTimedOut = true;
-    await closeBrowserSafely(browser);
+    await resetTab(tabId);
   }, CAPTURE_TIMEOUT_MS);
+
   try {
-    // Use persistent profile if one exists (from prior interactiveLogin).
-    // This preserves localStorage/sessionStorage auth that cookie injection can't cover.
-    // Falls back to ephemeral headless with cookie injection (bird pattern).
-    if (hasPersistentProfile) {
-      log("capture", `using persistent profile for ${domain}: ${profileDir}`);
+    // Set headers: client hints + auth headers
+    const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
+    await kuri.setHeaders(tabId, allHeaders);
+
+    // Inject cookies
+    if (cookies && cookies.length > 0) {
+      await injectCookies(tabId, cookies);
     }
-    await browser.launch({
-      action: "launch",
-      id: nanoid(),
-      headless: true,
-      userAgent: CHROME_UA,
-      ...(hasPersistentProfile ? { profile: profileDir } : {}),
-    });
 
-  // Override Chromium's auto-set Client Hints headers — without this, Chromium 145+
-  // sends sec-ch-ua: "HeadlessChrome" even when user-agent is spoofed to Chrome 131,
-  // which is how LinkedIn/Google/Cloudflare detect headless browsers.
-  const CLIENT_HINT_HEADERS: Record<string, string> = {
-    "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"macOS"',
-  };
-  await browser.setExtraHeaders({ ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) });
-  if (cookies && cookies.length > 0) {
-    await injectCookies(browser, cookies);
-  }
+    // Start HAR recording
+    await kuri.harStart(tabId);
 
-  await browser.startHarRecording();
-  browser.startRequestTracking();
+    // Determine page domain for JS bundle filtering
+    let pageDomain: string | undefined;
+    try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
 
-  // Hook page.on('response') BEFORE navigation to capture all response bodies
-  // including XHR/fetch calls made during initial page load
-  const responseBodies = new Map<string, string>();
-  const MAX_BODY_SIZE = 512 * 1024; // 512KB
+    // Inject fetch/XHR interceptor BEFORE navigation to capture all response bodies
+    // Navigate to origin first so the interceptor runs in the correct context
+    try {
+      const origin = new URL(url).origin;
+      await kuri.navigate(tabId, origin);
+      await new Promise((r) => setTimeout(r, 500));
+    } catch { /* best-effort */ }
 
-  // Collect same-domain JS bundles for API route scanning
-  const jsBundleBodies = new Map<string, string>();
-  const MAX_JS_BUNDLE_SIZE = 2 * 1024 * 1024; // 2MB per bundle
-  const MAX_JS_BUNDLES = 20;
-  const MAX_WS_FRAME_SIZE = 128 * 1024; // 128KB
-  let pageDomain: string | undefined;
-  try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
+    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
 
-  const wsMessages: CapturedWsMessage[] = [];
-  const wsUrlMap = new Map<string, string>(); // requestId -> url
-  const wsSeen = new Set<string>();
-  const recordWsMessage = (
-    wsUrl: string,
-    direction: "sent" | "received",
-    raw: unknown,
-    timestamp: string,
-  ): void => {
-    let data = "";
-    if (typeof raw === "string") data = raw;
-    else if (Buffer.isBuffer(raw)) data = raw.toString("utf8");
-    else if (raw != null) data = String(raw);
-    if (!data || data.length > MAX_WS_FRAME_SIZE) return;
-    const key = `${wsUrl}|${direction}|${timestamp}|${data}`;
-    if (wsSeen.has(key)) return;
-    wsSeen.add(key);
-    wsMessages.push({ url: wsUrl, direction, data, timestamp });
-  };
+    // Navigate to target URL
+    await kuri.navigate(tabId, url);
 
-  try {
-    const page = browser.getPage();
-    page.on("response", async (response) => {
-      try {
-        const ct = response.headers()["content-type"] ?? "";
-        const respUrl = response.url();
+    // Re-inject interceptor after navigation (page context resets on navigate)
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+    } catch { /* page may not be ready */ }
 
-        // Capture same-domain JS bundles for bundle scanning
-        const isJs = ct.includes("javascript") || /\.js(\?|$)/.test(respUrl);
-        if (isJs && jsBundleBodies.size < MAX_JS_BUNDLES && pageDomain) {
-          try {
-            const jsDomain = getRegistrableDomain(new URL(respUrl).hostname);
-            if (jsDomain === pageDomain) {
-              const body = await response.body();
-              if (body.length <= MAX_JS_BUNDLE_SIZE) {
-                jsBundleBodies.set(respUrl, body.toString("utf8"));
-              }
-            }
-          } catch { /* body unavailable */ }
-          return;
-        }
+    // Build response bodies map from intercepted requests
+    const responseBodies = new Map<string, string>();
+    const jsBundleBodies = new Map<string, string>();
+    const MAX_JS_BUNDLES = 20;
 
-        // Capture JSON, protobuf, and batch RPC responses (Google batchexecute etc.)
-        const isDataResponse =
-          ct.includes("application/json") ||
-          ct.includes("+json") ||
-          ct.includes("application/x-protobuf") ||
-          ct.includes("text/plain") ||
-          respUrl.includes("batchexecute") ||
-          respUrl.includes("/api/");
-        if (!isDataResponse) return;
-        // Skip static assets
-        if (/\.(js|css|woff2?|png|jpg|svg|ico)(\?|$)/.test(respUrl)) return;
-        const body = await response.body();
-        if (body.length > MAX_BODY_SIZE) return;
-        responseBodies.set(respUrl, body.toString("utf8"));
-      } catch {
-        // Response body may be unavailable for redirects/aborted
-      }
-    });
+    // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
+    await waitForContentReady(tabId, url, intent, responseBodies);
 
-    page.on("websocket", (ws: {
-      url(): string;
-      on(event: "framereceived" | "framesent", listener: (frame: { payload?: unknown }) => void): void;
-    }) => {
-      const wsUrl = ws.url();
-      ws.on("framereceived", (frame) => {
-        recordWsMessage(wsUrl, "received", frame?.payload, new Date().toISOString());
-      });
-      ws.on("framesent", (frame) => {
-        recordWsMessage(wsUrl, "sent", frame?.payload, new Date().toISOString());
-      });
-    });
-  } catch {
-    // page not available — skip body capture
-  }
+    // Collect all intercepted requests
+    const intercepted = await collectInterceptedRequests(tabId);
 
-  // CDP-based WebSocket capture
-  try {
-    const page = browser.getPage();
-    const cdp = await page.context().newCDPSession(page);
-    await cdp.send("Network.enable");
-
-    cdp.on("Network.webSocketCreated", (params: { requestId: string; url: string }) => {
-      wsUrlMap.set(params.requestId, params.url);
-    });
-
-    cdp.on("Network.webSocketFrameReceived", (params: { requestId: string; timestamp: number; response: { payloadData: string } }) => {
-      recordWsMessage(
-        wsUrlMap.get(params.requestId) ?? params.requestId,
-        "received",
-        params.response.payloadData,
-        new Date(params.timestamp * 1000).toISOString(),
-      );
-    });
-
-    cdp.on("Network.webSocketFrameSent", (params: { requestId: string; timestamp: number; response: { payloadData: string } }) => {
-      recordWsMessage(
-        wsUrlMap.get(params.requestId) ?? params.requestId,
-        "sent",
-        params.response.payloadData,
-        new Date(params.timestamp * 1000).toISOString(),
-      );
-    });
-  } catch {
-    // CDP session unavailable — skip WS capture
-  }
-
-  await navigateBrowserForCapture(browser, url);
-
-  // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
-  await waitForContentReady(browser, url, intent, responseBodies);
-
-  // BUG-008: Share Cloudflare clearance cookies across subdomains
-  try {
-    const context = browser.getContext();
-    if (context) {
-      const allCookies = await context.cookies();
-      const cfCookies = allCookies.filter(
-        (c) => c.name === "__cf_bm" || c.name === "cf_clearance" || c.name.startsWith("__cf")
-      );
-      if (cfCookies.length > 0) {
-        const baseDomain = getRegistrableDomain(new URL(url).hostname);
-        const subdomainCookies = cfCookies.map((c) => ({
-          ...c,
-          domain: `.${baseDomain}`,
-        }));
+    // Separate JS bundles from data responses
+    for (const entry of intercepted) {
+      if (entry.is_js && jsBundleBodies.size < MAX_JS_BUNDLES && pageDomain) {
         try {
-          await context.addCookies(subdomainCookies);
-        } catch { /* CF cookie sharing is best-effort */ }
+          const jsDomain = getRegistrableDomain(new URL(entry.url).hostname);
+          if (jsDomain === pageDomain && entry.response_body) {
+            jsBundleBodies.set(entry.url, entry.response_body);
+          }
+        } catch { /* bad url */ }
+      } else if (entry.response_body && !entry.is_js) {
+        responseBodies.set(entry.url, entry.response_body);
       }
     }
-  } catch { /* context unavailable */ }
 
-  const trackedRequests = browser.getRequests();
-  const har_lineage_id = nanoid();
+    // Also collect via Performance API for requests the interceptor might have missed
+    // (requests that started before the interceptor was injected)
+    try {
+      const perfResult = await kuri.evaluate(tabId, `JSON.stringify(
+        performance.getEntriesByType('resource')
+          .filter(function(e) { return e.initiatorType === 'fetch' || e.initiatorType === 'xmlhttprequest'; })
+          .map(function(e) { return { url: e.name, duration: e.duration }; })
+      )`);
+      // Performance API only gives us URLs, not bodies — but useful for request tracking
+    } catch { /* non-fatal */ }
 
-  // Debug: log all captured request URLs and response body map keys
-  log("capture", `tracked ${trackedRequests.length} requests, ${responseBodies.size} response bodies`);
-  for (const [bodyUrl] of responseBodies) {
-    log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
-  }
+    // Stop HAR recording and merge with intercepted data
+    let harEntries: kuri.KuriHarEntry[] = [];
+    try {
+      const harResult = await kuri.harStop(tabId);
+      harEntries = harResult.entries;
+    } catch { /* HAR may not be available */ }
 
-  let final_url = url;
-  let html: string | undefined;
-  try {
-    const page = browser.getPage();
-    final_url = page.url();
-    html = await page.content();
-  } catch {}
+    const har_lineage_id = nanoid();
 
-  const requests: RawRequest[] = trackedRequests.map((r) => ({
-    url: r.url,
-    method: r.method,
-    request_headers: r.headers,
-    response_status: 0,
-    response_headers: {},
-    response_body: responseBodies.get(r.url),
-    timestamp: new Date(r.timestamp).toISOString(),
-  }));
-
-  // Synthesize RawRequests for response bodies captured by the response listener
-  // but missed by request tracking (e.g., SPA API calls during intent-aware wait).
-  const trackedUrls = new Set(trackedRequests.map((r) => r.url));
-  for (const [bodyUrl, body] of responseBodies) {
-    if (!trackedUrls.has(bodyUrl)) {
-      requests.push({
-        url: bodyUrl,
-        method: "GET",
-        request_headers: {},
-        response_status: 200,
-        response_headers: {},
-        response_body: body,
-        timestamp: new Date().toISOString(),
-      });
+    // Debug: log captured counts
+    log("capture", `tracked ${harEntries.length} HAR entries, ${intercepted.length} intercepted, ${responseBodies.size} response bodies`);
+    for (const [bodyUrl] of responseBodies) {
+      log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
     }
-  }
 
-  // Extract session cookies so callers can persist auth for future executions
-  const ctx = browser.getContext();
-  const rawCookies = ctx ? await ctx.cookies().catch(() => []) : [];
-  const sessionCookies = filterFirstPartySessionCookies(
-    rawCookies.map((c) => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain,
-      path: c.path,
-      httpOnly: c.httpOnly,
-      secure: c.secure,
-    })),
-    url,
-    final_url,
-  );
+    let final_url = url;
+    let html: string | undefined;
+    try {
+      final_url = await kuri.getCurrentUrl(tabId);
+      html = await kuri.getPageHtml(tabId);
+    } catch {}
 
-  if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
-  log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
-  const responseBodyCount = responseBodies.size;
+    // Build requests from HAR entries
+    const requests: RawRequest[] = harEntries.map((entry) => {
+      const reqHeaders: Record<string, string> = {};
+      for (const h of entry.request.headers) reqHeaders[h.name] = h.value;
+      const respHeaders: Record<string, string> = {};
+      for (const h of entry.response.headers) respHeaders[h.name] = h.value;
+      return {
+        url: entry.request.url,
+        method: entry.request.method,
+        request_headers: reqHeaders,
+        request_body: entry.request.postData?.text,
+        response_status: entry.response.status,
+        response_headers: respHeaders,
+        response_body: responseBodies.get(entry.request.url) ?? entry.response.content?.text,
+        timestamp: entry.startedDateTime,
+      };
+    });
+
+    // Synthesize RawRequests for intercepted responses not in HAR
+    const harUrls = new Set(harEntries.map((e) => e.request.url));
+    for (const entry of intercepted) {
+      if (entry.is_js) continue;
+      if (!harUrls.has(entry.url)) {
+        requests.push({
+          url: entry.url,
+          method: entry.method,
+          request_headers: entry.request_headers,
+          request_body: entry.request_body,
+          response_status: entry.response_status,
+          response_headers: entry.response_headers,
+          response_body: entry.response_body,
+          timestamp: entry.timestamp,
+        });
+      }
+    }
+
+    // Synthesize RawRequests for response bodies captured during intent-aware wait
+    const allTrackedUrls = new Set([...harUrls, ...intercepted.map((e) => e.url)]);
+    for (const [bodyUrl, body] of responseBodies) {
+      if (!allTrackedUrls.has(bodyUrl)) {
+        requests.push({
+          url: bodyUrl,
+          method: "GET",
+          request_headers: {},
+          response_status: 200,
+          response_headers: {},
+          response_body: body,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Extract session cookies via document.cookie
+    const rawCookies = await extractCookiesFromPage(tabId, url);
+    const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
+
+    if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
+    log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
+
+    const responseBodyCount = responseBodies.size;
     if (
-      hasPersistentProfile &&
       isBlockedAppShell(html) &&
       responseBodyCount < 10 &&
       !hasUsefulCapturedResponses(responseBodies.keys(), url, intent)
     ) {
-      retryEphemeral = true;
-      log("capture", `persistent profile rendered blocked app shell for ${url}; retrying with fresh ephemeral browser`);
+      retryFreshTab = true;
+      log("capture", `rendered blocked app shell for ${url}; retrying with fresh tab`);
     } else {
-      return { requests, har_lineage_id, domain, cookies: sessionCookies.length > 0 ? sessionCookies : undefined, final_url, ws_messages: wsMessages.length > 0 ? wsMessages : undefined, html, js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined };
+      return {
+        requests,
+        har_lineage_id,
+        domain,
+        cookies: sessionCookies.length > 0 ? sessionCookies : undefined,
+        final_url,
+        // WebSocket capture skipped (Kuri limitation)
+        ws_messages: undefined,
+        html,
+        js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined,
+      };
     }
   } catch (error) {
     captureError = error;
-    if (hasPersistentProfile && shouldRetryEphemeralProfileError(error)) {
-      retryEphemeral = true;
-      log("capture", `persistent profile failed for ${url}; retrying with fresh ephemeral browser (${error instanceof Error ? error.message : String(error)})`);
+    if (shouldRetryEphemeralProfileError(error)) {
+      retryFreshTab = true;
+      log("capture", `tab failed for ${url}; retrying with fresh tab (${error instanceof Error ? error.message : String(error)})`);
     } else {
       throw error;
     }
   } finally {
     clearTimeout(timeoutHandle);
-    await closeBrowserSafely(browser);
-    releaseBrowserSlot(browser);
+    await resetTab(tabId);
+    releaseTabSlot(tabId);
   }
-  if (retryEphemeral) {
+  if (retryFreshTab) {
     return captureSession(url, authHeaders, cookies, intent, { forceEphemeral: true });
   }
   if (captureError) throw captureError;
@@ -713,44 +822,36 @@ export async function executeInBrowser(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
-  await acquireBrowserSlot();
-  const browser = new BrowserManager();
-  activeBrowserRegistry.add(browser);
+  await kuri.start();
+  await kuri.discoverTabs();
+
+  let tabId: string;
   try {
-  await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
-
-  const allHeaders = { ...authHeaders, ...requestHeaders };
-  if (Object.keys(allHeaders).length > 0) {
-    await browser.setExtraHeaders(allHeaders);
+    tabId = await kuri.newTab("about:blank");
+    if (!tabId) tabId = await kuri.getDefaultTab();
+  } catch {
+    tabId = await kuri.getDefaultTab();
   }
-  if (cookies && cookies.length > 0) {
-    await injectCookies(browser, cookies);
-  }
+  activeTabRegistry.add(tabId);
 
-  // No auth: use in-page fetch (original path)
-  browser.startRequestTracking();
-  const origin = new URL(url).origin;
-  await navigateBrowserForCapture(browser, origin);
+  try {
+    const allHeaders = { ...CLIENT_HINT_HEADERS, ...authHeaders, ...requestHeaders };
+    await kuri.setHeaders(tabId, allHeaders);
 
-  const page = browser.getPage();
-  const result = await page.evaluate(
-    async ({ url, method, headers, body }: { url: string; method: string; headers: Record<string, string>; body: unknown }) => {
-      const res = await fetch(url, {
-        method,
-        headers,
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-      const text = await res.text();
-      let data: unknown;
-      try { data = JSON.parse(text); } catch { data = text; }
-      return { status: res.status, data };
-    },
-    { url, method, headers: requestHeaders, body }
-  );
+    if (cookies && cookies.length > 0) {
+      await injectCookies(tabId, cookies);
+    }
 
-  return { ...result, trace_id: nanoid() };
+    // Navigate to origin so in-page fetch inherits cookies/CORS
+    const origin = new URL(url).origin;
+    await kuri.navigate(tabId, origin);
+    await waitForReadyState(tabId, 5000);
+
+    const result = await kuri.executeInPageFetch(tabId, url, method, requestHeaders, body);
+    return { ...result, trace_id: nanoid() };
   } finally {
-    releaseBrowserSlot(browser);
+    await resetTab(tabId);
+    releaseTabSlot(tabId);
   }
 }
 
@@ -759,10 +860,7 @@ export async function executeInBrowser(
  * triggered an API call, let the site's own JS make the request (passing
  * CSRF checks, TLS fingerprinting, etc.), and intercept the response.
  *
- * This is the generalized version of bird's approach:
- * - Bird works because Twitter doesn't do TLS fingerprinting
- * - Sites like LinkedIn do, so we let their JS make the call
- * - The site's own code handles CSRF tokens, session state, etc.
+ * Uses the injected fetch/XHR interceptor to capture the target API response.
  */
 export async function triggerAndIntercept(
   triggerUrl: string,
@@ -770,125 +868,81 @@ export async function triggerAndIntercept(
   cookies: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   authHeaders?: Record<string, string>,
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
-  await acquireBrowserSlot();
-  const browser = new BrowserManager();
-  activeBrowserRegistry.add(browser);
+  await acquireTabSlot();
+  await kuri.start();
+  await kuri.discoverTabs();
+
+  let tabId: string;
   try {
-    await browser.launch({ action: "launch", id: nanoid(), headless: true, userAgent: CHROME_UA });
+    tabId = await kuri.newTab("about:blank");
+    if (!tabId) tabId = await kuri.getDefaultTab();
+  } catch {
+    tabId = await kuri.getDefaultTab();
+  }
+  activeTabRegistry.add(tabId);
 
-    // Set extra headers (client hints to avoid headless detection)
-    const headers: Record<string, string> = {
-      "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": '"macOS"',
-      ...authHeaders,
-    };
-    await browser.setExtraHeaders(headers);
-    await injectCookies(browser, cookies);
+  try {
+    // Set headers
+    const headers = { ...CLIENT_HINT_HEADERS, ...authHeaders };
+    await kuri.setHeaders(tabId, headers);
+    await injectCookies(tabId, cookies);
 
-    const page = browser.getPage();
-
-    // Build a URL matcher: strip template vars and match on the base path.
-    // For graphql endpoints, preserve the queryId param so we match the specific query,
-    // not just any /graphql call (e.g. voyagerFeedDashMainFeed vs voyagerMessagingDash...).
+    // Build a URL matcher
     const targetBase = targetUrlPattern.replace(/\{[^}]+\}/g, "").split("?")[0];
-    // For graphql endpoints, extract the queryId name (before the hash) for matching.
-    // e.g. "voyagerFeedDashMainFeed.923020905727c01..." → "voyagerFeedDashMainFeed"
     let targetQueryId: string | null = null;
     try {
       const tu = new URL(targetUrlPattern.replace(/\{[^}]+\}/g, "x"));
       const rawQueryId = tu.searchParams.get("queryId");
-      // Strip hash suffix — keep only the semantic name for matching
       targetQueryId = rawQueryId ? rawQueryId.split(".")[0] : null;
     } catch { /* skip */ }
 
-    // Set up response interception BEFORE navigation
-    let captured: { status: number; data: unknown } | null = null;
-    const interceptPromise = new Promise<{ status: number; data: unknown }>((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve({ status: 0, data: { error: "trigger_timeout", message: "Target API call not intercepted within 15s" } });
-      }, 15000);
+    log("capture", `trigger-and-intercept: navigating to ${triggerUrl}, waiting for ${targetBase}${targetQueryId ? `?queryId=${targetQueryId.slice(0, 40)}` : ""}`);
 
-      page.on("response", async (response) => {
-        const respUrl = response.url();
-        // Match if the response URL contains the target base path (and queryId if graphql)
+    // Navigate to trigger origin first, inject interceptor
+    try {
+      const origin = new URL(triggerUrl).origin;
+      await kuri.navigate(tabId, origin);
+      await new Promise((r) => setTimeout(r, 500));
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+    } catch { /* best-effort */ }
+
+    // Navigate to the trigger page — the site's JS will make the API call
+    await kuri.navigate(tabId, triggerUrl);
+    // Re-inject interceptor after navigation
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+    } catch { /* page may not be ready */ }
+
+    // Poll for the target response
+    const POLL_INTERVAL = 1000;
+    const MAX_WAIT = 15000;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < MAX_WAIT) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+      const intercepted = await collectInterceptedRequests(tabId);
+      for (const entry of intercepted) {
+        const respUrl = entry.url;
         const baseMatch = respUrl.includes(targetBase);
         const queryIdMatch = !targetQueryId || respUrl.includes(targetQueryId);
-        if (baseMatch && queryIdMatch && !captured) {
-          captured = { status: response.status(), data: null };
-          try {
-            const body = await response.text();
-            try { captured.data = JSON.parse(body); } catch { captured.data = body; }
-          } catch {
-            captured.data = null;
-          }
-          clearTimeout(timeout);
-          resolve(captured);
+        if (baseMatch && queryIdMatch) {
+          let data: unknown = entry.response_body;
+          try { data = JSON.parse(entry.response_body ?? ""); } catch { /* keep as string */ }
+          log("capture", `trigger-and-intercept: got status ${entry.response_status} for ${targetBase}`);
+          return { status: entry.response_status, data, trace_id: nanoid() };
         }
-      });
-    });
-
-    // Navigate to the trigger page — the site's JS will make the API call.
-    // Use domcontentloaded (not networkidle) — we only need the specific API call to fire,
-    // not all network activity to settle. The interceptPromise resolves as soon as it's captured.
-    log("capture", `trigger-and-intercept: navigating to ${triggerUrl}, waiting for ${targetBase}${targetQueryId ? `?queryId=${targetQueryId.slice(0, 40)}` : ""}`);
-    page.goto(triggerUrl, { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => null);
-
-    const result = await interceptPromise;
-    log("capture", `trigger-and-intercept: got status ${result.status} for ${targetBase}`);
-    return { ...result, trace_id: nanoid() };
-  } finally {
-    releaseBrowserSlot(browser);
-  }
-}
-
-/**
- * Sanitize and inject cookies into browser context.
- * Strips all fields except { name, value, domain, path } to avoid
- * Playwright CDP protocol errors from unexpected cookie properties.
- * Falls back to per-cookie injection if batch fails.
- */
-async function injectCookies(
-  browser: InstanceType<typeof BrowserManager>,
-  cookies: Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path?: string;
-    secure?: boolean;
-    httpOnly?: boolean;
-    sameSite?: string;
-    expires?: number;
-  }>
-): Promise<void> {
-  const context = browser.getContext();
-  if (!context) return;
-
-  const sanitized = cookies.map((c) => ({
-    name: c.name,
-    value: c.value,
-    domain: c.domain.startsWith(".") ? c.domain : `.${c.domain}`,
-    path: c.path ?? "/",
-    ...(c.secure != null ? { secure: c.secure } : {}),
-    ...(c.httpOnly != null ? { httpOnly: c.httpOnly } : {}),
-    ...(c.sameSite != null ? { sameSite: c.sameSite as "Strict" | "Lax" | "None" } : {}),
-    ...(c.expires != null && c.expires > 0 ? { expires: c.expires } : {}),
-  }));
-
-  log("capture", `injecting ${sanitized.length} cookies for domains: ${[...new Set(sanitized.map((c) => c.domain))].join(", ")}`);
-  try {
-    await context.addCookies(sanitized);
-  } catch (batchErr) {
-    log("capture", `batch cookie injection failed: ${batchErr instanceof Error ? batchErr.message : batchErr} — falling back to per-cookie`);
-    let injected = 0;
-    for (const cookie of sanitized) {
-      try {
-        await context.addCookies([cookie]);
-        injected++;
-      } catch (err) {
-        log("capture", `failed to inject cookie "${cookie.name}" for ${cookie.domain}: ${err instanceof Error ? err.message : err}`);
       }
     }
-    log("capture", `per-cookie fallback: ${injected}/${sanitized.length} injected`);
+
+    log("capture", `trigger-and-intercept: timeout waiting for ${targetBase}`);
+    return {
+      status: 0,
+      data: { error: "trigger_timeout", message: "Target API call not intercepted within 15s" },
+      trace_id: nanoid(),
+    };
+  } finally {
+    await resetTab(tabId);
+    releaseTabSlot(tabId);
   }
 }
