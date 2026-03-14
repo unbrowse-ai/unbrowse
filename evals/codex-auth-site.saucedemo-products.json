@@ -1,0 +1,67 @@
+{
+  "summary": {
+    "final_state": "pass",
+    "goal_satisfied": true,
+    "final_reason": "workflow_pass",
+    "total_ms": 43468,
+    "performance_total_ms": 43468,
+    "error_count": 0,
+    "failed_step_ids": [],
+    "exceeded_step_budget_ids": [],
+    "exceeded_total_budget": false
+  },
+  "bootstrap": {
+    "strategy": "scripted_login",
+    "status": "ready",
+    "reason": "scripted_login_ok",
+    "cookies_found": 1,
+    "matched_required_cookies": [],
+    "login_url": "https://www.saucedemo.com/",
+    "success_url": "https://www.saucedemo.com/inventory.html",
+    "elapsed_ms": 1261,
+    "used_existing_session": false
+  },
+  "workflow": {
+    "step_results": [
+      {
+        "id": "inventory",
+        "phase": "step",
+        "required": true,
+        "step_max_total_ms": 30000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.step.inventory.json",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "product_rows",
+        "matched_fields": [
+          "title",
+          "description"
+        ],
+        "missing_fields": [],
+        "total_ms": 25794,
+        "performance_total_ms": 25794,
+        "performance_basis": "raw",
+        "rounds": 1
+      },
+      {
+        "id": "backpack-detail",
+        "phase": "verify",
+        "required": true,
+        "step_max_total_ms": 30000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.verify.backpack-detail.json",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "product_rows",
+        "matched_fields": [
+          "title",
+          "description",
+          "price"
+        ],
+        "missing_fields": [],
+        "total_ms": 17674,
+        "performance_total_ms": 17674,
+        "performance_basis": "raw",
+        "rounds": 1
+      }
+    ]
+  }
+}

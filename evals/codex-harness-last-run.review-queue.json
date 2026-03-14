@@ -1,6 +1,6 @@
 {
   "summary": {
-    "total": 14,
+    "total": 5,
     "source_artifact": "/Users/lekt9/Projects/unbrowse/evals/codex-harness-last-run.json",
     "max_review_candidates": 3
   },
@@ -9,96 +9,130 @@
       "id": "github-search-repositories",
       "intent": "search repositories",
       "url": "https://github.com/search?q=openai&type=repositories",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "vzCMwilmWBIoFePr1EjSG",
+      "collector_reason": "agent_review_direct_result",
       "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
+        "verdict": "pass",
+        "reason": "repository_rows"
+      },
+      "direct_result": {
+        "total_count": 162599,
+        "incomplete_results": false,
+        "items": [
+          {
+            "id": 468576060,
+            "node_id": "R_kgDOG-3nPA",
+            "name": "openai-cookbook",
+            "full_name": "openai/openai-cookbook",
+            "private": false,
+            "owner": {
+              "login": "openai",
+              "id": 14957082,
+              "node_id": "MDEyOk9yZ2FuaXphdGlvbjE0OTU3MDgy",
+              "avatar_url": "https://avatars.githubusercontent.com/u/14957082?v=4",
+              "gravatar_id": "",
+              "url": "https://api.github.com/users/openai",
+              "html_url": "https://github.com/openai",
+              "followers_url": "https://api.github.com/users/openai/followers",
+              "following_url": "https://api.github.com/users/openai/following{/other_user}",
+              "gists_url": "https://api.github.com/users/openai/gists{/gist_id}",
+              "starred_url": "https://api.github.com/users/openai/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/openai/subscriptions"
+            },
+            "html_url": "https://github.com/openai/openai-cookbook",
+            "description": "Examples and guides for using the OpenAI API",
+            "fork": false,
+            "url": "https://api.github.com/repos/openai/openai-cookbook",
+            "forks_url": "https://api.github.com/repos/openai/openai-cookbook/forks",
+            "keys_url": "https://api.github.com/repos/openai/openai-cookbook/keys{/key_id}"
+          },
+          {
+            "id": 432730711,
+            "node_id": "R_kgDOGcryVw",
+            "name": "openai",
+            "full_name": "betalgo/openai",
+            "private": false,
+            "owner": {
+              "login": "betalgo",
+              "id": 7516303,
+              "node_id": "MDEyOk9yZ2FuaXphdGlvbjc1MTYzMDM=",
+              "avatar_url": "https://avatars.githubusercontent.com/u/7516303?v=4",
+              "gravatar_id": "",
+              "url": "https://api.github.com/users/betalgo",
+              "html_url": "https://github.com/betalgo",
+              "followers_url": "https://api.github.com/users/betalgo/followers",
+              "following_url": "https://api.github.com/users/betalgo/following{/other_user}",
+              "gists_url": "https://api.github.com/users/betalgo/gists{/gist_id}",
+              "starred_url": "https://api.github.com/users/betalgo/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/betalgo/subscriptions"
+            },
+            "html_url": "https://github.com/betalgo/openai",
+            "description": ".NET library for the OpenAI service API by Betalgo Ranul",
+            "fork": false,
+            "url": "https://api.github.com/repos/betalgo/openai",
+            "forks_url": "https://api.github.com/repos/betalgo/openai/forks",
+            "keys_url": "https://api.github.com/repos/betalgo/openai/keys{/key_id}"
+          },
+          {
+            "id": 579947672,
+            "node_id": "R_kgDOIpFMmA",
+            "name": "OpenAI",
+            "full_name": "MacPaw/OpenAI",
+            "private": false,
+            "owner": {
+              "login": "MacPaw",
+              "id": 1935412,
+              "node_id": "MDEyOk9yZ2FuaXphdGlvbjE5MzU0MTI=",
+              "avatar_url": "https://avatars.githubusercontent.com/u/1935412?v=4",
+              "gravatar_id": "",
+              "url": "https://api.github.com/users/MacPaw",
+              "html_url": "https://github.com/MacPaw",
+              "followers_url": "https://api.github.com/users/MacPaw/followers",
+              "following_url": "https://api.github.com/users/MacPaw/following{/other_user}",
+              "gists_url": "https://api.github.com/users/MacPaw/gists{/gist_id}",
+              "starred_url": "https://api.github.com/users/MacPaw/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/MacPaw/subscriptions"
+            },
+            "html_url": "https://github.com/MacPaw/OpenAI",
+            "description": "Swift community driven package for OpenAI public API",
+            "fork": false,
+            "url": "https://api.github.com/repos/MacPaw/OpenAI",
+            "forks_url": "https://api.github.com/repos/MacPaw/OpenAI/forks",
+            "keys_url": "https://api.github.com/repos/MacPaw/OpenAI/keys{/key_id}"
+          },
+          {
+            "id": 307213173,
+            "node_id": "MDEwOlJlcG9zaXRvcnkzMDcyMTMxNzM=",
+            "name": "openai-python",
+            "full_name": "openai/openai-python",
+            "private": false,
+            "owner": {
+              "login": "openai",
+              "id": 14957082,
+              "node_id": "MDEyOk9yZ2FuaXphdGlvbjE0OTU3MDgy",
+              "avatar_url": "https://avatars.githubusercontent.com/u/14957082?v=4",
+              "gravatar_id": "",
+              "url": "https://api.github.com/users/openai",
+              "html_url": "https://github.com/openai",
+              "followers_url": "https://api.github.com/users/openai/followers",
+              "following_url": "https://api.github.com/users/openai/following{/other_user}",
+              "gists_url": "https://api.github.com/users/openai/gists{/gist_id}",
+              "starred_url": "https://api.github.com/users/openai/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/openai/subscriptions"
+            },
+            "html_url": "https://github.com/openai/openai-python",
+            "description": "The official Python library for the OpenAI API",
+            "fork": false,
+            "url": "https://api.github.com/repos/openai/openai-python",
+            "forks_url": "https://api.github.com/repos/openai/openai-python/forks",
+            "keys_url": "https://api.github.com/repos/openai/openai-python/keys{/key_id}"
+          }
+        ]
       },
       "candidates": [
         {
           "rank": 1,
-          "endpoint_id": "vzCMwilmWBIoFePr1EjSG",
-          "score": 552.5,
-          "description": "Structured replay for search repositories",
-          "url": "https://api.github.com/search/repositories?q={q}&per_page=20",
-          "trigger_url": "https://github.com/search?q=openai&type=repositories",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "AMNxNPu5WDcJxu5l-o5wb",
-            "--endpoint",
-            "vzCMwilmWBIoFePr1EjSG",
-            "--intent",
-            "search repositories",
-            "--url",
-            "https://github.com/search?q=openai&type=repositories",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 2,
-          "endpoint_id": "CtUrWDhK4RDQ9KE7dcD5E",
-          "score": 98.3,
-          "description": "Captured page artifact for search repositories",
-          "url": "https://github.com/search?q={q}&type={type}",
-          "trigger_url": "https://github.com/search?q=openai&type=repositories",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "page_artifact_risk"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "AMNxNPu5WDcJxu5l-o5wb",
-            "--endpoint",
-            "CtUrWDhK4RDQ9KE7dcD5E",
-            "--intent",
-            "search repositories",
-            "--url",
-            "https://github.com/search?q=openai&type=repositories",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 3,
-          "endpoint_id": "XrWleQ7aU7-VEZCexX6fM",
-          "score": 329.4,
-          "description": "Captured page artifact for get repository info",
-          "url": "https://github.com/openai/openai-node",
-          "trigger_url": "https://github.com/openai/openai-node",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "page_artifact_risk"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "AMNxNPu5WDcJxu5l-o5wb",
-            "--endpoint",
-            "XrWleQ7aU7-VEZCexX6fM",
-            "--intent",
-            "search repositories",
-            "--url",
-            "https://github.com/search?q=openai&type=repositories",
-            "--raw"
-          ]
+          "endpoint_id": "wA_6rVbTPvQ4e-IqXXyOm",
+          "signals": []
         }
       ]
     },
@@ -106,70 +140,74 @@
       "id": "gitlab-search-projects",
       "intent": "search projects",
       "url": "https://gitlab.com/explore/projects?name=openai",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "bCSDaN7HrykIkocQ7AhAH",
+      "collector_reason": "agent_review_direct_result",
       "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
+        "verdict": "pass",
+        "reason": "repository_rows"
       },
+      "direct_result": [
+        {
+          "id": 80233721,
+          "description": "PowerShell JAX ML Integration - Local AI without OpenAI",
+          "name": "powershell-jax-ml",
+          "name_with_namespace": "Rigoberto huston / powershell-jax-ml",
+          "path": "powershell-jax-ml",
+          "path_with_namespace": "rigohl/powershell-jax-ml",
+          "created_at": "2026-03-13T09:28:33.005Z",
+          "default_branch": "main",
+          "tag_list": [],
+          "topics": [],
+          "ssh_url_to_repo": "git@gitlab.com:rigohl/powershell-jax-ml.git",
+          "http_url_to_repo": "https://gitlab.com/rigohl/powershell-jax-ml.git"
+        },
+        {
+          "id": 80230685,
+          "description": "OpenClaw Skill: Local HTTP bridge from OpenAI API format to Claude CLI invocations",
+          "name": "openclaw-cli-bridge",
+          "name_with_namespace": "linlangli / openclaw-cli-bridge",
+          "path": "openclaw-cli-bridge",
+          "path_with_namespace": "linlangli/openclaw-cli-bridge",
+          "created_at": "2026-03-13T07:22:32.408Z",
+          "default_branch": "main",
+          "tag_list": [],
+          "topics": [],
+          "ssh_url_to_repo": "git@gitlab.com:linlangli/openclaw-cli-bridge.git",
+          "http_url_to_repo": "https://gitlab.com/linlangli/openclaw-cli-bridge.git"
+        },
+        {
+          "id": 80163279,
+          "description": null,
+          "name": "ai-image-openai",
+          "name_with_namespace": "Arek / ai-image-openai",
+          "path": "ai-image-openai",
+          "path_with_namespace": "a.adach/ai-image-openai",
+          "created_at": "2026-03-11T06:40:08.852Z",
+          "default_branch": "main",
+          "tag_list": [],
+          "topics": [],
+          "ssh_url_to_repo": "git@gitlab.com:a.adach/ai-image-openai.git",
+          "http_url_to_repo": "https://gitlab.com/a.adach/ai-image-openai.git"
+        },
+        {
+          "id": 80154427,
+          "description": "MacWhisperer is a macOS desktop GUI for OpenAI Whisper that makes local speech transcription and English translation easy, with auto model loading, live recording, input device controls, and file-based workflows.",
+          "name": "MacWhisperer",
+          "name_with_namespace": "Charis Tsevis / MacWhisperer",
+          "path": "MacWhisperer",
+          "path_with_namespace": "tsevis/MacWhisperer",
+          "created_at": "2026-03-10T21:35:36.510Z",
+          "default_branch": "main",
+          "tag_list": [],
+          "topics": [],
+          "ssh_url_to_repo": "git@gitlab.com:tsevis/MacWhisperer.git",
+          "http_url_to_repo": "https://gitlab.com/tsevis/MacWhisperer.git"
+        }
+      ],
       "candidates": [
         {
           "rank": 1,
-          "endpoint_id": "bCSDaN7HrykIkocQ7AhAH",
-          "score": 479.1,
-          "description": "Structured replay for search projects",
-          "url": "https://gitlab.com/api/v4/projects?search={name}&simple=true&per_page=20",
-          "trigger_url": "https://gitlab.com/explore/projects?name=openai",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "k4S3B8zR7C2iDyPGm84j0",
-            "--endpoint",
-            "bCSDaN7HrykIkocQ7AhAH",
-            "--intent",
-            "search projects",
-            "--url",
-            "https://gitlab.com/explore/projects?name=openai",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 2,
-          "endpoint_id": "3Waf0U6LA61H1fhMsz-NX",
-          "score": 360.7,
-          "description": "Canonical document replay for search projects",
-          "url": "https://gitlab.com/explore/projects?name=openai",
-          "trigger_url": "https://gitlab.com/explore/projects?name=openai",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "document_replay",
-            "page_artifact_risk"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "k4S3B8zR7C2iDyPGm84j0",
-            "--endpoint",
-            "3Waf0U6LA61H1fhMsz-NX",
-            "--intent",
-            "search projects",
-            "--url",
-            "https://gitlab.com/explore/projects?name=openai",
-            "--raw"
-          ]
+          "endpoint_id": "LjmeRtRDOhEoOOivIUcNB",
+          "signals": []
         }
       ]
     },
@@ -177,70 +215,21 @@
       "id": "npm-search-packages",
       "intent": "search packages",
       "url": "https://www.npmjs.com/search?q=openai",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "WehjeJEdoO78-1yeOHINt",
+      "collector_reason": "agent_review_direct_result",
       "local_signal": {
         "verdict": "fail",
-        "reason": "deferral_payload"
+        "reason": "learned_skill_only"
+      },
+      "direct_result": {
+        "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+        "endpoints_discovered": 1,
+        "seeded_from": "canonical_document"
       },
       "candidates": [
         {
           "rank": 1,
-          "endpoint_id": "WehjeJEdoO78-1yeOHINt",
-          "score": 454.7,
-          "description": "Structured replay for search packages",
-          "url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
-          "trigger_url": "https://www.npmjs.com/search?q=openai",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "Zd1VORa7WWO-Johl6_-Ia",
-            "--endpoint",
-            "WehjeJEdoO78-1yeOHINt",
-            "--intent",
-            "search packages",
-            "--url",
-            "https://www.npmjs.com/search?q=openai",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 2,
-          "endpoint_id": "1fIQmF7xQTwRsPtfoEWqr",
-          "score": 391.7,
-          "description": "Canonical document replay for search packages",
-          "url": "https://www.npmjs.com/search?q=openai",
-          "trigger_url": "https://www.npmjs.com/search?q=openai",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "document_replay",
-            "page_artifact_risk"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "Zd1VORa7WWO-Johl6_-Ia",
-            "--endpoint",
-            "1fIQmF7xQTwRsPtfoEWqr",
-            "--intent",
-            "search packages",
-            "--url",
-            "https://www.npmjs.com/search?q=openai",
-            "--raw"
-          ]
+          "endpoint_id": "browser-capture",
+          "signals": []
         }
       ]
     },
@@ -248,69 +237,21 @@
       "id": "npm-package-info",
       "intent": "get package info",
       "url": "https://www.npmjs.com/package/openai",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "zexHUXefwCPqZSAQzP2VU",
+      "collector_reason": "agent_review_direct_result",
       "local_signal": {
         "verdict": "fail",
-        "reason": "deferral_payload"
+        "reason": "learned_skill_only"
+      },
+      "direct_result": {
+        "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+        "endpoints_discovered": 1,
+        "seeded_from": "canonical_document"
       },
       "candidates": [
         {
           "rank": 1,
-          "endpoint_id": "zexHUXefwCPqZSAQzP2VU",
-          "score": 373.6,
-          "description": "Structured replay for get package info",
-          "url": "https://registry.npmjs.org/openai",
-          "trigger_url": "https://www.npmjs.com/package/openai",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "structured_replay"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "Su_9NckI-SzINkXpBjHwj",
-            "--endpoint",
-            "zexHUXefwCPqZSAQzP2VU",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://www.npmjs.com/package/openai",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 2,
-          "endpoint_id": "DkmyPA-aXPlKTsvh1opB2",
-          "score": 312.2,
-          "description": "Canonical document replay for get package info",
-          "url": "https://www.npmjs.com/package/openai",
-          "trigger_url": "https://www.npmjs.com/package/openai",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "document_replay",
-            "page_artifact_risk"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "Su_9NckI-SzINkXpBjHwj",
-            "--endpoint",
-            "DkmyPA-aXPlKTsvh1opB2",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://www.npmjs.com/package/openai",
-            "--raw"
-          ]
+          "endpoint_id": "browser-capture",
+          "signals": []
         }
       ]
     },
@@ -318,560 +259,344 @@
       "id": "pypi-package-info",
       "intent": "get package info",
       "url": "https://pypi.org/project/openai/",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "UvY-SSR417GsG97x_bL78",
+      "collector_reason": "agent_review_direct_result",
       "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
+        "verdict": "pass",
+        "reason": "package_rows"
       },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "UvY-SSR417GsG97x_bL78",
-          "score": 465.4,
-          "description": "Structured replay for get package info",
-          "url": "https://pypi.org/pypi/openai/json",
-          "trigger_url": "https://pypi.org/project/openai/",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "structured_replay"
+      "direct_result": {
+        "info": {
+          "author": null,
+          "author_email": "OpenAI <support@openai.com>",
+          "bugtrack_url": null,
+          "classifiers": [
+            "Intended Audience :: Developers",
+            "License :: OSI Approved :: Apache Software License",
+            "Operating System :: MacOS",
+            "Operating System :: Microsoft :: Windows"
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "yhM8jWt-AYKD11r53xpLA",
-            "--endpoint",
-            "UvY-SSR417GsG97x_bL78",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://pypi.org/project/openai/",
-            "--raw"
+          "description": "# OpenAI Python API library\n\n<!-- prettier-ignore -->\n[![PyPI version](https://img.shields.io/pypi/v/openai.svg?label=pypi%20(stable))](https://pypi.org/project/openai/)\n\nThe OpenAI Python library provides convenient access to the OpenAI REST API from any Python 3.9+\napplication....",
+          "description_content_type": "text/markdown",
+          "docs_url": null,
+          "download_url": null,
+          "downloads": {
+            "last_day": -1,
+            "last_month": -1,
+            "last_week": -1
+          },
+          "dynamic": null,
+          "home_page": null,
+          "keywords": null
+        },
+        "last_serial": 35112981,
+        "ownership": {
+          "organization": "openai",
+          "roles": [
+            {
+              "role": "Owner",
+              "user": "dschnurr-openai"
+            },
+            {
+              "role": "Owner",
+              "user": "gdb"
+            },
+            {
+              "role": "Owner",
+              "user": "hponde_oai"
+            },
+            {
+              "role": "Maintainer",
+              "user": "ddeville"
+            }
           ]
         },
-        {
-          "rank": 2,
-          "endpoint_id": "bpJplCoaur2hUoweX6vyP",
-          "score": 118.9,
-          "description": "Canonical document replay for get package info",
-          "url": "https://pypi.org/project/openai/",
-          "trigger_url": "https://pypi.org/project/openai/",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "document_replay",
-            "page_artifact_risk"
+        "releases": {
+          "0.0.2": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "4816fe6559403a41b8ec0315cda5ccd116a35fcf795555ed743d3e164be4d3cc",
+                "md5": "2882c98be64f730da4fd66e1b44c15d3",
+                "sha256": "a12fa55ede72b6944a095c338107f689ae7804238d8fef19bfca10b9b1c8dfe6"
+              },
+              "downloads": -1,
+              "filename": "openai-0.0.2.tar.gz",
+              "has_sig": false,
+              "md5_digest": "2882c98be64f730da4fd66e1b44c15d3",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": null,
+              "size": 741,
+              "upload_time": "2020-02-18T19:41:36",
+              "upload_time_iso_8601": "2020-02-18T19:41:36.681685Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "yhM8jWt-AYKD11r53xpLA",
-            "--endpoint",
-            "bpJplCoaur2hUoweX6vyP",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://pypi.org/project/openai/",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mdn-search-docs",
-      "intent": "search docs",
-      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "kTiUwnCO96nz094qYSSKL",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "kTiUwnCO96nz094qYSSKL",
-          "score": 511.7,
-          "description": "Structured replay for search docs",
-          "url": "https://developer.mozilla.org/api/v1/search?q={q}&page=1&page_size=20&locale=en-US",
-          "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
+          "0.1.0": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "19412c52b589503ba61ddac4c1fe892b5b7e77ff6274e584ec1b499e224507b5",
+                "md5": "6c179d7caec986217440b1cb7b3a4792",
+                "sha256": "d8e48b54cc9ab41431f599f885fd64d16600f5ec7373977a97a221a64f4ce3c6"
+              },
+              "downloads": -1,
+              "filename": "openai-0.1.0.tar.gz",
+              "has_sig": false,
+              "md5_digest": "6c179d7caec986217440b1cb7b3a4792",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+              "size": 168532,
+              "upload_time": "2020-06-13T03:16:42",
+              "upload_time_iso_8601": "2020-06-13T03:16:42.295186Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "CmvOOAosa3Ec0XR208wb7",
-            "--endpoint",
-            "kTiUwnCO96nz094qYSSKL",
-            "--intent",
-            "search docs",
-            "--url",
-            "https://developer.mozilla.org/en-US/search?q=fetch",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "hn-search-param-seeded",
-      "intent": "search hacker news",
-      "url": "https://hn.algolia.com/",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "4IPDrgs0GpiAgZUbrHo20",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "4IPDrgs0GpiAgZUbrHo20",
-          "score": 656,
-          "description": "Structured replay for search hacker news",
-          "url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
-          "trigger_url": "https://hn.algolia.com/",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
+          "0.1.1": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "edfe7d534b18597ca6eeb6de29fbc976fc2a63ff5ba68c909b6dfbae6110cb9a",
+                "md5": "3400fcae7e47705603029ab3355ecba1",
+                "sha256": "51729536b506f77f9f198e7c911c97f0441bfee8392c86d3a5f067f60373f698"
+              },
+              "downloads": -1,
+              "filename": "openai-0.1.1.tar.gz",
+              "has_sig": false,
+              "md5_digest": "3400fcae7e47705603029ab3355ecba1",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+              "size": 156061,
+              "upload_time": "2020-06-13T04:46:01",
+              "upload_time_iso_8601": "2020-06-13T04:46:01.784421Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "wUuo2n6rlN_JUSwOcv4pC",
-            "--endpoint",
-            "4IPDrgs0GpiAgZUbrHo20",
-            "--intent",
-            "search hacker news",
-            "--url",
-            "https://hn.algolia.com/",
-            "--params",
-            "{\"q\":\"openai\"}",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "reddit-programming-posts",
-      "intent": "get subreddit posts",
-      "url": "https://www.reddit.com/r/programming/",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "T7BZ_9YcoC8BHptYEaHqm",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "T7BZ_9YcoC8BHptYEaHqm",
-          "score": 522.1,
-          "description": "Structured replay for get subreddit posts",
-          "url": "https://www.reddit.com/r/programming/.json",
-          "trigger_url": "https://www.reddit.com/r/programming/",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
+          "0.1.2": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "63efa63ca6dc08afabf1d0c9ca5e6f51c6ac8161f5982b2475180ac0005d933a",
+                "md5": "d03734c299031610ff7b85e00627e98b",
+                "sha256": "8a9535370b5d4ff6e8726c8b42d6a219cda65195d1b3a413b2f79e22fea7b5b1"
+              },
+              "downloads": -1,
+              "filename": "openai-0.1.2.tar.gz",
+              "has_sig": false,
+              "md5_digest": "d03734c299031610ff7b85e00627e98b",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+              "size": 155617,
+              "upload_time": "2020-06-13T15:48:35",
+              "upload_time_iso_8601": "2020-06-13T15:48:35.426777Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "K8un7DzVRhfPLs5sXcYM6",
-            "--endpoint",
-            "T7BZ_9YcoC8BHptYEaHqm",
-            "--intent",
-            "get subreddit posts",
-            "--url",
-            "https://www.reddit.com/r/programming/",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 2,
-          "endpoint_id": "ofTvXJ1NSK9sNkJ8bUpc5",
-          "score": 376.9,
-          "description": "Canonical document replay for get subreddit posts",
-          "url": "https://www.reddit.com/r/programming/",
-          "trigger_url": "https://www.reddit.com/r/programming/",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "document_replay",
-            "page_artifact_risk"
+          "0.1.3": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "73344dcb16de79952f31813260e4d4088ddd16989739c53e1f6f30ac14572590",
+                "md5": "129be68a7302e60ac1e818a022620586",
+                "sha256": "a97e0c238e1686318f58b943742ddf7f027a4e391d53c636b5520ec13fe4f742"
+              },
+              "downloads": -1,
+              "filename": "openai-0.1.3.tar.gz",
+              "has_sig": false,
+              "md5_digest": "129be68a7302e60ac1e818a022620586",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+              "size": 155639,
+              "upload_time": "2020-06-13T15:53:45",
+              "upload_time_iso_8601": "2020-06-13T15:53:45.968519Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "K8un7DzVRhfPLs5sXcYM6",
-            "--endpoint",
-            "ofTvXJ1NSK9sNkJ8bUpc5",
-            "--intent",
-            "get subreddit posts",
-            "--url",
-            "https://www.reddit.com/r/programming/",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "docker-image-tags",
-      "intent": "get image tags",
-      "url": "https://hub.docker.com/r/library/nginx/tags",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "8SSaVl3ALBb7hJBItWXV_",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "8SSaVl3ALBb7hJBItWXV_",
-          "score": 409.7,
-          "description": "Structured replay for get image tags",
-          "url": "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=25",
-          "trigger_url": "https://hub.docker.com/r/library/nginx/tags",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
+          "0.10.0": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "cb9a65c5368e787b2a2b05daf6525673911ddca14d022518536d7ea9a45da608",
+                "md5": "04dfda643dba43e0a6c7347b8e8401fe",
+                "sha256": "9f788662737a253efb98150e37df0f9807f563eca647be4769d4ed868d353ec1"
+              },
+              "downloads": -1,
+              "filename": "openai-0.10.0.tar.gz",
+              "has_sig": false,
+              "md5_digest": "04dfda643dba43e0a6c7347b8e8401fe",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=3.6",
+              "size": 155278,
+              "upload_time": "2021-07-14T20:20:30",
+              "upload_time_iso_8601": "2021-07-14T20:20:30.624755Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "017beTrdVhh4_4xY5LQGW",
-            "--endpoint",
-            "8SSaVl3ALBb7hJBItWXV_",
-            "--intent",
-            "get image tags",
-            "--url",
-            "https://hub.docker.com/r/library/nginx/tags",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 2,
-          "endpoint_id": "SeQbuO1gmOWVzI_wYpzHd",
-          "score": 306.7,
-          "description": "Canonical document replay for get image tags",
-          "url": "https://hub.docker.com/r/library/nginx/tags",
-          "trigger_url": "https://hub.docker.com/r/library/nginx/tags",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "document_replay",
-            "page_artifact_risk"
+          "0.10.1": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "26da01a95c8d2d3805e3f10d0c50bcdafc292ceba55ff1a222deb58d650b2aaf",
+                "md5": "0ef728f1e55c9f4cc0dbef98fbcc51bb",
+                "sha256": "325d462829b75b95fd90dec8039ec79cacf7cbb6104ee2c06f08ab96da6c227f"
+              },
+              "downloads": -1,
+              "filename": "openai-0.10.1.tar.gz",
+              "has_sig": false,
+              "md5_digest": "0ef728f1e55c9f4cc0dbef98fbcc51bb",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=3.6",
+              "size": 155953,
+              "upload_time": "2021-07-14T21:22:50",
+              "upload_time_iso_8601": "2021-07-14T21:22:50.938443Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "017beTrdVhh4_4xY5LQGW",
-            "--endpoint",
-            "SeQbuO1gmOWVzI_wYpzHd",
-            "--intent",
-            "get image tags",
-            "--url",
-            "https://hub.docker.com/r/library/nginx/tags",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "stack-overflow-tag-questions",
-      "intent": "get tag questions",
-      "url": "https://stackoverflow.com/questions/tagged/javascript",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "3_vqp5FuI29YwtFYgVQV_",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "3_vqp5FuI29YwtFYgVQV_",
-          "score": 426.7,
-          "description": "Structured replay for get tag questions",
-          "url": "https://api.stackexchange.com/2.3/questions?site=stackoverflow&tagged={tag}&order=desc&sort=activity&pagesize=20&filter=...",
-          "trigger_url": "https://stackoverflow.com/questions/tagged/javascript",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay"
+          "0.10.2": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "4adcb55b633183d39736944ccc6b74b0acb58c65d6113f4566b5159252628de4",
+                "md5": "52dff2619e6af5821aadd724420ba812",
+                "sha256": "4d45559ac2341539dde7f8396123293b8e6951cb0a9fadde0f59d6fb91fe3abe"
+              },
+              "downloads": -1,
+              "filename": "openai-0.10.2.tar.gz",
+              "has_sig": false,
+              "md5_digest": "52dff2619e6af5821aadd724420ba812",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=3.6",
+              "size": 156728,
+              "upload_time": "2021-07-29T19:24:19",
+              "upload_time_iso_8601": "2021-07-29T19:24:19.515691Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "87LKYGoaqX8JPiEMoOKUz",
-            "--endpoint",
-            "3_vqp5FuI29YwtFYgVQV_",
-            "--intent",
-            "get tag questions",
-            "--url",
-            "https://stackoverflow.com/questions/tagged/javascript",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "devto-tag-posts",
-      "intent": "get tag posts",
-      "url": "https://dev.to/t/javascript",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "lVqYBDXb7-qFc1PdAnrkf",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "lVqYBDXb7-qFc1PdAnrkf",
-          "score": 334,
-          "description": "Structured replay for get tag posts",
-          "url": "https://dev.to/api/articles?tag={tag}&per_page=20",
-          "trigger_url": "https://dev.to/t/javascript",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
+          "0.10.3": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "f01668cc19fe13f055efb2f60a77f52d991d6be15351fc0d9b7e0805771be747",
+                "md5": "1b7faed80143bb364d8ddac7858b3fe2",
+                "sha256": "7117dbb6f1d5c98d1fec0744acd2f0738d2728b60ff532829308c952990d86f5"
+              },
+              "downloads": -1,
+              "filename": "openai-0.10.3.tar.gz",
+              "has_sig": false,
+              "md5_digest": "1b7faed80143bb364d8ddac7858b3fe2",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=3.6",
+              "size": 157027,
+              "upload_time": "2021-08-31T16:30:42",
+              "upload_time_iso_8601": "2021-08-31T16:30:42.075782Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "6l6XOlWJc1-0__gz3rL2x",
-            "--endpoint",
-            "lVqYBDXb7-qFc1PdAnrkf",
-            "--intent",
-            "get tag posts",
-            "--url",
-            "https://dev.to/t/javascript",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "rubygems-package-info",
-      "intent": "get package info",
-      "url": "https://rubygems.org/gems/rails",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "kJ5OWXEwORk-ZF_nLYTnt",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "kJ5OWXEwORk-ZF_nLYTnt",
-          "score": 483.3,
-          "description": "Structured replay for get package info",
-          "url": "https://rubygems.org/api/v1/gems/rails.json",
-          "trigger_url": "https://rubygems.org/gems/rails",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
+          "0.10.4": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "bce4ffd4b6c7b0672e8b8332c45b313db2adb64f692cb610b9956eb77f8e0284",
+                "md5": "55a5da3b2ce21af0f98e799bf7999bbe",
+                "sha256": "0f4ccc72f80fe6bb06926979a8d29a2afb7705e53a65152e8dcbfeb4b92bd3e4"
+              },
+              "downloads": -1,
+              "filename": "openai-0.10.4.tar.gz",
+              "has_sig": false,
+              "md5_digest": "55a5da3b2ce21af0f98e799bf7999bbe",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=3.6",
+              "size": 157289,
+              "upload_time": "2021-09-09T17:50:58",
+              "upload_time_iso_8601": "2021-09-09T17:50:58.483282Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "88YwrqC3PJeBW7k4XiSUP",
-            "--endpoint",
-            "kJ5OWXEwORk-ZF_nLYTnt",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://rubygems.org/gems/rails",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "pubdev-package-info",
-      "intent": "get package info",
-      "url": "https://pub.dev/packages/http",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "zZLFlbuRQTP2Mf95hG9EC",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
-      },
-      "candidates": [
-        {
-          "rank": 1,
-          "endpoint_id": "zZLFlbuRQTP2Mf95hG9EC",
-          "score": 433.6,
-          "description": "Structured replay for get package info",
-          "url": "https://pub.dev/api/packages/http",
-          "trigger_url": "https://pub.dev/packages/http",
-          "signals": [
-            "schema",
-            "concrete_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
+          "0.10.5": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "79b88d3986ab63b4a6d6149d015e3f4ddd3d3eac4a3dc71c484d448f138940e1",
+                "md5": "0f8e5aeab3015fe653776f9a84680e35",
+                "sha256": "9b70f51abc5723330cbd422b865e1613519da166a1682e9879e5ce251e765994"
+              },
+              "downloads": -1,
+              "filename": "openai-0.10.5.tar.gz",
+              "has_sig": false,
+              "md5_digest": "0f8e5aeab3015fe653776f9a84680e35",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=3.6",
+              "size": 157251,
+              "upload_time": "2021-10-01T17:31:50",
+              "upload_time_iso_8601": "2021-10-01T17:31:50.808151Z"
+            }
           ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "G9PV4IivwnupXCO6zEtCq",
-            "--endpoint",
-            "zZLFlbuRQTP2Mf95hG9EC",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://pub.dev/packages/http",
-            "--raw"
+          "0.11.0": [
+            {
+              "comment_text": "",
+              "digests": {
+                "blake2b_256": "5230bc093bcbeed8d3557831c51c80e4bc5df89fce5876c17daf2b86971b884b",
+                "md5": "82090a08c5132d0a7d07a5b0c31b05e1",
+                "sha256": "d3e7fecd728e70fa9ca3484a00ea3f7b928b172207c6017816419d57f2b3b596"
+              },
+              "downloads": -1,
+              "filename": "openai-0.11.0.tar.gz",
+              "has_sig": false,
+              "md5_digest": "82090a08c5132d0a7d07a5b0c31b05e1",
+              "packagetype": "sdist",
+              "python_version": "source",
+              "requires_python": ">=3.7.1",
+              "size": 150602,
+              "upload_time": "2021-10-27T18:04:53",
+              "upload_time_iso_8601": "2021-10-27T18:04:53.999263Z"
+            }
           ]
         },
-        {
-          "rank": 2,
-          "endpoint_id": "nx9voVhlX-YiOOXvKuA5R",
-          "score": -142.3,
-          "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
-          "url": "https://pub.dev/api/account/likes",
-          "trigger_url": "https://pub.dev/packages/http",
-          "signals": [
-            "concrete_url",
-            "trigger_url",
-            "api_like"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "G9PV4IivwnupXCO6zEtCq",
-            "--endpoint",
-            "nx9voVhlX-YiOOXvKuA5R",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://pub.dev/packages/http",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 3,
-          "endpoint_id": "s4RPXMtzLGlm9jSVsuZnl",
-          "score": -146.6,
-          "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
-          "url": "https://pub.dev/api/packages",
-          "trigger_url": "https://pub.dev/packages/http",
-          "signals": [
-            "concrete_url",
-            "trigger_url",
-            "api_like"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "G9PV4IivwnupXCO6zEtCq",
-            "--endpoint",
-            "s4RPXMtzLGlm9jSVsuZnl",
-            "--intent",
-            "get package info",
-            "--url",
-            "https://pub.dev/packages/http",
-            "--raw"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "jmail-search",
-      "intent": "search emails",
-      "url": "https://jmail.world/search?q=clinton",
-      "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "OLFTyxFR4CxUMyIR2C5yK",
-      "local_signal": {
-        "verdict": "fail",
-        "reason": "deferral_payload"
+        "urls": [
+          {
+            "comment_text": "",
+            "digests": {
+              "blake2b_256": "c05adf122348638885526e53140e9c6b0d844af7312682b3bde9587eebc28b47",
+              "md5": "d9648bcda1875057122263ce99e21167",
+              "sha256": "79aa5c45dba7fef84085701c235cf13ba88485e1ef4f8dfcedc44fc2a698fc1d"
+            },
+            "downloads": -1,
+            "filename": "openai-2.28.0-py3-none-any.whl",
+            "has_sig": false,
+            "md5_digest": "d9648bcda1875057122263ce99e21167",
+            "packagetype": "bdist_wheel",
+            "python_version": "py3",
+            "requires_python": ">=3.9",
+            "size": 1141218,
+            "upload_time": "2026-03-13T19:56:25",
+            "upload_time_iso_8601": "2026-03-13T19:56:25.460313Z"
+          },
+          {
+            "comment_text": "",
+            "digests": {
+              "blake2b_256": "5687eb0abb4ef88ddb95b3c13149384c4c288f584f3be17d6a4f63f8c3e3c226",
+              "md5": "d1bc52520d08ff1ab50e089547ad0032",
+              "sha256": "bb7fdff384d2a787fa82e8822d1dd3c02e8cf901d60f1df523b7da03cbb6d48d"
+            },
+            "downloads": -1,
+            "filename": "openai-2.28.0.tar.gz",
+            "has_sig": false,
+            "md5_digest": "d1bc52520d08ff1ab50e089547ad0032",
+            "packagetype": "sdist",
+            "python_version": "source",
+            "requires_python": ">=3.9",
+            "size": 670334,
+            "upload_time": "2026-03-13T19:56:27",
+            "upload_time_iso_8601": "2026-03-13T19:56:27.306327Z"
+          }
+        ],
+        "vulnerabilities": []
       },
       "candidates": [
         {
           "rank": 1,
-          "endpoint_id": "OLFTyxFR4CxUMyIR2C5yK",
-          "score": 518.4,
-          "description": "Structured replay for search emails",
-          "url": "https://jmail.world/api/emails/search?q={q}&limit={limit}&page={page}&source={source}",
-          "trigger_url": "https://jmail.world/search?q=clinton",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "structured_replay",
-            "api_like"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "qQYS4NtSVNkfABtvHuXl0",
-            "--endpoint",
-            "OLFTyxFR4CxUMyIR2C5yK",
-            "--intent",
-            "search emails",
-            "--url",
-            "https://jmail.world/search?q=clinton",
-            "--raw"
-          ]
+          "endpoint_id": "lLs1HmSy15HpTiZNNqE4E",
+          "signals": []
         }
       ]
     }

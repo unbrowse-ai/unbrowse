@@ -204,4 +204,62 @@ describe("special HTML extraction", () => {
     expect((extracted.data as Record<string, string>).term).toBe("agent");
     expect((extracted.data as Record<string, string>).definition).toContain("represents another");
   });
+
+  it("extracts single-record product detail pages", () => {
+    const html = `
+      <html><body>
+        <main>
+          <div class="inventory_details_container">
+            <img src="/static/backpack.jpg" />
+            <div class="inventory_details_name large_size">Sauce Labs Backpack</div>
+            <div class="inventory_details_desc">carry.allTheThings() with the sleek, streamlined Sly Pack.</div>
+            <div class="inventory_details_price">$29.99</div>
+          </div>
+        </main>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "get product details");
+    expect(extracted.extraction_method).toBe("key-value");
+    expect((extracted.data as Record<string, string>).title).toBe("Sauce Labs Backpack");
+    expect((extracted.data as Record<string, string>).description).toContain("carry.allTheThings");
+    expect((extracted.data as Record<string, string>).price).toBe("$29.99");
+  });
+
+  it("extracts success-page messages from strong/flash-like content", () => {
+    const html = `
+      <html><body>
+        <article>
+          <div class="post-header">
+            <h1 class="post-title">Logged In Successfully</h1>
+          </div>
+          <div class="post-content">
+            <p class="has-text-align-center"><strong>Congratulations student. You successfully logged in!</strong></p>
+            <a href="/practice-test-login/">Log out</a>
+          </div>
+        </article>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "get login success message");
+    expect(JSON.stringify(extracted.data)).toContain("Congratulations student. You successfully logged in!");
+    expect(extracted.confidence).toBeGreaterThan(0.5);
+  });
+
+  it("extracts flash notices from auth-protected success pages", () => {
+    const html = `
+      <html><body>
+        <div id="flash" class="flash success">You logged into a secure area! ×</div>
+        <div class="example">
+          <h2>Secure Area</h2>
+          <h4>Welcome to the Secure Area. When you are done click logout below.</h4>
+        </div>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(html, "get login flash message");
+    expect(extracted.extraction_method).toBe("key-value");
+    expect((extracted.data as Record<string, string>).flash).toContain("You logged into a secure area!");
+    expect((extracted.data as Record<string, string>).title).toBe("Secure Area");
+  });
 });

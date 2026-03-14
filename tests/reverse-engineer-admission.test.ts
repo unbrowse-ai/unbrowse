@@ -160,4 +160,66 @@ describe("reverse engineer parsed-body admission", () => {
     });
     expect(endpoints.length).toBe(1);
   });
+
+  it("templatizes action request bodies into replayable body params", () => {
+    const endpoints = extractEndpoints([
+      makeRequest({
+        method: "POST",
+        url: "https://practice.expandtesting.com/notes/api/notes",
+        request_body: JSON.stringify({
+          title: "hello",
+          description: "world",
+          completed: false,
+        }),
+        response_body: JSON.stringify({
+          id: "note-1",
+          title: "hello",
+          description: "world",
+          completed: false,
+        }),
+      }),
+    ], undefined, {
+      pageUrl: "https://practice.expandtesting.com/notes/app",
+      intent: "create note",
+    });
+
+    expect(endpoints.length).toBe(1);
+    expect(endpoints[0]?.body).toEqual({
+      title: "{title}",
+      description: "{description}",
+      completed: false,
+    });
+    expect(endpoints[0]?.body_params).toEqual({
+      title: "hello",
+      description: "world",
+    });
+  });
+
+  it("infers csrf plan from cookie-backed csrf headers", () => {
+    const endpoints = extractEndpoints([
+      makeRequest({
+        method: "POST",
+        url: "https://example.com/api/notes",
+        request_headers: {
+          cookie: "session=abc; csrftoken=token-123",
+          "x-csrftoken": "token-123",
+          "content-type": "application/json",
+        },
+        request_body: JSON.stringify({ title: "hello" }),
+        response_body: JSON.stringify({ ok: true, id: "1" }),
+      }),
+    ], undefined, {
+      pageUrl: "https://example.com/notes",
+      intent: "create note",
+    });
+
+    expect(endpoints.length).toBe(1);
+    expect(endpoints[0]?.csrf_plan).toEqual({
+      source: "cookie",
+      param_name: "x-csrftoken",
+      refresh_on_401: true,
+      extractor_sequence: ["csrftoken"],
+    });
+    expect(endpoints[0]?.semantic?.auth_required).toBe(true);
+  });
 });

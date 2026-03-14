@@ -27,6 +27,8 @@ describe("codex stress cases", () => {
     expect(ids.has("arxiv-search-papers")).toBe(true);
     expect(ids.has("huggingface-search-models")).toBe(true);
     expect(ids.has("allrecipes-search-recipes")).toBe(true);
+    expect(ids.has("foodnetwork-search-recipes")).toBe(true);
+    expect(ids.has("epicurious-search-recipes")).toBe(true);
     expect(ids.has("coursera-search-courses")).toBe(true);
     expect(ids.has("cambridge-get-definition")).toBe(true);
     expect(ids.has("jmail-search")).toBe(true);

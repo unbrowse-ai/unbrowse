@@ -1,0 +1,193 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "practice-test-automation-success",
+      "intent": "get login success message",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "message_record",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "message"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://practicetestautomation.com/logged-in-successfully/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://practicetestautomation.com/logged-in-successfully/",
+          "force_capture": false,
+          "resolve_ms": 772,
+          "skill_id": "fb7PkyhBkaYH4BdwbczTH",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_target_operation"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://practicetestautomation.com/logged-in-successfully/",
+              "domain": "practicetestautomation.com",
+              "pathname": "/logged-in-successfully/",
+              "slug_1": "logged-in-successfully"
+            },
+            "chunk": {
+              "skill_id": "fb7PkyhBkaYH4BdwbczTH",
+              "intent": "get login success message",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "tajFh7gBhnWxekg_6F_3T",
+              "available_operations": [
+                {
+                  "operation_id": "tajFh7gBhnWxekg_6F_3T",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "message",
+                  "title": "detail message",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://practicetestautomation.com/logged-in-successfully/",
+                  "requires": [],
+                  "yields": [
+                    "message_name",
+                    "post_name",
+                    "message_url",
+                    "post_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "type": "key-value",
+                      "data": {
+                        "title": "Logged In Successfully",
+                        "link": "https://practicetestautomation.com/practice-test-login/",
+                        "url": "https://practicetestautomation.com/practice-test-login/",
+                        "description": "Congratulations student. You successfully logged in!"
+                      },
+                      "relevance_score": 7.1
+                    },
+                    {
+                      "type": "key-value",
+                      "data": {
+                        "title": "Logged In Successfully",
+                        "link": "https://practicetestautomation.com/practice-test-login/",
+                        "url": "https://practicetestautomation.com/practice-test-login/",
+                        "description": "Congratulations student. You successfully logged in!"
+                      },
+                      "relevance_score": 7.1
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "fb7PkyhBkaYH4BdwbczTH",
+              "domain": "practicetestautomation.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-13T21:04:58.332Z"
+            },
+            "source": "marketplace",
+            "total_ms": 747,
+            "tokens_used": 119,
+            "tokens_saved": 29881,
+            "tokens_saved_pct": 100
+          },
+          "resolve_excerpt": {
+            "data": {
+              "title": "Logged In Successfully",
+              "link": "https://practicetestautomation.com/practice-test-login/",
+              "url": "https://practicetestautomation.com/practice-test-login/",
+              "description": "Congratulations student. You successfully logged in!",
+              "message": "Congratulations student. You successfully logged in!"
+            },
+            "_extraction": {
+              "method": "key-value",
+              "confidence": 0.75,
+              "source": "ssr-fast",
+              "final_url": "https://practicetestautomation.com/logged-in-successfully/",
+              "selector": "article"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "tajFh7gBhnWxekg_6F_3T",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "message_record",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "message"
+              ],
+              "missing_fields": [],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 119,
+              "tokens_saved": 29881,
+              "tokens_saved_pct": 100,
+              "excerpt": {
+                "data": {
+                  "title": "Logged In Successfully",
+                  "link": "https://practicetestautomation.com/practice-test-login/",
+                  "url": "https://practicetestautomation.com/practice-test-login/",
+                  "description": "Congratulations student. You successfully logged in!",
+                  "message": "Congratulations student. You successfully logged in!"
+                },
+                "_extraction": {
+                  "method": "key-value",
+                  "confidence": 0.75,
+                  "source": "ssr-fast",
+                  "final_url": "https://practicetestautomation.com/logged-in-successfully/",
+                  "selector": "article"
+                }
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://practicetestautomation.com/logged-in-successfully/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    }
+  ]
+}

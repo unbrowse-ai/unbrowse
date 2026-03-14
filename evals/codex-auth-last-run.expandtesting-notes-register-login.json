@@ -1,0 +1,239 @@
+{
+  "summary": {
+    "total": 0,
+    "ready_for_review": 0,
+    "fail": 0,
+    "skip": 0,
+    "agent_pass": 0,
+    "agent_fail": 0,
+    "agent_skip": 0,
+    "review_required": 0,
+    "graph_selection_fail": 2,
+    "graph_dependency_fail": 0,
+    "force_capture": true,
+    "max_review_candidates": 3,
+    "review_queue_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-last-run.expandtesting-notes-register-login.review-queue.json"
+  },
+  "graph": {
+    "selection_summary": {
+      "total": 11,
+      "passed": 9,
+      "failed": 2,
+      "hit_rate": 0.8181818181818182,
+      "runnable_top1_rate": 1,
+      "public_total": 8,
+      "public_passed": 6,
+      "auth_total": 3,
+      "auth_passed": 3,
+      "avg_selection_ms": 1.4024091818181896,
+      "avg_time_to_correct_ms": 1.4427626000000089,
+      "avg_wrong_top1_before_correct": 0.5454545454545454
+    },
+    "selection_results": [
+      {
+        "id": "discord-root-channels",
+        "pass": true,
+        "selected": "fixture-discord:discord-guilds",
+        "expected": "fixture-discord:discord-guilds",
+        "top_hits": [
+          "fixture-discord:discord-guilds",
+          "fixture-discord:discord-channels",
+          "fixture-discord:discord-messages",
+          "fixture-form-html:jobs-form-options",
+          "fixture-github:github-search"
+        ]
+      },
+      {
+        "id": "discord-bound-channels",
+        "pass": true,
+        "selected": "fixture-discord:discord-channels",
+        "expected": "fixture-discord:discord-channels",
+        "top_hits": [
+          "fixture-discord:discord-channels",
+          "fixture-discord:discord-guilds",
+          "fixture-discord:discord-messages",
+          "fixture-form-html:jobs-form-options",
+          "fixture-auth-app:auth-register"
+        ]
+      },
+      {
+        "id": "github-search",
+        "pass": true,
+        "selected": "fixture-github:github-search",
+        "expected": "fixture-github:github-search",
+        "top_hits": [
+          "fixture-github:github-search",
+          "fixture-market:market-search",
+          "fixture-form-html:jobs-form-options",
+          "fixture-github:github-repo-detail",
+          "fixture-auth-app:auth-register"
+        ]
+      },
+      {
+        "id": "market-search",
+        "pass": true,
+        "selected": "fixture-market:market-search",
+        "expected": "fixture-market:market-search",
+        "top_hits": [
+          "fixture-market:market-search",
+          "fixture-github:github-search",
+          "fixture-market:market-detail",
+          "fixture-form-html:jobs-form-options",
+          "fixture-github:github-repo-detail"
+        ]
+      },
+      {
+        "id": "market-detail",
+        "pass": true,
+        "selected": "fixture-market:market-detail",
+        "expected": "fixture-market:market-detail",
+        "top_hits": [
+          "fixture-market:market-detail",
+          "fixture-market:market-search",
+          "fixture-form-html:jobs-form-options",
+          "fixture-form-html:job-detail",
+          "fixture-auth-app:auth-register"
+        ]
+      },
+      {
+        "id": "linkedin-profile-detail",
+        "pass": true,
+        "selected": "fixture-linkedin:linkedin-profile-detail",
+        "expected": "fixture-linkedin:linkedin-profile-detail",
+        "top_hits": [
+          "fixture-linkedin:linkedin-profile-detail",
+          "fixture-linkedin:linkedin-search-people",
+          "fixture-form-html:jobs-form-options",
+          "fixture-discord:discord-guilds",
+          "fixture-auth-app:auth-note-detail"
+        ]
+      },
+      {
+        "id": "html-form-options",
+        "pass": true,
+        "selected": "fixture-form-html:jobs-form-options",
+        "expected": "fixture-form-html:jobs-form-options",
+        "top_hits": [
+          "fixture-form-html:jobs-form-options",
+          "fixture-form-html:job-detail",
+          "fixture-form-html:jobs-search",
+          "fixture-auth-app:auth-verify-otp",
+          "fixture-auth-app:auth-register"
+        ]
+      },
+      {
+        "id": "html-form-search",
+        "pass": true,
+        "selected": "fixture-form-html:jobs-search",
+        "expected": "fixture-form-html:jobs-search",
+        "top_hits": [
+          "fixture-form-html:jobs-search",
+          "fixture-form-html:job-detail",
+          "fixture-form-html:jobs-form-options",
+          "fixture-auth-app:auth-verify-otp",
+          "fixture-market:market-search"
+        ]
+      },
+      {
+        "id": "auth-register",
+        "pass": true,
+        "selected": "fixture-auth-app:auth-register",
+        "expected": "fixture-auth-app:auth-register",
+        "top_hits": [
+          "fixture-auth-app:auth-register",
+          "fixture-auth-app:auth-verify-otp",
+          "fixture-form-html:jobs-form-options",
+          "fixture-market:market-search",
+          "fixture-github:github-search"
+        ]
+      },
+      {
+        "id": "auth-login",
+        "pass": false,
+        "selected": "fixture-auth-app:auth-register",
+        "expected": "fixture-auth-app:auth-login",
+        "top_hits": [
+          "fixture-auth-app:auth-register",
+          "fixture-auth-app:auth-login",
+          "fixture-auth-app:auth-verify-otp",
+          "fixture-form-html:jobs-form-options",
+          "fixture-market:market-search"
+        ],
+        "failure_reason": "selected fixture-auth-app:auth-register"
+      },
+      {
+        "id": "auth-secure-search",
+        "pass": false,
+        "selected": "fixture-github:github-search",
+        "expected": "fixture-auth-app:auth-login",
+        "top_hits": [
+          "fixture-github:github-search",
+          "fixture-market:market-search",
+          "fixture-auth-app:auth-register",
+          "fixture-auth-app:auth-verify-otp",
+          "fixture-form-html:jobs-form-options"
+        ],
+        "failure_reason": "selected fixture-github:github-search"
+      }
+    ],
+    "dependency_summary": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "hit_rate": 1,
+      "avg_time_to_target_ms": 0.9523747999999955,
+      "avg_wrong_before_target": 1.4
+    },
+    "dependency_results": [
+      {
+        "id": "discord-message-pipeline",
+        "pass": true,
+        "target_operation_id": "discord-messages",
+        "selected_path": [
+          "discord-guilds",
+          "discord-channels",
+          "discord-messages"
+        ]
+      },
+      {
+        "id": "github-repo-detail-pipeline",
+        "pass": true,
+        "target_operation_id": "github-repo-detail",
+        "selected_path": [
+          "github-search",
+          "github-repo-detail"
+        ]
+      },
+      {
+        "id": "market-detail-pipeline",
+        "pass": true,
+        "target_operation_id": "market-detail",
+        "selected_path": [
+          "market-search",
+          "market-detail"
+        ]
+      },
+      {
+        "id": "linkedin-detail-pipeline",
+        "pass": true,
+        "target_operation_id": "linkedin-profile-detail",
+        "selected_path": [
+          "linkedin-search-people",
+          "linkedin-profile-detail"
+        ]
+      },
+      {
+        "id": "html-form-job-detail-pipeline",
+        "pass": true,
+        "target_operation_id": "job-detail",
+        "selected_path": [
+          "jobs-form-options",
+          "jobs-search",
+          "job-detail"
+        ]
+      }
+    ]
+  },
+  "review_queue": [],
+  "results": []
+}

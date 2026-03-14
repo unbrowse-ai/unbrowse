@@ -1,0 +1,87 @@
+{
+  "cases": [
+    {
+      "id": "github-search-repositories",
+      "intent": "search repositories",
+      "url": "https://github.com/search?q=openai&type=repositories",
+      "expected_fields": [
+        "full_name",
+        "description",
+        "stargazers_count"
+      ]
+    },
+    {
+      "id": "gitlab-search-projects",
+      "intent": "search projects",
+      "url": "https://gitlab.com/explore/projects?name=openai",
+      "expected_fields": [
+        "name",
+        "description",
+        "web_url"
+      ]
+    },
+    {
+      "id": "npm-search-packages",
+      "intent": "search packages",
+      "url": "https://www.npmjs.com/search?q=openai",
+      "expected_fields": [
+        "name",
+        "version",
+        "description"
+      ]
+    },
+    {
+      "id": "npm-package-info",
+      "intent": "get package info",
+      "url": "https://www.npmjs.com/package/openai",
+      "expected_fields": [
+        "name",
+        "version",
+        "description"
+      ]
+    },
+    {
+      "id": "pypi-package-info",
+      "intent": "get package info",
+      "url": "https://pypi.org/project/openai/",
+      "expected_fields": [
+        "name",
+        "version",
+        "summary"
+      ]
+    },
+    {
+      "id": "mdn-search-docs",
+      "intent": "search docs",
+      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+      "expected_fields": [
+        "title",
+        "url",
+        "summary"
+      ]
+    },
+    {
+      "id": "hn-search-param-seeded",
+      "intent": "search hacker news",
+      "url": "https://hn.algolia.com/",
+      "params": {
+        "q": "openai"
+      },
+      "expected_fields": [
+        "title",
+        "author",
+        "url"
+      ]
+    },
+    {
+      "id": "reddit-programming-posts",
+      "intent": "get subreddit posts",
+      "url": "https://www.reddit.com/r/programming/",
+      "expected_fields": [
+        "title",
+        "author",
+        "permalink"
+      ]
+    }
+  ]
+}

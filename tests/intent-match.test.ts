@@ -158,6 +158,109 @@ describe("intent result assessment", () => {
     expect(verdict.verdict).toBe("pass");
   });
 
+  test("passes stock quote payloads locally", () => {
+    const verdict = assessIntentResult({
+      quoteResponse: {
+        result: [
+          {
+            symbol: "AAPL",
+            shortName: "Apple Inc.",
+            regularMarketPrice: 212.34,
+            regularMarketChangePercent: 1.23,
+            currency: "USD",
+          },
+        ],
+      },
+    }, "get stock quote");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("fails news rows for stock quote intent", () => {
+    const verdict = assessIntentResult([
+      {
+        title: "Apple drops commission rates in China without a fuss",
+        url: "https://finance.yahoo.com/news/apple-drops-commission-rates-china-151214768.html",
+        image: "https://example.com/thumb.webp",
+      },
+    ], "get stock quote");
+    expect(verdict.verdict).toBe("fail");
+  });
+
+  test("passes product rows locally", () => {
+    const verdict = assessIntentResult({
+      initialData: {
+        searchResult: {
+          itemStacks: [
+            {
+              items: [
+                {
+                  id: "123",
+                  name: "Wireless Headphones",
+                  price: "$39.99",
+                  averageRating: 4.5,
+                  numberOfReviews: 120,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    }, "search products");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("passes DOM-style product cards without explicit urls when title description and price are present", () => {
+    const verdict = assessIntentResult([
+      {
+        title: "Sauce Labs Backpack",
+        description: "carry.allTheThings() with the sleek, streamlined pack",
+        price: "$29.99",
+        image: "/static/backpack.jpg",
+      },
+      {
+        title: "Sauce Labs Bike Light",
+        description: "A red light isn't the desired state in testing",
+        price: "$9.99",
+        image: "/static/light.jpg",
+      },
+      {
+        title: "Sauce Labs Bolt T-Shirt",
+        description: "Get your testing superhero on",
+        price: "$15.99",
+        image: "/static/shirt.jpg",
+      },
+    ], "get products");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("fails noisy repeated-element chrome for product search intent", () => {
+    const verdict = assessIntentResult([
+      {
+        title: "Results",
+        heading_1: "Apple AirPods Pro 3 Wireless Earbuds",
+        heading_2: "More results",
+        heading_3: "Need help?",
+        heading_4: "Related searches",
+        heading_5: "Worker well-being",
+        heading_6: "Manufacturing practices",
+        url: "https://aax-us-east-retail-direct.amazon.com/x/c/abc",
+        image: "https://example.com/ad.jpg",
+        price: "$25.99",
+      },
+    ], "search products");
+    expect(verdict.verdict).toBe("fail");
+  });
+
+  test("fails discord guild affinities for list servers intent", () => {
+    const verdict = assessIntentResult({
+      guild_affinities: [
+        { guild_id: "1", affinity: 453.7 },
+        { guild_id: "2", affinity: 32.4 },
+      ],
+    }, "list my discord servers");
+    expect(verdict.verdict).toBe("fail");
+  });
+
   test("passes Docker Hub search payloads locally", () => {
     const verdict = assessIntentResult({
       results: [

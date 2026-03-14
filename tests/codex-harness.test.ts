@@ -46,6 +46,30 @@ describe("codex harness helpers", () => {
     expect(ordered[2]).toBe("page");
   });
 
+  it("keeps a high-confidence page artifact ahead of third-party negative-score adtech", () => {
+    const ordered = fallbackEndpointOrder([
+      {
+        endpoint_id: "page",
+        score: 492,
+        url: "https://www.allrecipes.com/search?q={q}",
+        trigger_url: "https://www.allrecipes.com/search?q=lasagna",
+        schema_summary: { title: "string", url: "string", rating: "string" },
+        description: "Captured page artifact for search recipes",
+      } as any,
+      {
+        endpoint_id: "dv",
+        score: -21.6,
+        url: "https://pub.doubleverify.com/dvtag/signals/vlp/pub.json?ctx={ctx}&url={url}",
+        trigger_url: "https://www.allrecipes.com/search?q=lasagna",
+        schema_summary: { VLP: "array", TVP: "array" },
+        description: "Returns resource details with vlp and tvp",
+      } as any,
+    ]);
+
+    expect(ordered[0]).toBe("page");
+    expect(ordered[1]).toBe("dv");
+  });
+
   it("normalizes case files from array or {cases}", () => {
     const normalized = normalizeHarnessCases({
       cases: [
@@ -86,6 +110,55 @@ describe("codex harness helpers", () => {
       url: "https://hn.algolia.com/",
       params: { q: "openai" },
       expected_fields: ["title"],
+    }]);
+  });
+
+  it("normalizes auth metadata and richer validation options", () => {
+    const normalized = normalizeHarnessCases({
+      cases: [
+        {
+          id: "notes-create",
+          intent: "create note",
+          url: "https://practice.expandtesting.com/notes/app",
+          auth: {
+            domain: "practice.expandtesting.com",
+            persona: "qa-user",
+            role: "editor",
+            session: "primary",
+          },
+          params: { title: "hello", description: "world" },
+          expected_fields: ["id", "title", "description"],
+          validate: {
+            entity_type: "document",
+            min_rows: 1,
+            side_effect: "created",
+            echo_params: ["title", "description"],
+            terminal_ok: ["pass", "blocked"],
+          },
+        },
+      ],
+    });
+
+    expect(normalized).toEqual([{
+      id: "notes-create",
+      intent: "create note",
+      url: "https://practice.expandtesting.com/notes/app",
+      auth: "practice.expandtesting.com",
+      auth_context: {
+        domain: "practice.expandtesting.com",
+        persona: "qa-user",
+        role: "editor",
+        session: "primary",
+      },
+      params: { title: "hello", description: "world" },
+      expected_fields: ["id", "title", "description"],
+      validate: {
+        entity_type: "document",
+        min_rows: 1,
+        side_effect: "created",
+        echo_params: ["title", "description"],
+        terminal_ok: ["pass", "blocked"],
+      },
     }]);
   });
 
@@ -134,6 +207,21 @@ describe("codex harness helpers", () => {
     })).toEqual([
       "concrete_url",
       "page_artifact_risk",
+    ]);
+
+    expect(deriveEndpointSignals({
+      endpoint_id: "dv",
+      url: "https://pub.doubleverify.com/dvtag/signals/vlp/pub.json?ctx={ctx}&url={url}",
+      trigger_url: "https://www.allrecipes.com/search?q=lasagna",
+      schema_summary: { VLP: [] },
+      description: "Returns resource details with vlp and tvp",
+    })).toEqual([
+      "schema",
+      "templated_url",
+      "trigger_url",
+      "api_like",
+      "third_party",
+      "tracking_or_adtech",
     ]);
   });
 });

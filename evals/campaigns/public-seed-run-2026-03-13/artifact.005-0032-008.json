@@ -1,0 +1,390 @@
+{
+  "summary": {
+    "total": 8,
+    "pass": 1,
+    "fail": 0,
+    "skip": 7,
+    "blocked": 0,
+    "satisfied": 7,
+    "unsatisfied": 1,
+    "max_rounds": 4,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "twitch-following-live",
+      "intent": "get followed live streams",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_twitch.tv_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "broadcaster",
+        "viewer_count"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.twitch.tv/directory/following/live"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_twitch.tv_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "etsy-favorites",
+      "intent": "get favorite items",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_etsy.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "price",
+        "shop_name"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.etsy.com/your/favorites"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_etsy.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "discord-dms",
+      "intent": "list my discord servers",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_discord.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "id",
+        "name"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://discord.com/channels/@me"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_discord.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "paypal-activity",
+      "intent": "get activity feed",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_paypal.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "counterparty",
+        "amount",
+        "date"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.paypal.com/myaccount/activity"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_paypal.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "pinterest-saved-pins",
+      "intent": "get saved pins",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_pinterest.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "image"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.pinterest.com/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_pinterest.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "target-order-history",
+      "intent": "get order history",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "missing_target.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "order_id",
+        "title",
+        "status"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.target.com/co-orderhistory"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_target.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "saucedemo-products",
+      "intent": "get products",
+      "auth": true,
+      "final_state": "skip",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "missing_www.saucedemo.com_auth",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.saucedemo.com/inventory.html"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "auth": 1
+        },
+        "reasons_seen": [
+          "missing_www.saucedemo.com_auth"
+        ]
+      },
+      "rounds": []
+    },
+    {
+      "id": "the-internet-secure-flash",
+      "intent": "get secure area message",
+      "auth": true,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "unclassified_array",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "message"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://the-internet.herokuapp.com/secure"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://the-internet.herokuapp.com/secure",
+          "force_capture": false,
+          "resolve_ms": 46567,
+          "skill_id": "BWnvNk1Ql5O-YYnv91Iiy",
+          "available_endpoint_ids": [
+            "0SVoVNLB40RuALIlbs7Jj"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_target_operation"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://the-internet.herokuapp.com/secure",
+              "domain": "the-internet.herokuapp.com",
+              "pathname": "/secure",
+              "slug_1": "secure"
+            },
+            "chunk": {
+              "skill_id": "BWnvNk1Ql5O-YYnv91Iiy",
+              "intent": "get secure area message",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "BWnvNk1Ql5O-YYnv91Iiy",
+              "domain": "the-internet.herokuapp.com",
+              "auth_required": true,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-14T05:11:20.845Z"
+            },
+            "source": "live-capture",
+            "total_ms": 46533,
+            "tokens_used": 153,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "Secure Area",
+                "heading_1": "Welcome to the Secure Area. When you are done click logout below.",
+                "message": "Welcome to the Secure Area. When you are done click logout below.",
+                "link": "https://github.com/tourdedave/the-internet",
+                "url": "https://github.com/tourdedave/the-internet",
+                "image": "/img/forkme_right_green_007200.png"
+              },
+              {
+                "link": "http://elementalselenium.com/",
+                "url": "http://elementalselenium.com/",
+                "title": "Elemental Selenium"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.8,
+              "source": "rendered-dom",
+              "final_url": "https://the-internet.herokuapp.com/secure",
+              "selector": "div.row"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "0SVoVNLB40RuALIlbs7Jj",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "unclassified_array",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "message"
+              ],
+              "missing_fields": [],
+              "row_count": 2,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 153,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "Secure Area",
+                    "heading_1": "Welcome to the Secure Area. When you are done click logout below.",
+                    "message": "Welcome to the Secure Area. When you are done click logout below.",
+                    "link": "https://github.com/tourdedave/the-internet",
+                    "url": "https://github.com/tourdedave/the-internet",
+                    "image": "/img/forkme_right_green_007200.png"
+                  },
+                  {
+                    "link": "http://elementalselenium.com/",
+                    "url": "http://elementalselenium.com/",
+                    "title": "Elemental Selenium"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.8,
+                  "source": "rendered-dom",
+                  "final_url": "https://the-internet.herokuapp.com/secure",
+                  "selector": "div.row"
+                }
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://the-internet.herokuapp.com/secure"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    }
+  ]
+}

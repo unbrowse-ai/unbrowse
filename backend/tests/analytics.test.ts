@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { AgentProfile, Env } from "../src/types.js";
 import { getAgent, recordAgentExecution } from "../src/services/agents.js";
-import { getEngagement, getRetention } from "../src/services/analytics.js";
+import { getActivation, getAgentHealth, getEngagement, getRetention } from "../src/services/analytics.js";
 import { statsKV } from "../src/services/kv.js";
 
 const env: Env = {
@@ -134,5 +134,44 @@ describe("analytics telemetry", () => {
     expect(sevenDayCohort?.retention.d1).toBe(1);
     expect(sevenDayCohort?.retention.d3).toBe(1);
     expect(sevenDayCohort?.retention.d7).toBe(0);
+  });
+
+  it("surfaces recovered profiles separately from registered profiles", async () => {
+    await seedAgent({
+      agent_id: "recovered-1",
+      name: "recovered-1",
+      created_at: isoDaysAgo(1),
+      profile_origin: "recovered",
+      recovered_at: isoDaysAgo(1),
+      skills_discovered: [],
+      total_executions: 0,
+      total_feedback_given: 0,
+      tos_accepted_version: "2026-01-01",
+      tos_accepted_at: isoDaysAgo(1),
+      activity_dates: [],
+    });
+
+    await seedAgent({
+      agent_id: "registered-1",
+      name: "registered-1",
+      created_at: isoDaysAgo(1),
+      profile_origin: "registered",
+      skills_discovered: ["skill-a"],
+      total_executions: 2,
+      total_feedback_given: 0,
+      tos_accepted_version: "2026-01-01",
+      tos_accepted_at: isoDaysAgo(1),
+      first_execution_at: isoDaysAgo(0),
+      last_active_at: isoDaysAgo(0),
+      activity_dates: [dateDaysAgo(0)],
+    });
+
+    const activation = await getActivation(env);
+    expect(activation.total_registered).toBe(2);
+    expect(activation.recovered_profiles).toBe(1);
+
+    const health = await getAgentHealth(env);
+    expect(health.total_agents).toBe(2);
+    expect(health.recovered_profiles).toBe(1);
   });
 });

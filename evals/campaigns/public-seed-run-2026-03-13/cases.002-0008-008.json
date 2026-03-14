@@ -1,0 +1,83 @@
+{
+  "cases": [
+    {
+      "id": "docker-image-tags",
+      "intent": "get image tags",
+      "url": "https://hub.docker.com/r/library/nginx/tags",
+      "expected_fields": [
+        "name",
+        "last_updated"
+      ]
+    },
+    {
+      "id": "stack-overflow-tag-questions",
+      "intent": "get tag questions",
+      "url": "https://stackoverflow.com/questions/tagged/javascript",
+      "expected_fields": [
+        "title",
+        "url",
+        "score"
+      ]
+    },
+    {
+      "id": "devto-tag-posts",
+      "intent": "get tag posts",
+      "url": "https://dev.to/t/javascript",
+      "expected_fields": [
+        "title",
+        "url",
+        "author"
+      ]
+    },
+    {
+      "id": "rubygems-package-info",
+      "intent": "get package info",
+      "url": "https://rubygems.org/gems/rails",
+      "expected_fields": [
+        "name",
+        "version",
+        "description"
+      ]
+    },
+    {
+      "id": "pubdev-package-info",
+      "intent": "get package info",
+      "url": "https://pub.dev/packages/http",
+      "expected_fields": [
+        "name",
+        "version",
+        "description"
+      ]
+    },
+    {
+      "id": "jmail-search",
+      "intent": "search emails",
+      "url": "https://jmail.world/search?q=clinton",
+      "expected_fields": [
+        "subject",
+        "sender",
+        "preview"
+      ]
+    },
+    {
+      "id": "hacker-news-search",
+      "intent": "search hacker news",
+      "url": "https://hn.algolia.com/?q=openai",
+      "expected_fields": [
+        "title",
+        "url",
+        "author"
+      ]
+    },
+    {
+      "id": "crates-search-packages",
+      "intent": "search packages",
+      "url": "https://crates.io/search?q=tokio",
+      "expected_fields": [
+        "name",
+        "description",
+        "version"
+      ]
+    }
+  ]
+}
