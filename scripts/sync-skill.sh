@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MONO_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILL_PKG="$MONO_ROOT/packages/skill"
 TARGET_REPO="${UNBROWSE_SKILL_REPO:-$HOME/Projects/unbrowse-skill}"
+KURI_SUBMODULE="$MONO_ROOT/submodules/kuri"
 
 # --------------------------------------------------------------------------
 # 1. Install / update Claude Code local skill
@@ -80,6 +81,14 @@ rsync -avL --delete \
   --exclude '.env' \
   --exclude 'traces' \
   "$SKILL_PKG/" "$TARGET_REPO/"
+
+if [ -d "$KURI_SUBMODULE" ]; then
+  mkdir -p "$TARGET_REPO/vendor"
+  rsync -av --delete \
+    --exclude '.git' \
+    --exclude 'zig-out' \
+    "$KURI_SUBMODULE/" "$TARGET_REPO/vendor/kuri-src/"
+fi
 
 # Also copy root-level .env.example if it exists
 if [ -f "$MONO_ROOT/.env.example" ]; then

@@ -1,11 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ensureDir } from "./paths.js";
-
-const req = createRequire(import.meta.url);
+import { findKuriBinary, getKuriSourceCandidates } from "../kuri/client.js";
 
 export type SetupScope = "auto" | "global" | "project" | "off";
 
@@ -128,18 +126,47 @@ function writeOpenCodeCommand(scope: SetupScope, cwd: string): SetupReport["open
 }
 
 export async function ensureBrowserEngineInstalled(): Promise<SetupReport["browser_engine"]> {
-  try {
-    const { chromium } = await import("playwright-core");
-    if (existsSync(chromium.executablePath())) {
-      return { installed: true, action: "already-installed" };
-    }
+  const binary = findKuriBinary();
+  if (existsSync(binary)) {
+    return { installed: true, action: "already-installed" };
+  }
 
-    const agentBrowserBin = req.resolve("agent-browser/bin/agent-browser.js");
-    execFileSync(process.execPath, [agentBrowserBin, "install"], {
+  const sourceDir = getKuriSourceCandidates().find((candidate) => existsSync(path.join(candidate, "build.zig")));
+  if (!sourceDir) {
+    return {
+      installed: false,
+      action: "failed",
+      message: `Kuri binary not found. Checked ${binary}`,
+    };
+  }
+
+  if (!hasBinary("zig")) {
+    return {
+      installed: false,
+      action: "failed",
+      message: `Kuri source found at ${sourceDir}, but Zig is not installed`,
+    };
+  }
+
+  try {
+    execFileSync("zig", ["build", "-Doptimize=ReleaseFast"], {
+      cwd: sourceDir,
       stdio: "inherit",
       timeout: 300_000,
     });
-    return { installed: true, action: "installed" };
+    const builtBinary = findKuriBinary();
+    if (existsSync(builtBinary)) {
+      return {
+        installed: true,
+        action: "installed",
+        message: `Built Kuri from ${sourceDir}`,
+      };
+    }
+    return {
+      installed: false,
+      action: "failed",
+      message: `Kuri build completed but ${builtBinary} was not created`,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { installed: false, action: "failed", message };
