@@ -51,6 +51,12 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 
 ## Unreleased
 
+### Packaging
+
+- Added the upstream `justrach/kuri` repo as a tracked git submodule and restored `.gitmodules` metadata for the existing OpenClaw plugin submodule, so repo checkouts can initialize both dependencies cleanly.
+- The npm CLI package now bundles platform-specific Kuri binaries during `prepack`, resolves them before falling back to repo-local builds, and `unbrowse setup` now verifies or builds Kuri instead of trying to install stale `agent-browser` / Playwright assets.
+- Skill repo sync now carries a vendored Kuri source snapshot into the standalone publish repo so package rebuilds do not depend on a sibling `~/kuri` clone.
+
 ### Evals
 
 - Added an autonomous Codex eval harness that runs auth-aware resolve/execute loops, checks DAG reachability, escalates through force-capture plus deeper `trigger_url` retries, and stops with explicit `pass`/`fail`/`skip`/`blocked` outcomes instead of a manual-only shortlist.
@@ -73,8 +79,10 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 
 - Added custom Chromium-family cookie import for `/v1/auth/steal`, including explicit browser selection plus optional user-data dir, cookie DB path, and macOS Safe Storage service overrides so Electron-style app sessions can be reused without re-login when their cookie store is local.
 - Broken `keytar` native-binding shims from the Bun-built npm bundle now demote cleanly to the encrypted file vault at runtime, so `resolve`/auth reads no longer crash under Node 25 when the optional native module is present but unusable.
+- Missing local `kuri` binaries now fail with a normal startup warning instead of crashing the CLI/runtime during bootstrap.
 - CLI startup now validates the active API key against `/v1/agents/me`, ignores stale env/config keys that no longer have agent profiles, and re-registers instead of silently dropping agent activity/execution telemetry.
 - Backend auth now recreates missing `agent:*` profiles on first valid key use, so orphaned keys stop disappearing from lifecycle/activity analytics.
+- Local `wrangler dev` registration now falls back to the built-in `local-test` admin key when Unkey secrets are stubbed, so backend smoke tests can bootstrap without live Unkey credentials.
 - Fixed EmergentDB KV `listWithValues()` so prefixes with more than 30 trimmed/overflowed entries no longer silently undercount after the first backfill batch.
 
 ### Setup & onboarding

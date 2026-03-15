@@ -13,6 +13,11 @@ const runtimeSourceDir = path.join(packageRoot, "runtime-src");
 rmSync(distDir, { recursive: true, force: true });
 rmSync(runtimeSourceDir, { recursive: true, force: true });
 
+execFileSync(process.execPath, [path.join(packageRoot, "scripts", "build-kuri-binaries.mjs")], {
+  cwd: packageRoot,
+  stdio: "inherit",
+});
+
 const sharedArgs = ["build", "--target", "node", "--format", "esm", "--packages", "external"];
 
 execFileSync(

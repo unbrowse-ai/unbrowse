@@ -97,6 +97,10 @@ async function createUnkeyKey(
   return json.data;
 }
 
+function useLocalAdminRegistration(env: Env): boolean {
+  return env.UNKEY_ROOT_KEY === "local-test" && env.API_KEY === "local-test";
+}
+
 export async function registerAgent(
   env: Env,
   name: string,
@@ -105,6 +109,10 @@ export async function registerAgent(
   const trimmed = name.trim();
   if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
     throw new Error("Name must be 2-64 characters");
+  }
+
+  if (useLocalAdminRegistration(env)) {
+    return { agent_id: "__admin__", api_key: env.API_KEY };
   }
 
   const data = await createUnkeyKey(env.UNKEY_ROOT_KEY, env.UNKEY_API_ID, trimmed);
