@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
+
+### Features
+
+* migrate backend to EmergentDB Graph API ([#85](https://github.com/justrach/unbrowse34/issues/85)) ([fabfe87](https://github.com/justrach/unbrowse34/commit/fabfe87ce21d4b66cfc918ea383a90ff772e6f32))
+* sharpen landing hero value prop ([56b6035](https://github.com/justrach/unbrowse34/commit/56b60356a24984e1f785ae3dc2f160979576b6ee))
+
+### Bug Fixes
+
+* bundle kuri runtime in cli releases ([4353f3e](https://github.com/justrach/unbrowse34/commit/4353f3ecb574aa9c8dc67855318d29624d3d87d3))
+* stabilize frontend deploy fonts ([a51c4e2](https://github.com/justrach/unbrowse34/commit/a51c4e29a75f233c62147a48029ece978b8af281))
+
 ## [2.0.0](https://github.com/justrach/unbrowse34/compare/v1.1.5...v2.0.0) (2026-03-14)
 
 ### Features
