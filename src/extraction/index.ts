@@ -1306,7 +1306,17 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
 
   scored.sort((a, b) => b.score - a.score);
 
-  const bestPassing = scored.find((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
+  const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
+  const bestPassing = (() => {
+    if (passing.length === 0) return undefined;
+    const bestPassingOverall = passing[0];
+    const bestPassingSpa = passing.find((candidate) => candidate.structure.type.startsWith("spa-"));
+    // Prefer cleaner SPA payloads when they're effectively tied with DOM-derived candidates.
+    if (bestPassingSpa && bestPassingOverall && bestPassingSpa.score >= bestPassingOverall.score - 2) {
+      return bestPassingSpa;
+    }
+    return bestPassingOverall;
+  })();
   if (bestPassing) {
     return {
       data: bestPassing.structure.data,
@@ -1325,7 +1335,17 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
       selector: best.structure.selector,
     };
   }
-  const hasClearWinner = scored.length === 1 || best.score > scored[1].score * 1.5;
+
+  if (scored.length === 1) {
+    return {
+      data: best.structure.data,
+      extraction_method: best.structure.type,
+      confidence: computeConfidence(best.structure, best.score),
+      selector: best.structure.selector,
+    };
+  }
+
+  const hasClearWinner = best.score > scored[1].score * 1.5;
 
   if (hasClearWinner && best.score > 0) {
     return {
