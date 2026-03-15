@@ -86,6 +86,7 @@ if [ -d "$KURI_SUBMODULE" ]; then
   mkdir -p "$TARGET_REPO/vendor"
   rsync -av --delete \
     --exclude '.git' \
+    --exclude '.zig-cache' \
     --exclude 'zig-out' \
     "$KURI_SUBMODULE/" "$TARGET_REPO/vendor/kuri-src/"
 fi
