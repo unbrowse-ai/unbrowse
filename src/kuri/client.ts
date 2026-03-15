@@ -8,8 +8,11 @@
  * All browser ops go through HTTP — no Playwright, no Node CDP bindings.
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { log } from "../logger.js";
+import { getPackageRoot } from "../runtime/paths.js";
 
 const KURI_DEFAULT_PORT = 7700;
 const KURI_STARTUP_TIMEOUT_MS = 10_000;
@@ -51,6 +54,58 @@ let kuriProcess: ChildProcess | null = null;
 let kuriPort = KURI_DEFAULT_PORT;
 let kuriCdpPort: number | null = null;
 let kuriReady = false;
+
+function kuriBinaryName(): string {
+  return process.platform === "win32" ? "kuri.exe" : "kuri";
+}
+
+function currentBundledKuriTarget(): string | null {
+  if (process.platform === "darwin" && process.arch === "arm64") return "darwin-arm64";
+  if (process.platform === "darwin" && process.arch === "x64") return "darwin-x64";
+  if (process.platform === "linux" && process.arch === "arm64") return "linux-arm64";
+  if (process.platform === "linux" && process.arch === "x64") return "linux-x64";
+  return null;
+}
+
+function resolveBinaryOnPath(name: string): string | null {
+  const checker = process.platform === "win32" ? "where" : "which";
+  try {
+    const output = execFileSync(checker, [name], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const match = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+    return match || null;
+  } catch {
+    return null;
+  }
+}
+
+function addCandidate(candidates: string[], candidate?: string | null): void {
+  if (!candidate) return;
+  if (!candidates.includes(candidate)) candidates.push(candidate);
+}
+
+export function getKuriSourceCandidates(): string[] {
+  const packageRoot = getPackageRoot(import.meta.url);
+  const candidates: string[] = [];
+  addCandidate(candidates, path.join(packageRoot, "vendor", "kuri-src"));
+  addCandidate(candidates, path.join(packageRoot, "submodules", "kuri"));
+  if (process.env.KURI_PATH) addCandidate(candidates, process.env.KURI_PATH);
+  if (process.env.HOME) addCandidate(candidates, path.join(process.env.HOME, "kuri"));
+  return candidates;
+}
+
+export function getKuriBinaryCandidates(): string[] {
+  const packageRoot = getPackageRoot(import.meta.url);
+  const binaryName = kuriBinaryName();
+  const target = currentBundledKuriTarget();
+  const candidates: string[] = [];
+
+  if (target) addCandidate(candidates, path.join(packageRoot, "vendor", "kuri", target, binaryName));
+  for (const sourceDir of getKuriSourceCandidates()) {
+    addCandidate(candidates, path.join(sourceDir, "zig-out", "bin", binaryName));
+  }
+  addCandidate(candidates, resolveBinaryOnPath("kuri"));
+  return candidates;
+}
 
 /** Try common CDP ports to find where Chrome is listening. */
 async function discoverCdpPort(): Promise<void> {
@@ -128,10 +183,10 @@ async function kuriPost(path: string, params: Record<string, string>, body: unkn
 }
 
 /** Find the kuri binary — check env, then common build locations. */
-function findKuriBinary(): string {
+export function findKuriBinary(): string {
   if (process.env.KURI_BIN) return process.env.KURI_BIN;
-  const kuriRepoPath = process.env.KURI_PATH ?? `${process.env.HOME}/kuri`;
-  return `${kuriRepoPath}/zig-out/bin/kuri`;
+  const candidates = getKuriBinaryCandidates();
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0] ?? kuriBinaryName();
 }
 
 /**
@@ -160,6 +215,9 @@ export async function start(port?: number): Promise<void> {
 
   const binary = findKuriBinary();
   log("kuri", `starting: ${binary} on port ${kuriPort}`);
+  if (!existsSync(binary)) {
+    throw new Error(`Kuri binary not found at ${binary}`);
+  }
 
   // Check if Chrome is already running — if so, pass CDP_URL to connect
   // If not, omit CDP_URL so Kuri launches its own managed Chrome
