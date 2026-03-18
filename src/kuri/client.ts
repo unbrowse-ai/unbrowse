@@ -340,11 +340,15 @@ export async function getDefaultTab(): Promise<string> {
 }
 
 /** Trigger Kuri's /discover to sync Chrome tabs into Kuri's registry. */
+/** Trigger Kuri's /discover to sync Chrome tabs into Kuri's registry. */
 async function ensureTabsDiscovered(): Promise<void> {
   try {
-    await kuriGet("/discover");
+    // Pass CDP URL as query param so /discover works even if Kuri was started without CDP_URL env
+    const params: Record<string, string> = {};
+    if (kuriCdpPort) params.cdp_url = `ws://127.0.0.1:${kuriCdpPort}`;
+    await kuriGet("/discover", params);
   } catch {
-    // /discover may fail if CDP_URL not set — that's handled by start()
+    // /discover may fail if no Chrome running — that's OK
   }
 }
 
@@ -354,11 +358,34 @@ export async function navigate(tabId: string, url: string): Promise<void> {
 }
 
 /** Evaluate JavaScript in tab context. */
+/** Evaluate JavaScript in tab context. */
+/** Evaluate JavaScript in tab context. */
+/** Evaluate JavaScript in tab context. */
 export async function evaluate(tabId: string, expression: string): Promise<unknown> {
-  const raw = (await kuriGet("/evaluate", { tab_id: tabId, expression })) as {
+  let raw: {
     id?: number;
     result?: { result?: { type?: string; value?: unknown; description?: string }; exceptionDetails?: unknown };
   };
+  if (expression.length > 2000) {
+    // Use POST with raw text body for large expressions to avoid URL length limits
+    const url = kuriUrl("/evaluate", { tab_id: tabId });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), KURI_REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: expression,
+        signal: controller.signal,
+      });
+      const text = await res.text();
+      try { raw = JSON.parse(text); } catch { raw = text as never; }
+    } finally {
+      clearTimeout(timeout);
+    }
+  } else {
+    raw = (await kuriGet("/evaluate", { tab_id: tabId, expression })) as typeof raw;
+  }
   // CDP Runtime.evaluate response: { id, result: { result: { type, value } } }
   const inner = raw?.result?.result;
   if (!inner) return raw;
@@ -483,7 +510,10 @@ export async function hasCloudflareChallenge(tabId: string): Promise<boolean> {
     var html = document.documentElement.innerHTML;
     return html.indexOf('challenge-platform') !== -1 ||
            html.indexOf('cf_chl_opt') !== -1 ||
+           html.indexOf('cf-error-details') !== -1 ||
+           html.indexOf('cf.errors.css') !== -1 ||
            document.title === 'Just a moment...' ||
+           /Attention Required.*Cloudflare/.test(document.title) ||
            !!document.querySelector('#challenge-running, #challenge-form, .cf-browser-verification');
   })()`);
   return result === true;
