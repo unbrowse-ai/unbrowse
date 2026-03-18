@@ -8,10 +8,13 @@
   ],
   "scripts": {
     "prepare": "husky",
+    "submodules:init": "bash scripts/ensure-submodules.sh",
     "test": "bun test tests/path-params.test.ts tests/utils.test.ts evals/quality-gate.test.ts",
     "test:cli": "bun test tests/cli-e2e.test.ts",
     "test:backend": "bun test backend/tests/",
     "test:all": "bun test tests/ evals/quality-gate.test.ts backend/tests/",
+    "test:openclaw-plugin": "bash scripts/ensure-submodules.sh && npm test --prefix submodules/openclaw-unbrowse-plugin",
+    "typecheck:openclaw-plugin": "bash scripts/ensure-submodules.sh && npm run typecheck --prefix submodules/openclaw-unbrowse-plugin",
     "precommit": "bash scripts/precommit.sh",
     "precommit:full": "bash scripts/precommit-full.sh",
     "eval:codex": "bun -e 'import { runHarnessCli } from \"./evals/codex-harness.js\"; await runHarnessCli()' --",
@@ -51,5 +54,5 @@
     "husky": "^9.1.7",
     "release-it": "^19.2.4"
   },
-  "version": "2.0.1"
+  "version": "2.0.2"
 }
