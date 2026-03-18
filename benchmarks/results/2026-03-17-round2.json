@@ -1,0 +1,77 @@
+[
+  {
+    "intent": "get top news headlines",
+    "url": "https://news.ycombinator.com",
+    "source": "marketplace",
+    "ms": 1735,
+    "tokens_saved": 28319,
+    "tokens_saved_pct": 94
+  },
+  {
+    "intent": "get trending repositories",
+    "url": "https://github.com/trending",
+    "source": "marketplace",
+    "ms": 2727,
+    "tokens_saved": 29587,
+    "tokens_saved_pct": 99
+  },
+  {
+    "intent": "get weather forecast for San Francisco",
+    "url": "https://weather.com",
+    "source": "marketplace",
+    "ms": 3436,
+    "tokens_saved": 28081,
+    "tokens_saved_pct": 94
+  },
+  {
+    "intent": "get latest posts",
+    "url": "https://reddit.com",
+    "source": "marketplace",
+    "ms": 2629,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100
+  },
+  {
+    "intent": "search for flights",
+    "url": "https://www.google.com/travel/flights",
+    "source": "live-capture",
+    "ms": 13148,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  {
+    "intent": "get cryptocurrency prices",
+    "url": "https://coinmarketcap.com",
+    "source": "live-capture",
+    "ms": 6019,
+    "tokens_saved": 0,
+    "tokens_saved_pct": 0
+  },
+  {
+    "intent": "get latest posts",
+    "url": "https://reddit.com",
+    "source": "marketplace",
+    "ms": 2143,
+    "tokens_saved": 29999,
+    "tokens_saved_pct": 100,
+    "pass": 2
+  },
+  {
+    "intent": "search for flights",
+    "url": "https://www.google.com/travel/flights",
+    "source": "marketplace",
+    "ms": 2146,
+    "tokens_saved": 29792,
+    "tokens_saved_pct": 99,
+    "pass": 2
+  },
+  {
+    "intent": "get cryptocurrency prices",
+    "url": "https://coinmarketcap.com",
+    "source": "marketplace",
+    "ms": 1411,
+    "tokens_saved": 26756,
+    "tokens_saved_pct": 89,
+    "pass": 2
+  }
+]
