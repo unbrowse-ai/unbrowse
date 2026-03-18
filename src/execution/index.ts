@@ -939,7 +939,7 @@ async function executeBrowserCapture(
     skill.endpoints.find((endpoint) => typeof endpoint.trigger_url === "string" && endpoint.trigger_url)?.trigger_url ||
     skill.endpoints.find((endpoint) => !/\{[^}]+\}/.test(endpoint.url_template))?.url_template ||
     "";
-  const url = String(params.url ?? fallbackUrl);
+  const url = typeof params.url === "string" ? params.url : String(params.url ?? fallbackUrl);
   const intent = String(params.intent ?? skill.intent_signature);
   if (!url) throw new Error("browser-capture skill requires params.url");
 
@@ -981,7 +981,33 @@ async function executeBrowserCapture(
     usedStoredAuth,
   );
   if (documentSeed) return documentSeed;
-  const captured = await captureSession(url, authHeaders, cookies, intent);
+  let captured;
+  try {
+    captured = await captureSession(url, authHeaders, cookies, intent);
+  } catch (captureErr: unknown) {
+    const err = captureErr as Error & { code?: string; login_url?: string };
+    if (err.code === "auth_required") {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: traceId,
+        skill_id: skill.skill_id,
+        endpoint_id: "browser-capture",
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        success: false,
+        error: "auth_required",
+      });
+      return {
+        trace,
+        result: {
+          error: "auth_required",
+          provider: "cloudflare",
+          login_url: err.login_url ?? url,
+          message: `Site is blocked by Cloudflare WAF. Run: unbrowse login --url "${url}" to authenticate interactively.`,
+        },
+      };
+    }
+    throw captureErr;
+  }
 
   const finalDomain = (() => {
     try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
@@ -990,7 +1016,7 @@ async function executeBrowserCapture(
   const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
 
   const redirectedToAuth = finalDomain !== targetDomain && AUTH_PROVIDERS.test(finalDomain);
-  const redirectedToLogin = captured.final_url !== url && LOGIN_PATHS.test(new URL(captured.final_url).pathname);
+  const redirectedToLogin = captured.final_url !== url && (() => { try { return LOGIN_PATHS.test(new URL(String(captured.final_url)).pathname); } catch { return false; } })();
 
   if (redirectedToAuth || redirectedToLogin) {
     const trace: ExecutionTrace = stampTrace({

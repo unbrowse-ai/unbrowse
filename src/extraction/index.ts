@@ -1278,18 +1278,38 @@ export function extractFromDOMWithHint(
  * the best match for the given intent.
  */
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
+  // Cap HTML size to prevent cheerio from hanging on massive pages
+  const MAX_HTML_SIZE = 300_000;
+  let workingHtml = html;
+  if (workingHtml.length > MAX_HTML_SIZE) {
+    // Strip attribute bloat first (class/style/data-* attributes inflate HTML 2-3x)
+    workingHtml = workingHtml
+      .replace(/\s+class="[^"]*"/g, "")
+      .replace(/\s+style="[^"]*"/g, "")
+      .replace(/\s+data-[a-z][-a-z]*="[^"]*"/g, "");
+    // If still too large, truncate keeping body content
+    if (workingHtml.length > MAX_HTML_SIZE) {
+      const bodyStart = workingHtml.indexOf("<body");
+      if (bodyStart > 0) {
+        workingHtml = workingHtml.substring(0, Math.max(MAX_HTML_SIZE, bodyStart + MAX_HTML_SIZE));
+      } else {
+        workingHtml = workingHtml.substring(0, MAX_HTML_SIZE);
+      }
+    }
+  }
+
   // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
-  const spaStructures = extractSPAData(html);
-  const flashStructures = extractFlashNoticeSpecial(html, intent);
-  const cleaned = cleanDOM(html);
-  const githubStructures = extractGitHubSpecial(html, intent);
-  const linkedInStructures = extractLinkedInSpecial(html, intent);
-  const packageSearchStructures = extractPackageSearchSpecial(html, intent);
-  const xProfileStructures = extractXProfileSpecial(html, intent);
-  const postStructures = extractPostSpecial(html, intent);
-  const trendStructures = extractTrendSpecial(html, intent);
-  const definitionStructures = extractDefinitionSpecial(html, intent);
-  const courseStructures = extractCourseSearchSpecial(html, intent);
+  const spaStructures = extractSPAData(workingHtml);
+  const flashStructures = extractFlashNoticeSpecial(workingHtml, intent);
+  const cleaned = cleanDOM(workingHtml);
+  const githubStructures = extractGitHubSpecial(workingHtml, intent);
+  const linkedInStructures = extractLinkedInSpecial(workingHtml, intent);
+  const packageSearchStructures = extractPackageSearchSpecial(workingHtml, intent);
+  const xProfileStructures = extractXProfileSpecial(workingHtml, intent);
+  const postStructures = extractPostSpecial(workingHtml, intent);
+  const trendStructures = extractTrendSpecial(workingHtml, intent);
+  const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
+  const courseStructures = extractCourseSearchSpecial(workingHtml, intent);
   const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 

@@ -137,7 +137,9 @@ export function isBlockedAppShell(html?: string): boolean {
     /switch to a supported browser/i.test(html) ||
     /Something went wrong, but don.?t fret/i.test(html) ||
     /class=["']errorContainer["']/i.test(html) ||
-    /#placeholder,\s*#react-root\s*\{\s*display:\s*none/i.test(html)
+    /#placeholder,\s*#react-root\s*\{\s*display:\s*none/i.test(html) ||
+    /Attention Required!\s*\|\s*Cloudflare/i.test(html) ||
+    /cf-error-details|cf\.errors\.css/i.test(html)
   );
 }
 
@@ -436,7 +438,15 @@ async function waitForContentReady(
   responseBodies?: Map<string, string>,
 ): Promise<void> {
   // Phase 1: Initial settle — let the page start rendering
-  await new Promise((r) => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 1000));
+
+  // Early exit: if interceptor already captured API responses, page is loaded enough
+  if (responseBodies && responseBodies.size > 0) {
+    log("capture", `early exit: ${responseBodies.size} API responses already captured during navigation`);
+    // Brief extra settle to catch any trailing responses
+    await new Promise((r) => setTimeout(r, 500));
+    return;
+  }
 
   // Phase 2: Cloudflare challenge detection and wait
   try {
@@ -453,7 +463,21 @@ async function waitForContentReady(
   }
 
   // Phase 3: Wait for document ready state (replaces networkidle)
-  await waitForReadyState(tabId, 8000);
+  await waitForReadyState(tabId, 5000);
+
+  // Early exit: check again after readyState — SPAs often fire API calls during hydration
+  if (responseBodies) {
+    const intercepted = await collectInterceptedRequests(tabId);
+    for (const entry of intercepted) {
+      if (entry.response_body && !entry.is_js) {
+        responseBodies.set(entry.url, entry.response_body);
+      }
+    }
+    if (responseBodies.size > 0) {
+      log("capture", `early exit after readyState: ${responseBodies.size} API responses captured`);
+      return;
+    }
+  }
 
   // Phase 4: Intent-aware API wait — poll intercepted requests for matching API URLs
   if (captureUrl && responseBodies) {
@@ -464,8 +488,8 @@ async function waitForContentReady(
     if (wantedHints.length > 0) {
       log("capture", `intent-aware wait: looking for API matching one of [${wantedHints.join(", ")}] (from ${captureUrl})`);
       const intentStart = Date.now();
-      const INTENT_MAX_WAIT = 15000;
-      const INTENT_POLL_INTERVAL = 1500;
+      const INTENT_MAX_WAIT = 8000;
+      const INTENT_POLL_INTERVAL = 1000;
       while (Date.now() - intentStart < INTENT_MAX_WAIT) {
         await new Promise((r) => setTimeout(r, INTENT_POLL_INTERVAL));
         // Check newly intercepted requests
@@ -505,7 +529,7 @@ async function waitForContentReady(
       await new Promise((r) => setTimeout(r, 1200));
       await kuri.evaluate(tabId, "window.scrollTo(0, 0)");
       if (responseBodies.size === before) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 1500));
       }
     } catch {
       // non-fatal
@@ -638,14 +662,9 @@ export async function captureSession(
     try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
 
     // Inject fetch/XHR interceptor BEFORE navigation to capture all response bodies
-    // Navigate to origin first so the interceptor runs in the correct context
-    try {
-      const origin = new URL(url).origin;
-      await kuri.navigate(tabId, origin);
-      await new Promise((r) => setTimeout(r, 500));
-    } catch { /* best-effort */ }
-
-    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+    // Navigate directly to target URL — skip origin pre-navigation to save 1-2s on heavy SPAs.
+    // The interceptor is re-injected after navigation anyway (page context resets on navigate).
+    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
 
     // Navigate to target URL
     await kuri.navigate(tabId, url);
@@ -707,10 +726,14 @@ export async function captureSession(
       log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
     }
 
+
     let final_url = url;
     let html: string | undefined;
     try {
-      final_url = await kuri.getCurrentUrl(tabId);
+      const rawUrl = await kuri.getCurrentUrl(tabId);
+      final_url = typeof rawUrl === "string" ? rawUrl : String(rawUrl ?? url);
+      // Validate it's actually a URL, fall back to original if not
+      try { new URL(final_url); } catch { final_url = url; }
       html = await kuri.getPageHtml(tabId);
     } catch {}
 
@@ -779,6 +802,14 @@ export async function captureSession(
       responseBodyCount < 10 &&
       !hasUsefulCapturedResponses(responseBodies.keys(), url, intent)
     ) {
+      // On ephemeral retry, if still blocked by Cloudflare WAF, throw auth_required
+      // so the caller can surface a login prompt instead of retrying forever
+      if (options?.forceEphemeral && html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html)) {
+        throw Object.assign(new Error("cloudflare_waf_block"), {
+          code: "auth_required",
+          login_url: url,
+        });
+      }
       retryFreshTab = true;
       log("capture", `rendered blocked app shell for ${url}; retrying with fresh tab`);
     } else {
@@ -807,7 +838,7 @@ export async function captureSession(
     await resetTab(tabId);
     releaseTabSlot(tabId);
   }
-  if (retryFreshTab) {
+  if (retryFreshTab && !options?.forceEphemeral) {
     return captureSession(url, authHeaders, cookies, intent, { forceEphemeral: true });
   }
   if (captureError) throw captureError;
