@@ -1,0 +1,96 @@
+{
+  "timestamp": "2026-03-18T02:34:41.330Z",
+  "server": "http://localhost:6969",
+  "num_passes": 3,
+  "tasks": [
+    {
+      "intent": "get trending topics",
+      "url": "https://twitter.com",
+      "category": "social",
+      "passes": [
+        {
+          "pass": 1,
+          "source": "error",
+          "resolve_ms": 120004,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0,
+          "time_saved_pct": 0,
+          "skill_id": null,
+          "error": "This operation was aborted",
+          "has_data": false
+        },
+        {
+          "pass": 2,
+          "source": "error",
+          "resolve_ms": 120004,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0,
+          "time_saved_pct": 0,
+          "skill_id": null,
+          "error": "This operation was aborted",
+          "has_data": false
+        },
+        {
+          "pass": 3,
+          "source": "error",
+          "resolve_ms": 120001,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0,
+          "time_saved_pct": 0,
+          "skill_id": null,
+          "error": "This operation was aborted",
+          "has_data": false
+        }
+      ],
+      "speedup": 1.0000249997916684
+    },
+    {
+      "intent": "get latest posts",
+      "url": "https://reddit.com",
+      "category": "social",
+      "passes": [
+        {
+          "pass": 1,
+          "source": "marketplace",
+          "resolve_ms": 2392,
+          "tokens_saved": 29999,
+          "tokens_saved_pct": 100,
+          "time_saved_pct": 59,
+          "skill_id": "ZJL6IrQaMNDfbCj0wGX3X",
+          "error": null,
+          "has_data": false
+        },
+        {
+          "pass": 2,
+          "source": "marketplace",
+          "resolve_ms": 1441,
+          "tokens_saved": 29999,
+          "tokens_saved_pct": 100,
+          "time_saved_pct": 75,
+          "skill_id": "ZJL6IrQaMNDfbCj0wGX3X",
+          "error": null,
+          "has_data": false
+        },
+        {
+          "pass": 3,
+          "source": "marketplace",
+          "resolve_ms": 1451,
+          "tokens_saved": 29999,
+          "tokens_saved_pct": 100,
+          "time_saved_pct": 75,
+          "skill_id": "ZJL6IrQaMNDfbCj0wGX3X",
+          "error": null,
+          "has_data": false
+        }
+      ],
+      "speedup": 1.6485182632667126
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "successful": 1,
+    "live_to_marketplace": 0,
+    "marketplace_warm": 1,
+    "errors": 1
+  }
+}

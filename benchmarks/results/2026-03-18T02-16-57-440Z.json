@@ -1,0 +1,137 @@
+{
+  "timestamp": "2026-03-18T02:23:07.958Z",
+  "server": "http://localhost:6969",
+  "num_passes": 3,
+  "tasks": [
+    {
+      "intent": "get top news headlines",
+      "url": "https://news.ycombinator.com",
+      "category": "news",
+      "passes": [
+        {
+          "pass": 1,
+          "source": "marketplace",
+          "resolve_ms": 1476,
+          "tokens_saved": 28304,
+          "tokens_saved_pct": 94,
+          "time_saved_pct": 83,
+          "skill_id": "fxp7Mso9mYBXnpKkve16q",
+          "error": null,
+          "has_data": false
+        },
+        {
+          "pass": 2,
+          "source": "marketplace",
+          "resolve_ms": 338,
+          "tokens_saved": 28304,
+          "tokens_saved_pct": 94,
+          "time_saved_pct": 96,
+          "skill_id": "fxp7Mso9mYBXnpKkve16q",
+          "error": null,
+          "has_data": false
+        },
+        {
+          "pass": 3,
+          "source": "marketplace",
+          "resolve_ms": 276,
+          "tokens_saved": 28304,
+          "tokens_saved_pct": 94,
+          "time_saved_pct": 97,
+          "skill_id": "fxp7Mso9mYBXnpKkve16q",
+          "error": null,
+          "has_data": false
+        }
+      ],
+      "speedup": 5.3478260869565215
+    },
+    {
+      "intent": "get latest tech news",
+      "url": "https://techcrunch.com",
+      "category": "news",
+      "passes": [
+        {
+          "pass": 1,
+          "source": "marketplace",
+          "resolve_ms": 1499,
+          "tokens_saved": 14314,
+          "tokens_saved_pct": 48,
+          "time_saved_pct": 66,
+          "skill_id": "yf9xlBNntv9_2GmQPQe_W",
+          "error": null,
+          "has_data": false
+        },
+        {
+          "pass": 2,
+          "source": "marketplace",
+          "resolve_ms": 481,
+          "tokens_saved": 14314,
+          "tokens_saved_pct": 48,
+          "time_saved_pct": 89,
+          "skill_id": "yf9xlBNntv9_2GmQPQe_W",
+          "error": null,
+          "has_data": false
+        },
+        {
+          "pass": 3,
+          "source": "marketplace",
+          "resolve_ms": 361,
+          "tokens_saved": 14314,
+          "tokens_saved_pct": 48,
+          "time_saved_pct": 92,
+          "skill_id": "yf9xlBNntv9_2GmQPQe_W",
+          "error": null,
+          "has_data": false
+        }
+      ],
+      "speedup": 4.152354570637119
+    },
+    {
+      "intent": "search for AI papers",
+      "url": "https://arxiv.org",
+      "category": "news",
+      "passes": [
+        {
+          "pass": 1,
+          "source": "error",
+          "resolve_ms": 120001,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0,
+          "time_saved_pct": 0,
+          "skill_id": null,
+          "error": "This operation was aborted",
+          "has_data": false
+        },
+        {
+          "pass": 2,
+          "source": "error",
+          "resolve_ms": 120000,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0,
+          "time_saved_pct": 0,
+          "skill_id": null,
+          "error": "This operation was aborted",
+          "has_data": false
+        },
+        {
+          "pass": 3,
+          "source": "error",
+          "resolve_ms": 119999,
+          "tokens_saved": 0,
+          "tokens_saved_pct": 0,
+          "time_saved_pct": 0,
+          "skill_id": null,
+          "error": "This operation was aborted",
+          "has_data": false
+        }
+      ],
+      "speedup": 1.0000166668055568
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "successful": 2,
+    "live_to_marketplace": 0,
+    "marketplace_warm": 2,
+    "errors": 1
+  }
+}
