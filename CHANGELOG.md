@@ -1,5 +1,7 @@
 # Changelog
 
+## [2.0.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.5...v2.0.6) (2026-03-21)
+
 ## Unreleased
 
 ### Documentation
