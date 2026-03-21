@@ -125,6 +125,13 @@ jobs:
             echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build package
+        if: steps.npm-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
+        working-directory: packages/skill
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          node scripts/prepare-pack.mjs
+
       - name: Publish to npm
         if: steps.npm-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
         working-directory: packages/skill
