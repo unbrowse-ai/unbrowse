@@ -112,10 +112,10 @@ function pickFirefoxProfile(profilesRoot: string, profile?: string): string | nu
   return existsSync(candidate) ? candidate : null;
 }
 
-function getFirefoxCookiesPath(profile?: string): string | null {
-  const profilesRoot = getFirefoxProfilesRoot();
-  if (!profilesRoot || !existsSync(profilesRoot)) return null;
-  return pickFirefoxProfile(profilesRoot, profile);
+function getFirefoxCookiesPath(profile?: string, profilesRoot?: string): string | null {
+  const root = profilesRoot ?? getFirefoxProfilesRoot();
+  if (!root || !existsSync(root)) return null;
+  return pickFirefoxProfile(root, profile);
 }
 
 // ---------------------------------------------------------------------------
@@ -335,13 +335,14 @@ export function extractFromChromium(
 
 export function extractFromFirefox(
   domain: string,
-  opts?: { profile?: string },
+  opts?: { profile?: string; profilesRoot?: string },
 ): ExtractionResult {
   const warnings: string[] = [];
-  const dbPath = getFirefoxCookiesPath(opts?.profile);
+  const dbPath = getFirefoxCookiesPath(opts?.profile, opts?.profilesRoot);
+  const browserLabel = opts?.profilesRoot ? "Zen" : "Firefox";
 
   if (!dbPath) {
-    warnings.push("Firefox cookies DB not found");
+    warnings.push(`${browserLabel} cookies DB not found`);
     return { cookies: [], source: null, warnings };
   }
 
@@ -373,14 +374,14 @@ export function extractFromFirefox(
       return results;
     });
 
-    const source = opts?.profile ? `Firefox profile "${opts.profile}"` : "Firefox default profile";
+    const source = opts?.profile ? `${browserLabel} profile "${opts.profile}"` : `${browserLabel} default profile`;
     if (cookies.length === 0) {
       warnings.push(`No cookies for ${domain} found in ${source}`);
     }
     log("auth", `extracted ${cookies.length} cookies for ${domain} from ${source}`);
     return { cookies, source: cookies.length > 0 ? source : null, warnings };
   } catch (err) {
-    warnings.push(`Firefox extraction failed: ${err instanceof Error ? err.message : err}`);
+    warnings.push(`${browserLabel} extraction failed: ${err instanceof Error ? err.message : err}`);
     return { cookies: [], source: null, warnings };
   }
 }
@@ -416,8 +417,62 @@ export function extractBrowserCookies(
     return chromium;
   }
 
-  // Fall back to Chrome
+  // Try Chrome first
   const chrome = extractFromChrome(domain, { profile: opts?.chromeProfile });
-  chrome.warnings.push(...ff.warnings);
-  return chrome;
+  if (chrome.cookies.length > 0) {
+    chrome.warnings.push(...ff.warnings);
+    return chrome;
+  }
+
+  // Auto-discover other Chromium-family browsers
+  const home = homedir();
+  const chromiumBrowsers: Array<{ name: string; userDataDir: string; safeStorageService: string }> =
+    platform() === "darwin"
+      ? [
+          { name: "Arc", userDataDir: join(home, "Library", "Application Support", "Arc", "User Data"), safeStorageService: "Arc Safe Storage" },
+          { name: "Dia", userDataDir: join(home, "Library", "Application Support", "Dia", "User Data"), safeStorageService: "Dia Safe Storage" },
+          { name: "Brave", userDataDir: join(home, "Library", "Application Support", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage" },
+          { name: "Edge", userDataDir: join(home, "Library", "Application Support", "Microsoft Edge"), safeStorageService: "Microsoft Edge Safe Storage" },
+          { name: "Vivaldi", userDataDir: join(home, "Library", "Application Support", "Vivaldi"), safeStorageService: "Vivaldi Safe Storage" },
+          { name: "Chromium", userDataDir: join(home, "Library", "Application Support", "Chromium"), safeStorageService: "Chromium Safe Storage" },
+        ]
+      : platform() === "linux"
+        ? [
+            { name: "Brave", userDataDir: join(home, ".config", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage" },
+            { name: "Edge", userDataDir: join(home, ".config", "microsoft-edge"), safeStorageService: "Microsoft Edge Safe Storage" },
+            { name: "Vivaldi", userDataDir: join(home, ".config", "vivaldi"), safeStorageService: "Vivaldi Safe Storage" },
+            { name: "Chromium", userDataDir: join(home, ".config", "chromium"), safeStorageService: "Chromium Safe Storage" },
+          ]
+        : [];
+
+  const allWarnings = [...ff.warnings, ...chrome.warnings];
+  for (const browser of chromiumBrowsers) {
+    if (!existsSync(browser.userDataDir)) continue;
+    const result = extractFromChromium(domain, {
+      userDataDir: browser.userDataDir,
+      browserName: browser.name,
+      safeStorageService: browser.safeStorageService,
+    });
+    if (result.cookies.length > 0) {
+      result.warnings.push(...allWarnings);
+      return result;
+    }
+    allWarnings.push(...result.warnings);
+  }
+
+  // Also try Firefox-based alternatives (Zen)
+  const zenPaths = platform() === "darwin"
+    ? [join(home, "Library", "Application Support", "zen")]
+    : [join(home, ".zen")];
+  for (const zenRoot of zenPaths) {
+    if (!existsSync(zenRoot)) continue;
+    const zenResult = extractFromFirefox(domain, { profilesRoot: zenRoot });
+    if (zenResult.cookies.length > 0) {
+      zenResult.warnings.push(...allWarnings);
+      return zenResult;
+    }
+    allWarnings.push(...zenResult.warnings);
+  }
+
+  return { cookies: [], source: null, warnings: allWarnings };
 }
