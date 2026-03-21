@@ -41,9 +41,15 @@ function hasVendoredBinaries() {
   return supportedTargets.every((target) => existsSync(path.join(vendorRoot, target.id, binaryName)));
 }
 
+// Skip build entirely if vendor binaries already exist — they're committed to git
+// and only need rebuilding when Kuri source actually changes.
+if (hasVendoredBinaries()) {
+  console.log("[kuri] vendor binaries present for all platforms — skipping build");
+  process.exit(0);
+}
+
 const sourceDir = resolveSourceDir();
 if (!sourceDir) {
-  if (hasVendoredBinaries()) process.exit(0);
   throw new Error(
     "Kuri source not found. Expected submodules/kuri in the monorepo or vendor/kuri-src in the standalone skill repo.",
   );
