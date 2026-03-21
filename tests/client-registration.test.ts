@@ -83,13 +83,6 @@ describe("client registration recovery", () => {
           activity_dates: [],
         });
       }
-      if (url.endsWith("/v1/tos/current")) {
-        return jsonResponse({
-          version: "2026-02-22-v1",
-          summary: "tos",
-          url: "https://unbrowse.ai/terms",
-        });
-      }
       throw new Error(`unexpected fetch: ${url}`);
     };
 
@@ -112,25 +105,19 @@ describe("client registration recovery", () => {
     process.env.UNBROWSE_CONFIG_DIR = configDir;
     delete process.env.UNBROWSE_API_KEY;
     process.env.UNBROWSE_NON_INTERACTIVE = "1";
-    process.env.UNBROWSE_TOS_ACCEPTED = "1";
     process.env.UNBROWSE_AGENT_EMAIL = "agent@example.com";
     console.warn = () => {};
     console.log = () => {};
 
+    const calls: string[] = [];
     globalThis.fetch = async (input, init) => {
       const url = input instanceof Request ? input.url : String(input);
       const auth = init?.headers && typeof init.headers === "object"
         ? (init.headers as Record<string, string>).Authorization
         : undefined;
+      calls.push(`${init?.method ?? "GET"} ${url} ${auth ?? ""}`.trim());
       if (url.endsWith("/v1/agents/me") && auth === "Bearer stale-config-key") {
         return jsonResponse({ error: "Agent profile not found" }, 404);
-      }
-      if (url.endsWith("/v1/tos/current")) {
-        return jsonResponse({
-          version: "2026-02-22-v1",
-          summary: "tos",
-          url: "https://unbrowse.ai/terms",
-        });
       }
       if (url.endsWith("/v1/agents/register") && init?.method === "POST") {
         return jsonResponse({ agent_id: "new-agent", api_key: "new-key" }, 201);
@@ -145,6 +132,7 @@ describe("client registration recovery", () => {
     const saved = JSON.parse(readFileSync(join(configDir, "config.json"), "utf8")) as { api_key: string; agent_id: string };
     expect(saved.api_key).toBe("new-key");
     expect(saved.agent_id).toBe("new-agent");
+    expect(calls.some((call) => call.includes("/v1/tos/current"))).toBeFalse();
   });
 });
 
