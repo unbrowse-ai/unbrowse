@@ -138,9 +138,7 @@ jobs:
       - name: Publish to npm
         if: steps.npm-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
         working-directory: packages/skill
-        run: npm publish --provenance
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
+        run: npm publish
 
   # ── Stage 5: Deploy to production ──
   deploy-prod:
