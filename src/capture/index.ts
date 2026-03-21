@@ -6,6 +6,40 @@ import { log } from "../logger.js";
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+// Stealth script — hides headless Chrome indicators from bot detection.
+// Ported from kuri's cdp/js/stealth.js (commit 4dbbd89).
+const STEALTH_SCRIPT = `
+Object.defineProperty(navigator, 'webdriver', { get: () => false, configurable: true });
+Object.defineProperty(navigator, 'plugins', {
+  get: () => {
+    const p = [
+      { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+      { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+      { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
+    ];
+    p.length = 3;
+    return p;
+  },
+  configurable: true,
+});
+Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'], configurable: true });
+if (!window.chrome) window.chrome = {};
+if (!window.chrome.runtime) window.chrome.runtime = { connect: () => {}, sendMessage: () => {}, id: undefined };
+const origQuery = window.navigator.permissions?.query;
+if (origQuery) {
+  window.navigator.permissions.query = (p) =>
+    p.name === 'notifications' ? Promise.resolve({ state: Notification.permission }) : origQuery(p);
+}
+try {
+  const d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow');
+  if (d) Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', { get: function() { return d.get.call(this); } });
+} catch {}
+Object.defineProperty(navigator, 'userAgent', {
+  get: () => '${CHROME_UA}',
+  configurable: true,
+});
+`;
+
 // Tab semaphore: max 3 concurrent capture tabs
 const MAX_CONCURRENT_TABS = 3;
 let activeTabs = 0;
@@ -654,6 +688,11 @@ export async function captureSession(
       await injectCookies(tabId, cookies);
     }
 
+    // Inject stealth patches — hide headless Chrome indicators from bot detection
+    try {
+      await kuri.evaluate(tabId, STEALTH_SCRIPT);
+    } catch { /* best-effort */ }
+
     // Start HAR recording
     await kuri.harStart(tabId);
 
@@ -662,16 +701,23 @@ export async function captureSession(
     try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
 
     // Inject fetch/XHR interceptor BEFORE navigation to capture all response bodies
-    // Navigate directly to target URL — skip origin pre-navigation to save 1-2s on heavy SPAs.
-    // The interceptor is re-injected after navigation anyway (page context resets on navigate).
-    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    // Navigate to origin first so cookies are applied in the correct domain context
+    // before the full page load — required for sites like LinkedIn that check auth on first load.
+    try {
+      const origin = new URL(url).origin;
+      await kuri.navigate(tabId, origin);
+      await new Promise((r) => setTimeout(r, 500));
+      await kuri.evaluate(tabId, STEALTH_SCRIPT);
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+    } catch { /* best-effort */ }
 
     // Navigate to target URL
     await kuri.navigate(tabId, url);
 
-    // Re-inject interceptor after navigation (page context resets on navigate)
+    // Re-inject stealth + interceptor after navigation (page context resets on navigate)
     try {
       await new Promise((r) => setTimeout(r, 300));
+      await kuri.evaluate(tabId, STEALTH_SCRIPT);
       await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
     } catch { /* page may not be ready */ }
 
