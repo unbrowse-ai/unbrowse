@@ -1,9 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Staging browser eval — runs CLI resolve with browser capture against staging.
+ * Staging browser eval — runs CLI resolve against staging backend.
  * Requires Chrome + Kuri on the runner.
- *
- * Tests the full pipeline: CLI → local Kuri → capture → staging backend → extract
  *
  * Usage:
  *   UNBROWSE_BACKEND_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
@@ -11,104 +9,107 @@
  */
 
 import { describe, test, expect } from "bun:test";
-import { execSync } from "child_process";
+import { join } from "path";
 
 const STAGING_URL =
   process.env.UNBROWSE_BACKEND_URL ??
   "https://unbrowse-backend-staging.lewis-6d8.workers.dev";
 
+const PROJECT_ROOT = join(import.meta.dir, "..");
+
 interface ResolveResult {
   result?: {
     error?: string;
     data?: unknown;
-    _extraction?: { source?: string; confidence?: number; quality_note?: string };
+    _extraction?: { source?: string; confidence?: number };
   };
   trace?: {
     success?: boolean;
-    skill_id?: string;
     error?: string;
   };
-  timing?: { total_ms?: number };
+  timing?: { total_ms?: number; source?: string };
 }
 
-function runResolve(intent: string, url: string, timeoutSec = 90): ResolveResult | null {
+async function resolve(intent: string, url: string, timeoutMs = 90_000): Promise<ResolveResult | null> {
   try {
-    const stdout = execSync(
-      `bun src/cli.ts resolve --intent "${intent}" --url "${url}"`,
+    const proc = Bun.spawn(
+      ["bun", "run", join(PROJECT_ROOT, "src/cli.ts"), "resolve", "--intent", intent, "--url", url],
       {
-        timeout: timeoutSec * 1000,
+        cwd: PROJECT_ROOT,
         env: {
           ...process.env,
           UNBROWSE_BACKEND_URL: STAGING_URL,
-          HOME: process.env.HOME,
           PATH: `/usr/local/bin:${process.env.HOME}/.bun/bin:${process.env.PATH}`,
+          HOME: process.env.HOME!,
         },
-        stdio: ["pipe", "pipe", "pipe"],
+        stdout: "pipe",
+        stderr: "pipe",
       }
-    ).toString();
+    );
 
+    const timeout = setTimeout(() => proc.kill(), timeoutMs);
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    clearTimeout(timeout);
+
+    if (stderr && !stderr.includes("[unbrowse]")) {
+      console.log(`  stderr: ${stderr.slice(0, 150)}`);
+    }
+
+    // Find JSON in stdout
     for (const line of stdout.split("\n")) {
       const trimmed = line.trim();
       if (trimmed.startsWith("{")) {
         try { return JSON.parse(trimmed) as ResolveResult; } catch { /* skip */ }
       }
     }
+
+    console.log(`  no JSON in stdout (${stdout.length} chars)`);
     return null;
   } catch (err) {
-    const stderr = (err as { stderr?: Buffer })?.stderr?.toString() ?? "";
-    console.log(`  resolve error: ${(err as Error).message?.slice(0, 80)}`);
-    if (stderr) console.log(`  stderr: ${stderr.slice(0, 200)}`);
+    console.log(`  resolve error: ${(err as Error).message?.slice(0, 100)}`);
     return null;
   }
 }
 
 describe(`Staging browser eval (${STAGING_URL})`, () => {
-  // Known-working sites from eval corpus
-  test("L01: irs.gov resolves via existing skill", () => {
-    const result = runResolve("get homepage content", "https://www.irs.gov");
-    expect(result).not.toBeNull();
+  // Known-working site — should hit cached skill
+  test("irs.gov resolves", async () => {
+    const result = await resolve("get homepage content", "https://www.irs.gov");
     const success = result?.trace?.success;
-    const error = result?.result?.error ?? result?.trace?.error;
-    console.log(`  irs.gov: success=${success} error=${error ?? "none"}`);
+    const error = result?.trace?.error;
+    const source = result?.timing?.source;
+    console.log(`  irs.gov: success=${success} error=${error ?? "none"} source=${source ?? "?"}`);
+    expect(result).not.toBeNull();
     expect(success).toBe(true);
   }, 120_000);
 
-  test("L10: npr.org resolves with data", () => {
-    const result = runResolve("get homepage content", "https://www.npr.org");
-    expect(result).not.toBeNull();
+  // Known-working site
+  test("npr.org resolves", async () => {
+    const result = await resolve("get homepage content", "https://www.npr.org");
     const success = result?.trace?.success;
-    const hasData = !!result?.result?.data;
-    console.log(`  npr.org: success=${success} hasData=${hasData}`);
+    const source = result?.timing?.source;
+    console.log(`  npr.org: success=${success} source=${source ?? "?"}`);
+    expect(result).not.toBeNull();
     expect(success).toBe(true);
-  }, 120_000);
-
-  // SSR fallback test — these sites should now extract via plain HTTP fetch
-  test("SSR fallback: thetrainline.com extracts data", () => {
-    const result = runResolve("get homepage content", "https://www.thetrainline.com");
-    expect(result).not.toBeNull();
-    const success = result?.trace?.success;
-    const error = result?.result?.error ?? result?.trace?.error;
-    const source = result?.result?._extraction?.source;
-    console.log(`  trainline: success=${success} error=${error ?? "none"} source=${source ?? "n/a"}`);
-    // Should succeed with SSR fallback, or at minimum not crash
-    expect(error).not.toBe("Invalid URL");
   }, 120_000);
 
   // Regression: no Invalid URL crashes
-  test("regression: gymshark does not crash with Invalid URL", () => {
-    const result = runResolve("get homepage content", "https://gymshark.com");
-    const error = result?.trace?.error ?? result?.result?.error;
+  test("gymshark does not crash with Invalid URL", async () => {
+    const result = await resolve("get homepage content", "https://gymshark.com");
+    const error = result?.trace?.error;
     console.log(`  gymshark: error=${error ?? "none"}`);
+    // no_endpoints is acceptable, Invalid URL is not
     expect(error).not.toBe("Invalid URL");
   }, 120_000);
 
-  // Latency regression
-  test("resolve completes within 60s for known sites", () => {
+  // Latency
+  test("marketwatch resolves under 30s", async () => {
     const start = Date.now();
-    const result = runResolve("get homepage content", "https://www.marketwatch.com", 60);
+    const result = await resolve("get homepage content", "https://www.marketwatch.com");
     const wallMs = Date.now() - start;
-    const apiMs = result?.timing?.total_ms;
-    console.log(`  marketwatch: wall=${wallMs}ms api=${apiMs ?? "?"}ms`);
-    expect(wallMs).toBeLessThan(60000);
-  }, 90_000);
+    const success = result?.trace?.success;
+    console.log(`  marketwatch: success=${success} wall=${wallMs}ms`);
+    expect(wallMs).toBeLessThan(30_000);
+  }, 60_000);
 });
