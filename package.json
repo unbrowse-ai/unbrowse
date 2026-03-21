@@ -40,6 +40,8 @@
     "publish:cli": "UNBROWSE_ALLOW_SKILL_PUBLISH=1 node packages/skill/scripts/assert-release-flow.mjs --check-npm && npm_config_unbrowse_allow_skill_publish=true npm publish --workspace packages/skill",
     "release:announce": "bun scripts/release-announce.ts",
     "cli": "bun src/cli.ts",
+    "dev:restart": "bash scripts/dev-restart.sh",
+    "dev:server": "bash scripts/dev-restart.sh",
     "release": "release-it"
   },
   "dependencies": {
