@@ -8,9 +8,32 @@ permissions:
   contents: read
 
 jobs:
+  test-gate:
+    name: Test Gate
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun test tests/path-params.test.ts tests/utils.test.ts
+        name: Unit tests
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun test ./evals/quality-gate.test.ts
+        name: Quality gate
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun test ./evals/resolve-execute.test.ts
+        name: Resolve-execute eval
+
   publish-cli:
     name: Publish CLI (npm)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    needs: test-gate
     permissions:
       contents: read
       id-token: write
@@ -21,35 +44,22 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
-      - run: bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
 
       - name: Resolve npm token
         id: npm-auth
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
-          NODE_AUTH_TOKEN_INPUT: ${{ secrets.NODE_AUTH_TOKEN }}
         run: |
-          TOKEN="${NPM_TOKEN:-${NPM_PUBLISH_TOKEN:-${NODE_AUTH_TOKEN_INPUT:-}}}"
-          if [ -z "$TOKEN" ]; then
-            if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
-              echo "::error::Missing npm publish secret. Set NPM_TOKEN or NPM_PUBLISH_TOKEN."
-              exit 1
-            fi
-            echo "::notice::Skipping npm publish; no npm token configured for $GITHUB_REPOSITORY."
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::notice::No NPM_TOKEN set — skipping npm publish."
             echo "skip_publish=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "::add-mask::$TOKEN"
-          echo "NODE_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
-
-      - name: Validate package tarball
-        if: steps.npm-auth.outputs.skip_publish != '1'
-        working-directory: packages/skill
-        run: npm pack --dry-run
+          echo "::add-mask::$NPM_TOKEN"
+          echo "NODE_AUTH_TOKEN=$NPM_TOKEN" >> "$GITHUB_ENV"
 
       - name: Check if version already exists
         if: steps.npm-auth.outputs.skip_publish != '1'
@@ -58,100 +68,47 @@ jobs:
           PKG_NAME="$(node -p "require('./packages/skill/package.json').name")"
           PKG_VERSION="$(node -p "require('./packages/skill/package.json').version")"
           if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
-            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published; skipping npm publish."
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} already published — skipping."
             echo "skip_publish=1" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish CLI to npm
         if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
         working-directory: packages/skill
+        run: npm publish --provenance
         env:
           NPM_CONFIG_PROVENANCE: "true"
-        run: npm publish --provenance
 
   deploy-backend:
     name: Deploy Backend (CF Worker)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: publish-cli
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
-        working-directory: .
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
-      - run: bun install --frozen-lockfile
-      - run: bun run deploy
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          cd backend && bun run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   deploy-frontend:
     name: Deploy Frontend (CF Pages)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: publish-cli
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
-        working-directory: .
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
-      - run: bun install --frozen-lockfile
-      - run: bun run deploy
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          cd frontend && bun run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-  sync-skill:
-    name: Sync Skill Repo
-    runs-on: ubuntu-latest
-    needs: publish-cli
-    steps:
-      - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.1"
-      - run: bun install --frozen-lockfile
-
-      - name: Resolve skill repo token
-        id: skill-auth
-        env:
-          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
-        run: |
-          if [ -n "$SKILL_REPO_TOKEN" ]; then
-            echo "skip_sync=0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
-            echo "::error::Missing SKILL_REPO_TOKEN for canonical release."
-            exit 1
-          fi
-          echo "::notice::Skipping skill repo sync; no SKILL_REPO_TOKEN configured for $GITHUB_REPOSITORY."
-          echo "skip_sync=1" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Checkout skill repo
-        if: steps.skill-auth.outputs.skip_sync != '1'
-        uses: actions/checkout@v4
-        with:
-          repository: unbrowse-ai/unbrowse
-          token: ${{ secrets.SKILL_REPO_TOKEN }}
-          path: _skill-repo
-
-      - name: Sync and push
-        if: steps.skill-auth.outputs.skip_sync != '1'
-        env:
-          CI: "true"
-          UNBROWSE_SKILL_REPO: ${{ github.workspace }}/_skill-repo
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          bash scripts/sync-skill.sh "chore: release ${GITHUB_REF_NAME}"
