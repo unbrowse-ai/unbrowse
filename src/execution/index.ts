@@ -596,20 +596,19 @@ export function buildPageArtifactCapture(
   const extracted = extractFromDOM(html, intent);
   if (!extracted.data || extracted.confidence <= 0.2) return {};
   const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
-  if (!quality.valid) {
-    return { quality_note: quality.quality_note ?? "low_quality_dom_extraction" };
-  }
   const semanticAssessment = assessIntentResult(extracted.data, intent);
   if (semanticAssessment.verdict === "fail") {
     return { quality_note: semanticAssessment.reason };
   }
+  // Quality gate: low confidence still returns data to the caller (better than
+  // no_endpoints), but marks it so the caller can decide whether to publish.
   const response_schema = inferSchema([extracted.data]);
   const endpoint: EndpointDescriptor = {
     endpoint_id: nanoid(),
     method: "GET",
     url_template: templatizeQueryParams(url),
     idempotency: "safe" as const,
-    verification_status: "verified" as const,
+    verification_status: quality.valid ? "verified" as const : "unverified" as const,
     reliability_score: extracted.confidence,
     description: `Captured page artifact for ${intent}`,
     response_schema,
@@ -637,8 +636,10 @@ export function buildPageArtifactCapture(
         method: extracted.extraction_method,
         confidence: extracted.confidence,
         source: "dom-fallback",
+        ...(quality.quality_note ? { quality_note: quality.quality_note } : {}),
       },
     },
+    ...(!quality.valid ? { quality_note: quality.quality_note } : {}),
   };
 }
 
@@ -1163,9 +1164,27 @@ async function executeBrowserCapture(
     cleanEndpoints.push(canonicalDocumentEndpoint);
   }
 
-  const pageArtifact = captured.html
+  let pageArtifact = captured.html
     ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
     : {};
+
+  // SSR fallback: if Kuri's headless Chrome was bot-detected and served stripped
+  // HTML, the DOM extraction above will fail or return low quality. Try a plain
+  // HTTP fetch — many sites serve full SSR HTML to normal requests.
+  if (!pageArtifact.endpoint) {
+    const kuriHtmlLen = captured.html?.length ?? 0;
+    const ssrFallback = await tryHttpFetch(url, {}, []).catch(() => null);
+    if (ssrFallback && ssrFallback.html.length > kuriHtmlLen * 1.2) {
+      console.log(`[ssr-fallback] Kuri HTML=${kuriHtmlLen}, fetch HTML=${ssrFallback.html.length} — retrying DOM extraction`);
+      const ssrArtifact = buildPageArtifactCapture(ssrFallback.final_url || url, intent, ssrFallback.html, authBackedCapture);
+      if (ssrArtifact.endpoint) {
+        console.log(`[ssr-fallback] success — extracted structured data via plain HTTP fetch`);
+        pageArtifact = ssrArtifact;
+      } else {
+        console.log(`[ssr-fallback] fetch got larger HTML but extraction still failed${ssrArtifact.quality_note ? `: ${ssrArtifact.quality_note}` : ""}`);
+      }
+    }
+  }
   const domArtifactEndpoint = pageArtifact.endpoint;
   const domArtifactResult = pageArtifact.result;
   const inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
@@ -1249,7 +1268,8 @@ async function executeBrowserCapture(
         };
       }
 
-    if (pageArtifact.quality_note) {
+    if (pageArtifact.quality_note && !pageArtifact.endpoint) {
+      // Quality gate rejected AND no endpoint — nothing useful extracted
       const trace: ExecutionTrace = stampTrace({
         trace_id: traceId,
         skill_id: skill.skill_id,
