@@ -661,8 +661,9 @@ export async function captureSession(
   try {
     tabId = await kuri.getDefaultTab();
   } catch {
-    // If no tabs available, try creating one
+    // If no tabs available, try creating one and re-discover so Bridge registers it
     tabId = await kuri.newTab("about:blank");
+    await kuri.discoverTabs();
     if (!tabId) {
       tabId = await kuri.getDefaultTab();
     }
@@ -678,15 +679,9 @@ export async function captureSession(
     await resetTab(tabId);
   }, CAPTURE_TIMEOUT_MS);
 
-  try {
     // Set headers: client hints + auth headers
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
     await kuri.setHeaders(tabId, allHeaders);
-
-    // Inject cookies
-    if (cookies && cookies.length > 0) {
-      await injectCookies(tabId, cookies);
-    }
 
     // Inject stealth patches — hide headless Chrome indicators from bot detection
     try {
@@ -707,6 +702,13 @@ export async function captureSession(
       const origin = new URL(url).origin;
       await kuri.navigate(tabId, origin);
       await new Promise((r) => setTimeout(r, 500));
+
+      // Inject cookies AFTER origin navigation — CDP setCookie requires an active
+      // page in the cookie's domain context (fails on about:blank).
+      if (cookies && cookies.length > 0) {
+        await injectCookies(tabId, cookies);
+      }
+
       await kuri.evaluate(tabId, STEALTH_SCRIPT);
       await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
     } catch { /* best-effort */ }
