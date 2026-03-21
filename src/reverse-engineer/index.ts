@@ -381,8 +381,30 @@ function inferCsrfPlan(req: RawRequest, parsedBody?: unknown): CsrfPlan | undefi
     Object.entries(req.request_headers).map(([key, value]) => [key.toLowerCase(), value]),
   );
   const cookies = parseCookieHeader(headers["cookie"]);
-  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf)$/i.test(name));
-  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
+  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf|JSESSIONID)$/i.test(name));
+  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken", "csrf-token"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
+
+  // Also detect CSRF by value matching: if any cookie value appears as a header value,
+  // that's a CSRF token pattern regardless of naming convention
+  if (!headerName && csrfCookieNames.length === 0) {
+    for (const [cookieName, cookieValue] of Object.entries(cookies)) {
+      if (!cookieValue || cookieValue.length < 8) continue;
+      const unquoted = cookieValue.startsWith('"') && cookieValue.endsWith('"') ? cookieValue.slice(1, -1) : cookieValue;
+      for (const [hName, hValue] of Object.entries(headers)) {
+        if (hName === "cookie" || hName === "host" || hName === "content-length") continue;
+        const hUnquoted = hValue.startsWith('"') && hValue.endsWith('"') ? hValue.slice(1, -1) : hValue;
+        if (unquoted === hUnquoted && unquoted.length >= 8) {
+          return {
+            source: "cookie",
+            param_name: hName,
+            refresh_on_401: true,
+            extractor_sequence: [cookieName],
+          };
+        }
+      }
+    }
+  }
+
   if (headerName && csrfCookieNames.length > 0) {
     return {
       source: "cookie",
