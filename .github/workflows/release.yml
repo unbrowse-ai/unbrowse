@@ -90,6 +90,9 @@ jobs:
     name: Publish CLI (npm)
     runs-on: self-hosted
     needs: live-eval-staging
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
