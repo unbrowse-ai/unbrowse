@@ -9,7 +9,7 @@
   "scripts": {
     "prepare": "husky",
     "submodules:init": "bash scripts/ensure-submodules.sh",
-    "test": "bun test tests/path-params.test.ts tests/utils.test.ts evals/quality-gate.test.ts",
+    "test": "bun test tests/path-params.test.ts tests/utils.test.ts tests/codex-repeatability-cases.test.ts evals/quality-gate.test.ts",
     "test:cli": "bun test tests/cli-e2e.test.ts",
     "test:backend": "bun test backend/tests/",
     "test:all": "bun test tests/ evals/quality-gate.test.ts backend/tests/",
@@ -24,6 +24,8 @@
     "eval:codex:autonomous:benchmark": "bun evals/codex-autonomous-harness.ts --benchmark",
     "eval:codex:campaign": "bun evals/codex-campaign-runner.ts",
     "eval:codex:product-success": "UNBROWSE_FORCE_CAPTURE=0 bun evals/codex-autonomous-harness.ts --cases evals/codex-cases.product-success.json",
+    "eval:codex:repeatability": "UNBROWSE_FORCE_CAPTURE=0 bun evals/codex-autonomous-harness.ts --benchmark --cases evals/codex-cases.repeatability.json --out evals/codex-repeatability-last-run.json",
+    "eval:codex:repeatability:report": "bun scripts/eval-repeatability-report.ts --run",
     "eval:codex:stress": "UNBROWSE_FORCE_CAPTURE=0 bun -e 'import { runHarnessCli } from \"./evals/codex-harness.js\"; await runHarnessCli()' -- --cases evals/codex-cases.stress.json",
     "eval:codex:public": "bun run eval:codex:product-success",
     "eval:codex:agent-targets": "bun run eval:codex:stress",
@@ -54,5 +56,5 @@
     "husky": "^9.1.7",
     "release-it": "^19.2.4"
   },
-  "version": "2.0.2"
+  "version": "2.0.3"
 }

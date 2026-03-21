@@ -67,11 +67,29 @@ jobs:
             bun test ./evals/staging-smoke.test.ts
         name: Run staging smoke tests
 
-  # ── Stage 4: Publish to npm ──
+  # ── Stage 4: Live client eval against staging ──
+  live-eval-staging:
+    name: Live Eval (Staging)
+    runs-on: self-hosted
+    needs: smoke-staging
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          UNBROWSE_BACKEND_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
+            bun test ./evals/staging-live.test.ts
+        name: Run live client eval against staging
+
+  # ── Stage 5: Publish to npm ──
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
-    needs: smoke-staging
+    needs: live-eval-staging
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -118,7 +136,7 @@ jobs:
   deploy-prod:
     name: Deploy to Production
     runs-on: self-hosted
-    needs: [smoke-staging, publish-cli]
+    needs: [live-eval-staging, publish-cli]
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
