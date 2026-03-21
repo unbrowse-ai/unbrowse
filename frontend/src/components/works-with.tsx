@@ -8,7 +8,11 @@ export function WorksWith() {
     { name: "Cursor", icon: TerminalSquare },
     { name: "OpenClaw", icon: Code2 },
     { name: "Windsurf", icon: Waves },
-    { name: "Any Skill Agent", icon: PlugZap },
+    { name: "Claude Desktop", icon: Bot },
+    { name: "ElizaOS", icon: PlugZap },
+    { name: "Hermes", icon: PlugZap },
+    { name: "LangChain", icon: PlugZap },
+    { name: "Vercel AI SDK", icon: PlugZap },
   ];
 
   return (

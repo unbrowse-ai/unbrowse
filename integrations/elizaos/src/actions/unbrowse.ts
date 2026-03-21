@@ -12,6 +12,7 @@ import {
   parseMaybeJson,
   summarizeOutput,
   getConfig,
+  hasErrorPayload,
   type ToolParams,
 } from "../shared";
 
@@ -66,17 +67,18 @@ export const unbrowseAction: Action = {
       const args = buildArgs(params);
       const result = await runCommand(binPath, args, config);
       const parsed = parseMaybeJson(result.stdout);
+      const failed = !result.ok || hasErrorPayload(parsed);
 
       if (callback) {
         await callback({
-          text: result.ok
+          text: !failed
             ? summarizeOutput(result.stdout)
             : `Unbrowse failed: ${result.stderr || summarizeOutput(result.stdout)}`,
           data: parsed,
         });
       }
 
-      return result.ok;
+      return !failed;
     } catch (error) {
       const msg =
         error instanceof Error ? error.message : String(error);

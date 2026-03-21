@@ -130,6 +130,7 @@ unbrowse feedback \
 | `skill` | `<id>` | Get skill details |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
+| `mcp` |  | Start MCP server (stdio) for Claude Desktop, Cursor, etc. |
 
 ### Global flags
 

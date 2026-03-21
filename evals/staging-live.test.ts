@@ -110,6 +110,27 @@ describe(`Staging live eval (${STAGING_URL})`, () => {
     expect(status).toBe(200);
   });
 
+  test("search results include metadata for marketplace hydration", async () => {
+    const { status, data, latencyMs } = await api("POST", "/v1/search/resolve", {
+      intent: "get stock quote",
+      domain: "finance.yahoo.com",
+      domain_k: 3,
+      global_k: 5,
+    });
+    const payload = data as Record<string, unknown>;
+    const results = [
+      ...((payload.domain_results as Array<Record<string, unknown>> | undefined) ?? []),
+      ...((payload.global_results as Array<Record<string, unknown>> | undefined) ?? []),
+    ];
+    console.log(`  search metadata: ${status} (${latencyMs}ms) results=${results.length}`);
+    expect(status).toBe(200);
+    if (results.length > 0) {
+      const metadata = results[0]?.metadata as Record<string, unknown> | undefined;
+      expect(metadata).toBeDefined();
+      expect(typeof metadata?.content).toBe("string");
+    }
+  });
+
   // Regression: staging should use the same search quality as prod
   test("yahoo finance search returns relevant results (score > 0.5)", async () => {
     const { data } = await api("POST", "/v1/search/domain", {

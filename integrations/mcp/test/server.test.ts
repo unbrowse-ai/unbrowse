@@ -41,8 +41,23 @@ describe("buildArgs", () => {
   });
 
   it("execute builds correct args", () => {
-    expect(buildArgs({ action: "execute", skillId: "s1", endpointId: "e1" }))
-      .toEqual(["execute", "--skill", "s1", "--endpoint", "e1"]);
+    expect(buildArgs({
+      action: "execute",
+      skillId: "s1",
+      endpointId: "e1",
+      url: "https://example.com/search?q=openai",
+      intent: "search packages",
+    })).toEqual([
+      "execute",
+      "--skill",
+      "s1",
+      "--endpoint",
+      "e1",
+      "--url",
+      "https://example.com/search?q=openai",
+      "--intent",
+      "search packages",
+    ]);
   });
 
   it("login builds correct args", () => {
@@ -77,9 +92,16 @@ describe("toolParamsFromCall", () => {
   });
 
   it("maps unbrowse_execute to execute action", () => {
-    const params = toolParamsFromCall("unbrowse_execute", { skillId: "s", endpointId: "e" });
+    const params = toolParamsFromCall("unbrowse_execute", {
+      skillId: "s",
+      endpointId: "e",
+      url: "https://example.com",
+      intent: "search packages",
+    });
     expect(params.action).toBe("execute");
     expect(params.skillId).toBe("s");
+    expect(params.url).toBe("https://example.com");
+    expect(params.intent).toBe("search packages");
   });
 
   it("maps unbrowse_health to health action", () => {

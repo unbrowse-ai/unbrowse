@@ -5,7 +5,7 @@ import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
-import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
+import { findStoredAuthReference, getStoredAuthBundle, getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { generateExtractionHints } from "../transform/schema-hints.js";
@@ -22,6 +22,7 @@ import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
 import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
+import * as cheerio from "cheerio";
 
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
@@ -67,10 +68,15 @@ export function isBundleInferredEndpoint(endpoint: Pick<EndpointDescriptor, "des
   return /inferred from js bundle/i.test(endpoint.description ?? "");
 }
 
+export function isHtmlInferredEndpoint(endpoint: Pick<EndpointDescriptor, "description">): boolean {
+  return /inferred from html (?:fetch )?(?:preload|prefetch|route)/i.test(endpoint.description ?? "");
+}
+
 function isSupportEvidenceEndpoint(endpoint: EndpointDescriptor): boolean {
   if (isCanonicalReplayEndpoint(endpoint)) return true;
   if (endpoint.dom_extraction && endpoint.response_schema) return true;
   if (isBundleInferredEndpoint(endpoint)) return false;
+  if (isHtmlInferredEndpoint(endpoint)) return true;
   return !!endpoint.response_schema;
 }
 
@@ -225,7 +231,9 @@ function compactSchemaSample(value: unknown, depth = 0): unknown {
 function isDocumentLikeUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return !/\/api\/|graphql|\/rest\/|\/rpc\/|\/ajax\/|\/1\.1\/|\/2\/|voyager/i.test(parsed.pathname);
+    if (/^(api|data|feed|stream)\./i.test(parsed.hostname)) return false;
+    if (/\.(json|csv|xml)(?:$|\?)/i.test(parsed.pathname + parsed.search)) return false;
+    return !/\/api\/|graphql|\/rest\/|\/rpc\/|\/ajax\/|\/v\d+\/|\/1\.1\/|\/2\/|voyager/i.test(parsed.pathname);
   } catch {
     return false;
   }
@@ -583,6 +591,113 @@ function buildSampleRequestFromUrl(url: string): Record<string, unknown> {
   }
 }
 
+function deriveDomExecutionIntent(endpoint: EndpointDescriptor, fallbackIntent?: string): string {
+  const parts = new Set<string>();
+  const add = (value?: string) => {
+    const trimmed = value?.trim();
+    if (trimmed) parts.add(trimmed);
+  };
+
+  add(fallbackIntent);
+  add(endpoint.semantic?.action_kind);
+  add(endpoint.semantic?.resource_kind);
+  add(endpoint.semantic?.description_in);
+
+  return [...parts].join(" ").trim() || String(fallbackIntent ?? "");
+}
+
+function buildLinkedInEmbeddedFeedCapture(
+  url: string,
+  intent: string,
+  html: string,
+  authRequired = false,
+): {
+  endpoint?: EndpointDescriptor;
+  result?: { data: unknown; _extraction: Record<string, unknown> };
+  quality_note?: string;
+} {
+  if (!/\blinkedin\b/i.test(url) || !/\b(feed|timeline|stream|home)\b/i.test(intent) || !/\b(post|posts|status|statuses|update|updates)\b/i.test(intent)) {
+    return {};
+  }
+
+  try {
+    const $ = cheerio.load(html);
+    let metadata: {
+      request?: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    } | null = null;
+
+    $("code").each((_, el) => {
+      if (metadata) return;
+      const text = $(el).text().trim();
+      if (!/voyagerFeedDashMainFeed/.test(text)) return;
+      if (!/"request":"\/voyager\/api\/graphql/.test(text)) return;
+      metadata = JSON.parse(text);
+    });
+    if (!metadata?.body) return {};
+
+    let payloadText = "";
+    $("code").each((_, el) => {
+      if (payloadText) return;
+      const id = $(el).attr("id");
+      if (id !== metadata?.body) return;
+      payloadText = $(el).text().trim();
+    });
+    if (!payloadText) return {};
+
+    const payload = JSON.parse(payloadText);
+    const semanticAssessment = assessIntentResult(payload, intent);
+    if (semanticAssessment.verdict === "fail") {
+      return { quality_note: semanticAssessment.reason };
+    }
+
+    const requestUrl = metadata.request?.startsWith("http")
+      ? metadata.request
+      : `https://www.linkedin.com${metadata.request?.startsWith("/") ? "" : "/"}${metadata.request ?? ""}`;
+    if (!requestUrl || requestUrl === "https://www.linkedin.com/") return {};
+
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: nanoid(),
+      method: (metadata.method ?? "GET").toUpperCase() as EndpointDescriptor["method"],
+      url_template: requestUrl,
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.95,
+      description: `Embedded LinkedIn feed payload for ${intent}`,
+      response_schema: inferSchema([payload]),
+      trigger_url: url,
+      ...(metadata.headers && Object.keys(metadata.headers).length > 0
+        ? { headers_template: metadata.headers }
+        : {}),
+    };
+    endpoint.semantic = {
+      ...inferEndpointSemantic(endpoint, {
+        sampleResponse: payload,
+        sampleRequest: buildSampleRequestFromUrl(url),
+        observedAt: new Date().toISOString(),
+        sampleRequestUrl: requestUrl,
+      }),
+      ...(authRequired ? { auth_required: true } : {}),
+    };
+
+    return {
+      endpoint,
+      result: {
+        data: payload,
+        _extraction: {
+          method: "linkedin-embedded-feed",
+          confidence: 0.95,
+          source: "html-embedded",
+        },
+      },
+    };
+  } catch {
+    return {};
+  }
+}
+
 export function buildPageArtifactCapture(
   url: string,
   intent: string,
@@ -593,6 +708,9 @@ export function buildPageArtifactCapture(
   result?: { data: unknown; _extraction: Record<string, unknown> };
   quality_note?: string;
 } {
+  const linkedInEmbedded = buildLinkedInEmbeddedFeedCapture(url, intent, html, authRequired);
+  if (linkedInEmbedded.endpoint) return linkedInEmbedded;
+
   const extracted = extractFromDOM(html, intent);
   if (!extracted.data || extracted.confidence <= 0.2) return {};
   const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
@@ -681,6 +799,91 @@ export function isCanonicalReplayEndpoint(endpoint: Pick<EndpointDescriptor, "me
   } catch {
     return false;
   }
+}
+
+function looksLikeStructuredApiUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(parsed.pathname) ||
+      /^(api|data|feed|stream)\./i.test(parsed.hostname) ||
+      /\.(json|csv|xml)(?:$|\?)/i.test(parsed.pathname + parsed.search)
+    );
+  } catch {
+    return /\/api\/|graphql|\/rest\/|\/rpc\/|voyager|(^|\/\/)(api|data|feed|stream)\./i.test(url);
+  }
+}
+
+function describeInferredFetchRoute(routeUrl: URL): string {
+  const leaf = routeUrl.pathname.replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? routeUrl.hostname;
+  const label = normalizeTokenText(leaf.replace(/\.(json|csv|xml)$/i, ""))
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase();
+  return label
+    ? `Inferred from HTML fetch preload for ${label}`
+    : "Inferred from HTML fetch preload";
+}
+
+export function scanHtmlForFetchRoutes(
+  html: string,
+  pageUrl: string,
+): EndpointDescriptor[] {
+  let page: URL;
+  try {
+    page = new URL(pageUrl);
+  } catch {
+    return [];
+  }
+  const $ = cheerio.load(html);
+  const seen = new Set<string>();
+  const endpoints: EndpointDescriptor[] = [];
+
+  $("link[href]").each((_, el) => {
+    const rel = ($(el).attr("rel") ?? "").toLowerCase();
+    if (!/\b(preload|prefetch)\b/.test(rel)) return;
+    const href = ($(el).attr("href") ?? "").trim();
+    if (!href) return;
+    const as = ($(el).attr("as") ?? "").toLowerCase();
+
+    let resolved: URL;
+    try {
+      resolved = new URL(href, page);
+    } catch {
+      return;
+    }
+
+    if (!looksLikeStructuredApiUrl(resolved.toString()) && as !== "fetch") return;
+
+    const targetReg = getRegistrableDomain(resolved.hostname);
+    const pageReg = getRegistrableDomain(page.hostname);
+    if (!targetReg || !pageReg || targetReg !== pageReg) return;
+
+    const normalized = resolved.toString();
+    if (seen.has(normalized)) return;
+    seen.add(normalized);
+
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: nanoid(),
+      method: "GET",
+      url_template: normalized,
+      idempotency: "safe",
+      verification_status: "pending",
+      reliability_score: as === "fetch" ? 0.45 : 0.35,
+      description: describeInferredFetchRoute(resolved),
+      trigger_url: page.toString(),
+    };
+    endpoint.semantic = inferEndpointSemantic(endpoint, {
+      observedAt: new Date().toISOString(),
+      sampleRequestUrl: page.toString(),
+    });
+    if (endpoint.semantic?.description_out) {
+      endpoint.description = endpoint.semantic.description_out;
+    }
+    endpoints.push(endpoint);
+  });
+
+  return endpoints;
 }
 
 async function trySeedStructuredDocumentSkill(
@@ -914,7 +1117,7 @@ export async function executeSkill(
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
   if (skill.execution_type === "browser-capture") {
-    return executeBrowserCapture(skill, params);
+    return executeBrowserCapture(skill, params, options);
   }
 
   // Allow targeting a specific endpoint by ID
@@ -933,7 +1136,8 @@ export async function executeSkill(
 
 async function executeBrowserCapture(
   skill: SkillManifest,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  options?: ExecutionOptions,
 ): Promise<ExecutionResult> {
   const fallbackUrl =
     (typeof params.context_url === "string" && params.context_url) ||
@@ -953,8 +1157,21 @@ async function executeBrowserCapture(
   let cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
   let usedStoredAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
 
+  if ((!cookies || cookies.length === 0) || !authHeaders || Object.keys(authHeaders).length === 0) {
+    const storedBundle = await getStoredAuthBundle(targetDomain);
+    if (storedBundle) {
+      if ((!cookies || cookies.length === 0) && storedBundle.cookies.length > 0) {
+        cookies = storedBundle.cookies;
+      }
+      if ((!authHeaders || Object.keys(authHeaders).length === 0) && Object.keys(storedBundle.headers).length > 0) {
+        authHeaders = { ...storedBundle.headers };
+      }
+      usedStoredAuth = usedStoredAuth || storedBundle.cookies.length > 0 || Object.keys(storedBundle.headers).length > 0;
+    }
+  }
+
   // Bird-style: auto-resolve cookies from vault → browser fallback
-  if (!cookies || cookies.length === 0) {
+  if ((!cookies || cookies.length === 0) && (!authHeaders || Object.keys(authHeaders).length === 0)) {
     const resolved = await getAuthCookies(targetDomain, { autoExtract: false });
     if (resolved && resolved.length > 0) {
       cookies = resolved;
@@ -984,7 +1201,7 @@ async function executeBrowserCapture(
   if (documentSeed) return documentSeed;
   let captured;
   try {
-    captured = await captureSession(url, authHeaders, cookies, intent);
+    captured = await captureSession(url, authHeaders, cookies, intent, { signal: options?.signal });
   } catch (captureErr: unknown) {
     const err = captureErr as Error & { code?: string; login_url?: string };
     if (err.code === "auth_required") {
@@ -1004,6 +1221,24 @@ async function executeBrowserCapture(
           provider: "cloudflare",
           login_url: err.login_url ?? url,
           message: `Site is blocked by Cloudflare WAF. Run: unbrowse login --url "${url}" to authenticate interactively.`,
+        },
+      };
+    }
+    if (err.code === "blocked_app_shell") {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: traceId,
+        skill_id: skill.skill_id,
+        endpoint_id: "browser-capture",
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        success: false,
+        error: "no_endpoints",
+      });
+      return {
+        trace,
+        result: {
+          error: "no_endpoints",
+          message: `No API endpoints or structured DOM data found at ${url}. The site rendered a blocked app shell even after a fresh-profile retry.`,
         },
       };
     }
@@ -1115,6 +1350,21 @@ async function executeBrowserCapture(
     }
   }
 
+  if (captured.html) {
+    const htmlRoutes = scanHtmlForFetchRoutes(captured.html, captured.final_url || url);
+    let added = 0;
+    const existingTemplates = new Set(endpoints.map((ep) => ep.url_template));
+    for (const endpoint of htmlRoutes) {
+      if (existingTemplates.has(endpoint.url_template)) continue;
+      endpoints.push(endpoint);
+      existingTemplates.add(endpoint.url_template);
+      added++;
+    }
+    if (added > 0) {
+      log("execution", `added ${added} inferred endpoints from HTML fetch hints`);
+    }
+  }
+
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
       const host = new URL(ep.url_template).hostname;
@@ -1140,9 +1390,7 @@ async function executeBrowserCapture(
 
   // BUG-004 fix: set auth_profile_ref when vault has stored auth for this domain
   if (!auth_profile_ref) {
-    const vaultKey = `auth:${targetDomain}`;
-    const hasStoredAuth = (await getCredential(vaultKey)) != null;
-    if (hasStoredAuth) auth_profile_ref = vaultKey;
+    auth_profile_ref = await findStoredAuthReference(targetDomain) ?? undefined;
   }
   const authBackedCapture = usedStoredAuth || !!auth_profile_ref;
   if (authBackedCapture) {
@@ -1443,14 +1691,16 @@ async function executeDomExtractionEndpoint(
   authHeaders: Record<string, string>,
   cookies: Array<{ name: string; value: string; domain: string }>,
 ): Promise<{ data: unknown; status: number; trace_id: string }> {
+  const extractionIntent = deriveDomExecutionIntent(endpoint, intent);
+
   // SSR fast-path: try plain HTTP fetch before browser
   const ssrResult = await tryHttpFetch(url, authHeaders, cookies);
   if (ssrResult) {
-    const ssrExtracted = extractFromDOMWithHint(ssrResult.html, intent, endpoint.dom_extraction);
+    const ssrExtracted = extractFromDOMWithHint(ssrResult.html, extractionIntent, endpoint.dom_extraction);
     if (ssrExtracted.data) {
-      const ssrQuality = validateExtractionQuality(ssrExtracted.data, ssrExtracted.confidence, intent);
+      const ssrQuality = validateExtractionQuality(ssrExtracted.data, ssrExtracted.confidence, extractionIntent);
       if (ssrQuality.valid) {
-        const ssrSemantic = assessIntentResult(ssrExtracted.data, intent);
+        const ssrSemantic = assessIntentResult(ssrExtracted.data, extractionIntent);
         if (ssrSemantic.verdict !== "fail") {
           console.log(`[ssr-fast] hit — extracted via HTTP fetch`);
           return {
@@ -1476,11 +1726,27 @@ async function executeDomExtractionEndpoint(
   }
 
   // Browser fallback
-  const captured = await captureSession(url, authHeaders, cookies, intent);
+  let captured;
+  try {
+    captured = await captureSession(url, authHeaders, cookies, intent);
+  } catch (captureErr: unknown) {
+    const err = captureErr as Error & { code?: string };
+    if (err.code === "blocked_app_shell") {
+      return {
+        data: {
+          error: "no_endpoints",
+          message: `No structured DOM data found at ${url}. The page rendered a blocked app shell even after a fresh-profile retry.`,
+        },
+        status: 422,
+        trace_id: nanoid(),
+      };
+    }
+    throw captureErr;
+  }
   const html = captured.html ?? "";
-  const extracted = extractFromDOMWithHint(html, intent, endpoint.dom_extraction);
+  const extracted = extractFromDOMWithHint(html, extractionIntent, endpoint.dom_extraction);
   if (extracted.data) {
-    const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
+    const quality = validateExtractionQuality(extracted.data, extracted.confidence, extractionIntent);
     if (!quality.valid) {
       return {
         data: {
@@ -1491,7 +1757,7 @@ async function executeDomExtractionEndpoint(
         trace_id: nanoid(),
       };
     }
-    const semanticAssessment = assessIntentResult(extracted.data, intent);
+    const semanticAssessment = assessIntentResult(extracted.data, extractionIntent);
     if (semanticAssessment.verdict === "fail") {
       return {
         data: {
@@ -1650,32 +1916,26 @@ export async function executeEndpoint(
   // Endpoint domain — used for cookie resolution, strategy caching, auth refresh
   const epDomain = (() => { try { return new URL(endpoint.url_template).hostname; } catch { return skill.domain; } })();
 
-  // Bird-style: auto-resolve cookies from vault → browser fallback
-  if (cookies.length === 0) {
+  // Bird-style: auto-resolve stored auth bundle first, then cookie-only vault/browser fallback
+  if (cookies.length === 0 || Object.keys(authHeaders).length === 0) {
     try {
-      const resolved = await getAuthCookies(epDomain, {
-        autoExtract: !!skill.auth_profile_ref || endpoint.semantic?.auth_required === true,
-      });
-      if (resolved && resolved.length > 0) {
-        cookies.push(...resolved);
+      const storedBundle = await getStoredAuthBundle(epDomain);
+      if (storedBundle) {
+        if (cookies.length === 0) cookies.push(...storedBundle.cookies);
+        if (Object.keys(authHeaders).length === 0 && Object.keys(storedBundle.headers).length > 0) {
+          Object.assign(authHeaders, storedBundle.headers);
+        }
+      } else if (cookies.length === 0) {
+        const resolved = await getAuthCookies(epDomain, {
+          autoExtract: !!skill.auth_profile_ref || endpoint.semantic?.auth_required === true,
+        });
+        if (resolved && resolved.length > 0) {
+          cookies.push(...resolved);
+        }
       }
     } catch {
       // URL parse failure — skip cookie resolution
     }
-  }
-
-  // Also check the domain-session vault for stored auth headers (authorization, api keys, etc.)
-  // These are captured during browser-capture and stored alongside cookies.
-  if (Object.keys(authHeaders).length === 0) {
-    try {
-      const sessionKey = `${getRegistrableDomain(epDomain)}-session`;
-      const sessionData = await getCredential(sessionKey);
-      if (sessionData) {
-        const parsed = JSON.parse(sessionData) as { headers?: Record<string, string>; cookies?: typeof cookies };
-        if (parsed.headers) Object.assign(authHeaders, parsed.headers);
-        if (parsed.cookies && cookies.length === 0) cookies.push(...parsed.cookies);
-      }
-    } catch { /* skip */ }
   }
 
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
@@ -2034,7 +2294,9 @@ export async function executeEndpoint(
   // pipe it through DOM extraction to produce structured data.
   // Always extract — returning raw HTML to an agent is never useful.
   if (trace.success && typeof data === "string" && isHtml(data)) {
-    const intent = options?.intent || skill.intent_signature;
+    const intent = endpoint.dom_extraction
+      ? deriveDomExecutionIntent(endpoint, options?.intent || skill.intent_signature)
+      : (options?.intent || skill.intent_signature);
     if (!endpoint.dom_extraction) {
       trace.success = false;
       trace.error = "unexpected_html_response";
@@ -2071,7 +2333,9 @@ export async function executeEndpoint(
     }
   }
 
-  const effectiveIntent = options?.intent ?? skill.intent_signature;
+  const effectiveIntent = endpoint.dom_extraction
+    ? deriveDomExecutionIntent(endpoint, options?.intent ?? skill.intent_signature)
+    : (options?.intent ?? skill.intent_signature);
   if (trace.success && effectiveIntent && data != null) {
     const semanticAssessment = assessIntentResult(data, effectiveIntent);
     if (semanticAssessment.verdict === "fail") {
@@ -2235,6 +2499,8 @@ const SYNONYMS: Record<string, string[]> = {
   bookmark: ["bookmark", "bookmarks", "bookmarked", "saved", "save", "favorite", "favourites"],
   news: ["news", "headline", "headlines", "story", "stories", "storylines"],
   dashboard: ["dashboard", "overview", "summary", "home", "main"],
+  module: ["module", "modules", "course", "courses", "class", "classes", "lesson", "lessons", "catalog"],
+  timetable: ["timetable", "schedule", "schedules", "semester", "semesters", "acadyear", "venue", "venues"],
 };
 
 function normalizeTokenText(text: string): string {
@@ -2499,8 +2765,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const structuredApiTriggers = new Set(
     rankedCandidates
       .filter((ep) => {
-        const url = ep.url_template.toLowerCase();
-        const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(url);
+        const looksLikeApiEndpoint = looksLikeStructuredApiUrl(ep.url_template);
         return !!ep.trigger_url && !ep.dom_extraction && (looksLikeApiEndpoint || !!ep.response_schema || ep.method === "WS");
       })
       .map((ep) => ep.trigger_url)
@@ -2540,6 +2805,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const SESSION_BOUND_QUERY = /[?&](?:[^=]*?(crumb|csrf|xsrf|token|session|auth|signature|nonce))=\{/i;
   const COMPANY_INTENT = /\b(company|companies|organization|organisations|business|org)\b/i;
   const PROFILE_INTENT = /\b(person|people|profile|profiles|user|users|member|members)\b/i;
+  const EDUCATION_INTENT = /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i;
   const PRODUCT_DETAIL_INTENT = /\b(product|products|item|items|listing|listings)\b/i.test(intent ?? "");
   const ENTITY_DETAIL_INTENT = isEntityDetailIntent(intent);
 
@@ -2686,7 +2952,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       }
     }
 
-    const looksLikeApiEndpoint = /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(ep.url_template);
+    const looksLikeApiEndpoint = looksLikeStructuredApiUrl(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
     const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
     const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
@@ -2751,6 +3017,17 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       if (/(sidebar|recommend|recommendations|usersbyrestids|user details|profile|profiles|followers|following|people|spotlight)/i.test(contentHaystack)) score -= 140;
       if (isCapturedPageArtifact && hasStructuredApiSibling) score -= 320;
       else if (looksLikeDocumentRoute && hasStructuredApiSibling) score -= 200;
+    }
+
+    if (intent && EDUCATION_INTENT.test(intent)) {
+      const educationHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(semantic)}`.toLowerCase();
+      if (looksLikeApiEndpoint && /(module|course|class|lesson|timetable|schedule|semester|acadyear|venueinformation)/i.test(educationHaystack)) score += 180;
+      if (/(modulelist|module list)/i.test(educationHaystack)) score += 120;
+      if (/(timetable|schedule|semester|classno|lesson|venueinformation)/i.test(educationHaystack)) score += 90;
+      if (contextPath === "/" && isCapturedPageArtifact) score -= 520;
+      else if (contextPath === "/" && looksLikeDocumentRoute) score -= 420;
+      if (isCapturedPageArtifact && hasStructuredApiSibling) score -= 360;
+      else if (looksLikeDocumentRoute && hasStructuredApiSibling) score -= 240;
     }
 
     const requestHint = JSON.stringify(semantic.example_request ?? {}).toLowerCase();

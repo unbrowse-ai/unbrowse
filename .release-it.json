@@ -34,6 +34,7 @@
   "hooks": {
     "before:init": "bun test tests/path-params.test.ts tests/utils.test.ts",
     "after:bump": [
+      "bun scripts/sync-integration-versions.mjs",
       "bun scripts/sync-skill-md.ts",
       "bun scripts/generate-release-notes.ts --version ${version}",
       "bun scripts/release-announce.ts --write"

@@ -1,0 +1,14 @@
+{
+  plugins: {
+    entries: {
+      "unbrowse-openclaw": {
+        enabled: true,
+        config: {
+          routingMode: "fallback",
+          preferInBootstrap: true,
+          timeoutMs: 120000
+        }
+      }
+    }
+  }
+}

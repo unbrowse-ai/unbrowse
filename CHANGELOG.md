@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- add an official whitepaper bundle under `packages/skill/docs/whitepaper`, rename the public PDF to `unbrowse-whitepaper.pdf`, and link it from the public skill README
+
+### Bug Fixes
+
+- bundle Windows Kuri binaries in the npm CLI package, fix Windows eval artifact paths, and gate npm publish on a Windows packaged-CLI smoke install
+- propagate execute context (`url` and `intent`) through the MCP and framework adapters so browser-capture-backed skills replay correctly
+- treat JSON error payloads from the CLI as real adapter failures in MCP and plugin wrappers
+- stop blocked-shell capture retries from bubbling a generic internal error; degrade to typed auth/no-endpoint results instead
+- add verified copy-paste install paths for MCP, OpenClaw, ElizaOS, Hermes, LangChain, and Vercel AI SDK to the docs and landing page
+- run the OpenClaw plugin's own install, typecheck, and test steps in CI and the tag-release gate before npm publish
+- add a manual release workflow dry-run that exercises the release test gate plus CLI/framework packaging on a branch without deploying or publishing
+- wire framework package release checks and tag-triggered npm/PyPI publish jobs into CI/CD, including standardized OpenClaw publish handling
+- move the OpenClaw integration into `integrations/openclaw` so it is versioned and released like the other framework packages
+- make LinkedIn feed resolve prefer real feed endpoints over stale people-search cache hits, normalize embedded feed payloads with full `elements[]` objects, abort timed-out live captures, and serialize CLI autostart so repeated packaged runs do not pile up duplicate `:6969` servers
+- discover public JSON APIs from HTML fetch preload/prefetch hints, reject stale homepage page-artifact cache hits for module/timetable intents, and rank those inferred APIs above empty SPA shell skills
+- auto-clear dead local CLI startup lock files so `unbrowse` recovers after interrupted `:6969` autostarts instead of wedging on "startup already in progress"
+- point the bundled Kuri source at `lekt9/kuri` `codex/fix-managed-discover-cdp` locally so managed-mode `/discover` and packaged LinkedIn replay pick up the tab-registration fix before upstream merge
+- drop the extra 500ms pause after LinkedIn origin navigation so packaged Kuri can inject the capture interceptor without tripping a CDP failure
+- derive DOM replay intent from endpoint semantics so generic domain skills like `linkedin.com` still extract the right structured search results
+- repoint the bundled Kuri source to `justrach/kuri` `main` and refresh the vendored Zig-built binaries used by the npm CLI package
+- improve MCP tool descriptions and skill-id error guidance so agent hosts stop guessing invalid `skillId` / `endpointId` values
+- fix nested runtime path detection so repo checkouts find the built Kuri binary under `submodules/kuri/zig-out/bin`
+- keep the auth eval runner from killing an already-healthy local server before demo auth verification
+- fix benchmark flag parsing in the eval harnesses so cold/warm repeatability runs actually execute in benchmark mode
+- honor `UNBROWSE_DISABLE_RATE_LIMIT=1` so local eval servers stop self-throttling repeatability/auth harness runs
+- add a repeatability warm-path gate that fails when warmed workflows miss cache, fall back to live capture, or blow their warm latency budget
+- add a fixture-backed marketplace retrieval eval that scores search rank, resolve fallback, and domain-filter leakage
+- replace the fake staging browser smoke with a real browser-capture-to-execute eval that asserts npm package fields after learning
+- expand marketplace retrieval corpus coverage and add a many-domain public gate plus release-matrix scripts
+- bypass Kuri's crashing `/tab/new` path by creating fresh browser tabs through Chrome CDP, closing them after capture retries, and isolating eval runs from unrelated Chrome tabs on `:9222`
+
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
 ### Features
@@ -1140,6 +1175,10 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- chore: added a repo-level submodule bootstrap helper plus CI coverage for the OpenClaw plugin checkout, so fresh clones now initialize and verify the plugin path instead of relying on manual submodule setup
+- chore: aligned the OpenClaw plugin submodule with current OpenClaw plugin patterns by switching prompt guidance to `before_prompt_build` and replacing `plugins.load.paths` examples with linked-install + `plugins.entries` docs
+- fix: the OpenClaw plugin submodule now resolves the installed `unbrowse` CLI from the package `bin` field, fixing local linked installs that ship `dist/cli.js` instead of `bin/unbrowse.js`
+- docs: simplified the OpenClaw plugin README to a single copy-paste quickstart with strict-mode default, verify commands, and advanced config moved below the first successful install path
 - fix: planner now treats captured query/path/example defaults as satisfiable bindings, so replayable APIs stop losing readiness to page artifacts on warm resolve
 - fix: semantic ranking now demotes linkedin sharebox/mailbox ui payloads for people/company intents and boosts real search/detail surfaces
 - fix: semantic intent scoring now distrusts mislabeled ui-scaffold endpoints, so generated sharebox/mailbox/notification skills stop stealing people/company search intents
@@ -1171,3 +1210,5 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: template param hydration now infers dev.to-style `tag` bindings from route context for query-based replay endpoints
 - fix: post projection now derives dev.to authors from article paths and recovers Lobsters scores from text-heavy list rows
 - docs: curated public expansion corpus now includes validated non-dev science/reference/news cases for arXiv, Wiktionary, and NPR, with exact blocked terminals where needed
+- fix: stop stale same-domain cache hits from reusing clearly wrong LinkedIn endpoints; low-score matches now fall through to fresh resolve/capture
+- fix: prefer stored `*-session` auth bundles over weaker cookie-only auth during browser capture so authenticated LinkedIn replay reuses richer headers/cookies

@@ -1,4 +1,5 @@
-import type { Env } from "../types.js";
+import type { EndpointDescriptor, Env, SkillManifest } from "../types.js";
+import { skillsKV } from "./kv.js";
 
 const EMERGENTDB_BASE = "https://api.emergentdb.com";
 const SEARCH_CACHE_TTL = 300; // 5 minutes
@@ -40,6 +41,191 @@ export function extractSkillId(metadata: Record<string, unknown>): string | null
   } catch {
     return null;
   }
+}
+
+export function extractEndpointId(metadata: Record<string, unknown>): string | null {
+  const direct = metadata.endpoint_id;
+  if (typeof direct === "string" && direct) return direct;
+  const content = metadata.content;
+  if (typeof content !== "string") return null;
+  try {
+    const parsed = JSON.parse(content) as { endpoint_id?: unknown };
+    return typeof parsed.endpoint_id === "string" ? parsed.endpoint_id : null;
+  } catch {
+    return null;
+  }
+}
+
+export function extractDomain(metadata: Record<string, unknown>): string | null {
+  const direct = metadata.domain ?? metadata.source_url;
+  if (typeof direct === "string" && direct) return normalizeHostish(direct);
+  const content = metadata.content;
+  if (typeof content !== "string") return null;
+  try {
+    const parsed = JSON.parse(content) as { domain?: unknown };
+    return typeof parsed.domain === "string" ? normalizeHostish(parsed.domain) : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeHostish(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return "";
+  const withoutProtocol = trimmed.replace(/^[a-z]+:\/\//, "");
+  const host = withoutProtocol.split("/")[0]?.split("?")[0]?.split("#")[0] ?? "";
+  return host.replace(/^www\./, "");
+}
+
+function getRegistrableDomain(hostname: string): string {
+  const parts = normalizeHostish(hostname).split(".").filter(Boolean);
+  if (parts.length >= 3) {
+    const lastTwo = parts.slice(-2).join(".");
+    if (new Set([
+      "co.uk", "co.nz", "co.jp", "co.kr", "co.in",
+      "com.br", "com.au", "com.cn", "com.mx", "com.ar", "com.tw",
+      "org.uk", "gov.uk", "ac.uk", "net.au", "org.au",
+    ]).has(lastTwo)) {
+      return parts.slice(-3).join(".");
+    }
+  }
+  return parts.slice(-2).join(".");
+}
+
+function hasSearchMetadata(results: SearchResult): boolean {
+  if (results.length === 0) return true;
+  return results.every((result) => {
+    if (!result.metadata) return false;
+    return Boolean(extractSkillId(result.metadata) && extractEndpointId(result.metadata));
+  });
+}
+
+const STOP_WORDS = new Set([
+  "a", "an", "and", "api", "by", "for", "from", "get", "how", "i", "in", "is", "my", "of", "on",
+  "or", "the", "to", "with", "show",
+]);
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && !STOP_WORDS.has(token));
+}
+
+function endpointSearchText(skill: SkillManifest, endpoint: EndpointDescriptor): string {
+  return [
+    skill.domain,
+    skill.subdomain,
+    skill.name,
+    skill.description,
+    ...(skill.intents ?? []),
+    endpoint.endpoint_id,
+    endpoint.method,
+    endpoint.url_template,
+    endpoint.description,
+  ].filter(Boolean).join(" ");
+}
+
+function scoreSearchText(intent: string, haystack: string, domainBoost = 0): number {
+  const queryTokens = tokenize(intent);
+  if (queryTokens.length === 0) return 0;
+  const text = haystack.toLowerCase();
+  const textTokens = new Set(tokenize(haystack));
+
+  let matches = 0;
+  let strongMatches = 0;
+  for (const token of queryTokens) {
+    if (textTokens.has(token)) {
+      matches += 1;
+      strongMatches += 1;
+      continue;
+    }
+    if (text.includes(token)) {
+      matches += 0.5;
+    }
+  }
+
+  let score = matches / queryTokens.length;
+  if (text.includes(intent.toLowerCase())) score += 0.25;
+  if (strongMatches === queryTokens.length) score += 0.1;
+  score += domainBoost;
+  return Number(Math.min(0.99, score).toFixed(6));
+}
+
+export function buildLocalSearchResults(
+  skills: SkillManifest[],
+  intent: string,
+  k: number,
+  domain?: string,
+): SearchResult {
+  const requestedDomain = domain ? normalizeHostish(domain) : null;
+
+  const ranked = skills.flatMap((skill) => {
+    if (skill.lifecycle !== "active") return [];
+    const skillDomain = normalizeHostish(skill.domain);
+    if (requestedDomain && skillDomain !== requestedDomain) return [];
+
+    return skill.endpoints
+      .filter((endpoint) => Boolean(endpoint.description))
+      .map((endpoint) => {
+        const score = scoreSearchText(
+          intent,
+          endpointSearchText(skill, endpoint),
+          requestedDomain && skillDomain === requestedDomain ? 0.15 : 0,
+        );
+        return {
+          id: hashToInt(`${skill.skill_id}:${endpoint.endpoint_id}`),
+          score,
+          metadata: {
+            skill_id: skill.skill_id,
+            endpoint_id: endpoint.endpoint_id,
+            domain: skill.domain,
+            source_url: skill.domain,
+            content: JSON.stringify({
+              skill_id: skill.skill_id,
+              endpoint_id: endpoint.endpoint_id,
+              domain: skill.domain,
+              name: skill.name,
+              description: skill.description,
+            }),
+          },
+        };
+      })
+      .filter((candidate) => candidate.score > 0);
+  });
+
+  ranked.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const aSkill = extractSkillId(a.metadata) ?? "";
+    const bSkill = extractSkillId(b.metadata) ?? "";
+    return aSkill.localeCompare(bSkill);
+  });
+  return ranked.slice(0, k);
+}
+
+async function localSearch(env: Env, intent: string, k: number, domain?: string): Promise<SearchResult> {
+  const entries = await skillsKV(env).listWithValues("skill:");
+  const skills = entries.flatMap(({ value }) => {
+    try {
+      return [JSON.parse(value) as SkillManifest];
+    } catch {
+      return [];
+    }
+  });
+  return buildLocalSearchResults(skills, intent, k, domain);
+}
+
+async function graphSearchWithFallback(
+  env: Env,
+  domain: string,
+  query: string,
+  k: number,
+): Promise<SearchResult> {
+  const results = await graphSearch(env, domain, query, k);
+  if (hasSearchMetadata(results)) return results;
+  console.warn(`[search] graph metadata missing for domain=${domain}; falling back to local skill ranking`);
+  return localSearch(env, query, k, domain === "global" ? undefined : domain);
 }
 
 function uniqueSkillCount(results: SearchResult): number {
@@ -177,11 +363,18 @@ export async function searchIntentInDomain(
   const hit = await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-domain] cache-check: ${t1 - t0}ms hit=${!!hit}`);
-  if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
+  if (hit) {
+    try {
+      const cached = JSON.parse(hit) as SearchResult;
+      if (hasSearchMetadata(cached)) return cached;
+    } catch {
+      /* fall through */
+    }
+  }
 
   let results: SearchResult;
   try {
-    results = await graphSearch(env, domain, intent, k);
+    results = await graphSearchWithFallback(env, domain, intent, k);
   } catch (err) {
     console.error(`[search] domain=${domain} error:`, (err as Error).message);
     return [];
@@ -209,10 +402,19 @@ export async function searchIntentResolve(
   const hit = await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
-  if (hit) try { return JSON.parse(hit) as ResolvedSearchResult; } catch { /* fall through */ }
+  if (hit) {
+    try {
+      const cached = JSON.parse(hit) as ResolvedSearchResult;
+      if (hasSearchMetadata(cached.domain_results) && hasSearchMetadata(cached.global_results)) {
+        return cached;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
 
   if (!domain) {
-    const global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {
+    const global_results = await graphSearchWithFallback(env, "global", intent, globalK).catch((err) => {
       console.error(`[search-resolve] global error:`, (err as Error).message);
       return [] as SearchResult;
     });
@@ -224,11 +426,11 @@ export async function searchIntentResolve(
     return resolved;
   }
 
-  const globalPromise = graphSearch(env, "global", intent, globalK).catch((err) => {
+  const globalPromise = graphSearchWithFallback(env, "global", intent, globalK).catch((err) => {
     console.error(`[search-resolve] global error:`, (err as Error).message);
     return [] as SearchResult;
   });
-  const domain_results = await graphSearch(env, domain, intent, domainK).catch((err) => {
+  const domain_results = await graphSearchWithFallback(env, domain, intent, domainK).catch((err) => {
     console.error(`[search-resolve] domain=${domain} error:`, (err as Error).message);
     return [] as SearchResult;
   });
@@ -261,11 +463,18 @@ export async function searchIntent(
   const hit = await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-global] cache-check: ${t1 - t0}ms hit=${!!hit}`);
-  if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
+  if (hit) {
+    try {
+      const cached = JSON.parse(hit) as SearchResult;
+      if (hasSearchMetadata(cached)) return cached;
+    } catch {
+      /* fall through */
+    }
+  }
 
   let results: SearchResult;
   try {
-    results = await graphSearch(env, "global", intent, k);
+    results = await graphSearchWithFallback(env, "global", intent, k);
   } catch (err) {
     console.error(`[search] global error:`, (err as Error).message);
     return [];
@@ -339,4 +548,10 @@ export function hashToInt(str: string): number {
     hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
   }
   return Math.abs(hash) || 1;
+}
+
+export function normalizeEmbedding(embedding: number[], dimensions: number): number[] {
+  if (embedding.length === dimensions) return embedding;
+  if (embedding.length > dimensions) return embedding.slice(0, dimensions);
+  return [...embedding, ...Array.from({ length: dimensions - embedding.length }, () => 0)];
 }

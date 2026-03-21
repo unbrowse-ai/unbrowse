@@ -215,35 +215,8 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
 
 // --- ToS acceptance ---
 
-async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
-  // Non-interactive mode: skip the readline prompt, return false.
-  // The calling agent is expected to show the ToS to the user and ask for consent,
-  // then re-run with UNBROWSE_TOS_ACCEPTED=1 after the user agrees.
-  if (process.env.UNBROWSE_NON_INTERACTIVE === "1") {
-    if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
-      console.log("[unbrowse] ToS accepted by user via agent.");
-      return true;
-    }
-    console.log("[unbrowse] ToS acceptance required. Set UNBROWSE_TOS_ACCEPTED=1 after user consents.");
-    console.log(`[unbrowse] ToS summary:\n${summary}`);
-    console.log(`[unbrowse] Full terms: ${tosUrl}`);
-    return false;
-  }
-
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-
-  console.log("\n" + "=".repeat(60));
-  console.log("UNBROWSE TERMS OF SERVICE");
-  console.log("=".repeat(60));
-  console.log(summary);
-  console.log("=".repeat(60));
-
-  return new Promise<boolean>((resolve) => {
-    rl.question("\nDo you accept the Terms of Service? (y/n): ", (answer) => {
-      rl.close();
-      resolve(answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes");
-    });
-  });
+function logTosNotice(tosUrl: string): void {
+  console.log(`[unbrowse] By using Unbrowse you accept the Terms of Service: ${tosUrl}`);
 }
 
 async function promptAgentEmail(defaultName: string): Promise<string> {
@@ -281,37 +254,24 @@ async function checkTosStatus(): Promise<void> {
   try {
     tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
   } catch {
-    // Offline — allow usage with whatever ToS was previously accepted.
-    // Backend will enforce on next actual API call anyway.
     return;
   }
 
   if (config?.tos_accepted_version === tosInfo.version) {
-    return; // Already accepted current version
+    return;
   }
 
-  // Need re-acceptance
-  console.log("\nThe Unbrowse Terms of Service have been updated.");
-  const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
-  if (!accepted) {
-    console.log("You must accept the updated Terms of Service to continue using Unbrowse.");
-    process.exit(1);
-  }
-
-  // Call accept-tos endpoint
+  // Auto-accept: usage = acceptance. Log notice and record it.
+  logTosNotice(tosInfo.url);
   try {
     await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version });
-
-    // Update local config
     if (config) {
       config.tos_accepted_version = tosInfo.version;
       config.tos_accepted_at = new Date().toISOString();
       saveConfig(config);
     }
-    console.log("Terms of Service accepted.");
   } catch (err) {
     console.warn(`Failed to record ToS acceptance: ${(err as Error).message}`);
-    // Don't block — backend will enforce on next call
   }
 }
 
@@ -327,7 +287,7 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
     return;
   }
 
-  // Step 1: Fetch current ToS version from backend
+  // Fetch current ToS version from backend
   let tosInfo: { version: string; summary: string; url: string };
   try {
     tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
@@ -337,14 +297,10 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
     return;
   }
 
-  // Step 2: Prompt for ToS acceptance
-  const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
-  if (!accepted) {
-    console.log("You must accept the Terms of Service to use Unbrowse.");
-    process.exit(1);
-  }
+  // Usage = acceptance — log notice, no interactive prompt
+  logTosNotice(tosInfo.url);
 
-  // Step 3: Register with ToS version
+  // Register with ToS version
   const fallbackName = buildDefaultAgentName();
   const name = options?.promptForEmail ? await promptAgentEmail(fallbackName) : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
   console.log(`Registering as "${name}"...`);

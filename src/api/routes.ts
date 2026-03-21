@@ -236,13 +236,18 @@ export async function registerRoutes(app: FastifyInstance) {
     const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     try {
-      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+      const effectiveParams = {
+        ...(params ?? {}),
+        ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
+        ...(intent && typeof params?.intent !== "string" ? { intent } : {}),
+      };
+      const execResult = await executeSkill(skill, effectiveParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
       if (execResult.trace.success) {
         promoteExplicitExecution(
           clientScope,
           intent || skill.intent_signature,
-          context_url || (typeof params?.url === "string" ? params.url : undefined),
+          context_url || (typeof effectiveParams.url === "string" ? effectiveParams.url : undefined),
           skill,
           execResult.trace.endpoint_id,
           execResult.result,
@@ -259,12 +264,12 @@ export async function registerRoutes(app: FastifyInstance) {
         try {
           const recoveryUrl =
             context_url ||
-            (typeof params?.url === "string" && params.url) ||
+            (typeof effectiveParams.url === "string" && effectiveParams.url) ||
             skill.endpoints.find((endpoint) => typeof endpoint.trigger_url === "string" && endpoint.trigger_url)?.trigger_url ||
             `https://${skill.domain}`;
           const freshResult = await resolveAndExecute(
             intent || skill.intent_signature,
-            { ...(params ?? {}), url: recoveryUrl },
+            { ...effectiveParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
             { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }

@@ -58,7 +58,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
+        text: "Install the Unbrowse CLI with npm install -g unbrowse@latest, then choose the verified integration path for your host. MCP clients use unbrowse mcp. OpenClaw uses unbrowse-openclaw in strict mode for a hard default browser replacement. ElizaOS and Hermes install plugins that route web work to Unbrowse first. LangChain and Vercel AI SDK install toolkits that expose Unbrowse as agent tools.",
       },
     },
     {
@@ -85,9 +85,13 @@ export default function Home() {
           <p>
             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
-          <p>Setup: npx unbrowse setup</p>
-          <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
-          <p>For skill hosts: npx skills add unbrowse-ai/unbrowse</p>
+          <p>Install CLI: npm install -g unbrowse@latest</p>
+          <p>MCP: command unbrowse, args ["mcp"]</p>
+          <p>OpenClaw: openclaw plugins install unbrowse-openclaw</p>
+          <p>ElizaOS: npm install @unbrowse/plugin-elizaos unbrowse</p>
+          <p>Hermes: pip install unbrowse-hermes</p>
+          <p>LangChain: pip install unbrowse-langchain</p>
+          <p>Vercel AI SDK: npm install @unbrowse/vercel-ai-sdk unbrowse ai zod</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
@@ -133,11 +137,11 @@ export default function Home() {
                     <div>
                       <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">Install First</p>
                       <h2 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-text-primary">
-                        Install Unbrowse and start using it.
+                        Install it the way your stack expects.
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Fresh install or quick upgrade. Same setup flow either way.
+                      CLI, MCP, OpenClaw, ElizaOS, Hermes, LangChain, and Vercel AI SDK.
                     </p>
                   </div>
                 </div>
@@ -192,7 +196,9 @@ export default function Home() {
                   <span className="text-base sm:text-lg font-medium tracking-tight">Claude Code</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">Cursor</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">OpenClaw</span>
-                  <span className="text-base sm:text-lg font-medium tracking-tight flex items-center gap-1.5">Any Skill <Zap className="w-4 h-4" /></span>
+                  <span className="text-base sm:text-lg font-medium tracking-tight">Hermes</span>
+                  <span className="text-base sm:text-lg font-medium tracking-tight">LangChain</span>
+                  <span className="text-base sm:text-lg font-medium tracking-tight">Vercel AI SDK</span>
                 </div>
               </div>
 
@@ -375,7 +381,7 @@ export default function Home() {
                 Register, verify, and <span className="text-orange-500">start using it.</span>
               </h2>
                 <p className="text-text-secondary text-lg max-w-xl mx-auto leading-relaxed">
-                  Once the CLI is installed, grab your key, verify the local server, and jump into the docs and community.
+                  Once the adapter is installed, verify Unbrowse locally, then start using the exact host-specific path above.
                 </p>
             </div>
 
@@ -432,7 +438,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For skill-based agent platforms like OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Install the CLI with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code>, then choose the verified host-specific path above. MCP clients use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse mcp</code>. OpenClaw uses <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse-openclaw</code> in strict mode. ElizaOS and Hermes install plugins. LangChain and Vercel AI SDK install toolkits.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

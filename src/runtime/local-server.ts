@@ -1,4 +1,4 @@
-import { openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
@@ -53,6 +53,23 @@ function clearStalePidFile(pidFile: string): void {
   }
 }
 
+function clearStaleStartupLockFile(lockFile: string): void {
+  try {
+    unlinkSync(lockFile);
+  } catch {
+    // ignore
+  }
+}
+
+function isStartupLockStale(lockFile: string): boolean {
+  try {
+    const stats = statSync(lockFile);
+    return Date.now() - stats.mtimeMs > 35_000;
+  } catch {
+    return true;
+  }
+}
+
 function deriveListenEnv(baseUrl: string): Record<string, string> {
   const url = new URL(baseUrl);
   const host = !url.hostname || url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
@@ -64,6 +81,7 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
   if (await isServerHealthy(baseUrl)) return;
 
   const pidFile = getServerPidFile(baseUrl);
+  const startupLockFile = `${pidFile}.lock`;
   const existing = readPidState(pidFile);
   if (existing?.pid && isPidAlive(existing.pid)) {
     if (await waitForHealthy(baseUrl, 15_000)) return;
@@ -74,6 +92,27 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
   if (noAutoStart) {
     throw new Error("Server not running and auto-start disabled (--no-auto-start).");
   }
+
+  let startupLockFd: number | null = null;
+  try {
+    startupLockFd = openSync(startupLockFile, "wx");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      if (await waitForHealthy(baseUrl, 30_000)) return;
+      const owner = readPidState(pidFile);
+      const ownerAlive = owner?.pid ? isPidAlive(owner.pid) : false;
+      if (!ownerAlive && isStartupLockStale(startupLockFile)) {
+        clearStalePidFile(pidFile);
+        clearStaleStartupLockFile(startupLockFile);
+        return ensureLocalServer(baseUrl, noAutoStart, metaUrl);
+      }
+      throw new Error(`Server startup already in progress but did not become healthy. Check ${getServerAutostartLogFile()}`);
+    }
+    throw error;
+  }
+
+  try {
+    if (await isServerHealthy(baseUrl)) return;
 
   const entrypoint = resolveSiblingEntrypoint(metaUrl, "index");
   const packageRoot = getPackageRoot(metaUrl);
@@ -103,4 +142,10 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
 
   if (await waitForHealthy(baseUrl, 30_000)) return;
   throw new Error(`Server failed to start. Check ${logFile}`);
+  } finally {
+    if (startupLockFd != null) {
+      closeSync(startupLockFd);
+      try { unlinkSync(startupLockFile); } catch { /* ignore */ }
+    }
+  }
 }
