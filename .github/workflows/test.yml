@@ -12,7 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
       - run: bun test tests/path-params.test.ts tests/utils.test.ts
         name: Run unit tests
@@ -22,20 +25,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
       - run: bun test evals/quality-gate.test.ts
         name: Run quality gate tests
 
-  backend-search-regression:
-    name: Backend Search Regression
+  backend-tests:
+    name: Backend Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
-      - run: bun test backend/tests/search-perf.test.ts
-        name: Run search latency regression tests
+      - run: bun test backend/tests/
+        name: Run all backend tests
 
   typecheck:
     name: Typecheck Backend
@@ -45,7 +54,11 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
+        working-directory: .
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
         name: Typecheck backend
@@ -55,10 +68,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
       - run: bun scripts/sync-skill-md.ts --check
         name: Check SKILL.md sync
