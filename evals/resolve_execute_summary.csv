@@ -1,0 +1,2 @@
+total_scenarios,resolve_ok_count,resolve_ok_pct,execute_attempted_count,execute_attempted_pct,execute_ok_count,execute_ok_pct,chain_success_count,chain_success_pct
+20,20,100.0,20,100.0,20,100.0,13,65.0
