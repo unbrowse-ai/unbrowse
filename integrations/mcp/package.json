@@ -1,0 +1,22 @@
+{
+  "name": "@unbrowse/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for unbrowse — reverse-engineer any website into reusable API skills",
+  "type": "module",
+  "bin": {
+    "unbrowse-mcp-server": "dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
