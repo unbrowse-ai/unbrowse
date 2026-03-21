@@ -5,11 +5,8 @@ import { bearerAuth } from "../middleware/auth.js";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
-// All analytics routes require authentication
-analyticsRoutes.use("*", bearerAuth);
-
 // GET /v1/analytics/engagement — DAU/WAU/MAU and stickiness ratios
-analyticsRoutes.get("/analytics/engagement", async (c) => {
+analyticsRoutes.get("/analytics/engagement", bearerAuth, async (c) => {
   const metrics = await getEngagement(c.env);
   c.header("Cache-Control", "public, max-age=300");
   c.header("Access-Control-Allow-Origin", "*");
@@ -17,7 +14,7 @@ analyticsRoutes.get("/analytics/engagement", async (c) => {
 });
 
 // GET /v1/analytics/retention — cohort retention (d1, d3, d7, d14, d30)
-analyticsRoutes.get("/analytics/retention", async (c) => {
+analyticsRoutes.get("/analytics/retention", bearerAuth, async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 60);
   const cohorts = await getRetention(c.env, days);
   c.header("Cache-Control", "public, max-age=300");
@@ -26,7 +23,7 @@ analyticsRoutes.get("/analytics/retention", async (c) => {
 });
 
 // GET /v1/analytics/activation — registration-to-power-user funnel
-analyticsRoutes.get("/analytics/activation", async (c) => {
+analyticsRoutes.get("/analytics/activation", bearerAuth, async (c) => {
   const funnel = await getActivation(c.env);
   c.header("Cache-Control", "public, max-age=300");
   c.header("Access-Control-Allow-Origin", "*");
@@ -34,7 +31,7 @@ analyticsRoutes.get("/analytics/activation", async (c) => {
 });
 
 // GET /v1/analytics/agents — agent health overview with top users
-analyticsRoutes.get("/analytics/agents", async (c) => {
+analyticsRoutes.get("/analytics/agents", bearerAuth, async (c) => {
   const health = await getAgentHealth(c.env);
   c.header("Cache-Control", "public, max-age=300");
   c.header("Access-Control-Allow-Origin", "*");
@@ -42,7 +39,7 @@ analyticsRoutes.get("/analytics/agents", async (c) => {
 });
 
 // GET /v1/analytics/dashboard — combined view of all metrics
-analyticsRoutes.get("/analytics/dashboard", async (c) => {
+analyticsRoutes.get("/analytics/dashboard", bearerAuth, async (c) => {
   const [engagement, activation, agentHealth] = await Promise.all([
     getEngagement(c.env),
     getActivation(c.env),

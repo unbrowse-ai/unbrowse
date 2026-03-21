@@ -72,6 +72,19 @@ export async function ensureAgentProfile(
   return profile;
 }
 
+export async function ensureCurrentTosAccepted(env: Env, agentId: string, profile?: AgentProfile): Promise<AgentProfile> {
+  const resolved = profile ?? await ensureAgentProfile(env, agentId);
+  if (resolved.tos_accepted_version === CURRENT_TOS_VERSION) return resolved;
+
+  const updated: AgentProfile = {
+    ...resolved,
+    tos_accepted_version: CURRENT_TOS_VERSION,
+    tos_accepted_at: new Date().toISOString(),
+  };
+  await statsKV(env).put(`agent:${agentId}`, JSON.stringify(updated));
+  return updated;
+}
+
 async function createUnkeyKey(
   rootKey: string,
   apiId: string,
@@ -104,34 +117,45 @@ function useLocalAdminRegistration(env: Env): boolean {
 export async function registerAgent(
   env: Env,
   name: string,
-  tosVersion: string
-): Promise<{ agent_id: string; api_key: string }> {
+  tosVersion = CURRENT_TOS_VERSION
+): Promise<{ agent_id: string; api_key: string; tos_accepted_version: string; tos_accepted_at: string }> {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
     throw new Error("Name must be 2-64 characters");
   }
 
   if (useLocalAdminRegistration(env)) {
-    return { agent_id: "__admin__", api_key: env.API_KEY };
+    return {
+      agent_id: "__admin__",
+      api_key: env.API_KEY,
+      tos_accepted_version: tosVersion,
+      tos_accepted_at: new Date().toISOString(),
+    };
   }
 
   const data = await createUnkeyKey(env.UNKEY_ROOT_KEY, env.UNKEY_API_ID, trimmed);
+  const now = new Date().toISOString();
 
   const profile: AgentProfile = {
     agent_id: data.keyId,
     name: trimmed,
-    created_at: new Date().toISOString(),
+    created_at: now,
     profile_origin: "registered",
     skills_discovered: [],
     total_executions: 0,
     total_feedback_given: 0,
     tos_accepted_version: tosVersion,
-    tos_accepted_at: new Date().toISOString(),
+    tos_accepted_at: now,
     activity_dates: [],
   };
   await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));
 
-  return { agent_id: data.keyId, api_key: data.key };
+  return {
+    agent_id: data.keyId,
+    api_key: data.key,
+    tos_accepted_version: tosVersion,
+    tos_accepted_at: now,
+  };
 }
 
 export async function acceptTos(env: Env, agentId: string, tosVersion: string): Promise<void> {

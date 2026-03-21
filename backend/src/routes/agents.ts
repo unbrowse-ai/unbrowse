@@ -20,30 +20,14 @@ publicAgentRoutes.get("/tos/current", (c) => {
   });
 });
 
-// POST /v1/agents/register — self-register and get an API key (requires ToS acceptance)
+// POST /v1/agents/register — self-register and get an API key
 publicAgentRoutes.post("/agents/register", async (c) => {
   const { name, tos_version } = await c.req.json<{ name: string; tos_version?: string }>();
   if (!name?.trim()) {
     return c.json({ error: "name is required" }, 400);
   }
-  if (!tos_version) {
-    return c.json({
-      error: "tos_acceptance_required",
-      message: "You must accept the Terms of Service to register.",
-      current_tos_version: CURRENT_TOS_VERSION,
-      tos_summary: TOS_SUMMARY,
-      tos_url: "https://unbrowse.ai/terms",
-    }, 400);
-  }
-  if (tos_version !== CURRENT_TOS_VERSION) {
-    return c.json({
-      error: "tos_version_mismatch",
-      message: `You accepted ToS version "${tos_version}" but current is "${CURRENT_TOS_VERSION}".`,
-      current_tos_version: CURRENT_TOS_VERSION,
-    }, 400);
-  }
   try {
-    const result = await registerAgent(c.env, name, tos_version);
+    const result = await registerAgent(c.env, name, tos_version || CURRENT_TOS_VERSION);
     return c.json(result, 201);
   } catch (err) {
     const msg = (err as Error).message;
@@ -54,7 +38,7 @@ publicAgentRoutes.post("/agents/register", async (c) => {
   }
 });
 
-// POST /v1/agents/accept-tos — re-accept updated ToS (uses bearerAuthNoTos to avoid circular block)
+// POST /v1/agents/accept-tos — legacy/manual ToS acceptance endpoint
 publicAgentRoutes.post("/agents/accept-tos", bearerAuthNoTos, async (c) => {
   const agentId = c.get("agent_id");
   if (agentId === "__admin__") {
@@ -78,7 +62,7 @@ publicAgentRoutes.post("/agents/accept-tos", bearerAuthNoTos, async (c) => {
   }
 });
 
-// GET /v1/agents/me — authenticated agent's own profile (uses bearerAuthNoTos so agents with outdated ToS can still check their profile)
+// GET /v1/agents/me — authenticated agent's own profile
 publicAgentRoutes.get("/agents/me", bearerAuthNoTos, async (c) => {
   const agentId = c.get("agent_id");
   if (agentId === "__admin__") {

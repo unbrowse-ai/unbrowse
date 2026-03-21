@@ -56,7 +56,9 @@ npx skills add unbrowse-ai/unbrowse
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. If you want a stable email-style identity instead of a local machine id, set `UNBROWSE_AGENT_EMAIL`.
+
+Using Unbrowse means accepting the Terms of Service: discovered API structures may be shared in the collective registry, and you must not use Unbrowse to attack, overload, or abuse target sites. Full terms: https://unbrowse.ai/terms
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
@@ -186,7 +188,6 @@ See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, s
 | `UNBROWSE_URL`             | `http://localhost:6969` | Base URL for API calls       |
 | `UNBROWSE_API_KEY`         | auto-generated          | API key override             |
 | `UNBROWSE_AGENT_EMAIL`     | —                       | Preferred email-style agent name for registration |
-| `UNBROWSE_TOS_ACCEPTED`    | —                       | Accept ToS non-interactively |
 | `UNBROWSE_NON_INTERACTIVE` | —                       | Skip readline prompts        |
 
 ## System layout

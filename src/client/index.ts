@@ -198,25 +198,12 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
     throw new Error(`API error ${res.status} from ${path}`);
   }
 
-  // Handle ToS update required — tell user to restart
-  if (res.status === 403 && (data as Record<string, unknown>).error === "tos_update_required") {
-    console.warn("\n[unbrowse] The Terms of Service have been updated.");
-    console.warn("[unbrowse] Please restart the unbrowse service to accept the new terms.");
-    throw new Error("ToS update required. Restart unbrowse to accept new terms.");
-  }
-
   if (!res.ok) {
     const errData = data as { error?: string; details?: string[] };
     const msg = errData.details?.length ? `${errData.error}: ${errData.details.join("; ")}` : errData.error ?? `API HTTP ${res.status}`;
     throw new Error(msg);
   }
   return data;
-}
-
-// --- ToS acceptance ---
-
-function logTosNotice(tosUrl: string): void {
-  console.log(`[unbrowse] By using Unbrowse you accept the Terms of Service: ${tosUrl}`);
 }
 
 async function promptAgentEmail(defaultName: string): Promise<string> {
@@ -247,34 +234,6 @@ async function promptAgentEmail(defaultName: string): Promise<string> {
   }
 }
 
-async function checkTosStatus(): Promise<void> {
-  const config = loadConfig();
-
-  let tosInfo: { version: string; summary: string; url: string };
-  try {
-    tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
-  } catch {
-    return;
-  }
-
-  if (config?.tos_accepted_version === tosInfo.version) {
-    return;
-  }
-
-  // Auto-accept: usage = acceptance. Log notice and record it.
-  logTosNotice(tosInfo.url);
-  try {
-    await api("POST", "/v1/agents/accept-tos", { tos_version: tosInfo.version });
-    if (config) {
-      config.tos_accepted_version = tosInfo.version;
-      config.tos_accepted_at = new Date().toISOString();
-      saveConfig(config);
-    }
-  } catch (err) {
-    console.warn(`Failed to record ToS acceptance: ${(err as Error).message}`);
-  }
-}
-
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
@@ -283,31 +242,22 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
     if (usableKey.source === "config") {
       console.log("[unbrowse] Restored saved registration.");
     }
-    await checkTosStatus();
     return;
   }
 
-  // Fetch current ToS version from backend
-  let tosInfo: { version: string; summary: string; url: string };
-  try {
-    tosInfo = await api<{ version: string; summary: string; url: string }>("GET", "/v1/tos/current");
-  } catch {
-    console.warn("[unbrowse] Cannot reach unbrowse API. Registration requires internet access.");
-    console.warn("[unbrowse] Set UNBROWSE_API_KEY manually or try again when online.");
-    return;
-  }
-
-  // Usage = acceptance — log notice, no interactive prompt
-  logTosNotice(tosInfo.url);
-
-  // Register with ToS version
+  // Register a user-facing agent identity for this machine/profile.
   const fallbackName = buildDefaultAgentName();
   const name = options?.promptForEmail ? await promptAgentEmail(fallbackName) : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
   console.log(`Registering as "${name}"...`);
 
   try {
-    const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
+    const { agent_id, api_key, tos_accepted_version, tos_accepted_at } = await api<{
+      agent_id: string;
+      api_key: string;
+      tos_accepted_version?: string | null;
+      tos_accepted_at?: string | null;
+    }>(
+      "POST", "/v1/agents/register", { name }
     );
 
     process.env.UNBROWSE_API_KEY = api_key;
@@ -316,8 +266,8 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
       agent_id,
       agent_name: name,
       registered_at: new Date().toISOString(),
-      tos_accepted_version: tosInfo.version,
-      tos_accepted_at: new Date().toISOString(),
+      tos_accepted_version: tos_accepted_version ?? null,
+      tos_accepted_at: tos_accepted_at ?? null,
     });
 
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);

@@ -159,7 +159,6 @@ beforeAll(async () => {
     env: {
       ...process.env,
       UNBROWSE_NON_INTERACTIVE: "1",
-      UNBROWSE_TOS_ACCEPTED: "1",
     },
     stdout: "ignore",
     stderr: "pipe",
