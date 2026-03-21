@@ -98,5 +98,3 @@ jobs:
           bun install --frozen-lockfile
           bun test ./evals/resolve-execute.test.ts
         name: Run resolve-execute eval
-          bun test evals/resolve-execute.test.ts
-        name: Run resolve-execute eval
