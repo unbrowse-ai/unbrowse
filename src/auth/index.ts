@@ -38,95 +38,43 @@ export async function interactiveLogin(
   domain?: string,
 ): Promise<LoginResult> {
   const targetDomain = domain ?? new URL(url).hostname;
-  const profileDir = getProfilePath(targetDomain);
 
   log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}`);
 
-  try {
-    fs.mkdirSync(profileDir, { recursive: true });
+  // Open URL in the user's default browser (visible, not headless)
+  const { exec } = await import("node:child_process");
+  const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+  exec(`${openCmd} ${JSON.stringify(url)}`);
+  log("auth", `opened ${url} in default browser via ${openCmd}`);
 
-    // Start Kuri and get a tab
-    await kuri.start();
-    const tabId = await kuri.getDefaultTab();
-    await kuri.networkEnable(tabId);
+  // Poll extractBrowserAuth until cookies appear or timeout
+  const startTime = Date.now();
+  while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-    // Navigate to login URL
-    await kuri.navigate(tabId, url);
-
-    const startTime = Date.now();
-
-    // Snapshot initial cookies
-    const initialCookies = await kuri.getCookies(tabId);
-    const initialCookieCount = initialCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
-    log("auth", `initial cookies for ${targetDomain}: ${initialCookieCount}`);
-
-    // Wait for user to complete login — detect via cookie changes + URL change
-    let loggedIn = false;
-    let lastLoggedUrl = "";
-    while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-      const elapsed = Date.now() - startTime;
-
-      try {
-        const currentUrl = await kuri.getCurrentUrl(tabId);
-        const currentDomain = new URL(currentUrl).hostname.toLowerCase();
-        const targetNorm = targetDomain.toLowerCase();
-
-        if (currentUrl !== lastLoggedUrl) {
-          log("auth", `navigated to: ${currentUrl}`);
-          lastLoggedUrl = currentUrl;
-        }
-
-        if (elapsed < MIN_WAIT_MS) continue;
-
-        const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
-        if (isOnTarget) {
-          const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/.test(new URL(currentUrl).pathname);
-
-          const currentCookies = await kuri.getCookies(tabId);
-          const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
-          const gotNewCookies = currentCookieCount > initialCookieCount;
-
-          if (!isStillLogin && gotNewCookies) {
-            loggedIn = true;
-            log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount})`);
-            break;
-          }
-
-          if (!isStillLogin && currentCookieCount > 0) {
-            loggedIn = true;
-            log("auth", `already logged in — ${currentUrl} (${currentCookieCount} cookies present)`);
-            break;
-          }
-        }
-      } catch { /* page navigating */ }
+    try {
+      const result = await extractBrowserAuth(targetDomain);
+      if (result.success && result.cookies_stored > 0) {
+        log("auth", `login detected — ${result.cookies_stored} cookies captured for ${targetDomain}`);
+        return result;
+      }
+    } catch (err) {
+      log("auth", `poll error: ${err instanceof Error ? err.message : err}`);
     }
 
-    if (!loggedIn) {
-      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — capturing cookies anyway`);
+    // Log progress every 10s
+    const elapsed = Date.now() - startTime;
+    if (elapsed % 10_000 < POLL_INTERVAL_MS) {
+      log("auth", `waiting for login... ${Math.round(elapsed / 1000)}s elapsed`);
     }
-
-    // Extract and store cookies
-    const cookies = await kuri.getCookies(tabId);
-    const domainCookies = cookies.filter((c) => isDomainMatch(c.domain, targetDomain));
-
-    if (domainCookies.length === 0) {
-      return { success: false, domain: targetDomain, cookies_stored: 0, error: "No cookies captured for domain" };
-    }
-
-    const storableCookies = domainCookies.map((c) => ({
-      name: c.name, value: c.value, domain: c.domain, path: c.path,
-      secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, expires: c.expires,
-    }));
-
-    const vaultKey = `auth:${getRegistrableDomain(targetDomain)}`;
-    await storeCredential(vaultKey, JSON.stringify({ cookies: storableCookies }));
-    log("auth", `stored ${storableCookies.length} cookies under ${vaultKey}`);
-
-    return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
-  } finally {
-    // Cleanup handled by Kuri's tab management
   }
+
+  return {
+    success: false,
+    domain: targetDomain,
+    cookies_stored: 0,
+    error: `Login timed out after ${LOGIN_TIMEOUT_MS / 1000}s — no cookies detected in browser`,
+  };
 }
 
 /**
