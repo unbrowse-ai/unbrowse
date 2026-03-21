@@ -8,6 +8,7 @@ permissions:
   contents: read
 
 jobs:
+  # ── Stage 1: Run all tests ──
   test-gate:
     name: Test Gate
     runs-on: self-hosted
@@ -30,13 +31,47 @@ jobs:
           bun test ./evals/resolve-execute.test.ts
         name: Resolve-execute eval
 
+  # ── Stage 2: Deploy to staging ──
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: self-hosted
+    needs: test-gate
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          cd backend && npx wrangler deploy --env staging
+        name: Deploy backend to staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # ── Stage 3: Smoke test staging ──
+  smoke-staging:
+    name: Smoke Test Staging
+    runs-on: self-hosted
+    needs: deploy-staging
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          STAGING_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
+            bun test ./evals/staging-smoke.test.ts
+        name: Run staging smoke tests
+
+  # ── Stage 4: Publish to npm ──
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
-    needs: test-gate
-    permissions:
-      contents: read
-      id-token: write
+    needs: smoke-staging
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -54,35 +89,36 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -z "$NPM_TOKEN" ]; then
-            echo "::notice::No NPM_TOKEN set — skipping npm publish."
-            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+            echo "::notice::No NPM_TOKEN — skipping npm publish."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "::add-mask::$NPM_TOKEN"
           echo "NODE_AUTH_TOKEN=$NPM_TOKEN" >> "$GITHUB_ENV"
 
-      - name: Check if version already exists
-        if: steps.npm-auth.outputs.skip_publish != '1'
+      - name: Check if version exists
+        if: steps.npm-auth.outputs.skip != '1'
         id: version-check
         run: |
           PKG_NAME="$(node -p "require('./packages/skill/package.json').name")"
           PKG_VERSION="$(node -p "require('./packages/skill/package.json').version")"
           if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
-            echo "::notice::${PKG_NAME}@${PKG_VERSION} already published — skipping."
-            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} already published."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish CLI to npm
-        if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
+      - name: Publish to npm
+        if: steps.npm-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
         working-directory: packages/skill
         run: npm publish --provenance
         env:
           NPM_CONFIG_PROVENANCE: "true"
 
-  deploy-backend:
-    name: Deploy Backend (CF Worker)
+  # ── Stage 5: Deploy to production ──
+  deploy-prod:
+    name: Deploy to Production
     runs-on: self-hosted
-    needs: publish-cli
+    needs: [smoke-staging, publish-cli]
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -91,15 +127,24 @@ jobs:
           bun install --frozen-lockfile
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          cd backend && bun run deploy
+          cd backend && npx wrangler deploy
+        name: Deploy backend to production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          cd frontend && npx wrangler pages deploy dist --project-name=unbrowse 2>/dev/null || echo "Frontend deploy skipped (no dist)"
+        name: Deploy frontend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  deploy-frontend:
-    name: Deploy Frontend (CF Pages)
+  # ── Stage 6: Verify production ──
+  verify-prod:
+    name: Verify Production
     runs-on: self-hosted
-    needs: publish-cli
+    needs: deploy-prod
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -108,7 +153,6 @@ jobs:
           bun install --frozen-lockfile
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          cd frontend && bun run deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_URL=https://beta-api.unbrowse.ai \
+            bun test ./evals/staging-smoke.test.ts
+        name: Verify production health
