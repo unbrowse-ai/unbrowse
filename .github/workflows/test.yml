@@ -81,7 +81,9 @@ jobs:
           export PATH="$HOME/.bun/bin:$PATH"
           bun scripts/sync-skill-md.ts --check
         name: Check SKILL.md sync
-      - run: npm pack --dry-run
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          npm pack --dry-run
         name: Validate npm package
         working-directory: packages/skill
 
@@ -94,7 +96,7 @@ jobs:
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
-      - run: |
-          export PATH="$HOME/.bun/bin:$PATH"
+          bun test ./evals/resolve-execute.test.ts
+        name: Run resolve-execute eval
           bun test evals/resolve-execute.test.ts
         name: Run resolve-execute eval
