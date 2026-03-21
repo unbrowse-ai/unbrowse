@@ -12,6 +12,7 @@
 
 - scope backend bearer auth to write-only skill/stats routers again so unauthenticated `/v1/tos/current` and `/v1/agents/register` work during first-run CLI setup and API key auto-registration
 - auto-accept ToS on registration and authenticated use, remove the extra CLI ToS handshake, and move the legal notice into the skill/package docs instead of runtime setup prompts
+- track the bundled Windows Kuri binary in git so clean CI/npm package validation uses the vendored runtime instead of trying to rebuild Kuri with Zig during `npm pack`
 - bundle Windows Kuri binaries in the npm CLI package, fix Windows eval artifact paths, and gate npm publish on a Windows packaged-CLI smoke install
 - propagate execute context (`url` and `intent`) through the MCP and framework adapters so browser-capture-backed skills replay correctly
 - treat JSON error payloads from the CLI as real adapter failures in MCP and plugin wrappers
