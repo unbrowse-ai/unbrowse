@@ -4,6 +4,7 @@ import { config as loadEnv } from "dotenv";
 import { dirname, join, resolve } from "path";
 import { readFileSync, writeFileSync } from "fs";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { getAuthCookies } from "../src/auth/index.js";
 import { startUnbrowseServer, type RunningUnbrowseServer } from "../src/server.js";
 import {
@@ -17,11 +18,14 @@ import {
 } from "./codex-harness-lib.js";
 import { resolveEvalJudgeMode, reviewEvalPayload } from "./codex-eval-review.js";
 
-loadEnv({ quiet: true });
-loadEnv({ path: join(dirname(new URL(import.meta.url).pathname), "..", ".env.runtime"), override: false, quiet: true });
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
-const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-const EVALS_DIR = dirname(new URL(import.meta.url).pathname);
+loadEnv({ quiet: true });
+loadEnv({ path: join(MODULE_DIR, "..", ".env.runtime"), override: false, quiet: true });
+process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME ??= "0";
+
+const ROOT = join(MODULE_DIR, "..");
+const EVALS_DIR = MODULE_DIR;
 const DEFAULT_RESULTS_PATH = join(EVALS_DIR, "codex-freeform-last-run.json");
 const BASE_URL = process.env.UNBROWSE_URL ?? "http://localhost:6969";
 const BASE_PORT = (() => {
@@ -76,13 +80,13 @@ const argv = process.argv.slice(
 );
 const args = new Set(argv);
 const getArg = (flag: string) => argv.find((_, i) => argv[i - 1] === `--${flag}`) ?? "";
-const hasFlag = (flag: string) => args.has(`--${flag}`);
-const forceCapture = hasFlag("--force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
+const hasFlag = (flag: string) => args.has(flag) || args.has(flag.startsWith("--") ? flag : `--${flag}`);
+const forceCapture = hasFlag("force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
 const ownsDefaultLocalServer =
   !process.env.UNBROWSE_URL &&
   (BASE_HOST === "127.0.0.1" || BASE_HOST === "localhost") &&
   BASE_PORT === 6969;
-const restartServer = hasFlag("--restart-server") || ownsDefaultLocalServer;
+const restartServer = hasFlag("restart-server") || ownsDefaultLocalServer;
 const maxReviewCandidates = Math.max(1, Number(getArg("max-candidates") || "3") || 3);
 const maxSteps = Math.max(1, Number(getArg("max-steps") || "4") || 4);
 const resultsPath = resolve(getArg("out") || DEFAULT_RESULTS_PATH);

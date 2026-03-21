@@ -22,6 +22,82 @@ npm install -g unbrowse
 unbrowse setup
 ```
 
+## Pick your stack
+
+These install paths were tested in clean temp consumers, then run against a live public `resolve` flow.
+
+### MCP clients
+
+Best for Claude Code, Cursor, Cline, Windsurf, and Claude Desktop.
+
+```bash
+npm install -g unbrowse@latest
+unbrowse health
+claude mcp add unbrowse -- unbrowse mcp
+```
+
+Generic MCP config:
+
+```json
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "unbrowse",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### OpenClaw
+
+Hard default browser replacement in strict mode.
+
+```bash
+npm install -g unbrowse@latest
+openclaw plugins install unbrowse-openclaw
+openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
+openclaw gateway restart
+openclaw unbrowse-plugin health
+```
+
+### ElizaOS
+
+Default-first plugin path.
+
+```bash
+npm install @unbrowse/plugin-elizaos unbrowse
+```
+
+Add `@unbrowse/plugin-elizaos` to your character plugins. Remove `@elizaos/plugin-browser` if you want full replacement.
+
+### Hermes
+
+Default-first plugin path.
+
+```bash
+npm install -g unbrowse@latest
+pip install unbrowse-hermes
+```
+
+### LangChain
+
+Toolkit path.
+
+```bash
+pip install unbrowse-langchain
+```
+
+### Vercel AI SDK
+
+Toolkit path.
+
+```bash
+npm install @unbrowse/vercel-ai-sdk unbrowse ai zod
+```
+
 If your agent host uses skills:
 
 ```bash
@@ -56,10 +132,23 @@ Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host t
 For monorepo development, initialize submodules after cloning:
 
 ```bash
-git submodule update --init --recursive
+bun run submodules:init
 ```
 
-This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](https://github.com/justrach/kuri.git). `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
+This syncs and initializes the tracked Kuri submodule:
+
+- `submodules/kuri` from [justrach/kuri](https://github.com/justrach/kuri.git)
+
+`npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
+
+For OpenClaw plugin work from this monorepo:
+
+```bash
+bun run test:openclaw-plugin
+bun run typecheck:openclaw-plugin
+```
+
+OpenClaw now lives in-repo at `integrations/openclaw/`, alongside the other framework integrations.
 
 ## What setup does
 

@@ -76,6 +76,34 @@ describe("rankEndpoints semantic intent adjustment", () => {
     expect(ranked[ranked.length - 1]?.endpoint.endpoint_id).toBe("mailbox");
   });
 
+  test("prefers inferred public api over page artifact for module timetable intents", () => {
+    const ranked = rankEndpoints([
+      {
+        endpoint_id: "page-artifact",
+        method: "GET",
+        url_template: "https://nusmods.com/",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.95,
+        description: "Captured page artifact for retrieve module and timetable information",
+        trigger_url: "https://nusmods.com/",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.95 },
+      } as any,
+      {
+        endpoint_id: "module-list",
+        method: "GET",
+        url_template: "https://api.nusmods.com/v2/2025-2026/moduleList.json",
+        idempotency: "safe",
+        verification_status: "pending",
+        reliability_score: 0.45,
+        description: "Inferred from HTML fetch preload for module list",
+        trigger_url: "https://nusmods.com/",
+      } as any,
+    ], "retrieve module and timetable information", "nusmods.com", "https://nusmods.com/");
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("module-list");
+  });
+
   test("prefers direct profile api over page artifact and sidebar recommendations for user profile", () => {
     const ranked = rankEndpoints([
       {

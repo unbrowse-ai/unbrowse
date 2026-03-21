@@ -4,6 +4,7 @@ import { config as loadEnv } from "dotenv";
 import { dirname, join, resolve } from "path";
 import { readFileSync, writeFileSync } from "fs";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { assessIntentResult } from "../src/intent-match.js";
 import { getAuthCookies } from "../src/auth/index.js";
 import { buildAgentExecuteCliArgs, compactForArtifact, deriveEndpointSignals, fallbackEndpointOrder, normalizeHarnessCases, type DeferredEndpoint, type HarnessCase, type ReviewQueueCandidate } from "./codex-harness-lib.js";
@@ -11,11 +12,14 @@ import { buildLocalHarnessFixtures } from "../src/graph/local-fixtures.js";
 import { evaluateDependencyWalks, evaluateLocalHarness, type DependencyWalkCase } from "../src/graph/local-harness.js";
 import { startUnbrowseServer, type RunningUnbrowseServer } from "../src/server.js";
 
-loadEnv({ quiet: true });
-loadEnv({ path: join(dirname(new URL(import.meta.url).pathname), "..", ".env.runtime"), override: false, quiet: true });
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
-const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-const EVALS_DIR = dirname(new URL(import.meta.url).pathname);
+loadEnv({ quiet: true });
+loadEnv({ path: join(MODULE_DIR, "..", ".env.runtime"), override: false, quiet: true });
+process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME ??= "0";
+
+const ROOT = join(MODULE_DIR, "..");
+const EVALS_DIR = MODULE_DIR;
 const DEFAULT_RESULTS_PATH = join(EVALS_DIR, "codex-harness-last-run.json");
 const BASE_URL = process.env.UNBROWSE_URL ?? "http://localhost:6969";
 const BASE_PORT = (() => {
@@ -127,9 +131,9 @@ const argv = process.argv.slice(
 );
 const args = new Set(argv);
 const getArg = (flag: string) => argv.find((_, i) => argv[i - 1] === `--${flag}`) ?? "";
-const hasFlag = (flag: string) => args.has(`--${flag}`);
-const forceCapture = hasFlag("--force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
-const restartServer = hasFlag("--restart-server");
+const hasFlag = (flag: string) => args.has(flag) || args.has(flag.startsWith("--") ? flag : `--${flag}`);
+const forceCapture = hasFlag("force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
+const restartServer = hasFlag("restart-server");
 const maxReviewCandidates = Math.max(1, Number(getArg("max-candidates") || getArg("max-attempts") || "3") || 3);
 const resultsPath = resolve(getArg("out") || DEFAULT_RESULTS_PATH);
 const debugHarness = process.env.UNBROWSE_EVAL_DEBUG === "1";

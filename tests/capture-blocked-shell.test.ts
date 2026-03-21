@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { hasUsefulCapturedResponses, isBlockedAppShell } from "../src/capture/index.js";
+import { blockedAppShellErrorCode, hasUsefulCapturedResponses, isBlockedAppShell } from "../src/capture/index.js";
 
 describe("isBlockedAppShell", () => {
   it("detects x blocked shell markers", () => {
@@ -63,6 +63,20 @@ describe("isBlockedAppShell", () => {
     ], "https://discord.com/channels/@me", "list my discord servers")).toBe(true);
   });
 
+  it("ignores linkedin realtime and allowlist noise for feed intents", () => {
+    expect(hasUsefulCapturedResponses([
+      "https://platform.linkedin.com/litms/allowlist/voyager-web-feed",
+      "https://www.linkedin.com/realtime/realtimeFrontendSubscriptions?ids=List(...)",
+      "https://www.linkedin.com/realtime/realtimeFrontendTimestamp",
+    ], "https://www.linkedin.com/feed/", "get linkedin feed posts")).toBe(false);
+  });
+
+  it("treats linkedin main feed graphql as a useful feed capture", () => {
+    expect(hasUsefulCapturedResponses([
+      "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.923020905727c01516495a0ac90bb475",
+    ], "https://www.linkedin.com/feed/", "get linkedin feed posts")).toBe(true);
+  });
+
   it("allows sparse blocked-shell retries but not rich captures", () => {
     const sparseUrls = [
       "https://x.com/i/api/graphql/xF6sXnKJfS2AOylzxRjf6A/DataSaverMode?variables=...",
@@ -82,5 +96,19 @@ describe("isBlockedAppShell", () => {
     ];
     expect(sparseUrls.length).toBeLessThan(10);
     expect(richUrls.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe("blockedAppShellErrorCode", () => {
+  it("escalates to auth_required when no auth is present", () => {
+    expect(blockedAppShellErrorCode("<html><h1>JavaScript is not available.</h1></html>", false)).toBe("auth_required");
+  });
+
+  it("downgrades to blocked_app_shell when auth is present but shell stays blocked", () => {
+    expect(blockedAppShellErrorCode("<html><h1>JavaScript is not available.</h1></html>", true)).toBe("blocked_app_shell");
+  });
+
+  it("keeps cloudflare shells as auth_required even with auth", () => {
+    expect(blockedAppShellErrorCode("<html><title>Attention Required! | Cloudflare</title></html>", true)).toBe("auth_required");
   });
 });

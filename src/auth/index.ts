@@ -26,6 +26,12 @@ export interface LoginResult {
   error?: string;
 }
 
+export interface StoredAuthBundle {
+  cookies: AuthCookie[];
+  headers: Record<string, string>;
+  source_keys: string[];
+}
+
 /**
  * Open a visible browser for the user to complete login.
  * Uses Kuri to manage the browser tab, polls for login completion via cookies.
@@ -130,6 +136,15 @@ type AuthCookie = {
   expires?: number;
 };
 
+function getStoredAuthKeys(domain: string): string[] {
+  const regDomain = getRegistrableDomain(domain);
+  const keys = [`${regDomain}-session`];
+  if (domain !== regDomain) keys.push(`${domain}-session`);
+  keys.push(`auth:${regDomain}`);
+  if (domain !== regDomain) keys.push(`auth:${domain}`);
+  return keys;
+}
+
 /** Filter out expired cookies. Session cookies (expires <= 0) are kept. */
 function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
   const now = Math.floor(Date.now() / 1000);
@@ -139,6 +154,65 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
   });
 }
 
+function mergeCookies(target: AuthCookie[], incoming: AuthCookie[]): void {
+  const seen = new Set(
+    target.map((cookie) => `${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`),
+  );
+  for (const cookie of incoming) {
+    const key = `${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    target.push(cookie);
+  }
+}
+
+export async function getStoredAuthBundle(
+  domain: string
+): Promise<StoredAuthBundle | null> {
+  const cookies: AuthCookie[] = [];
+  const headers: Record<string, string> = {};
+  const source_keys: string[] = [];
+
+  for (const key of getStoredAuthKeys(domain)) {
+    const stored = await getCredential(key);
+    if (!stored) continue;
+    try {
+      const parsed = JSON.parse(stored) as {
+        cookies?: AuthCookie[];
+        headers?: Record<string, string>;
+      };
+      const rawCookies = parsed.cookies ?? [];
+      const validCookies = filterExpired(rawCookies);
+      const parsedHeaders = parsed.headers ?? {};
+      if (rawCookies.length > 0 && validCookies.length === 0 && Object.keys(parsedHeaders).length === 0) {
+        log("auth", `all ${rawCookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
+        await deleteCredential(key);
+        continue;
+      }
+      if (validCookies.length < rawCookies.length) {
+        log("auth", `filtered ${rawCookies.length - validCookies.length} expired cookies for ${domain}`);
+      }
+      mergeCookies(cookies, validCookies);
+      for (const [header, value] of Object.entries(parsedHeaders)) {
+        if (headers[header] == null) headers[header] = value;
+      }
+      if ((validCookies.length > 0 || Object.keys(parsedHeaders).length > 0) && !source_keys.includes(key)) {
+        source_keys.push(key);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (cookies.length === 0 && Object.keys(headers).length === 0) return null;
+  return { cookies, headers, source_keys };
+}
+
+export async function findStoredAuthReference(domain: string): Promise<string | null> {
+  const bundle = await getStoredAuthBundle(domain);
+  return bundle?.source_keys[0] ?? null;
+}
+
 /**
  * Retrieve stored auth cookies for a domain from the vault.
  * Filters out expired cookies automatically.
@@ -146,33 +220,7 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
 export async function getStoredAuth(
   domain: string
 ): Promise<AuthCookie[] | null> {
-  const regDomain = getRegistrableDomain(domain);
-  const keysToTry = [`auth:${regDomain}`];
-  if (domain !== regDomain) keysToTry.push(`auth:${domain}`);
-
-  for (const key of keysToTry) {
-    const stored = await getCredential(key);
-    if (!stored) continue;
-    try {
-      const parsed = JSON.parse(stored) as { cookies?: AuthCookie[] };
-      const cookies = parsed.cookies;
-      if (!cookies || cookies.length === 0) continue;
-
-      const valid = filterExpired(cookies);
-      if (valid.length === 0) {
-        log("auth", `all ${cookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
-        await deleteCredential(key);
-        continue;
-      }
-      if (valid.length < cookies.length) {
-        log("auth", `filtered ${cookies.length - valid.length} expired cookies for ${domain}`);
-      }
-      return valid;
-    } catch {
-      continue;
-    }
-  }
-  return null;
+  return (await getStoredAuthBundle(domain))?.cookies ?? null;
 }
 
 /**
@@ -183,10 +231,13 @@ export async function getStoredAuth(
  *   2. Auto-extract from Chrome/Firefox SQLite (bird pattern — always fresh)
  */
 export async function getAuthCookies(
-  domain: string
+  domain: string,
+  opts?: { autoExtract?: boolean }
 ): Promise<AuthCookie[] | null> {
   const vaultCookies = await getStoredAuth(domain);
   if (vaultCookies && vaultCookies.length > 0) return vaultCookies;
+
+  if (opts?.autoExtract === false) return null;
 
   log("auth", `no vault cookies for ${domain} — auto-extracting from browser`);
   try {

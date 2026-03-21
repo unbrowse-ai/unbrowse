@@ -550,6 +550,12 @@ const ON_DOMAIN_NOISE = /\/(recaptcha|captcha|update-recaptcha|csrf|consent|data
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
   let score = 0;
+  let pathname = "";
+  try {
+    pathname = new URL(req.url).pathname;
+  } catch {
+    pathname = "";
+  }
   // GET is preferred — safe, idempotent, more useful for data retrieval
   if (req.method === "GET") score += 2;
   if (RPC_HINTS.test(req.url)) score += 3;
@@ -564,14 +570,15 @@ function scoreRequest(req: RawRequest): number {
   if (ct.includes("x-protobuf") || ct.includes("json+protobuf")) score += 0;
   // Penalise long URLs — but only the path, not query params (GraphQL endpoints
   // have long variables/features query strings that inflate the URL length)
-  try { if (new URL(req.url).pathname.length > 200) score -= 5; } catch { if (req.url.length > 500) score -= 5; }
+  if (pathname.length > 200) score -= 5;
+  else if (req.url.length > 500) score -= 5;
   // Penalise telemetry paths even if they passed the host filter
-  if (SKIP_TELEMETRY_PATHS.test(new URL(req.url).pathname)) score -= 8;
+  if (pathname && SKIP_TELEMETRY_PATHS.test(pathname)) score -= 8;
   // Penalise Next.js RSC navigation requests — framework wire format, not data
   if (req.url.includes("_rsc=")) score -= 3;
   if (ct.includes("text/x-component")) score -= 10; // RSC wire format
   // Penalise on-domain noise (framework plumbing, recaptcha, consent, ad bids)
-  try { if (ON_DOMAIN_NOISE.test(new URL(req.url).pathname)) score -= 15; } catch {}
+  if (pathname && ON_DOMAIN_NOISE.test(pathname)) score -= 15;
   // Reward rich JSON responses (data endpoints have deep objects, noise has shallow)
   if (req.response_body) {
     try {

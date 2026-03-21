@@ -30,6 +30,13 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+## Whitepaper
+
+The official Unbrowse whitepaper is [`Internal APIs Are All You Need`](./docs/whitepaper/README.md).
+
+- Read the overview: [`docs/whitepaper/README.md`](./docs/whitepaper/README.md)
+- Download the canonical PDF: [`docs/whitepaper/unbrowse-whitepaper.pdf`](./docs/whitepaper/unbrowse-whitepaper.pdf)
+
 ## Upgrading
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.

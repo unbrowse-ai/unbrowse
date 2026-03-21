@@ -1,90 +1,136 @@
-# @unbrowse/mcp-server
+# Unbrowse MCP Server
 
-MCP (Model Context Protocol) server for [unbrowse](https://unbrowse.ai) — reverse-engineer any website into reusable API skills.
-
-Works with any MCP-compatible client: Claude Desktop, Cursor, Windsurf, Cline, and others.
-
-## Prerequisites
-
-Install the unbrowse CLI globally:
-
-```bash
-npm install -g unbrowse
-```
+Built into the `unbrowse` CLI. No separate package needed.
 
 ## Setup
 
-### Claude Desktop
+### 1. Install unbrowse
 
-Add to your `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`):
+```bash
+npm install -g unbrowse
+unbrowse health   # verify it works
+```
+
+### 2. Add to your MCP client
+
+The MCP server starts with `unbrowse mcp`. Point your client at it:
+
+#### Claude Desktop
+
+Open Settings > Developer > Edit Config. Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "unbrowse": {
-      "command": "npx",
-      "args": ["-y", "@unbrowse/mcp-server"]
+      "command": "unbrowse",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-Or if installed locally:
+Restart Claude Desktop. You'll see unbrowse tools in the hammer icon.
+
+#### Claude Code
+
+```bash
+claude mcp add unbrowse -- unbrowse mcp
+```
+
+Or add to `.mcp.json` in your project:
 
 ```json
 {
   "mcpServers": {
     "unbrowse": {
-      "command": "node",
-      "args": ["/path/to/integrations/mcp/dist/index.js"]
+      "command": "unbrowse",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-### Cursor
+#### Cursor
 
-Add to `.cursor/mcp.json` in your project:
+Open Settings > MCP > Add new MCP server:
+- Name: `unbrowse`
+- Type: `command`
+- Command: `unbrowse mcp`
+
+Or add to `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "unbrowse": {
-      "command": "npx",
-      "args": ["-y", "@unbrowse/mcp-server"]
+      "command": "unbrowse",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-### Windsurf / Cline
+#### Windsurf
 
-Same pattern — point the MCP server config to `npx -y @unbrowse/mcp-server`.
+Add to `~/.codeium/windsurf/mcp_config.json`:
 
-## Environment Variables
+```json
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "unbrowse",
+      "args": ["mcp"]
+    }
+  }
+}
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `UNBROWSE_BIN` | `unbrowse` | Path to the unbrowse CLI binary |
-| `UNBROWSE_TIMEOUT_MS` | `120000` | Command timeout in milliseconds |
+#### Cline (VS Code)
+
+Open Cline sidebar > MCP Servers > Configure:
+
+```json
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "unbrowse",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### 3. Try it
+
+Ask your agent: *"Get me the top stories from Hacker News"*
+
+It will call `unbrowse_resolve` and return structured JSON — titles, links, scores, authors — instead of raw HTML.
+
+## What Happens
+
+| | Without unbrowse | With unbrowse |
+|---|---|---|
+| Agent asks for web data | Opens browser, navigates, scrapes HTML | Calls `unbrowse_resolve`, gets structured JSON |
+| Response format | Raw text, agent must parse | Clean JSON with extracted fields |
+| First request | 5-30s | 5-15s (discovers API, caches as skill) |
+| Repeat requests | Same speed every time | 300ms-1s (cached skill) |
+| Auth sites | Manual cookie injection | `unbrowse_login` captures session |
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
-| `unbrowse_resolve` | Reverse-engineer a website URL into API endpoints |
-| `unbrowse_search` | Search the marketplace for existing skills |
-| `unbrowse_execute` | Execute a skill endpoint with parameters |
-| `unbrowse_login` | Open browser for website authentication |
-| `unbrowse_skills` | List locally cached skills |
-| `unbrowse_skill` | Get details of a specific skill |
-| `unbrowse_health` | Check CLI installation and health |
+| `unbrowse_resolve` | Give a URL + intent, get structured data back |
+| `unbrowse_search` | Find pre-built skills in the marketplace |
+| `unbrowse_execute` | Re-run a cached skill endpoint (sub-second) |
+| `unbrowse_login` | Authenticate so future requests include cookies |
+| `unbrowse_skills` | List cached skills |
+| `unbrowse_skill` | Inspect a skill's endpoints |
+| `unbrowse_health` | Verify the CLI is working |
 
-## Development
+## Environment Variables
 
-```bash
-cd integrations/mcp
-bun install
-bun run build
-bun test
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `UNBROWSE_TIMEOUT_MS` | `120000` | Command timeout in milliseconds |

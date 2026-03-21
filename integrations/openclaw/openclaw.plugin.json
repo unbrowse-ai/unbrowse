@@ -1,0 +1,81 @@
+{
+  "id": "unbrowse-openclaw",
+  "name": "Unbrowse Browser",
+  "description": "Prefer Unbrowse CLI over pixel browser automation for website tasks",
+  "skills": ["./skills"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "description": "Optional UNBROWSE_URL override passed to the child process"
+      },
+      "routingMode": {
+        "type": "string",
+        "enum": ["strict", "fallback"],
+        "default": "strict",
+        "description": "strict = steer agents away from core browser, fallback = prefer Unbrowse first but permit browser fallback"
+      },
+      "binPath": {
+        "type": "string",
+        "description": "Optional path to bin/unbrowse.js when not resolved from node_modules"
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 300000,
+        "default": 120000,
+        "description": "Max time to wait for a Unbrowse CLI invocation"
+      },
+      "preferInBootstrap": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inject bootstrap and per-run guidance telling agents to prefer the Unbrowse browser path for web work"
+      },
+      "allowBrowserFallback": {
+        "type": "boolean",
+        "default": true,
+        "description": "Allow fallback to OpenClaw's built-in `browser` tool when Unbrowse is not a fit"
+      },
+      "healthcheckOnStart": {
+        "type": "boolean",
+        "default": true,
+        "description": "Run `unbrowse health` asynchronously when the plugin service starts"
+      },
+      "logStderr": {
+        "type": "boolean",
+        "default": false,
+        "description": "Include stderr from successful Unbrowse runs in the tool result details"
+      }
+    }
+  },
+  "uiHints": {
+    "baseUrl": {
+      "label": "Unbrowse Base URL",
+      "placeholder": "http://localhost:6969"
+    },
+    "routingMode": {
+      "label": "Routing Mode"
+    },
+    "binPath": {
+      "label": "Custom Unbrowse Bin Path",
+      "placeholder": "/path/to/node_modules/unbrowse/bin/unbrowse.js"
+    },
+    "timeoutMs": {
+      "label": "Command Timeout (ms)"
+    },
+    "preferInBootstrap": {
+      "label": "Prefer In Bootstrap"
+    },
+    "allowBrowserFallback": {
+      "label": "Allow Browser Fallback"
+    },
+    "healthcheckOnStart": {
+      "label": "Healthcheck On Start"
+    },
+    "logStderr": {
+      "label": "Include Successful stderr"
+    }
+  }
+}
