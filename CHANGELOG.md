@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.5...v2.0.6) (2026-03-21)
+
+### Bug Fixes
+
+* stealth patches, origin pre-nav, discover after newTab, kuri evaluate double-escape ([cde0d93](https://github.com/unbrowse-ai/unbrowse-dev/commit/cde0d93db0a6c3e8d83613f0e83b9e031666754c))
+
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
 ### Features
