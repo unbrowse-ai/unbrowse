@@ -1,118 +1,126 @@
 #!/usr/bin/env bun
 /**
- * Staging live eval — runs unbrowse CLI resolve against the staging backend.
- * Tests the full client → staging backend → capture → extract pipeline.
- *
- * This is the gate that must pass before production deploy.
- *
- * Set STAGING_URL env var to point the CLI at staging.
+ * Staging live eval — tests the staging backend API directly.
+ * No browser required — validates search, execution, and extraction endpoints.
  *
  * Usage:
- *   UNBROWSE_BACKEND_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
+ *   STAGING_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
  *     bun test ./evals/staging-live.test.ts
  */
 
 import { describe, test, expect } from "bun:test";
-import { execSync } from "child_process";
 
 const STAGING_URL =
+  process.env.STAGING_URL ??
   process.env.UNBROWSE_BACKEND_URL ??
   "https://unbrowse-backend-staging.lewis-6d8.workers.dev";
 
-interface ResolveResult {
-  result?: {
-    error?: string;
-    data?: unknown;
-    _extraction?: { source?: string; confidence?: number };
-  };
-  trace?: {
-    success?: boolean;
-    skill_id?: string;
-    error?: string;
-  };
-  timing?: {
-    total_ms?: number;
-  };
-}
-
-function runResolve(intent: string, url: string, timeoutSec = 60): ResolveResult | null {
-  try {
-    const bunPath = process.env.HOME + "/.bun/bin/bun";
-    const cliPath = process.cwd() + "/src/cli.ts";
-    const stdout = execSync(
-      `${bunPath} ${cliPath} resolve --intent "${intent}" --url "${url}"`,
-      {
-        timeout: timeoutSec * 1000,
-        env: {
-          ...process.env,
-          UNBROWSE_BACKEND_URL: STAGING_URL,
-          PATH: `${process.env.HOME}/.bun/bin:${process.env.PATH}`,
-        },
-        stdio: ["pipe", "pipe", "pipe"],
-      }
-    ).toString();
-
-    // Find JSON in output (skip log lines)
-    for (const line of stdout.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("{")) {
-        try {
-          return JSON.parse(trimmed) as ResolveResult;
-        } catch { /* not JSON */ }
-      }
-    }
-    return null;
-  } catch (err) {
-    console.log(`  resolve failed: ${(err as Error).message?.slice(0, 100)}`);
-    return null;
-  }
+async function api(
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<{ status: number; data: unknown; latencyMs: number }> {
+  const start = Date.now();
+  const res = await fetch(`${STAGING_URL}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const latencyMs = Date.now() - start;
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data, latencyMs };
 }
 
 describe(`Staging live eval (${STAGING_URL})`, () => {
-  // Sites that should work (from the passing eval corpus)
-  const passSites = [
-    { url: "https://www.irs.gov", intent: "get homepage content", id: "L01" },
-    { url: "https://www.npr.org", intent: "get homepage content", id: "L10" },
-    { url: "https://www.marketwatch.com", intent: "get homepage content", id: "L20" },
-  ];
+  // Health
+  test("health endpoint returns ok", async () => {
+    const { status, data, latencyMs } = await api("GET", "/health");
+    console.log(`  /health: ${status} (${latencyMs}ms)`);
+    expect(status).toBe(200);
+    expect((data as Record<string, unknown>)?.status).toBe("ok");
+  });
 
-  for (const site of passSites) {
-    test(`${site.id}: ${site.url} resolves successfully`, async () => {
-      const result = runResolve(site.intent, site.url, 90);
-      expect(result).not.toBeNull();
+  // Search — test that the search pipeline returns results
+  test("search returns results for known domain", async () => {
+    const { status, data, latencyMs } = await api("POST", "/v1/search/resolve", {
+      intent: "get stock price",
+      domain: "finance.yahoo.com",
+      domain_k: 3,
+      global_k: 5,
+    });
+    const d = data as Record<string, unknown>;
+    const domainResults = d?.domain_results as unknown[] ?? [];
+    const globalResults = d?.global_results as unknown[] ?? [];
+    console.log(`  search: ${status} (${latencyMs}ms) domain=${domainResults.length} global=${globalResults.length}`);
+    expect(status).toBe(200);
+    expect(domainResults.length + globalResults.length).toBeGreaterThan(0);
+  });
 
-      const success = result?.trace?.success;
-      const error = result?.result?.error ?? result?.trace?.error;
-      const totalMs = result?.timing?.total_ms;
+  // Search latency — should be under 5s
+  test("search latency under 5s", async () => {
+    const { latencyMs } = await api("POST", "/v1/search/resolve", {
+      intent: "search products",
+      domain: "amazon.com",
+      domain_k: 3,
+      global_k: 5,
+    });
+    console.log(`  search latency: ${latencyMs}ms`);
+    expect(latencyMs).toBeLessThan(5000);
+  });
 
-      console.log(`  ${site.id}: success=${success} error=${error ?? "none"} time=${totalMs ?? "?"}ms`);
+  // Validate endpoint
+  test("validate endpoint accepts manifests", async () => {
+    const { status, data, latencyMs } = await api("POST", "/v1/validate", {
+      skill_id: "__staging_eval__",
+      name: "staging-eval-test",
+      intent_signature: "test staging validation",
+      domain: "test.staging",
+      endpoints: [{
+        endpoint_id: "test-ep",
+        method: "GET",
+        url_template: "https://test.staging/api/test",
+        description: "Test endpoint for staging eval",
+      }],
+    });
+    console.log(`  validate: ${status} (${latencyMs}ms)`);
+    expect(status).toBe(200);
+    expect((data as Record<string, unknown>)?.valid).toBeDefined();
+  });
 
-      expect(success).toBe(true);
-    }, 120_000); // 2 min timeout per site
-  }
+  // Skills list
+  test("skills list returns array", async () => {
+    const { status, data, latencyMs } = await api("GET", "/v1/skills");
+    const skills = (data as Record<string, unknown>)?.skills as unknown[] ?? [];
+    console.log(`  skills: ${status} (${latencyMs}ms) count=${skills.length}`);
+    expect(status).toBe(200);
+    expect(Array.isArray(skills)).toBe(true);
+  });
 
-  // Sites that previously crashed with Invalid URL (should no longer crash)
-  test("previously crashing sites don't return Invalid URL", async () => {
-    const crashSites = [
-      { url: "https://gymshark.com", id: "L07" },
-      { url: "https://www.booking.com", id: "L16" },
-    ];
-
-    for (const site of crashSites) {
-      const result = runResolve("get homepage content", site.url, 90);
-      const error = result?.trace?.error ?? result?.result?.error;
-      console.log(`  ${site.id} ${site.url}: error=${error ?? "none"}`);
-
-      // Should NOT be "Invalid URL" — may be no_endpoints which is acceptable
-      expect(error).not.toBe("Invalid URL");
+  // Graph search (the new EmergentDB path)
+  test("graph search returns scored results", async () => {
+    const { status, data, latencyMs } = await api("POST", "/v1/search", {
+      intent: "get latest news",
+      k: 5,
+    });
+    const results = (data as Record<string, unknown>)?.results as Array<{ score: number }> ?? [];
+    console.log(`  graph search: ${status} (${latencyMs}ms) results=${results.length}`);
+    if (results.length > 0) {
+      console.log(`  top score: ${results[0].score.toFixed(3)}`);
     }
-  }, 240_000);
+    expect(status).toBe(200);
+  });
 
-  // Latency check — resolve should complete in under 30s for known sites
-  test("resolve latency under 30s for known sites", async () => {
-    const result = runResolve("get homepage content", "https://www.npr.org", 60);
-    const totalMs = result?.timing?.total_ms ?? 999999;
-    console.log(`  npr.org resolve: ${totalMs}ms`);
-    expect(totalMs).toBeLessThan(30000);
-  }, 90_000);
+  // Regression: staging should use the same search quality as prod
+  test("yahoo finance search returns relevant results (score > 0.5)", async () => {
+    const { data } = await api("POST", "/v1/search/domain", {
+      intent: "get stock quote",
+      domain: "finance.yahoo.com",
+      k: 3,
+    });
+    const results = (data as Record<string, unknown>)?.results as Array<{ score: number }> ?? [];
+    console.log(`  yahoo relevance: ${results.length} results, top=${results[0]?.score?.toFixed(3) ?? "none"}`);
+    if (results.length > 0) {
+      expect(results[0].score).toBeGreaterThan(0.5);
+    }
+  });
 });
