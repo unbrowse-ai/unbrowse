@@ -14,7 +14,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs",
+    "prepack": "node scripts/check-skill-md.mjs && node scripts/prepare-pack.mjs",
     "prepublishOnly": "node scripts/assert-release-flow.mjs",
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts"
