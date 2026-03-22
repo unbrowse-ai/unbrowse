@@ -1,5 +1,7 @@
 # Changelog
 
+## [2.0.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.12...v2.0.13) (2026-03-22)
+
 ## [2.0.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.11...v2.0.12) (2026-03-22)
 
 ### Bug Fixes
