@@ -21,7 +21,7 @@ Do not bump or publish only from `packages/skill/`.
 - explicit local CLI publish path lives at repo root:
   - `bun run pack:cli`
   - `bun run publish:cli`
-- local `bun run publish:cli` intentionally skips `--provenance`; provenance stays on the GitHub Actions release workflow, where npm supports automatic attestations.
+- local `bun run publish:cli` intentionally skips `--provenance`; the GitHub Actions release workflow also skips provenance on this self-hosted runner pool because npm rejects attestations outside supported hosted environments.
 - canonical path is still `bun run release`, which keeps `package.json`, `packages/skill/package.json`, and `version.json` in sync before the tag-triggered workflow publishes the CLI.
 - `release-it` is configured with `npm.ignoreVersion=true` because `@release-it/bumper` already owns the version bump across all three files. That avoids the duplicate `npm version` pass that can otherwise fail with `Version not changed`.
 
