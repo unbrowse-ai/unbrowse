@@ -86,13 +86,22 @@ for (const [name, def] of Object.entries(TOOL_DEFINITIONS)) {
         }
 
         if (!result.ok || hasErrorPayload(parsed)) {
-          const payloadError = parsed && typeof parsed === "object"
-            ? (
-                typeof (parsed as Record<string, unknown>).error === "string"
-                  ? (parsed as Record<string, unknown>).error
-                  : ((parsed as Record<string, unknown>).result as Record<string, unknown> | undefined)?.error
-              )
-            : null;
+          let payloadError: string | null = null;
+          if (parsed && typeof parsed === "object") {
+            const payload = parsed as Record<string, unknown>;
+            if (typeof payload.error === "string") {
+              payloadError = payload.error;
+            } else {
+              const resultPayload = payload.result;
+              if (
+                resultPayload &&
+                typeof resultPayload === "object" &&
+                typeof (resultPayload as Record<string, unknown>).error === "string"
+              ) {
+                payloadError = (resultPayload as Record<string, unknown>).error as string;
+              }
+            }
+          }
           const rawErrorText = payloadError || result.stderr?.trim() || result.stdout?.trim() || `Exit code ${result.exitCode}`;
           const errorText = improveErrorText(rawErrorText, toolName);
           return {
