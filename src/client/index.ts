@@ -316,6 +316,31 @@ async function checkTosStatus(): Promise<void> {
   }
 }
 
+async function registerAndPersist(
+  name: string,
+  tosVersion?: string | null,
+): Promise<void> {
+  const result = await api<{
+    agent_id: string;
+    api_key: string;
+    tos_accepted_version?: string;
+    tos_accepted_at?: string;
+  }>("POST", "/v1/agents/register", {
+    name,
+    ...(tosVersion ? { tos_version: tosVersion } : {}),
+  });
+
+  process.env.UNBROWSE_API_KEY = result.api_key;
+  saveConfig({
+    api_key: result.api_key,
+    agent_id: result.agent_id,
+    agent_name: name,
+    registered_at: new Date().toISOString(),
+    tos_accepted_version: result.tos_accepted_version ?? tosVersion ?? null,
+    tos_accepted_at: result.tos_accepted_at ?? new Date().toISOString(),
+  });
+}
+
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
@@ -326,6 +351,24 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
     }
     await checkTosStatus();
     return;
+  }
+
+  const existingConfig = loadConfig();
+  if (existingConfig?.tos_accepted_version && process.env.UNBROWSE_TOS_ACCEPTED !== "1") {
+    const fallbackName = buildDefaultAgentName();
+    const name = options?.promptForEmail
+      ? await promptAgentEmail(fallbackName)
+      : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
+    console.log(`Registering as "${name}"...`);
+
+    try {
+      await registerAndPersist(name, existingConfig.tos_accepted_version);
+      console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
+      return;
+    } catch (err) {
+      console.warn(`Registration failed: ${(err as Error).message}`);
+      console.warn("Falling back to live ToS lookup.");
+    }
   }
 
   // Step 1: Fetch current ToS version from backend
@@ -351,20 +394,7 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   console.log(`Registering as "${name}"...`);
 
   try {
-    const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
-    );
-
-    process.env.UNBROWSE_API_KEY = api_key;
-    saveConfig({
-      api_key,
-      agent_id,
-      agent_name: name,
-      registered_at: new Date().toISOString(),
-      tos_accepted_version: tosInfo.version,
-      tos_accepted_at: new Date().toISOString(),
-    });
-
+    await registerAndPersist(name, tosInfo.version);
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);

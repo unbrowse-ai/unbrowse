@@ -1,0 +1,64 @@
+{
+  "name": "unbrowse-openclaw",
+  "version": "2.0.15",
+  "description": "OpenClaw plugin that makes Unbrowse the preferred tool for website tasks.",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "author": "Lewis <https://github.com/lekt9>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unbrowse-ai/unbrowse.git",
+    "directory": "integrations/openclaw"
+  },
+  "homepage": "https://github.com/unbrowse-ai/unbrowse/tree/main/integrations/openclaw#readme",
+  "bugs": {
+    "url": "https://github.com/unbrowse-ai/unbrowse/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "unbrowse",
+    "browser",
+    "agent"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.41",
+    "unbrowse": "^2.0.5"
+  },
+  "peerDependencies": {
+    "openclaw": "^2026.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.1",
+    "openclaw": "^2026.3.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "files": [
+    "index.ts",
+    "openclaw.plugin.json",
+    "README.md",
+    "CHANGELOG.md",
+    "prompts",
+    "skills",
+    "examples",
+    "tsconfig.json"
+  ]
+}

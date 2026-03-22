@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { nanoid } from "nanoid";
 import { BrowserManager } from "agent-browser/dist/browser.js";
 import { getAuthCookies, getProfilePath } from "../src/auth/index.js";
@@ -26,11 +27,14 @@ import {
   type WorkflowStepPhase,
 } from "./codex-auth-runner-lib.js";
 
-loadEnv({ quiet: true });
-loadEnv({ path: join(dirname(new URL(import.meta.url).pathname), "..", ".env.runtime"), override: false, quiet: true });
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
-const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-const EVALS_DIR = dirname(new URL(import.meta.url).pathname);
+loadEnv({ quiet: true });
+loadEnv({ path: join(MODULE_DIR, "..", ".env.runtime"), override: false, quiet: true });
+process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME ??= "0";
+
+const ROOT = join(MODULE_DIR, "..");
+const EVALS_DIR = MODULE_DIR;
 const DEFAULT_CASES_PATH = join(EVALS_DIR, "codex-cases.auth-popular.json");
 const DEFAULT_RESULTS_PATH = join(EVALS_DIR, "codex-auth-eval-last-run.json");
 const LOCAL_BASE_URL = "http://127.0.0.1:6969";
@@ -502,7 +506,9 @@ async function stopRepoServer(): Promise<void> {
 
 async function ensureRepoServer(): Promise<void> {
   if (localServer) return;
-  if (await isServerUp()) await stopRepoServer();
+  // Reuse an already-healthy server instead of killing whatever currently owns
+  // the local port. The auth runner only needs a healthy API base.
+  if (await isServerUp()) return;
   process.env.UNBROWSE_DISABLE_RATE_LIMIT = "1";
   localServer = await startUnbrowseServer({
     host: LOCAL_HOST,

@@ -121,6 +121,8 @@ export function buildArgs(params: ToolParams): string[] {
         "--endpoint",
         params.endpointId,
       ];
+      pushFlag(args, "url", params.url);
+      pushFlag(args, "intent", params.intent);
       pushFlag(args, "path", params.path);
       pushFlag(args, "extract", params.extract);
       pushFlag(args, "limit", params.limit);
@@ -181,6 +183,17 @@ export function parseMaybeJson(stdout: string): unknown {
   } catch {
     return trimmed;
   }
+}
+
+export function hasErrorPayload(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const rec = value as Record<string, unknown>;
+  if (typeof rec.error === "string" && rec.error.trim()) return true;
+  if (rec.result && typeof rec.result === "object") {
+    const nested = rec.result as Record<string, unknown>;
+    if (typeof nested.error === "string" && nested.error.trim()) return true;
+  }
+  return false;
 }
 
 export async function runCommand(

@@ -1,4 +1,4 @@
-import { openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
@@ -102,6 +102,23 @@ async function stopManagedServer(pid: number, pidFile: string, baseUrl: string):
   clearStalePidFile(pidFile);
 }
 
+function clearStaleStartupLockFile(lockFile: string): void {
+  try {
+    unlinkSync(lockFile);
+  } catch {
+    // ignore
+  }
+}
+
+function isStartupLockStale(lockFile: string): boolean {
+  try {
+    const stats = statSync(lockFile);
+    return Date.now() - stats.mtimeMs > 35_000;
+  } catch {
+    return true;
+  }
+}
+
 function deriveListenEnv(baseUrl: string): Record<string, string> {
   const url = new URL(baseUrl);
   const host = !url.hostname || url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
@@ -111,12 +128,13 @@ function deriveListenEnv(baseUrl: string): Record<string, string> {
 
 export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
   const pidFile = getServerPidFile(baseUrl);
+  const startupLockFile = `${pidFile}.lock`;
   let existing = readPidState(pidFile);
   const health = await getServerHealth(baseUrl);
   if (health.ok) {
     if (health.code_hash === CODE_HASH) return;
 
-    // Only replace stale servers we started/manages via the pid file.
+    // Only replace stale servers we started/manage via the pid file.
     if (existing?.pid && isPidAlive(existing.pid)) {
       await stopManagedServer(existing.pid, pidFile, baseUrl);
       existing = null;
@@ -140,32 +158,63 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
     throw new Error("Server not running and auto-start disabled (--no-auto-start).");
   }
 
-  const entrypoint = resolveSiblingEntrypoint(metaUrl, "index");
-  const packageRoot = getPackageRoot(metaUrl);
-  const logFile = getServerAutostartLogFile();
-  ensureDir(path.dirname(logFile));
-  const logFd = openSync(logFile, "a");
-  const child = spawn(process.execPath, runtimeArgsForEntrypoint(metaUrl, entrypoint), {
-    cwd: packageRoot,
-    detached: true,
-    stdio: ["ignore", logFd, logFd],
-    env: {
-      ...process.env,
-      ...deriveListenEnv(baseUrl),
-      UNBROWSE_NON_INTERACTIVE: process.env.UNBROWSE_NON_INTERACTIVE || "1",
-      ...(process.env.UNBROWSE_TOS_ACCEPTED ? { UNBROWSE_TOS_ACCEPTED: process.env.UNBROWSE_TOS_ACCEPTED } : {}),
-      UNBROWSE_PID_FILE: pidFile,
-    },
-  });
-  child.unref();
+  let startupLockFd: number | null = null;
+  try {
+    startupLockFd = openSync(startupLockFile, "wx");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      if (await waitForHealthy(baseUrl, 30_000)) return;
+      const owner = readPidState(pidFile);
+      const ownerAlive = owner?.pid ? isPidAlive(owner.pid) : false;
+      if (!ownerAlive && isStartupLockStale(startupLockFile)) {
+        clearStalePidFile(pidFile);
+        clearStaleStartupLockFile(startupLockFile);
+        return ensureLocalServer(baseUrl, noAutoStart, metaUrl);
+      }
+      throw new Error(`Server startup already in progress but did not become healthy. Check ${getServerAutostartLogFile()}`);
+    }
+    throw error;
+  }
 
-  writeFileSync(pidFile, JSON.stringify({
-    pid: child.pid!,
-    base_url: baseUrl,
-    started_at: new Date().toISOString(),
-    entrypoint,
-  }, null, 2));
+  try {
+    if (await isServerHealthy(baseUrl)) return;
 
-  if (await waitForHealthy(baseUrl, 30_000)) return;
-  throw new Error(`Server failed to start. Check ${logFile}`);
+    const entrypoint = resolveSiblingEntrypoint(metaUrl, "index");
+    const packageRoot = getPackageRoot(metaUrl);
+    const logFile = getServerAutostartLogFile();
+    ensureDir(path.dirname(logFile));
+    const logFd = openSync(logFile, "a");
+    const child = spawn(process.execPath, runtimeArgsForEntrypoint(metaUrl, entrypoint), {
+      cwd: packageRoot,
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+      env: {
+        ...process.env,
+        ...deriveListenEnv(baseUrl),
+        UNBROWSE_NON_INTERACTIVE: process.env.UNBROWSE_NON_INTERACTIVE || "1",
+        ...(process.env.UNBROWSE_TOS_ACCEPTED ? { UNBROWSE_TOS_ACCEPTED: process.env.UNBROWSE_TOS_ACCEPTED } : {}),
+        UNBROWSE_PID_FILE: pidFile,
+      },
+    });
+    child.unref();
+
+    writeFileSync(pidFile, JSON.stringify({
+      pid: child.pid!,
+      base_url: baseUrl,
+      started_at: new Date().toISOString(),
+      entrypoint,
+    }, null, 2));
+
+    if (await waitForHealthy(baseUrl, 30_000)) return;
+    throw new Error(`Server failed to start. Check ${logFile}`);
+  } finally {
+    if (startupLockFd != null) {
+      closeSync(startupLockFd);
+      try {
+        unlinkSync(startupLockFile);
+      } catch {
+        // ignore
+      }
+    }
+  }
 }

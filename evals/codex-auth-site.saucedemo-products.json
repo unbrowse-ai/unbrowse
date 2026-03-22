@@ -1,13 +1,15 @@
 {
   "summary": {
-    "final_state": "pass",
-    "goal_satisfied": true,
-    "final_reason": "workflow_pass",
-    "total_ms": 43468,
-    "performance_total_ms": 43468,
-    "error_count": 0,
+    "final_state": "fail",
+    "goal_satisfied": false,
+    "final_reason": "step_budget_exceeded:inventory",
+    "total_ms": 56461,
+    "performance_total_ms": 56461,
+    "error_count": 1,
     "failed_step_ids": [],
-    "exceeded_step_budget_ids": [],
+    "exceeded_step_budget_ids": [
+      "inventory"
+    ],
     "exceeded_total_budget": false
   },
   "bootstrap": {
@@ -18,7 +20,7 @@
     "matched_required_cookies": [],
     "login_url": "https://www.saucedemo.com/",
     "success_url": "https://www.saucedemo.com/inventory.html",
-    "elapsed_ms": 1261,
+    "elapsed_ms": 981,
     "used_existing_session": false
   },
   "workflow": {
@@ -37,8 +39,8 @@
           "description"
         ],
         "missing_fields": [],
-        "total_ms": 25794,
-        "performance_total_ms": 25794,
+        "total_ms": 45682,
+        "performance_total_ms": 45682,
         "performance_basis": "raw",
         "rounds": 1
       },
@@ -57,8 +59,8 @@
           "price"
         ],
         "missing_fields": [],
-        "total_ms": 17674,
-        "performance_total_ms": 17674,
+        "total_ms": 10779,
+        "performance_total_ms": 10779,
         "performance_basis": "raw",
         "rounds": 1
       }

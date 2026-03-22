@@ -7,8 +7,8 @@
     "blocked": 0,
     "satisfied": 1,
     "unsatisfied": 0,
-    "max_rounds": 6,
-    "max_candidates": 4,
+    "max_rounds": 1,
+    "max_candidates": 1,
     "max_follow_urls": 3,
     "force_capture": false,
     "benchmark": false,
@@ -45,14 +45,19 @@
           "round": 1,
           "url": "https://www.saucedemo.com/inventory-item.html?id=4",
           "force_capture": false,
-          "resolve_ms": 17674,
-          "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
-          "available_endpoint_ids": [],
+          "resolve_ms": 10779,
+          "skill_id": "ixViJSXwF89lVhIIK1AFx",
+          "available_endpoint_ids": [
+            "lC0cS2HNM7pTYWKrM7dDO"
+          ],
           "dag": {
             "available": true,
-            "reachable": false,
-            "selected_path": [],
-            "reason": "missing_target_operation"
+            "reachable": true,
+            "target_operation_id": "lC0cS2HNM7pTYWKrM7dDO",
+            "selected_path": [
+              "lC0cS2HNM7pTYWKrM7dDO"
+            ],
+            "reason": "dag_path_found"
           },
           "trace_context": {
             "known_bindings": {
@@ -63,13 +68,13 @@
               "id": "4"
             },
             "chunk": {
-              "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+              "skill_id": "ixViJSXwF89lVhIIK1AFx",
               "intent": "get product details",
               "missing_bindings": [],
-              "suggested_next_operation_id": "zxkmIwGU59QU8_TQESGwq",
+              "suggested_next_operation_id": "lC0cS2HNM7pTYWKrM7dDO",
               "available_operations": [
                 {
-                  "operation_id": "zxkmIwGU59QU8_TQESGwq",
+                  "operation_id": "lC0cS2HNM7pTYWKrM7dDO",
                   "method": "GET",
                   "action_kind": "detail",
                   "resource_kind": "product",
@@ -90,6 +95,7 @@
                     },
                     {
                       "title": "Sauce Labs Backpack",
+                      "description": "carry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.",
                       "price": "$29.99"
                     }
                   ]
@@ -97,16 +103,16 @@
               ]
             },
             "skill_snapshot": {
-              "skill_id": "Iy_TIoVe8k-BbhnuMmke5",
+              "skill_id": "ixViJSXwF89lVhIIK1AFx",
               "domain": "www.saucedemo.com",
               "auth_required": true,
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-13T20:35:27.887Z"
+              "updated_at": "2026-03-21T05:54:51.886Z"
             },
             "source": "marketplace",
-            "total_ms": 17649,
+            "total_ms": 10752,
             "tokens_used": 124,
             "tokens_saved": 29876,
             "tokens_saved_pct": 100
@@ -128,7 +134,7 @@
           },
           "candidates": [
             {
-              "endpoint_id": "zxkmIwGU59QU8_TQESGwq",
+              "endpoint_id": "lC0cS2HNM7pTYWKrM7dDO",
               "attempt_count": 0,
               "verdict": "pass",
               "reason": "product_rows",
@@ -150,19 +156,10 @@
               "tokens_saved": 29876,
               "tokens_saved_pct": 100,
               "excerpt": {
-                "data": {
-                  "title": "Sauce Labs Backpack",
-                  "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
-                  "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29.99Add to cart",
-                  "price": "$29.99"
-                },
-                "_extraction": {
-                  "method": "key-value",
-                  "confidence": 0.8,
-                  "source": "rendered-dom",
-                  "final_url": "https://www.saucedemo.com/inventory-item.html?id=4",
-                  "selector": "div.inventory_details"
-                }
+                "title": "Sauce Labs Backpack",
+                "image": "/static/media/sauce-backpack-1200x1500.0a0b85a385945026062b.jpg",
+                "description": "Sauce Labs Backpackcarry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection.$29.99Add to cart",
+                "price": "$29.99"
               }
             }
           ],

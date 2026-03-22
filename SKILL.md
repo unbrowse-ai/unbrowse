@@ -26,7 +26,8 @@ curl -fsSL https://www.unbrowse.ai/install.sh | bash
 Manual path:
 
 ```bash
-npx unbrowse health
+npm install -g unbrowse
+unbrowse health
 ```
 
 Any CLI command now auto-runs first-time registration if no API key exists yet. For headless runs, preseed registration with `UNBROWSE_AGENT_EMAIL=you@example.com`.
@@ -41,7 +42,7 @@ unbrowse health
 If your agent host uses skills, add the Unbrowse skill too:
 
 ```bash
-npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
+npx skills add unbrowse-ai/unbrowse
 ```
 
 ## Server Startup
@@ -50,7 +51,7 @@ npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
 unbrowse health
 ```
 
-If not running, the CLI auto-starts the server. First time requires ToS acceptance — ask the user:
+If not running, the CLI auto-starts the server. First time may require ToS acceptance — ask the user:
 
 > Unbrowse needs you to accept its Terms of Service:
 > - Discovered API structures may be shared in the collective registry
@@ -139,6 +140,7 @@ unbrowse feedback \
 | `skill` | `<id>` | Get skill details |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
+| `mcp` |  | Start MCP server (stdio) for Claude Desktop, Cursor, etc. |
 
 ### Global flags
 

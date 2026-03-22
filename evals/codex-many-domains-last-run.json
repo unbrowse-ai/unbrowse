@@ -1,0 +1,3458 @@
+{
+  "summary": {
+    "total": 14,
+    "pass": 4,
+    "fail": 10,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 4,
+    "unsatisfied": 10,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "openlibrary-search-books",
+      "intent": "search books",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "intent_mismatch",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "author",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://openlibrary.org/search?q=dune"
+        ],
+        "attempted_endpoint_counts": {
+          "3E44ygYVnF0hHDvMkzGr1": 2,
+          "KLTiETzoNdTjYTjVsnyDT": 2,
+          "wokS2RUrZbamzsJo4FTbK": 2
+        },
+        "failure_class_counts": {
+          "intent": 4,
+          "transport": 4
+        },
+        "reasons_seen": [
+          "trigger_timeout",
+          "intent_mismatch",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://openlibrary.org/search?q=dune",
+          "force_capture": false,
+          "resolve_ms": 145961,
+          "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+          "available_endpoint_ids": [
+            "KLTiETzoNdTjYTjVsnyDT",
+            "3E44ygYVnF0hHDvMkzGr1",
+            "wokS2RUrZbamzsJo4FTbK"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "KLTiETzoNdTjYTjVsnyDT",
+            "selected_path": [
+              "KLTiETzoNdTjYTjVsnyDT"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://openlibrary.org/search?q=dune",
+              "domain": "openlibrary.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "dune"
+            },
+            "chunk": {
+              "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+              "intent": "search books",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "KLTiETzoNdTjYTjVsnyDT",
+              "available_operations": [
+                {
+                  "operation_id": "KLTiETzoNdTjYTjVsnyDT",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: data.",
+                  "url_template": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+                  "requires": [
+                    "data"
+                  ],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "data": "{\"param\":{\"q\":\"dune\"},\"path\":\"/search\",\"query\":\"?q=dune\"}"
+                  },
+                  "example_response_compact": {
+                    "sidebar": "Unable to render this page.",
+                    "title": "dune - search",
+                    "activeFacets": ""
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+              "domain": "openlibrary.org",
+              "auth_required": false,
+              "endpoint_count": 3,
+              "operation_count": 3,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T12:37:02.432Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 145928,
+            "tokens_used": 1,
+            "tokens_saved": 29999,
+            "tokens_saved_pct": 100
+          },
+          "resolve_excerpt": {
+            "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/jwbEnneU7ldkQs0-BF_t_/execute with params.endpoint_id.",
+            "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+            "available_operations": [
+              {
+                "operation_id": "KLTiETzoNdTjYTjVsnyDT",
+                "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                "action_kind": "search",
+                "resource_kind": "resource",
+                "description_out": "Searches resources with sidebar, titles, and activefacets",
+                "requires": [
+                  "data"
+                ],
+                "provides": [
+                  "resource_name"
+                ],
+                "runnable": true
+              },
+              {
+                "operation_id": "3E44ygYVnF0hHDvMkzGr1",
+                "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "wokS2RUrZbamzsJo4FTbK",
+                "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                "action_kind": "search",
+                "resource_kind": "resource",
+                "description_out": "Captured page artifact for search books",
+                "requires": [
+                  "q",
+                  "q"
+                ],
+                "provides": [
+                  "resource_url",
+                  "resource_name"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                "method": "GET",
+                "description": "Captured page artifact for search books",
+                "url": "https://openlibrary.org/search?q={q}",
+                "score": 441.1,
+                "schema_summary": {
+                  "link": "string",
+                  "url": "string",
+                  "title": "string",
+                  "image": "string",
+                  "heading_1": "string",
+                  "heading_2": "string",
+                  "heading_3": "string",
+                  "heading_4": "string",
+                  "heading_5": "string",
+                  "heading_6": "string",
+                  "heading_7": "string",
+                  "heading_8": "string"
+                },
+                "dom_extraction": true,
+                "trigger_url": "https://openlibrary.org/search?q=dune"
+              },
+              {
+                "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                "method": "GET",
+                "description": "Searches resources with sidebar, titles, and activefacets",
+                "url": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+                "score": 130.7,
+                "schema_summary": {
+                  "sidebar": "string",
+                  "title": "string",
+                  "activeFacets": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://openlibrary.org/search?q=dune"
+              },
+              {
+                "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                "method": "GET",
+                "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "url": "https://openlibrary.org/check-ins",
+                "score": -222.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://openlibrary.org/search?q=dune"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 3,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 29999,
+              "tokens_saved_pct": 100,
+              "excerpt": {
+                "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/jwbEnneU7ldkQs0-BF_t_/execute with params.endpoint_id.",
+                "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+                "available_operations": [
+                  {
+                    "operation_id": "KLTiETzoNdTjYTjVsnyDT",
+                    "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                    "action_kind": "search",
+                    "resource_kind": "resource",
+                    "description_out": "Searches resources with sidebar, titles, and activefacets",
+                    "requires": [
+                      "data"
+                    ],
+                    "provides": [
+                      "resource_name"
+                    ],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "3E44ygYVnF0hHDvMkzGr1",
+                    "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "wokS2RUrZbamzsJo4FTbK",
+                    "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                    "action_kind": "search",
+                    "resource_kind": "resource",
+                    "description_out": "Captured page artifact for search books",
+                    "requires": [
+                      "q",
+                      "q"
+                    ],
+                    "provides": [
+                      "resource_url",
+                      "resource_name"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                    "method": "GET",
+                    "description": "Captured page artifact for search books",
+                    "url": "https://openlibrary.org/search?q={q}",
+                    "score": 441.1,
+                    "schema_summary": {
+                      "link": "string",
+                      "url": "string",
+                      "title": "string",
+                      "image": "string",
+                      "heading_1": "string",
+                      "heading_2": "string",
+                      "heading_3": "string",
+                      "heading_4": "string",
+                      "heading_5": "string",
+                      "heading_6": "string",
+                      "heading_7": "string",
+                      "heading_8": "string"
+                    },
+                    "dom_extraction": true,
+                    "trigger_url": "https://openlibrary.org/search?q=dune"
+                  },
+                  {
+                    "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                    "method": "GET",
+                    "description": "Searches resources with sidebar, titles, and activefacets",
+                    "url": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+                    "score": 130.7,
+                    "schema_summary": {
+                      "sidebar": "string",
+                      "title": "string",
+                      "activeFacets": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://openlibrary.org/search?q=dune"
+                  },
+                  {
+                    "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "url": "https://openlibrary.org/check-ins",
+                    "score": -222.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://openlibrary.org/search?q=dune"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+              "endpoint_url": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+              "trigger_url": "https://openlibrary.org/search?q=dune",
+              "execute_ms": 56889,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            },
+            {
+              "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+              "endpoint_url": "https://openlibrary.org/check-ins",
+              "trigger_url": "https://openlibrary.org/search?q=dune",
+              "execute_ms": 57580,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            },
+            {
+              "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+              "endpoint_url": "https://openlibrary.org/search?q={q}",
+              "trigger_url": "https://openlibrary.org/search?q=dune",
+              "execute_ms": 54297,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "intent_mismatch",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "intent_mismatch",
+                "message": "Execution result did not satisfy intent \"search books\": html_payload",
+                "projected": "<html><head><meta name=\"color-scheme\" content=\"light dark\"><meta charset=\"utf-8\"></head><body><pre>{\"status\": 429, \"message\": \"Too Many Requests. Consider using https://openlibrary.org/developers/dumps.\"}</pre><div class=\"json-formatter-container\"></div></body></html>"
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://openlibrary.org/search?q=dune"
+            ],
+            "attempted_endpoint_counts": {
+              "3E44ygYVnF0hHDvMkzGr1": 1,
+              "KLTiETzoNdTjYTjVsnyDT": 1,
+              "wokS2RUrZbamzsJo4FTbK": 1
+            },
+            "failure_class_counts": {
+              "intent": 2,
+              "transport": 2
+            },
+            "reasons_seen": [
+              "trigger_timeout",
+              "intent_mismatch",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://openlibrary.org/search?q=dune",
+          "force_capture": true,
+          "resolve_ms": 169912,
+          "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+          "available_endpoint_ids": [
+            "KLTiETzoNdTjYTjVsnyDT",
+            "3E44ygYVnF0hHDvMkzGr1",
+            "wokS2RUrZbamzsJo4FTbK"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "KLTiETzoNdTjYTjVsnyDT",
+            "selected_path": [
+              "KLTiETzoNdTjYTjVsnyDT"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://openlibrary.org/search?q=dune",
+              "domain": "openlibrary.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "dune"
+            },
+            "chunk": {
+              "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+              "intent": "search books",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "KLTiETzoNdTjYTjVsnyDT",
+              "available_operations": [
+                {
+                  "operation_id": "KLTiETzoNdTjYTjVsnyDT",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: data.",
+                  "url_template": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+                  "requires": [
+                    "data"
+                  ],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "data": "{\"param\":{\"q\":\"dune\"},\"path\":\"/search\",\"query\":\"?q=dune\"}"
+                  },
+                  "example_response_compact": {
+                    "sidebar": "Unable to render this page.",
+                    "title": "dune - search",
+                    "activeFacets": ""
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+              "domain": "openlibrary.org",
+              "auth_required": false,
+              "endpoint_count": 3,
+              "operation_count": 3,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T13:15:14.710Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 169877,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/jwbEnneU7ldkQs0-BF_t_/execute with params.endpoint_id.",
+            "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+            "available_operations": [
+              {
+                "operation_id": "KLTiETzoNdTjYTjVsnyDT",
+                "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                "action_kind": "search",
+                "resource_kind": "resource",
+                "description_out": "Searches resources with sidebar, titles, and activefacets",
+                "requires": [
+                  "data"
+                ],
+                "provides": [
+                  "resource_name"
+                ],
+                "runnable": true
+              },
+              {
+                "operation_id": "3E44ygYVnF0hHDvMkzGr1",
+                "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              },
+              {
+                "operation_id": "wokS2RUrZbamzsJo4FTbK",
+                "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                "action_kind": "search",
+                "resource_kind": "resource",
+                "description_out": "Captured page artifact for search books",
+                "requires": [
+                  "q",
+                  "q"
+                ],
+                "provides": [
+                  "resource_url",
+                  "resource_name"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                "method": "GET",
+                "description": "Captured page artifact for search books",
+                "url": "https://openlibrary.org/search?q={q}",
+                "score": 445.6,
+                "schema_summary": {
+                  "link": "string",
+                  "url": "string",
+                  "title": "string",
+                  "image": "string",
+                  "heading_1": "string",
+                  "heading_2": "string",
+                  "heading_3": "string",
+                  "heading_4": "string",
+                  "heading_5": "string",
+                  "heading_6": "string",
+                  "heading_7": "string",
+                  "heading_8": "string"
+                },
+                "dom_extraction": true,
+                "trigger_url": "https://openlibrary.org/search?q=dune"
+              },
+              {
+                "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                "method": "GET",
+                "description": "Searches resources with sidebar, titles, and activefacets",
+                "url": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+                "score": 130.7,
+                "schema_summary": {
+                  "sidebar": "string",
+                  "title": "string",
+                  "activeFacets": "string"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://openlibrary.org/search?q=dune"
+              },
+              {
+                "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                "method": "GET",
+                "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "url": "https://openlibrary.org/check-ins",
+                "score": -222.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://openlibrary.org/search?q=dune"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 3,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 3 endpoint(s). Pick one and call POST /v1/skills/jwbEnneU7ldkQs0-BF_t_/execute with params.endpoint_id.",
+                "skill_id": "jwbEnneU7ldkQs0-BF_t_",
+                "available_operations": [
+                  {
+                    "operation_id": "KLTiETzoNdTjYTjVsnyDT",
+                    "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                    "action_kind": "search",
+                    "resource_kind": "resource",
+                    "description_out": "Searches resources with sidebar, titles, and activefacets",
+                    "requires": [
+                      "data"
+                    ],
+                    "provides": [
+                      "resource_name"
+                    ],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "3E44ygYVnF0hHDvMkzGr1",
+                    "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "wokS2RUrZbamzsJo4FTbK",
+                    "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                    "action_kind": "search",
+                    "resource_kind": "resource",
+                    "description_out": "Captured page artifact for search books",
+                    "requires": [
+                      "q",
+                      "q"
+                    ],
+                    "provides": [
+                      "resource_url",
+                      "resource_name"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+                    "method": "GET",
+                    "description": "Captured page artifact for search books",
+                    "url": "https://openlibrary.org/search?q={q}",
+                    "score": 445.6,
+                    "schema_summary": {
+                      "link": "string",
+                      "url": "string",
+                      "title": "string",
+                      "image": "string",
+                      "heading_1": "string",
+                      "heading_2": "string",
+                      "heading_3": "string",
+                      "heading_4": "string",
+                      "heading_5": "string",
+                      "heading_6": "string",
+                      "heading_7": "string",
+                      "heading_8": "string"
+                    },
+                    "dom_extraction": true,
+                    "trigger_url": "https://openlibrary.org/search?q=dune"
+                  },
+                  {
+                    "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+                    "method": "GET",
+                    "description": "Searches resources with sidebar, titles, and activefacets",
+                    "url": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+                    "score": 130.7,
+                    "schema_summary": {
+                      "sidebar": "string",
+                      "title": "string",
+                      "activeFacets": "string"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://openlibrary.org/search?q=dune"
+                  },
+                  {
+                    "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "url": "https://openlibrary.org/check-ins",
+                    "score": -222.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://openlibrary.org/search?q=dune"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "KLTiETzoNdTjYTjVsnyDT",
+              "endpoint_url": "https://openlibrary.org/partials/SearchFacets.json?data={data}",
+              "trigger_url": "https://openlibrary.org/search?q=dune",
+              "execute_ms": 19564,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            },
+            {
+              "endpoint_id": "3E44ygYVnF0hHDvMkzGr1",
+              "endpoint_url": "https://openlibrary.org/check-ins",
+              "trigger_url": "https://openlibrary.org/search?q=dune",
+              "execute_ms": 18032,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            },
+            {
+              "endpoint_id": "wokS2RUrZbamzsJo4FTbK",
+              "endpoint_url": "https://openlibrary.org/search?q={q}",
+              "trigger_url": "https://openlibrary.org/search?q=dune",
+              "execute_ms": 14057,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "intent_mismatch",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "intent_mismatch",
+                "message": "Execution result did not satisfy intent \"search books\": empty_text",
+                "projected": ""
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://openlibrary.org/search?q=dune"
+            ],
+            "attempted_endpoint_counts": {
+              "3E44ygYVnF0hHDvMkzGr1": 2,
+              "KLTiETzoNdTjYTjVsnyDT": 2,
+              "wokS2RUrZbamzsJo4FTbK": 2
+            },
+            "failure_class_counts": {
+              "intent": 4,
+              "transport": 4
+            },
+            "reasons_seen": [
+              "trigger_timeout",
+              "intent_mismatch",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pubmed-search-papers",
+      "intent": "search papers",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "paper_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning",
+          "force_capture": false,
+          "resolve_ms": 1850,
+          "skill_id": "6pT1wKXr6Ymhj24u-vLhd",
+          "available_endpoint_ids": [
+            "pvm1lbDHySW96shh8-EYF"
+          ],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning",
+              "domain": "pubmed.ncbi.nlm.nih.gov",
+              "pathname": "/",
+              "term": "machine learning"
+            },
+            "chunk": {
+              "skill_id": "6pT1wKXr6Ymhj24u-vLhd",
+              "intent": "search papers",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "pvm1lbDHySW96shh8-EYF",
+              "available_operations": [
+                {
+                  "operation_id": "pvm1lbDHySW96shh8-EYF",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: term.",
+                  "url_template": "https://pubmed.ncbi.nlm.nih.gov/?term={term}",
+                  "requires": [
+                    "term"
+                  ],
+                  "yields": [
+                    "resource_name",
+                    "resource_url",
+                    "author",
+                    "owner"
+                  ],
+                  "example_request": {
+                    "term": "machine learning"
+                  },
+                  "example_response_compact": [
+                    {
+                      "title": "eDoctor: machine learning and the future of medicine.",
+                      "link": "/30102808/",
+                      "url": "/30102808/",
+                      "description": "Machine learning (ML) is a burgeoning field of medicine with huge resources being applied to fuse computer science and statistics to medical problems. ...\n  ...",
+                      "author": "Handelman GS, Kok HK, Chandra RV, Razavi AH, Lee MJ, Asadi H.",
+                      "citation": "Cite"
+                    },
+                    {
+                      "title": "Supervised Machine Learning: A Brief Primer.",
+                      "link": "/32800297/",
+                      "url": "/32800297/",
+                      "description": "Machine learning offers new tools to overcome challenges for which traditional statistical methods are not well-suited. This paper provides an overview of ma...",
+                      "author": "Jiang T, Gradus JL, Rosellini AJ.",
+                      "citation": "Cite"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "6pT1wKXr6Ymhj24u-vLhd",
+              "domain": "nih.gov",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T12:38:19.553Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 1813,
+            "tokens_used": 1538,
+            "tokens_saved": 28462,
+            "tokens_saved_pct": 95
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "eDoctor: machine learning and the future of medicine.",
+                "link": "/30102808/",
+                "url": "/30102808/",
+                "description": "Machine learning (ML) is a burgeoning field of medicine with huge resources being applied to fuse computer science and statistics to medical problems. ...\n            \n            \n              Machine learning (ML) is a burgeoning field of medicine with huge resources being app...",
+                "author": "Handelman GS, Kok HK, Chandra RV, Razavi AH, Lee MJ, Asadi H.",
+                "citation": "Cite"
+              },
+              {
+                "title": "Supervised Machine Learning: A Brief Primer.",
+                "link": "/32800297/",
+                "url": "/32800297/",
+                "description": "Machine learning offers new tools to overcome challenges for which traditional statistical methods are not well-suited. This paper provides an overview of machine learning with a specific focus on supervised learning (i.e., methods that are desi …\n            \n            \n      ...",
+                "author": "Jiang T, Gradus JL, Rosellini AJ.",
+                "citation": "Cite"
+              },
+              {
+                "title": "Machine-learning methods for ligand-protein molecular docking.",
+                "link": "/34560276/",
+                "url": "/34560276/",
+                "description": "In this review, we provide an overview of ligand-protein molecular docking and how machine learning (ML), especially deep learning (DL), a subset of ML, is transforming the field by tackling the associated challenges....\n            \n            \n              In this review, we ...",
+                "author": "Crampon K, Giorkallos A, Deldossi M, Baud S, Steffenel LA.",
+                "citation": "Cite"
+              },
+              {
+                "title": "Machine learning for cardiology.",
+                "link": "/34338485/",
+                "url": "/34338485/",
+                "description": "We specifically focus on the principal Machine learning based risk scores used in cardiovascular research. After introducing them and summarizing their assumptions and biases, we discuss their merits and shortcomings. We report on how frequently they are adopted in …\n            ...",
+                "author": "Arfat Y, Mittone G, Esposito R, Cantalupo B, DE Ferrari GM, Aldinucci M.",
+                "citation": "Cite"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning",
+              "selector": "article.full-docsum"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "pvm1lbDHySW96shh8-EYF",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "paper_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 10,
+              "observed_entity_types": [
+                "paper"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1538,
+              "tokens_saved": 28462,
+              "tokens_saved_pct": 95,
+              "excerpt": [
+                {
+                  "title": "eDoctor: machine learning and the future of medicine.",
+                  "link": "/30102808/",
+                  "url": "/30102808/",
+                  "description": "Machine learning (ML) is a burgeoning field of medicine with huge resources being applied to fuse computer science and statistics to medical problems. ...\n            \n            \n              Machine learning (ML) is a burgeoning field of medicine with huge resources being app...",
+                  "author": "Handelman GS, Kok HK, Chandra RV, Razavi AH, Lee MJ, Asadi H.",
+                  "citation": "Cite"
+                },
+                {
+                  "title": "Supervised Machine Learning: A Brief Primer.",
+                  "link": "/32800297/",
+                  "url": "/32800297/",
+                  "description": "Machine learning offers new tools to overcome challenges for which traditional statistical methods are not well-suited. This paper provides an overview of machine learning with a specific focus on supervised learning (i.e., methods that are desi …\n            \n            \n      ...",
+                  "author": "Jiang T, Gradus JL, Rosellini AJ.",
+                  "citation": "Cite"
+                },
+                {
+                  "title": "Machine-learning methods for ligand-protein molecular docking.",
+                  "link": "/34560276/",
+                  "url": "/34560276/",
+                  "description": "In this review, we provide an overview of ligand-protein molecular docking and how machine learning (ML), especially deep learning (DL), a subset of ML, is transforming the field by tackling the associated challenges....\n            \n            \n              In this review, we ...",
+                  "author": "Crampon K, Giorkallos A, Deldossi M, Baud S, Steffenel LA.",
+                  "citation": "Cite"
+                },
+                {
+                  "title": "Machine learning for cardiology.",
+                  "link": "/34338485/",
+                  "url": "/34338485/",
+                  "description": "We specifically focus on the principal Machine learning based risk scores used in cardiovascular research. After introducing them and summarizing their assumptions and biases, we discuss their merits and shortcomings. We report on how frequently they are adopted in …\n            ...",
+                  "author": "Arfat Y, Mittone G, Esposito R, Cantalupo B, DE Ferrari GM, Aldinucci M.",
+                  "citation": "Cite"
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://pubmed.ncbi.nlm.nih.gov/?term=machine+learning"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "arxiv-search-papers",
+      "intent": "search papers",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "paper_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://arxiv.org/search/?query=transformer&searchtype=all"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://arxiv.org/search/?query=transformer&searchtype=all",
+          "force_capture": false,
+          "resolve_ms": 2557,
+          "skill_id": "OkjjQhBFKLurCK1YJ7xJ5",
+          "available_endpoint_ids": [
+            "hAqLE6qOK8ImelQ3X5f0q",
+            "_gRzWrhAxjsIvheZK4Ean",
+            "XQnwDda82tsDkJNgTvOcI"
+          ],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://arxiv.org/search/?query=transformer&searchtype=all",
+              "domain": "arxiv.org",
+              "pathname": "/search/",
+              "slug_1": "search",
+              "query": "transformer",
+              "searchtype": "all"
+            },
+            "chunk": {
+              "skill_id": "OkjjQhBFKLurCK1YJ7xJ5",
+              "intent": "search papers",
+              "missing_bindings": [
+                "source",
+                "abstracts",
+                "order",
+                "size"
+              ],
+              "suggested_next_operation_id": "_gRzWrhAxjsIvheZK4Ean",
+              "available_operations": [
+                {
+                  "operation_id": "_gRzWrhAxjsIvheZK4Ean",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "message",
+                  "title": "search message",
+                  "why_available": "Runnable now; required bindings already known: query, searchtype.",
+                  "url_template": "https://arxiv.org/search/?query={query}&searchtype={searchtype}",
+                  "requires": [
+                    "query",
+                    "searchtype"
+                  ],
+                  "yields": [
+                    "message_name",
+                    "post_name",
+                    "message_url",
+                    "post_url",
+                    "author",
+                    "owner"
+                  ],
+                  "example_request": {
+                    "query": "transformer",
+                    "searchtype": "all"
+                  },
+                  "example_response_compact": [
+                    {
+                      "title": "arXiv:2603.19231\n         [pdf, ps, other]",
+                      "heading_1": "MonoArt: Progressive Structural Reasoning for Monocular Articulated 3D Reconstruction",
+                      "message": "MonoArt: Progressive Structural Reasoning for Monocular Articulated 3D Reconstruction",
+                      "link": "https://arxiv.org/abs/2603.19231",
+                      "url": "https://arxiv.org/abs/2603.19231",
+                      "description": "arXiv:2603.19231\n         [pdf, ps, other]"
+                    },
+                    {
+                      "title": "arXiv:2603.19219\n         [pdf, ps, other]",
+                      "heading_1": "DriveTok: 3D Driving Scene Tokenization for Unified Multi-View Reconstruction and Understanding",
+                      "message": "DriveTok: 3D Driving Scene Tokenization for Unified Multi-View Reconstruction and Understanding",
+                      "link": "https://arxiv.org/abs/2603.19219",
+                      "url": "https://arxiv.org/abs/2603.19219",
+                      "description": "arXiv:2603.19219\n         [pdf, ps, other]"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "OkjjQhBFKLurCK1YJ7xJ5",
+              "domain": "arxiv.org",
+              "auth_required": true,
+              "endpoint_count": 3,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T12:38:34.287Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 2527,
+            "tokens_used": 5567,
+            "tokens_saved": 24433,
+            "tokens_saved_pct": 81
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "arXiv:2603.19231\n         [pdf, ps, other]",
+                "heading_1": "MonoArt: Progressive Structural Reasoning for Monocular Articulated 3D Reconstruction",
+                "message": "MonoArt: Progressive Structural Reasoning for Monocular Articulated 3D Reconstruction",
+                "link": "https://arxiv.org/abs/2603.19231",
+                "url": "https://arxiv.org/abs/2603.19231",
+                "description": "arXiv:2603.19231\n         [pdf, ps, other]"
+              },
+              {
+                "title": "arXiv:2603.19219\n         [pdf, ps, other]",
+                "heading_1": "DriveTok: 3D Driving Scene Tokenization for Unified Multi-View Reconstruction and Understanding",
+                "message": "DriveTok: 3D Driving Scene Tokenization for Unified Multi-View Reconstruction and Understanding",
+                "link": "https://arxiv.org/abs/2603.19219",
+                "url": "https://arxiv.org/abs/2603.19219",
+                "description": "arXiv:2603.19219\n         [pdf, ps, other]"
+              },
+              {
+                "title": "arXiv:2603.19209\n         [pdf, ps, other]",
+                "heading_1": "Do VLMs Need Vision Transformers? Evaluating State Space Models as Vision Encoders",
+                "message": "Do VLMs Need Vision Transformers? Evaluating State Space Models as Vision Encoders",
+                "link": "https://arxiv.org/abs/2603.19209",
+                "url": "https://arxiv.org/abs/2603.19209",
+                "description": "arXiv:2603.19209\n         [pdf, ps, other]",
+                "author": "Authors:\n      \n      Shang-Jui Ray Kuo, \n      \n      Paola Cascante-Bonilla"
+              },
+              {
+                "title": "arXiv:2603.19198\n         [pdf, ps, other]",
+                "heading_1": "The Exponentially Weighted Signature",
+                "message": "The Exponentially Weighted Signature",
+                "link": "https://arxiv.org/abs/2603.19198",
+                "url": "https://arxiv.org/abs/2603.19198",
+                "description": "arXiv:2603.19198\n         [pdf, ps, other]"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://arxiv.org/search/?query=transformer&searchtype=all",
+              "selector": "li.arxiv-result"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "_gRzWrhAxjsIvheZK4Ean",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "paper_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 50,
+              "observed_entity_types": [
+                "paper"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 5567,
+              "tokens_saved": 24433,
+              "tokens_saved_pct": 81,
+              "excerpt": [
+                {
+                  "title": "arXiv:2603.19231\n         [pdf, ps, other]",
+                  "heading_1": "MonoArt: Progressive Structural Reasoning for Monocular Articulated 3D Reconstruction",
+                  "message": "MonoArt: Progressive Structural Reasoning for Monocular Articulated 3D Reconstruction",
+                  "link": "https://arxiv.org/abs/2603.19231",
+                  "url": "https://arxiv.org/abs/2603.19231",
+                  "description": "arXiv:2603.19231\n         [pdf, ps, other]"
+                },
+                {
+                  "title": "arXiv:2603.19219\n         [pdf, ps, other]",
+                  "heading_1": "DriveTok: 3D Driving Scene Tokenization for Unified Multi-View Reconstruction and Understanding",
+                  "message": "DriveTok: 3D Driving Scene Tokenization for Unified Multi-View Reconstruction and Understanding",
+                  "link": "https://arxiv.org/abs/2603.19219",
+                  "url": "https://arxiv.org/abs/2603.19219",
+                  "description": "arXiv:2603.19219\n         [pdf, ps, other]"
+                },
+                {
+                  "title": "arXiv:2603.19209\n         [pdf, ps, other]",
+                  "heading_1": "Do VLMs Need Vision Transformers? Evaluating State Space Models as Vision Encoders",
+                  "message": "Do VLMs Need Vision Transformers? Evaluating State Space Models as Vision Encoders",
+                  "link": "https://arxiv.org/abs/2603.19209",
+                  "url": "https://arxiv.org/abs/2603.19209",
+                  "description": "arXiv:2603.19209\n         [pdf, ps, other]",
+                  "author": "Authors:\n      \n      Shang-Jui Ray Kuo, \n      \n      Paola Cascante-Bonilla"
+                },
+                {
+                  "title": "arXiv:2603.19198\n         [pdf, ps, other]",
+                  "heading_1": "The Exponentially Weighted Signature",
+                  "message": "The Exponentially Weighted Signature",
+                  "link": "https://arxiv.org/abs/2603.19198",
+                  "url": "https://arxiv.org/abs/2603.19198",
+                  "description": "arXiv:2603.19198\n         [pdf, ps, other]"
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://arxiv.org/search/?query=transformer&searchtype=all"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "companiesmarketcap-stock-quote",
+      "intent": "get stock quote",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "intent_mismatch",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "symbol",
+        "price",
+        "name"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://companiesmarketcap.com/apple/stock-price-history/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "intent": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "intent_mismatch"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://companiesmarketcap.com/apple/stock-price-history/",
+          "force_capture": false,
+          "resolve_ms": 15055,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://companiesmarketcap.com/apple/stock-price-history/",
+              "domain": "companiesmarketcap.com",
+              "pathname": "/apple/stock-price-history/",
+              "slug_1": "apple",
+              "slug_2": "stock-price-history"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get stock quote",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T13:15:12.502Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 15027,
+            "tokens_used": 43,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "low_quality_dom_extraction",
+            "message": "Structured DOM extraction was rejected for https://companiesmarketcap.com/apple/stock-price-history/: wrong_entity_type"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "low_quality_dom_extraction",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "symbol",
+                "price",
+                "name"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "product"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 43,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "low_quality_dom_extraction",
+                "message": "Structured DOM extraction was rejected for https://companiesmarketcap.com/apple/stock-price-history/: wrong_entity_type"
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://companiesmarketcap.com/apple/stock-price-history/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://companiesmarketcap.com/apple/stock-price-history/",
+          "force_capture": true,
+          "resolve_ms": 11871,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://companiesmarketcap.com/apple/stock-price-history/",
+              "domain": "companiesmarketcap.com",
+              "pathname": "/apple/stock-price-history/",
+              "slug_1": "apple",
+              "slug_2": "stock-price-history"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get stock quote",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T13:15:12.502Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 11828,
+            "tokens_used": 43,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "low_quality_dom_extraction",
+            "message": "Structured DOM extraction was rejected for https://companiesmarketcap.com/apple/stock-price-history/: wrong_entity_type"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "low_quality_dom_extraction",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "symbol",
+                "price",
+                "name"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "product"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 43,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "low_quality_dom_extraction",
+                "message": "Structured DOM extraction was rejected for https://companiesmarketcap.com/apple/stock-price-history/: wrong_entity_type"
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://companiesmarketcap.com/apple/stock-price-history/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "intent_mismatch"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cambridge-get-definition",
+      "intent": "get definition",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "definition_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "term",
+        "definition"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://dictionary.cambridge.org/dictionary/english/agent"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+          "force_capture": false,
+          "resolve_ms": 1992,
+          "skill_id": "X4k3LETJKtNKBWn_zgMXX",
+          "available_endpoint_ids": [
+            "Ch4FkWtMQ7CtF2DLnl1pW"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "Ch4FkWtMQ7CtF2DLnl1pW",
+            "selected_path": [
+              "Ch4FkWtMQ7CtF2DLnl1pW"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://dictionary.cambridge.org/dictionary/english/agent",
+              "domain": "dictionary.cambridge.org",
+              "pathname": "/dictionary/english/agent",
+              "slug_1": "dictionary",
+              "slug_2": "english",
+              "slug_3": "agent"
+            },
+            "chunk": {
+              "skill_id": "X4k3LETJKtNKBWn_zgMXX",
+              "intent": "get definition",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "Ch4FkWtMQ7CtF2DLnl1pW",
+              "available_operations": [
+                {
+                  "operation_id": "Ch4FkWtMQ7CtF2DLnl1pW",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://dictionary.cambridge.org/dictionary/english/agent",
+                  "requires": [],
+                  "yields": [
+                    "resource_url",
+                    "resource_name"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "link": "https://dictionary.cambridge.org/topics/art/artists/",
+                      "url": "https://dictionary.cambridge.org/topics/art/artists/",
+                      "title": "Artists",
+                      "description": "You can also find related words, phrases, and synonyms in the topics:"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "X4k3LETJKtNKBWn_zgMXX",
+              "domain": "cambridge.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T12:39:31.367Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 1950,
+            "tokens_used": 16273,
+            "tokens_saved": 13727,
+            "tokens_saved_pct": 46
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "agent",
+                "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                "heading_2": "agent noun [C] \n            (SPY)",
+                "heading_3": "Synonyms",
+                "heading_4": "agent noun [C] \n            (CAUSE)",
+                "heading_5": "agent | American Dictionary",
+                "heading_6": "agent | American Dictionary",
+                "heading_7": "agent",
+                "heading_8": "agent noun [C] \n            (REPRESENTATIVE)",
+                "heading_9": "agent noun [C] \n            (CAUSE)",
+                "heading_10": "agent | Business English",
+                "heading_11": "agent | Business English"
+              },
+              {
+                "title": "agent",
+                "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                "heading_2": "agent noun [C] \n            (SPY)",
+                "heading_3": "Synonyms",
+                "heading_4": "agent noun [C] \n            (CAUSE)",
+                "message": "agent noun [C] \n            (REPRESENTATIVE)",
+                "link": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                "url": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                "description": "Your browser doesn't support HTML5 audio",
+                "definition": "Add to word list\n            \n        \n        \n            Add to word list\n            \n        \n        \n                B2 a person who acts for or represents another:  Please contact our agent in Spain for further information."
+              },
+              {
+                "title": "agent",
+                "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                "heading_2": "agent noun [C] \n            (SPY)",
+                "heading_3": "Synonyms",
+                "heading_4": "agent noun [C] \n            (CAUSE)",
+                "message": "agent noun [C] \n            (REPRESENTATIVE)",
+                "link": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                "url": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                "description": "Your browser doesn't support HTML5 audio",
+                "definition": "Add to word list\n            \n        \n        \n            Add to word list\n            \n        \n        \n                B2 a person who acts for or represents another:  Please contact our agent in Spain for further information."
+              },
+              {
+                "title": "agent",
+                "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                "heading_2": "agent noun [C] \n            (SPY)",
+                "heading_3": "Synonyms",
+                "heading_4": "agent noun [C] \n            (CAUSE)",
+                "message": "agent noun [C] \n            (REPRESENTATIVE)",
+                "link": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                "url": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                "description": "Your browser doesn't support HTML5 audio",
+                "definition": "Add to word list\n            \n        \n        \n            Add to word list\n            \n        \n        \n                B2 a person who acts for or represents another:  Please contact our agent in Spain for further information."
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://dictionary.cambridge.org/dictionary/english/agent",
+              "selector": "div"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "Ch4FkWtMQ7CtF2DLnl1pW",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "definition_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "term",
+                "definition"
+              ],
+              "missing_fields": [],
+              "row_count": 326,
+              "observed_entity_types": [
+                "definition"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 16273,
+              "tokens_saved": 13727,
+              "tokens_saved_pct": 46,
+              "excerpt": [
+                {
+                  "title": "agent",
+                  "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "heading_2": "agent noun [C] \n            (SPY)",
+                  "heading_3": "Synonyms",
+                  "heading_4": "agent noun [C] \n            (CAUSE)",
+                  "heading_5": "agent | American Dictionary",
+                  "heading_6": "agent | American Dictionary",
+                  "heading_7": "agent",
+                  "heading_8": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "heading_9": "agent noun [C] \n            (CAUSE)",
+                  "heading_10": "agent | Business English",
+                  "heading_11": "agent | Business English"
+                },
+                {
+                  "title": "agent",
+                  "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "heading_2": "agent noun [C] \n            (SPY)",
+                  "heading_3": "Synonyms",
+                  "heading_4": "agent noun [C] \n            (CAUSE)",
+                  "message": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "link": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                  "url": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                  "description": "Your browser doesn't support HTML5 audio",
+                  "definition": "Add to word list\n            \n        \n        \n            Add to word list\n            \n        \n        \n                B2 a person who acts for or represents another:  Please contact our agent in Spain for further information."
+                },
+                {
+                  "title": "agent",
+                  "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "heading_2": "agent noun [C] \n            (SPY)",
+                  "heading_3": "Synonyms",
+                  "heading_4": "agent noun [C] \n            (CAUSE)",
+                  "message": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "link": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                  "url": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                  "description": "Your browser doesn't support HTML5 audio",
+                  "definition": "Add to word list\n            \n        \n        \n            Add to word list\n            \n        \n        \n                B2 a person who acts for or represents another:  Please contact our agent in Spain for further information."
+                },
+                {
+                  "title": "agent",
+                  "heading_1": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "heading_2": "agent noun [C] \n            (SPY)",
+                  "heading_3": "Synonyms",
+                  "heading_4": "agent noun [C] \n            (CAUSE)",
+                  "message": "agent noun [C] \n            (REPRESENTATIVE)",
+                  "link": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                  "url": "https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdictionary.cambridge.org%2Fdictionary%2Fenglish%2Fagent&t=",
+                  "description": "Your browser doesn't support HTML5 audio",
+                  "definition": "Add to word list\n            \n        \n        \n            Add to word list\n            \n        \n        \n                B2 a person who acts for or represents another:  Please contact our agent in Spain for further information."
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://dictionary.cambridge.org/dictionary/english/agent"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "merriam-get-definition",
+      "intent": "get definition",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "missing_fields:definition",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "term"
+      ],
+      "missing_fields": [
+        "definition"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.merriam-webster.com/dictionary/agent"
+        ],
+        "attempted_endpoint_counts": {
+          "IYcBBpo0Bpy48-DZjQ1dh": 2
+        },
+        "failure_class_counts": {
+          "fields": 4
+        },
+        "reasons_seen": [
+          "missing_fields:definition",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.merriam-webster.com/dictionary/agent",
+          "force_capture": false,
+          "resolve_ms": 959,
+          "skill_id": "k3FLGM2_KhwfY4c_YVRWS",
+          "available_endpoint_ids": [
+            "IYcBBpo0Bpy48-DZjQ1dh"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "IYcBBpo0Bpy48-DZjQ1dh",
+            "selected_path": [
+              "IYcBBpo0Bpy48-DZjQ1dh"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.merriam-webster.com/dictionary/agent",
+              "domain": "www.merriam-webster.com",
+              "pathname": "/dictionary/agent",
+              "slug_1": "dictionary",
+              "slug_2": "agent"
+            },
+            "chunk": {
+              "skill_id": "k3FLGM2_KhwfY4c_YVRWS",
+              "intent": "get definition",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "IYcBBpo0Bpy48-DZjQ1dh",
+              "available_operations": [
+                {
+                  "operation_id": "IYcBBpo0Bpy48-DZjQ1dh",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://www.merriam-webster.com/dictionary/agent",
+                  "requires": [],
+                  "yields": [
+                    "resource_name",
+                    "resource_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "@context": "https://schema.org",
+                      "@type": "WebPage",
+                      "name": "Definition of agent",
+                      "url": "https://www.merriam-webster.com/dictionary/agent",
+                      "description": "Definition of 'agent' by Merriam-Webster",
+                      "isPartOf": {
+                        "@id": "https://www.merriam-webster.com/#website"
+                      },
+                      "relatedLink": [
+                        "https://www.merriam-webster.com/dictionary/agent-general",
+                        "https://www.merriam-webster.com/dictionary/agent%20provocateur"
+                      ]
+                    },
+                    {
+                      "@context": "https://schema.org",
+                      "@type": "WebSite",
+                      "@id": "https://www.merriam-webster.com/#website",
+                      "url": "https://www.merriam-webster.com",
+                      "name": "Merriam-Webster Dictionary",
+                      "potentialAction": {
+                        "@type": "SearchAction",
+                        "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                        "query-input": "required name=search_term_string"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "k3FLGM2_KhwfY4c_YVRWS",
+              "domain": "merriam-webster.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T12:39:34.221Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 936,
+            "tokens_used": 745,
+            "tokens_saved": 29255,
+            "tokens_saved_pct": 98
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "name": "Definition of agent",
+                "url": "https://www.merriam-webster.com/dictionary/agent",
+                "description": "Definition of 'agent' by Merriam-Webster",
+                "isPartOf": {
+                  "@id": "https://www.merriam-webster.com/#website"
+                },
+                "relatedLink": [
+                  "https://www.merriam-webster.com/dictionary/agent-general",
+                  "https://www.merriam-webster.com/dictionary/agent%20provocateur",
+                  "https://www.merriam-webster.com/dictionary/alkylating%20agent",
+                  "https://www.merriam-webster.com/dictionary/counteragent#counter-agent"
+                ]
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "@id": "https://www.merriam-webster.com/#website",
+                "url": "https://www.merriam-webster.com",
+                "name": "Merriam-Webster Dictionary",
+                "potentialAction": {
+                  "@type": "SearchAction",
+                  "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                  "query-input": "required name=search_term_string"
+                }
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": [
+                  "DefinedTermSet",
+                  "Book"
+                ],
+                "@id": "https://www.merriam-webster.com",
+                "name": "Dictionary by Merriam-Webster"
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "DefinedTerm",
+                "@id": "https://www.merriam-webster.com/dictionary/agent",
+                "name": "agent",
+                "inDefinedTermSet": "https://www.merriam-webster.com/"
+              }
+            ],
+            "_extraction": {
+              "method": "json-ld",
+              "confidence": 1,
+              "source": "ssr-fast",
+              "final_url": "https://www.merriam-webster.com/dictionary/agent"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "IYcBBpo0Bpy48-DZjQ1dh",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:definition",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "term"
+              ],
+              "missing_fields": [
+                "definition"
+              ],
+              "row_count": 5,
+              "observed_entity_types": [
+                "definition"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 745,
+              "tokens_saved": 29255,
+              "tokens_saved_pct": 98,
+              "excerpt": [
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebPage",
+                  "name": "Definition of agent",
+                  "url": "https://www.merriam-webster.com/dictionary/agent",
+                  "description": "Definition of 'agent' by Merriam-Webster",
+                  "isPartOf": {
+                    "@id": "https://www.merriam-webster.com/#website"
+                  },
+                  "relatedLink": [
+                    "https://www.merriam-webster.com/dictionary/agent-general",
+                    "https://www.merriam-webster.com/dictionary/agent%20provocateur",
+                    "https://www.merriam-webster.com/dictionary/alkylating%20agent",
+                    "https://www.merriam-webster.com/dictionary/counteragent#counter-agent"
+                  ]
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebSite",
+                  "@id": "https://www.merriam-webster.com/#website",
+                  "url": "https://www.merriam-webster.com",
+                  "name": "Merriam-Webster Dictionary",
+                  "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                    "query-input": "required name=search_term_string"
+                  }
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": [
+                    "DefinedTermSet",
+                    "Book"
+                  ],
+                  "@id": "https://www.merriam-webster.com",
+                  "name": "Dictionary by Merriam-Webster"
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "DefinedTerm",
+                  "@id": "https://www.merriam-webster.com/dictionary/agent",
+                  "name": "agent",
+                  "inDefinedTermSet": "https://www.merriam-webster.com/"
+                }
+              ]
+            },
+            {
+              "endpoint_id": "IYcBBpo0Bpy48-DZjQ1dh",
+              "endpoint_url": "https://www.merriam-webster.com/dictionary/agent",
+              "trigger_url": "https://www.merriam-webster.com/dictionary/agent",
+              "execute_ms": 134,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "missing_fields:definition",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "term"
+              ],
+              "missing_fields": [
+                "definition"
+              ],
+              "row_count": 5,
+              "observed_entity_types": [
+                "definition"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": [
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebPage",
+                  "name": "Definition of agent",
+                  "url": "https://www.merriam-webster.com/dictionary/agent",
+                  "description": "Definition of 'agent' by Merriam-Webster",
+                  "isPartOf": {
+                    "@id": "https://www.merriam-webster.com/#website"
+                  },
+                  "relatedLink": [
+                    "https://www.merriam-webster.com/dictionary/agent-general",
+                    "https://www.merriam-webster.com/dictionary/agent%20provocateur",
+                    "https://www.merriam-webster.com/dictionary/alkylating%20agent",
+                    "https://www.merriam-webster.com/dictionary/counteragent#counter-agent"
+                  ]
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebSite",
+                  "@id": "https://www.merriam-webster.com/#website",
+                  "url": "https://www.merriam-webster.com",
+                  "name": "Merriam-Webster Dictionary",
+                  "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                    "query-input": "required name=search_term_string"
+                  }
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": [
+                    "DefinedTermSet",
+                    "Book"
+                  ],
+                  "@id": "https://www.merriam-webster.com",
+                  "name": "Dictionary by Merriam-Webster"
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "DefinedTerm",
+                  "@id": "https://www.merriam-webster.com/dictionary/agent",
+                  "name": "agent",
+                  "inDefinedTermSet": "https://www.merriam-webster.com/"
+                }
+              ]
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.merriam-webster.com/dictionary/agent"
+            ],
+            "attempted_endpoint_counts": {
+              "IYcBBpo0Bpy48-DZjQ1dh": 1
+            },
+            "failure_class_counts": {
+              "fields": 2
+            },
+            "reasons_seen": [
+              "missing_fields:definition",
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.merriam-webster.com/dictionary/agent",
+          "force_capture": true,
+          "resolve_ms": 7201,
+          "skill_id": "k3FLGM2_KhwfY4c_YVRWS",
+          "available_endpoint_ids": [
+            "IYcBBpo0Bpy48-DZjQ1dh"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "IYcBBpo0Bpy48-DZjQ1dh",
+            "selected_path": [
+              "IYcBBpo0Bpy48-DZjQ1dh"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.merriam-webster.com/dictionary/agent",
+              "domain": "www.merriam-webster.com",
+              "pathname": "/dictionary/agent",
+              "slug_1": "dictionary",
+              "slug_2": "agent"
+            },
+            "chunk": {
+              "skill_id": "k3FLGM2_KhwfY4c_YVRWS",
+              "intent": "get definition",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "IYcBBpo0Bpy48-DZjQ1dh",
+              "available_operations": [
+                {
+                  "operation_id": "IYcBBpo0Bpy48-DZjQ1dh",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://www.merriam-webster.com/dictionary/agent",
+                  "requires": [],
+                  "yields": [
+                    "resource_name",
+                    "resource_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "@context": "https://schema.org",
+                      "@type": "WebPage",
+                      "name": "Definition of agent",
+                      "url": "https://www.merriam-webster.com/dictionary/agent",
+                      "description": "Definition of 'agent' by Merriam-Webster",
+                      "isPartOf": {
+                        "@id": "https://www.merriam-webster.com/#website"
+                      },
+                      "relatedLink": [
+                        "https://www.merriam-webster.com/dictionary/agent-general",
+                        "https://www.merriam-webster.com/dictionary/agent%20provocateur"
+                      ]
+                    },
+                    {
+                      "@context": "https://schema.org",
+                      "@type": "WebSite",
+                      "@id": "https://www.merriam-webster.com/#website",
+                      "url": "https://www.merriam-webster.com",
+                      "name": "Merriam-Webster Dictionary",
+                      "potentialAction": {
+                        "@type": "SearchAction",
+                        "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                        "query-input": "required name=search_term_string"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "k3FLGM2_KhwfY4c_YVRWS",
+              "domain": "merriam-webster.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T13:19:29.052Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 7178,
+            "tokens_used": 745,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "name": "Definition of agent",
+                "url": "https://www.merriam-webster.com/dictionary/agent",
+                "description": "Definition of 'agent' by Merriam-Webster",
+                "isPartOf": {
+                  "@id": "https://www.merriam-webster.com/#website"
+                },
+                "relatedLink": [
+                  "https://www.merriam-webster.com/dictionary/agent-general",
+                  "https://www.merriam-webster.com/dictionary/agent%20provocateur",
+                  "https://www.merriam-webster.com/dictionary/alkylating%20agent",
+                  "https://www.merriam-webster.com/dictionary/counteragent#counter-agent"
+                ]
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "@id": "https://www.merriam-webster.com/#website",
+                "url": "https://www.merriam-webster.com",
+                "name": "Merriam-Webster Dictionary",
+                "potentialAction": {
+                  "@type": "SearchAction",
+                  "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                  "query-input": "required name=search_term_string"
+                }
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": [
+                  "DefinedTermSet",
+                  "Book"
+                ],
+                "@id": "https://www.merriam-webster.com",
+                "name": "Dictionary by Merriam-Webster"
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "DefinedTerm",
+                "@id": "https://www.merriam-webster.com/dictionary/agent",
+                "name": "agent",
+                "inDefinedTermSet": "https://www.merriam-webster.com/"
+              }
+            ],
+            "_extraction": {
+              "method": "json-ld",
+              "confidence": 1,
+              "source": "ssr-fast",
+              "final_url": "https://www.merriam-webster.com/dictionary/agent"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "IYcBBpo0Bpy48-DZjQ1dh",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "missing_fields:definition",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "term"
+              ],
+              "missing_fields": [
+                "definition"
+              ],
+              "row_count": 5,
+              "observed_entity_types": [
+                "definition"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 745,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": [
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebPage",
+                  "name": "Definition of agent",
+                  "url": "https://www.merriam-webster.com/dictionary/agent",
+                  "description": "Definition of 'agent' by Merriam-Webster",
+                  "isPartOf": {
+                    "@id": "https://www.merriam-webster.com/#website"
+                  },
+                  "relatedLink": [
+                    "https://www.merriam-webster.com/dictionary/agent-general",
+                    "https://www.merriam-webster.com/dictionary/agent%20provocateur",
+                    "https://www.merriam-webster.com/dictionary/alkylating%20agent",
+                    "https://www.merriam-webster.com/dictionary/counteragent#counter-agent"
+                  ]
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebSite",
+                  "@id": "https://www.merriam-webster.com/#website",
+                  "url": "https://www.merriam-webster.com",
+                  "name": "Merriam-Webster Dictionary",
+                  "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                    "query-input": "required name=search_term_string"
+                  }
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": [
+                    "DefinedTermSet",
+                    "Book"
+                  ],
+                  "@id": "https://www.merriam-webster.com",
+                  "name": "Dictionary by Merriam-Webster"
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "DefinedTerm",
+                  "@id": "https://www.merriam-webster.com/dictionary/agent",
+                  "name": "agent",
+                  "inDefinedTermSet": "https://www.merriam-webster.com/"
+                }
+              ]
+            },
+            {
+              "endpoint_id": "IYcBBpo0Bpy48-DZjQ1dh",
+              "endpoint_url": "https://www.merriam-webster.com/dictionary/agent",
+              "trigger_url": "https://www.merriam-webster.com/dictionary/agent",
+              "execute_ms": 134,
+              "attempt_count": 2,
+              "verdict": "fail",
+              "reason": "missing_fields:definition",
+              "failure_class": "fields",
+              "source_kind": "record",
+              "matched_fields": [
+                "term"
+              ],
+              "missing_fields": [
+                "definition"
+              ],
+              "row_count": 5,
+              "observed_entity_types": [
+                "definition"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": [
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebPage",
+                  "name": "Definition of agent",
+                  "url": "https://www.merriam-webster.com/dictionary/agent",
+                  "description": "Definition of 'agent' by Merriam-Webster",
+                  "isPartOf": {
+                    "@id": "https://www.merriam-webster.com/#website"
+                  },
+                  "relatedLink": [
+                    "https://www.merriam-webster.com/dictionary/agent-general",
+                    "https://www.merriam-webster.com/dictionary/agent%20provocateur",
+                    "https://www.merriam-webster.com/dictionary/alkylating%20agent",
+                    "https://www.merriam-webster.com/dictionary/counteragent#counter-agent"
+                  ]
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "WebSite",
+                  "@id": "https://www.merriam-webster.com/#website",
+                  "url": "https://www.merriam-webster.com",
+                  "name": "Merriam-Webster Dictionary",
+                  "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": "https://www.merriam-webster.com/dictionary/{search_term_string}?utm_campaign=sd&utm_medium=serp&utm_source=jsonld",
+                    "query-input": "required name=search_term_string"
+                  }
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": [
+                    "DefinedTermSet",
+                    "Book"
+                  ],
+                  "@id": "https://www.merriam-webster.com",
+                  "name": "Dictionary by Merriam-Webster"
+                },
+                {
+                  "@context": "https://schema.org",
+                  "@type": "DefinedTerm",
+                  "@id": "https://www.merriam-webster.com/dictionary/agent",
+                  "name": "agent",
+                  "inDefinedTermSet": "https://www.merriam-webster.com/"
+                }
+              ]
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "missing_fields:definition",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.merriam-webster.com/dictionary/agent"
+            ],
+            "attempted_endpoint_counts": {
+              "IYcBBpo0Bpy48-DZjQ1dh": 2
+            },
+            "failure_class_counts": {
+              "fields": 4
+            },
+            "reasons_seen": [
+              "missing_fields:definition",
+              "escalate_force_capture"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wiktionary-get-definition",
+      "intent": "get definition",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "definition_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "term",
+        "definition"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://en.wiktionary.org/wiki/agent"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://en.wiktionary.org/wiki/agent",
+          "force_capture": false,
+          "resolve_ms": 3409,
+          "skill_id": "wsw7Up3JW7stDHfumikFL",
+          "available_endpoint_ids": [
+            "EImM72w0_5Doyl4B6QQDj"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "EImM72w0_5Doyl4B6QQDj",
+            "selected_path": [
+              "EImM72w0_5Doyl4B6QQDj"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://en.wiktionary.org/wiki/agent",
+              "domain": "en.wiktionary.org",
+              "pathname": "/wiki/agent",
+              "slug_1": "wiki",
+              "slug_2": "agent"
+            },
+            "chunk": {
+              "skill_id": "wsw7Up3JW7stDHfumikFL",
+              "intent": "get definition",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "EImM72w0_5Doyl4B6QQDj",
+              "available_operations": [
+                {
+                  "operation_id": "EImM72w0_5Doyl4B6QQDj",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "resource",
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://en.wiktionary.org/wiki/agent",
+                  "requires": [],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": {
+                    "term": "agent",
+                    "title": "agent",
+                    "definition": "Seeing we are so wonderfully endowed with priceless gifts by our Heavenly Father, will he not require usury at our hands? He will. But he has made us agents ..."
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "wsw7Up3JW7stDHfumikFL",
+              "domain": "wiktionary.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T13:19:36.900Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 3387,
+            "tokens_used": 148,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": {
+              "term": "agent",
+              "title": "agent",
+              "definition": "Seeing we are so wonderfully endowed with priceless gifts by our Heavenly Father, will he not require usury at our hands? He will. But he has made us agents to ourselves, which makes us responsible for the way in which we use the talents he has given us, for the manner we expend ..."
+            },
+            "_extraction": {
+              "method": "key-value",
+              "confidence": 0.8,
+              "source": "ssr-fast",
+              "final_url": "https://en.wiktionary.org/wiki/agent"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "EImM72w0_5Doyl4B6QQDj",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "definition_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "term",
+                "definition"
+              ],
+              "missing_fields": [],
+              "row_count": 1,
+              "observed_entity_types": [
+                "definition"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 148,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "term": "agent",
+                "title": "agent",
+                "definition": "Seeing we are so wonderfully endowed with priceless gifts by our Heavenly Father, will he not require usury at our hands? He will. But he has made us agents to ourselves, which makes us responsible for the way in which we use the talents he has given us, for the manner we expend ..."
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://en.wiktionary.org/wiki/agent"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "coursera-search-courses",
+      "intent": "search courses",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "intent_mismatch",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "rating"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.coursera.org/search?query=machine%20learning"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "dag": 1,
+          "intent": 1
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "intent_mismatch"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.coursera.org/search?query=machine%20learning",
+          "force_capture": false,
+          "resolve_ms": 19577,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.coursera.org/search?query=machine%20learning",
+              "domain": "www.coursera.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "query": "machine learning"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "search courses",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T13:15:12.502Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 19552,
+            "tokens_used": 59,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "no_endpoints",
+            "message": "No API endpoints or structured DOM data found at https://www.coursera.org/search?query=machine%20learning. The site may require authentication or may not expose machine-readable data from this page."
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "no_endpoints",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 59,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "no_endpoints",
+                "message": "No API endpoints or structured DOM data found at https://www.coursera.org/search?query=machine%20learning. The site may require authentication or may not expose machine-readable data from this page."
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.coursera.org/search?query=machine%20learning"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.coursera.org/search?query=machine%20learning",
+          "force_capture": true,
+          "resolve_ms": 17410,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.coursera.org/search?query=machine%20learning",
+              "domain": "www.coursera.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "query": "machine learning"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "search courses",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T13:15:12.502Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 17385,
+            "tokens_used": 43,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "low_quality_dom_extraction",
+            "message": "Structured DOM extraction was rejected for https://www.coursera.org/search?query=machine%20learning: wrong_entity_type"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "low_quality_dom_extraction",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "rating"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 43,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "low_quality_dom_extraction",
+                "message": "Structured DOM extraction was rejected for https://www.coursera.org/search?query=machine%20learning: wrong_entity_type"
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.coursera.org/search?query=machine%20learning"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 1,
+              "intent": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "intent_mismatch"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "npr-search-news",
+      "intent": "search news",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "cli_timeout:resolve:180000",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.npr.org/search?query=climate"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "cli_timeout:resolve:180000"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.npr.org/search?query=climate",
+          "force_capture": false,
+          "resolve_ms": 180005,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "resolve_threw"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npr.org/search?query=climate",
+              "domain": "www.npr.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "query": "climate"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": "cli_timeout:resolve:180000",
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npr.org/search?query=climate"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.npr.org/search?query=climate",
+          "force_capture": true,
+          "resolve_ms": 180004,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "resolve_threw"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npr.org/search?query=climate",
+              "domain": "www.npr.org",
+              "pathname": "/search",
+              "slug_1": "search",
+              "query": "climate"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": "cli_timeout:resolve:180000",
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "cli_timeout:resolve:180000",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npr.org/search?query=climate"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "cli_timeout:resolve:180000"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bbcgoodfood-search-recipes",
+      "intent": "search recipes",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "Was there a typo in the url or port?",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.bbcgoodfood.com/search?q=lasagna"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "Was there a typo in the url or port?"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.bbcgoodfood.com/search?q=lasagna",
+          "force_capture": false,
+          "resolve_ms": 69,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.bbcgoodfood.com/search?q=lasagna",
+              "domain": "www.bbcgoodfood.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "lasagna"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Unable to connect. Is the computer able to access the url?"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.bbcgoodfood.com/search?q=lasagna"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.bbcgoodfood.com/search?q=lasagna",
+          "force_capture": true,
+          "resolve_ms": 40,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.bbcgoodfood.com/search?q=lasagna",
+              "domain": "www.bbcgoodfood.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "lasagna"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Was there a typo in the url or port?"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "Was there a typo in the url or port?",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.bbcgoodfood.com/search?q=lasagna"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "Was there a typo in the url or port?"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "books-to-scrape-products",
+      "intent": "search products",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "Was there a typo in the url or port?",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "price",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://books.toscrape.com/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "Was there a typo in the url or port?"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://books.toscrape.com/",
+          "force_capture": false,
+          "resolve_ms": 39,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://books.toscrape.com/",
+              "domain": "books.toscrape.com",
+              "pathname": "/"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Unable to connect. Is the computer able to access the url?"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://books.toscrape.com/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://books.toscrape.com/",
+          "force_capture": true,
+          "resolve_ms": 36,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://books.toscrape.com/",
+              "domain": "books.toscrape.com",
+              "pathname": "/"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Was there a typo in the url or port?"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "Was there a typo in the url or port?",
+          "repair_memory": {
+            "visited_urls": [
+              "https://books.toscrape.com/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "Was there a typo in the url or port?"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hex-package-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "Was there a typo in the url or port?",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://hex.pm/packages/phoenix"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "Was there a typo in the url or port?"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://hex.pm/packages/phoenix",
+          "force_capture": false,
+          "resolve_ms": 39,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://hex.pm/packages/phoenix",
+              "domain": "hex.pm",
+              "pathname": "/packages/phoenix",
+              "slug_1": "packages",
+              "slug_2": "phoenix"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Unable to connect. Is the computer able to access the url?"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hex.pm/packages/phoenix"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://hex.pm/packages/phoenix",
+          "force_capture": true,
+          "resolve_ms": 36,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://hex.pm/packages/phoenix",
+              "domain": "hex.pm",
+              "pathname": "/packages/phoenix",
+              "slug_1": "packages",
+              "slug_2": "phoenix"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Was there a typo in the url or port?"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "Was there a typo in the url or port?",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hex.pm/packages/phoenix"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "Was there a typo in the url or port?"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "packagist-package-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "Was there a typo in the url or port?",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://packagist.org/packages/monolog/monolog"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "Was there a typo in the url or port?"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://packagist.org/packages/monolog/monolog",
+          "force_capture": false,
+          "resolve_ms": 38,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://packagist.org/packages/monolog/monolog",
+              "domain": "packagist.org",
+              "pathname": "/packages/monolog/monolog",
+              "slug_1": "packages",
+              "slug_2": "monolog",
+              "slug_3": "monolog"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Unable to connect. Is the computer able to access the url?"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://packagist.org/packages/monolog/monolog"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://packagist.org/packages/monolog/monolog",
+          "force_capture": true,
+          "resolve_ms": 36,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://packagist.org/packages/monolog/monolog",
+              "domain": "packagist.org",
+              "pathname": "/packages/monolog/monolog",
+              "slug_1": "packages",
+              "slug_2": "monolog",
+              "slug_3": "monolog"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Was there a typo in the url or port?"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "Was there a typo in the url or port?",
+          "repair_memory": {
+            "visited_urls": [
+              "https://packagist.org/packages/monolog/monolog"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "Was there a typo in the url or port?"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "mvnrepository-artifact-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "Was there a typo in the url or port?",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "Was there a typo in the url or port?"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp",
+          "force_capture": false,
+          "resolve_ms": 38,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp",
+              "domain": "mvnrepository.com",
+              "pathname": "/artifact/com.squareup.okhttp3/okhttp",
+              "slug_1": "artifact",
+              "slug_2": "com.squareup.okhttp3",
+              "slug_3": "okhttp"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Unable to connect. Is the computer able to access the url?"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp",
+          "force_capture": true,
+          "resolve_ms": 36,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp",
+              "domain": "mvnrepository.com",
+              "pathname": "/artifact/com.squareup.okhttp3/okhttp",
+              "slug_1": "artifact",
+              "slug_2": "com.squareup.okhttp3",
+              "slug_3": "okhttp"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "Was there a typo in the url or port?"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "Was there a typo in the url or port?",
+          "repair_memory": {
+            "visited_urls": [
+              "https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "Was there a typo in the url or port?"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

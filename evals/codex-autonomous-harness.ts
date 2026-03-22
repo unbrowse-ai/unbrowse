@@ -4,6 +4,7 @@ import { config as loadEnv } from "dotenv";
 import { dirname, join, resolve } from "path";
 import { readFileSync, writeFileSync } from "fs";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { getAuthCookies } from "../src/auth/index.js";
 import { getSkillChunk, knownBindingsFromInputs, toAgentSkillChunkView } from "../src/graph/index.js";
 import { startUnbrowseServer, type RunningUnbrowseServer } from "../src/server.js";
@@ -28,8 +29,11 @@ import {
 } from "./codex-autonomous-harness-lib.js";
 import { resolveEvalJudgeMode, reviewEvalPayload } from "./codex-eval-review.js";
 
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+
 loadEnv({ quiet: true });
-loadEnv({ path: join(dirname(new URL(import.meta.url).pathname), "..", ".env.runtime"), override: false, quiet: true });
+loadEnv({ path: join(MODULE_DIR, "..", ".env.runtime"), override: false, quiet: true });
+process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME ??= "0";
 
 type AutonomousCase = HarnessCase & {
   dag?: {
@@ -82,6 +86,7 @@ type TraceContext = {
   chunk?: ReturnType<typeof toAgentSkillChunkView>;
   skill_snapshot?: SkillSnapshot;
   source?: string;
+  cache_hit?: boolean;
   total_ms?: number;
   tokens_used?: number;
   tokens_saved?: number;
@@ -135,8 +140,8 @@ type AutonomousResult = {
   benchmark?: BenchmarkRecord;
 };
 
-const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-const EVALS_DIR = dirname(new URL(import.meta.url).pathname);
+const ROOT = join(MODULE_DIR, "..");
+const EVALS_DIR = MODULE_DIR;
 const DEFAULT_RESULTS_PATH = join(EVALS_DIR, "codex-autonomous-last-run.json");
 const BASE_URL = process.env.UNBROWSE_URL ?? "http://localhost:6969";
 const BASE_PORT = (() => {
@@ -165,13 +170,13 @@ const argv = process.argv.slice(
 );
 const args = new Set(argv);
 const getArg = (flag: string) => argv.find((_, i) => argv[i - 1] === `--${flag}`) ?? "";
-const hasFlag = (flag: string) => args.has(`--${flag}`);
-const forceCapture = hasFlag("--force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
-const restartServer = hasFlag("--restart-server");
+const hasFlag = (flag: string) => args.has(flag) || args.has(flag.startsWith("--") ? flag : `--${flag}`);
+const forceCapture = hasFlag("force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
+const restartServer = hasFlag("restart-server");
 const maxRounds = Math.max(1, Number(getArg("max-rounds") || "6") || 6);
 const maxCandidates = Math.max(1, Number(getArg("max-candidates") || "4") || 4);
 const maxFollowUrls = Math.max(0, Number(getArg("max-follow-urls") || "3") || 3);
-const benchmarkMode = hasFlag("--benchmark") || process.env.UNBROWSE_EVAL_BENCHMARK === "1";
+const benchmarkMode = hasFlag("benchmark") || process.env.UNBROWSE_EVAL_BENCHMARK === "1";
 const resultsPath = resolve(getArg("out") || DEFAULT_RESULTS_PATH);
 const evalJudgeMode = resolveEvalJudgeMode();
 
@@ -269,7 +274,12 @@ function listServerPids(): number[] {
     // best effort
   }
   try {
-    const out = Bun.spawnSync(["lsof", "-ti", `tcp:${BASE_PORT}`], { cwd: ROOT, stdout: "pipe", stderr: "pipe" });
+    const out = Bun.spawnSync(["lsof", "-ti", `tcp:${BASE_PORT}`], {
+      cwd: ROOT,
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 5_000,
+    });
     const text = out.stdout.toString().trim();
     for (const line of text.split("\n")) {
       const pid = Number(line.trim());
@@ -465,6 +475,7 @@ function numberOrUndefined(value: unknown): number | undefined {
 function resolveTelemetry(body: any): Pick<TraceContext, "source" | "total_ms" | "tokens_used" | "tokens_saved" | "tokens_saved_pct"> {
   return {
     source: typeof body?.source === "string" ? body.source : typeof body?.timing?.source === "string" ? body.timing.source : undefined,
+    cache_hit: body?.timing?.cache_hit === true,
     total_ms: numberOrUndefined(body?.timing?.total_ms),
     tokens_used: numberOrUndefined(body?.trace?.tokens_used),
     tokens_saved: numberOrUndefined(body?.timing?.tokens_saved ?? body?.trace?.tokens_saved),

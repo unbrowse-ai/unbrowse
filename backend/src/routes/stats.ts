@@ -4,6 +4,7 @@ import { recordExecution, recordFeedback } from "../services/scoring.js";
 import { recordPerf, getPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { recordAgentExecution, recordAgentFeedback, countAgents } from "../services/agents.js";
+import { bearerAuth } from "../middleware/auth.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 
@@ -88,6 +89,9 @@ publicValidateRoutes.post("/validate", async (c) => {
 
 // Protected stats — require auth
 export const statsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
+
+statsRoutes.use("/stats", bearerAuth);
+statsRoutes.use("/stats/*", bearerAuth);
 
 // Rate limit: 120 executions per 60s, 60 feedback per 60s per agent
 statsRoutes.use("/stats/execution", agentRateLimit({ limit: 120, window: 60, prefix: "execution" }));

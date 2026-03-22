@@ -11,6 +11,15 @@ export function getModuleDir(metaUrl: string): string {
 export function getPackageRoot(metaUrl: string): string {
   if (process.env.UNBROWSE_PACKAGE_ROOT) return process.env.UNBROWSE_PACKAGE_ROOT;
   const dir = getModuleDir(metaUrl);
+
+  let cursor = dir;
+  while (true) {
+    if (existsSync(path.join(cursor, "package.json"))) return cursor;
+    const parent = path.dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+
   const base = path.basename(dir);
   return base === "src" || base === "dist" ? path.dirname(dir) : dir;
 }

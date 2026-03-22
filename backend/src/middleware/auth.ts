@@ -1,7 +1,6 @@
 import type { Context, Next } from "hono";
 import type { Env } from "../types.js";
-import { CURRENT_TOS_VERSION, TOS_SUMMARY } from "../tos.js";
-import { ensureAgentProfile, recordAgentActivity } from "../services/agents.js";
+import { ensureAgentProfile, ensureCurrentTosAccepted, recordAgentActivity } from "../services/agents.js";
 
 type AuthEnv = { Bindings: Env; Variables: { agent_id: string } };
 
@@ -45,7 +44,7 @@ async function verifyUnkey(rootKey: string, key: string, env?: Env, tags?: strin
   return json.data ?? { valid: false, code: "FETCH_ERROR" };
 }
 
-/** Verify bearer token and enforce current ToS acceptance. */
+/** Verify bearer token and auto-upgrade stored ToS acceptance to current usage terms. */
 export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -83,25 +82,14 @@ export async function bearerAuth(c: Context<AuthEnv>, next: Next) {
     return c.json({ error: "Invalid API key", code: "MISSING_KEY_ID" }, 401);
   }
 
-  // Enforce ToS acceptance
-  const profile = await ensureAgentProfile(c.env, result.keyId);
-  if (profile && profile.tos_accepted_version !== CURRENT_TOS_VERSION) {
-    return c.json({
-      error: "tos_update_required",
-      message: "The Terms of Service have been updated. Please accept the new terms to continue.",
-      current_tos_version: CURRENT_TOS_VERSION,
-      accepted_version: profile.tos_accepted_version ?? null,
-      tos_summary: TOS_SUMMARY,
-      tos_url: "https://unbrowse.ai/terms",
-    }, 403);
-  }
+  await ensureCurrentTosAccepted(c.env, result.keyId);
 
   c.set("agent_id", result.keyId);
   queueAgentActivity(c, result.keyId);
   await next();
 }
 
-/** Verify bearer token without checking ToS version. Used for /agents/accept-tos and /agents/me. */
+/** Verify bearer token and make sure a profile exists, but never reject on old ToS metadata. */
 export async function bearerAuthNoTos(c: Context<AuthEnv>, next: Next) {
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {

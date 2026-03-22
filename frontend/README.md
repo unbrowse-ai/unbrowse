@@ -1,47 +1,50 @@
-# OpenNext Starter
+# Unbrowse Frontend
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+The frontend is the public Next.js landing page for [unbrowse.ai](https://www.unbrowse.ai). It is built with Next.js App Router and deployed to Cloudflare Workers through OpenNext.
 
-## Getting Started
+## Install
 
-Read the documentation at https://opennext.js.org/cloudflare.
+From the monorepo root:
+
+```bash
+bun install --frozen-lockfile
+```
 
 ## Develop
 
 Run the Next.js development server:
 
 ```bash
+cd frontend
 npm run dev
-# or similar package manager command
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app is available at [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Preview the Cloudflare runtime
 
-## Preview
-
-Preview the application locally on the Cloudflare runtime:
+To preview the Worker build locally:
 
 ```bash
+cd frontend
 npm run preview
-# or similar package manager command
 ```
 
 ## Deploy
 
-Deploy the application to Cloudflare:
+The production frontend is deployed as a Cloudflare Worker via OpenNext, not as a Cloudflare Pages `dist/` upload.
 
 ```bash
+cd frontend
 npm run deploy
-# or similar package manager command
 ```
 
-## Learn More
+That command runs `opennextjs-cloudflare build` followed by `opennextjs-cloudflare deploy`, using `frontend/wrangler.jsonc` for the worker name, routes, and bindings.
 
-To learn more about Next.js, take a look at the following resources:
+## Key files
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `frontend/src/app/` — app routes and pages
+- `frontend/src/components/` — landing page UI
+- `frontend/public/` — static assets such as `robots.txt` and `llms.txt`
+- `frontend/wrangler.jsonc` — Cloudflare Worker deployment config
+- `frontend/open-next.config.ts` — OpenNext Cloudflare config

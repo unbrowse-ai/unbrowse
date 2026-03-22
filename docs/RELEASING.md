@@ -11,6 +11,7 @@ Unbrowse releases are driven locally, then finished by GitHub Actions.
    - `package.json`
    - `packages/skill/package.json`
    - `version.json`
+   - framework package manifests in `integrations/`
 4. `release-it` updates `CHANGELOG.md`, tags `vX.Y.Z`, pushes, and creates the GitHub Release.
 5. During `after:bump`, release hooks also write `.release-announcement.md` and `.release-announcement.json` for announcement drafting.
 
@@ -20,7 +21,7 @@ Do not bump or publish only from `packages/skill/`.
 - explicit local CLI publish path lives at repo root:
   - `bun run pack:cli`
   - `bun run publish:cli`
-- local `bun run publish:cli` intentionally skips `--provenance`; provenance stays on the GitHub Actions release workflow, where npm supports automatic attestations.
+- local `bun run publish:cli` intentionally skips `--provenance`; the GitHub Actions release workflow also skips provenance on this self-hosted runner pool because npm rejects attestations outside supported hosted environments.
 - canonical path is still `bun run release`, which keeps `package.json`, `packages/skill/package.json`, and `version.json` in sync before the tag-triggered workflow publishes the CLI.
 - `release-it` is configured with `npm.ignoreVersion=true` because `@release-it/bumper` already owns the version bump across all three files. That avoids the duplicate `npm version` pass that can otherwise fail with `Version not changed`.
 
@@ -28,19 +29,37 @@ Do not bump or publish only from `packages/skill/`.
 
 Pushing `v*` tags runs `.github/workflows/release.yml`, which now:
 
-1. Publishes the CLI from `packages/skill/` to npm.
-2. Deploys the backend worker.
-3. Deploys the frontend.
-4. Syncs the external skill repo.
+1. Mirrors `unbrowse-dev` `main` plus the release tag into the public `unbrowse-ai/unbrowse` repo.
+2. Publishes the CLI from `packages/skill/` to npm.
+3. Publishes npm framework packages from `integrations/`, including OpenClaw.
+4. Publishes Python framework packages from `integrations/` to PyPI.
+5. Deploys the backend worker.
+6. Deploys the frontend.
 
 The npm publish step is idempotent. If the tagged version is already on npm, the workflow skips publish instead of failing on reruns.
+The PyPI publish steps are also idempotent and skip when the tagged version is already live.
+
+## Manual release dry-run
+
+Need a branch-safe rehearsal before cutting a tag:
+
+1. Push your branch.
+2. Run the `Release` workflow manually against that branch (`workflow_dispatch`, mode `dry-run`).
+3. Wait for:
+   - `Test Gate`
+   - `Package CLI (Dry Run)`
+   - `Package Frameworks (npm Dry Run)`
+   - `Package Frameworks (PyPI Dry Run)`
+
+Dry-run mode never deploys staging or production and never publishes to npm or PyPI. It only runs the release test gate plus the same package/build steps the tag workflow would use right before publish.
 
 ## Required secrets
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `NPM_TOKEN` or `NPM_PUBLISH_TOKEN`
-- `SKILL_REPO_TOKEN`
+- `PYPI_API_TOKEN`
+- `PUBLIC_REPO_TOKEN`
 
 Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync secrets are missing.
 
@@ -50,6 +69,10 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 
 - `SKILL.md` is in sync with `src/cli.ts`
 - `packages/skill` passes `npm pack --dry-run`
+- integration package versions match the root release version
+- npm integration packages pass `npm pack --dry-run`
+- Python integration packages build sdists/wheels cleanly
+- after all green checks on `main`, GitHub Actions force-syncs `unbrowse-dev` `main` into the public `unbrowse-ai/unbrowse` repo
 
 That catches broken package layouts before a release tag is pushed.
 

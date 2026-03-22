@@ -3,6 +3,9 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
 type CaseEntry = Record<string, unknown>;
 
@@ -40,8 +43,8 @@ type CampaignShardResult = {
   summary?: AutonomousArtifact["summary"];
 };
 
-const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
-const EVALS_DIR = dirname(new URL(import.meta.url).pathname);
+const ROOT = join(MODULE_DIR, "..");
+const EVALS_DIR = MODULE_DIR;
 const CAMPAIGNS_DIR = join(EVALS_DIR, "campaigns");
 
 const argv = process.argv.slice(

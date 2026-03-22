@@ -100,9 +100,27 @@ def test_search_builds_correct_args(mock_sub):
 @patch("unbrowse_langchain.tools.subprocess.run", side_effect=_mock_run)
 def test_execute_builds_correct_args(mock_sub):
     tool = UnbrowseExecuteTool(bin_path="ub")
-    tool.invoke({"skill_id": "s1", "endpoint_id": "e1", "pretty": True})
+    tool.invoke({
+        "skill_id": "s1",
+        "endpoint_id": "e1",
+        "url": "https://example.com/search?q=openai",
+        "intent": "search packages",
+        "pretty": True,
+    })
     call_args = mock_sub.call_args[0][0]
-    assert call_args == ["ub", "execute", "--skill", "s1", "--endpoint", "e1", "--pretty"]
+    assert call_args == [
+        "ub",
+        "execute",
+        "--skill",
+        "s1",
+        "--endpoint",
+        "e1",
+        "--url",
+        "https://example.com/search?q=openai",
+        "--intent",
+        "search packages",
+        "--pretty",
+    ]
 
 
 @patch("unbrowse_langchain.tools.subprocess.run", side_effect=_mock_run)

@@ -100,6 +100,8 @@ test("buildArgs: execute action", async () => {
     action: "execute",
     skillId: "sk_123",
     endpointId: "ep_456",
+    url: "https://example.com/search?q=openai",
+    intent: "search packages",
     pretty: true,
   });
 
@@ -109,6 +111,10 @@ test("buildArgs: execute action", async () => {
     "sk_123",
     "--endpoint",
     "ep_456",
+    "--url",
+    "https://example.com/search?q=openai",
+    "--intent",
+    "search packages",
     "--pretty",
   ]);
 });

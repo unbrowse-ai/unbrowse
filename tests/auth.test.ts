@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { isDomainMatch, getRegistrableDomain } from "../src/domain.js";
 import { storeCredential, getCredential, deleteCredential } from "../src/vault/index.js";
-import { getStoredAuth, getAuthCookies } from "../src/auth/index.js";
+import { findStoredAuthReference, getStoredAuth, getStoredAuthBundle, getAuthCookies } from "../src/auth/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -207,6 +207,32 @@ describe("getStoredAuth — vault key normalization", () => {
     const result = await getStoredAuth("api.example.com");
     expect(result).not.toBeNull();
     expect(result![0].name).toBe("from_reg"); // registrable domain key wins
+  });
+});
+
+describe("stored auth bundle resolution", () => {
+  it("prefers session bundles and merges cookie-only auth fallback", async () => {
+    await storeTestCredential("example.com-session", JSON.stringify({
+      cookies: [
+        makeCookie({ name: "session_a", domain: ".example.com" }),
+        makeCookie({ name: "session_b", domain: ".www.example.com" }),
+      ],
+      headers: {
+        "csrf-token": "ajax:123",
+        authorization: "Bearer abc",
+      },
+    }));
+    await storeTestCredential("auth:example.com", JSON.stringify({
+      cookies: [makeCookie({ name: "cookie_fallback", domain: ".example.com" })],
+    }));
+
+    const result = await getStoredAuthBundle("www.example.com");
+    expect(result).not.toBeNull();
+    expect(result!.source_keys[0]).toBe("example.com-session");
+    expect(result!.cookies.length).toBe(3);
+    expect(result!.headers["csrf-token"]).toBe("ajax:123");
+    expect(result!.headers.authorization).toBe("Bearer abc");
+    expect(await findStoredAuthReference("www.example.com")).toBe("example.com-session");
   });
 });
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.14...v2.0.15) (2026-03-22)
+
+### Bug Fixes
+
+* align frontend deploy path and install docs ([#25](https://github.com/unbrowse-ai/unbrowse-dev/issues/25)) ([1f20a33](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f20a33c485676124044854f1325085dbe5bab88))
+
 ## Unreleased
 
 ### Bug Fixes
@@ -7,11 +13,82 @@
 - fall back to browser capture when pre-capture structured/document replay fetches fail, instead of returning a generic `fetch failed` error for authenticated SPA pages like LinkedIn feed
 - launch isolated managed Chrome for Kuri by default and terminate the managed Chrome pid on shutdown, avoiding stale CDP browser reuse across local CLI runs
 - honor `UNBROWSE_TOS_ACCEPTED=1` even when the packaged CLI/server auto-start path runs non-interactively, so local smoke tests and agent-driven runs do not hang on an interactive ToS prompt
+- let repo checkouts find the bundled Kuri binary under `packages/skill/vendor`, fall back to plain HTTP HTML capture when browser tabs are unavailable, and seed direct JSON URLs into replayable skills so evals and CLI site checks keep working in repo mode
+- make the local autostart path replace stale code-hash-mismatched servers while also clearing dead startup lock files
+- point repo/submodule docs at `lekt9/kuri` on `codex/fix-managed-discover-cdp` so local checkouts and CI match the bundled runtime source
+- refresh frontend install/deploy guidance around the hosted `install.sh`, auto-update, skill installs, and the current first-run bootstrap flow
+- add the detection-based host installer for Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw
+- add the hosted `/install.sh` endpoint so the landing page can show a real copyable one-liner
+- default frontend ToS consent to checked while keeping the toggle visible before API key generation
+
+## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
+
+### Bug Fixes
+
+* seed staging browser eval auth ([#24](https://github.com/unbrowse-ai/unbrowse-dev/issues/24)) ([9caa74d](https://github.com/unbrowse-ai/unbrowse-dev/commit/9caa74d769aca1a61b17d962753bb17ae629578d))
+
+## [2.0.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.12...v2.0.13) (2026-03-22)
+
+## [2.0.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.11...v2.0.12) (2026-03-22)
+
+### Bug Fixes
+
+* bypass staging eval search cache ([b1b2038](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1b2038291e2536599ff0cf3fb3b51487e1654e6))
+
+## [2.0.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.10...v2.0.11) (2026-03-22)
+
+### Bug Fixes
+
+* exempt staging eval token from search throttles ([1c29770](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c29770752cea8143eb9f4f654bd84bac3f53096))
+
+## [2.0.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.9...v2.0.10) (2026-03-22)
+
+### Bug Fixes
+
+* stop staging live eval from assuming seeded search ([#20](https://github.com/unbrowse-ai/unbrowse-dev/issues/20)) ([e6b4c2b](https://github.com/unbrowse-ai/unbrowse-dev/commit/e6b4c2b2740e852a744a489e5e77e2d860717729))
+* exempt the staging marketplace eval token from public search throttling so release publishes can clear the staging gate
+
+## [2.0.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.8...v2.0.9) (2026-03-22)
+
+### Bug Fixes
+
+* separate public search rate limits for authed evals ([#19](https://github.com/unbrowse-ai/unbrowse-dev/issues/19)) ([8ea11ce](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ea11ce4b4b4c40e1a45f3c539b7a13edcd1665d))
+
+## [2.0.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.7...v2.0.8) (2026-03-22)
+
+### Bug Fixes
+
+* normalize skill sync newlines on windows ([#15](https://github.com/unbrowse-ai/unbrowse-dev/issues/15)) ([f511e7e](https://github.com/unbrowse-ai/unbrowse-dev/commit/f511e7e32c9539214b5b18ddda04db4225c0f8ce))
+* publish npm packages on self-hosted runners ([#16](https://github.com/unbrowse-ai/unbrowse-dev/issues/16)) ([7d6f81d](https://github.com/unbrowse-ai/unbrowse-dev/commit/7d6f81df521d74cd3be8e425e848c19e1de77f5e))
+* restore mcp package build ([#17](https://github.com/unbrowse-ai/unbrowse-dev/issues/17)) ([442922f](https://github.com/unbrowse-ai/unbrowse-dev/commit/442922f46f11595308f6fa8688fa91fbdfc61220))
+* skip live graph api tests by default ([#14](https://github.com/unbrowse-ai/unbrowse-dev/issues/14)) ([a4d69d7](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4d69d72eb562b248e8d51770e8143e5cb37c5c3))
+* unblock release packaging gates ([#18](https://github.com/unbrowse-ai/unbrowse-dev/issues/18)) ([d142996](https://github.com/unbrowse-ai/unbrowse-dev/commit/d142996cbd6487289c062ad63c34d4598d0cdb4c))
+
+## [2.0.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.6...v2.0.7) (2026-03-22)
+
+### Bug Fixes
+
+* simplify api key auto-registration ([#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)) ([198a6d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/198a6d299bc5e4f0a8529901dbdc757b3432746b))
+* simplify one-command install flow ([#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11)) ([2d4bbe5](https://github.com/unbrowse-ai/unbrowse-dev/commit/2d4bbe52299ac82e039568969317fa124efa616f))
+* track windows kuri binary for npm pack ([#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)) ([bc6b39a](https://github.com/unbrowse-ai/unbrowse-dev/commit/bc6b39afa6973c8fbe5b261ea61646228c2cf6fe))
+
 ## [2.0.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.5...v2.0.6) (2026-03-21)
 
 ### Bug Fixes
 
 * stealth patches, origin pre-nav, discover after newTab, kuri evaluate double-escape ([cde0d93](https://github.com/unbrowse-ai/unbrowse-dev/commit/cde0d93db0a6c3e8d83613f0e83b9e031666754c))
+- derive DOM replay intent from endpoint semantics so generic domain skills like `linkedin.com` still extract the right structured search results
+- repoint the bundled Kuri source to `justrach/kuri` `main` and refresh the vendored Zig-built binaries used by the npm CLI package
+- improve MCP tool descriptions and skill-id error guidance so agent hosts stop guessing invalid `skillId` / `endpointId` values
+- fix nested runtime path detection so repo checkouts find the built Kuri binary under `submodules/kuri/zig-out/bin`
+- keep the auth eval runner from killing an already-healthy local server before demo auth verification
+- fix benchmark flag parsing in the eval harnesses so cold/warm repeatability runs actually execute in benchmark mode
+- honor `UNBROWSE_DISABLE_RATE_LIMIT=1` so local eval servers stop self-throttling repeatability/auth harness runs
+- add a repeatability warm-path gate that fails when warmed workflows miss cache, fall back to live capture, or blow their warm latency budget
+- add a fixture-backed marketplace retrieval eval that scores search rank, resolve fallback, and domain-filter leakage
+- replace the fake staging browser smoke with a real browser-capture-to-execute eval that asserts npm package fields after learning
+- expand marketplace retrieval corpus coverage and add a many-domain public gate plus release-matrix scripts
+- bypass Kuri's crashing `/tab/new` path by creating fresh browser tabs through Chrome CDP, closing them after capture retries, and isolating eval runs from unrelated Chrome tabs on `:9222`
 
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
@@ -1168,6 +1245,10 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- chore: added a repo-level submodule bootstrap helper plus CI coverage for the OpenClaw plugin checkout, so fresh clones now initialize and verify the plugin path instead of relying on manual submodule setup
+- chore: aligned the OpenClaw plugin submodule with current OpenClaw plugin patterns by switching prompt guidance to `before_prompt_build` and replacing `plugins.load.paths` examples with linked-install + `plugins.entries` docs
+- fix: the OpenClaw plugin submodule now resolves the installed `unbrowse` CLI from the package `bin` field, fixing local linked installs that ship `dist/cli.js` instead of `bin/unbrowse.js`
+- docs: simplified the OpenClaw plugin README to a single copy-paste quickstart with strict-mode default, verify commands, and advanced config moved below the first successful install path
 - fix: planner now treats captured query/path/example defaults as satisfiable bindings, so replayable APIs stop losing readiness to page artifacts on warm resolve
 - fix: semantic ranking now demotes linkedin sharebox/mailbox ui payloads for people/company intents and boosts real search/detail surfaces
 - fix: semantic intent scoring now distrusts mislabeled ui-scaffold endpoints, so generated sharebox/mailbox/notification skills stop stealing people/company search intents
@@ -1199,3 +1280,5 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: template param hydration now infers dev.to-style `tag` bindings from route context for query-based replay endpoints
 - fix: post projection now derives dev.to authors from article paths and recovers Lobsters scores from text-heavy list rows
 - docs: curated public expansion corpus now includes validated non-dev science/reference/news cases for arXiv, Wiktionary, and NPR, with exact blocked terminals where needed
+- fix: stop stale same-domain cache hits from reusing clearly wrong LinkedIn endpoints; low-score matches now fall through to fresh resolve/capture
+- fix: prefer stored `*-session` auth bundles over weaker cookie-only auth during browser capture so authenticated LinkedIn replay reuses richer headers/cookies

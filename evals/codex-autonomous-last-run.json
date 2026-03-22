@@ -1,14 +1,14 @@
 {
   "summary": {
-    "total": 1,
-    "pass": 1,
-    "fail": 0,
+    "total": 14,
+    "pass": 2,
+    "fail": 12,
     "skip": 0,
     "blocked": 0,
-    "satisfied": 1,
-    "unsatisfied": 0,
-    "max_rounds": 2,
-    "max_candidates": 2,
+    "satisfied": 2,
+    "unsatisfied": 12,
+    "max_rounds": 6,
+    "max_candidates": 4,
     "max_follow_urls": 3,
     "force_capture": false,
     "benchmark": false,
@@ -16,211 +16,1642 @@
   },
   "results": [
     {
-      "id": "beatsaver-search-maps",
-      "intent": "search maps",
+      "id": "github-search-repositories",
+      "intent": "search repositories",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "full_name",
+        "description",
+        "stargazers_count"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://github.com/search?q=openai&type=repositories"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://github.com/search?q=openai&type=repositories",
+          "force_capture": false,
+          "resolve_ms": 27328,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://github.com/search?q=openai&type=repositories",
+              "domain": "github.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "openai",
+              "type": "repositories"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://github.com/search?q=openai&type=repositories"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://github.com/search?q=openai&type=repositories",
+          "force_capture": true,
+          "resolve_ms": 22591,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://github.com/search?q=openai&type=repositories",
+              "domain": "github.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "openai",
+              "type": "repositories"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://github.com/search?q=openai&type=repositories"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gitlab-search-projects",
+      "intent": "search projects",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "description",
+        "web_url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://gitlab.com/explore/projects?name=openai"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://gitlab.com/explore/projects?name=openai",
+          "force_capture": false,
+          "resolve_ms": 26264,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://gitlab.com/explore/projects?name=openai",
+              "domain": "gitlab.com",
+              "pathname": "/explore/projects",
+              "slug_1": "explore",
+              "slug_2": "projects",
+              "name": "openai"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://gitlab.com/explore/projects?name=openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://gitlab.com/explore/projects?name=openai",
+          "force_capture": true,
+          "resolve_ms": 23045,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://gitlab.com/explore/projects?name=openai",
+              "domain": "gitlab.com",
+              "pathname": "/explore/projects",
+              "slug_1": "explore",
+              "slug_2": "projects",
+              "name": "openai"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://gitlab.com/explore/projects?name=openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "npm-search-packages",
+      "intent": "search packages",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "trigger_timeout",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.npmjs.com/search?q=openai"
+        ],
+        "attempted_endpoint_counts": {
+          "BdWPc8hCdTcgSYm4KBJiG": 1,
+          "PCHBdCgeq7xZcruVlatyM": 1
+        },
+        "failure_class_counts": {
+          "transport": 4
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "trigger_timeout"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.npmjs.com/search?q=openai",
+          "force_capture": false,
+          "resolve_ms": 31298,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/search?q=openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "openai"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/search?q=openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.npmjs.com/search?q=openai",
+          "force_capture": true,
+          "resolve_ms": 52969,
+          "skill_id": "yUQzeZ593BAUuvoxlqREb",
+          "available_endpoint_ids": [
+            "BdWPc8hCdTcgSYm4KBJiG",
+            "PCHBdCgeq7xZcruVlatyM"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "BdWPc8hCdTcgSYm4KBJiG",
+            "selected_path": [
+              "BdWPc8hCdTcgSYm4KBJiG"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/search?q=openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "openai"
+            },
+            "chunk": {
+              "skill_id": "yUQzeZ593BAUuvoxlqREb",
+              "intent": "search packages",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "yUQzeZ593BAUuvoxlqREb",
+              "domain": "www.npmjs.com",
+              "auth_required": false,
+              "endpoint_count": 2,
+              "operation_count": 2,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T15:11:26.517Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 52936,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 2 endpoint(s). Pick one and call POST /v1/skills/yUQzeZ593BAUuvoxlqREb/execute with params.endpoint_id.",
+            "skill_id": "yUQzeZ593BAUuvoxlqREb",
+            "available_operations": [
+              {
+                "operation_id": "PCHBdCgeq7xZcruVlatyM",
+                "endpoint_id": "PCHBdCgeq7xZcruVlatyM",
+                "action_kind": "fetch",
+                "resource_kind": "resource",
+                "requires": [],
+                "provides": [],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "PCHBdCgeq7xZcruVlatyM",
+                "method": "GET",
+                "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "url": "https://www.npmjs.com/settings",
+                "score": -15.3,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://www.npmjs.com/search?q=openai"
+              },
+              {
+                "endpoint_id": "BdWPc8hCdTcgSYm4KBJiG",
+                "method": "GET",
+                "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "url": "https://www.npmjs.com/org/create?track={track}",
+                "score": -35.4,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://www.npmjs.com/search?q=openai"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "description"
+              ],
+              "missing_fields": [
+                "name",
+                "version"
+              ],
+              "row_count": 2,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 2 endpoint(s). Pick one and call POST /v1/skills/yUQzeZ593BAUuvoxlqREb/execute with params.endpoint_id.",
+                "skill_id": "yUQzeZ593BAUuvoxlqREb",
+                "available_operations": [
+                  {
+                    "operation_id": "PCHBdCgeq7xZcruVlatyM",
+                    "endpoint_id": "PCHBdCgeq7xZcruVlatyM",
+                    "action_kind": "fetch",
+                    "resource_kind": "resource",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "PCHBdCgeq7xZcruVlatyM",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "url": "https://www.npmjs.com/settings",
+                    "score": -15.3,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.npmjs.com/search?q=openai"
+                  },
+                  {
+                    "endpoint_id": "BdWPc8hCdTcgSYm4KBJiG",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "url": "https://www.npmjs.com/org/create?track={track}",
+                    "score": -35.4,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://www.npmjs.com/search?q=openai"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "BdWPc8hCdTcgSYm4KBJiG",
+              "endpoint_url": "https://www.npmjs.com/org/create?track={track}",
+              "trigger_url": "https://www.npmjs.com/search?q=openai",
+              "execute_ms": 15657,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            },
+            {
+              "endpoint_id": "PCHBdCgeq7xZcruVlatyM",
+              "endpoint_url": "https://www.npmjs.com/settings",
+              "trigger_url": "https://www.npmjs.com/search?q=openai",
+              "execute_ms": 15924,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "trigger_timeout",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "error": "trigger_timeout",
+                "message": "Target API call not intercepted within 15s"
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "trigger_timeout",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/search?q=openai"
+            ],
+            "attempted_endpoint_counts": {
+              "BdWPc8hCdTcgSYm4KBJiG": 1,
+              "PCHBdCgeq7xZcruVlatyM": 1
+            },
+            "failure_class_counts": {
+              "transport": 4
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "trigger_timeout"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "npm-package-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.npmjs.com/package/openai"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.npmjs.com/package/openai",
+          "force_capture": false,
+          "resolve_ms": 5173,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/package/openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/package/openai",
+              "slug_1": "package",
+              "slug_2": "openai"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/package/openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.npmjs.com/package/openai",
+          "force_capture": true,
+          "resolve_ms": 3887,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/package/openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/package/openai",
+              "slug_1": "package",
+              "slug_2": "openai"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/package/openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pypi-package-info",
+      "intent": "get package info",
       "auth": false,
       "final_state": "pass",
       "goal_satisfied": true,
       "allowed_terminal_states": [
         "pass"
       ],
-      "final_reason": "unclassified_array",
+      "final_reason": "package_rows",
       "final_source_kind": "record",
       "matched_fields": [
-        "title",
-        "url",
-        "description"
+        "name",
+        "version",
+        "summary"
       ],
       "missing_fields": [],
       "repair_memory": {
         "visited_urls": [
-          "https://beatsaver.com/search?q=camellia"
+          "https://pypi.org/project/openai/"
         ],
-        "attempted_endpoint_counts": {},
+        "attempted_endpoint_counts": {
+          "WW5QWiKUQ3LgCLFI4XicW": 1
+        },
         "failure_class_counts": {},
-        "reasons_seen": []
+        "reasons_seen": [
+          "package_rows"
+        ]
       },
       "rounds": [
         {
           "round": 1,
-          "url": "https://beatsaver.com/search?q=camellia",
+          "url": "https://pypi.org/project/openai/",
           "force_capture": false,
-          "resolve_ms": 18482,
-          "skill_id": "7y98XyD8e2coAUc92euby",
+          "resolve_ms": 6573,
+          "skill_id": "P_gLvYHct7PdImmZYemGf",
           "available_endpoint_ids": [
-            "ySyiZTAJAVGu8R2olVxGh"
+            "WW5QWiKUQ3LgCLFI4XicW",
+            "vUGH_biBahQehEC8o85BN",
+            "zgzxPruY5gwhNmEmWPpqw",
+            "VC5XMp4_-slzC08uixba2"
           ],
           "dag": {
             "available": true,
-            "reachable": false,
-            "target_operation_id": "ySyiZTAJAVGu8R2olVxGh",
-            "selected_path": [],
-            "reason": "dag_unreachable"
+            "reachable": true,
+            "target_operation_id": "WW5QWiKUQ3LgCLFI4XicW",
+            "selected_path": [
+              "WW5QWiKUQ3LgCLFI4XicW"
+            ],
+            "reason": "dag_path_found"
           },
           "trace_context": {
             "known_bindings": {
-              "url": "https://beatsaver.com/search?q=camellia",
-              "domain": "beatsaver.com",
-              "pathname": "/search",
-              "slug_1": "search",
-              "q": "camellia"
+              "url": "https://pypi.org/project/openai/",
+              "domain": "pypi.org",
+              "pathname": "/project/openai/",
+              "slug_1": "project",
+              "slug_2": "openai"
             },
             "chunk": {
-              "skill_id": "7y98XyD8e2coAUc92euby",
-              "intent": "search maps",
+              "skill_id": "P_gLvYHct7PdImmZYemGf",
+              "intent": "get package info",
               "missing_bindings": [],
-              "suggested_next_operation_id": "ySyiZTAJAVGu8R2olVxGh",
+              "suggested_next_operation_id": "WW5QWiKUQ3LgCLFI4XicW",
               "available_operations": [
                 {
-                  "operation_id": "ySyiZTAJAVGu8R2olVxGh",
+                  "operation_id": "WW5QWiKUQ3LgCLFI4XicW",
                   "method": "GET",
-                  "action_kind": "search",
+                  "action_kind": "detail",
                   "resource_kind": "resource",
-                  "title": "search resource",
-                  "why_available": "Runnable now; required bindings already known: q.",
-                  "url_template": "https://beatsaver.com/search?q={q}",
-                  "requires": [
-                    "q"
-                  ],
+                  "title": "detail resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://pypi.org/pypi/openai/json",
+                  "requires": [],
                   "yields": [
-                    "resource_url",
-                    "resource_name"
+                    "author",
+                    "owner",
+                    "bugtrack_url"
                   ],
                   "example_request": {
-                    "q": "camellia"
+                    "url": "https://pypi.org/project/openai/",
+                    "intent": "get package info"
                   },
-                  "example_response_compact": [
-                    {
-                      "link": "/maps/4fa6f",
-                      "url": "/maps/4fa6f",
-                      "title": "Kobaryo - Social Networking Speedcore",
-                      "image": "https://eu.cdn.beatsaver.com/d106f099e28df9f54bc1437af95ade4d67ce2834.jpg",
-                      "description": "ViSi - 9 minutes ago",
-                      "info": "Kobaryo - Social Networking SpeedcoreViSi - 9 minutes agoEasyNormalHardExpertExpert+Expert+Easy"
+                  "example_response_compact": {
+                    "info": {
+                      "author": null,
+                      "author_email": "OpenAI <support@openai.com>",
+                      "bugtrack_url": null,
+                      "classifiers": [
+                        "Intended Audience :: Developers",
+                        "License :: OSI Approved :: Apache Software License"
+                      ],
+                      "description": "# OpenAI Python API library\n\n<!-- prettier-ignore -->\n[![PyPI version](https://img.shields.io/pypi/v/openai.svg?label=pypi%20(stable))](https://pypi.org/proj...",
+                      "description_content_type": "text/markdown",
+                      "docs_url": null,
+                      "download_url": null
                     },
-                    {
-                      "link": "/maps/4fa57",
-                      "url": "/maps/4fa57",
-                      "title": "ドレミファSTARS!! (SHOW BY ROCK!! STARS!! OP)",
-                      "image": "https://eu.cdn.beatsaver.com/dd5da098cd708fac33eaab1b625d5e816789c638.jpg",
-                      "description": "Lifinna - 2 hours ago",
-                      "info": "ドレミファSTARS!! (SHOW BY ROCK!! STARS!! OP)Lifinna - 2 hours agoExpert"
-                    }
-                  ]
+                    "last_serial": 35218951,
+                    "ownership": {
+                      "organization": "openai",
+                      "roles": [
+                        {
+                          "role": "Owner",
+                          "user": "dschnurr-openai"
+                        },
+                        {
+                          "role": "Owner",
+                          "user": "gdb"
+                        }
+                      ]
+                    },
+                    "releases": {
+                      "0.0.2": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.0.2.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "2882c98be64f730da4fd66e1b44c15d3",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": null,
+                          "size": 741,
+                          "upload_time": "2020-02-18T19:41:36",
+                          "upload_time_iso_8601": "2020-02-18T19:41:36.681685Z",
+                          "url": "https://files.pythonhosted.org/packages/48/16/fe6559403a41b8ec0315cda5ccd116a35fcf795555ed743d3e164be4d3cc/openai-0.0.2.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ],
+                      "0.1.0": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.1.0.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "6c179d7caec986217440b1cb7b3a4792",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+                          "size": 168532,
+                          "upload_time": "2020-06-13T03:16:42",
+                          "upload_time_iso_8601": "2020-06-13T03:16:42.295186Z",
+                          "url": "https://files.pythonhosted.org/packages/19/41/2c52b589503ba61ddac4c1fe892b5b7e77ff6274e584ec1b499e224507b5/openai-0.1.0.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ],
+                      "0.1.1": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.1.1.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "3400fcae7e47705603029ab3355ecba1",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+                          "size": 156061,
+                          "upload_time": "2020-06-13T04:46:01",
+                          "upload_time_iso_8601": "2020-06-13T04:46:01.784421Z",
+                          "url": "https://files.pythonhosted.org/packages/ed/fe/7d534b18597ca6eeb6de29fbc976fc2a63ff5ba68c909b6dfbae6110cb9a/openai-0.1.1.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ],
+                      "0.1.2": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.1.2.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "d03734c299031610ff7b85e00627e98b",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+                          "size": 155617,
+                          "upload_time": "2020-06-13T15:48:35",
+                          "upload_time_iso_8601": "2020-06-13T15:48:35.426777Z",
+                          "url": "https://files.pythonhosted.org/packages/63/ef/a63ca6dc08afabf1d0c9ca5e6f51c6ac8161f5982b2475180ac0005d933a/openai-0.1.2.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ],
+                      "0.1.3": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.1.3.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "129be68a7302e60ac1e818a022620586",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+                          "size": 155639,
+                          "upload_time": "2020-06-13T15:53:45",
+                          "upload_time_iso_8601": "2020-06-13T15:53:45.968519Z",
+                          "url": "https://files.pythonhosted.org/packages/73/34/4dcb16de79952f31813260e4d4088ddd16989739c53e1f6f30ac14572590/openai-0.1.3.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ],
+                      "0.10.0": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.10.0.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "04dfda643dba43e0a6c7347b8e8401fe",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": ">=3.6",
+                          "size": 155278,
+                          "upload_time": "2021-07-14T20:20:30",
+                          "upload_time_iso_8601": "2021-07-14T20:20:30.624755Z",
+                          "url": "https://files.pythonhosted.org/packages/cb/9a/65c5368e787b2a2b05daf6525673911ddca14d022518536d7ea9a45da608/openai-0.10.0.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ],
+                      "0.10.1": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.10.1.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "0ef728f1e55c9f4cc0dbef98fbcc51bb",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": ">=3.6",
+                          "size": 155953,
+                          "upload_time": "2021-07-14T21:22:50",
+                          "upload_time_iso_8601": "2021-07-14T21:22:50.938443Z",
+                          "url": "https://files.pythonhosted.org/packages/26/da/01a95c8d2d3805e3f10d0c50bcdafc292ceba55ff1a222deb58d650b2aaf/openai-0.10.1.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ],
+                      "0.10.2": [
+                        {
+                          "comment_text": "",
+                          "digests": "[truncated]",
+                          "downloads": -1,
+                          "filename": "openai-0.10.2.tar.gz",
+                          "has_sig": false,
+                          "md5_digest": "52dff2619e6af5821aadd724420ba812",
+                          "packagetype": "sdist",
+                          "python_version": "source",
+                          "requires_python": ">=3.6",
+                          "size": 156728,
+                          "upload_time": "2021-07-29T19:24:19",
+                          "upload_time_iso_8601": "2021-07-29T19:24:19.515691Z",
+                          "url": "https://files.pythonhosted.org/packages/4a/dc/b55b633183d39736944ccc6b74b0acb58c65d6113f4566b5159252628de4/openai-0.10.2.tar.gz",
+                          "yanked": false,
+                          "yanked_reason": null
+                        }
+                      ]
+                    },
+                    "urls": [
+                      {
+                        "comment_text": "",
+                        "digests": {
+                          "blake2b_256": "d0b135b6f9c8cf9318e3dbb7146cc82dab4cf61182a8d5406fc9b50864362895",
+                          "md5": "0851be820047fdaa49bc86ef1abb16b0",
+                          "sha256": "b7c5de513c3286d17c5e29b92c4c98ceaf0d775244ac8159aeb1bddf840eb42a"
+                        },
+                        "downloads": -1,
+                        "filename": "openai-2.29.0-py3-none-any.whl",
+                        "has_sig": false,
+                        "md5_digest": "0851be820047fdaa49bc86ef1abb16b0",
+                        "packagetype": "bdist_wheel",
+                        "python_version": "py3"
+                      },
+                      {
+                        "comment_text": "",
+                        "digests": {
+                          "blake2b_256": "b415203d537e58986b5673e7f232453a2a2f110f22757b15921cbdeea392e520",
+                          "md5": "633c7238fa732136e758a100561098f7",
+                          "sha256": "32d09eb2f661b38d3edd7d7e1a2943d1633f572596febe64c0cd370c86d52bec"
+                        },
+                        "downloads": -1,
+                        "filename": "openai-2.29.0.tar.gz",
+                        "has_sig": false,
+                        "md5_digest": "633c7238fa732136e758a100561098f7",
+                        "packagetype": "sdist",
+                        "python_version": "source"
+                      }
+                    ],
+                    "vulnerabilities": []
+                  }
                 }
               ]
             },
             "skill_snapshot": {
-              "skill_id": "7y98XyD8e2coAUc92euby",
-              "domain": "beatsaver.com",
+              "skill_id": "P_gLvYHct7PdImmZYemGf",
+              "domain": "pypi.org",
               "auth_required": false,
-              "endpoint_count": 1,
-              "operation_count": 1,
+              "endpoint_count": 5,
+              "operation_count": 5,
               "edge_count": 0,
-              "updated_at": "2026-03-22T11:01:16.271Z"
+              "updated_at": "2026-03-21T15:12:42.214Z"
             },
-            "source": "marketplace",
-            "total_ms": 18411,
-            "tokens_used": 2805,
-            "tokens_saved": 27195,
-            "tokens_saved_pct": 91
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 6533,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
           },
           "resolve_excerpt": {
-            "data": [
+            "message": "Found 5 endpoint(s). Pick one and call POST /v1/skills/P_gLvYHct7PdImmZYemGf/execute with params.endpoint_id.",
+            "skill_id": "P_gLvYHct7PdImmZYemGf",
+            "available_operations": [
               {
-                "link": "/maps/4fa6f",
-                "url": "/maps/4fa6f",
-                "title": "Kobaryo - Social Networking Speedcore",
-                "image": "https://eu.cdn.beatsaver.com/d106f099e28df9f54bc1437af95ade4d67ce2834.jpg",
-                "description": "ViSi - 17 minutes ago",
-                "info": "Kobaryo - Social Networking SpeedcoreViSi - 17 minutes agoEasyNormalHardExpertExpert+Expert+Easy"
+                "operation_id": "WW5QWiKUQ3LgCLFI4XicW",
+                "endpoint_id": "WW5QWiKUQ3LgCLFI4XicW",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Structured replay for get package info",
+                "requires": [],
+                "provides": [
+                  "author",
+                  "owner",
+                  "bugtrack_url"
+                ],
+                "runnable": true
               },
               {
-                "link": "/maps/4fa57",
-                "url": "/maps/4fa57",
-                "title": "ドレミファSTARS!! (SHOW BY ROCK!! STARS!! OP)",
-                "image": "https://eu.cdn.beatsaver.com/dd5da098cd708fac33eaab1b625d5e816789c638.jpg",
-                "description": "Lifinna - 2 hours ago",
-                "info": "ドレミファSTARS!! (SHOW BY ROCK!! STARS!! OP)Lifinna - 2 hours agoExpert"
+                "operation_id": "vUGH_biBahQehEC8o85BN",
+                "endpoint_id": "vUGH_biBahQehEC8o85BN",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
               },
               {
-                "link": "/maps/4fa56",
-                "url": "/maps/4fa56",
-                "title": "quixofficial - Tree Chicken Song",
-                "image": "https://eu.cdn.beatsaver.com/7dd014d9db62143f22cf3c6db364485423df655f.jpg",
-                "description": "Vainstains-but-bad - 2 hours ago",
-                "info": "quixofficial - Tree Chicken SongVainstains-but-bad - 2 hours agoExpert+"
-              },
-              {
-                "link": "/maps/4fa55",
-                "url": "/maps/4fa55",
-                "title": "t+pazolite - Chapter 0: Foreword (2021 mapped section cut)",
-                "image": "https://eu.cdn.beatsaver.com/18e250127e7775c348cf9d2ecb2ec97b9b66b545.jpg",
-                "description": "edgii_two - 2 hours ago",
-                "info": "t+pazolite - Chapter 0: Foreword (2021 mapped section cut)edgii_two - 2 hours agoExpert+"
+                "operation_id": "zgzxPruY5gwhNmEmWPpqw",
+                "endpoint_id": "zgzxPruY5gwhNmEmWPpqw",
+                "action_kind": "detail",
+                "resource_kind": "resource",
+                "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "requires": [],
+                "provides": [],
+                "runnable": true
               }
             ],
-            "_extraction": {
-              "method": "repeated-elements",
-              "confidence": 0.9000000000000001,
-              "source": "rendered-dom",
-              "final_url": "https://beatsaver.com/",
-              "selector": "div.card.colored"
-            }
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "WW5QWiKUQ3LgCLFI4XicW",
+                "method": "GET",
+                "description": "Structured replay for get package info",
+                "url": "https://pypi.org/pypi/openai/json",
+                "score": 371,
+                "schema_summary": {
+                  "info": "object",
+                  "last_serial": "integer",
+                  "ownership": "object",
+                  "releases": "object",
+                  "urls": "array",
+                  "vulnerabilities": "array"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://pypi.org/project/openai/"
+              },
+              {
+                "endpoint_id": "vUGH_biBahQehEC8o85BN",
+                "method": "GET",
+                "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "url": "https://pypi.org/manage/account/webauthn-provision/options",
+                "score": 46,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://pypi.org/project/openai/"
+              },
+              {
+                "endpoint_id": "zgzxPruY5gwhNmEmWPpqw",
+                "method": "GET",
+                "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "url": "https://pypi.org/manage/account/webauthn-provision/validate",
+                "score": 46,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://pypi.org/project/openai/"
+              },
+              {
+                "endpoint_id": "VC5XMp4_-slzC08uixba2",
+                "method": "GET",
+                "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                "url": "https://pypi.org/account/webauthn-authenticate/options",
+                "score": 46,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://pypi.org/project/openai/"
+              }
+            ],
+            "auth_recommended": true,
+            "auth_hint": "No data endpoints found — pypi.org likely requires authentication. Store browser cookies for this domain via the auth endpoints, then retry this capture."
           },
           "candidates": [
             {
-              "endpoint_id": "ySyiZTAJAVGu8R2olVxGh",
+              "endpoint_id": "",
               "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "summary"
+              ],
+              "missing_fields": [
+                "name",
+                "version"
+              ],
+              "row_count": 5,
+              "observed_entity_types": [
+                "package",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 5 endpoint(s). Pick one and call POST /v1/skills/P_gLvYHct7PdImmZYemGf/execute with params.endpoint_id.",
+                "skill_id": "P_gLvYHct7PdImmZYemGf",
+                "available_operations": [
+                  {
+                    "operation_id": "WW5QWiKUQ3LgCLFI4XicW",
+                    "endpoint_id": "WW5QWiKUQ3LgCLFI4XicW",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Structured replay for get package info",
+                    "requires": [],
+                    "provides": [
+                      "author",
+                      "owner",
+                      "bugtrack_url"
+                    ],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "vUGH_biBahQehEC8o85BN",
+                    "endpoint_id": "vUGH_biBahQehEC8o85BN",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  },
+                  {
+                    "operation_id": "zgzxPruY5gwhNmEmWPpqw",
+                    "endpoint_id": "zgzxPruY5gwhNmEmWPpqw",
+                    "action_kind": "detail",
+                    "resource_kind": "resource",
+                    "description_out": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "requires": [],
+                    "provides": [],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "WW5QWiKUQ3LgCLFI4XicW",
+                    "method": "GET",
+                    "description": "Structured replay for get package info",
+                    "url": "https://pypi.org/pypi/openai/json",
+                    "score": 371,
+                    "schema_summary": {
+                      "info": "object",
+                      "last_serial": "integer",
+                      "ownership": "object",
+                      "releases": "object",
+                      "urls": "array",
+                      "vulnerabilities": "array"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://pypi.org/project/openai/"
+                  },
+                  {
+                    "endpoint_id": "vUGH_biBahQehEC8o85BN",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "url": "https://pypi.org/manage/account/webauthn-provision/options",
+                    "score": 46,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://pypi.org/project/openai/"
+                  },
+                  {
+                    "endpoint_id": "zgzxPruY5gwhNmEmWPpqw",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "url": "https://pypi.org/manage/account/webauthn-provision/validate",
+                    "score": 46,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://pypi.org/project/openai/"
+                  },
+                  {
+                    "endpoint_id": "VC5XMp4_-slzC08uixba2",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (fetch_call). Not observed in network traffic.",
+                    "url": "https://pypi.org/account/webauthn-authenticate/options",
+                    "score": 46,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://pypi.org/project/openai/"
+                  }
+                ],
+                "auth_recommended": true,
+                "auth_hint": "No data endpoints found — pypi.org likely requires authentication. Store browser cookies for this domain via the auth endpoints, then retry this capture."
+              }
+            },
+            {
+              "endpoint_id": "WW5QWiKUQ3LgCLFI4XicW",
+              "endpoint_url": "https://pypi.org/pypi/openai/json",
+              "trigger_url": "https://pypi.org/project/openai/",
+              "execute_ms": 433,
+              "attempt_count": 1,
               "verdict": "pass",
-              "reason": "unclassified_array",
+              "reason": "package_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "summary"
+              ],
+              "missing_fields": [],
+              "row_count": 17,
+              "observed_entity_types": [
+                "package"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "excerpt": {
+                "name": "openai",
+                "version": "2.29.0",
+                "summary": "The official Python library for the openai API",
+                "description": "The official Python library for the openai API",
+                "requires_dist": [
+                  "anyio<5,>=3.5.0",
+                  "distro<2,>=1.7.0",
+                  "httpx<1,>=0.23.0",
+                  "jiter<1,>=0.10.0"
+                ],
+                "url": "https://pypi.org/project/openai/"
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://pypi.org/project/openai/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "mdn-search-docs",
+      "intent": "search docs",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "document_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url",
+        "summary"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://developer.mozilla.org/en-US/search?q=fetch"
+        ],
+        "attempted_endpoint_counts": {
+          "AAemmnCxDmwZy6CqqP98s": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "document_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+          "force_capture": false,
+          "resolve_ms": 7665,
+          "skill_id": "wvcxSoqq4DP8cALOAK5C_",
+          "available_endpoint_ids": [
+            "AAemmnCxDmwZy6CqqP98s",
+            "a3Djf7OHIjUbVFXKzaID5",
+            "xy9faxSrJwH78du8ekirD",
+            "uzl1DwL8tHSe9wWJnU8_s"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "AAemmnCxDmwZy6CqqP98s",
+            "selected_path": [
+              "AAemmnCxDmwZy6CqqP98s"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+              "domain": "developer.mozilla.org",
+              "pathname": "/en-US/search",
+              "slug_1": "en-US",
+              "slug_2": "search",
+              "q": "fetch"
+            },
+            "chunk": {
+              "skill_id": "wvcxSoqq4DP8cALOAK5C_",
+              "intent": "search docs",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "AAemmnCxDmwZy6CqqP98s",
+              "available_operations": [
+                {
+                  "operation_id": "AAemmnCxDmwZy6CqqP98s",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "document",
+                  "title": "search document",
+                  "why_available": "Runnable now; required bindings already known: q, page, locale.",
+                  "url_template": "https://developer.mozilla.org/api/v1/search?q={q}&page={page}&locale={locale}",
+                  "requires": [
+                    "q",
+                    "page",
+                    "locale"
+                  ],
+                  "yields": [
+                    "mdn_url",
+                    "document_name",
+                    "slug",
+                    "document_id",
+                    "total",
+                    "total_value"
+                  ],
+                  "example_request": {
+                    "q": "fetch",
+                    "page": "1",
+                    "locale": "en-US"
+                  },
+                  "example_response_compact": {
+                    "documents": [
+                      {
+                        "mdn_url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                        "score": 43.463844,
+                        "title": "BackgroundFetchManager: fetch() method",
+                        "locale": "en-us",
+                        "slug": "web/api/backgroundfetchmanager/fetch",
+                        "popularity": 0.00045003144055269615,
+                        "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                        "highlight": {
+                          "body": [
+                            "The <mark>fetch</mark>() method of the Background<mark>Fetch</mark>Manager interface initiates a background <mark>fetch</mark> operation, given one or more URLs",
+                            "The following example shows how to use <mark>fetch</mark>() to initiate a background <mark>fetch</mark> operation.",
+                            "object and call its <mark>fetch</mark>()\nmethod.\njsnavigator.serviceWorker.ready.then(async (swReg) =&gt; {\nconst bg<mark>Fetch</mark> = await swReg.background<mark>Fetch</mark>.<mark>fetch</mark>"
+                          ],
+                          "title": [
+                            "Background<mark>Fetch</mark>Manager: <mark>fetch</mark>() method"
+                          ]
+                        }
+                      },
+                      {
+                        "mdn_url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                        "score": 43.2361,
+                        "title": "FetchEvent: FetchEvent() constructor",
+                        "locale": "en-us",
+                        "slug": "web/api/fetchevent/fetchevent",
+                        "popularity": 0,
+                        "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                        "highlight": {
+                          "body": [
+                            "The <mark>Fetch</mark>Event() constructor creates a new <mark>Fetch</mark>Event object.\njsnew <mark>Fetch</mark>Event(type, options)\ntype\nA string with the name",
+                            "It is case-sensitive and browsers always set it to <mark>fetch</mark>.\noptions\nAn object that, in addition of the properties defined in",
+                            "A new <mark>Fetch</mark>Event object.\nPromise\n<mark>Fetch</mark> API"
+                          ],
+                          "title": [
+                            "<mark>Fetch</mark>Event: <mark>Fetch</mark>Event() constructor"
+                          ]
+                        }
+                      }
+                    ],
+                    "metadata": {
+                      "took_ms": 18,
+                      "size": 10,
+                      "page": 1,
+                      "total": {
+                        "value": 791,
+                        "relation": "eq"
+                      }
+                    },
+                    "suggestions": []
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "wvcxSoqq4DP8cALOAK5C_",
+              "domain": "developer.mozilla.org",
+              "auth_required": false,
+              "endpoint_count": 4,
+              "operation_count": 4,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T15:12:51.578Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 7628,
+            "tokens_used": 1,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "message": "Found 4 endpoint(s). Pick one and call POST /v1/skills/wvcxSoqq4DP8cALOAK5C_/execute with params.endpoint_id.",
+            "skill_id": "wvcxSoqq4DP8cALOAK5C_",
+            "available_operations": [
+              {
+                "operation_id": "AAemmnCxDmwZy6CqqP98s",
+                "endpoint_id": "AAemmnCxDmwZy6CqqP98s",
+                "action_kind": "search",
+                "resource_kind": "document",
+                "description_out": "Searches Document with mdn_url, score, title, locale, slug, popularity using q, page, locale",
+                "requires": [
+                  "q",
+                  "page",
+                  "locale"
+                ],
+                "provides": [
+                  "mdn_url",
+                  "document_name",
+                  "slug",
+                  "document_id"
+                ],
+                "runnable": true
+              }
+            ],
+            "missing_bindings": [],
+            "available_endpoints": [
+              {
+                "endpoint_id": "AAemmnCxDmwZy6CqqP98s",
+                "method": "GET",
+                "description": "Searches Document with mdn_url, score, title, locale, slug, popularity using q, page, locale",
+                "url": "https://developer.mozilla.org/api/v1/search?q={q}&page={page}&locale={locale}",
+                "score": 234.1,
+                "schema_summary": {
+                  "documents": "array",
+                  "metadata": "object",
+                  "suggestions": "array"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+              },
+              {
+                "endpoint_id": "xy9faxSrJwH78du8ekirD",
+                "method": "GET",
+                "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                "url": "https://developer.mozilla.org/api/v1/ping",
+                "score": 33.5,
+                "schema_summary": null,
+                "dom_extraction": false,
+                "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+              },
+              {
+                "endpoint_id": "uzl1DwL8tHSe9wWJnU8_s",
+                "method": "POST",
+                "description": "Returns details for Side with status, copy, image, imageFormat, alt, cta",
+                "url": "https://developer.mozilla.org/pong/get",
+                "score": 22.3,
+                "schema_summary": {
+                  "side": "object",
+                  "top": "object",
+                  "bottom": "object",
+                  "plusAvailable": "boolean"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+              },
+              {
+                "endpoint_id": "a3Djf7OHIjUbVFXKzaID5",
+                "method": "GET",
+                "description": "Returns details for Geo with country, country_iso",
+                "url": "https://developer.mozilla.org/api/v1/whoami",
+                "score": 20.9,
+                "schema_summary": {
+                  "geo": "object",
+                  "username": "null",
+                  "is_authenticated": "null",
+                  "email": "null",
+                  "avatar_url": "null",
+                  "is_subscriber": "null",
+                  "subscription_type": "null",
+                  "settings": "null"
+                },
+                "dom_extraction": false,
+                "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "deferral_payload",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "url",
+                "summary"
+              ],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 4,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 1,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "message": "Found 4 endpoint(s). Pick one and call POST /v1/skills/wvcxSoqq4DP8cALOAK5C_/execute with params.endpoint_id.",
+                "skill_id": "wvcxSoqq4DP8cALOAK5C_",
+                "available_operations": [
+                  {
+                    "operation_id": "AAemmnCxDmwZy6CqqP98s",
+                    "endpoint_id": "AAemmnCxDmwZy6CqqP98s",
+                    "action_kind": "search",
+                    "resource_kind": "document",
+                    "description_out": "Searches Document with mdn_url, score, title, locale, slug, popularity using q, page, locale",
+                    "requires": [
+                      "q",
+                      "page",
+                      "locale"
+                    ],
+                    "provides": [
+                      "mdn_url",
+                      "document_name",
+                      "slug",
+                      "document_id"
+                    ],
+                    "runnable": true
+                  }
+                ],
+                "missing_bindings": [],
+                "available_endpoints": [
+                  {
+                    "endpoint_id": "AAemmnCxDmwZy6CqqP98s",
+                    "method": "GET",
+                    "description": "Searches Document with mdn_url, score, title, locale, slug, popularity using q, page, locale",
+                    "url": "https://developer.mozilla.org/api/v1/search?q={q}&page={page}&locale={locale}",
+                    "score": 234.1,
+                    "schema_summary": {
+                      "documents": "array",
+                      "metadata": "object",
+                      "suggestions": "array"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+                  },
+                  {
+                    "endpoint_id": "xy9faxSrJwH78du8ekirD",
+                    "method": "GET",
+                    "description": "Inferred from JS bundle (string_literal). Not observed in network traffic.",
+                    "url": "https://developer.mozilla.org/api/v1/ping",
+                    "score": 33.5,
+                    "schema_summary": null,
+                    "dom_extraction": false,
+                    "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+                  },
+                  {
+                    "endpoint_id": "uzl1DwL8tHSe9wWJnU8_s",
+                    "method": "POST",
+                    "description": "Returns details for Side with status, copy, image, imageFormat, alt, cta",
+                    "url": "https://developer.mozilla.org/pong/get",
+                    "score": 22.3,
+                    "schema_summary": {
+                      "side": "object",
+                      "top": "object",
+                      "bottom": "object",
+                      "plusAvailable": "boolean"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+                  },
+                  {
+                    "endpoint_id": "a3Djf7OHIjUbVFXKzaID5",
+                    "method": "GET",
+                    "description": "Returns details for Geo with country, country_iso",
+                    "url": "https://developer.mozilla.org/api/v1/whoami",
+                    "score": 20.9,
+                    "schema_summary": {
+                      "geo": "object",
+                      "username": "null",
+                      "is_authenticated": "null",
+                      "email": "null",
+                      "avatar_url": "null",
+                      "is_subscriber": "null",
+                      "subscription_type": "null",
+                      "settings": "null"
+                    },
+                    "dom_extraction": false,
+                    "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch"
+                  }
+                ]
+              }
+            },
+            {
+              "endpoint_id": "AAemmnCxDmwZy6CqqP98s",
+              "endpoint_url": "https://developer.mozilla.org/api/v1/search?q={q}&page={page}&locale={locale}",
+              "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch",
+              "execute_ms": 414,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "document_rows",
               "failure_class": "none",
               "source_kind": "record",
               "matched_fields": [
                 "title",
                 "url",
-                "description"
+                "summary"
               ],
               "missing_fields": [],
-              "row_count": 40,
-              "observed_entity_types": [],
+              "row_count": 10,
+              "observed_entity_types": [
+                "document",
+                "question"
+              ],
               "validation_failures": [],
               "echoed_params": [],
-              "tokens_used": 2805,
-              "tokens_saved": 27195,
-              "tokens_saved_pct": 91,
               "excerpt": [
                 {
-                  "link": "/maps/4fa6f",
-                  "url": "/maps/4fa6f",
-                  "title": "Kobaryo - Social Networking Speedcore",
-                  "image": "https://eu.cdn.beatsaver.com/d106f099e28df9f54bc1437af95ade4d67ce2834.jpg",
-                  "description": "ViSi - 17 minutes ago",
-                  "info": "Kobaryo - Social Networking SpeedcoreViSi - 17 minutes agoEasyNormalHardExpertExpert+Expert+Easy"
+                  "title": "BackgroundFetchManager: fetch() method",
+                  "url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                  "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                  "score": 43.463844,
+                  "popularity": 0.00045003144055269615,
+                  "locale": "en-us"
                 },
                 {
-                  "link": "/maps/4fa57",
-                  "url": "/maps/4fa57",
-                  "title": "ドレミファSTARS!! (SHOW BY ROCK!! STARS!! OP)",
-                  "image": "https://eu.cdn.beatsaver.com/dd5da098cd708fac33eaab1b625d5e816789c638.jpg",
-                  "description": "Lifinna - 2 hours ago",
-                  "info": "ドレミファSTARS!! (SHOW BY ROCK!! STARS!! OP)Lifinna - 2 hours agoExpert"
+                  "title": "FetchEvent: FetchEvent() constructor",
+                  "url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                  "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                  "score": 43.2361,
+                  "popularity": 0,
+                  "locale": "en-us"
                 },
                 {
-                  "link": "/maps/4fa56",
-                  "url": "/maps/4fa56",
-                  "title": "quixofficial - Tree Chicken Song",
-                  "image": "https://eu.cdn.beatsaver.com/7dd014d9db62143f22cf3c6db364485423df655f.jpg",
-                  "description": "Vainstains-but-bad - 2 hours ago",
-                  "info": "quixofficial - Tree Chicken SongVainstains-but-bad - 2 hours agoExpert+"
+                  "title": "Fetch API",
+                  "url": "/en-US/docs/Web/API/Fetch_API",
+                  "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest.",
+                  "score": 42.61849,
+                  "popularity": 0.01824100039865799,
+                  "locale": "en-us"
                 },
                 {
-                  "link": "/maps/4fa55",
-                  "url": "/maps/4fa55",
-                  "title": "t+pazolite - Chapter 0: Foreword (2021 mapped section cut)",
-                  "image": "https://eu.cdn.beatsaver.com/18e250127e7775c348cf9d2ecb2ec97b9b66b545.jpg",
-                  "description": "edgii_two - 2 hours ago",
-                  "info": "t+pazolite - Chapter 0: Foreword (2021 mapped section cut)edgii_two - 2 hours agoExpert+"
+                  "title": "FetchEvent",
+                  "url": "/en-US/docs/Web/API/FetchEvent",
+                  "summary": "This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to...",
+                  "score": 42.430374,
+                  "popularity": 0.00045208637863741166,
+                  "locale": "en-us"
                 }
               ]
             }
@@ -229,11 +1660,984 @@
           "repair_reason": "pass",
           "repair_memory": {
             "visited_urls": [
-              "https://beatsaver.com/search?q=camellia"
+              "https://developer.mozilla.org/en-US/search?q=fetch"
             ],
             "attempted_endpoint_counts": {},
             "failure_class_counts": {},
             "reasons_seen": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "hn-search-param-seeded",
+      "intent": "search hacker news",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "author",
+        "url"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://hn.algolia.com/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://hn.algolia.com/",
+          "force_capture": false,
+          "resolve_ms": 3970,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "q": "openai",
+              "url": "https://hn.algolia.com/",
+              "domain": "hn.algolia.com",
+              "pathname": "/"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hn.algolia.com/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://hn.algolia.com/",
+          "force_capture": true,
+          "resolve_ms": 3522,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "q": "openai",
+              "url": "https://hn.algolia.com/",
+              "domain": "hn.algolia.com",
+              "pathname": "/"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hn.algolia.com/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "reddit-programming-posts",
+      "intent": "get subreddit posts",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "author",
+        "permalink"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.reddit.com/r/programming/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.reddit.com/r/programming/",
+          "force_capture": false,
+          "resolve_ms": 25106,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.reddit.com/r/programming/",
+              "domain": "www.reddit.com",
+              "pathname": "/r/programming/",
+              "slug_1": "r",
+              "slug_2": "programming"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.reddit.com/r/programming/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://www.reddit.com/r/programming/",
+          "force_capture": true,
+          "resolve_ms": 23098,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.reddit.com/r/programming/",
+              "domain": "www.reddit.com",
+              "pathname": "/r/programming/",
+              "slug_1": "r",
+              "slug_2": "programming"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.reddit.com/r/programming/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "docker-image-tags",
+      "intent": "get image tags",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "last_updated"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://hub.docker.com/r/library/nginx/tags"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://hub.docker.com/r/library/nginx/tags",
+          "force_capture": false,
+          "resolve_ms": 6690,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://hub.docker.com/r/library/nginx/tags",
+              "domain": "hub.docker.com",
+              "pathname": "/r/library/nginx/tags",
+              "slug_1": "r",
+              "slug_2": "library",
+              "slug_3": "nginx",
+              "slug_4": "tags"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hub.docker.com/r/library/nginx/tags"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://hub.docker.com/r/library/nginx/tags",
+          "force_capture": true,
+          "resolve_ms": 4968,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://hub.docker.com/r/library/nginx/tags",
+              "domain": "hub.docker.com",
+              "pathname": "/r/library/nginx/tags",
+              "slug_1": "r",
+              "slug_2": "library",
+              "slug_3": "nginx",
+              "slug_4": "tags"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hub.docker.com/r/library/nginx/tags"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stack-overflow-tag-questions",
+      "intent": "get tag questions",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "score"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://stackoverflow.com/questions/tagged/javascript"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://stackoverflow.com/questions/tagged/javascript",
+          "force_capture": false,
+          "resolve_ms": 17616,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://stackoverflow.com/questions/tagged/javascript",
+              "domain": "stackoverflow.com",
+              "pathname": "/questions/tagged/javascript",
+              "slug_1": "questions",
+              "slug_2": "tagged",
+              "slug_3": "javascript"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://stackoverflow.com/questions/tagged/javascript"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://stackoverflow.com/questions/tagged/javascript",
+          "force_capture": true,
+          "resolve_ms": 14868,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://stackoverflow.com/questions/tagged/javascript",
+              "domain": "stackoverflow.com",
+              "pathname": "/questions/tagged/javascript",
+              "slug_1": "questions",
+              "slug_2": "tagged",
+              "slug_3": "javascript"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://stackoverflow.com/questions/tagged/javascript"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "devto-tag-posts",
+      "intent": "get tag posts",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "url",
+        "author"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://dev.to/t/javascript"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "dag": 1,
+          "transport": 1
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://dev.to/t/javascript",
+          "force_capture": false,
+          "resolve_ms": 10041,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://dev.to/t/javascript",
+              "domain": "dev.to",
+              "pathname": "/t/javascript",
+              "slug_1": "t",
+              "slug_2": "javascript"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get tag posts",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-21T15:08:59.404Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 10003,
+            "tokens_used": 38,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "no_endpoints",
+            "message": "No API endpoints or structured DOM data found at https://dev.to/t/javascript. The site may require authentication."
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "no_endpoints",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "url",
+                "author"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 38,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "no_endpoints",
+                "message": "No API endpoints or structured DOM data found at https://dev.to/t/javascript. The site may require authentication."
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://dev.to/t/javascript"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://dev.to/t/javascript",
+          "force_capture": true,
+          "resolve_ms": 24405,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://dev.to/t/javascript",
+              "domain": "dev.to",
+              "pathname": "/t/javascript",
+              "slug_1": "t",
+              "slug_2": "javascript"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://dev.to/t/javascript"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "dag": 1,
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rubygems-package-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://rubygems.org/gems/rails"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://rubygems.org/gems/rails",
+          "force_capture": false,
+          "resolve_ms": 8109,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://rubygems.org/gems/rails",
+              "domain": "rubygems.org",
+              "pathname": "/gems/rails",
+              "slug_1": "gems",
+              "slug_2": "rails"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://rubygems.org/gems/rails"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://rubygems.org/gems/rails",
+          "force_capture": true,
+          "resolve_ms": 4868,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://rubygems.org/gems/rails",
+              "domain": "rubygems.org",
+              "pathname": "/gems/rails",
+              "slug_1": "gems",
+              "slug_2": "rails"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://rubygems.org/gems/rails"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pubdev-package-info",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://pub.dev/packages/http"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://pub.dev/packages/http",
+          "force_capture": false,
+          "resolve_ms": 4605,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://pub.dev/packages/http",
+              "domain": "pub.dev",
+              "pathname": "/packages/http",
+              "slug_1": "packages",
+              "slug_2": "http"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://pub.dev/packages/http"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://pub.dev/packages/http",
+          "force_capture": true,
+          "resolve_ms": 3398,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://pub.dev/packages/http",
+              "domain": "pub.dev",
+              "pathname": "/packages/http",
+              "slug_1": "packages",
+              "slug_2": "http"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://pub.dev/packages/http"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "jmail-search",
+      "intent": "search emails",
+      "auth": false,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "keytar.setPassword is not a function",
+      "matched_fields": [],
+      "missing_fields": [
+        "subject",
+        "sender",
+        "preview"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://jmail.world/search?q=clinton"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "transport": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "keytar.setPassword is not a function"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://jmail.world/search?q=clinton",
+          "force_capture": false,
+          "resolve_ms": 6285,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://jmail.world/search?q=clinton",
+              "domain": "jmail.world",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "clinton"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://jmail.world/search?q=clinton"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "url": "https://jmail.world/search?q=clinton",
+          "force_capture": true,
+          "resolve_ms": 5992,
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://jmail.world/search?q=clinton",
+              "domain": "jmail.world",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "clinton"
+            },
+            "cache_hit": false
+          },
+          "resolve_excerpt": {
+            "error": "keytar.setPassword is not a function"
+          },
+          "candidates": [],
+          "repair_action": "stop",
+          "repair_reason": "keytar.setPassword is not a function",
+          "repair_memory": {
+            "visited_urls": [
+              "https://jmail.world/search?q=clinton"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "transport": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "keytar.setPassword is not a function"
+            ]
           }
         }
       ]

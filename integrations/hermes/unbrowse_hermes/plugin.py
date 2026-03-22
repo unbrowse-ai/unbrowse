@@ -148,6 +148,8 @@ def _build_args(params: dict) -> list:
         if "endpointId" not in params:
             raise ValueError("endpointId required for action=execute")
         args = ["execute", "--skill", params["skillId"], "--endpoint", params["endpointId"]]
+        _push_flag(args, "url", params.get("url"))
+        _push_flag(args, "intent", params.get("intent"))
         _push_flag(args, "path", params.get("path"))
         _push_flag(args, "extract", params.get("extract"))
         _push_flag(args, "limit", params.get("limit"))

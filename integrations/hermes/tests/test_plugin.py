@@ -59,8 +59,24 @@ class TestBuildArgs(unittest.TestCase):
         assert "--dry-run" in args
 
     def test_execute(self):
-        args = _build_args({"action": "execute", "skillId": "s1", "endpointId": "e1"})
-        assert args == ["execute", "--skill", "s1", "--endpoint", "e1"]
+        args = _build_args({
+            "action": "execute",
+            "skillId": "s1",
+            "endpointId": "e1",
+            "url": "https://example.com/search?q=openai",
+            "intent": "search packages",
+        })
+        assert args == [
+            "execute",
+            "--skill",
+            "s1",
+            "--endpoint",
+            "e1",
+            "--url",
+            "https://example.com/search?q=openai",
+            "--intent",
+            "search packages",
+        ]
 
     def test_execute_missing_fields(self):
         with self.assertRaises(ValueError):
@@ -101,6 +117,12 @@ class TestMemoryInstructions(unittest.TestCase):
     def test_mentions_browser_fallback(self):
         result = memory_instructions()
         assert "browser" in result.lower()
+
+    def test_makes_unbrowse_the_first_choice_for_website_tasks(self):
+        result = memory_instructions().lower()
+        assert "use `unbrowse` first" in result
+        assert "only fall back to the browser tool" in result
+        assert "website data extraction" in result
 
 
 class TestHandle(unittest.TestCase):

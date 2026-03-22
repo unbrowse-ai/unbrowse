@@ -60,6 +60,111 @@ describe("intent result assessment", () => {
     expect(verdict.verdict).toBe("pass");
   });
 
+  test("passes linkedin normalized feed payloads when feed elements are not star-prefixed", () => {
+    const verdict = assessIntentResult({
+      data: {
+        data: {
+          feedDashMainFeedByMainFeed: {
+            elements: ["urn:li:fsd_update:(urn:li:activity:1,MAIN_FEED,DEBUG_REASON,DEFAULT,false)"],
+          },
+        },
+        included: [
+          {
+            entityUrn: "urn:li:fsd_update:(urn:li:activity:1,MAIN_FEED,DEBUG_REASON,DEFAULT,false)",
+            commentary: {
+              text: {
+                text: "hello linkedin",
+              },
+            },
+            actor: {
+              "*profileUrn": "urn:li:fsd_profile:abc",
+            },
+            permalink: "/feed/update/urn:li:activity:1/",
+            createdAt: 1772981230951,
+          },
+          {
+            entityUrn: "urn:li:fsd_profile:abc",
+            firstName: "Lewis",
+            lastName: "Tham",
+            publicIdentifier: "lew",
+          },
+        ],
+      },
+    }, "get feed posts");
+
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("passes nusmods module list rows locally", () => {
+    const out = assessIntentResult([
+      {
+        moduleCode: "CS1101S",
+        semesters: [1, 2],
+        title: "Programming Methodology",
+      },
+      {
+        moduleCode: "CS1231S",
+        semesters: [1, 2],
+        title: "Discrete Structures",
+      },
+    ], "retrieve module and timetable information");
+
+    expect(out.verdict).toBe("pass");
+  });
+
+  test("passes beatsaver-style search payloads with top-level docs arrays", () => {
+    const out = assessIntentResult({
+      docs: [
+        {
+          id: "1573",
+          name: "Bad Apple",
+          description: "Beat Saber map",
+          uploader: { name: "redmagi" },
+          metadata: { songName: "Bad Apple" },
+          stats: { score: 0.92 },
+        },
+      ],
+      info: { total: 1, pages: 1 },
+    }, "search beat saber maps");
+
+    expect(out.verdict).toBe("pass");
+  });
+
+  test("passes linkedin feed payloads when elements contain full update objects", () => {
+    const verdict = assessIntentResult({
+      data: {
+        feedDashMainFeedByMainFeed: {
+          elements: [
+            {
+              entityUrn: "urn:li:fsd_update:(urn:li:activity:1,MAIN_FEED,DEBUG_REASON,DEFAULT,false)",
+              actor: {
+                name: {
+                  text: "Lewis Tham",
+                },
+              },
+              commentary: {
+                text: {
+                  text: "hello linkedin",
+                },
+              },
+              socialContent: {
+                shareUrl: "https://www.linkedin.com/feed/update/urn:li:activity:1/",
+              },
+              socialDetail: {
+                totalSocialActivityCounts: {
+                  numLikes: 12,
+                  numComments: 3,
+                },
+              },
+            },
+          ],
+        },
+      },
+    }, "get linkedin feed posts");
+
+    expect(verdict.verdict).toBe("pass");
+  });
+
   test("fails empty statuses for post intent", () => {
     const verdict = assessIntentResult({ statuses: [], accounts: [{ id: "1", username: "foo" }] }, "search posts");
     expect(verdict.verdict).toBe("fail");
