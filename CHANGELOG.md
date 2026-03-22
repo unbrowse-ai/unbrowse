@@ -1,3 +1,8 @@
+## Unreleased
+
+- fix: update frontend deployment docs and release workflow to use the OpenNext Cloudflare Worker deploy path
+- docs: refresh frontend install/deploy guidance to keep onboarding easy across MCP, OpenClaw, ElizaOS, Hermes, LangChain, Vercel AI SDK, and skill hosts
+
 # Changelog
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
