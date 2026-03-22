@@ -962,6 +962,49 @@ export function scanHtmlForFetchRoutes(
     endpoints.push(endpoint);
   });
 
+  const addHtmlRoute = (candidate: string, reliability: number, description: string): void => {
+    let resolved: URL;
+    try {
+      const decoded = candidate
+        .replace(/\\u002F/g, "/")
+        .replace(/\\u003A/g, ":")
+        .replace(/\\\//g, "/");
+      resolved = new URL(decoded, page);
+    } catch {
+      return;
+    }
+    const looksStructured =
+      looksLikeStructuredApiUrl(resolved.toString()) ||
+      /\/review\/product\/listajax\//i.test(resolved.pathname);
+    if (!looksStructured) return;
+    const targetReg = getRegistrableDomain(resolved.hostname);
+    const pageReg = getRegistrableDomain(page.hostname);
+    if (!targetReg || !pageReg || targetReg !== pageReg) return;
+    const normalized = resolved.toString();
+    if (seen.has(normalized)) return;
+    seen.add(normalized);
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: nanoid(),
+      method: "GET",
+      url_template: normalized,
+      idempotency: "safe",
+      verification_status: "pending",
+      reliability_score: reliability,
+      description,
+      trigger_url: page.toString(),
+    };
+    endpoint.semantic = inferEndpointSemantic(endpoint, {
+      observedAt: new Date().toISOString(),
+      sampleRequestUrl: page.toString(),
+    });
+    if (endpoint.semantic?.description_out) endpoint.description = endpoint.semantic.description_out;
+    endpoints.push(endpoint);
+  };
+
+  for (const match of html.matchAll(/"productReviewUrl"\s*:\s*"([^"]+)"/g)) {
+    addHtmlRoute(match[1] ?? "", 0.6, "Inferred from html review config");
+  }
+
   return endpoints;
 }
 

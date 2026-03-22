@@ -22,9 +22,15 @@ backend/.dev.vars
 skills/*
 !skills/gh-paper-delivery/
 !skills/gh-paper-delivery/**
+!skills/growth-operating-system/
+!skills/growth-operating-system/**
 !integrations/openclaw/skills/
 !integrations/openclaw/skills/unbrowse-browser/
 !integrations/openclaw/skills/unbrowse-browser/SKILL.md
+!integrations/hermes/skills/
+!integrations/hermes/skills/**
+!integrations/hermes/dropin/
+!integrations/hermes/dropin/**
 traces/
 *.bak
 

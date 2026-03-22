@@ -1,0 +1,3 @@
+name: unbrowse
+version: 1.0.0
+description: Hermes drop-in plugin that exposes the unbrowse CLI as a web tool and injects routing guidance to prefer Unbrowse for website tasks.

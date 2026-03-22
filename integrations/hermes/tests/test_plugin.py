@@ -104,8 +104,9 @@ class TestRegister(unittest.TestCase):
             zip(["name", "toolset", "schema", "handler", "check_fn", "requires_env"],
                 registry.register.call_args.args))
         schema = kwargs.get("schema", registry.register.call_args[1].get("schema"))
-        assert "action" in schema["properties"]
-        assert "action" in schema["required"]
+        assert schema["name"] == "unbrowse"
+        assert "action" in schema["parameters"]["properties"]
+        assert "action" in schema["parameters"]["required"]
 
 
 class TestMemoryInstructions(unittest.TestCase):

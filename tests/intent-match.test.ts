@@ -677,4 +677,44 @@ describe("intent result assessment", () => {
     ], "get definition");
     expect(verdict.verdict).toBe("fail");
   });
+
+  test("passes primitive search-term projections", () => {
+    const verdict = assessIntentResult([
+      { term: "hollister" },
+      { term: "Joust Bag" },
+    ], "Get the top 2 search term(s) in my store");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("passes primitive review-count projections", () => {
+    const verdict = assessIntentResult([
+      { author: "A", body: "disappointed", rating: "2" },
+      { author: "B", body: "disappointed again", rating: "3" },
+    ], 'Get the total number of reviews that our store received so far that mention term "disappointed"');
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("passes primitive reviewer-name projections", () => {
+    const verdict = assessIntentResult([
+      { author: "Roxanne Brandon Coffey", body: "print quality is poor", rating: "2" },
+      { author: "Nelson", body: "print quality is blurry", rating: "3" },
+    ], "Get name(s) of reviewer(s) who mention print quality explicitly with a rating of 3 or less stars for the product on the current page");
+    expect(verdict.verdict).toBe("pass");
+  });
+
+  test("rejects primitive reviewer projections when rows are full review blobs", () => {
+    const verdict = assessIntentResult([
+      "Cup for ears very small Review by Dibbins Posted on 4/20/23",
+      "Too small, did not hold charge Review by Catso Posted on 4/20/23",
+    ], "Get name(s) of reviewer(s) who mention ear cups being small for the product on the current page");
+    expect(verdict.verdict).toBe("fail");
+  });
+
+  test("passes postmill comment aggregate projections", () => {
+    const verdict = assessIntentResult([
+      { author: "alice", body: "fine", score: "-2", post_author: "mineinhusdson", post_title: "Best place for a foot rub?" },
+      { author: "mineinhusdson", body: "thanks", score: "-3", post_author: "mineinhusdson", post_title: "Best place for a foot rub?" },
+    ], 'In the Worcester forum, get the username and post title of the most recent post, and count the number of comments on that post that are not from the author and have more downvotes than upvotes. Return a list of objects with keys "username", "post_title", and "count".');
+    expect(verdict.verdict).toBe("pass");
+  });
 });

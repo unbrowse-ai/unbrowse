@@ -11,6 +11,8 @@
 - feat: add WebArena-Verified benchmark lane with full/hard/inventory scripts backed by the official 812-task dataset
 - feat: record HAR-like executed request events in execution traces so retrieval/selection/execution judges can score real network evidence instead of endpoint ids only
 - feat: add `bun run release:local` to rehearse CLI packaging, local install smoke, integration package builds, and app compile checks before a tag
+- feat: add a repo-local `growth-operating-system` skill that turns lead capture, feedback synthesis, GitHub planning, and launch/iteration loops into one agent workflow around PostHog, Attio, Loops, and the delivery/marketing boards
+- feat: add a Hermes-native `unbrowse-growth-os` skill plus a fixed drop-in Unbrowse plugin layout/schema so Hermes can run the growth operating system with the `unbrowse` tool
 
 ### Bug Fixes
 

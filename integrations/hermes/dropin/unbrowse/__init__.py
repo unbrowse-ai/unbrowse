@@ -1,7 +1,7 @@
-"""Unbrowse plugin for Hermes Agent.
+"""Drop-in Hermes plugin for Unbrowse.
 
-Registers the `unbrowse` tool that shells out to the unbrowse CLI
-for website data extraction, API discovery, and search.
+This mirrors the pip-installed plugin entrypoint but works as a plain
+`~/.hermes/plugins/unbrowse/` directory plugin.
 """
 
 import json
@@ -13,9 +13,9 @@ TOOLSET = "web"
 DEFAULT_TIMEOUT = 120
 
 
-def register(registry):
+def register(ctx):
     """Entry point called by Hermes plugin discovery."""
-    registry.register(
+    ctx.register_tool(
         name=TOOL_NAME,
         toolset=TOOLSET,
         schema={
@@ -50,9 +50,15 @@ def register(registry):
         is_async=True,
     )
 
+    ctx.register_hook("on_session_start", _on_session_start)
+
+
+def _on_session_start(**kwargs):
+    """No-op hook; keeps room for future session bootstrap if needed."""
+    return None
+
 
 async def _handle(params: dict, **kwargs) -> str:
-    """Execute an unbrowse CLI command and return JSON string."""
     try:
         args = _build_args(params)
     except (KeyError, ValueError) as e:
@@ -72,7 +78,6 @@ async def _handle(params: dict, **kwargs) -> str:
 
     stdout = result.stdout.strip()
     if result.returncode == 0 and stdout:
-        # Validate it's JSON or wrap it
         try:
             json.loads(stdout)
             return stdout
@@ -94,7 +99,6 @@ async def _handle(params: dict, **kwargs) -> str:
 
 
 def memory_instructions() -> str:
-    """Routing guidance injected into the agent's memory system prompt."""
     return (
         "You have an `unbrowse` tool that reverse-engineers websites into reusable API skills. "
         "Use `unbrowse` first for any website data extraction, search, or authenticated reads. "
@@ -104,7 +108,6 @@ def memory_instructions() -> str:
 
 
 def _push_flag(args: list, name: str, value) -> None:
-    """Append a --flag [value] pair if value is truthy."""
     if value is None or value is False or value == "":
         return
     args.append(f"--{name}")
@@ -113,7 +116,6 @@ def _push_flag(args: list, name: str, value) -> None:
 
 
 def _build_args(params: dict) -> list:
-    """Convert tool params dict to CLI argument list."""
     action = params["action"]
 
     if action == "health":

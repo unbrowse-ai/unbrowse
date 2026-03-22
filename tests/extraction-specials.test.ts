@@ -324,4 +324,38 @@ describe("special HTML extraction", () => {
     expect((extracted.data as Record<string, string>).flash).toContain("You logged into a secure area!");
     expect((extracted.data as Record<string, string>).title).toBe("Secure Area");
   });
+
+  it("preserves class-based specials on oversized postmill comment pages", () => {
+    const padding = "x".repeat(310_000);
+    const html = `
+      <html><body data-pad="${padding}">
+        <div class="submission__title-row"><h1 class="submission__title">How can I bring an HDMI cable from my pc downstairs to my TV upstairs?</h1></div>
+        <a href="/user/ziostraccette" class="submission__submitter"><strong>ziostraccette</strong></a>
+        <article class="comment">
+          <h1 class="comment__info"><a href="/user/alice"><strong>alice</strong></a></h1>
+          <span class="vote__net-score">&minus;3</span>
+          <div class="comment__body">bad idea</div>
+          <a class="comment__permalink" href="/f/DIY/1/-/comment/1">Permalink</a>
+        </article>
+      </body></html>
+    `;
+
+    const extracted = extractFromDOM(
+      html,
+      'In the DIY forum, get the username and post title of the most recent post, and count the number of comments on that post that are not from the author and have more downvotes than upvotes. Return a list of objects with keys "username", "post_title", and "count".',
+    );
+
+    expect(extracted.extraction_method).toBe("repeated-elements");
+    expect(extracted.data).toEqual([
+      {
+        author: "alice",
+        body: "bad idea",
+        url: "/f/DIY/1/-/comment/1",
+        permalink: "/f/DIY/1/-/comment/1",
+        score: "-3",
+        post_title: "How can I bring an HDMI cable from my pc downstairs to my TV upstairs?",
+        post_author: "ziostraccette",
+      },
+    ]);
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildPageArtifactCapture, projectResultForIntent } from "../src/execution/index.js";
+import { buildPageArtifactCapture, projectResultForIntent, scanHtmlForFetchRoutes } from "../src/execution/index.js";
 import { deriveTemplateParamsFromContextUrl, mergeContextTemplateParams, normalizeQueryBindingKey } from "../src/template-params.js";
 
 describe("root runtime regressions", () => {
@@ -109,5 +109,25 @@ describe("root runtime regressions", () => {
     expect(built.endpoint?.description).toBe("Captured page artifact for search packages");
     expect(Array.isArray((built.result?.data as Array<Record<string, unknown>>))).toBe(true);
     expect((built.result?.data as Array<Record<string, unknown>>)[0]?.name).toBe("openai");
+  });
+
+  it("discovers Magento review ajax routes from html config", () => {
+    const html = `
+      <html><body>
+        <script type="text/x-magento-init">
+          {
+            "*": {
+              "Magento_Review/js/process-reviews": {
+                "productReviewUrl": "http\\u003A\\u002F\\u002Fstore.test\\u002Freview\\u002Fproduct\\u002FlistAjax\\u002Fid\\u002F76525\\u002F"
+              }
+            }
+          }
+        </script>
+      </body></html>
+    `;
+
+    const routes = scanHtmlForFetchRoutes(html, "http://store.test/product.html");
+
+    expect(routes.some((route) => route.url_template === "http://store.test/review/product/listAjax/id/76525/")).toBe(true);
   });
 });
