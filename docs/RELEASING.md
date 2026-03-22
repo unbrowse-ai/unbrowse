@@ -53,6 +53,27 @@ Need a branch-safe rehearsal before cutting a tag:
 
 Dry-run mode never deploys staging or production and never publishes to npm or PyPI. It only runs the release test gate plus the same package/build steps the tag workflow would use right before publish.
 
+## Local packaging rehearsal
+
+Need the CI/package path locally before you tag or push:
+
+```bash
+bun run release:local
+```
+
+That script:
+
+- syncs the Kuri submodule and installs root deps
+- checks `SKILL.md` sync
+- builds the CLI tarball from `packages/skill`
+- installs that tarball into a fresh temp project and runs `npx unbrowse --help`
+- runs npm package dry-runs for `integrations/elizaos`, `integrations/mcp`, and `integrations/openclaw`
+- runs OpenClaw typecheck/tests before its pack dry-run
+- builds the Python integration artifacts in disposable virtualenvs
+- runs backend typecheck and frontend production build
+
+It keeps the CLI tarball, smoke-install sandbox, and Python build copies in `/tmp`, and uses temp virtualenvs for Python package builds so local macOS `python3` setups with PEP 668 do not block the rehearsal.
+
 ## Required secrets
 
 - `CLOUDFLARE_API_TOKEN`

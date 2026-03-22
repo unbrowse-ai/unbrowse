@@ -1003,7 +1003,11 @@ export async function executeInBrowser(
   body?: unknown,
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
-): Promise<{ status: number; data: unknown; trace_id: string }> {
+): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
+  startedDateTime: string;
+  request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
+  response: { status: number; headers: Array<{ name: string; value: string }>; content?: { mimeType?: string; text?: string } };
+}> }> {
   await kuri.start();
   await kuri.discoverTabs();
 
@@ -1031,8 +1035,39 @@ export async function executeInBrowser(
     await kuri.navigate(tabId, origin);
     await waitForReadyState(tabId, 5000);
 
+    const startedDateTime = new Date().toISOString();
     const result = await kuri.executeInPageFetch(tabId, url, method, requestHeaders, body);
-    return { ...result, trace_id: nanoid() };
+    const responseText = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
+    return {
+      ...result,
+      trace_id: nanoid(),
+      network_events: [{
+        startedDateTime,
+        request: {
+          url,
+          method: method.toUpperCase(),
+          headers: Object.entries({ ...allHeaders, ...requestHeaders }).map(([name, value]) => ({ name, value: String(value) })),
+          ...(body == null ? {} : {
+            postData: {
+              mimeType: requestHeaders["content-type"] ?? requestHeaders["Content-Type"] ?? "application/json",
+              text: typeof body === "string" ? body : JSON.stringify(body),
+            },
+          }),
+        },
+        response: {
+          status: result.status,
+          headers: [],
+          ...(responseText
+            ? {
+                content: {
+                  mimeType: "application/json",
+                  text: responseText,
+                },
+              }
+            : {}),
+        },
+      }],
+    };
   } finally {
     await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
@@ -1051,7 +1086,11 @@ export async function triggerAndIntercept(
   targetUrlPattern: string,
   cookies: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   authHeaders?: Record<string, string>,
-): Promise<{ status: number; data: unknown; trace_id: string }> {
+): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
+  startedDateTime: string;
+  request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
+  response: { status: number; headers: Array<{ name: string; value: string }>; content?: { mimeType?: string; text?: string } };
+}> }> {
   await acquireTabSlot();
   await kuri.start();
   await kuri.discoverTabs();
@@ -1116,7 +1155,34 @@ export async function triggerAndIntercept(
           let data: unknown = entry.response_body;
           try { data = JSON.parse(entry.response_body ?? ""); } catch { /* keep as string */ }
           log("capture", `trigger-and-intercept: got status ${entry.response_status} for ${targetBase}`);
-          return { status: entry.response_status, data, trace_id: nanoid() };
+          return {
+            status: entry.response_status,
+            data,
+            trace_id: nanoid(),
+            network_events: [{
+              startedDateTime: entry.timestamp,
+              request: {
+                url: entry.url,
+                method: entry.method,
+                headers: Object.entries(entry.request_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                ...(entry.request_body == null ? {} : {
+                  postData: {
+                    text: entry.request_body,
+                  },
+                }),
+              },
+              response: {
+                status: entry.response_status,
+                headers: Object.entries(entry.response_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                ...(entry.response_body == null ? {} : {
+                  content: {
+                    mimeType: entry.content_type,
+                    text: entry.response_body,
+                  },
+                }),
+              },
+            }],
+          };
         }
       }
     }

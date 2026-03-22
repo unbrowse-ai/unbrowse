@@ -45,6 +45,16 @@ If your agent host uses skills, add the Unbrowse skill too:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+If you use OpenClaw, use the native plugin path instead:
+
+```bash
+openclaw plugins install unbrowse-openclaw
+openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
+openclaw gateway restart
+```
+
 ## Server Startup
 
 ```bash

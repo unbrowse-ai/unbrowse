@@ -140,6 +140,61 @@ function scopedCacheKey(scope: string, key: string): string {
   return `${scope}:${key}`;
 }
 
+function isIpv4Hostname(hostname: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+}
+
+function isIpv6Hostname(hostname: string): boolean {
+  return hostname.includes(":");
+}
+
+function isPortSensitiveHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "::1" ||
+    normalized === "[::1]" ||
+    isIpv4Hostname(normalized) ||
+    isIpv6Hostname(normalized) ||
+    !normalized.includes(".")
+  );
+}
+
+function getDomainReuseKey(input?: string | null): string | null {
+  if (!input) return null;
+  try {
+    const parsed = new URL(input);
+    if (isPortSensitiveHostname(parsed.hostname)) return parsed.host.toLowerCase();
+    return getRegistrableDomain(parsed.hostname);
+  } catch {
+    return getRegistrableDomain(input);
+  }
+}
+
+function endpointMatchesContextOrigin(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  if (!contextUrl) return true;
+  try {
+    const context = new URL(contextUrl);
+    if (!isPortSensitiveHostname(context.hostname)) return true;
+    const sameOrigin = (candidate?: string | null): boolean => {
+      if (!candidate) return false;
+      try {
+        return new URL(candidate).origin === context.origin;
+      } catch {
+        return false;
+      }
+    };
+    return sameOrigin(endpoint.url_template) || sameOrigin(endpoint.trigger_url ?? null);
+  } catch {
+    return true;
+  }
+}
+
 function normalizeRouteContext(url?: string): string {
   if (!url) return "root";
   try {
@@ -166,6 +221,7 @@ function promoteLearnedSkill(
   cacheKey: string,
   skill: SkillManifest,
   endpointId?: string,
+  contextUrl?: string,
 ): void {
   capturedDomainCache.set(cacheKey, { skill, endpointId, expires: Date.now() + 5 * 60_000 });
   skillRouteCache.set(cacheKey, {
@@ -176,9 +232,9 @@ function promoteLearnedSkill(
   });
   persistRouteCache();
   // Also cache at domain level for cross-intent reuse
-  const regDomain = getRegistrableDomain(skill.domain);
-  if (regDomain) {
-    domainSkillCache.set(regDomain, { skillId: skill.skill_id, endpointId, ts: Date.now() });
+  const domainKey = getDomainReuseKey(contextUrl ?? skill.domain);
+  if (domainKey) {
+    domainSkillCache.set(domainKey, { skillId: skill.skill_id, endpointId, ts: Date.now() });
     persistDomainCache();
   }
 }
@@ -226,7 +282,7 @@ export function promoteExplicitExecution(
   const assessment = assessIntentResult(result, intent);
   if (assessment.verdict === "fail") return false;
   const cacheKey = buildResolveCacheKey(skill.domain, intent, contextUrl);
-  promoteLearnedSkill(scope, cacheKey, skill, endpointId);
+  promoteLearnedSkill(scope, cacheKey, skill, endpointId, contextUrl);
   return true;
 }
 
@@ -264,6 +320,9 @@ export function isCachedSkillRelevantForIntent(
   contextUrl?: string,
 ): boolean {
   if (!hasUsableEndpoints(skill)) return false;
+  if (contextUrl && !skill.endpoints.some((endpoint) => endpointMatchesContextOrigin(endpoint, contextUrl))) {
+    return false;
+  }
   if (!intent || intent.trim().length === 0) return true;
   if (isFeedTimelineIntent(intent, contextUrl)) {
     const hasFeedLikeEndpoint = skill.endpoints.some((endpoint) =>
@@ -760,6 +819,9 @@ export function marketplaceSkillMatchesContext(
   intent: string,
   contextUrl?: string,
 ): boolean {
+  if (contextUrl && !skill.endpoints.some((endpoint) => endpointMatchesContextOrigin(endpoint, contextUrl))) {
+    return false;
+  }
   if (isFeedTimelineIntent(intent, contextUrl)) {
     return skill.endpoints.some((endpoint) => endpointMatchesFeedTimelineContext(endpoint, contextUrl));
   }
@@ -972,7 +1034,7 @@ export async function resolveAndExecute(
   const clientScope = options?.client_scope ?? "global";
   // force_capture: clear domain caches so we go straight to browser capture
   if (forceCapture && context?.url) {
-    const d = new URL(context.url).hostname;
+    const d = getDomainReuseKey(context.url) ?? new URL(context.url).hostname;
     for (const [k] of capturedDomainCache) {
       if (k.startsWith(`${clientScope}:`) && k.includes(`:${d}:`)) capturedDomainCache.delete(k);
     }
@@ -1043,7 +1105,7 @@ export async function resolveAndExecute(
         const autoResult = await tryAutoExecute(skill, source);
         if (autoResult) {
           // Promote to marketplace cache so subsequent requests skip live-capture
-          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "");
+          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "", context?.url);
           return autoResult;
         }
       } catch (err) {
@@ -1537,13 +1599,13 @@ export async function resolveAndExecute(
 
   // Domain-level cache: different intent, same domain → reuse skill with new params
   if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
-    const regDomain = getRegistrableDomain(requestedDomain);
-    const domainCached = regDomain ? domainSkillCache.get(regDomain) : null;
+    const domainKey = getDomainReuseKey(context?.url ?? requestedDomain);
+    const domainCached = domainKey ? domainSkillCache.get(domainKey) : null;
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
       const skill = await getSkill(domainCached.skillId, clientScope);
       if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
         timing.cache_hit = true;
-        console.log(`[domain-cache] hit for ${regDomain} → skill ${skill.skill_id.slice(0, 15)}`);
+        console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)}`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
         result.timing.cache_hit = true;
         return result;
@@ -1551,7 +1613,7 @@ export async function resolveAndExecute(
         const ranked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
         const top = ranked[0];
         console.log(
-          `[domain-cache] skip ${regDomain}: no relevant endpoint for "${intent}"` +
+          `[domain-cache] skip ${domainKey}: no relevant endpoint for "${intent}"` +
             (top ? ` (${top.endpoint.endpoint_id} score=${top.score.toFixed(1)})` : ""),
         );
       }
@@ -2009,16 +2071,16 @@ export async function resolveAndExecute(
         }
       }
       // Cache at domain level for cross-intent reuse
-      const regDomain = getRegistrableDomain(learned_skill.domain);
-      if (regDomain) {
+      const domainKey = getDomainReuseKey(context?.url ?? learned_skill.domain);
+      if (domainKey) {
         const bestEp = learned_skill.endpoints.find(e => e.dom_extraction) ?? learned_skill.endpoints[0];
-        domainSkillCache.set(regDomain, {
+        domainSkillCache.set(domainKey, {
           skillId: learned_skill.skill_id,
           endpointId: bestEp?.endpoint_id,
           ts: Date.now(),
         });
         persistDomainCache();
-        console.log(`[domain-cache] cached ${regDomain} → ${learned_skill.skill_id.slice(0, 15)}`);
+        console.log(`[domain-cache] cached ${domainKey} → ${learned_skill.skill_id.slice(0, 15)}`);
       }
     } catch (err) {
       console.error("[publish] discovery_cost update failed:", (err as Error).message);
@@ -2075,7 +2137,7 @@ export async function resolveAndExecute(
     });
     timing.execute_ms += Date.now() - te1;
     if (execOut.trace.success)
-      promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id);
+      promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id, context?.url);
     if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
       promoteResultSnapshot(
         cacheKey,

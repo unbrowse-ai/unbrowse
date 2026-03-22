@@ -60,4 +60,34 @@ describe("marketplace hydration selection", () => {
       index_status: "ok",
     } as any, "get product details", "https://www.saucedemo.com/inventory-item.html?id=4")).toBe(false);
   });
+
+  it("rejects localhost skills captured on a different port", () => {
+    expect(marketplaceSkillMatchesContext({
+      skill_id: "skill-localhost-admin",
+      version: "1.0.0",
+      schema_version: "1",
+      lifecycle: "active",
+      execution_type: "http",
+      created_at: "2026-03-23T00:00:00.000Z",
+      updated_at: "2026-03-23T00:00:00.000Z",
+      name: "localhost admin",
+      intent_signature: "localhost admin",
+      domain: "localhost",
+      description: "API skill for localhost admin",
+      owner_type: "agent",
+      endpoints: [{
+        endpoint_id: "admin-home",
+        method: "GET",
+        url_template: "http://localhost:7780/",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.9,
+        description: "Captured page artifact for admin dashboard",
+        trigger_url: "http://localhost:7780/",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+      }],
+      intents: ["admin dashboard"],
+      index_status: "ok",
+    } as any, "count reddit comments", "http://localhost:9999")).toBe(false);
+  });
 });

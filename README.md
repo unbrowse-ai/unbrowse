@@ -42,6 +42,16 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+If you use OpenClaw, use the native plugin path instead:
+
+```bash
+openclaw plugins install unbrowse-openclaw
+openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
+openclaw gateway restart
+```
+
 ## Upgrading
 
 Unbrowse now checks npm for a newer CLI release before each command. If your installed copy is stale, it upgrades the global npm install in place when possible, otherwise it re-runs the command through the latest npm package immediately.
@@ -58,6 +68,12 @@ If your agent host uses skills, rerun its skill install/update command too:
 
 ```bash
 npx skills add unbrowse-ai/unbrowse
+```
+
+If you use OpenClaw, rerun the plugin install/update command too:
+
+```bash
+openclaw plugins install unbrowse-openclaw
 ```
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)

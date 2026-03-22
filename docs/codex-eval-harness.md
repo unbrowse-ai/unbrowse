@@ -84,6 +84,21 @@ Run the auth-heavy WebArena demo workflows directly:
 bun run eval:codex:webarena:auth-demo
 ```
 
+Inventory the full WebArena-Verified corpus without executing tasks:
+```bash
+bun run eval:webarena:verified:inventory
+```
+
+Run the WebArena-Verified hard subset:
+```bash
+bun run eval:webarena:verified:hard
+```
+
+Run the full 812-task WebArena-Verified corpus:
+```bash
+bun run eval:webarena:verified:full
+```
+
 Run retrieval-only rank/leakage checks directly:
 ```bash
 bun run eval:retrieval
@@ -203,6 +218,17 @@ Notes:
   - scripted demo login sites that should pass without user credentials
 - canonical WebArena-style corpus focuses on stable public workflows and adds step-level retrieval + selection assertions before execution truth is allowed to pass
 - auth-demo WebArena corpus stays available for deeper browser/auth debugging, but is not part of the default product-confidence claim
+- WebArena-Verified full-benchmark lane is now wired separately from `eval:core`:
+  - `eval:webarena:verified:inventory`
+  - `eval:webarena:verified:hard`
+  - `eval:webarena:verified:full`
+  - it consumes the official 812-task dataset from `~/Projects/oss/webarena-verified`
+  - it judges four things per task:
+    - retrieval shortlist contains a benchmark-compatible endpoint
+    - selected endpoint is benchmark-compatible
+    - executed network events match benchmark expectations
+    - retrieved payload / terminal status matches benchmark expectation
+  - it is intentionally non-canonical for product marketing claims because it depends on the external WebArena environment stack being up
 - AgentMail-style registration/OTP bootstrap is reserved as a future strategy; current runner records that case type as unsupported instead of pretending it passed
 - canonical public eval stack is:
   - `eval:core`

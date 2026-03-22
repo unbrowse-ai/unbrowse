@@ -58,7 +58,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Use the one-shot installer script to detect supported hosts and wire Unbrowse automatically, or install the CLI with npm install -g unbrowse and run unbrowse health or any real command. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. For skill-based agent platforms like OpenClaw, Claude Code, and Cursor, also run npx skills add unbrowse-ai/unbrowse.",
+        text: "Use the one-shot installer script to detect supported hosts and wire Unbrowse automatically, or install the CLI with npm install -g unbrowse and run unbrowse health or any real command. That global npm install is for the local unbrowse runtime. The host integrations themselves do not need their own global npm install. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. Claude Code and Cursor can add the shared skill with npx skills add unbrowse-ai/unbrowse. OpenClaw also supports a native plugin flow with openclaw plugins install unbrowse-openclaw, and that installs the plugin package for you without a separate global npm install.",
       },
     },
     {
@@ -87,9 +87,12 @@ export default function Home() {
           </p>
           <p>One-shot: curl -fsSL https://www.unbrowse.ai/install.sh | bash</p>
           <p>Manual install: npm install -g unbrowse</p>
+          <p>The global npm install is for the local `unbrowse` runtime. Host integrations do not need their own global install.</p>
           <p>Manual first run: unbrowse health</p>
           <p>Auto-update: packaged CLI checks npm before each command; disable with UNBROWSE_DISABLE_AUTO_UPDATE=1</p>
-          <p>For skill hosts: npx skills add unbrowse-ai/unbrowse</p>
+          <p>Claude Code / Cursor skill: npx skills add unbrowse-ai/unbrowse</p>
+          <p>OpenClaw plugin: openclaw plugins install unbrowse-openclaw</p>
+          <p>OpenClaw plugin install fetches the package for you; no separate npm install -g for the plugin.</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
@@ -431,7 +434,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Fastest path: run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">curl -fsSL https://www.unbrowse.ai/install.sh | bash</code> to detect supported hosts and wire Unbrowse automatically. Manual flow still works too: <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse</code>, then <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse health</code> or any real command. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. Disable that with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">UNBROWSE_DISABLE_AUTO_UPDATE=1</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Fastest path: run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">curl -fsSL https://www.unbrowse.ai/install.sh | bash</code> to detect supported hosts and wire Unbrowse automatically. Manual flow still works too: <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse</code>, then <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse health</code> or any real command. That global npm install is for the local <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse</code> runtime. The host integrations themselves do not need their own global npm install. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. Disable that with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">UNBROWSE_DISABLE_AUTO_UPDATE=1</code>. Claude Code and Cursor can add the shared skill with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>. OpenClaw can use the native plugin path with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">openclaw plugins install unbrowse-openclaw</code>, which installs the plugin package for you without a separate global npm install.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

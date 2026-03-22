@@ -12,7 +12,16 @@ import { generateExtractionHints } from "../transform/schema-hints.js";
 import { recordExecution, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
-import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
+import type {
+  EndpointDescriptor,
+  ExecutionOptions,
+  ExecutionTrace,
+  ProjectionOptions,
+  SkillManifest,
+  TraceNetworkCookie,
+  TraceNetworkEvent,
+  TraceNetworkHeader,
+} from "../types/index.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { extractFromDOM, extractFromDOMWithHint } from "../extraction/index.js";
@@ -28,6 +37,76 @@ import * as cheerio from "cheerio";
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
   return trace;
+}
+
+function mapHeaders(headers?: Record<string, string>): TraceNetworkHeader[] {
+  return Object.entries(headers ?? {}).map(([name, value]) => ({ name, value: String(value) }));
+}
+
+function parseResponseCookies(headers?: Record<string, string>): TraceNetworkCookie[] | undefined {
+  const raw = headers?.["set-cookie"] ?? headers?.["Set-Cookie"];
+  if (!raw) return undefined;
+  const cookies = raw
+    .split(/,(?=[^;,=\s]+=[^;,]+)/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((cookie) => {
+      const pair = cookie.split(";")[0] ?? "";
+      const idx = pair.indexOf("=");
+      if (idx <= 0) return null;
+      return {
+        name: pair.slice(0, idx),
+        value: pair.slice(idx + 1),
+      };
+    })
+    .filter((cookie): cookie is TraceNetworkCookie => !!cookie);
+  return cookies.length > 0 ? cookies : undefined;
+}
+
+function toTraceNetworkEvent(input: {
+  url: string;
+  method: string;
+  requestHeaders?: Record<string, string>;
+  requestBody?: unknown;
+  responseStatus: number;
+  responseHeaders?: Record<string, string>;
+  responseBody?: unknown;
+  startedDateTime?: string;
+}): TraceNetworkEvent {
+  const requestBodyText =
+    input.requestBody == null ? undefined : typeof input.requestBody === "string" ? input.requestBody : JSON.stringify(input.requestBody);
+  const responseBodyText =
+    input.responseBody == null ? undefined : typeof input.responseBody === "string" ? input.responseBody : JSON.stringify(input.responseBody);
+  const responseCookies = parseResponseCookies(input.responseHeaders);
+  return {
+    startedDateTime: input.startedDateTime ?? new Date().toISOString(),
+    request: {
+      url: input.url,
+      method: input.method.toUpperCase(),
+      headers: mapHeaders(input.requestHeaders),
+      ...(requestBodyText == null
+        ? {}
+        : {
+            postData: {
+              mimeType: input.requestHeaders?.["content-type"] ?? input.requestHeaders?.["Content-Type"] ?? "application/json",
+              text: requestBodyText,
+            },
+          }),
+    },
+    response: {
+      status: input.responseStatus,
+      headers: mapHeaders(input.responseHeaders),
+      ...(responseBodyText == null
+        ? {}
+        : {
+            content: {
+              mimeType: input.responseHeaders?.["content-type"] ?? input.responseHeaders?.["Content-Type"],
+              text: responseBodyText,
+            },
+          }),
+      ...(responseCookies ? { cookies: responseCookies } : {}),
+    },
+  };
 }
 
 const DEFAULT_BROWSER_UA =
@@ -1833,7 +1912,7 @@ async function executeDomExtractionEndpoint(
   intent: string,
   authHeaders: Record<string, string>,
   cookies: Array<{ name: string; value: string; domain: string }>,
-): Promise<{ data: unknown; status: number; trace_id: string }> {
+): Promise<{ data: unknown; status: number; trace_id: string; network_events?: TraceNetworkEvent[] }> {
   const extractionIntent = deriveDomExecutionIntent(endpoint, intent);
 
   // SSR fast-path: try plain HTTP fetch before browser
@@ -1859,6 +1938,14 @@ async function executeDomExtractionEndpoint(
             },
             status: 200,
             trace_id: nanoid(),
+            network_events: [toTraceNetworkEvent({
+              url: ssrResult.final_url,
+              method: "GET",
+              requestHeaders: authHeaders,
+              responseStatus: 200,
+              responseHeaders: { "content-type": "text/html" },
+              responseBody: ssrResult.html,
+            })],
           };
         }
       }
@@ -1882,6 +1969,7 @@ async function executeDomExtractionEndpoint(
         },
         status: 422,
         trace_id: nanoid(),
+        network_events: [],
       };
     }
     const ssrFallback = await tryHttpFetch(url, authHeaders, cookies);
@@ -1911,6 +1999,7 @@ async function executeDomExtractionEndpoint(
         },
         status: 422,
         trace_id: nanoid(),
+        network_events: [],
       };
     }
     const semanticAssessment = assessIntentResult(extracted.data, extractionIntent);
@@ -1922,6 +2011,7 @@ async function executeDomExtractionEndpoint(
         },
         status: 422,
         trace_id: nanoid(),
+        network_events: [],
       };
     }
     return {
@@ -1937,12 +2027,28 @@ async function executeDomExtractionEndpoint(
       },
       status: 200,
       trace_id: nanoid(),
+      network_events: [toTraceNetworkEvent({
+        url: captured.final_url || url,
+        method: "GET",
+        requestHeaders: authHeaders,
+        responseStatus: 200,
+        responseHeaders: { "content-type": "text/html" },
+        responseBody: html,
+      })],
     };
   }
   return {
     data: html,
     status: 200,
     trace_id: nanoid(),
+    network_events: [toTraceNetworkEvent({
+      url: captured.final_url || url,
+      method: "GET",
+      requestHeaders: authHeaders,
+      responseStatus: 200,
+      responseHeaders: { "content-type": "text/html" },
+      responseBody: html,
+    })],
   };
 }
 
@@ -2180,7 +2286,7 @@ export async function executeEndpoint(
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
 
-  const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
+  const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string; network_events: TraceNetworkEvent[] }> => {
     // Default accept to JSON, but never overwrite the endpoint's own accept header
     // (e.g. LinkedIn uses "application/vnd.linkedin.normalized+json+2.1")
     const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpoint.headers_template?.["accept"])
@@ -2236,7 +2342,16 @@ export async function executeEndpoint(
     }
 
     const replayUrls = hasStructuredReplay ? deriveStructuredDataReplayCandidates(structuredReplayUrl) : [structuredReplayUrl];
-    let last: { data: unknown; status: number } = { data: null, status: 0 };
+    let last: { data: unknown; status: number; event: TraceNetworkEvent } = {
+      data: null,
+      status: 0,
+      event: toTraceNetworkEvent({
+        url: structuredReplayUrl,
+        method: endpoint.method,
+        responseStatus: 0,
+      }),
+    };
+    const networkEvents: TraceNetworkEvent[] = [];
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
@@ -2249,13 +2364,27 @@ export async function executeEndpoint(
       let data: unknown;
       const text = await res.text();
       try { data = JSON.parse(text); } catch { data = text; }
-      last = { data, status: res.status };
+      const responseHeaders: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+      const event = toTraceNetworkEvent({
+        url: replayUrl,
+        method: endpoint.method,
+        requestHeaders: replayHeaders,
+        requestBody: body,
+        responseStatus: res.status,
+        responseHeaders,
+        responseBody: text,
+      });
+      networkEvents.push(event);
+      last = { data, status: res.status, event };
       if (res.ok && !(typeof data === "string" && isHtml(data))) {
-        return { data, status: res.status, trace_id: nanoid() };
+        return { data, status: res.status, trace_id: nanoid(), network_events: networkEvents };
       }
     }
 
-    return { data: last.data, status: last.status, trace_id: nanoid() };
+    return { data: last.data, status: last.status, trace_id: nanoid(), network_events: networkEvents.length > 0 ? networkEvents : [last.event] };
   };
 
   const browserCall = () => executeInBrowser(
@@ -2267,7 +2396,7 @@ export async function executeEndpoint(
     cookies
   );
 
-  let result: { data: unknown; status: number; trace_id: string };
+  let result: { data: unknown; status: number; trace_id: string; network_events?: TraceNetworkEvent[] };
   const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
 
   if (endpoint.dom_extraction && isSafe) {
@@ -2406,6 +2535,7 @@ export async function executeEndpoint(
     completed_at: new Date().toISOString(),
     success: status >= 200 && status < 300,
     status_code: status,
+    ...(result.network_events?.length ? { network_events: result.network_events } : {}),
   });
 
   if (!trace.success) {

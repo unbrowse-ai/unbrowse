@@ -207,4 +207,37 @@ describe("isCachedSkillRelevantForIntent", () => {
       ),
     ).toBe(false);
   });
+
+  test("rejects localhost cache entries captured on a different port", () => {
+    const skill = makeSkill({
+      endpoint_id: "admin-home",
+      method: "GET",
+      url_template: "http://localhost:7780/",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.9,
+      description: "Captured page artifact for admin dashboard",
+      trigger_url: "http://localhost:7780/",
+      dom_extraction: { extraction_method: "repeated-elements", confidence: 0.9 },
+      response_schema: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+          },
+        },
+      },
+    } as SkillManifest["endpoints"][number], {
+      domain: "localhost",
+    });
+
+    expect(
+      isCachedSkillRelevantForIntent(
+        skill,
+        "count reddit comments",
+        "http://localhost:9999",
+      ),
+    ).toBe(false);
+  });
 });
