@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/mcp-server",
-  "version": "2.0.11",
+  "version": "2.0.12",
   "description": "MCP server for unbrowse — reverse-engineer any website into reusable API skills",
   "type": "module",
   "bin": {
