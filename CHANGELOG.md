@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.8...v2.0.9) (2026-03-22)
+
+### Bug Fixes
+
+* separate public search rate limits for authed evals ([#19](https://github.com/unbrowse-ai/unbrowse-dev/issues/19)) ([8ea11ce](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ea11ce4b4b4c40e1a45f3c539b7a13edcd1665d))
+
 ## [2.0.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.7...v2.0.8) (2026-03-22)
 
 ### Bug Fixes
