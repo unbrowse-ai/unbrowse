@@ -14,11 +14,15 @@ repository: https://github.com/unbrowse-ai/unbrowse
 
 ## Install
 
+Easy onboarding is always two steps.
+
+### Step 1 — run setup once
+
 \`\`\`bash
 npx unbrowse setup
 \`\`\`
 
-That one command installs the browser runtime, starts the local service, auto-registers the agent, and caches credentials in \`~/.unbrowse/config.json\`. No separate API-key setup step.
+That one command installs the browser runtime, starts the local service, auto-registers the agent, and caches credentials in \`~/.unbrowse/config.json\`. No separate API-key setup step. No manual browser install.
 
 For repeat use, install globally:
 
@@ -27,9 +31,30 @@ npm install -g unbrowse
 unbrowse setup
 \`\`\`
 
-If your agent host uses skills, add the Unbrowse skill too:
+### Step 2 — add one tiny host-specific hookup
+
+Pick the one your agent already uses:
 
 \`\`\`bash
+# MCP clients (Claude Code, Cursor, Cline, Windsurf, Claude Desktop)
+claude mcp add unbrowse -- unbrowse mcp
+
+# OpenClaw
+openclaw plugins install unbrowse-openclaw
+
+# ElizaOS
+npm install @unbrowse/plugin-elizaos
+
+# Hermes
+pip install unbrowse-hermes
+
+# LangChain
+pip install unbrowse-langchain
+
+# Vercel AI SDK
+npm install @unbrowse/vercel-ai-sdk ai zod
+
+# Skill hosts
 npx skills add unbrowse-ai/unbrowse
 \`\`\`
 
@@ -57,11 +82,7 @@ Run full setup instantly:
 npx unbrowse setup
 \`\`\`
 
-If your agent host uses skills, add the Unbrowse skill:
-
-\`\`\`bash
-npx skills add unbrowse-ai/unbrowse
-\`\`\`
+Then add the host-specific hookup from the Install section above.
 
 ### Browser Engine Setup
 

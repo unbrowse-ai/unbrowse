@@ -4,24 +4,64 @@
 
 ## Install
 
-One-command setup that installs browser assets, starts the local server, auto-registers the agent, and caches credentials locally:
+Easy onboarding is always the same:
+
+1. **Run setup once** — this installs browser assets, starts the local server, auto-registers the agent, and caches credentials locally. No separate API-key form or manual browser install.
 
 ```
 npx unbrowse setup
 ```
 
-Install globally for repeat use:
+For repeat use:
 
 ```
 npm install -g unbrowse
 unbrowse setup
 ```
 
-If your agent host uses skills (OpenClaw, Claude Code, Cursor):
+2. **Add one tiny host-specific hookup** — pick the one your agent already uses:
 
-```
-npx skills add unbrowse-ai/unbrowse
-```
+- **MCP clients (Claude Code, Cursor, Cline, Windsurf, Claude Desktop)** — register the local MCP server:
+
+  ```
+  claude mcp add unbrowse -- unbrowse mcp
+  ```
+
+- **OpenClaw** — install the plugin:
+
+  ```
+  openclaw plugins install unbrowse-openclaw
+  ```
+
+- **ElizaOS** — install the plugin package:
+
+  ```
+  npm install @unbrowse/plugin-elizaos
+  ```
+
+- **Hermes** — install the toolkit:
+
+  ```
+  pip install unbrowse-hermes
+  ```
+
+- **LangChain** — install the toolkit:
+
+  ```
+  pip install unbrowse-langchain
+  ```
+
+- **Vercel AI SDK** — install the tools package:
+
+  ```
+  npm install @unbrowse/vercel-ai-sdk ai zod
+  ```
+
+- **Skill hosts** — add the hosted skill:
+
+  ```
+  npx skills add unbrowse-ai/unbrowse
+  ```
 
 ## How It Works
 
@@ -65,9 +105,12 @@ Base URL: `https://beta-api.unbrowse.ai`
 
 Works with any tool that supports CLI execution or the OpenClaw skill protocol:
 
-- **Claude Code**: Install via `npx unbrowse setup` — automatically detected
-- **Cursor**: Install via `npx unbrowse setup` — adds MCP server configuration
-- **OpenClaw**: Install via `npx skills add unbrowse-ai/unbrowse`
+- **Claude Code / Cursor / Cline / Windsurf / Claude Desktop**: Run `npx unbrowse setup`, then register the MCP server with command `unbrowse` and args `mcp`
+- **OpenClaw**: Install via `openclaw plugins install unbrowse-openclaw`
+- **ElizaOS**: Install via `npm install @unbrowse/plugin-elizaos`
+- **Hermes**: Install via `pip install unbrowse-hermes`
+- **LangChain**: Install via `pip install unbrowse-langchain`
+- **Vercel AI SDK**: Install via `npm install @unbrowse/vercel-ai-sdk ai zod`
 - **Any CLI agent**: Call `unbrowse resolve --intent "..." --url "..."` directly
 
 ## Source Code

@@ -503,7 +503,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          cd frontend && npx wrangler pages deploy dist --project-name=unbrowse 2>/dev/null || echo "Frontend deploy skipped (no dist)"
+          cd frontend && npm run deploy
         name: Deploy frontend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
