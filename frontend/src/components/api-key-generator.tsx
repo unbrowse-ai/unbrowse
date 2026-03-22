@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Key, Copy, Check, ShieldAlert, KeyRound } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
 
 export function ApiKeyGenerator() {
   const { apiKey, agentName, register, isAuthenticated } = useAuth();
@@ -14,22 +12,13 @@ export function ApiKeyGenerator() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
-  const [tosAccepted, setTosAccepted] = useState(false);
-  const [currentTosVersion, setCurrentTosVersion] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch(`${API_URL}/v1/tos/current`)
-      .then(r => r.json() as Promise<{ version: string }>)
-      .then((data) => setCurrentTosVersion(data.version))
-      .catch(() => setCurrentTosVersion("2026-02-22-v1"));
-  }, []);
 
   async function handleRegister() {
-    if (!name.trim() || !tosAccepted || !currentTosVersion) return;
+    if (!name.trim()) return;
     setError(null);
     setLoading(true);
     try {
-      const result = await register(name.trim(), currentTosVersion);
+      const result = await register(name.trim());
       setGeneratedKey(result.api_key);
     } catch (err) {
       setError((err as Error).message);
@@ -125,7 +114,7 @@ export function ApiKeyGenerator() {
           />
           <button
             onClick={handleRegister}
-            disabled={loading || !name.trim() || !tosAccepted}
+            disabled={loading || !name.trim()}
             className="px-6 py-3 rounded-lg bg-text-primary text-surface font-medium text-sm
                        hover:opacity-90 active:scale-[0.98] transition-all
                        disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
@@ -133,24 +122,6 @@ export function ApiKeyGenerator() {
             {loading ? "Generating..." : "Generate Key"}
           </button>
         </div>
-        
-        <label className="flex items-center gap-3 cursor-pointer select-none group w-fit">
-          <div className="relative flex items-center justify-center">
-            <input
-              type="checkbox"
-              checked={tosAccepted}
-              onChange={(e) => setTosAccepted(e.target.checked)}
-              className="peer appearance-none w-4 h-4 border border-border rounded bg-surface checked:bg-text-primary checked:border-text-primary transition-all cursor-pointer"
-            />
-            <Check className="absolute w-3 h-3 text-surface opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" strokeWidth={3} />
-          </div>
-          <span className="text-sm text-text-secondary group-hover:text-text-primary transition-colors">
-            I agree to the{" "}
-            <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-text-primary font-medium hover:underline transition-colors">
-              Terms of Service
-            </a>
-          </span>
-        </label>
         
         {error && (
           <div className="p-3 rounded-lg bg-surface border border-border text-sm text-text-primary font-mono flex items-start gap-2">

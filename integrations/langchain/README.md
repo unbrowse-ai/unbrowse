@@ -2,16 +2,17 @@
 
 LangChain tools for [Unbrowse](https://unbrowse.ai) — drop-in replacement for `PlayWrightBrowserToolkit` and `WebBrowserTool` that returns structured JSON instead of raw HTML.
 
-## Prerequisites
+## Bootstrap Unbrowse first
 
 ```bash
-npm install -g unbrowse
-unbrowse health   # verify installation
+npx unbrowse setup
+unbrowse health
 ```
 
 ## Installation
 
 ```bash
+npx unbrowse setup
 pip install unbrowse-langchain
 ```
 

@@ -13,7 +13,7 @@ One agent learns a site once. Every later agent gets the fast path.
 npx unbrowse setup
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, auto-registers the agent, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
 
 For daily use:
 
@@ -31,8 +31,7 @@ These install paths were tested in clean temp consumers, then run against a live
 Best for Claude Code, Cursor, Cline, Windsurf, and Claude Desktop.
 
 ```bash
-npm install -g unbrowse@latest
-unbrowse health
+npx unbrowse setup
 claude mcp add unbrowse -- unbrowse mcp
 ```
 
@@ -54,7 +53,7 @@ Generic MCP config:
 Hard default browser replacement in strict mode.
 
 ```bash
-npm install -g unbrowse@latest
+npx unbrowse setup
 openclaw plugins install unbrowse-openclaw
 openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
 openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
@@ -68,7 +67,8 @@ openclaw unbrowse-plugin health
 Default-first plugin path.
 
 ```bash
-npm install @unbrowse/plugin-elizaos unbrowse
+npx unbrowse setup
+npm install @unbrowse/plugin-elizaos
 ```
 
 Add `@unbrowse/plugin-elizaos` to your character plugins. Remove `@elizaos/plugin-browser` if you want full replacement.
@@ -78,7 +78,7 @@ Add `@unbrowse/plugin-elizaos` to your character plugins. Remove `@elizaos/plugi
 Default-first plugin path.
 
 ```bash
-npm install -g unbrowse@latest
+npx unbrowse setup
 pip install unbrowse-hermes
 ```
 
@@ -87,6 +87,7 @@ pip install unbrowse-hermes
 Toolkit path.
 
 ```bash
+npx unbrowse setup
 pip install unbrowse-langchain
 ```
 
@@ -95,7 +96,8 @@ pip install unbrowse-langchain
 Toolkit path.
 
 ```bash
-npm install @unbrowse/vercel-ai-sdk unbrowse ai zod
+npx unbrowse setup
+npm install @unbrowse/vercel-ai-sdk ai zod
 ```
 
 If your agent host uses skills:

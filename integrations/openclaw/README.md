@@ -11,6 +11,7 @@ Use it when you want API-first web work: structured extraction, reverse-engineer
 Install it, make it the default web path, restart OpenClaw, verify it:
 
 ```bash
+npx unbrowse setup
 openclaw plugins install unbrowse-openclaw
 openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
 openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
@@ -22,6 +23,7 @@ openclaw unbrowse-plugin health
 
 What this does:
 
+- bootstraps the local Unbrowse runtime once on the machine
 - installs the plugin
 - enables it
 - puts it in `strict` mode so normal website tasks route through Unbrowse instead of the built-in `browser`
