@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* make the marketplace retrieval release eval wait for the expected fixture to index, instead of treating any non-empty search response as ready
+* bypass staging search cache for the `staging-eval` release token so fixture publish/readiness checks do not get stuck on stale partial results
+
 ## [2.0.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.10...v2.0.11) (2026-03-22)
 
 ### Bug Fixes

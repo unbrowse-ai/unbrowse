@@ -17,6 +17,9 @@ export interface ResolvedSearchResult {
   global_results: SearchResult;
   skipped_global: boolean;
 }
+type SearchOptions = {
+  skipCache?: boolean;
+};
 
 // In-memory search cache — survives within a single Worker isolate lifetime.
 const _memCache = new Map<string, { value: string; expires: number }>();
@@ -28,6 +31,12 @@ function searchCacheKey(intent: string, k: number, domain?: string): string {
 
 function searchResolveCacheKey(intent: string, domain: string | undefined, domainK: number, globalK: number): string {
   return `resolve:${intent.toLowerCase().trim()}:${domain ?? "global"}:${domainK}:${globalK}`;
+}
+
+export function shouldBypassSearchCache(env: Pick<Env, "ENVIRONMENT">, authHeader?: string | null): boolean {
+  if (env.ENVIRONMENT !== "staging") return false;
+  if (!authHeader?.startsWith("Bearer ")) return false;
+  return authHeader.slice(7).trim() === "staging-eval";
 }
 
 export function extractSkillId(metadata: Record<string, unknown>): string | null {
@@ -355,12 +364,14 @@ export async function searchIntentInDomain(
   env: Env,
   intent: string,
   domain: string,
-  k = 5
+  k = 5,
+  options: SearchOptions = {},
 ): Promise<SearchResult> {
+  const skipCache = options.skipCache === true;
   const t0 = Date.now();
   const ckey = searchCacheKey(intent, k, domain);
 
-  const hit = await cacheGet(env, ckey);
+  const hit = skipCache ? null : await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-domain] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) {
@@ -383,7 +394,7 @@ export async function searchIntentInDomain(
   console.log(`[perf:search-domain] graph-search: ${t2 - t1}ms results=${results.length}`);
   console.log(`[perf:search-domain] TOTAL: ${t2 - t0}ms`);
 
-  if (results.length > 0) {
+  if (!skipCache && results.length > 0) {
     cachePut(env, ckey, JSON.stringify(results));
   }
 
@@ -396,10 +407,12 @@ export async function searchIntentResolve(
   domain?: string,
   domainK = 5,
   globalK = 10,
+  options: SearchOptions = {},
 ): Promise<ResolvedSearchResult> {
+  const skipCache = options.skipCache === true;
   const t0 = Date.now();
   const ckey = searchResolveCacheKey(intent, domain, domainK, globalK);
-  const hit = await cacheGet(env, ckey);
+  const hit = skipCache ? null : await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) {
@@ -422,7 +435,7 @@ export async function searchIntentResolve(
     const resolved = { domain_results: [] as SearchResult, global_results, skipped_global: false };
     console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length}`);
     console.log(`[perf:search-resolve] TOTAL: ${t2 - t0}ms`);
-    if (global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
+    if (!skipCache && global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
     return resolved;
   }
 
@@ -446,7 +459,7 @@ export async function searchIntentResolve(
   console.log(`[perf:search-resolve] TOTAL: ${t3 - t0}ms`);
 
   const resolved = { domain_results, global_results, skipped_global };
-  if (domain_results.length > 0 || global_results.length > 0) {
+  if (!skipCache && (domain_results.length > 0 || global_results.length > 0)) {
     cachePut(env, ckey, JSON.stringify(resolved));
   }
   return resolved;
@@ -455,12 +468,14 @@ export async function searchIntentResolve(
 export async function searchIntent(
   env: Env,
   intent: string,
-  k = 5
+  k = 5,
+  options: SearchOptions = {},
 ): Promise<SearchResult> {
+  const skipCache = options.skipCache === true;
   const t0 = Date.now();
   const ckey = searchCacheKey(intent, k);
 
-  const hit = await cacheGet(env, ckey);
+  const hit = skipCache ? null : await cacheGet(env, ckey);
   const t1 = Date.now();
   console.log(`[perf:search-global] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) {
@@ -483,7 +498,7 @@ export async function searchIntent(
   console.log(`[perf:search-global] graph-search: ${t2 - t1}ms results=${results.length}`);
   console.log(`[perf:search-global] TOTAL: ${t2 - t0}ms`);
 
-  if (results.length > 0) {
+  if (!skipCache && results.length > 0) {
     cachePut(env, ckey, JSON.stringify(results));
   }
 

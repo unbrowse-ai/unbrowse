@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildLocalSearchResults, normalizeEmbedding, shouldSkipGlobalSearch } from "../src/services/discovery.js";
+import { buildLocalSearchResults, normalizeEmbedding, shouldBypassSearchCache, shouldSkipGlobalSearch } from "../src/services/discovery.js";
 
 function result(skillId: string, score: number) {
   return {
@@ -51,6 +51,15 @@ describe("normalizeEmbedding", () => {
   it("zero-pads undersized embeddings to the target dimensions", () => {
     const embedding = normalizeEmbedding([1, 2, 3], 5);
     expect(embedding).toEqual([1, 2, 3, 0, 0]);
+  });
+});
+
+describe("shouldBypassSearchCache", () => {
+  it("bypasses cache only for the staging eval token on staging", () => {
+    expect(shouldBypassSearchCache({ ENVIRONMENT: "staging" }, "Bearer staging-eval")).toBe(true);
+    expect(shouldBypassSearchCache({ ENVIRONMENT: "staging" }, "Bearer some-other-token")).toBe(false);
+    expect(shouldBypassSearchCache({ ENVIRONMENT: "production" }, "Bearer staging-eval")).toBe(false);
+    expect(shouldBypassSearchCache({ ENVIRONMENT: "staging" }, undefined)).toBe(false);
   });
 });
 
