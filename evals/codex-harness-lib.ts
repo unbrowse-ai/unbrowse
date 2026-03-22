@@ -7,12 +7,32 @@ export type HarnessAuthContext = {
   session?: string;
 };
 
+export type EndpointExpectation = {
+  endpoint_id?: string;
+  url_includes?: string[];
+  trigger_url_includes?: string[];
+  description_includes?: string[];
+  required_signals?: string[];
+  forbidden_signals?: string[];
+};
+
+export type RetrievalExpectation = {
+  max_rank?: number;
+  any_of: EndpointExpectation[];
+};
+
+export type SelectionExpectation = {
+  any_of: EndpointExpectation[];
+};
+
 export type HarnessCaseValidation = {
   entity_type?: string;
   min_rows?: number;
   side_effect?: string;
   echo_params?: string[];
   terminal_ok?: HarnessTerminalState[];
+  retrieval?: RetrievalExpectation;
+  selection?: SelectionExpectation;
 };
 
 export type HarnessCase = {
@@ -32,6 +52,7 @@ export type DeferredEndpoint = {
   schema_summary?: unknown;
   trigger_url?: string | null;
   url?: string;
+  description?: string;
 };
 
 export type ReviewQueueCandidate = {
@@ -45,7 +66,113 @@ export type ReviewQueueCandidate = {
   cli?: string[];
 };
 
+export type RetrievalExpectationResult = {
+  ok: boolean;
+  reason: string;
+  matched_rank?: number;
+  matched_endpoint_id?: string;
+  max_rank: number;
+};
+
+export type SelectionExpectationResult = {
+  ok: boolean;
+  reason: string;
+  matched_endpoint_id?: string;
+};
+
 const TRACKING_OR_ADTECH = /\b(doubleverify|optable|liadm|privacymanager|crwdcntrl|demdex|teads|rubicon|pubmatic|adnxs|taboola|outbrain|adsystem|adserver|adtech|tracking|telemetry|analytics|beacon|pixel|impression|click[-_]?tracking|consent|witness|targeting|identify)\b/i;
+
+function toStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+export function parseEndpointExpectation(value: unknown): EndpointExpectation | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const parsed = {
+    ...(typeof record.endpoint_id === "string" && record.endpoint_id.trim()
+      ? { endpoint_id: record.endpoint_id.trim() }
+      : {}),
+    ...(toStringList(record.url_includes).length > 0
+      ? { url_includes: toStringList(record.url_includes) }
+      : {}),
+    ...(toStringList(record.trigger_url_includes).length > 0
+      ? { trigger_url_includes: toStringList(record.trigger_url_includes) }
+      : {}),
+    ...(toStringList(record.description_includes).length > 0
+      ? { description_includes: toStringList(record.description_includes) }
+      : {}),
+    ...(toStringList(record.required_signals).length > 0
+      ? { required_signals: toStringList(record.required_signals) }
+      : {}),
+    ...(toStringList(record.forbidden_signals).length > 0
+      ? { forbidden_signals: toStringList(record.forbidden_signals) }
+      : {}),
+  };
+  return Object.keys(parsed).length > 0 ? parsed : undefined;
+}
+
+function parseExpectationGroup(value: unknown): EndpointExpectation[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const record = value as Record<string, unknown>;
+  return Array.isArray(record.any_of)
+    ? record.any_of.map((item) => parseEndpointExpectation(item)).filter((item): item is EndpointExpectation => !!item)
+    : [];
+}
+
+function parseRetrievalExpectation(value: unknown): RetrievalExpectation | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const anyOf = parseExpectationGroup(record);
+  if (anyOf.length === 0) return undefined;
+  const maxRank = typeof record.max_rank === "number" && Number.isFinite(record.max_rank)
+    ? Math.max(1, Math.trunc(record.max_rank))
+    : undefined;
+  return {
+    ...(maxRank != null ? { max_rank: maxRank } : {}),
+    any_of: anyOf,
+  };
+}
+
+function parseSelectionExpectation(value: unknown): SelectionExpectation | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const anyOf = parseExpectationGroup(value);
+  return anyOf.length > 0 ? { any_of: anyOf } : undefined;
+}
+
+export function parseHarnessValidation(value: unknown): HarnessCaseValidation | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const validate = value as Record<string, unknown>;
+  const entityType = typeof validate.entity_type === "string" && validate.entity_type.trim()
+    ? validate.entity_type.trim()
+    : undefined;
+  const minRows = typeof validate.min_rows === "number" && Number.isFinite(validate.min_rows)
+    ? Math.max(0, Math.trunc(validate.min_rows))
+    : undefined;
+  const sideEffect = typeof validate.side_effect === "string" && validate.side_effect.trim()
+    ? validate.side_effect.trim()
+    : undefined;
+  const echoParams = toStringList(validate.echo_params);
+  const terminalOk = Array.isArray(validate.terminal_ok)
+    ? validate.terminal_ok.filter((state): state is HarnessTerminalState =>
+        typeof state === "string" && ["pass", "fail", "skip", "blocked"].includes(state),
+      )
+    : [];
+  const retrieval = parseRetrievalExpectation(validate.retrieval);
+  const selection = parseSelectionExpectation(validate.selection);
+  const parsed = {
+    ...(entityType ? { entity_type: entityType } : {}),
+    ...(minRows != null ? { min_rows: minRows } : {}),
+    ...(sideEffect ? { side_effect: sideEffect } : {}),
+    ...(echoParams.length > 0 ? { echo_params: echoParams } : {}),
+    ...(terminalOk.length > 0 ? { terminal_ok: [...new Set(terminalOk)] } : {}),
+    ...(retrieval ? { retrieval } : {}),
+    ...(selection ? { selection } : {}),
+  };
+  return Object.keys(parsed).length > 0 ? parsed : undefined;
+}
 
 function endpointDescription(endpoint: DeferredEndpoint): string {
   const description = (endpoint as DeferredEndpoint & { description?: unknown }).description;
@@ -180,6 +307,67 @@ export function deriveEndpointSignals(endpoint: DeferredEndpoint): string[] {
   return signals;
 }
 
+export function endpointMatchesExpectation(endpoint: DeferredEndpoint | undefined, expectation: EndpointExpectation): boolean {
+  if (!endpoint) return false;
+  if (expectation.endpoint_id && endpoint.endpoint_id !== expectation.endpoint_id) return false;
+  if (expectation.url_includes?.some((needle) => !(endpoint.url ?? "").toLowerCase().includes(needle.toLowerCase()))) return false;
+  if (expectation.trigger_url_includes?.some((needle) => !(endpoint.trigger_url ?? "").toLowerCase().includes(needle.toLowerCase()))) return false;
+  if (expectation.description_includes?.some((needle) => !(endpointDescription(endpoint) ?? "").toLowerCase().includes(needle.toLowerCase()))) return false;
+  const signals = deriveEndpointSignals(endpoint);
+  if (expectation.required_signals?.some((signal) => !signals.includes(signal))) return false;
+  if (expectation.forbidden_signals?.some((signal) => signals.includes(signal))) return false;
+  return true;
+}
+
+export function evaluateRetrievalExpectation(
+  endpoints: DeferredEndpoint[],
+  retrieval: RetrievalExpectation,
+): RetrievalExpectationResult {
+  const maxRank = retrieval.max_rank ?? endpoints.length;
+  const scoped = endpoints.slice(0, maxRank);
+  for (let index = 0; index < scoped.length; index += 1) {
+    const endpoint = scoped[index]!;
+    if (retrieval.any_of.some((expectation) => endpointMatchesExpectation(endpoint, expectation))) {
+      return {
+        ok: true,
+        reason: "retrieval_match",
+        matched_rank: index + 1,
+        matched_endpoint_id: endpoint.endpoint_id,
+        max_rank: Math.max(1, maxRank),
+      };
+    }
+  }
+  return {
+    ok: false,
+    reason: `retrieval_missing_top${Math.max(1, maxRank)}`,
+    max_rank: Math.max(1, maxRank),
+  };
+}
+
+export function evaluateSelectionExpectation(
+  endpoint: DeferredEndpoint | undefined,
+  selection: SelectionExpectation,
+): SelectionExpectationResult {
+  if (!endpoint) {
+    return {
+      ok: false,
+      reason: "selection_missing_endpoint",
+    };
+  }
+  if (selection.any_of.some((expectation) => endpointMatchesExpectation(endpoint, expectation))) {
+    return {
+      ok: true,
+      reason: "selection_match",
+      matched_endpoint_id: endpoint.endpoint_id,
+    };
+  }
+  return {
+    ok: false,
+    reason: `selection_mismatch:${endpoint.endpoint_id ?? "unknown"}`,
+    matched_endpoint_id: endpoint.endpoint_id,
+  };
+}
+
 export function normalizeHarnessCases(raw: unknown): HarnessCase[] {
   const entries = Array.isArray(raw)
     ? raw
@@ -211,6 +399,8 @@ export function normalizeHarnessCases(raw: unknown): HarnessCase[] {
           side_effect?: unknown;
           echo_params?: unknown;
           terminal_ok?: unknown;
+          retrieval?: unknown;
+          selection?: unknown;
         }
       : undefined;
     const nestedExpected = Array.isArray(nestedValidate?.expected_fields)
@@ -257,33 +447,7 @@ export function normalizeHarnessCases(raw: unknown): HarnessCase[] {
         ? { ...(record.params as Record<string, unknown>) }
         : undefined;
 
-    const entityType = typeof nestedValidate?.entity_type === "string" && nestedValidate.entity_type.trim()
-      ? nestedValidate.entity_type.trim()
-      : undefined;
-    const minRows = typeof nestedValidate?.min_rows === "number" && Number.isFinite(nestedValidate.min_rows)
-      ? Math.max(0, Math.trunc(nestedValidate.min_rows))
-      : undefined;
-    const sideEffect = typeof nestedValidate?.side_effect === "string" && nestedValidate.side_effect.trim()
-      ? nestedValidate.side_effect.trim()
-      : undefined;
-    const echoParams = Array.isArray(nestedValidate?.echo_params)
-      ? nestedValidate.echo_params.filter((field): field is string => typeof field === "string" && field.trim().length > 0)
-      : [];
-    const terminalOk = Array.isArray(nestedValidate?.terminal_ok)
-      ? nestedValidate.terminal_ok.filter((state): state is HarnessTerminalState =>
-          typeof state === "string" && ["pass", "fail", "skip", "blocked"].includes(state),
-        )
-      : [];
-    const validate =
-      entityType || minRows != null || sideEffect || echoParams.length > 0 || terminalOk.length > 0
-        ? {
-            ...(entityType ? { entity_type: entityType } : {}),
-            ...(minRows != null ? { min_rows: minRows } : {}),
-            ...(sideEffect ? { side_effect: sideEffect } : {}),
-            ...(echoParams.length > 0 ? { echo_params: echoParams } : {}),
-            ...(terminalOk.length > 0 ? { terminal_ok: [...new Set(terminalOk)] } : {}),
-          }
-        : undefined;
+    const validate = parseHarnessValidation(nestedValidate);
 
     return [{
       id,

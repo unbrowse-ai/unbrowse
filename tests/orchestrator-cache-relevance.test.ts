@@ -55,6 +55,91 @@ describe("isCachedSkillRelevantForIntent", () => {
     ).toBe(false);
   });
 
+  test("rejects generic linkedin jobs-and-people cache for feed intents", () => {
+    const skill = {
+      ...makeSkill({
+        endpoint_id: "jobs-page",
+        method: "GET",
+        url_template: "https://www.linkedin.com/jobs/",
+        idempotency: "safe",
+        verification_status: "verified",
+        reliability_score: 0.95,
+        description: "Captured page artifact for find creative jobs in Amsterdam",
+        trigger_url: "https://www.linkedin.com/jobs/",
+        dom_extraction: { extraction_method: "repeated-elements", confidence: 0.95 },
+        response_schema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string" },
+              data: { type: "array" },
+              relevance_score: { type: "number" },
+            },
+          },
+        },
+        semantic: { action_kind: "search", resource_kind: "job" },
+      } as SkillManifest["endpoints"][number]),
+      endpoints: [
+        {
+          endpoint_id: "jobs-page",
+          method: "GET",
+          url_template: "https://www.linkedin.com/jobs/",
+          idempotency: "safe",
+          verification_status: "verified",
+          reliability_score: 0.95,
+          description: "Captured page artifact for find creative jobs in Amsterdam",
+          trigger_url: "https://www.linkedin.com/jobs/",
+          dom_extraction: { extraction_method: "repeated-elements", confidence: 0.95 },
+          response_schema: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string" },
+                data: { type: "array" },
+                relevance_score: { type: "number" },
+              },
+            },
+          },
+          semantic: { action_kind: "search", resource_kind: "job" },
+        },
+        {
+          endpoint_id: "people-page",
+          method: "GET",
+          url_template: "https://www.linkedin.com/search/results/people/?keywords={keywords}",
+          idempotency: "safe",
+          verification_status: "verified",
+          reliability_score: 0.95,
+          description: "Captured page artifact for search people",
+          trigger_url: "https://www.linkedin.com/search/results/people/?keywords=openai",
+          dom_extraction: { extraction_method: "repeated-elements", confidence: 0.95 },
+          response_schema: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                url: { type: "string" },
+                public_identifier: { type: "string" },
+                headline: { type: "string" },
+              },
+            },
+          },
+          semantic: { action_kind: "search", resource_kind: "person" },
+        },
+      ] as SkillManifest["endpoints"],
+    };
+
+    expect(
+      isCachedSkillRelevantForIntent(
+        skill,
+        "get feed posts",
+        "https://www.linkedin.com/feed/",
+      ),
+    ).toBe(false);
+  });
+
   test("keeps linkedin people-search cache for people intents", () => {
     const skill = makeSkill({
       endpoint_id: "people-page",

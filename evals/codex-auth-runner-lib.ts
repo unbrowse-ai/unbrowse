@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { HarnessCase } from "./codex-harness-lib.js";
+import { parseHarnessValidation, type HarnessCase } from "./codex-harness-lib.js";
 
 export type AuthBootstrapStrategy =
   | "cookie_reuse"
@@ -150,31 +150,7 @@ function parseBootstrap(value: unknown): AuthBootstrapConfig | null {
 }
 
 function parseValidate(value: unknown): HarnessCase["validate"] | undefined {
-  const validate = asObject(value);
-  if (!validate) return undefined;
-  const parsed = {
-    ...(typeof validate.entity_type === "string" ? { entity_type: validate.entity_type } : {}),
-    ...(typeof validate.min_rows === "number" && Number.isFinite(validate.min_rows)
-      ? { min_rows: Math.max(0, Math.trunc(validate.min_rows)) }
-      : {}),
-    ...(typeof validate.side_effect === "string" ? { side_effect: validate.side_effect } : {}),
-    ...(Array.isArray(validate.echo_params)
-      ? {
-          echo_params: validate.echo_params.filter(
-            (item): item is string => typeof item === "string" && item.trim().length > 0,
-          ),
-        }
-      : {}),
-    ...(Array.isArray(validate.terminal_ok)
-      ? {
-          terminal_ok: validate.terminal_ok.filter(
-            (item): item is "pass" | "fail" | "skip" | "blocked" =>
-              typeof item === "string" && ["pass", "fail", "skip", "blocked"].includes(item),
-          ),
-        }
-      : {}),
-  };
-  return Object.keys(parsed).length > 0 ? parsed : undefined;
+  return parseHarnessValidation(value);
 }
 
 function parseWorkflowStep(value: unknown, index: number): AuthWorkflowStep | null {

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { buildAgentExecuteCliArgs, deriveEndpointSignals, fallbackEndpointOrder, normalizeHarnessCases } from "../evals/codex-harness-lib.js";
+import {
+  buildAgentExecuteCliArgs,
+  deriveEndpointSignals,
+  endpointMatchesExpectation,
+  evaluateRetrievalExpectation,
+  fallbackEndpointOrder,
+  normalizeHarnessCases,
+} from "../evals/codex-harness-lib.js";
 
 describe("codex harness helpers", () => {
   it("pushes page artifacts behind schema-backed endpoints in fallback ordering", () => {
@@ -134,6 +141,23 @@ describe("codex harness helpers", () => {
             side_effect: "created",
             echo_params: ["title", "description"],
             terminal_ok: ["pass", "blocked"],
+            retrieval: {
+              max_rank: 2,
+              any_of: [
+                {
+                  url_includes: ["/notes/app"],
+                  required_signals: ["concrete_url"],
+                },
+              ],
+            },
+            selection: {
+              any_of: [
+                {
+                  url_includes: ["/notes/app"],
+                  forbidden_signals: ["tracking_or_adtech"],
+                },
+              ],
+            },
           },
         },
       ],
@@ -158,8 +182,71 @@ describe("codex harness helpers", () => {
         side_effect: "created",
         echo_params: ["title", "description"],
         terminal_ok: ["pass", "blocked"],
+        retrieval: {
+          max_rank: 2,
+          any_of: [
+            {
+              url_includes: ["/notes/app"],
+              required_signals: ["concrete_url"],
+            },
+          ],
+        },
+        selection: {
+          any_of: [
+            {
+              url_includes: ["/notes/app"],
+              forbidden_signals: ["tracking_or_adtech"],
+            },
+          ],
+        },
       },
     }]);
+  });
+
+  it("matches endpoint expectations against url, description, and signals", () => {
+    expect(endpointMatchesExpectation({
+      endpoint_id: "inventory",
+      url: "https://www.saucedemo.com/inventory.html",
+      trigger_url: "https://www.saucedemo.com/inventory.html",
+      description: "Captured page artifact for get products",
+    }, {
+      endpoint_id: "inventory",
+      url_includes: ["/inventory.html"],
+      description_includes: ["get products"],
+      required_signals: ["concrete_url", "page_artifact_risk"],
+      forbidden_signals: ["tracking_or_adtech"],
+    })).toBe(true);
+  });
+
+  it("enforces retrieval expectations within a max rank window", () => {
+    const retrieval = evaluateRetrievalExpectation([
+      {
+        endpoint_id: "people-search",
+        url: "https://www.linkedin.com/search/results/people/?keywords={keywords}",
+        description: "Captured page artifact for search people",
+      },
+      {
+        endpoint_id: "feed-main",
+        url: "https://www.linkedin.com/voyager/api/voyagerFeedDashMainFeed",
+        description: "Structured replay for get feed posts",
+      },
+    ], {
+      max_rank: 2,
+      any_of: [
+        {
+          url_includes: ["voyagerFeedDashMainFeed"],
+          required_signals: ["concrete_url"],
+        },
+      ],
+    });
+
+    expect(retrieval).toEqual({
+      ok: true,
+      reason: "retrieval_match",
+      matched_rank: 2,
+      matched_endpoint_id: "feed-main",
+      max_rank: 2,
+    });
   });
 
   it("builds explicit agent execute args for deferred review", () => {
