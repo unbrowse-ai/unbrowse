@@ -60,16 +60,59 @@ describe("public rate limit identity", () => {
       method: "POST",
       headers: {
         "cf-connecting-ip": "203.0.113.12",
-        Authorization: "Bearer staging-eval",
+        Authorization: "Bearer normal-eval",
       },
     }), env);
     const second = await app.fetch(new Request("http://local.test/limited", {
       method: "POST",
       headers: {
         "cf-connecting-ip": "203.0.113.99",
+        Authorization: "Bearer normal-eval",
+      },
+    }), env);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  it("bypasses staging-eval token traffic in staging only", async () => {
+    const app = makeApp();
+    const first = await app.fetch(new Request("http://local.test/limited", {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "203.0.113.13",
         Authorization: "Bearer staging-eval",
       },
     }), env);
+    const second = await app.fetch(new Request("http://local.test/limited", {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "203.0.113.14",
+        Authorization: "Bearer staging-eval",
+      },
+    }), env);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+  });
+
+  it("does not bypass non-staging environments", async () => {
+    const app = makeApp();
+    const prodEnv: Env = { ...env, ENVIRONMENT: "production" };
+    const first = await app.fetch(new Request("http://local.test/limited", {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "203.0.113.15",
+        Authorization: "Bearer staging-eval",
+      },
+    }), prodEnv);
+    const second = await app.fetch(new Request("http://local.test/limited", {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "203.0.113.16",
+        Authorization: "Bearer staging-eval",
+      },
+    }), prodEnv);
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
