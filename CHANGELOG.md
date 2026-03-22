@@ -23,6 +23,10 @@
 
 ### Bug Fixes
 
+- skip the live Graph API integration suite unless `GRAPH_TEST_RUN=1`, so normal CI and release gates stop failing on unauthenticated external graph endpoints
+
+### Bug Fixes
+
 - scope backend bearer auth to write-only skill/stats routers again so unauthenticated `/v1/tos/current` and `/v1/agents/register` work during first-run CLI setup and API key auto-registration
 - auto-accept ToS on registration and authenticated use, remove the extra CLI ToS handshake, and move the legal notice into the skill/package docs instead of runtime setup prompts
 - track the bundled Windows Kuri binary in git so clean CI/npm package validation uses the vendored runtime instead of trying to rebuild Kuri with Zig during `npm pack`
