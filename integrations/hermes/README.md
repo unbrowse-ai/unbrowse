@@ -20,15 +20,16 @@ pip install unbrowse-hermes
 
 The plugin auto-registers via the `hermes_agent.plugins` entry point. Hermes discovers it on startup — no config needed.
 
-### Option B: Drop-in plugin (development)
+### Option B: Drop-in plugin directory
 
-Copy the plugin file directly into Hermes's plugin directory:
+Copy the bundled plugin directory into Hermes's plugin directory:
 
 ```bash
-cp unbrowse_hermes/plugin.py ~/.hermes/plugins/unbrowse_plugin.py
+mkdir -p ~/.hermes/plugins
+cp -R dropin/unbrowse ~/.hermes/plugins/unbrowse
 ```
 
-Hermes scans `~/.hermes/plugins/` on startup and loads any `.py` file found there.
+Hermes scans `~/.hermes/plugins/<name>/` for a `plugin.yaml` + `__init__.py` pair on startup.
 
 ### Verify it loaded
 

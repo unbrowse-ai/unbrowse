@@ -253,6 +253,10 @@ function compareScalar(actual: unknown, expected: unknown): boolean {
   return stringify(firstNonNull(actual)).toLowerCase() === stringify(firstNonNull(expected)).toLowerCase();
 }
 
+function isScalarAliasGroup(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.every((item) => !Array.isArray(item) && !asObject(item));
+}
+
 function readPath(input: unknown, rawPath: string): unknown {
   const trimmed = rawPath.replace(/^\$\./, "");
   const segments = trimmed.split(".").flatMap((segment) => {
@@ -278,6 +282,10 @@ function matchesObjectSubset(actual: unknown, expected: Record<string, unknown>)
     const actualValue = key.startsWith("$.")
       ? readPath(actual, key)
       : (actual as Record<string, unknown>)[key];
+    if (Array.isArray(expectedValue)) {
+      if (!compareRetrievedItem(actualValue, expectedValue)) return false;
+      continue;
+    }
     if (asObject(expectedValue)) {
       if (!matchesObjectSubset(actualValue, expectedValue as Record<string, unknown>)) return false;
       continue;
@@ -287,16 +295,22 @@ function matchesObjectSubset(actual: unknown, expected: Record<string, unknown>)
   return true;
 }
 
+function compareRetrievedItem(actual: unknown, expected: unknown): boolean {
+  if (Array.isArray(expected)) {
+    if (isScalarAliasGroup(expected)) return expected.some((candidate) => compareScalar(actual, candidate));
+    if (!Array.isArray(actual) || expected.length !== actual.length) return false;
+    return expected.every((expectedItem, index) => compareRetrievedItem(actual[index], expectedItem));
+  }
+  if (asObject(expected)) return matchesObjectSubset(actual, expected as Record<string, unknown>);
+  return compareScalar(actual, expected);
+}
+
 function compareRetrievedData(actual: unknown, expected: unknown): boolean {
   if (expected == null) return true;
-  if (!Array.isArray(expected)) return compareScalar(actual, expected);
+  if (!Array.isArray(expected)) return compareRetrievedItem(actual, expected);
   if (!Array.isArray(actual)) return false;
   if (expected.length !== actual.length) return false;
-  return expected.every((expectedItem, index) => {
-    const actualItem = actual[index];
-    if (asObject(expectedItem)) return matchesObjectSubset(actualItem, expectedItem as Record<string, unknown>);
-    return compareScalar(actualItem, expectedItem);
-  });
+  return expected.every((expectedItem, index) => compareRetrievedItem(actual[index], expectedItem));
 }
 
 function eventMatchesExpectation(

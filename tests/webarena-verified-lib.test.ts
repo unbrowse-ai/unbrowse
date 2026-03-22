@@ -152,4 +152,40 @@ describe("webarena verified lib", () => {
     expect(verdict.ok).toBe(true);
     expect(verdict.reasons).toEqual([]);
   });
+
+  it("accepts alias groups in retrieved_data expectations", () => {
+    const env = resolveWebArenaEnvMap();
+    const task = {
+      task_id: 21,
+      sites: ["shopping"],
+      start_urls: ["__SHOPPING__/headphones.html"],
+      intent: "Get name(s) of reviewer(s) who mention ear cups being small for the product on the current page",
+      agent: {
+        task_type: "retrieve" as const,
+        status: "SUCCESS" as const,
+        retrieved_data: [
+          "Catso",
+          "Dibbins",
+          ["Anglebert Dinkherhump", "Anglebert", "Dinkherhump"],
+          ["Michelle Davis", "Michelle DavisMichelle Davis"],
+        ],
+      },
+      network: [],
+    };
+    const verdict = judgeWebArenaTask({
+      task,
+      env,
+      available_endpoints: [],
+      network_events: [],
+      agent_status: "SUCCESS",
+      retrieved_data: [
+        "Catso",
+        "Dibbins",
+        "Anglebert Dinkherhump",
+        "Michelle DavisMichelle Davis",
+      ],
+    });
+    expect(verdict.ok).toBe(true);
+    expect(verdict.reasons).toEqual([]);
+  });
 });
