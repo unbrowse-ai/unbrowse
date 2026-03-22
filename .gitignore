@@ -20,6 +20,9 @@ backend/.dev.vars
 # Project-specific
 .vault/
 skills/
+!integrations/openclaw/skills/
+!integrations/openclaw/skills/unbrowse-browser/
+!integrations/openclaw/skills/unbrowse-browser/SKILL.md
 traces/
 *.bak
 
