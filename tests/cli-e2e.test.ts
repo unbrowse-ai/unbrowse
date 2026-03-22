@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "path";
 import net from "node:net";
 import { getAuthCookies } from "../src/auth/index.js";
+import { CODE_HASH } from "../src/version.js";
 
 const TESTS_DIR = dirname(new URL(import.meta.url).pathname);
 const ROOT = join(TESTS_DIR, "..");
@@ -118,6 +119,36 @@ function pidFileFor(runDir: string, port: number): string {
   return join(runDir, `server-127.0.0.1-${port}.json`);
 }
 
+async function startStaleHealthServer(port: number, codeHash: string): Promise<Bun.Subprocess<"ignore", "ignore", "pipe">> {
+  const script = `
+    import { createServer } from "node:http";
+    const port = Number(process.argv[1]);
+    const codeHash = process.argv[2];
+    const server = createServer((req, res) => {
+      if (req.url === "/health") {
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({
+          status: "ok",
+          trace_version: codeHash + "@stale",
+          code_hash: codeHash,
+          git_sha: "stale"
+        }));
+        return;
+      }
+      res.statusCode = 404;
+      res.end("not found");
+    });
+    server.listen(port, "127.0.0.1");
+    process.on("SIGTERM", () => server.close(() => process.exit(0)));
+    setInterval(() => {}, 1000);
+  `;
+  return Bun.spawn([process.execPath, "-e", script, String(port), codeHash], {
+    cwd: ROOT,
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+}
+
 function getSkillId(body: any): string | undefined {
   return body?.skill?.skill_id ?? body?.trace?.skill_id ?? body?.result?.skill_id;
 }
@@ -207,6 +238,52 @@ describe("CLI end-to-end", () => {
     expect(code).toBe(0);
     expect(body.status).toBe("ok");
   }, 10_000);
+
+  it("health auto-restarts a stale managed server when code_hash drifts", async () => {
+    const port = await getFreePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const runDir = mkdtempSync(join(tmpdir(), "unbrowse-run-"));
+    const staleHash = "000000000000";
+    let staleProc: Bun.Subprocess<"ignore", "ignore", "pipe"> | null = null;
+
+    try {
+      staleProc = await startStaleHealthServer(port, staleHash);
+      await waitForServer(10_000, baseUrl);
+
+      writeFileSync(pidFileFor(runDir, port), JSON.stringify({
+        pid: staleProc.pid,
+        base_url: baseUrl,
+        started_at: new Date().toISOString(),
+      }, null, 2));
+
+      const { code, body } = await runCliWithAutoStart(["health"], {
+        UNBROWSE_URL: baseUrl,
+        UNBROWSE_RUN_DIR: runDir,
+        UNBROWSE_DISABLE_AUTO_UPDATE: "1",
+      });
+
+      expect(code).toBe(0);
+      expect(body.status).toBe("ok");
+      expect(body.code_hash).toBe(CODE_HASH);
+      expect(body.code_hash).not.toBe(staleHash);
+
+      const exited = await Promise.race([
+        staleProc.exited.then(() => true),
+        Bun.sleep(5_000).then(() => false),
+      ]);
+      expect(exited).toBe(true);
+    } finally {
+      try {
+        const pid = JSON.parse(readFileSync(pidFileFor(runDir, port), "utf-8")) as { pid: number };
+        process.kill(pid.pid, "SIGTERM");
+        await waitForServerDown(10_000, baseUrl);
+      } catch {
+        // best-effort cleanup
+      }
+      staleProc?.kill();
+      rmSync(runDir, { recursive: true, force: true });
+    }
+  }, 45_000);
 
   it("sessions reads local trace logs instead of proxying to the backend", async () => {
     const port = await getFreePort();

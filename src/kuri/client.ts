@@ -39,12 +39,12 @@ export interface KuriHarEntry {
   request: {
     method: string;
     url: string;
-    headers: Array<{ name: string; value: string }>;
+    headers?: Array<{ name: string; value: string }>;
     postData?: { text: string };
   };
   response: {
     status: number;
-    headers: Array<{ name: string; value: string }>;
+    headers?: Array<{ name: string; value: string }>;
     content?: { text?: string; mimeType?: string };
   };
   startedDateTime: string;
