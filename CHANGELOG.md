@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.6...v2.0.7) (2026-03-22)
+
+### Bug Fixes
+
+* simplify api key auto-registration ([#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)) ([198a6d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/198a6d299bc5e4f0a8529901dbdc757b3432746b))
+* simplify one-command install flow ([#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11)) ([2d4bbe5](https://github.com/unbrowse-ai/unbrowse-dev/commit/2d4bbe52299ac82e039568969317fa124efa616f))
+* track windows kuri binary for npm pack ([#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)) ([bc6b39a](https://github.com/unbrowse-ai/unbrowse-dev/commit/bc6b39afa6973c8fbe5b261ea61646228c2cf6fe))
+
 ## [2.0.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.5...v2.0.6) (2026-03-21)
 
 ## Unreleased
