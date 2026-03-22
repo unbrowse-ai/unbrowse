@@ -14,7 +14,7 @@ export function ApiKeyGenerator() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
-  const [tosAccepted, setTosAccepted] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(true);
   const [currentTosVersion, setCurrentTosVersion] = useState<string | null>(null);
 
   useEffect(() => {

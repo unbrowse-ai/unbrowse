@@ -28,6 +28,7 @@ export interface KuriCookie {
   name: string;
   value: string;
   domain: string;
+  url?: string;
   path?: string;
   secure?: boolean;
   httpOnly?: boolean;
@@ -53,6 +54,7 @@ export interface KuriHarEntry {
 let kuriProcess: ChildProcess | null = null;
 let kuriPort = KURI_DEFAULT_PORT;
 let kuriCdpPort: number | null = null;
+let managedChromePid: number | null = null;
 let kuriReady = false;
 
 function kuriBinaryName(): string {
@@ -127,6 +129,15 @@ async function discoverCdpPort(): Promise<void> {
   log("kuri", "could not discover CDP port — tab discovery may fail");
 }
 
+function parsePortFromCdpUrl(cdpUrl?: string | null): number | null {
+  if (!cdpUrl) return null;
+  try {
+    return Number(new URL(cdpUrl).port) || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Find a free port for CDP starting from 9222. */
 async function findFreeCdpPort(): Promise<number> {
   for (let port = 9222; port < 9230; port++) {
@@ -196,6 +207,7 @@ export function findKuriBinary(): string {
 export async function start(port?: number): Promise<void> {
   if (kuriReady) return;
   kuriPort = port ?? KURI_DEFAULT_PORT;
+  managedChromePid = null;
 
   // Check if kuri is already running on this port
   try {
@@ -205,7 +217,6 @@ export async function start(port?: number): Promise<void> {
     if (health.ok) {
       log("kuri", `already running on port ${kuriPort}`);
       kuriReady = true;
-      await discoverCdpPort();
       await ensureTabsDiscovered();
       return;
     }
@@ -219,20 +230,20 @@ export async function start(port?: number): Promise<void> {
     throw new Error(`Kuri binary not found at ${binary}`);
   }
 
-  // Check if Chrome is already running — if so, pass CDP_URL to connect
-  // If not, omit CDP_URL so Kuri launches its own managed Chrome
-  await discoverCdpPort();
-
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
     PORT: String(kuriPort),
     HOST: "127.0.0.1",
   };
-  if (kuriCdpPort) {
-    env.CDP_URL = `ws://127.0.0.1:${kuriCdpPort}`;
-    log("kuri", `connecting to existing Chrome on port ${kuriCdpPort}`);
+  const explicitCdpUrl = process.env.CDP_URL || process.env.KURI_CDP_URL;
+  kuriCdpPort = parsePortFromCdpUrl(explicitCdpUrl);
+  if (explicitCdpUrl) {
+    env.CDP_URL = explicitCdpUrl;
+    log("kuri", `connecting to explicit Chrome at ${explicitCdpUrl}`);
   } else {
-    log("kuri", "no existing Chrome found — Kuri will launch managed Chrome");
+    delete env.CDP_URL;
+    kuriCdpPort = null;
+    log("kuri", "launching isolated managed Chrome");
   }
 
   kuriProcess = spawn(binary, [], {
@@ -242,17 +253,34 @@ export async function start(port?: number): Promise<void> {
 
   // Parse CDP port from stderr output
   kuriProcess.stderr?.on("data", (chunk: Buffer) => {
-    const line = chunk.toString().trim();
-    if (line) log("kuri", `[stderr] ${line}`);
-    const cdpMatch = line.match(/CDP port:\s*(\d+)/);
-    if (cdpMatch) {
-      kuriCdpPort = parseInt(cdpMatch[1], 10);
-      log("kuri", `discovered CDP port: ${kuriCdpPort}`);
+    const lines = chunk.toString().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    for (const line of lines) {
+      log("kuri", `[stderr] ${line}`);
+      const launchedMatch = line.match(/launched Chrome \(pid=(\d+)\) on CDP port (\d+)/);
+      if (launchedMatch) {
+        managedChromePid = parseInt(launchedMatch[1], 10);
+        kuriCdpPort = parseInt(launchedMatch[2], 10);
+        log("kuri", `managed Chrome pid=${managedChromePid} cdp_port=${kuriCdpPort}`);
+        continue;
+      }
+      const cdpMatch = line.match(/CDP port:\s*(\d+)/);
+      if (cdpMatch) {
+        kuriCdpPort = parseInt(cdpMatch[1], 10);
+        log("kuri", `discovered CDP port: ${kuriCdpPort}`);
+      }
     }
   });
 
-  kuriProcess.on("exit", (code) => {
-    log("kuri", `process exited with code ${code}`);
+  kuriProcess.on("exit", (code, signal) => {
+    if (managedChromePid) {
+      try {
+        process.kill(managedChromePid, "SIGTERM");
+      } catch {
+        // ignore
+      }
+      managedChromePid = null;
+    }
+    log("kuri", `process exited with code ${code} signal ${signal ?? "null"}`);
     kuriReady = false;
     kuriProcess = null;
   });
@@ -286,6 +314,14 @@ export async function stop(): Promise<void> {
   if (kuriProcess) {
     kuriProcess.kill("SIGTERM");
     kuriProcess = null;
+  }
+  if (managedChromePid) {
+    try {
+      process.kill(managedChromePid, "SIGTERM");
+    } catch {
+      // ignore
+    }
+    managedChromePid = null;
   }
   kuriReady = false;
   kuriCdpPort = null;
@@ -410,7 +446,12 @@ export async function setCookie(tabId: string, cookie: KuriCookie): Promise<void
     name: cookie.name,
     value: cookie.value,
     domain: cookie.domain,
+    ...(cookie.url ? { url: cookie.url } : {}),
     ...(cookie.path ? { path: cookie.path } : {}),
+    ...(cookie.secure != null ? { secure: String(cookie.secure) } : {}),
+    ...(cookie.httpOnly != null ? { httpOnly: String(cookie.httpOnly) } : {}),
+    ...(cookie.sameSite ? { sameSite: cookie.sameSite } : {}),
+    ...(cookie.expires != null ? { expires: String(cookie.expires) } : {}),
   });
 }
 

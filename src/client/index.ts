@@ -216,14 +216,15 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
 // --- ToS acceptance ---
 
 async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
+  if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
+    console.log("[unbrowse] ToS accepted by user via agent.");
+    return true;
+  }
+
   // Non-interactive mode: skip the readline prompt, return false.
   // The calling agent is expected to show the ToS to the user and ask for consent,
   // then re-run with UNBROWSE_TOS_ACCEPTED=1 after the user agrees.
   if (process.env.UNBROWSE_NON_INTERACTIVE === "1") {
-    if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
-      console.log("[unbrowse] ToS accepted by user via agent.");
-      return true;
-    }
     console.log("[unbrowse] ToS acceptance required. Set UNBROWSE_TOS_ACCEPTED=1 after user consents.");
     console.log(`[unbrowse] ToS summary:\n${summary}`);
     console.log(`[unbrowse] Full terms: ${tosUrl}`);

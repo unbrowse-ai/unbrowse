@@ -151,7 +151,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!key) {
       return reply.code(401).send({
         error: "api_key_required",
-        message: "No API key configured. Restart the server to auto-register, or run: bash scripts/setup.sh",
+        message: "No API key configured. Run any unbrowse CLI command to auto-register, then retry.",
         docs_url: "https://unbrowse.ai",
       });
     }

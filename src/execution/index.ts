@@ -712,13 +712,18 @@ async function trySeedStructuredDocumentSkill(
   let data: unknown;
   let passed = false;
   for (const replayUrl of replayUrls) {
-    const res = await fetch(replayUrl, {
-      method: "GET",
-      headers: buildStructuredReplayHeaders(url, replayUrl, headers),
-      redirect: "follow",
-    });
-    const text = await res.text();
-    try { data = JSON.parse(text); } catch { data = text; }
+    try {
+      const res = await fetch(replayUrl, {
+        method: "GET",
+        headers: buildStructuredReplayHeaders(url, replayUrl, headers),
+        redirect: "follow",
+      });
+      const text = await res.text();
+      try { data = JSON.parse(text); } catch { data = text; }
+    } catch (err) {
+      log("exec", `structured seed fetch failed for ${replayUrl}: ${err instanceof Error ? err.message : String(err)}`);
+      continue;
+    }
 
     const assessment = assessIntentResult(data, intent);
     if (assessment.verdict === "pass") {
@@ -830,12 +835,19 @@ async function trySeedPublicDocumentFetchSkill(
     }).join("; ");
   }
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: buildStructuredReplayHeaders(url, url, headers),
-    redirect: "follow",
-  });
-  const html = await response.text();
+  let response: Response;
+  let html: string;
+  try {
+    response = await fetch(url, {
+      method: "GET",
+      headers: buildStructuredReplayHeaders(url, url, headers),
+      redirect: "follow",
+    });
+    html = await response.text();
+  } catch (err) {
+    log("exec", `document seed fetch failed for ${url}: ${err instanceof Error ? err.message : String(err)}`);
+    return undefined;
+  }
   if (!isHtml(html) || isSpaShell(html)) return undefined;
 
   const built = buildPageArtifactCapture(response.url || url, intent, html, usedStoredAuth);

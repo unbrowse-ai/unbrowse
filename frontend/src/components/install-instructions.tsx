@@ -5,18 +5,29 @@ import { Terminal, Copy, Check } from "lucide-react";
 
 const tabs = [
     {
+      id: "auto",
+      label: "Auto-detect All",
+      code: `# Install CLI + wire detected hosts automatically
+curl -fsSL https://www.unbrowse.ai/install.sh | bash
+
+# Force every supported host
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --all
+
+# Dry run first if you want
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --dry-run`,
+    },
+    {
       id: "claude",
       label: "Claude Code / OpenClaw",
-      code: `# Full setup in one command
-npx unbrowse setup
-
-# Install globally for repeat use
+      code: `# Install the CLI
 npm install -g unbrowse
-unbrowse setup
 
-# Already installed? Upgrade to latest after releases
+# First run bootstraps automatically
+unbrowse health
+
+# Auto-update runs before each command. Manual refresh still works:
 npm install -g unbrowse@latest
-unbrowse setup
+unbrowse health
 
 # Add the skill for agent workflows
 npx skills add unbrowse-ai/unbrowse
@@ -27,16 +38,15 @@ unbrowse resolve --intent "get events" --url "https://lu.ma"`,
     {
       id: "cursor",
       label: "Cursor",
-      code: `# Full setup in one command
-npx unbrowse setup
-
-# Install globally for repeat use
+      code: `# Install the CLI
 npm install -g unbrowse
-unbrowse setup
 
-# Already installed? Upgrade to latest after releases
+# First run bootstraps automatically
+unbrowse health
+
+# Auto-update runs before each command. Manual refresh still works:
 npm install -g unbrowse@latest
-unbrowse setup
+unbrowse health
 
 # Add the skill in Cursor
 npx skills add unbrowse-ai/unbrowse
@@ -47,7 +57,7 @@ unbrowse health`,
 ] as const;
 
 export function InstallInstructions() {
-  const [active, setActive] = useState<string>("claude");
+  const [active, setActive] = useState<string>("auto");
   const [copied, setCopied] = useState(false);
 
   const tab = tabs.find((t) => t.id === active) ?? tabs[0];
@@ -95,7 +105,7 @@ export function InstallInstructions() {
           <pre className="pl-8 text-sm font-mono text-text-primary overflow-x-auto leading-relaxed whitespace-pre-wrap">
             {tab.code.split('\n').map((line, i) => {
               if (line.startsWith('#')) return <div key={i} className="text-text-muted">{line}</div>;
-              if (line.startsWith('npx')) return <div key={i} className="text-orange-600 font-medium">{line}</div>;
+              if (line.startsWith('npx') || line.startsWith('bash ')) return <div key={i} className="text-orange-600 font-medium">{line}</div>;
               if (line.startsWith('export') || line.startsWith('UNBROWSE')) return <div key={i} className="text-orange-500">{line}</div>;
               return <div key={i}>{line}</div>;
             })}

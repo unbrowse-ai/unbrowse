@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- fall back to browser capture when pre-capture structured/document replay fetches fail, instead of returning a generic `fetch failed` error for authenticated SPA pages like LinkedIn feed
+- launch isolated managed Chrome for Kuri by default and terminate the managed Chrome pid on shutdown, avoiding stale CDP browser reuse across local CLI runs
+- honor `UNBROWSE_TOS_ACCEPTED=1` even when the packaged CLI/server auto-start path runs non-interactively, so local smoke tests and agent-driven runs do not hang on an interactive ToS prompt
 ## [2.0.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.5...v2.0.6) (2026-03-21)
 
 ### Bug Fixes
@@ -74,7 +81,15 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 - Hardened the bundled Kuri runtime so HAR capture survives long-lived sessions: stable bridge keys for tabs/recorders, post-navigate event draining, and CDP reconnect-on-failure.
 - Made Unbrowse tolerate sparse Kuri HAR entries and prefer fresh capture tabs, fixing LinkedIn capture regressions where capture crashed or silently returned zero requests.
 - Made the CLI auto-restart stale managed local servers when `/health` reports an older code hash, fixing false regressions where fresh code still hit an old background server.
+- Added CLI self-update preflight for packaged installs: every command now checks npm for a newer Unbrowse release, upgrades global npm installs in place when possible, and otherwise re-runs through `npm exec` on the latest package. Set `UNBROWSE_DISABLE_AUTO_UPDATE=1` to disable.
 - Pointed CI/deploy submodule sync at the maintained `lekt9/kuri` fork so release/test jobs pick up the committed Kuri fixes instead of upstream `justrach/kuri`.
+- Fixed frontend install metadata/copy so skill-based hosts also surface `npx skills add unbrowse-ai/unbrowse` during setup.
+- Fixed frontend install copy to stop treating `npx unbrowse setup` as a persistent install; docs now point to `npm install -g unbrowse`, then `unbrowse setup`, then skill add where needed.
+- Defaulted frontend ToS consent to checked in the API key generator while keeping the toggle visible before registration.
+- Made CLI registration run on every command preflight instead of only `setup`, so first real use auto-bootstraps credentials before server startup.
+- Removed the `setup` CLI command from the public flow; docs and frontend now use `unbrowse health` or any real command as the first-run bootstrap.
+- Added a detection-based host installer script for Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw, plus one-shot frontend/docs copy for it.
+- Added a hosted `/install.sh` endpoint so the frontend can show a real copyable `curl -fsSL https://www.unbrowse.ai/install.sh | bash` quickstart.
 
 ### Packaging
 

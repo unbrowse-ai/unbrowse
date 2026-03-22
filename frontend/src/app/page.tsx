@@ -58,7 +58,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
+        text: "Use the one-shot installer script to detect supported hosts and wire Unbrowse automatically, or install the CLI with npm install -g unbrowse and run unbrowse health or any real command. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. For skill-based agent platforms like OpenClaw, Claude Code, and Cursor, also run npx skills add unbrowse-ai/unbrowse.",
       },
     },
     {
@@ -85,8 +85,10 @@ export default function Home() {
           <p>
             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
-          <p>Setup: npx unbrowse setup</p>
-          <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
+          <p>One-shot: curl -fsSL https://www.unbrowse.ai/install.sh | bash</p>
+          <p>Manual install: npm install -g unbrowse</p>
+          <p>Manual first run: unbrowse health</p>
+          <p>Auto-update: packaged CLI checks npm before each command; disable with UNBROWSE_DISABLE_AUTO_UPDATE=1</p>
           <p>For skill hosts: npx skills add unbrowse-ai/unbrowse</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
@@ -137,7 +139,7 @@ export default function Home() {
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Fresh install or quick upgrade. Same setup flow either way.
+                      One-shot installer first. Manual flow still works if you prefer it.
                     </p>
                   </div>
                 </div>
@@ -147,7 +149,7 @@ export default function Home() {
                 <div className="border-t border-border bg-orange-50 px-5 py-4 sm:px-6 text-sm leading-relaxed text-orange-900">
                   <span className="font-medium">Already installed?</span>
                   <code className="ml-2 text-orange-700 font-medium">npm install -g unbrowse@latest</code>
-                  <code className="ml-2 text-orange-700 font-medium">unbrowse setup</code>
+                  <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
                 </div>
               </div>
             </div>
@@ -383,11 +385,8 @@ export default function Home() {
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 text-sm leading-relaxed text-text-secondary">
               Verify the install with
               <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
-              and rerun
-              <code className="mx-2 text-orange-700 font-medium">npm install -g unbrowse@latest</code>
-              plus
-              <code className="ml-2 text-orange-700 font-medium">unbrowse setup</code>
-              after each release.
+              . The packaged CLI checks npm before each command and rolls forward automatically when a newer release exists. Disable with
+              <code className="mx-2 text-orange-700 font-medium">UNBROWSE_DISABLE_AUTO_UPDATE=1</code>.
             </div>
 
             <ApiKeyGenerator />
@@ -432,7 +431,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For skill-based agent platforms like OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Fastest path: run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">curl -fsSL https://www.unbrowse.ai/install.sh | bash</code> to detect supported hosts and wire Unbrowse automatically. Manual flow still works too: <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse</code>, then <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse health</code> or any real command. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. Disable that with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">UNBROWSE_DISABLE_AUTO_UPDATE=1</code>.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>
