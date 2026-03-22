@@ -40,6 +40,7 @@
 
 ### Bug Fixes
 
+- stop the staging live eval from assuming pre-seeded marketplace results; only the dedicated marketplace retrieval release eval now enforces non-empty search hits after fixture publish
 - bucket public search rate limits by bearer token when present, so staging marketplace evals and authed clients do not trip the anonymous IP-only search bucket
 - skip the live Graph API integration suite unless `GRAPH_TEST_RUN=1`, so normal CI and release gates stop failing on unauthenticated external graph endpoints
 
