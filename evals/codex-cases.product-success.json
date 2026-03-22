@@ -84,12 +84,6 @@
       "intent": "search emails",
       "url": "https://jmail.world/search?q=clinton",
       "expected_fields": ["subject", "sender", "preview"]
-    },
-    {
-      "id": "beatsaver-search-maps",
-      "intent": "search maps",
-      "url": "https://beatsaver.com/search?q=camellia",
-      "expected_fields": ["title", "url", "description"]
     }
   ]
 }

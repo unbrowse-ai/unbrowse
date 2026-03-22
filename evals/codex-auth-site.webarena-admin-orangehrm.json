@@ -1,0 +1,55 @@
+{
+  "summary": {
+    "final_state": "fail",
+    "goal_satisfied": false,
+    "final_reason": "step:dashboard-widgets:intent_mismatch",
+    "total_ms": 50623,
+    "performance_total_ms": 33738,
+    "error_count": 1,
+    "failed_step_ids": [
+      "dashboard-widgets"
+    ],
+    "exceeded_step_budget_ids": [],
+    "exceeded_total_budget": false
+  },
+  "bootstrap": {
+    "strategy": "scripted_login",
+    "status": "ready",
+    "reason": "scripted_login_ok",
+    "cookies_found": 1,
+    "matched_required_cookies": [],
+    "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+    "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+    "elapsed_ms": 16467,
+    "used_existing_session": false
+  },
+  "workflow": {
+    "step_results": [
+      {
+        "id": "dashboard-widgets",
+        "title": "Admin dashboard widget retrieval",
+        "phase": "step",
+        "required": true,
+        "step_max_total_ms": 45000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-admin-orangehrm.step.dashboard-widgets.json",
+        "final_state": "fail",
+        "goal_satisfied": false,
+        "final_reason": "intent_mismatch",
+        "matched_fields": [],
+        "missing_fields": [
+          "title"
+        ],
+        "total_ms": 50623,
+        "performance_total_ms": 33738,
+        "performance_basis": "warm",
+        "rounds": 3,
+        "benchmark": {
+          "cold_total_ms": 16885,
+          "warm_total_ms": 33738,
+          "speedup_ms": -16853,
+          "token_delta": -126
+        }
+      }
+    ]
+  }
+}

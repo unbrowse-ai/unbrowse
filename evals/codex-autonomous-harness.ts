@@ -32,6 +32,7 @@ import {
   type DagEvaluation,
 } from "./codex-autonomous-harness-lib.js";
 import { resolveEvalJudgeMode, reviewEvalPayload } from "./codex-eval-review.js";
+import { parsePortListenerPids } from "./server-pid-utils.js";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -288,15 +289,13 @@ function listServerPids(): number[] {
       stderr: "pipe",
       timeout: 5_000,
     });
-    const text = out.stdout.toString().trim();
-    for (const line of text.split("\n")) {
-      const pid = Number(line.trim());
-      if (Number.isFinite(pid)) pids.add(pid);
-    }
+    const blocked = [process.pid, process.ppid];
+    for (const pid of parsePortListenerPids(out.stdout.toString(), blocked)) pids.add(pid);
   } catch {
     // best effort
   }
-  return [...pids];
+  const blocked = new Set<number>([process.pid, process.ppid]);
+  return [...pids].filter((pid) => !blocked.has(pid));
 }
 
 async function isServerUp(): Promise<boolean> {

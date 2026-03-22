@@ -1,0 +1,601 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 1773,
+      "warm_total_ms": 7990,
+      "speedup_ms": -6217,
+      "cold_tokens_used": 52,
+      "warm_tokens_used": 52,
+      "token_delta": 0
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-public-npm-package:search-packages",
+      "intent": "search packages",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "package_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "missing_fields": [],
+      "retrieval_ok": true,
+      "selection_ok": true,
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.npmjs.com/search?q=openai"
+        ],
+        "attempted_endpoint_counts": {
+          "wNe9NcXejbwmMOecSzUgO": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "package_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://www.npmjs.com/search?q=openai",
+          "force_capture": true,
+          "resolve_ms": 1322,
+          "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+          "available_endpoint_ids": [
+            "wNe9NcXejbwmMOecSzUgO",
+            "ANF3EfY_EsSqWtc6g0hl6"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "wNe9NcXejbwmMOecSzUgO",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/search?q=openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "openai"
+            },
+            "chunk": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "intent": "search packages",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "wNe9NcXejbwmMOecSzUgO",
+              "available_operations": [
+                {
+                  "operation_id": "wNe9NcXejbwmMOecSzUgO",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: q.",
+                  "url_template": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
+                  "requires": [
+                    "q"
+                  ],
+                  "yields": [
+                    "resource_name",
+                    "sanitized_name"
+                  ],
+                  "example_request": {
+                    "q": "openai",
+                    "url": "https://www.npmjs.com/search?q=openai",
+                    "intent": "search packages"
+                  },
+                  "example_response_compact": {
+                    "objects": [
+                      {
+                        "downloads": {
+                          "monthly": 53879768,
+                          "weekly": 7974306
+                        },
+                        "dependents": "9304",
+                        "updated": "2026-03-22T04:26:47.106Z",
+                        "searchScore": 2288.6377,
+                        "package": {
+                          "name": "openai",
+                          "keywords": [],
+                          "version": "6.32.0",
+                          "description": "The official TypeScript library for the OpenAI API",
+                          "sanitized_name": "openai",
+                          "publisher": "[truncated]",
+                          "maintainers": [],
+                          "license": "Apache-2.0",
+                          "date": "2026-03-17T17:54:02.975Z",
+                          "links": "[truncated]"
+                        },
+                        "score": {
+                          "final": 2288.6377,
+                          "detail": "[truncated]"
+                        },
+                        "flags": {
+                          "insecure": 0
+                        }
+                      },
+                      {
+                        "downloads": {
+                          "monthly": 7049844,
+                          "weekly": 1060274
+                        },
+                        "dependents": "8",
+                        "updated": "2026-03-22T04:29:54.888Z",
+                        "searchScore": 499.6911,
+                        "package": {
+                          "name": "@opentelemetry/instrumentation-openai",
+                          "keywords": [],
+                          "version": "0.11.0",
+                          "description": "OpenTelemetry instrumentation for the `openai` OpenAI client library",
+                          "sanitized_name": "@opentelemetry/instrumentation-openai",
+                          "publisher": "[truncated]",
+                          "maintainers": [],
+                          "license": "Apache-2.0",
+                          "date": "2026-03-04T17:11:44.420Z",
+                          "links": "[truncated]"
+                        },
+                        "score": {
+                          "final": 499.6911,
+                          "detail": "[truncated]"
+                        },
+                        "flags": {
+                          "insecure": 0
+                        }
+                      }
+                    ],
+                    "total": 15049,
+                    "time": "2026-03-22T20:51:54.420Z"
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "domain": "npmjs.com",
+              "auth_required": false,
+              "endpoint_count": 2,
+              "operation_count": 2,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:58.198Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 1164,
+            "tokens_used": 26,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+            "endpoints_discovered": 1,
+            "seeded_from": "canonical_document"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "learned_skill_only",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [
+                "min_rows:1/3"
+              ],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 26,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+                "endpoints_discovered": 1,
+                "seeded_from": "canonical_document"
+              }
+            },
+            {
+              "endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+              "endpoint_url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
+              "trigger_url": "https://www.npmjs.com/search?q=openai",
+              "execute_ms": 451,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "package_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "package"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO"
+              },
+              "excerpt": [
+                {
+                  "name": "@types/q",
+                  "version": "1.5.8",
+                  "description": "TypeScript definitions for q",
+                  "url": "https://www.npmjs.com/package/@types/q"
+                },
+                {
+                  "name": "q-io",
+                  "version": "1.13.6",
+                  "description": "IO using Q promises",
+                  "url": "https://www.npmjs.com/package/q-io"
+                },
+                {
+                  "name": "async-q",
+                  "version": "0.3.1",
+                  "description": "Port of async.js to Q",
+                  "keywords": [
+                    "async",
+                    "Q",
+                    "q-async",
+                    "series"
+                  ],
+                  "url": "https://www.npmjs.com/package/async-q"
+                },
+                {
+                  "name": "@types/q-io",
+                  "version": "0.0.34",
+                  "description": "TypeScript definitions for q-io",
+                  "url": "https://www.npmjs.com/package/@types/q-io"
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/search?q=openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 2,
+            "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+            "max_rank": 5
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://www.npmjs.com/search?q=openai",
+          "force_capture": false,
+          "resolve_ms": 7807,
+          "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+          "available_endpoint_ids": [
+            "wNe9NcXejbwmMOecSzUgO",
+            "ANF3EfY_EsSqWtc6g0hl6"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "wNe9NcXejbwmMOecSzUgO",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/search?q=openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/search",
+              "slug_1": "search",
+              "q": "openai"
+            },
+            "chunk": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "intent": "search packages",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "wNe9NcXejbwmMOecSzUgO",
+              "available_operations": [
+                {
+                  "operation_id": "wNe9NcXejbwmMOecSzUgO",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: q.",
+                  "url_template": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
+                  "requires": [
+                    "q"
+                  ],
+                  "yields": [
+                    "resource_name",
+                    "sanitized_name"
+                  ],
+                  "example_request": {
+                    "q": "openai",
+                    "url": "https://www.npmjs.com/search?q=openai",
+                    "intent": "search packages"
+                  },
+                  "example_response_compact": {
+                    "objects": [
+                      {
+                        "downloads": {
+                          "monthly": 53879768,
+                          "weekly": 7974306
+                        },
+                        "dependents": "9304",
+                        "updated": "2026-03-22T04:26:47.106Z",
+                        "searchScore": 2288.6377,
+                        "package": {
+                          "name": "openai",
+                          "keywords": [],
+                          "version": "6.32.0",
+                          "description": "The official TypeScript library for the OpenAI API",
+                          "sanitized_name": "openai",
+                          "publisher": "[truncated]",
+                          "maintainers": [],
+                          "license": "Apache-2.0",
+                          "date": "2026-03-17T17:54:02.975Z",
+                          "links": "[truncated]"
+                        },
+                        "score": {
+                          "final": 2288.6377,
+                          "detail": "[truncated]"
+                        },
+                        "flags": {
+                          "insecure": 0
+                        }
+                      },
+                      {
+                        "downloads": {
+                          "monthly": 7049844,
+                          "weekly": 1060274
+                        },
+                        "dependents": "8",
+                        "updated": "2026-03-22T04:29:54.888Z",
+                        "searchScore": 499.6911,
+                        "package": {
+                          "name": "@opentelemetry/instrumentation-openai",
+                          "keywords": [],
+                          "version": "0.11.0",
+                          "description": "OpenTelemetry instrumentation for the `openai` OpenAI client library",
+                          "sanitized_name": "@opentelemetry/instrumentation-openai",
+                          "publisher": "[truncated]",
+                          "maintainers": [],
+                          "license": "Apache-2.0",
+                          "date": "2026-03-04T17:11:44.420Z",
+                          "links": "[truncated]"
+                        },
+                        "score": {
+                          "final": 499.6911,
+                          "detail": "[truncated]"
+                        },
+                        "flags": {
+                          "insecure": 0
+                        }
+                      }
+                    ],
+                    "total": 15049,
+                    "time": "2026-03-22T20:51:54.420Z"
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "domain": "npmjs.com",
+              "auth_required": false,
+              "endpoint_count": 2,
+              "operation_count": 2,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:56:01.546Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 7652,
+            "tokens_used": 26,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+            "endpoints_discovered": 1,
+            "seeded_from": "canonical_document"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "learned_skill_only",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [
+                "min_rows:1/3"
+              ],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 26,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+                "endpoints_discovered": 1,
+                "seeded_from": "canonical_document"
+              }
+            },
+            {
+              "endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+              "endpoint_url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
+              "trigger_url": "https://www.npmjs.com/search?q=openai",
+              "execute_ms": 183,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "package_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "package"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO"
+              },
+              "excerpt": [
+                {
+                  "name": "@types/q",
+                  "version": "1.5.8",
+                  "description": "TypeScript definitions for q",
+                  "url": "https://www.npmjs.com/package/@types/q"
+                },
+                {
+                  "name": "q-io",
+                  "version": "1.13.6",
+                  "description": "IO using Q promises",
+                  "url": "https://www.npmjs.com/package/q-io"
+                },
+                {
+                  "name": "async-q",
+                  "version": "0.3.1",
+                  "description": "Port of async.js to Q",
+                  "keywords": [
+                    "async",
+                    "Q",
+                    "q-async",
+                    "series"
+                  ],
+                  "url": "https://www.npmjs.com/package/async-q"
+                },
+                {
+                  "name": "@types/q-io",
+                  "version": "0.0.34",
+                  "description": "TypeScript definitions for q-io",
+                  "url": "https://www.npmjs.com/package/@types/q-io"
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/search?q=openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 2,
+            "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+            "max_rank": 5
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "package_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 1322,
+          "total_execute_ms": 451,
+          "total_ms": 1773,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 52,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "package_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 7807,
+          "total_execute_ms": 183,
+          "total_ms": 7990,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 52,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "delta": {
+          "speedup_ms": -6217,
+          "speedup_ratio": 0.22,
+          "token_delta": 0,
+          "token_reduction_pct": 0
+        }
+      }
+    }
+  ]
+}

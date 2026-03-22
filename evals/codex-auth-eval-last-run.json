@@ -1,121 +1,885 @@
 {
   "summary": {
-    "total": 1,
-    "attempts": 1,
-    "ready": 1,
+    "total": 4,
+    "attempts": 4,
+    "ready": 4,
     "skipped_bootstrap": 0,
     "failed_bootstrap": 0,
-    "pass": 0,
-    "fail": 1,
+    "pass": 4,
+    "fail": 0,
     "skip": 0,
     "blocked": 0,
-    "satisfied": 0,
-    "unsatisfied": 1,
-    "suite": "scripted-demo",
+    "satisfied": 4,
+    "unsatisfied": 0,
+    "suite": "all",
     "top": 0,
-    "suite_rounds": 1,
-    "benchmark": false,
+    "suite_rounds": 3,
+    "benchmark": true,
     "interactive_login": false,
-    "max_rounds": 1,
-    "max_candidates": 1,
+    "max_rounds": 6,
+    "max_candidates": 4,
     "max_follow_urls": 3,
     "corpus": {
-      "total": 1,
+      "total": 4,
       "suites": {
-        "scripted-demo": 1
+        "webarena-public": 4
       },
       "strategies": {
-        "scripted_login": 1
+        "none": 4
       }
     },
-    "cases_path": "/Users/lekt9/Projects/unbrowse/evals/codex-cases.auth-popular.json"
+    "cases_path": "/Users/lekt9/Projects/unbrowse/evals/codex-cases.webarena.json"
   },
   "best_results": [
     {
-      "id": "the-internet-secure-flash",
+      "id": "webarena-public-gitlab-project",
       "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "the-internet.herokuapp.com",
-      "url": "https://the-internet.herokuapp.com/secure",
-      "intent": "get secure area message",
+      "suite": "webarena-public",
+      "site": "gitlab.com",
+      "url": "https://gitlab.com/explore/projects?name=openai",
+      "intent": "search GitLab projects and verify the gitlab project detail page",
       "bootstrap": {
-        "strategy": "scripted_login",
+        "strategy": "none",
         "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 5,
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
         "matched_required_cookies": [],
-        "login_url": "https://the-internet.herokuapp.com/login",
-        "success_url": "https://the-internet.herokuapp.com/secure",
-        "elapsed_ms": 2828,
+        "elapsed_ms": 0,
         "used_existing_session": false
       },
       "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.the-internet-secure-flash.json",
-        "exit_code": 1,
-        "stdout": "[domain-cache] loaded 185 entries from disk\n[route-cache] loaded 121 entries from disk\n[codex-autonomous] 1/1 the-internet-secure-flash state=fail satisfied=false reason=auth_required\n",
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-gitlab-project.json",
+        "exit_code": 0,
+        "stdout": "",
         "stderr": "",
-        "final_state": "fail",
-        "goal_satisfied": false,
-        "final_reason": "auth_required",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
         "matched_fields": [
-          "message"
+          "name",
+          "description",
+          "web_url",
+          "name",
+          "description",
+          "web_url"
         ],
-        "missing_fields": [
-          "title"
-        ],
-        "rounds": 1,
-        "total_ms": 18415,
-        "performance_total_ms": 18415,
-        "performance_basis": "raw",
-        "total_errors": 1
+        "missing_fields": [],
+        "rounds": 5,
+        "total_ms": 17669,
+        "performance_total_ms": 9972,
+        "performance_basis": "warm",
+        "total_errors": 0
       },
-      "final_state": "fail",
-      "goal_satisfied": false,
-      "final_reason": "auth_required"
+      "workflow": {
+        "total_ms": 17669,
+        "performance_total_ms": 9972,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-projects",
+            "title": "GitLab project search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-gitlab-project.step.search-projects.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "repository_rows",
+            "matched_fields": [
+              "name",
+              "description",
+              "web_url"
+            ],
+            "missing_fields": [],
+            "total_ms": 7414,
+            "performance_total_ms": 2150,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 5264,
+              "warm_total_ms": 2150,
+              "speedup_ms": 3114,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "project-detail",
+            "title": "GitLab detail verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-gitlab-project.verify.project-detail.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "repository_rows",
+            "matched_fields": [
+              "name",
+              "description",
+              "web_url"
+            ],
+            "missing_fields": [],
+            "total_ms": 10255,
+            "performance_total_ms": 7822,
+            "performance_basis": "warm",
+            "rounds": 3,
+            "benchmark": {
+              "cold_total_ms": 2433,
+              "warm_total_ms": 7822,
+              "speedup_ms": -5389,
+              "token_delta": -15088
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
+    },
+    {
+      "id": "webarena-public-hn-query-refine",
+      "suite_round": 1,
+      "suite": "webarena-public",
+      "site": "hn.algolia.com",
+      "url": "https://hn.algolia.com/",
+      "intent": "search Hacker News for openai and then refine to anthropic",
+      "bootstrap": {
+        "strategy": "none",
+        "status": "ready",
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
+        "matched_required_cookies": [],
+        "elapsed_ms": 0,
+        "used_existing_session": false
+      },
+      "harness": {
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.json",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
+        "matched_fields": [
+          "title",
+          "author",
+          "url",
+          "title",
+          "author",
+          "url"
+        ],
+        "missing_fields": [],
+        "rounds": 4,
+        "total_ms": 6867,
+        "performance_total_ms": 1209,
+        "performance_basis": "warm",
+        "total_errors": 0
+      },
+      "workflow": {
+        "total_ms": 6867,
+        "performance_total_ms": 1209,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-openai",
+            "title": "Hacker News search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 20000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.step.search-openai.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "story_rows",
+            "matched_fields": [
+              "title",
+              "author",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 3767,
+            "performance_total_ms": 634,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 3133,
+              "warm_total_ms": 634,
+              "speedup_ms": 2499,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "search-anthropic",
+            "title": "Hacker News refined-query verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 20000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.verify.search-anthropic.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "story_rows",
+            "matched_fields": [
+              "title",
+              "author",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 3100,
+            "performance_total_ms": 575,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 2525,
+              "warm_total_ms": 575,
+              "speedup_ms": 1950,
+              "token_delta": 0
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
+    },
+    {
+      "id": "webarena-public-mdn-docs",
+      "suite_round": 1,
+      "suite": "webarena-public",
+      "site": "developer.mozilla.org",
+      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+      "intent": "search MDN docs and verify the Fetch API detail page",
+      "bootstrap": {
+        "strategy": "none",
+        "status": "ready",
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
+        "matched_required_cookies": [],
+        "elapsed_ms": 0,
+        "used_existing_session": false
+      },
+      "harness": {
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.json",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
+        "matched_fields": [
+          "title",
+          "url",
+          "title",
+          "url"
+        ],
+        "missing_fields": [],
+        "rounds": 4,
+        "total_ms": 3638,
+        "performance_total_ms": 1066,
+        "performance_basis": "warm",
+        "total_errors": 0
+      },
+      "workflow": {
+        "total_ms": 3638,
+        "performance_total_ms": 1066,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-docs",
+            "title": "MDN docs search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.step.search-docs.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "document_rows",
+            "matched_fields": [
+              "title",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 1868,
+            "performance_total_ms": 625,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 1243,
+              "warm_total_ms": 625,
+              "speedup_ms": 618,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "fetch-api-detail",
+            "title": "MDN detail verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.verify.fetch-api-detail.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "document_rows",
+            "matched_fields": [
+              "title",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 1770,
+            "performance_total_ms": 441,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 1329,
+              "warm_total_ms": 441,
+              "speedup_ms": 888,
+              "token_delta": 0
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
+    },
+    {
+      "id": "webarena-public-npm-package",
+      "suite_round": 1,
+      "suite": "webarena-public",
+      "site": "www.npmjs.com",
+      "url": "https://www.npmjs.com/search?q=openai",
+      "intent": "search npm packages and verify the openai package detail page",
+      "bootstrap": {
+        "strategy": "none",
+        "status": "ready",
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
+        "matched_required_cookies": [],
+        "elapsed_ms": 0,
+        "used_existing_session": false
+      },
+      "harness": {
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-npm-package.json",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
+        "matched_fields": [
+          "name",
+          "version",
+          "description",
+          "name",
+          "version",
+          "description"
+        ],
+        "missing_fields": [],
+        "rounds": 4,
+        "total_ms": 20365,
+        "performance_total_ms": 13364,
+        "performance_basis": "warm",
+        "total_errors": 0
+      },
+      "workflow": {
+        "total_ms": 20365,
+        "performance_total_ms": 13364,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-packages",
+            "title": "npm package search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-npm-package.step.search-packages.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "package_rows",
+            "matched_fields": [
+              "name",
+              "version",
+              "description"
+            ],
+            "missing_fields": [],
+            "total_ms": 9763,
+            "performance_total_ms": 7990,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 1773,
+              "warm_total_ms": 7990,
+              "speedup_ms": -6217,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "package-detail",
+            "title": "npm package detail verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-npm-package.verify.package-detail.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "package_rows",
+            "matched_fields": [
+              "name",
+              "version",
+              "description"
+            ],
+            "missing_fields": [],
+            "total_ms": 10602,
+            "performance_total_ms": 5374,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 5228,
+              "warm_total_ms": 5374,
+              "speedup_ms": -146,
+              "token_delta": 0
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
     }
   ],
   "attempts": [
     {
-      "id": "the-internet-secure-flash",
+      "id": "webarena-public-gitlab-project",
       "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "the-internet.herokuapp.com",
-      "url": "https://the-internet.herokuapp.com/secure",
-      "intent": "get secure area message",
+      "suite": "webarena-public",
+      "site": "gitlab.com",
+      "url": "https://gitlab.com/explore/projects?name=openai",
+      "intent": "search GitLab projects and verify the gitlab project detail page",
       "bootstrap": {
-        "strategy": "scripted_login",
+        "strategy": "none",
         "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 5,
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
         "matched_required_cookies": [],
-        "login_url": "https://the-internet.herokuapp.com/login",
-        "success_url": "https://the-internet.herokuapp.com/secure",
-        "elapsed_ms": 2828,
+        "elapsed_ms": 0,
         "used_existing_session": false
       },
       "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.the-internet-secure-flash.json",
-        "exit_code": 1,
-        "stdout": "[domain-cache] loaded 185 entries from disk\n[route-cache] loaded 121 entries from disk\n[codex-autonomous] 1/1 the-internet-secure-flash state=fail satisfied=false reason=auth_required\n",
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-gitlab-project.json",
+        "exit_code": 0,
+        "stdout": "",
         "stderr": "",
-        "final_state": "fail",
-        "goal_satisfied": false,
-        "final_reason": "auth_required",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
         "matched_fields": [
-          "message"
+          "name",
+          "description",
+          "web_url",
+          "name",
+          "description",
+          "web_url"
         ],
-        "missing_fields": [
-          "title"
-        ],
-        "rounds": 1,
-        "total_ms": 18415,
-        "performance_total_ms": 18415,
-        "performance_basis": "raw",
-        "total_errors": 1
+        "missing_fields": [],
+        "rounds": 5,
+        "total_ms": 17669,
+        "performance_total_ms": 9972,
+        "performance_basis": "warm",
+        "total_errors": 0
       },
-      "final_state": "fail",
-      "goal_satisfied": false,
-      "final_reason": "auth_required"
+      "workflow": {
+        "total_ms": 17669,
+        "performance_total_ms": 9972,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-projects",
+            "title": "GitLab project search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-gitlab-project.step.search-projects.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "repository_rows",
+            "matched_fields": [
+              "name",
+              "description",
+              "web_url"
+            ],
+            "missing_fields": [],
+            "total_ms": 7414,
+            "performance_total_ms": 2150,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 5264,
+              "warm_total_ms": 2150,
+              "speedup_ms": 3114,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "project-detail",
+            "title": "GitLab detail verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-gitlab-project.verify.project-detail.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "repository_rows",
+            "matched_fields": [
+              "name",
+              "description",
+              "web_url"
+            ],
+            "missing_fields": [],
+            "total_ms": 10255,
+            "performance_total_ms": 7822,
+            "performance_basis": "warm",
+            "rounds": 3,
+            "benchmark": {
+              "cold_total_ms": 2433,
+              "warm_total_ms": 7822,
+              "speedup_ms": -5389,
+              "token_delta": -15088
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
+    },
+    {
+      "id": "webarena-public-hn-query-refine",
+      "suite_round": 1,
+      "suite": "webarena-public",
+      "site": "hn.algolia.com",
+      "url": "https://hn.algolia.com/",
+      "intent": "search Hacker News for openai and then refine to anthropic",
+      "bootstrap": {
+        "strategy": "none",
+        "status": "ready",
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
+        "matched_required_cookies": [],
+        "elapsed_ms": 0,
+        "used_existing_session": false
+      },
+      "harness": {
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.json",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
+        "matched_fields": [
+          "title",
+          "author",
+          "url",
+          "title",
+          "author",
+          "url"
+        ],
+        "missing_fields": [],
+        "rounds": 4,
+        "total_ms": 6867,
+        "performance_total_ms": 1209,
+        "performance_basis": "warm",
+        "total_errors": 0
+      },
+      "workflow": {
+        "total_ms": 6867,
+        "performance_total_ms": 1209,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-openai",
+            "title": "Hacker News search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 20000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.step.search-openai.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "story_rows",
+            "matched_fields": [
+              "title",
+              "author",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 3767,
+            "performance_total_ms": 634,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 3133,
+              "warm_total_ms": 634,
+              "speedup_ms": 2499,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "search-anthropic",
+            "title": "Hacker News refined-query verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 20000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.verify.search-anthropic.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "story_rows",
+            "matched_fields": [
+              "title",
+              "author",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 3100,
+            "performance_total_ms": 575,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 2525,
+              "warm_total_ms": 575,
+              "speedup_ms": 1950,
+              "token_delta": 0
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
+    },
+    {
+      "id": "webarena-public-mdn-docs",
+      "suite_round": 1,
+      "suite": "webarena-public",
+      "site": "developer.mozilla.org",
+      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+      "intent": "search MDN docs and verify the Fetch API detail page",
+      "bootstrap": {
+        "strategy": "none",
+        "status": "ready",
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
+        "matched_required_cookies": [],
+        "elapsed_ms": 0,
+        "used_existing_session": false
+      },
+      "harness": {
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.json",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
+        "matched_fields": [
+          "title",
+          "url",
+          "title",
+          "url"
+        ],
+        "missing_fields": [],
+        "rounds": 4,
+        "total_ms": 3638,
+        "performance_total_ms": 1066,
+        "performance_basis": "warm",
+        "total_errors": 0
+      },
+      "workflow": {
+        "total_ms": 3638,
+        "performance_total_ms": 1066,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-docs",
+            "title": "MDN docs search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.step.search-docs.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "document_rows",
+            "matched_fields": [
+              "title",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 1868,
+            "performance_total_ms": 625,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 1243,
+              "warm_total_ms": 625,
+              "speedup_ms": 618,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "fetch-api-detail",
+            "title": "MDN detail verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.verify.fetch-api-detail.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "document_rows",
+            "matched_fields": [
+              "title",
+              "url"
+            ],
+            "missing_fields": [],
+            "total_ms": 1770,
+            "performance_total_ms": 441,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 1329,
+              "warm_total_ms": 441,
+              "speedup_ms": 888,
+              "token_delta": 0
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
+    },
+    {
+      "id": "webarena-public-npm-package",
+      "suite_round": 1,
+      "suite": "webarena-public",
+      "site": "www.npmjs.com",
+      "url": "https://www.npmjs.com/search?q=openai",
+      "intent": "search npm packages and verify the openai package detail page",
+      "bootstrap": {
+        "strategy": "none",
+        "status": "ready",
+        "reason": "no_bootstrap_required",
+        "cookies_found": 0,
+        "matched_required_cookies": [],
+        "elapsed_ms": 0,
+        "used_existing_session": false
+      },
+      "harness": {
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-npm-package.json",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "workflow_pass",
+        "matched_fields": [
+          "name",
+          "version",
+          "description",
+          "name",
+          "version",
+          "description"
+        ],
+        "missing_fields": [],
+        "rounds": 4,
+        "total_ms": 20365,
+        "performance_total_ms": 13364,
+        "performance_basis": "warm",
+        "total_errors": 0
+      },
+      "workflow": {
+        "total_ms": 20365,
+        "performance_total_ms": 13364,
+        "error_count": 0,
+        "failed_step_ids": [],
+        "exceeded_step_budget_ids": [],
+        "exceeded_total_budget": false,
+        "step_results": [
+          {
+            "id": "search-packages",
+            "title": "npm package search retrieval",
+            "phase": "step",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-npm-package.step.search-packages.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "package_rows",
+            "matched_fields": [
+              "name",
+              "version",
+              "description"
+            ],
+            "missing_fields": [],
+            "total_ms": 9763,
+            "performance_total_ms": 7990,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 1773,
+              "warm_total_ms": 7990,
+              "speedup_ms": -6217,
+              "token_delta": 0
+            }
+          },
+          {
+            "id": "package-detail",
+            "title": "npm package detail verification",
+            "phase": "verify",
+            "required": true,
+            "step_max_total_ms": 30000,
+            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-npm-package.verify.package-detail.json",
+            "final_state": "pass",
+            "goal_satisfied": true,
+            "final_reason": "package_rows",
+            "matched_fields": [
+              "name",
+              "version",
+              "description"
+            ],
+            "missing_fields": [],
+            "total_ms": 10602,
+            "performance_total_ms": 5374,
+            "performance_basis": "warm",
+            "rounds": 2,
+            "benchmark": {
+              "cold_total_ms": 5228,
+              "warm_total_ms": 5374,
+              "speedup_ms": -146,
+              "token_delta": 0
+            }
+          }
+        ]
+      },
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "final_reason": "workflow_pass"
     }
   ]
 }

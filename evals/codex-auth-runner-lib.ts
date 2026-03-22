@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { parseHarnessValidation, type HarnessCase } from "./codex-harness-lib.js";
 
 export type AuthBootstrapStrategy =
+  | "none"
   | "cookie_reuse"
   | "scripted_login"
   | "interactive_login"
@@ -124,7 +125,7 @@ function parseBootstrap(value: unknown): AuthBootstrapConfig | null {
   const record = asObject(value);
   if (!record) return null;
   const strategy = typeof record.strategy === "string" ? record.strategy : "";
-  if (!["cookie_reuse", "scripted_login", "interactive_login", "agentmail_register"].includes(strategy)) {
+  if (!["none", "cookie_reuse", "scripted_login", "interactive_login", "agentmail_register"].includes(strategy)) {
     return null;
   }
   return {

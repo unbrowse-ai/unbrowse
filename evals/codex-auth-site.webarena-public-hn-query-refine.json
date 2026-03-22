@@ -1,0 +1,80 @@
+{
+  "summary": {
+    "final_state": "pass",
+    "goal_satisfied": true,
+    "final_reason": "workflow_pass",
+    "total_ms": 6867,
+    "performance_total_ms": 1209,
+    "error_count": 0,
+    "failed_step_ids": [],
+    "exceeded_step_budget_ids": [],
+    "exceeded_total_budget": false
+  },
+  "bootstrap": {
+    "strategy": "none",
+    "status": "ready",
+    "reason": "no_bootstrap_required",
+    "cookies_found": 0,
+    "matched_required_cookies": [],
+    "elapsed_ms": 0,
+    "used_existing_session": false
+  },
+  "workflow": {
+    "step_results": [
+      {
+        "id": "search-openai",
+        "title": "Hacker News search retrieval",
+        "phase": "step",
+        "required": true,
+        "step_max_total_ms": 20000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.step.search-openai.json",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "story_rows",
+        "matched_fields": [
+          "title",
+          "author",
+          "url"
+        ],
+        "missing_fields": [],
+        "total_ms": 3767,
+        "performance_total_ms": 634,
+        "performance_basis": "warm",
+        "rounds": 2,
+        "benchmark": {
+          "cold_total_ms": 3133,
+          "warm_total_ms": 634,
+          "speedup_ms": 2499,
+          "token_delta": 0
+        }
+      },
+      {
+        "id": "search-anthropic",
+        "title": "Hacker News refined-query verification",
+        "phase": "verify",
+        "required": true,
+        "step_max_total_ms": 20000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-hn-query-refine.verify.search-anthropic.json",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "story_rows",
+        "matched_fields": [
+          "title",
+          "author",
+          "url"
+        ],
+        "missing_fields": [],
+        "total_ms": 3100,
+        "performance_total_ms": 575,
+        "performance_basis": "warm",
+        "rounds": 2,
+        "benchmark": {
+          "cold_total_ms": 2525,
+          "warm_total_ms": 575,
+          "speedup_ms": 1950,
+          "token_delta": 0
+        }
+      }
+    ]
+  }
+}

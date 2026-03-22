@@ -1,0 +1,78 @@
+{
+  "summary": {
+    "final_state": "pass",
+    "goal_satisfied": true,
+    "final_reason": "workflow_pass",
+    "total_ms": 3638,
+    "performance_total_ms": 1066,
+    "error_count": 0,
+    "failed_step_ids": [],
+    "exceeded_step_budget_ids": [],
+    "exceeded_total_budget": false
+  },
+  "bootstrap": {
+    "strategy": "none",
+    "status": "ready",
+    "reason": "no_bootstrap_required",
+    "cookies_found": 0,
+    "matched_required_cookies": [],
+    "elapsed_ms": 0,
+    "used_existing_session": false
+  },
+  "workflow": {
+    "step_results": [
+      {
+        "id": "search-docs",
+        "title": "MDN docs search retrieval",
+        "phase": "step",
+        "required": true,
+        "step_max_total_ms": 30000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.step.search-docs.json",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "document_rows",
+        "matched_fields": [
+          "title",
+          "url"
+        ],
+        "missing_fields": [],
+        "total_ms": 1868,
+        "performance_total_ms": 625,
+        "performance_basis": "warm",
+        "rounds": 2,
+        "benchmark": {
+          "cold_total_ms": 1243,
+          "warm_total_ms": 625,
+          "speedup_ms": 618,
+          "token_delta": 0
+        }
+      },
+      {
+        "id": "fetch-api-detail",
+        "title": "MDN detail verification",
+        "phase": "verify",
+        "required": true,
+        "step_max_total_ms": 30000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-public-mdn-docs.verify.fetch-api-detail.json",
+        "final_state": "pass",
+        "goal_satisfied": true,
+        "final_reason": "document_rows",
+        "matched_fields": [
+          "title",
+          "url"
+        ],
+        "missing_fields": [],
+        "total_ms": 1770,
+        "performance_total_ms": 441,
+        "performance_basis": "warm",
+        "rounds": 2,
+        "benchmark": {
+          "cold_total_ms": 1329,
+          "warm_total_ms": 441,
+          "speedup_ms": 888,
+          "token_delta": 0
+        }
+      }
+    ]
+  }
+}

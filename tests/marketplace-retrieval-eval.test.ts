@@ -5,6 +5,7 @@ import {
   evaluateRetrievalCase,
   hasExpectedResult,
   parseSearchResultMetadata,
+  selectReadinessCases,
 } from "../scripts/eval-marketplace-retrieval.ts";
 
 const FIXTURE_CORPUS = {
@@ -210,5 +211,50 @@ describe("marketplace retrieval eval helpers", () => {
       global_results: [result("marketplace-eval-alpha-docs", "alpha-release-notes", "docs.alpha-eval.com")],
       skipped_global: false,
     })).toBe(false);
+  });
+
+  it("samples one readiness probe per fixture and prefers search when present", () => {
+    const cases = selectReadinessCases({
+      ...FIXTURE_CORPUS,
+      cases: [
+        {
+          id: "resolve-alpha-docs",
+          route: "resolve",
+          lane: "domain_results",
+          intent: "search docs",
+          domain: "docs.alpha-eval.com",
+          expect: {
+            fixture: "alpha-docs",
+            endpoint_id: "alpha-doc-search",
+          },
+        },
+        {
+          id: "search-alpha-docs",
+          route: "search",
+          lane: "results",
+          intent: "search docs",
+          expect: {
+            fixture: "alpha-docs",
+            endpoint_id: "alpha-doc-search",
+          },
+        },
+        {
+          id: "domain-alpha-packages",
+          route: "domain",
+          lane: "results",
+          intent: "package info",
+          domain: "packages.alpha-eval.com",
+          expect: {
+            fixture: "alpha-packages",
+            endpoint_id: "alpha-package-info",
+          },
+        },
+      ],
+    } as any);
+
+    expect(cases.map((testCase) => testCase.id)).toEqual([
+      "search-alpha-docs",
+      "domain-alpha-packages",
+    ]);
   });
 });

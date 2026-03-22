@@ -1,0 +1,486 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 1329,
+      "warm_total_ms": 441,
+      "speedup_ms": 888,
+      "cold_tokens_used": 1114,
+      "warm_tokens_used": 1114,
+      "token_delta": 0
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-public-mdn-docs:fetch-api-detail",
+      "intent": "get doc detail",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "document_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url"
+      ],
+      "missing_fields": [],
+      "retrieval_ok": true,
+      "selection_ok": true,
+      "repair_memory": {
+        "visited_urls": [
+          "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+          "force_capture": true,
+          "resolve_ms": 1329,
+          "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+          "available_endpoint_ids": [
+            "Egm5u4kRXTj9ysbHnvwRY"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
+            "selected_path": [
+              "Egm5u4kRXTj9ysbHnvwRY"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "domain": "developer.mozilla.org",
+              "pathname": "/en-US/docs/Web/API/Fetch_API",
+              "slug_1": "en-US",
+              "slug_2": "docs",
+              "slug_3": "Web",
+              "slug_4": "API",
+              "slug_5": "Fetch_API"
+            },
+            "chunk": {
+              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "intent": "get doc detail",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
+              "available_operations": [
+                {
+                  "operation_id": "Egm5u4kRXTj9ysbHnvwRY",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "message",
+                  "title": "detail message",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+                  "requires": [],
+                  "yields": [
+                    "message_name",
+                    "post_name",
+                    "message_url",
+                    "post_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "title": "Concepts and usage",
+                      "link": "/en-US/docs/Web/API/Request",
+                      "url": "/en-US/docs/Web/API/Request",
+                      "description": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Orig...",
+                      "message": "even if the server response is an HTTP error status"
+                    },
+                    {
+                      "title": "Deferred Fetch",
+                      "link": "/en-US/docs/Web/API/Window/fetchLater",
+                      "url": "/en-US/docs/Web/API/Window/fetchLater",
+                      "description": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or naviga..."
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "domain": "mozilla.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:56.302Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 1180,
+            "tokens_used": 557,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "link": "/en-US/docs/Web/API/XMLHttpRequest",
+                "url": "/en-US/docs/Web/API/XMLHttpRequest",
+                "title": "XMLHttpRequest",
+                "description": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest."
+              },
+              {
+                "title": "Concepts and usage",
+                "link": "/en-US/docs/Web/API/Request",
+                "url": "/en-US/docs/Web/API/Request",
+                "description": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Origin header semantics.",
+                "message": "even if the server response is an HTTP error status"
+              },
+              {
+                "title": "Deferred Fetch",
+                "link": "/en-US/docs/Web/API/Window/fetchLater",
+                "url": "/en-US/docs/Web/API/Window/fetchLater",
+                "description": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or navigated away from. See Using Deferred Fetch."
+              },
+              {
+                "title": "Interfaces",
+                "link": "/en-US/docs/Web/API/Window/fetch",
+                "url": "/en-US/docs/Web/API/Window/fetch",
+                "description": "The fetch() method used to fetch a resource.",
+                "definition": "The fetch() method used to fetch a resource."
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "selector": "section.content-section"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+              "endpoint_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "document_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 8,
+              "observed_entity_types": [
+                "document"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "side_effect_observed": "sent",
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY"
+              },
+              "tokens_used": 557,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": [
+                {
+                  "title": "XMLHttpRequest",
+                  "url": "/en-US/docs/Web/API/XMLHttpRequest",
+                  "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest."
+                },
+                {
+                  "title": "Concepts and usage",
+                  "url": "/en-US/docs/Web/API/Request",
+                  "summary": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Origin header semantics."
+                },
+                {
+                  "title": "Deferred Fetch",
+                  "url": "/en-US/docs/Web/API/Window/fetchLater",
+                  "summary": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or navigated away from. See Using Deferred Fetch."
+                },
+                {
+                  "title": "Interfaces",
+                  "url": "/en-US/docs/Web/API/Window/fetch",
+                  "summary": "The fetch() method used to fetch a resource."
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+            "max_rank": 5
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+          "force_capture": false,
+          "resolve_ms": 441,
+          "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+          "available_endpoint_ids": [
+            "Egm5u4kRXTj9ysbHnvwRY"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
+            "selected_path": [
+              "Egm5u4kRXTj9ysbHnvwRY"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "domain": "developer.mozilla.org",
+              "pathname": "/en-US/docs/Web/API/Fetch_API",
+              "slug_1": "en-US",
+              "slug_2": "docs",
+              "slug_3": "Web",
+              "slug_4": "API",
+              "slug_5": "Fetch_API"
+            },
+            "chunk": {
+              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "intent": "get doc detail",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
+              "available_operations": [
+                {
+                  "operation_id": "Egm5u4kRXTj9ysbHnvwRY",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "message",
+                  "title": "detail message",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+                  "requires": [],
+                  "yields": [
+                    "message_name",
+                    "post_name",
+                    "message_url",
+                    "post_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "title": "Concepts and usage",
+                      "link": "/en-US/docs/Web/API/Request",
+                      "url": "/en-US/docs/Web/API/Request",
+                      "description": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Orig...",
+                      "message": "even if the server response is an HTTP error status"
+                    },
+                    {
+                      "title": "Deferred Fetch",
+                      "link": "/en-US/docs/Web/API/Window/fetchLater",
+                      "url": "/en-US/docs/Web/API/Window/fetchLater",
+                      "description": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or naviga..."
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "domain": "mozilla.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:56.746Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 20,
+            "tokens_used": 557,
+            "tokens_saved": 29443,
+            "tokens_saved_pct": 98
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "link": "/en-US/docs/Web/API/XMLHttpRequest",
+                "url": "/en-US/docs/Web/API/XMLHttpRequest",
+                "title": "XMLHttpRequest",
+                "description": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest."
+              },
+              {
+                "title": "Concepts and usage",
+                "link": "/en-US/docs/Web/API/Request",
+                "url": "/en-US/docs/Web/API/Request",
+                "description": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Origin header semantics.",
+                "message": "even if the server response is an HTTP error status"
+              },
+              {
+                "title": "Deferred Fetch",
+                "link": "/en-US/docs/Web/API/Window/fetchLater",
+                "url": "/en-US/docs/Web/API/Window/fetchLater",
+                "description": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or navigated away from. See Using Deferred Fetch."
+              },
+              {
+                "title": "Interfaces",
+                "link": "/en-US/docs/Web/API/Window/fetch",
+                "url": "/en-US/docs/Web/API/Window/fetch",
+                "description": "The fetch() method used to fetch a resource.",
+                "definition": "The fetch() method used to fetch a resource."
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.95,
+              "source": "ssr-fast",
+              "final_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "selector": "section.content-section"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+              "endpoint_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "document_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 8,
+              "observed_entity_types": [
+                "document"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "side_effect_observed": "sent",
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY"
+              },
+              "tokens_used": 557,
+              "tokens_saved": 29443,
+              "tokens_saved_pct": 98,
+              "excerpt": [
+                {
+                  "title": "XMLHttpRequest",
+                  "url": "/en-US/docs/Web/API/XMLHttpRequest",
+                  "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest."
+                },
+                {
+                  "title": "Concepts and usage",
+                  "url": "/en-US/docs/Web/API/Request",
+                  "summary": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Origin header semantics."
+                },
+                {
+                  "title": "Deferred Fetch",
+                  "url": "/en-US/docs/Web/API/Window/fetchLater",
+                  "summary": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or navigated away from. See Using Deferred Fetch."
+                },
+                {
+                  "title": "Interfaces",
+                  "url": "/en-US/docs/Web/API/Window/fetch",
+                  "summary": "The fetch() method used to fetch a resource."
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+            "max_rank": 5
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "document_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 1329,
+          "total_execute_ms": 0,
+          "total_ms": 1329,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 1114,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "document_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 441,
+          "total_execute_ms": 0,
+          "total_ms": 441,
+          "first_source": "marketplace",
+          "final_source": "marketplace",
+          "total_tokens_used": 1114,
+          "total_tokens_saved": 58886,
+          "avg_tokens_saved_pct": 98
+        },
+        "delta": {
+          "speedup_ms": 888,
+          "speedup_ratio": 3.01,
+          "token_delta": 0,
+          "token_reduction_pct": 0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,773 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 2433,
+      "warm_total_ms": 7822,
+      "speedup_ms": -5389,
+      "cold_tokens_used": 616,
+      "warm_tokens_used": 15704,
+      "token_delta": -15088
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-public-gitlab-project:project-detail",
+      "intent": "get project detail",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "repository_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "name",
+        "description",
+        "web_url"
+      ],
+      "missing_fields": [],
+      "retrieval_ok": true,
+      "selection_ok": true,
+      "repair_memory": {
+        "visited_urls": [
+          "https://gitlab.com/gitlab-org/gitlab"
+        ],
+        "attempted_endpoint_counts": {
+          "6mqrRf9xqhQ0dwHyRIjUY": 1
+        },
+        "failure_class_counts": {
+          "intent": 2
+        },
+        "reasons_seen": [
+          "retrieval_missing_top5",
+          "escalate_force_capture"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://gitlab.com/gitlab-org/gitlab",
+          "force_capture": true,
+          "resolve_ms": 2433,
+          "skill_id": "60QdmljY47P_0f2zupRlb",
+          "available_endpoint_ids": [
+            "ltWXyCzMOCvf4sd173vxY"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "ltWXyCzMOCvf4sd173vxY",
+            "selected_path": [
+              "ltWXyCzMOCvf4sd173vxY"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://gitlab.com/gitlab-org/gitlab",
+              "domain": "gitlab.com",
+              "pathname": "/gitlab-org/gitlab",
+              "slug_1": "gitlab-org",
+              "slug_2": "gitlab"
+            },
+            "chunk": {
+              "skill_id": "60QdmljY47P_0f2zupRlb",
+              "intent": "get project detail",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "ltWXyCzMOCvf4sd173vxY",
+              "available_operations": [
+                {
+                  "operation_id": "ltWXyCzMOCvf4sd173vxY",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "topic",
+                  "title": "detail topic",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab",
+                  "requires": [],
+                  "yields": [
+                    "id",
+                    "topic_name",
+                    "trend_name",
+                    "path",
+                    "web_url",
+                    "readme_url",
+                    "avatar_url",
+                    "topic_id"
+                  ],
+                  "example_request": {
+                    "url": "https://gitlab.com/gitlab-org/gitlab",
+                    "intent": "get project detail"
+                  },
+                  "example_response_compact": {
+                    "id": 278964,
+                    "description": "GitLab is an open source end-to-end software development platform with built-in version control, issue tracking, code review, CI/CD, and more. Self-host GitL...",
+                    "name": "GitLab",
+                    "name_with_namespace": "GitLab.org / GitLab",
+                    "path": "gitlab",
+                    "path_with_namespace": "gitlab-org/gitlab",
+                    "created_at": "2015-05-20T10:47:11.949Z",
+                    "default_branch": "master"
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "60QdmljY47P_0f2zupRlb",
+              "domain": "gitlab.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:37.197Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 2270,
+            "tokens_used": 308,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "id": 278964,
+            "description": "GitLab is an open source end-to-end software development platform with built-in version control, issue tracking, code review, CI/CD, and more. Self-host GitLab on your own servers, in a container, or on a cloud provider.",
+            "name": "GitLab",
+            "name_with_namespace": "GitLab.org / GitLab",
+            "path": "gitlab",
+            "path_with_namespace": "gitlab-org/gitlab",
+            "created_at": "2015-05-20T10:47:11.949Z",
+            "default_branch": "master",
+            "tag_list": [
+              "hacktoberfest",
+              "javascript",
+              "ruby",
+              "vue.js"
+            ],
+            "topics": [
+              "hacktoberfest",
+              "javascript",
+              "ruby",
+              "vue.js"
+            ],
+            "ssh_url_to_repo": "git@gitlab.com:gitlab-org/gitlab.git",
+            "http_url_to_repo": "https://gitlab.com/gitlab-org/gitlab.git"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "ltWXyCzMOCvf4sd173vxY",
+              "endpoint_url": "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab",
+              "trigger_url": "https://gitlab.com/gitlab-org/gitlab",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "repository_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "description",
+                "web_url"
+              ],
+              "missing_fields": [],
+              "row_count": 4,
+              "observed_entity_types": [
+                "repository"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "ltWXyCzMOCvf4sd173vxY"
+              },
+              "tokens_used": 308,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "id": 278964,
+                "description": "GitLab is an open source end-to-end software development platform with built-in version control, issue tracking, code review, CI/CD, and more. Self-host GitLab on your own servers, in a container, or on a cloud provider.",
+                "name": "GitLab",
+                "name_with_namespace": "GitLab.org / GitLab",
+                "path": "gitlab",
+                "path_with_namespace": "gitlab-org/gitlab",
+                "created_at": "2015-05-20T10:47:11.949Z",
+                "default_branch": "master",
+                "tag_list": [
+                  "hacktoberfest",
+                  "javascript",
+                  "ruby",
+                  "vue.js"
+                ],
+                "topics": [
+                  "hacktoberfest",
+                  "javascript",
+                  "ruby",
+                  "vue.js"
+                ],
+                "ssh_url_to_repo": "git@gitlab.com:gitlab-org/gitlab.git",
+                "http_url_to_repo": "https://gitlab.com/gitlab-org/gitlab.git"
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://gitlab.com/gitlab-org/gitlab"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "ltWXyCzMOCvf4sd173vxY",
+            "max_rank": 5
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://gitlab.com/gitlab-org/gitlab",
+          "force_capture": false,
+          "resolve_ms": 2053,
+          "skill_id": "R-IDziRyWktILQmn9GFOf",
+          "available_endpoint_ids": [
+            "6mqrRf9xqhQ0dwHyRIjUY"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "6mqrRf9xqhQ0dwHyRIjUY",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://gitlab.com/gitlab-org/gitlab",
+              "domain": "gitlab.com",
+              "pathname": "/gitlab-org/gitlab",
+              "slug_1": "gitlab-org",
+              "slug_2": "gitlab"
+            },
+            "chunk": {
+              "skill_id": "R-IDziRyWktILQmn9GFOf",
+              "intent": "get project detail",
+              "missing_bindings": [
+                "name"
+              ],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "R-IDziRyWktILQmn9GFOf",
+              "domain": "gitlab.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:32.069Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 1622,
+            "tokens_used": 7544,
+            "tokens_saved": 22456,
+            "tokens_saved_pct": 75
+          },
+          "resolve_excerpt": [
+            {
+              "id": 80458850,
+              "description": "This is my Third Java  project using SpringBoot Framework and Mysql Connectivity with Simple Employee Details CRUD Operations.",
+              "name": "SpringBoot-testApplications",
+              "name_with_namespace": "ireal-demos / SpringBoot-testApplications",
+              "path": "SpringBoot-testApplications",
+              "path_with_namespace": "ireal-demos/SpringBoot-testApplications",
+              "created_at": "2026-03-21T03:44:09.832Z",
+              "default_branch": "main",
+              "tag_list": [],
+              "topics": [],
+              "ssh_url_to_repo": "git@gitlab.com:ireal-demos/SpringBoot-testApplications.git",
+              "http_url_to_repo": "https://gitlab.com/ireal-demos/SpringBoot-testApplications.git"
+            },
+            {
+              "id": 80403205,
+              "description": "Manage your GitLab projects on the go! GitLab app for Android https://play.google.com/store/apps/details?id=com.commit451.gitlab",
+              "name": "LabCoat-deletion_scheduled-80403205",
+              "name_with_namespace": "John Carlson / LabCoat-deletion_scheduled-80403205",
+              "path": "LabCoat-deletion_scheduled-80403205",
+              "path_with_namespace": "Jawnnypoo/LabCoat-deletion_scheduled-80403205",
+              "created_at": "2026-03-19T05:55:30.841Z",
+              "default_branch": "main",
+              "tag_list": [],
+              "topics": [],
+              "ssh_url_to_repo": "git@gitlab.com:Jawnnypoo/LabCoat-deletion_scheduled-80403205.git",
+              "http_url_to_repo": "https://gitlab.com/Jawnnypoo/LabCoat-deletion_scheduled-80403205.git"
+            },
+            {
+              "id": 80286370,
+              "description": "Manage your GitLab projects on the go! GitLab app for Android https://play.google.com/store/apps/details?id=com.commit451.gitlab",
+              "name": "LabCoat-deletion_scheduled-80286370",
+              "name_with_namespace": "VeldtJumper / LabCoat-deletion_scheduled-80286370",
+              "path": "LabCoat-deletion_scheduled-80286370",
+              "path_with_namespace": "VeldtJumper/LabCoat-deletion_scheduled-80286370",
+              "created_at": "2026-03-15T18:14:59.767Z",
+              "default_branch": "main",
+              "tag_list": [],
+              "topics": [],
+              "ssh_url_to_repo": "git@gitlab.com:VeldtJumper/LabCoat-deletion_scheduled-80286370.git",
+              "http_url_to_repo": "https://gitlab.com/VeldtJumper/LabCoat-deletion_scheduled-80286370.git"
+            },
+            {
+              "id": 79996019,
+              "description": "The OWASP Benchmark for Python is a test suite designed to verify the accuracy of Python software vulnerability detection tools. A fully runnable web app written in Python, it supports analysis by Static (SAST), Dynamic (DAST), and Runtime (IAST) tools that support Python. For mo...",
+              "name": "BenchmarkPython2",
+              "name_with_namespace": "Simcaa007 / BenchmarkPython2",
+              "path": "benchmark-python-2",
+              "path_with_namespace": "Simcaa007/benchmark-python-2",
+              "created_at": "2026-03-05T07:36:00.112Z",
+              "default_branch": "main",
+              "tag_list": [],
+              "topics": [],
+              "ssh_url_to_repo": "git@gitlab.com:Simcaa007/benchmark-python-2.git",
+              "http_url_to_repo": "https://gitlab.com/Simcaa007/benchmark-python-2.git"
+            }
+          ],
+          "candidates": [
+            {
+              "endpoint_id": "6mqrRf9xqhQ0dwHyRIjUY",
+              "endpoint_url": "https://gitlab.com/api/v4/projects?search={name}&simple=true&per_page=20",
+              "trigger_url": "https://gitlab.com/explore/projects?name=openai",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "retrieval_missing_top5",
+              "failure_class": "intent",
+              "source_kind": "rows",
+              "matched_fields": [
+                "name",
+                "description",
+                "web_url"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "repository"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_mismatch:6mqrRf9xqhQ0dwHyRIjUY",
+                "matched_endpoint_id": "6mqrRf9xqhQ0dwHyRIjUY"
+              },
+              "tokens_used": 7544,
+              "tokens_saved": 22456,
+              "tokens_saved_pct": 75,
+              "excerpt": [
+                {
+                  "id": 80458850,
+                  "description": "This is my Third Java  project using SpringBoot Framework and Mysql Connectivity with Simple Employee Details CRUD Operations.",
+                  "name": "SpringBoot-testApplications",
+                  "name_with_namespace": "ireal-demos / SpringBoot-testApplications",
+                  "path": "SpringBoot-testApplications",
+                  "path_with_namespace": "ireal-demos/SpringBoot-testApplications",
+                  "created_at": "2026-03-21T03:44:09.832Z",
+                  "default_branch": "main",
+                  "tag_list": [],
+                  "topics": [],
+                  "ssh_url_to_repo": "git@gitlab.com:ireal-demos/SpringBoot-testApplications.git",
+                  "http_url_to_repo": "https://gitlab.com/ireal-demos/SpringBoot-testApplications.git"
+                },
+                {
+                  "id": 80403205,
+                  "description": "Manage your GitLab projects on the go! GitLab app for Android https://play.google.com/store/apps/details?id=com.commit451.gitlab",
+                  "name": "LabCoat-deletion_scheduled-80403205",
+                  "name_with_namespace": "John Carlson / LabCoat-deletion_scheduled-80403205",
+                  "path": "LabCoat-deletion_scheduled-80403205",
+                  "path_with_namespace": "Jawnnypoo/LabCoat-deletion_scheduled-80403205",
+                  "created_at": "2026-03-19T05:55:30.841Z",
+                  "default_branch": "main",
+                  "tag_list": [],
+                  "topics": [],
+                  "ssh_url_to_repo": "git@gitlab.com:Jawnnypoo/LabCoat-deletion_scheduled-80403205.git",
+                  "http_url_to_repo": "https://gitlab.com/Jawnnypoo/LabCoat-deletion_scheduled-80403205.git"
+                },
+                {
+                  "id": 80286370,
+                  "description": "Manage your GitLab projects on the go! GitLab app for Android https://play.google.com/store/apps/details?id=com.commit451.gitlab",
+                  "name": "LabCoat-deletion_scheduled-80286370",
+                  "name_with_namespace": "VeldtJumper / LabCoat-deletion_scheduled-80286370",
+                  "path": "LabCoat-deletion_scheduled-80286370",
+                  "path_with_namespace": "VeldtJumper/LabCoat-deletion_scheduled-80286370",
+                  "created_at": "2026-03-15T18:14:59.767Z",
+                  "default_branch": "main",
+                  "tag_list": [],
+                  "topics": [],
+                  "ssh_url_to_repo": "git@gitlab.com:VeldtJumper/LabCoat-deletion_scheduled-80286370.git",
+                  "http_url_to_repo": "https://gitlab.com/VeldtJumper/LabCoat-deletion_scheduled-80286370.git"
+                },
+                {
+                  "id": 79996019,
+                  "description": "The OWASP Benchmark for Python is a test suite designed to verify the accuracy of Python software vulnerability detection tools. A fully runnable web app written in Python, it supports analysis by Static (SAST), Dynamic (DAST), and Runtime (IAST) tools that support Python. For mo...",
+                  "name": "BenchmarkPython2",
+                  "name_with_namespace": "Simcaa007 / BenchmarkPython2",
+                  "path": "benchmark-python-2",
+                  "path_with_namespace": "Simcaa007/benchmark-python-2",
+                  "created_at": "2026-03-05T07:36:00.112Z",
+                  "default_branch": "main",
+                  "tag_list": [],
+                  "topics": [],
+                  "ssh_url_to_repo": "git@gitlab.com:Simcaa007/benchmark-python-2.git",
+                  "http_url_to_repo": "https://gitlab.com/Simcaa007/benchmark-python-2.git"
+                }
+              ]
+            },
+            {
+              "endpoint_id": "6mqrRf9xqhQ0dwHyRIjUY",
+              "endpoint_url": "https://gitlab.com/api/v4/projects?search={name}&simple=true&per_page=20",
+              "trigger_url": "https://gitlab.com/explore/projects?name=openai",
+              "execute_ms": 2360,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "retrieval_missing_top5",
+              "failure_class": "intent",
+              "source_kind": "rows",
+              "matched_fields": [
+                "name",
+                "description",
+                "web_url"
+              ],
+              "missing_fields": [],
+              "row_count": 3,
+              "observed_entity_types": [
+                "repository"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_mismatch:6mqrRf9xqhQ0dwHyRIjUY",
+                "matched_endpoint_id": "6mqrRf9xqhQ0dwHyRIjUY"
+              },
+              "excerpt": [
+                {
+                  "id": 74804037,
+                  "description": "Display Unicode characters based on `\\N{name}` and `\\Uxxxxxxxx` escape literals.",
+                  "name": "unicode-esc",
+                  "name_with_namespace": "Michael Mauger / unicode-esc",
+                  "path": "unicode-esc",
+                  "path_with_namespace": "mmauger/unicode-esc",
+                  "created_at": "2025-09-27T04:39:00.511Z",
+                  "default_branch": "main",
+                  "tag_list": [
+                    "emacs"
+                  ],
+                  "topics": [
+                    "emacs"
+                  ],
+                  "ssh_url_to_repo": "git@gitlab.com:mmauger/unicode-esc.git",
+                  "http_url_to_repo": "https://gitlab.com/mmauger/unicode-esc.git"
+                },
+                {
+                  "id": 33494645,
+                  "description": "HTTP PUT /job/{name}\r\nHTTP GET /next",
+                  "name": "Simple work queue",
+                  "name_with_namespace": "Ruben De Smet / Simple work queue",
+                  "path": "swq",
+                  "path_with_namespace": "rubdos/swq",
+                  "created_at": "2022-02-07T19:08:15.774Z",
+                  "default_branch": "main",
+                  "tag_list": [],
+                  "topics": [],
+                  "ssh_url_to_repo": "git@gitlab.com:rubdos/swq.git",
+                  "http_url_to_repo": "https://gitlab.com/rubdos/swq.git"
+                },
+                {
+                  "id": 21293162,
+                  "description": "This is a simple hello-world in Golang, then you send a get with a {name}, response a hello world {name}\r\n\r\nI used like a API backend for testing some microservice or workflow ",
+                  "name": "hello-world-rest-api",
+                  "name_with_namespace": "Francisco Horacio Arenas Massa / hello-world-rest-api",
+                  "path": "hello-world-rest-api",
+                  "path_with_namespace": "w00k/hello-world-rest-api",
+                  "created_at": "2020-09-22T14:47:09.797Z",
+                  "default_branch": "master",
+                  "tag_list": [],
+                  "topics": [],
+                  "ssh_url_to_repo": "git@gitlab.com:w00k/hello-world-rest-api.git",
+                  "http_url_to_repo": "https://gitlab.com/w00k/hello-world-rest-api.git"
+                }
+              ]
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://gitlab.com/gitlab-org/gitlab"
+            ],
+            "attempted_endpoint_counts": {
+              "6mqrRf9xqhQ0dwHyRIjUY": 1
+            },
+            "failure_class_counts": {
+              "intent": 2
+            },
+            "reasons_seen": [
+              "retrieval_missing_top5",
+              "escalate_force_capture"
+            ]
+          },
+          "retrieval_check": {
+            "ok": false,
+            "reason": "retrieval_missing_top5",
+            "max_rank": 5
+          }
+        },
+        {
+          "round": 2,
+          "run_label": "warm",
+          "url": "https://gitlab.com/gitlab-org/gitlab",
+          "force_capture": true,
+          "resolve_ms": 3409,
+          "skill_id": "60QdmljY47P_0f2zupRlb",
+          "available_endpoint_ids": [
+            "ltWXyCzMOCvf4sd173vxY"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "ltWXyCzMOCvf4sd173vxY",
+            "selected_path": [
+              "ltWXyCzMOCvf4sd173vxY"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://gitlab.com/gitlab-org/gitlab",
+              "domain": "gitlab.com",
+              "pathname": "/gitlab-org/gitlab",
+              "slug_1": "gitlab-org",
+              "slug_2": "gitlab"
+            },
+            "chunk": {
+              "skill_id": "60QdmljY47P_0f2zupRlb",
+              "intent": "get project detail",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "ltWXyCzMOCvf4sd173vxY",
+              "available_operations": [
+                {
+                  "operation_id": "ltWXyCzMOCvf4sd173vxY",
+                  "method": "GET",
+                  "action_kind": "detail",
+                  "resource_kind": "topic",
+                  "title": "detail topic",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab",
+                  "requires": [],
+                  "yields": [
+                    "id",
+                    "topic_name",
+                    "trend_name",
+                    "path",
+                    "web_url",
+                    "readme_url",
+                    "avatar_url",
+                    "topic_id"
+                  ],
+                  "example_request": {
+                    "url": "https://gitlab.com/gitlab-org/gitlab",
+                    "intent": "get project detail"
+                  },
+                  "example_response_compact": {
+                    "id": 278964,
+                    "description": "GitLab is an open source end-to-end software development platform with built-in version control, issue tracking, code review, CI/CD, and more. Self-host GitL...",
+                    "name": "GitLab",
+                    "name_with_namespace": "GitLab.org / GitLab",
+                    "path": "gitlab",
+                    "path_with_namespace": "gitlab-org/gitlab",
+                    "created_at": "2015-05-20T10:47:11.949Z",
+                    "default_branch": "master"
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "60QdmljY47P_0f2zupRlb",
+              "domain": "gitlab.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:45.013Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 2620,
+            "tokens_used": 308,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "id": 278964,
+            "description": "GitLab is an open source end-to-end software development platform with built-in version control, issue tracking, code review, CI/CD, and more. Self-host GitLab on your own servers, in a container, or on a cloud provider.",
+            "name": "GitLab",
+            "name_with_namespace": "GitLab.org / GitLab",
+            "path": "gitlab",
+            "path_with_namespace": "gitlab-org/gitlab",
+            "created_at": "2015-05-20T10:47:11.949Z",
+            "default_branch": "master",
+            "tag_list": [
+              "hacktoberfest",
+              "javascript",
+              "ruby",
+              "vue.js"
+            ],
+            "topics": [
+              "hacktoberfest",
+              "javascript",
+              "ruby",
+              "vue.js"
+            ],
+            "ssh_url_to_repo": "git@gitlab.com:gitlab-org/gitlab.git",
+            "http_url_to_repo": "https://gitlab.com/gitlab-org/gitlab.git"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "ltWXyCzMOCvf4sd173vxY",
+              "endpoint_url": "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab",
+              "trigger_url": "https://gitlab.com/gitlab-org/gitlab",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "repository_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "description",
+                "web_url"
+              ],
+              "missing_fields": [],
+              "row_count": 4,
+              "observed_entity_types": [
+                "repository"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "ltWXyCzMOCvf4sd173vxY"
+              },
+              "tokens_used": 308,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "id": 278964,
+                "description": "GitLab is an open source end-to-end software development platform with built-in version control, issue tracking, code review, CI/CD, and more. Self-host GitLab on your own servers, in a container, or on a cloud provider.",
+                "name": "GitLab",
+                "name_with_namespace": "GitLab.org / GitLab",
+                "path": "gitlab",
+                "path_with_namespace": "gitlab-org/gitlab",
+                "created_at": "2015-05-20T10:47:11.949Z",
+                "default_branch": "master",
+                "tag_list": [
+                  "hacktoberfest",
+                  "javascript",
+                  "ruby",
+                  "vue.js"
+                ],
+                "topics": [
+                  "hacktoberfest",
+                  "javascript",
+                  "ruby",
+                  "vue.js"
+                ],
+                "ssh_url_to_repo": "git@gitlab.com:gitlab-org/gitlab.git",
+                "http_url_to_repo": "https://gitlab.com/gitlab-org/gitlab.git"
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://gitlab.com/gitlab-org/gitlab"
+            ],
+            "attempted_endpoint_counts": {
+              "6mqrRf9xqhQ0dwHyRIjUY": 1
+            },
+            "failure_class_counts": {
+              "intent": 2
+            },
+            "reasons_seen": [
+              "retrieval_missing_top5",
+              "escalate_force_capture"
+            ]
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "ltWXyCzMOCvf4sd173vxY",
+            "max_rank": 5
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "repository_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 2433,
+          "total_execute_ms": 0,
+          "total_ms": 2433,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 616,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "repository_rows",
+          "total_rounds": 2,
+          "total_resolve_ms": 5462,
+          "total_execute_ms": 2360,
+          "total_ms": 7822,
+          "first_source": "marketplace",
+          "final_source": "live-capture",
+          "total_tokens_used": 15704,
+          "total_tokens_saved": 44912,
+          "avg_tokens_saved_pct": 38
+        },
+        "delta": {
+          "speedup_ms": -5389,
+          "speedup_ratio": 0.31,
+          "token_delta": -15088,
+          "token_reduction_pct": -2449
+        }
+      }
+    }
+  ]
+}

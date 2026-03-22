@@ -6,7 +6,7 @@ import { parseAuthEvalCases } from "../evals/codex-auth-runner-lib.js";
 const ROOT = join(import.meta.dir, "..");
 
 describe("codex webarena cases", () => {
-  it("stay multistep, scripted, and judge retrieval plus selection", () => {
+  it("stay multistep, public, and judge retrieval plus selection", () => {
     const raw = JSON.parse(
       readFileSync(join(ROOT, "evals", "codex-cases.webarena.json"), "utf-8"),
     );
@@ -18,7 +18,7 @@ describe("codex webarena cases", () => {
     for (const testCase of cases) {
       expect(ids.has(testCase.id)).toBe(false);
       ids.add(testCase.id);
-      expect(testCase.auth_bootstrap.strategy).toBe("scripted_login");
+      expect(testCase.auth_bootstrap.strategy).toBe("none");
       expect(testCase.workflow?.steps.length ?? 0).toBeGreaterThanOrEqual(1);
       expect(testCase.workflow?.verify?.length ?? 0).toBeGreaterThanOrEqual(1);
 
@@ -29,9 +29,9 @@ describe("codex webarena cases", () => {
       }
     }
 
-    expect(ids.has("webarena-shopping-saucedemo")).toBe(true);
-    expect(ids.has("webarena-admin-orangehrm")).toBe(true);
-    expect(ids.has("webarena-secure-area")).toBe(true);
-    expect(ids.has("webarena-practice-login-success")).toBe(true);
+    expect(ids.has("webarena-public-npm-package")).toBe(true);
+    expect(ids.has("webarena-public-mdn-docs")).toBe(true);
+    expect(ids.has("webarena-public-gitlab-project")).toBe(true);
+    expect(ids.has("webarena-public-hn-query-refine")).toBe(true);
   });
 });
