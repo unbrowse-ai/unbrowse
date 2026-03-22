@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const SKILL_MD = `---
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
-install: "npm install -g unbrowse && unbrowse health && npx skills add unbrowse-ai/unbrowse"
+install: "npm install -g unbrowse && unbrowse health"
 homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
 ---
@@ -40,6 +40,16 @@ If your agent host uses skills, add the Unbrowse skill too:
 npx skills add unbrowse-ai/unbrowse
 \`\`\`
 
+If you use OpenClaw, use the native plugin path instead:
+
+\`\`\`bash
+openclaw plugins install unbrowse-openclaw
+openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
+openclaw gateway restart
+\`\`\`
+
 ## Overview
 
 Unbrowse is a local service backed by a shared skill marketplace. When you ask it to do something, it first searches the marketplace for an existing skill discovered by any agent. If none exists, it captures the site, reverse-engineers the API, publishes the skill to the marketplace, and executes it. Future requests from any agent reuse the learned skill instantly.
@@ -65,10 +75,16 @@ npm install -g unbrowse
 unbrowse health
 \`\`\`
 
-If your agent host uses skills (Claude Code, Cursor, OpenClaw), add the Unbrowse skill too:
+If your agent host uses skills (Claude Code, Cursor), add the Unbrowse skill too:
 
 \`\`\`bash
 npx skills add unbrowse-ai/unbrowse
+\`\`\`
+
+If you use OpenClaw, use the native plugin path instead:
+
+\`\`\`bash
+openclaw plugins install unbrowse-openclaw
 \`\`\`
 
 ### Browser Engine Setup

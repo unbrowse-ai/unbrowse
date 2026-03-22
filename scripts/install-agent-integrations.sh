@@ -29,7 +29,7 @@ Options:
   --claude-code         Install MCP into Claude Code via `claude mcp add`
   --claude-desktop      Install MCP into Claude Desktop config
   --codex               Install MCP into Codex via `codex mcp add`
-  --openclaw            Install the shared skill via `npx skills add`
+  --openclaw            Install the native OpenClaw plugin via `openclaw plugins install`
   --no-cli              Do not install/upgrade the `unbrowse` CLI
   --upgrade-cli         Force `npm install -g unbrowse@latest`
   --dry-run             Print actions without changing anything
@@ -96,7 +96,7 @@ detect_claude_desktop() {
 }
 
 detect_openclaw() {
-  [[ -d "$HOME/.openclaw" ]] || [[ -d "$HOME/Library/Application Support/OpenClaw" ]] || has_cmd openclaw
+  has_cmd openclaw
 }
 
 detect_hosts() {
@@ -216,12 +216,16 @@ install_codex() {
 }
 
 install_openclaw() {
-  has_cmd npx || {
-    warn "npx not found; skipping openclaw."
+  has_cmd openclaw || {
+    warn "OpenClaw CLI not found; skipping openclaw."
     SKIPPED_HOSTS+=("openclaw")
     return 0
   }
-  run_cmd npx skills add unbrowse-ai/unbrowse
+  run_cmd openclaw plugins install unbrowse-openclaw
+  run_cmd openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
+  run_cmd openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
+  run_cmd openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
+  run_cmd openclaw gateway restart
   INSTALLED_HOSTS+=("openclaw")
 }
 

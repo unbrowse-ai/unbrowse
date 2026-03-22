@@ -8,6 +8,10 @@
 
 ## Unreleased
 
+- feat: add WebArena-Verified benchmark lane with full/hard/inventory scripts backed by the official 812-task dataset
+- feat: record HAR-like executed request events in execution traces so retrieval/selection/execution judges can score real network evidence instead of endpoint ids only
+- feat: add `bun run release:local` to rehearse CLI packaging, local install smoke, integration package builds, and app compile checks before a tag
+
 ### Bug Fixes
 
 - fall back to browser capture when pre-capture structured/document replay fetches fail, instead of returning a generic `fetch failed` error for authenticated SPA pages like LinkedIn feed
@@ -17,6 +21,9 @@
 - make the local autostart path replace stale code-hash-mismatched servers while also clearing dead startup lock files
 - point repo/submodule docs at `lekt9/kuri` on `codex/fix-managed-discover-cdp` so local checkouts and CI match the bundled runtime source
 - refresh frontend install/deploy guidance around the hosted `install.sh`, auto-update, skill installs, and the current first-run bootstrap flow
+- clarify frontend install copy for OpenClaw: `openclaw plugins install unbrowse-openclaw` installs the plugin package directly, so no separate `npm install -g` is required for the plugin itself
+- clarify frontend install copy for Claude Code/Cursor too: the global npm step is for the local `unbrowse` runtime, while skill/plugin host wiring itself does not require its own global install
+- switch the detected OpenClaw installer path and docs from generic `npx skills add` wiring to the native `openclaw plugins install unbrowse-openclaw` flow, including strict-mode enablement/restart
 - add the detection-based host installer for Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw
 - add the hosted `/install.sh` endpoint so the landing page can show a real copyable one-liner
 - default frontend ToS consent to checked while keeping the toggle visible before API key generation
@@ -28,6 +35,8 @@
 - move the canonical WebArena multistep lane to stable public workflows, while keeping the auth-heavy demo workflows as an explicit debug lane
 - make `eval:retrieval` the deterministic fixture-backed marketplace regression gate, while keeping the live beta marketplace probe as an explicit advanced/debug lane
 - drop the flaky BeatSaver browser-fallback case from the canonical product-success corpus so `eval:core` reflects the stable public claim path
+- isolate localhost and other port-sensitive origins in orchestrator cache/context matching so benchmark sites on different local ports do not reuse the wrong learned skill
+- pass the page URL when the WebArena-Verified runner re-executes a browser-capture skill, avoiding a harness crash on local benchmark slices
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 

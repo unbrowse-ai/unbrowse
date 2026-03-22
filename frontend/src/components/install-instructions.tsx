@@ -18,9 +18,11 @@ curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --dry-run`,
     },
     {
       id: "claude",
-      label: "Claude Code / OpenClaw",
+      label: "Claude Code",
       code: `# Install the CLI
 npm install -g unbrowse
+
+# This global install is for the local unbrowse runtime, not the skill
 
 # First run bootstraps automatically
 unbrowse health
@@ -36,10 +38,33 @@ npx skills add unbrowse-ai/unbrowse
 unbrowse resolve --intent "get events" --url "https://lu.ma"`,
     },
     {
+      id: "openclaw",
+      label: "OpenClaw Plugin",
+      code: `# Bootstrap the local Unbrowse runtime once
+npx unbrowse setup
+
+# Install the OpenClaw plugin from npm
+openclaw plugins install unbrowse-openclaw
+
+# No separate npm install -g needed for the plugin itself
+
+# Enable it and route normal web work through Unbrowse
+openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
+openclaw gateway restart
+
+# Verify
+openclaw plugins info unbrowse-openclaw
+openclaw unbrowse-plugin health`,
+    },
+    {
       id: "cursor",
       label: "Cursor",
       code: `# Install the CLI
 npm install -g unbrowse
+
+# This global install is for the local unbrowse runtime, not the skill
 
 # First run bootstraps automatically
 unbrowse health
