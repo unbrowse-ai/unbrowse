@@ -1,3 +1,11 @@
+# Changelog
+
+## [2.0.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.14...v2.0.15) (2026-03-22)
+
+### Bug Fixes
+
+* align frontend deploy path and install docs ([#25](https://github.com/unbrowse-ai/unbrowse-dev/issues/25)) ([1f20a33](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f20a33c485676124044854f1325085dbe5bab88))
+
 ## Unreleased
 
 - fix: let repo checkouts find the bundled Kuri binary under `packages/skill/vendor`, fall back to plain HTTP HTML capture when browser tabs are unavailable, and seed direct JSON URLs into replayable skills so evals and CLI site checks keep working in repo mode
@@ -5,7 +13,7 @@
 - fix: update frontend deployment docs and release workflow to use the OpenNext Cloudflare Worker deploy path
 - docs: refresh frontend install/deploy guidance to keep onboarding easy across MCP, OpenClaw, ElizaOS, Hermes, LangChain, Vercel AI SDK, and skill hosts
 
-# Changelog
+
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
