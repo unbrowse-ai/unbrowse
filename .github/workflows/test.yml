@@ -200,3 +200,44 @@ jobs:
           bun install --frozen-lockfile
           bun test ./evals/resolve-execute.test.ts
         name: Run resolve-execute eval
+
+  sync-public-repo:
+    name: Sync Public Repo
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    needs:
+      - integration-version-sync
+      - unit-tests
+      - quality-gate
+      - backend-tests
+      - typecheck
+      - package-cli
+      - package-cli-windows
+      - openclaw-plugin
+      - package-frameworks-npm
+      - package-frameworks-python
+      - resolve-execute-eval
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve public repo token
+        id: public-auth
+        env:
+          PUBLIC_REPO_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        run: |
+          if [ -z "$PUBLIC_REPO_TOKEN" ]; then
+            echo "::notice::No PUBLIC_REPO_TOKEN — skipping public repo sync."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$PUBLIC_REPO_TOKEN"
+          echo "PUBLIC_REMOTE=https://x-access-token:${PUBLIC_REPO_TOKEN}@github.com/unbrowse-ai/unbrowse.git" >> "$GITHUB_ENV"
+
+      - name: Force-sync main to public repo
+        if: steps.public-auth.outputs.skip != '1'
+        run: |
+          git remote remove public >/dev/null 2>&1 || true
+          git remote add public "$PUBLIC_REMOTE"
+          git push public HEAD:refs/heads/main --force

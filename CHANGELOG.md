@@ -17,6 +17,10 @@
 - add an official whitepaper bundle under `packages/skill/docs/whitepaper`, rename the public PDF to `unbrowse-whitepaper.pdf`, and link it from the public skill README
 - simplify the landing page and agent-facing install docs around one-command `npx unbrowse setup`, give each framework its own copy-paste setup block, and remove the misleading manual API-key generation flow from the frontend
 
+### CI
+
+- mirror successful `unbrowse-dev` `main` pushes into the public `unbrowse-ai/unbrowse` repo, and mirror release tags there before publish/deploy
+
 ### Bug Fixes
 
 - scope backend bearer auth to write-only skill/stats routers again so unauthenticated `/v1/tos/current` and `/v1/agents/register` work during first-run CLI setup and API key auto-registration

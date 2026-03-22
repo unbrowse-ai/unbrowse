@@ -29,11 +29,12 @@ Do not bump or publish only from `packages/skill/`.
 
 Pushing `v*` tags runs `.github/workflows/release.yml`, which now:
 
-1. Publishes the CLI from `packages/skill/` to npm.
-2. Publishes npm framework packages from `integrations/`, including OpenClaw.
-3. Publishes Python framework packages from `integrations/` to PyPI.
-4. Deploys the backend worker.
-5. Deploys the frontend.
+1. Mirrors `unbrowse-dev` `main` plus the release tag into the public `unbrowse-ai/unbrowse` repo.
+2. Publishes the CLI from `packages/skill/` to npm.
+3. Publishes npm framework packages from `integrations/`, including OpenClaw.
+4. Publishes Python framework packages from `integrations/` to PyPI.
+5. Deploys the backend worker.
+6. Deploys the frontend.
 
 The npm publish step is idempotent. If the tagged version is already on npm, the workflow skips publish instead of failing on reruns.
 The PyPI publish steps are also idempotent and skip when the tagged version is already live.
@@ -58,6 +59,7 @@ Dry-run mode never deploys staging or production and never publishes to npm or P
 - `CLOUDFLARE_ACCOUNT_ID`
 - `NPM_TOKEN` or `NPM_PUBLISH_TOKEN`
 - `PYPI_API_TOKEN`
+- `PUBLIC_REPO_TOKEN`
 
 Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync secrets are missing.
 
@@ -70,6 +72,7 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 - integration package versions match the root release version
 - npm integration packages pass `npm pack --dry-run`
 - Python integration packages build sdists/wheels cleanly
+- after all green checks on `main`, GitHub Actions force-syncs `unbrowse-dev` `main` into the public `unbrowse-ai/unbrowse` repo
 
 That catches broken package layouts before a release tag is pushed.
 
