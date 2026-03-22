@@ -7,21 +7,51 @@
   "queue": [
     {
       "id": "single-case",
-      "intent": "search for laptops",
-      "url": "https://www.amazon.com",
+      "intent": "search people",
+      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
       "collector_reason": "agent_review_direct_result",
       "local_signal": {
-        "verdict": "fail",
-        "reason": "no_endpoints"
+        "verdict": "pass",
+        "reason": "people_rows"
       },
       "direct_result": {
-        "error": "no_endpoints",
-        "message": "No API endpoints or structured DOM data found at https://www.amazon.com. The site may require authentication or may not expose machine-readable data from this page."
+        "data": [
+          {
+            "name": "Sharan T.",
+            "url": "https://www.linkedin.com/in/sharanthangavel",
+            "public_identifier": "sharanthangavel",
+            "headline": "Sharan T. • 2nd"
+          },
+          {
+            "name": "Robbie Williams",
+            "url": "https://www.linkedin.com/in/wpchew",
+            "public_identifier": "wpchew",
+            "headline": "Robbie Williams, Brian Chew and 1 other mutual connection"
+          },
+          {
+            "name": "Brian Chew",
+            "url": "https://www.linkedin.com/in/brian-chew",
+            "public_identifier": "brian-chew",
+            "headline": "Robbie Williams, Brian Chew and 1 other mutual connection"
+          },
+          {
+            "name": "Jordan Seow",
+            "url": "https://www.linkedin.com/in/jordan-seow",
+            "public_identifier": "jordan-seow",
+            "headline": "Jordan Seow • 2nd"
+          }
+        ],
+        "_extraction": {
+          "method": "repeated-elements",
+          "confidence": 0.8500000000000001,
+          "source": "ssr-fast",
+          "final_url": "https://www.linkedin.com/search/results/people/?keywords=openai&type=accounts"
+        }
       },
       "candidates": [
         {
           "rank": 1,
-          "endpoint_id": "browser-capture",
+          "endpoint_id": "65z6uOtFplydqxjctTMIt",
           "signals": []
         }
       ]
