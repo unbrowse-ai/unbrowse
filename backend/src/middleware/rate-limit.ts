@@ -38,9 +38,18 @@ function getIp(c: Context): string {
     ?? "unknown";
 }
 
+function getPublicIdentity(c: Context): string {
+  const authHeader = c.req.header("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) return `auth:${token}`;
+  }
+  return `ip:${getIp(c)}`;
+}
+
 export function rateLimit(opts: RateLimitOptions) {
   return async (c: Context<PublicEnv>, next: Next) => {
-    const blocked = check(`rl:${opts.prefix}:${getIp(c)}`, opts.limit, opts.window, c);
+    const blocked = check(`rl:${opts.prefix}:${getPublicIdentity(c)}`, opts.limit, opts.window, c);
     if (blocked) return blocked;
     await next();
   };
