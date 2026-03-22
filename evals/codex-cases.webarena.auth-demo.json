@@ -1,0 +1,399 @@
+{
+  "meta": {
+    "name": "WebArena-style Multistep Auth Demos",
+    "description": "Auth-heavy demo workflows inspired by WebArena task families. Keep for deeper debug and auth regression work, not the canonical public-confidence lane.",
+    "source": [
+      {
+        "name": "WebArena",
+        "url": "https://github.com/web-arena-x/webarena"
+      },
+      {
+        "name": "WebArena-Verified",
+        "url": "https://github.com/ServiceNow/WebArena-Verified"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "webarena-shopping-saucedemo",
+      "suite": "webarena-auth-demo",
+      "site": "saucedemo.com",
+      "intent": "review product catalog and verify the backpack detail page",
+      "url": "https://www.saucedemo.com/inventory.html",
+      "auth": {
+        "domain": "www.saucedemo.com",
+        "persona": "qa-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "description"],
+      "validate": {
+        "entity_type": "product",
+        "min_rows": 3,
+        "terminal_ok": ["pass"]
+      },
+      "workflow": {
+        "max_total_ms": 60000,
+        "max_failures": 0,
+        "steps": [
+          {
+            "id": "inventory",
+            "title": "Shopping inventory retrieval",
+            "intent": "get products",
+            "url": "https://www.saucedemo.com/inventory.html",
+            "expected_fields": ["title", "description", "price"],
+            "validate": {
+              "entity_type": "product",
+              "min_rows": 3,
+              "retrieval": {
+                "max_rank": 1,
+                "any_of": [
+                  {
+                    "url_includes": ["/inventory.html"],
+                    "required_signals": ["concrete_url"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/inventory.html"]
+                  }
+                ]
+              }
+            },
+            "max_total_ms": 30000
+          }
+        ],
+        "verify": [
+          {
+            "id": "backpack-detail",
+            "title": "Shopping detail verification",
+            "intent": "get product details",
+            "url": "https://www.saucedemo.com/inventory-item.html?id=4",
+            "expected_fields": ["title", "description", "price"],
+            "validate": {
+              "entity_type": "product",
+              "retrieval": {
+                "max_rank": 2,
+                "any_of": [
+                  {
+                    "url_includes": ["/inventory-item.html?id=4"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/inventory-item.html?id=4"]
+                  }
+                ]
+              },
+              "terminal_ok": ["pass"]
+            },
+            "max_total_ms": 30000
+          }
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://www.saucedemo.com/",
+        "success_url": "https://www.saucedemo.com/inventory.html",
+        "username": "standard_user",
+        "password": "secret_sauce",
+        "steps": [
+          { "action": "fill", "selector": "#user-name", "value": "$USERNAME" },
+          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
+          { "action": "click", "selector": "#login-button" },
+          { "action": "wait_for_url", "pattern": "**/inventory.html" }
+        ]
+      }
+    },
+    {
+      "id": "webarena-admin-orangehrm",
+      "suite": "webarena-auth-demo",
+      "site": "opensource-demo.orangehrmlive.com",
+      "intent": "inspect dashboard widgets and confirm warm replay stays on the dashboard workflow",
+      "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+      "auth": {
+        "domain": "opensource-demo.orangehrmlive.com",
+        "persona": "qa-user",
+        "role": "admin",
+        "session": "primary"
+      },
+      "expected_fields": ["title"],
+      "validate": {
+        "min_rows": 2,
+        "terminal_ok": ["pass", "blocked"]
+      },
+      "workflow": {
+        "max_total_ms": 90000,
+        "max_failures": 0,
+        "steps": [
+          {
+            "id": "dashboard-widgets",
+            "title": "Admin dashboard widget retrieval",
+            "intent": "get dashboard widgets",
+            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+            "expected_fields": ["title"],
+            "validate": {
+              "min_rows": 2,
+              "retrieval": {
+                "max_rank": 3,
+                "any_of": [
+                  {
+                    "url_includes": ["/dashboard/index"]
+                  },
+                  {
+                    "url_includes": ["/employees/action-summary"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/dashboard/index"]
+                  },
+                  {
+                    "url_includes": ["/employees/action-summary"]
+                  }
+                ]
+              },
+              "terminal_ok": ["pass", "blocked"]
+            },
+            "max_total_ms": 45000
+          }
+        ],
+        "verify": [
+          {
+            "id": "dashboard-widgets-warm",
+            "title": "Admin dashboard warm replay verification",
+            "intent": "get dashboard widgets",
+            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+            "expected_fields": ["title"],
+            "validate": {
+              "min_rows": 2,
+              "retrieval": {
+                "max_rank": 3,
+                "any_of": [
+                  {
+                    "url_includes": ["/dashboard/index"]
+                  },
+                  {
+                    "url_includes": ["/employees/action-summary"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/dashboard/index"]
+                  },
+                  {
+                    "url_includes": ["/employees/action-summary"]
+                  }
+                ]
+              },
+              "terminal_ok": ["pass", "blocked"]
+            },
+            "max_total_ms": 30000
+          }
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+        "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+        "username": "Admin",
+        "password": "admin123",
+        "steps": [
+          { "action": "wait_for_selector", "selector": "input[name='username']" },
+          { "action": "fill", "selector": "input[name='username']", "value": "$USERNAME" },
+          { "action": "fill", "selector": "input[name='password']", "value": "$PASSWORD" },
+          { "action": "click", "selector": "button[type='submit']" },
+          { "action": "wait_for_url", "pattern": "**/dashboard/index" }
+        ]
+      }
+    },
+    {
+      "id": "webarena-secure-area",
+      "suite": "webarena-auth-demo",
+      "site": "the-internet.herokuapp.com",
+      "intent": "log in and read the secure area confirmation message",
+      "url": "https://the-internet.herokuapp.com/secure",
+      "auth": {
+        "domain": "the-internet.herokuapp.com",
+        "persona": "qa-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "message"],
+      "validate": {
+        "terminal_ok": ["pass"]
+      },
+      "workflow": {
+        "max_total_ms": 30000,
+        "max_failures": 0,
+        "steps": [
+          {
+            "id": "secure-message",
+            "title": "Secure area retrieval",
+            "intent": "get secure area message",
+            "url": "https://the-internet.herokuapp.com/secure",
+            "expected_fields": ["title", "message"],
+            "validate": {
+              "retrieval": {
+                "max_rank": 1,
+                "any_of": [
+                  {
+                    "url_includes": ["/secure"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/secure"]
+                  }
+                ]
+              },
+              "terminal_ok": ["pass"]
+            },
+            "max_total_ms": 15000
+          }
+        ],
+        "verify": [
+          {
+            "id": "secure-message-warm",
+            "title": "Secure area warm verification",
+            "intent": "get secure area message",
+            "url": "https://the-internet.herokuapp.com/secure",
+            "expected_fields": ["title", "message"],
+            "validate": {
+              "retrieval": {
+                "max_rank": 1,
+                "any_of": [
+                  {
+                    "url_includes": ["/secure"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/secure"]
+                  }
+                ]
+              },
+              "terminal_ok": ["pass"]
+            },
+            "max_total_ms": 15000
+          }
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://the-internet.herokuapp.com/login",
+        "success_url": "https://the-internet.herokuapp.com/secure",
+        "username": "tomsmith",
+        "password": "SuperSecretPassword!",
+        "steps": [
+          { "action": "fill", "selector": "#username", "value": "$USERNAME" },
+          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
+          { "action": "click", "selector": "button[type='submit']" },
+          { "action": "wait_for_url", "pattern": "**/secure" }
+        ]
+      }
+    },
+    {
+      "id": "webarena-practice-login-success",
+      "suite": "webarena-auth-demo",
+      "site": "practicetestautomation.com",
+      "intent": "log in and confirm the success page message",
+      "url": "https://practicetestautomation.com/logged-in-successfully/",
+      "auth": {
+        "domain": "practicetestautomation.com",
+        "persona": "qa-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "message"],
+      "validate": {
+        "terminal_ok": ["pass"]
+      },
+      "workflow": {
+        "max_total_ms": 30000,
+        "max_failures": 0,
+        "steps": [
+          {
+            "id": "login-success",
+            "title": "Login success retrieval",
+            "intent": "get login success message",
+            "url": "https://practicetestautomation.com/logged-in-successfully/",
+            "expected_fields": ["title", "message"],
+            "validate": {
+              "retrieval": {
+                "max_rank": 1,
+                "any_of": [
+                  {
+                    "url_includes": ["/logged-in-successfully/"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/logged-in-successfully/"]
+                  }
+                ]
+              },
+              "terminal_ok": ["pass"]
+            },
+            "max_total_ms": 15000
+          }
+        ],
+        "verify": [
+          {
+            "id": "login-success-warm",
+            "title": "Login success warm verification",
+            "intent": "get login success message",
+            "url": "https://practicetestautomation.com/logged-in-successfully/",
+            "expected_fields": ["title", "message"],
+            "validate": {
+              "retrieval": {
+                "max_rank": 1,
+                "any_of": [
+                  {
+                    "url_includes": ["/logged-in-successfully/"]
+                  }
+                ]
+              },
+              "selection": {
+                "any_of": [
+                  {
+                    "url_includes": ["/logged-in-successfully/"]
+                  }
+                ]
+              },
+              "terminal_ok": ["pass"]
+            },
+            "max_total_ms": 15000
+          }
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://practicetestautomation.com/practice-test-login/",
+        "success_url": "https://practicetestautomation.com/logged-in-successfully/",
+        "username": "student",
+        "password": "Password123",
+        "steps": [
+          { "action": "fill", "selector": "#username", "value": "$USERNAME" },
+          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
+          { "action": "click", "selector": "#submit" },
+          { "action": "wait_for_url", "pattern": "**/logged-in-successfully/" }
+        ]
+      }
+    }
+  ]
+}

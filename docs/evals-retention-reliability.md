@@ -29,28 +29,35 @@ For Unbrowse, the equivalent framing is:
    - does warm reuse reduce latency / token cost?
    - does a route stay usable after the first run?
 
-## Existing suites worth keeping hot
+## Canonical setup
 
-- `npm test`
-- `npm run test:all`
-- `npm run eval:codex:product-success`
-- `npm run eval:codex:stress`
-- `npm run eval:codex:auth`
-- `npm run eval:codex:autonomous:benchmark`
+Default public-confidence command:
 
-These answer:
-- does extraction still work?
-- do auth flows still work?
-- does autonomous route resolution still work on public workloads?
+```bash
+npm run eval:core
+```
+
+This is the one good product-facing setup. It covers:
+- marketplace retrieval correctness
+- task-shaped public execution correctness
+- WebArena-style multistep retrieval + selection + execution correctness
+
+Fuller command when auth behavior matters:
+
+```bash
+npm run eval:full
+```
+
+This adds the broader auth corpus on top of `eval:core`.
 
 ## Marketplace retrieval accuracy
 
 Marketplace speed is not enough. We also need to know whether marketplace search returns the right skill/endpoint and whether a domain-scoped lookup stays inside the requested domain lane.
 
-Run:
+Run directly:
 
 ```bash
-npm run eval:marketplace:retrieval
+npm run eval:retrieval
 ```
 
 This suite:
@@ -79,7 +86,19 @@ This is meant to catch:
 - missing global fallback
 - graph/index regressions hidden by a too-small fixture set
 
-## New repeatability suite
+## Advanced / supporting suites
+
+These still exist, but they are not the main story anymore:
+
+- `npm run eval:codex`
+- `npm run eval:codex:auth`
+- `npm run eval:codex:stress`
+- `npm run eval:codex:repeatability`
+- `npm run eval:codex:many-domains:gate`
+
+Use them for debugging, breadth, or warm-path investigations. Do not use them as the primary product claim by themselves.
+
+## Repeatability suite
 
 The new corpus lives at:
 - `evals/codex-cases.repeatability.json`
@@ -182,24 +201,23 @@ Before shipping changes that affect route resolution, capture, replay, or auth r
 
 ```bash
 npm test
-npm run eval:codex:product-success
-npm run eval:codex:repeatability:gate
+npm run eval:core
 ```
 
 Add `npm run eval:codex:auth` when touching auth bootstrap / cookie reuse.
-Add `npm run eval:marketplace:retrieval` when touching marketplace search, graph indexing, domain bias, or ranking.
+Add `npm run eval:retrieval` when touching marketplace search, graph indexing, domain bias, or ranking.
 Add `npm run eval:codex:many-domains:gate` when claiming broader public-site coverage.
 
 For a one-command public release check:
 
 ```bash
-npm run eval:release:public
+npm run eval:core
 ```
 
 For the fuller matrix including auth:
 
 ```bash
-npm run eval:release:full
+npm run eval:full
 ```
 
 ## Future additions

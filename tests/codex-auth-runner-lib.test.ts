@@ -73,6 +73,30 @@ describe("codex auth runner lib", () => {
     });
   });
 
+  it("accepts public no-bootstrap workflows", () => {
+    const cases = parseAuthEvalCases({
+      cases: [
+        {
+          id: "npm-public",
+          suite: "webarena-public",
+          intent: "search packages",
+          url: "https://www.npmjs.com/search?q=openai",
+          expected_fields: ["name", "version"],
+          auth_bootstrap: { strategy: "none" },
+        },
+      ],
+    });
+
+    expect(cases).toHaveLength(1);
+    expect(cases[0]?.auth_bootstrap.strategy).toBe("none");
+    expect(toHarnessCase(cases[0]!)).toEqual({
+      id: "npm-public",
+      intent: "search packages",
+      url: "https://www.npmjs.com/search?q=openai",
+      expected_fields: ["name", "version"],
+    });
+  });
+
   it("sorts auth cases by popularity rank and filters by suite/top", () => {
     const cases = parseAuthEvalCases({
       cases: [

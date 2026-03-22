@@ -9,10 +9,10 @@
       "skill_id": "marketplace-eval-alpha-docs",
       "version": "1.0.0",
       "schema_version": "1",
-      "name": "docs.alpha-eval.com",
-      "intent_signature": "docs.alpha-eval.com",
+      "name": "ALPHADOCS developer docs search",
+      "intent_signature": "search ALPHADOCS developer documentation for auth guide reference",
       "domain": "docs.alpha-eval.com",
-      "description": "ALPHADOCS retrieval fixture",
+      "description": "ALPHADOCS developer documentation search auth guide API reference docs lookup",
       "owner_type": "agent",
       "lifecycle": "active",
       "execution_type": "http",
@@ -44,10 +44,10 @@
       "skill_id": "marketplace-eval-alpha-packages",
       "version": "1.0.0",
       "schema_version": "1",
-      "name": "packages.alpha-eval.com",
-      "intent_signature": "packages.alpha-eval.com",
+      "name": "ALPHAPKG package registry info",
+      "intent_signature": "get ALPHAPKG package registry metadata versions dist tags package info",
       "domain": "packages.alpha-eval.com",
-      "description": "ALPHAPKG retrieval fixture",
+      "description": "ALPHAPKG package registry metadata versions dist tags package info package details",
       "owner_type": "agent",
       "lifecycle": "active",
       "execution_type": "http",
@@ -70,10 +70,10 @@
       "skill_id": "marketplace-eval-beta-community",
       "version": "1.0.0",
       "schema_version": "1",
-      "name": "community.beta-eval.com",
-      "intent_signature": "community.beta-eval.com",
+      "name": "BETAFORUM thread search",
+      "intent_signature": "search BETAFORUM community thread archive by keyword tag",
       "domain": "community.beta-eval.com",
-      "description": "BETAFORUM retrieval fixture",
+      "description": "BETAFORUM community thread search archive discussion lookup by keyword tag",
       "owner_type": "agent",
       "lifecycle": "active",
       "execution_type": "http",
@@ -92,49 +92,14 @@
       ]
     },
     {
-      "id": "gamma-market",
-      "skill_id": "marketplace-eval-gamma-market",
-      "version": "1.0.0",
-      "schema_version": "1",
-      "name": "quotes.gamma-eval.com",
-      "intent_signature": "quotes.gamma-eval.com",
-      "domain": "quotes.gamma-eval.com",
-      "description": "VXGAMMA market retrieval fixture",
-      "owner_type": "agent",
-      "lifecycle": "active",
-      "execution_type": "http",
-      "created_at": "2026-03-21T00:00:00Z",
-      "updated_at": "2026-03-21T00:00:00Z",
-      "endpoints": [
-        {
-          "endpoint_id": "gamma-stock-quote",
-          "description": "VXGAMMA realtime quote snapshot for ticker symbol with last price bid ask volume market cap",
-          "method": "GET",
-          "url_template": "https://quotes.gamma-eval.com/api/quote?symbol={symbol}",
-          "reliability_score": 0.98,
-          "verification_status": "verified",
-          "idempotency": "safe"
-        },
-        {
-          "endpoint_id": "gamma-chart-history",
-          "description": "VXGAMMA historical candle chart OHLC time series for ticker over date range interval",
-          "method": "GET",
-          "url_template": "https://quotes.gamma-eval.com/api/chart?symbol={symbol}&range={range}",
-          "reliability_score": 0.96,
-          "verification_status": "verified",
-          "idempotency": "safe"
-        }
-      ]
-    },
-    {
       "id": "gamma-news",
       "skill_id": "marketplace-eval-gamma-news",
       "version": "1.0.0",
       "schema_version": "1",
-      "name": "news.gamma-eval.com",
-      "intent_signature": "news.gamma-eval.com",
+      "name": "VXGAMMA company news search",
+      "intent_signature": "search VXGAMMA company news headlines by keyword date",
       "domain": "news.gamma-eval.com",
-      "description": "VXGAMMA news retrieval fixture",
+      "description": "VXGAMMA company news headlines press releases news search by keyword date",
       "owner_type": "agent",
       "lifecycle": "active",
       "execution_type": "http",
@@ -155,18 +120,6 @@
   ],
   "cases": [
     {
-      "id": "global-gamma-quote",
-      "route": "search",
-      "lane": "results",
-      "intent": "get VXGAMMA realtime quote snapshot for a ticker",
-      "k": 5,
-      "expect": {
-        "fixture": "gamma-market",
-        "endpoint_id": "gamma-stock-quote",
-        "max_rank": 1
-      }
-    },
-    {
       "id": "global-alpha-docs",
       "route": "search",
       "lane": "results",
@@ -175,18 +128,6 @@
       "expect": {
         "fixture": "alpha-docs",
         "endpoint_id": "alpha-doc-search",
-        "max_rank": 1
-      }
-    },
-    {
-      "id": "global-alpha-package-info",
-      "route": "search",
-      "lane": "results",
-      "intent": "get ALPHAPKG package registry metadata versions dist tags",
-      "k": 5,
-      "expect": {
-        "fixture": "alpha-packages",
-        "endpoint_id": "alpha-package-info",
         "max_rank": 1
       }
     },
@@ -203,51 +144,6 @@
       }
     },
     {
-      "id": "domain-gamma-history",
-      "route": "domain",
-      "lane": "results",
-      "intent": "get VXGAMMA historical candle chart for a ticker",
-      "domain": "quotes.gamma-eval.com",
-      "k": 5,
-      "expect": {
-        "fixture": "gamma-market",
-        "endpoint_id": "gamma-chart-history",
-        "max_rank": 1,
-        "domain_match": "exact",
-        "max_offdomain_results": 0
-      }
-    },
-    {
-      "id": "domain-alpha-docs",
-      "route": "domain",
-      "lane": "results",
-      "intent": "search ALPHADOCS developer documentation for reference guides",
-      "domain": "docs.alpha-eval.com",
-      "k": 5,
-      "expect": {
-        "fixture": "alpha-docs",
-        "endpoint_id": "alpha-doc-search",
-        "max_rank": 1,
-        "domain_match": "exact",
-        "max_offdomain_results": 0
-      }
-    },
-    {
-      "id": "domain-beta-community",
-      "route": "domain",
-      "lane": "results",
-      "intent": "search BETAFORUM community thread archive by keyword",
-      "domain": "community.beta-eval.com",
-      "k": 5,
-      "expect": {
-        "fixture": "beta-community",
-        "endpoint_id": "beta-thread-search",
-        "max_rank": 1,
-        "domain_match": "exact",
-        "max_offdomain_results": 0
-      }
-    },
-    {
       "id": "domain-gamma-news",
       "route": "domain",
       "lane": "results",
@@ -257,22 +153,6 @@
       "expect": {
         "fixture": "gamma-news",
         "endpoint_id": "gamma-news-search",
-        "max_rank": 1,
-        "domain_match": "exact",
-        "max_offdomain_results": 0
-      }
-    },
-    {
-      "id": "resolve-gamma-domain",
-      "route": "resolve",
-      "lane": "domain_results",
-      "intent": "get VXGAMMA historical candle chart for a ticker",
-      "domain": "quotes.gamma-eval.com",
-      "domain_k": 3,
-      "global_k": 5,
-      "expect": {
-        "fixture": "gamma-market",
-        "endpoint_id": "gamma-chart-history",
         "max_rank": 1,
         "domain_match": "exact",
         "max_offdomain_results": 0

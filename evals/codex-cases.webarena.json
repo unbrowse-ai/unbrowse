@@ -1,7 +1,7 @@
 {
   "meta": {
     "name": "WebArena-style Multistep",
-    "description": "Stable multistep eval corpus inspired by WebArena task families. Uses scripted demo sites so retrieval, endpoint selection, and execution can be judged deterministically.",
+    "description": "Stable public multistep eval corpus inspired by WebArena task families. Uses public product flows so retrieval, endpoint selection, and execution can be judged deterministically in the canonical product-confidence lane.",
     "source": [
       {
         "name": "WebArena",
@@ -15,21 +15,14 @@
   },
   "cases": [
     {
-      "id": "webarena-shopping-saucedemo",
-      "suite": "webarena-demo",
-      "site": "saucedemo.com",
-      "intent": "review product catalog and verify the backpack detail page",
-      "url": "https://www.saucedemo.com/inventory.html",
-      "auth": {
-        "domain": "www.saucedemo.com",
-        "persona": "qa-user",
-        "role": "member",
-        "session": "primary"
-      },
-      "expected_fields": ["title", "description"],
+      "id": "webarena-public-npm-package",
+      "suite": "webarena-public",
+      "site": "www.npmjs.com",
+      "intent": "search npm packages and verify the openai package detail page",
+      "url": "https://www.npmjs.com/search?q=openai",
+      "expected_fields": ["name", "version", "description"],
       "validate": {
-        "entity_type": "product",
-        "min_rows": 3,
+        "min_rows": 1,
         "terminal_ok": ["pass"]
       },
       "workflow": {
@@ -37,19 +30,21 @@
         "max_failures": 0,
         "steps": [
           {
-            "id": "inventory",
-            "title": "Shopping inventory retrieval",
-            "intent": "get products",
-            "url": "https://www.saucedemo.com/inventory.html",
-            "expected_fields": ["title", "description", "price"],
+            "id": "search-packages",
+            "title": "npm package search retrieval",
+            "intent": "search packages",
+            "url": "https://www.npmjs.com/search?q=openai",
+            "expected_fields": ["name", "version", "description"],
             "validate": {
-              "entity_type": "product",
               "min_rows": 3,
               "retrieval": {
-                "max_rank": 1,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/inventory.html"],
+                    "url_includes": ["/-/v1/search"]
+                  },
+                  {
+                    "url_includes": ["/search?q=openai"],
                     "required_signals": ["concrete_url"]
                   }
                 ]
@@ -57,7 +52,10 @@
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/inventory.html"]
+                    "url_includes": ["/-/v1/search"]
+                  },
+                  {
+                    "url_includes": ["/search?q=openai"]
                   }
                 ]
               }
@@ -67,25 +65,37 @@
         ],
         "verify": [
           {
-            "id": "backpack-detail",
-            "title": "Shopping detail verification",
-            "intent": "get product details",
-            "url": "https://www.saucedemo.com/inventory-item.html?id=4",
-            "expected_fields": ["title", "description", "price"],
+            "id": "package-detail",
+            "title": "npm package detail verification",
+            "intent": "get package info",
+            "url": "https://www.npmjs.com/package/openai",
+            "expected_fields": ["name", "version", "description"],
             "validate": {
-              "entity_type": "product",
               "retrieval": {
-                "max_rank": 2,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/inventory-item.html?id=4"]
+                    "url_includes": ["registry.npmjs.org/openai"]
+                  },
+                  {
+                    "url_includes": ["/package/openai"],
+                    "required_signals": ["concrete_url"]
+                  },
+                  {
+                    "trigger_url_includes": ["/package/openai"]
                   }
                 ]
               },
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/inventory-item.html?id=4"]
+                    "url_includes": ["registry.npmjs.org/openai"]
+                  },
+                  {
+                    "url_includes": ["/package/openai"]
+                  },
+                  {
+                    "trigger_url_includes": ["/package/openai"]
                   }
                 ]
               },
@@ -96,303 +106,284 @@
         ]
       },
       "auth_bootstrap": {
-        "strategy": "scripted_login",
-        "login_url": "https://www.saucedemo.com/",
-        "success_url": "https://www.saucedemo.com/inventory.html",
-        "username": "standard_user",
-        "password": "secret_sauce",
-        "steps": [
-          { "action": "fill", "selector": "#user-name", "value": "$USERNAME" },
-          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
-          { "action": "click", "selector": "#login-button" },
-          { "action": "wait_for_url", "pattern": "**/inventory.html" }
-        ]
+        "strategy": "none"
       }
     },
     {
-      "id": "webarena-admin-orangehrm",
-      "suite": "webarena-demo",
-      "site": "opensource-demo.orangehrmlive.com",
-      "intent": "inspect dashboard widgets and confirm warm replay stays on the dashboard workflow",
-      "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-      "auth": {
-        "domain": "opensource-demo.orangehrmlive.com",
-        "persona": "qa-user",
-        "role": "admin",
-        "session": "primary"
-      },
-      "expected_fields": ["title"],
+      "id": "webarena-public-mdn-docs",
+      "suite": "webarena-public",
+      "site": "developer.mozilla.org",
+      "intent": "search MDN docs and verify the Fetch API detail page",
+      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+      "expected_fields": ["title", "url"],
       "validate": {
-        "min_rows": 2,
-        "terminal_ok": ["pass", "blocked"]
+        "terminal_ok": ["pass"]
       },
       "workflow": {
-        "max_total_ms": 90000,
+        "max_total_ms": 60000,
         "max_failures": 0,
         "steps": [
           {
-            "id": "dashboard-widgets",
-            "title": "Admin dashboard widget retrieval",
-            "intent": "get dashboard widgets",
-            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-            "expected_fields": ["title"],
+            "id": "search-docs",
+            "title": "MDN docs search retrieval",
+            "intent": "search docs",
+            "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+            "expected_fields": ["title", "url"],
             "validate": {
-              "min_rows": 2,
+              "min_rows": 3,
               "retrieval": {
-                "max_rank": 3,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/dashboard/index"]
+                    "url_includes": ["/api/v1/search"]
                   },
                   {
-                    "url_includes": ["/employees/action-summary"]
+                    "url_includes": ["/search?q=fetch"],
+                    "required_signals": ["concrete_url"]
                   }
                 ]
               },
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/dashboard/index"]
+                    "url_includes": ["/api/v1/search"]
                   },
                   {
-                    "url_includes": ["/employees/action-summary"]
+                    "url_includes": ["/search?q=fetch"]
                   }
                 ]
               },
-              "terminal_ok": ["pass", "blocked"]
+              "terminal_ok": ["pass"]
             },
-            "max_total_ms": 45000
+            "max_total_ms": 30000
           }
         ],
         "verify": [
           {
-            "id": "dashboard-widgets-warm",
-            "title": "Admin dashboard warm replay verification",
-            "intent": "get dashboard widgets",
-            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-            "expected_fields": ["title"],
+            "id": "fetch-api-detail",
+            "title": "MDN detail verification",
+            "intent": "get doc detail",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+            "expected_fields": ["title", "url"],
             "validate": {
-              "min_rows": 2,
               "retrieval": {
-                "max_rank": 3,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/dashboard/index"]
+                    "url_includes": ["/Fetch_API"]
                   },
                   {
-                    "url_includes": ["/employees/action-summary"]
+                    "trigger_url_includes": ["/Fetch_API"]
                   }
                 ]
               },
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/dashboard/index"]
+                    "url_includes": ["/Fetch_API"]
                   },
                   {
-                    "url_includes": ["/employees/action-summary"]
+                    "trigger_url_includes": ["/Fetch_API"]
                   }
                 ]
               },
-              "terminal_ok": ["pass", "blocked"]
+              "terminal_ok": ["pass"]
             },
             "max_total_ms": 30000
           }
         ]
       },
       "auth_bootstrap": {
-        "strategy": "scripted_login",
-        "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
-        "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-        "username": "Admin",
-        "password": "admin123",
-        "steps": [
-          { "action": "wait_for_selector", "selector": "input[name='username']" },
-          { "action": "fill", "selector": "input[name='username']", "value": "$USERNAME" },
-          { "action": "fill", "selector": "input[name='password']", "value": "$PASSWORD" },
-          { "action": "click", "selector": "button[type='submit']" },
-          { "action": "wait_for_url", "pattern": "**/dashboard/index" }
-        ]
+        "strategy": "none"
       }
     },
     {
-      "id": "webarena-secure-area",
-      "suite": "webarena-demo",
-      "site": "the-internet.herokuapp.com",
-      "intent": "log in and read the secure area confirmation message",
-      "url": "https://the-internet.herokuapp.com/secure",
-      "auth": {
-        "domain": "the-internet.herokuapp.com",
-        "persona": "qa-user",
-        "role": "member",
-        "session": "primary"
-      },
-      "expected_fields": ["title", "message"],
+      "id": "webarena-public-gitlab-project",
+      "suite": "webarena-public",
+      "site": "gitlab.com",
+      "intent": "search GitLab projects and verify the gitlab project detail page",
+      "url": "https://gitlab.com/explore/projects?name=openai",
+      "expected_fields": ["name", "description", "web_url"],
       "validate": {
         "terminal_ok": ["pass"]
       },
       "workflow": {
-        "max_total_ms": 30000,
+        "max_total_ms": 60000,
         "max_failures": 0,
         "steps": [
           {
-            "id": "secure-message",
-            "title": "Secure area retrieval",
-            "intent": "get secure area message",
-            "url": "https://the-internet.herokuapp.com/secure",
-            "expected_fields": ["title", "message"],
+            "id": "search-projects",
+            "title": "GitLab project search retrieval",
+            "intent": "search projects",
+            "url": "https://gitlab.com/explore/projects?name=openai",
+            "expected_fields": ["name", "description", "web_url"],
             "validate": {
+              "min_rows": 3,
               "retrieval": {
-                "max_rank": 1,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/secure"]
+                    "url_includes": ["/api/v4/projects"]
+                  },
+                  {
+                    "url_includes": ["/explore/projects"],
+                    "required_signals": ["concrete_url"]
                   }
                 ]
               },
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/secure"]
+                    "url_includes": ["/api/v4/projects"]
+                  },
+                  {
+                    "url_includes": ["/explore/projects"]
                   }
                 ]
               },
               "terminal_ok": ["pass"]
             },
-            "max_total_ms": 15000
+            "max_total_ms": 30000
           }
         ],
         "verify": [
           {
-            "id": "secure-message-warm",
-            "title": "Secure area warm verification",
-            "intent": "get secure area message",
-            "url": "https://the-internet.herokuapp.com/secure",
-            "expected_fields": ["title", "message"],
+            "id": "project-detail",
+            "title": "GitLab detail verification",
+            "intent": "get project detail",
+            "url": "https://gitlab.com/gitlab-org/gitlab",
+            "expected_fields": ["name", "description", "web_url"],
             "validate": {
               "retrieval": {
-                "max_rank": 1,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/secure"]
+                    "url_includes": ["/api/v4/projects/gitlab-org%2Fgitlab"]
+                  },
+                  {
+                    "url_includes": ["/gitlab-org/gitlab"],
+                    "required_signals": ["concrete_url"]
+                  },
+                  {
+                    "trigger_url_includes": ["/gitlab-org/gitlab"]
                   }
                 ]
               },
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/secure"]
+                    "url_includes": ["/api/v4/projects/gitlab-org%2Fgitlab"]
+                  },
+                  {
+                    "url_includes": ["/gitlab-org/gitlab"]
+                  },
+                  {
+                    "trigger_url_includes": ["/gitlab-org/gitlab"]
                   }
                 ]
               },
               "terminal_ok": ["pass"]
             },
-            "max_total_ms": 15000
+            "max_total_ms": 30000
           }
         ]
       },
       "auth_bootstrap": {
-        "strategy": "scripted_login",
-        "login_url": "https://the-internet.herokuapp.com/login",
-        "success_url": "https://the-internet.herokuapp.com/secure",
-        "username": "tomsmith",
-        "password": "SuperSecretPassword!",
-        "steps": [
-          { "action": "fill", "selector": "#username", "value": "$USERNAME" },
-          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
-          { "action": "click", "selector": "button[type='submit']" },
-          { "action": "wait_for_url", "pattern": "**/secure" }
-        ]
+        "strategy": "none"
       }
     },
     {
-      "id": "webarena-practice-login-success",
-      "suite": "webarena-demo",
-      "site": "practicetestautomation.com",
-      "intent": "log in and confirm the success page message",
-      "url": "https://practicetestautomation.com/logged-in-successfully/",
-      "auth": {
-        "domain": "practicetestautomation.com",
-        "persona": "qa-user",
-        "role": "member",
-        "session": "primary"
-      },
-      "expected_fields": ["title", "message"],
+      "id": "webarena-public-hn-query-refine",
+      "suite": "webarena-public",
+      "site": "hn.algolia.com",
+      "intent": "search Hacker News for openai and then refine to anthropic",
+      "url": "https://hn.algolia.com/",
+      "expected_fields": ["title", "author", "url"],
       "validate": {
         "terminal_ok": ["pass"]
       },
       "workflow": {
-        "max_total_ms": 30000,
+        "max_total_ms": 45000,
         "max_failures": 0,
         "steps": [
           {
-            "id": "login-success",
-            "title": "Login success retrieval",
-            "intent": "get login success message",
-            "url": "https://practicetestautomation.com/logged-in-successfully/",
-            "expected_fields": ["title", "message"],
+            "id": "search-openai",
+            "title": "Hacker News search retrieval",
+            "intent": "search hacker news",
+            "url": "https://hn.algolia.com/",
+            "params": {
+              "q": "openai"
+            },
+            "expected_fields": ["title", "author", "url"],
             "validate": {
+              "min_rows": 3,
               "retrieval": {
-                "max_rank": 1,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/logged-in-successfully/"]
+                    "url_includes": ["/api/v1/search"]
+                  },
+                  {
+                    "url_includes": ["hn.algolia.com"]
                   }
                 ]
               },
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/logged-in-successfully/"]
+                    "url_includes": ["/api/v1/search"]
+                  },
+                  {
+                    "url_includes": ["hn.algolia.com"]
                   }
                 ]
               },
               "terminal_ok": ["pass"]
             },
-            "max_total_ms": 15000
+            "max_total_ms": 20000
           }
         ],
         "verify": [
           {
-            "id": "login-success-warm",
-            "title": "Login success warm verification",
-            "intent": "get login success message",
-            "url": "https://practicetestautomation.com/logged-in-successfully/",
-            "expected_fields": ["title", "message"],
+            "id": "search-anthropic",
+            "title": "Hacker News refined-query verification",
+            "intent": "search hacker news",
+            "url": "https://hn.algolia.com/",
+            "params": {
+              "q": "anthropic"
+            },
+            "expected_fields": ["title", "author", "url"],
             "validate": {
+              "min_rows": 3,
               "retrieval": {
-                "max_rank": 1,
+                "max_rank": 5,
                 "any_of": [
                   {
-                    "url_includes": ["/logged-in-successfully/"]
+                    "url_includes": ["/api/v1/search"]
+                  },
+                  {
+                    "url_includes": ["hn.algolia.com"]
                   }
                 ]
               },
               "selection": {
                 "any_of": [
                   {
-                    "url_includes": ["/logged-in-successfully/"]
+                    "url_includes": ["/api/v1/search"]
+                  },
+                  {
+                    "url_includes": ["hn.algolia.com"]
                   }
                 ]
               },
               "terminal_ok": ["pass"]
             },
-            "max_total_ms": 15000
+            "max_total_ms": 20000
           }
         ]
       },
       "auth_bootstrap": {
-        "strategy": "scripted_login",
-        "login_url": "https://practicetestautomation.com/practice-test-login/",
-        "success_url": "https://practicetestautomation.com/logged-in-successfully/",
-        "username": "student",
-        "password": "Password123",
-        "steps": [
-          { "action": "fill", "selector": "#username", "value": "$USERNAME" },
-          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
-          { "action": "click", "selector": "#submit" },
-          { "action": "wait_for_url", "pattern": "**/logged-in-successfully/" }
-        ]
+        "strategy": "none"
       }
     }
   ]

@@ -1,0 +1,439 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 0,
+    "fail": 1,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 0,
+    "unsatisfied": 1,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 8729,
+      "warm_total_ms": 12087,
+      "speedup_ms": -3358,
+      "cold_tokens_used": 50,
+      "warm_tokens_used": 100,
+      "token_delta": -50
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-practice-login-success:login-success",
+      "intent": "get login success message",
+      "auth": true,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "intent_mismatch",
+      "final_source_kind": "record",
+      "matched_fields": [],
+      "missing_fields": [
+        "title",
+        "message"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://practicetestautomation.com/logged-in-successfully/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "intent": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "intent_mismatch"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://practicetestautomation.com/logged-in-successfully/",
+          "force_capture": true,
+          "resolve_ms": 8729,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://practicetestautomation.com/logged-in-successfully/",
+              "domain": "practicetestautomation.com",
+              "pathname": "/logged-in-successfully/",
+              "slug_1": "logged-in-successfully"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get login success message",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:18:11.608Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 7736,
+            "tokens_used": 25,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "No relevant endpoint discovered for \"get login success message\"",
+            "discovered_endpoints": [
+              {
+                "endpoint_id": "TExWe9RNdz_rXF-0PAPoY",
+                "score": -586.4,
+                "description": "Captured page artifact for get login success message",
+                "url": "https://practicetestautomation.com/logged-in-successfully/"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "No relevant endpoint discovered for \"get login success message\"",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "message"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 25,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "No relevant endpoint discovered for \"get login success message\"",
+                "discovered_endpoints": [
+                  {
+                    "endpoint_id": "TExWe9RNdz_rXF-0PAPoY",
+                    "score": -586.4,
+                    "description": "Captured page artifact for get login success message",
+                    "url": "https://practicetestautomation.com/logged-in-successfully/"
+                  }
+                ]
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://practicetestautomation.com/logged-in-successfully/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 1
+            },
+            "reasons_seen": [
+              "intent_mismatch"
+            ]
+          },
+          "retrieval_check": {
+            "ok": false,
+            "reason": "retrieval_missing_top1",
+            "max_rank": 1
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://practicetestautomation.com/logged-in-successfully/",
+          "force_capture": false,
+          "resolve_ms": 7515,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://practicetestautomation.com/logged-in-successfully/",
+              "domain": "practicetestautomation.com",
+              "pathname": "/logged-in-successfully/",
+              "slug_1": "logged-in-successfully"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get login success message",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:18:11.608Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 7361,
+            "tokens_used": 25,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "No relevant endpoint discovered for \"get login success message\"",
+            "discovered_endpoints": [
+              {
+                "endpoint_id": "TExWe9RNdz_rXF-0PAPoY",
+                "score": -586.4,
+                "description": "Captured page artifact for get login success message",
+                "url": "https://practicetestautomation.com/logged-in-successfully/"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "No relevant endpoint discovered for \"get login success message\"",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "message"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 25,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "No relevant endpoint discovered for \"get login success message\"",
+                "discovered_endpoints": [
+                  {
+                    "endpoint_id": "TExWe9RNdz_rXF-0PAPoY",
+                    "score": -586.4,
+                    "description": "Captured page artifact for get login success message",
+                    "url": "https://practicetestautomation.com/logged-in-successfully/"
+                  }
+                ]
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://practicetestautomation.com/logged-in-successfully/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          },
+          "retrieval_check": {
+            "ok": false,
+            "reason": "retrieval_missing_top1",
+            "max_rank": 1
+          }
+        },
+        {
+          "round": 2,
+          "run_label": "warm",
+          "url": "https://practicetestautomation.com/logged-in-successfully/",
+          "force_capture": true,
+          "resolve_ms": 4572,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://practicetestautomation.com/logged-in-successfully/",
+              "domain": "practicetestautomation.com",
+              "pathname": "/logged-in-successfully/",
+              "slug_1": "logged-in-successfully"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get login success message",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:18:11.608Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 3641,
+            "tokens_used": 25,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "No relevant endpoint discovered for \"get login success message\"",
+            "discovered_endpoints": [
+              {
+                "endpoint_id": "TExWe9RNdz_rXF-0PAPoY",
+                "score": -586.4,
+                "description": "Captured page artifact for get login success message",
+                "url": "https://practicetestautomation.com/logged-in-successfully/"
+              }
+            ]
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "No relevant endpoint discovered for \"get login success message\"",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "title",
+                "message"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 25,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "No relevant endpoint discovered for \"get login success message\"",
+                "discovered_endpoints": [
+                  {
+                    "endpoint_id": "TExWe9RNdz_rXF-0PAPoY",
+                    "score": -586.4,
+                    "description": "Captured page artifact for get login success message",
+                    "url": "https://practicetestautomation.com/logged-in-successfully/"
+                  }
+                ]
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://practicetestautomation.com/logged-in-successfully/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "intent_mismatch"
+            ]
+          },
+          "retrieval_check": {
+            "ok": false,
+            "reason": "retrieval_missing_top1",
+            "max_rank": 1
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "fail",
+          "goal_satisfied": false,
+          "final_reason": "intent_mismatch",
+          "total_rounds": 1,
+          "total_resolve_ms": 8729,
+          "total_execute_ms": 0,
+          "total_ms": 8729,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 50,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "fail",
+          "goal_satisfied": false,
+          "final_reason": "intent_mismatch",
+          "total_rounds": 2,
+          "total_resolve_ms": 12087,
+          "total_execute_ms": 0,
+          "total_ms": 12087,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 100,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "delta": {
+          "speedup_ms": -3358,
+          "speedup_ratio": 0.72,
+          "token_delta": -50,
+          "token_reduction_pct": -100
+        }
+      }
+    }
+  ]
+}

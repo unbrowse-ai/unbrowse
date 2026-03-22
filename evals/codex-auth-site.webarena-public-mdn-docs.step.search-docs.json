@@ -1,0 +1,674 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 1243,
+      "warm_total_ms": 625,
+      "speedup_ms": 618,
+      "cold_tokens_used": 4142,
+      "warm_tokens_used": 4142,
+      "token_delta": 0
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-public-mdn-docs:search-docs",
+      "intent": "search docs",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "document_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "url"
+      ],
+      "missing_fields": [],
+      "retrieval_ok": true,
+      "selection_ok": true,
+      "repair_memory": {
+        "visited_urls": [
+          "https://developer.mozilla.org/en-US/search?q=fetch"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+          "force_capture": true,
+          "resolve_ms": 1243,
+          "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
+          "available_endpoint_ids": [
+            "UGRLFKukijkFjG933wOWD"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "UGRLFKukijkFjG933wOWD",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+              "domain": "developer.mozilla.org",
+              "pathname": "/en-US/search",
+              "slug_1": "en-US",
+              "slug_2": "search",
+              "q": "fetch"
+            },
+            "chunk": {
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
+              "intent": "search docs",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "UGRLFKukijkFjG933wOWD",
+              "available_operations": [
+                {
+                  "operation_id": "UGRLFKukijkFjG933wOWD",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "document",
+                  "title": "search document",
+                  "why_available": "Runnable now; required bindings already known: q.",
+                  "url_template": "https://developer.mozilla.org/api/v1/search?q={q}&page=1&page_size=20&locale=en-US",
+                  "requires": [
+                    "q"
+                  ],
+                  "yields": [
+                    "mdn_url",
+                    "document_name",
+                    "slug",
+                    "document_id",
+                    "total",
+                    "total_value"
+                  ],
+                  "example_request": {
+                    "q": "fetch",
+                    "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+                    "intent": "search docs"
+                  },
+                  "example_response_compact": {
+                    "documents": [
+                      {
+                        "mdn_url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                        "score": 43.464344,
+                        "title": "BackgroundFetchManager: fetch() method",
+                        "locale": "en-us",
+                        "slug": "web/api/backgroundfetchmanager/fetch",
+                        "popularity": 0.00045003144055269615,
+                        "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                        "highlight": {
+                          "body": [],
+                          "title": []
+                        }
+                      },
+                      {
+                        "mdn_url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                        "score": 43.236588,
+                        "title": "FetchEvent: FetchEvent() constructor",
+                        "locale": "en-us",
+                        "slug": "web/api/fetchevent/fetchevent",
+                        "popularity": 0,
+                        "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                        "highlight": {
+                          "body": [],
+                          "title": []
+                        }
+                      }
+                    ],
+                    "metadata": {
+                      "took_ms": 18,
+                      "size": 10,
+                      "page": 1,
+                      "total": {
+                        "value": 791,
+                        "relation": "eq"
+                      }
+                    },
+                    "suggestions": []
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
+              "domain": "mozilla.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:54.269Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 1085,
+            "tokens_used": 2071,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "documents": [
+              {
+                "mdn_url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                "score": 43.464344,
+                "title": "BackgroundFetchManager: fetch() method",
+                "locale": "en-us",
+                "slug": "web/api/backgroundfetchmanager/fetch",
+                "popularity": 0.00045003144055269615,
+                "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                "highlight": {
+                  "body": [
+                    "The <mark>fetch</mark>() method of the Background<mark>Fetch</mark>Manager interface initiates a background <mark>fetch</mark> operation, given one or more URLs",
+                    "The following example shows how to use <mark>fetch</mark>() to initiate a background <mark>fetch</mark> operation.",
+                    "object and call its <mark>fetch</mark>()\nmethod.\njsnavigator.serviceWorker.ready.then(async (swReg) =&gt; {\nconst bg<mark>Fetch</mark> = await swReg.background<mark>Fetch</mark>.<mark>fetch</mark>"
+                  ],
+                  "title": [
+                    "Background<mark>Fetch</mark>Manager: <mark>fetch</mark>() method"
+                  ]
+                }
+              },
+              {
+                "mdn_url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                "score": 43.236588,
+                "title": "FetchEvent: FetchEvent() constructor",
+                "locale": "en-us",
+                "slug": "web/api/fetchevent/fetchevent",
+                "popularity": 0,
+                "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                "highlight": {
+                  "body": [
+                    "The <mark>Fetch</mark>Event() constructor creates a new <mark>Fetch</mark>Event object.\njsnew <mark>Fetch</mark>Event(type, options)\ntype\nA string with the name",
+                    "It is case-sensitive and browsers always set it to <mark>fetch</mark>.\noptions\nAn object that, in addition of the properties defined in",
+                    "A new <mark>Fetch</mark>Event object.\nPromise\n<mark>Fetch</mark> API"
+                  ],
+                  "title": [
+                    "<mark>Fetch</mark>Event: <mark>Fetch</mark>Event() constructor"
+                  ]
+                }
+              },
+              {
+                "mdn_url": "/en-US/docs/Web/API/Fetch_API",
+                "score": 42.619144,
+                "title": "Fetch API",
+                "locale": "en-us",
+                "slug": "web/api/fetch_api",
+                "popularity": 0.01824100039865799,
+                "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest.",
+                "highlight": {
+                  "body": [
+                    "Find out more about using the <mark>Fetch</mark> API features in Using <mark>Fetch</mark>.",
+                    "See Using Deferred <mark>Fetch</mark>.\nWindow.<mark>fetch</mark>() and WorkerGlobalScope.<mark>fetch</mark>()\nThe <mark>fetch</mark>() method used to <mark>fetch</mark> a resource.",
+                    "Window.<mark>fetch</mark>Later()\nUsed to make a deferred <mark>fetch</mark> request."
+                  ],
+                  "title": [
+                    "<mark>Fetch</mark> API"
+                  ]
+                }
+              },
+              {
+                "mdn_url": "/en-US/docs/Web/API/FetchEvent",
+                "score": 42.431026,
+                "title": "FetchEvent",
+                "locale": "en-us",
+                "slug": "web/api/fetchevent",
+                "popularity": 0.00045208637863741166,
+                "summary": "This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to...",
+                "highlight": {
+                  "body": [
+                    "Event\nExtendableEvent\n<mark>Fetch</mark>Event\n<mark>Fetch</mark>Event()\nCreates a new <mark>Fetch</mark>Event object. This constructor is not typically used.",
+                    "<mark>Fetch</mark>Event.clientId Read only\nThe id of the same-origin client that initiated the <mark>fetch</mark>.",
+                    "(event.request);\n})(),\n);\n});\n<mark>fetch</mark> event\nPromise\n<mark>Fetch</mark> API"
+                  ],
+                  "title": [
+                    "<mark>Fetch</mark>Event"
+                  ]
+                }
+              }
+            ],
+            "metadata": {
+              "took_ms": 18,
+              "size": 10,
+              "page": 1,
+              "total": {
+                "value": 791,
+                "relation": "eq"
+              }
+            },
+            "suggestions": []
+          },
+          "candidates": [
+            {
+              "endpoint_id": "UGRLFKukijkFjG933wOWD",
+              "endpoint_url": "https://developer.mozilla.org/api/v1/search?q={q}&page=1&page_size=20&locale=en-US",
+              "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "document_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 10,
+              "observed_entity_types": [
+                "document",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "UGRLFKukijkFjG933wOWD"
+              },
+              "tokens_used": 2071,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": [
+                {
+                  "title": "BackgroundFetchManager: fetch() method",
+                  "url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                  "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                  "score": 43.464344,
+                  "popularity": 0.00045003144055269615,
+                  "locale": "en-us"
+                },
+                {
+                  "title": "FetchEvent: FetchEvent() constructor",
+                  "url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                  "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                  "score": 43.236588,
+                  "popularity": 0,
+                  "locale": "en-us"
+                },
+                {
+                  "title": "Fetch API",
+                  "url": "/en-US/docs/Web/API/Fetch_API",
+                  "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest.",
+                  "score": 42.619144,
+                  "popularity": 0.01824100039865799,
+                  "locale": "en-us"
+                },
+                {
+                  "title": "FetchEvent",
+                  "url": "/en-US/docs/Web/API/FetchEvent",
+                  "summary": "This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to...",
+                  "score": 42.431026,
+                  "popularity": 0.00045208637863741166,
+                  "locale": "en-us"
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://developer.mozilla.org/en-US/search?q=fetch"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "UGRLFKukijkFjG933wOWD",
+            "max_rank": 5
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+          "force_capture": false,
+          "resolve_ms": 625,
+          "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
+          "available_endpoint_ids": [
+            "UGRLFKukijkFjG933wOWD"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "UGRLFKukijkFjG933wOWD",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+              "domain": "developer.mozilla.org",
+              "pathname": "/en-US/search",
+              "slug_1": "en-US",
+              "slug_2": "search",
+              "q": "fetch"
+            },
+            "chunk": {
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
+              "intent": "search docs",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "UGRLFKukijkFjG933wOWD",
+              "available_operations": [
+                {
+                  "operation_id": "UGRLFKukijkFjG933wOWD",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "document",
+                  "title": "search document",
+                  "why_available": "Runnable now; required bindings already known: q.",
+                  "url_template": "https://developer.mozilla.org/api/v1/search?q={q}&page=1&page_size=20&locale=en-US",
+                  "requires": [
+                    "q"
+                  ],
+                  "yields": [
+                    "mdn_url",
+                    "document_name",
+                    "slug",
+                    "document_id",
+                    "total",
+                    "total_value"
+                  ],
+                  "example_request": {
+                    "q": "fetch",
+                    "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+                    "intent": "search docs"
+                  },
+                  "example_response_compact": {
+                    "documents": [
+                      {
+                        "mdn_url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                        "score": 43.464344,
+                        "title": "BackgroundFetchManager: fetch() method",
+                        "locale": "en-us",
+                        "slug": "web/api/backgroundfetchmanager/fetch",
+                        "popularity": 0.00045003144055269615,
+                        "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                        "highlight": {
+                          "body": [],
+                          "title": []
+                        }
+                      },
+                      {
+                        "mdn_url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                        "score": 43.236588,
+                        "title": "FetchEvent: FetchEvent() constructor",
+                        "locale": "en-us",
+                        "slug": "web/api/fetchevent/fetchevent",
+                        "popularity": 0,
+                        "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                        "highlight": {
+                          "body": [],
+                          "title": []
+                        }
+                      }
+                    ],
+                    "metadata": {
+                      "took_ms": 18,
+                      "size": 10,
+                      "page": 1,
+                      "total": {
+                        "value": 791,
+                        "relation": "eq"
+                      }
+                    },
+                    "suggestions": []
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
+              "domain": "mozilla.org",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:54.698Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 344,
+            "tokens_used": 2071,
+            "tokens_saved": 27929,
+            "tokens_saved_pct": 93
+          },
+          "resolve_excerpt": {
+            "documents": [
+              {
+                "mdn_url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                "score": 43.464344,
+                "title": "BackgroundFetchManager: fetch() method",
+                "locale": "en-us",
+                "slug": "web/api/backgroundfetchmanager/fetch",
+                "popularity": 0.00045003144055269615,
+                "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                "highlight": {
+                  "body": [
+                    "The <mark>fetch</mark>() method of the Background<mark>Fetch</mark>Manager interface initiates a background <mark>fetch</mark> operation, given one or more URLs",
+                    "The following example shows how to use <mark>fetch</mark>() to initiate a background <mark>fetch</mark> operation.",
+                    "object and call its <mark>fetch</mark>()\nmethod.\njsnavigator.serviceWorker.ready.then(async (swReg) =&gt; {\nconst bg<mark>Fetch</mark> = await swReg.background<mark>Fetch</mark>.<mark>fetch</mark>"
+                  ],
+                  "title": [
+                    "Background<mark>Fetch</mark>Manager: <mark>fetch</mark>() method"
+                  ]
+                }
+              },
+              {
+                "mdn_url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                "score": 43.236588,
+                "title": "FetchEvent: FetchEvent() constructor",
+                "locale": "en-us",
+                "slug": "web/api/fetchevent/fetchevent",
+                "popularity": 0,
+                "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                "highlight": {
+                  "body": [
+                    "The <mark>Fetch</mark>Event() constructor creates a new <mark>Fetch</mark>Event object.\njsnew <mark>Fetch</mark>Event(type, options)\ntype\nA string with the name",
+                    "It is case-sensitive and browsers always set it to <mark>fetch</mark>.\noptions\nAn object that, in addition of the properties defined in",
+                    "A new <mark>Fetch</mark>Event object.\nPromise\n<mark>Fetch</mark> API"
+                  ],
+                  "title": [
+                    "<mark>Fetch</mark>Event: <mark>Fetch</mark>Event() constructor"
+                  ]
+                }
+              },
+              {
+                "mdn_url": "/en-US/docs/Web/API/Fetch_API",
+                "score": 42.619144,
+                "title": "Fetch API",
+                "locale": "en-us",
+                "slug": "web/api/fetch_api",
+                "popularity": 0.01824100039865799,
+                "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest.",
+                "highlight": {
+                  "body": [
+                    "Find out more about using the <mark>Fetch</mark> API features in Using <mark>Fetch</mark>.",
+                    "See Using Deferred <mark>Fetch</mark>.\nWindow.<mark>fetch</mark>() and WorkerGlobalScope.<mark>fetch</mark>()\nThe <mark>fetch</mark>() method used to <mark>fetch</mark> a resource.",
+                    "Window.<mark>fetch</mark>Later()\nUsed to make a deferred <mark>fetch</mark> request."
+                  ],
+                  "title": [
+                    "<mark>Fetch</mark> API"
+                  ]
+                }
+              },
+              {
+                "mdn_url": "/en-US/docs/Web/API/FetchEvent",
+                "score": 42.431026,
+                "title": "FetchEvent",
+                "locale": "en-us",
+                "slug": "web/api/fetchevent",
+                "popularity": 0.00045208637863741166,
+                "summary": "This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to...",
+                "highlight": {
+                  "body": [
+                    "Event\nExtendableEvent\n<mark>Fetch</mark>Event\n<mark>Fetch</mark>Event()\nCreates a new <mark>Fetch</mark>Event object. This constructor is not typically used.",
+                    "<mark>Fetch</mark>Event.clientId Read only\nThe id of the same-origin client that initiated the <mark>fetch</mark>.",
+                    "(event.request);\n})(),\n);\n});\n<mark>fetch</mark> event\nPromise\n<mark>Fetch</mark> API"
+                  ],
+                  "title": [
+                    "<mark>Fetch</mark>Event"
+                  ]
+                }
+              }
+            ],
+            "metadata": {
+              "took_ms": 18,
+              "size": 10,
+              "page": 1,
+              "total": {
+                "value": 791,
+                "relation": "eq"
+              }
+            },
+            "suggestions": []
+          },
+          "candidates": [
+            {
+              "endpoint_id": "UGRLFKukijkFjG933wOWD",
+              "endpoint_url": "https://developer.mozilla.org/api/v1/search?q={q}&page=1&page_size=20&locale=en-US",
+              "trigger_url": "https://developer.mozilla.org/en-US/search?q=fetch",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "document_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 10,
+              "observed_entity_types": [
+                "document",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "UGRLFKukijkFjG933wOWD"
+              },
+              "tokens_used": 2071,
+              "tokens_saved": 27929,
+              "tokens_saved_pct": 93,
+              "excerpt": [
+                {
+                  "title": "BackgroundFetchManager: fetch() method",
+                  "url": "/en-US/docs/Web/API/BackgroundFetchManager/fetch",
+                  "summary": "The fetch() method of the BackgroundFetchManager interface initiates a background fetch operation, given one or more URLs or Request objects.",
+                  "score": 43.464344,
+                  "popularity": 0.00045003144055269615,
+                  "locale": "en-us"
+                },
+                {
+                  "title": "FetchEvent: FetchEvent() constructor",
+                  "url": "/en-US/docs/Web/API/FetchEvent/FetchEvent",
+                  "summary": "The FetchEvent() constructor creates a new FetchEvent object.",
+                  "score": 43.236588,
+                  "popularity": 0,
+                  "locale": "en-us"
+                },
+                {
+                  "title": "Fetch API",
+                  "url": "/en-US/docs/Web/API/Fetch_API",
+                  "summary": "The Fetch API provides an interface for fetching resources (including across the network). It is a more powerful and flexible replacement for XMLHttpRequest.",
+                  "score": 42.619144,
+                  "popularity": 0.01824100039865799,
+                  "locale": "en-us"
+                },
+                {
+                  "title": "FetchEvent",
+                  "url": "/en-US/docs/Web/API/FetchEvent",
+                  "summary": "This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to...",
+                  "score": 42.431026,
+                  "popularity": 0.00045208637863741166,
+                  "locale": "en-us"
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://developer.mozilla.org/en-US/search?q=fetch"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "UGRLFKukijkFjG933wOWD",
+            "max_rank": 5
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "document_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 1243,
+          "total_execute_ms": 0,
+          "total_ms": 1243,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 4142,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "document_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 625,
+          "total_execute_ms": 0,
+          "total_ms": 625,
+          "first_source": "marketplace",
+          "final_source": "marketplace",
+          "total_tokens_used": 4142,
+          "total_tokens_saved": 55858,
+          "avg_tokens_saved_pct": 93
+        },
+        "delta": {
+          "speedup_ms": 618,
+          "speedup_ratio": 1.99,
+          "token_delta": 0,
+          "token_reduction_pct": 0
+        }
+      }
+    }
+  ]
+}

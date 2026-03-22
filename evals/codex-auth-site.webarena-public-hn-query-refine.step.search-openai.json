@@ -1,0 +1,945 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 3133,
+      "warm_total_ms": 634,
+      "speedup_ms": 2499,
+      "cold_tokens_used": 23558,
+      "warm_tokens_used": 23558,
+      "token_delta": 0
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-public-hn-query-refine:search-openai",
+      "intent": "search hacker news",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "story_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title",
+        "author",
+        "url"
+      ],
+      "missing_fields": [],
+      "retrieval_ok": true,
+      "selection_ok": true,
+      "repair_memory": {
+        "visited_urls": [
+          "https://hn.algolia.com/"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://hn.algolia.com/",
+          "force_capture": true,
+          "resolve_ms": 3133,
+          "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
+          "available_endpoint_ids": [
+            "IYGNDKbsI2h1DK1Vcfe_b"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "IYGNDKbsI2h1DK1Vcfe_b",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "q": "openai",
+              "url": "https://hn.algolia.com/",
+              "domain": "hn.algolia.com",
+              "pathname": "/"
+            },
+            "chunk": {
+              "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
+              "intent": "search hacker news",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "IYGNDKbsI2h1DK1Vcfe_b",
+              "available_operations": [
+                {
+                  "operation_id": "IYGNDKbsI2h1DK1Vcfe_b",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: q.",
+                  "url_template": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+                  "requires": [
+                    "q"
+                  ],
+                  "yields": [
+                    "author",
+                    "owner"
+                  ],
+                  "example_request": {
+                    "url": "https://hn.algolia.com/",
+                    "q": "openai",
+                    "intent": "search hacker news"
+                  },
+                  "example_response_compact": {
+                    "exhaustive": {
+                      "nbHits": false,
+                      "typo": false
+                    },
+                    "exhaustiveNbHits": false,
+                    "exhaustiveTypo": false,
+                    "hits": [
+                      {
+                        "_highlightResult": {
+                          "author": "[truncated]",
+                          "title": "[truncated]",
+                          "url": "[truncated]"
+                        },
+                        "_tags": [
+                          "story",
+                          "author_davidbarker",
+                          "story_38309611"
+                        ],
+                        "author": "davidbarker",
+                        "children": [
+                          38309635,
+                          38309640,
+                          38309648
+                        ],
+                        "created_at": "2023-11-17T20:28:50Z",
+                        "created_at_i": 1700252930,
+                        "num_comments": 2530,
+                        "objectID": "38309611"
+                      },
+                      {
+                        "_highlightResult": {
+                          "author": "[truncated]",
+                          "title": "[truncated]",
+                          "url": "[truncated]"
+                        },
+                        "_tags": [
+                          "story",
+                          "author_klelatti",
+                          "story_35813322"
+                        ],
+                        "author": "klelatti",
+                        "children": [
+                          35813355,
+                          35813629,
+                          35814019
+                        ],
+                        "created_at": "2023-05-04T10:19:13Z",
+                        "created_at_i": 1683195553,
+                        "num_comments": 1039,
+                        "objectID": "35813322"
+                      }
+                    ],
+                    "hitsPerPage": 20,
+                    "nbHits": 24137,
+                    "nbPages": 50,
+                    "page": 0
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
+              "domain": "algolia.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:47.674Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 2969,
+            "tokens_used": 11779,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "exhaustive": {
+              "nbHits": false,
+              "typo": false
+            },
+            "exhaustiveNbHits": false,
+            "exhaustiveTypo": false,
+            "hits": [
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "davidbarker"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "<em>OpenAI</em>'s board has fired Sam Altman"
+                  },
+                  "url": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "https://<em>openai</em>.com/blog/<em>openai</em>-announces-leadership-transition"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_davidbarker",
+                  "story_38309611"
+                ],
+                "author": "davidbarker",
+                "children": [
+                  38309635,
+                  38309640,
+                  38309648,
+                  38309657
+                ],
+                "created_at": "2023-11-17T20:28:50Z",
+                "created_at_i": 1700252930,
+                "num_comments": 2530,
+                "objectID": "38309611",
+                "points": 5710,
+                "story_id": 38309611,
+                "title": "OpenAI's board has fired Sam Altman",
+                "updated_at": "2026-03-21T16:41:00Z"
+              },
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "klelatti"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "Google “We have no moat, and neither does <em>OpenAI</em>”"
+                  },
+                  "url": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "https://www.semianalysis.com/p/google-we-have-no-moat-and-neither"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_klelatti",
+                  "story_35813322"
+                ],
+                "author": "klelatti",
+                "children": [
+                  35813355,
+                  35813629,
+                  35814019,
+                  35814511
+                ],
+                "created_at": "2023-05-04T10:19:13Z",
+                "created_at_i": 1683195553,
+                "num_comments": 1039,
+                "objectID": "35813322",
+                "points": 2455,
+                "story_id": 35813322,
+                "title": "Google “We have no moat, and neither does OpenAI”",
+                "updated_at": "2026-03-21T16:41:00Z"
+              },
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "lackoftactics"
+                  },
+                  "story_text": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "<a href=\"https://openai.com/index/introducing-gpt-oss/\" rel=\"nofollow\">https://<em>openai</em>.com/index/introducing-gpt-oss/</a>"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "Open models by <em>OpenAI</em>"
+                  },
+                  "url": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "https://<em>openai</em>.com/open-models/"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_lackoftactics",
+                  "story_44800746"
+                ],
+                "author": "lackoftactics",
+                "children": [
+                  44800788,
+                  44800818,
+                  44800838,
+                  44800846
+                ],
+                "created_at": "2025-08-05T17:02:02Z",
+                "created_at_i": 1754413322,
+                "num_comments": 876,
+                "objectID": "44800746",
+                "points": 2124,
+                "story_id": 44800746,
+                "story_text": "<a href=\"https:&#x2F;&#x2F;openai.com&#x2F;index&#x2F;introducing-gpt-oss&#x2F;\" rel=\"nofollow\">https:&#x2F;&#x2F;openai.com&#x2F;index&#x2F;introducing-gpt-oss&#x2F;</a>",
+                "title": "Open models by OpenAI"
+              },
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "staranjeet"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "We have reached an agreement in principle for Sam to return to <em>OpenAI</em> as CEO"
+                  },
+                  "url": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "https://twitter.com/<em>openai</em>/status/1727206187077370115"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_staranjeet",
+                  "story_38375239"
+                ],
+                "author": "staranjeet",
+                "children": [
+                  38375262,
+                  38375263,
+                  38375266,
+                  38375269
+                ],
+                "created_at": "2023-11-22T06:01:45Z",
+                "created_at_i": 1700632905,
+                "num_comments": 1950,
+                "objectID": "38375239",
+                "points": 1980,
+                "story_id": 38375239,
+                "title": "We have reached an agreement in principle for Sam to return to OpenAI as CEO",
+                "updated_at": "2026-03-21T16:41:58Z"
+              }
+            ],
+            "hitsPerPage": 20,
+            "nbHits": 24137,
+            "nbPages": 50,
+            "page": 0,
+            "params": "query=openai&tags=story&advancedSyntax=true&analyticsTags=backend",
+            "processingTimeMS": 13,
+            "processingTimingsMS": {
+              "_request": {
+                "roundTrip": 15
+              },
+              "fetch": {
+                "query": 2,
+                "scanning": 9,
+                "total": 12
+              },
+              "total": 13
+            },
+            "query": "openai"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b",
+              "endpoint_url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+              "trigger_url": "https://hn.algolia.com/",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "story_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "story"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b"
+              },
+              "tokens_used": 11779,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": [
+                {
+                  "id": "38309611",
+                  "title": "OpenAI's board has fired Sam Altman",
+                  "url": "https://openai.com/blog/openai-announces-leadership-transition",
+                  "author": "davidbarker",
+                  "points": 5710,
+                  "num_comments": 2530
+                },
+                {
+                  "id": "35813322",
+                  "title": "Google “We have no moat, and neither does OpenAI”",
+                  "url": "https://www.semianalysis.com/p/google-we-have-no-moat-and-neither",
+                  "author": "klelatti",
+                  "points": 2455,
+                  "num_comments": 1039
+                },
+                {
+                  "id": "44800746",
+                  "title": "Open models by OpenAI",
+                  "url": "https://openai.com/open-models/",
+                  "author": "lackoftactics",
+                  "points": 2124,
+                  "num_comments": 876
+                },
+                {
+                  "id": "38375239",
+                  "title": "We have reached an agreement in principle for Sam to return to OpenAI as CEO",
+                  "url": "https://twitter.com/openai/status/1727206187077370115",
+                  "author": "staranjeet",
+                  "points": 1980,
+                  "num_comments": 1950
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hn.algolia.com/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b",
+            "max_rank": 5
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://hn.algolia.com/",
+          "force_capture": false,
+          "resolve_ms": 634,
+          "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
+          "available_endpoint_ids": [
+            "IYGNDKbsI2h1DK1Vcfe_b"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "IYGNDKbsI2h1DK1Vcfe_b",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "q": "openai",
+              "url": "https://hn.algolia.com/",
+              "domain": "hn.algolia.com",
+              "pathname": "/"
+            },
+            "chunk": {
+              "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
+              "intent": "search hacker news",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "IYGNDKbsI2h1DK1Vcfe_b",
+              "available_operations": [
+                {
+                  "operation_id": "IYGNDKbsI2h1DK1Vcfe_b",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "resource",
+                  "title": "search resource",
+                  "why_available": "Runnable now; required bindings already known: q.",
+                  "url_template": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+                  "requires": [
+                    "q"
+                  ],
+                  "yields": [
+                    "author",
+                    "owner"
+                  ],
+                  "example_request": {
+                    "url": "https://hn.algolia.com/",
+                    "q": "openai",
+                    "intent": "search hacker news"
+                  },
+                  "example_response_compact": {
+                    "exhaustive": {
+                      "nbHits": false,
+                      "typo": false
+                    },
+                    "exhaustiveNbHits": false,
+                    "exhaustiveTypo": false,
+                    "hits": [
+                      {
+                        "_highlightResult": {
+                          "author": "[truncated]",
+                          "title": "[truncated]",
+                          "url": "[truncated]"
+                        },
+                        "_tags": [
+                          "story",
+                          "author_davidbarker",
+                          "story_38309611"
+                        ],
+                        "author": "davidbarker",
+                        "children": [
+                          38309635,
+                          38309640,
+                          38309648
+                        ],
+                        "created_at": "2023-11-17T20:28:50Z",
+                        "created_at_i": 1700252930,
+                        "num_comments": 2530,
+                        "objectID": "38309611"
+                      },
+                      {
+                        "_highlightResult": {
+                          "author": "[truncated]",
+                          "title": "[truncated]",
+                          "url": "[truncated]"
+                        },
+                        "_tags": [
+                          "story",
+                          "author_klelatti",
+                          "story_35813322"
+                        ],
+                        "author": "klelatti",
+                        "children": [
+                          35813355,
+                          35813629,
+                          35814019
+                        ],
+                        "created_at": "2023-05-04T10:19:13Z",
+                        "created_at_i": 1683195553,
+                        "num_comments": 1039,
+                        "objectID": "35813322"
+                      }
+                    ],
+                    "hitsPerPage": 20,
+                    "nbHits": 24137,
+                    "nbPages": 50,
+                    "page": 0
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
+              "domain": "algolia.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:55:48.068Z"
+            },
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 475,
+            "tokens_used": 11779,
+            "tokens_saved": 18221,
+            "tokens_saved_pct": 61
+          },
+          "resolve_excerpt": {
+            "exhaustive": {
+              "nbHits": false,
+              "typo": false
+            },
+            "exhaustiveNbHits": false,
+            "exhaustiveTypo": false,
+            "hits": [
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "davidbarker"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "<em>OpenAI</em>'s board has fired Sam Altman"
+                  },
+                  "url": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "https://<em>openai</em>.com/blog/<em>openai</em>-announces-leadership-transition"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_davidbarker",
+                  "story_38309611"
+                ],
+                "author": "davidbarker",
+                "children": [
+                  38309635,
+                  38309640,
+                  38309648,
+                  38309657
+                ],
+                "created_at": "2023-11-17T20:28:50Z",
+                "created_at_i": 1700252930,
+                "num_comments": 2530,
+                "objectID": "38309611",
+                "points": 5710,
+                "story_id": 38309611,
+                "title": "OpenAI's board has fired Sam Altman",
+                "updated_at": "2026-03-21T16:41:00Z"
+              },
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "klelatti"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "Google “We have no moat, and neither does <em>OpenAI</em>”"
+                  },
+                  "url": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "https://www.semianalysis.com/p/google-we-have-no-moat-and-neither"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_klelatti",
+                  "story_35813322"
+                ],
+                "author": "klelatti",
+                "children": [
+                  35813355,
+                  35813629,
+                  35814019,
+                  35814511
+                ],
+                "created_at": "2023-05-04T10:19:13Z",
+                "created_at_i": 1683195553,
+                "num_comments": 1039,
+                "objectID": "35813322",
+                "points": 2455,
+                "story_id": 35813322,
+                "title": "Google “We have no moat, and neither does OpenAI”",
+                "updated_at": "2026-03-21T16:41:00Z"
+              },
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "lackoftactics"
+                  },
+                  "story_text": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "<a href=\"https://openai.com/index/introducing-gpt-oss/\" rel=\"nofollow\">https://<em>openai</em>.com/index/introducing-gpt-oss/</a>"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "Open models by <em>OpenAI</em>"
+                  },
+                  "url": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "https://<em>openai</em>.com/open-models/"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_lackoftactics",
+                  "story_44800746"
+                ],
+                "author": "lackoftactics",
+                "children": [
+                  44800788,
+                  44800818,
+                  44800838,
+                  44800846
+                ],
+                "created_at": "2025-08-05T17:02:02Z",
+                "created_at_i": 1754413322,
+                "num_comments": 876,
+                "objectID": "44800746",
+                "points": 2124,
+                "story_id": 44800746,
+                "story_text": "<a href=\"https:&#x2F;&#x2F;openai.com&#x2F;index&#x2F;introducing-gpt-oss&#x2F;\" rel=\"nofollow\">https:&#x2F;&#x2F;openai.com&#x2F;index&#x2F;introducing-gpt-oss&#x2F;</a>",
+                "title": "Open models by OpenAI"
+              },
+              {
+                "_highlightResult": {
+                  "author": {
+                    "matchLevel": "none",
+                    "matchedWords": [],
+                    "value": "staranjeet"
+                  },
+                  "title": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "We have reached an agreement in principle for Sam to return to <em>OpenAI</em> as CEO"
+                  },
+                  "url": {
+                    "fullyHighlighted": false,
+                    "matchLevel": "full",
+                    "matchedWords": [
+                      "openai"
+                    ],
+                    "value": "https://twitter.com/<em>openai</em>/status/1727206187077370115"
+                  }
+                },
+                "_tags": [
+                  "story",
+                  "author_staranjeet",
+                  "story_38375239"
+                ],
+                "author": "staranjeet",
+                "children": [
+                  38375262,
+                  38375263,
+                  38375266,
+                  38375269
+                ],
+                "created_at": "2023-11-22T06:01:45Z",
+                "created_at_i": 1700632905,
+                "num_comments": 1950,
+                "objectID": "38375239",
+                "points": 1980,
+                "story_id": 38375239,
+                "title": "We have reached an agreement in principle for Sam to return to OpenAI as CEO",
+                "updated_at": "2026-03-21T16:41:58Z"
+              }
+            ],
+            "hitsPerPage": 20,
+            "nbHits": 24137,
+            "nbPages": 50,
+            "page": 0,
+            "params": "query=openai&tags=story&advancedSyntax=true&analyticsTags=backend",
+            "processingTimeMS": 13,
+            "processingTimingsMS": {
+              "_request": {
+                "roundTrip": 15
+              },
+              "fetch": {
+                "query": 2,
+                "scanning": 9,
+                "total": 12
+              },
+              "total": 13
+            },
+            "query": "openai"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b",
+              "endpoint_url": "https://hn.algolia.com/api/v1/search?query={q}&tags=story",
+              "trigger_url": "https://hn.algolia.com/",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "story_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title",
+                "author",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "story"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b"
+              },
+              "tokens_used": 11779,
+              "tokens_saved": 18221,
+              "tokens_saved_pct": 61,
+              "excerpt": [
+                {
+                  "id": "38309611",
+                  "title": "OpenAI's board has fired Sam Altman",
+                  "url": "https://openai.com/blog/openai-announces-leadership-transition",
+                  "author": "davidbarker",
+                  "points": 5710,
+                  "num_comments": 2530
+                },
+                {
+                  "id": "35813322",
+                  "title": "Google “We have no moat, and neither does OpenAI”",
+                  "url": "https://www.semianalysis.com/p/google-we-have-no-moat-and-neither",
+                  "author": "klelatti",
+                  "points": 2455,
+                  "num_comments": 1039
+                },
+                {
+                  "id": "44800746",
+                  "title": "Open models by OpenAI",
+                  "url": "https://openai.com/open-models/",
+                  "author": "lackoftactics",
+                  "points": 2124,
+                  "num_comments": 876
+                },
+                {
+                  "id": "38375239",
+                  "title": "We have reached an agreement in principle for Sam to return to OpenAI as CEO",
+                  "url": "https://twitter.com/openai/status/1727206187077370115",
+                  "author": "staranjeet",
+                  "points": 1980,
+                  "num_comments": 1950
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://hn.algolia.com/"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b",
+            "max_rank": 5
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "story_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 3133,
+          "total_execute_ms": 0,
+          "total_ms": 3133,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 23558,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "story_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 634,
+          "total_execute_ms": 0,
+          "total_ms": 634,
+          "first_source": "marketplace",
+          "final_source": "marketplace",
+          "total_tokens_used": 23558,
+          "total_tokens_saved": 36442,
+          "avg_tokens_saved_pct": 61
+        },
+        "delta": {
+          "speedup_ms": 2499,
+          "speedup_ratio": 4.94,
+          "token_delta": 0,
+          "token_reduction_pct": 0
+        }
+      }
+    }
+  ]
+}

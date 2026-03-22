@@ -1,0 +1,59 @@
+{
+  "summary": {
+    "final_state": "fail",
+    "goal_satisfied": false,
+    "final_reason": "step:secure-message:intent_mismatch",
+    "total_ms": 53623,
+    "performance_total_ms": 33211,
+    "error_count": 3,
+    "failed_step_ids": [
+      "secure-message"
+    ],
+    "exceeded_step_budget_ids": [
+      "secure-message"
+    ],
+    "exceeded_total_budget": true
+  },
+  "bootstrap": {
+    "strategy": "scripted_login",
+    "status": "ready",
+    "reason": "scripted_login_ok",
+    "cookies_found": 5,
+    "matched_required_cookies": [],
+    "login_url": "https://the-internet.herokuapp.com/login",
+    "success_url": "https://the-internet.herokuapp.com/secure",
+    "elapsed_ms": 4341,
+    "used_existing_session": false
+  },
+  "workflow": {
+    "step_results": [
+      {
+        "id": "secure-message",
+        "title": "Secure area retrieval",
+        "phase": "step",
+        "required": true,
+        "step_max_total_ms": 15000,
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.webarena-secure-area.step.secure-message.json",
+        "final_state": "fail",
+        "goal_satisfied": false,
+        "final_reason": "intent_mismatch",
+        "matched_fields": [
+          "message"
+        ],
+        "missing_fields": [
+          "title"
+        ],
+        "total_ms": 53623,
+        "performance_total_ms": 33211,
+        "performance_basis": "warm",
+        "rounds": 3,
+        "benchmark": {
+          "cold_total_ms": 20412,
+          "warm_total_ms": 33211,
+          "speedup_ms": -12799,
+          "token_delta": -166
+        }
+      }
+    ]
+  }
+}

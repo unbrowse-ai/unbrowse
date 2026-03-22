@@ -1,0 +1,779 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 5228,
+      "warm_total_ms": 5374,
+      "speedup_ms": -146,
+      "cold_tokens_used": 52,
+      "warm_tokens_used": 52,
+      "token_delta": 0
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-public-npm-package:package-detail",
+      "intent": "get package info",
+      "auth": false,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "package_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "name",
+        "version",
+        "description"
+      ],
+      "missing_fields": [],
+      "retrieval_ok": true,
+      "selection_ok": true,
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.npmjs.com/package/openai"
+        ],
+        "attempted_endpoint_counts": {
+          "ANF3EfY_EsSqWtc6g0hl6": 1
+        },
+        "failure_class_counts": {},
+        "reasons_seen": [
+          "package_rows"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://www.npmjs.com/package/openai",
+          "force_capture": true,
+          "resolve_ms": 4087,
+          "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+          "available_endpoint_ids": [
+            "ANF3EfY_EsSqWtc6g0hl6"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
+            "selected_path": [
+              "ANF3EfY_EsSqWtc6g0hl6"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/package/openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/package/openai",
+              "slug_1": "package",
+              "slug_2": "openai"
+            },
+            "chunk": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "intent": "get package info",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
+              "available_operations": [
+                {
+                  "operation_id": "ANF3EfY_EsSqWtc6g0hl6",
+                  "method": "GET",
+                  "action_kind": "trending",
+                  "resource_kind": "resource",
+                  "title": "trending resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://registry.npmjs.org/openai",
+                  "requires": [],
+                  "yields": [
+                    "_id",
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "url": "https://www.npmjs.com/package/openai",
+                    "intent": "get package info"
+                  },
+                  "example_response_compact": {
+                    "_id": "openai",
+                    "_rev": "383-42f3e49d4f033018d69771dd1382c1a2",
+                    "name": "openai",
+                    "dist-tags": {
+                      "next": "4.0.0-beta.12",
+                      "alpha": "5.0.0-alpha.0",
+                      "beta": "5.0.0-beta.0",
+                      "latest": "6.32.0"
+                    },
+                    "versions": {
+                      "0.0.0": {
+                        "name": "openai",
+                        "version": "0.0.0",
+                        "license": "MIT",
+                        "_id": "openai@0.0.0",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "dist": {
+                          "shasum": "8de6a226b7f7ac71ae4e826e9e3d51cf9adf2dc6",
+                          "tarball": "https://registry.npmjs.org/openai/-/openai-0.0.0.tgz",
+                          "fileCount": 2,
+                          "integrity": "sha512-zMfA6bKY9mYD5+49ozQd3eKmVwIAlPmUNsn+ShgWaMzIy1DlTXnEgKQt/iD5YZr38qwQN/JDHdieV6l1nEB9jg==",
+                          "signatures": [],
+                          "unpackedSize": 93,
+                          "npm-signature": "-----BEGIN PGP SIGNATURE-----\r\nVersion: OpenPGP.js v3.0.4\r\nComment: https://openpgpjs.org\r\n\r\nwsFcBAEBCAAQBQJfBxw9CRA9TVsSAnZWagAAucEP/ia8NxNyN+238V5MYKeY\njII0ii7mp89qtNci/T3/HGVZe9VByGqCPiHPRFGBywzggaCpnwSDZEjTHmL1\nR8ZynNVd5j+MrRdZo8CAlIf6QzqCXz6qyO3U6rkUschQ1c3Fopv5tVWOV/yU\nwArwG5mwlrRAA4tfgPvTiZyBaGUxgL+TNrCjLZb6D3vvp3pWgcC7OsvrIv+V\nn/v6d3JJHBjr28nqAKaxT/MnUTHayZsyDsX6gi2jKH2LCwd0KupLsAj3r5es\nADPilFE02mjOJ2aezBDhbuBTYLj5pjB0nCG+i7FPUNMmuNeUCyIkadsNPgZN\nRF0JGBD0bUnXPiWuZNzKYDSwz94hBzzsOngMM1Y4juFpfImMUUQJFRdWZMO5\nzg9n5zV9WkbU+W801t/u/2tLXMzIGZ9zBRS3A5wqtHRevZ9rWXTlv7cTRgPu\nypSqiWnUU+Xr1x42NHhbVGYrCaguRRSSsuRouqh0dL1tL5NrsMhzlH4knQV4\nG7vgToBJzZJDNWeZZxQ4+plJpTjkVP3xZLGcrZWufY+nOTSGqWhqYKJTFeLh\nHoXPTLfFV9ZJhQvPGNzgro5Ijf+L8YebGafnR3iiplMqXK8kW5IQHGHpKZTm\nLkVlddnu4jh44mKui7AQp9udA02JiCxDNCpvyf8U0qXpPzjQoJ0vntC9c/fu\nncfu\r\n=/5IF\r\n-----END PGP SIGNATURE-----\r\n"
+                        },
+                        "main": "index.js",
+                        "_npmUser": {
+                          "name": "richienb",
+                          "email": "richiebendall@gmail.com"
+                        }
+                      },
+                      "0.0.1": {
+                        "name": "openai",
+                        "version": "0.0.1",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.1",
+                        "maintainers": [
+                          "[truncated]",
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.2": {
+                        "name": "openai",
+                        "version": "0.0.2",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.2",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.3": {
+                        "name": "openai",
+                        "version": "0.0.3",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.3",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.4": {
+                        "name": "openai",
+                        "version": "0.0.4",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.4",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.5": {
+                        "name": "openai",
+                        "version": "0.0.5",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.5",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.6": {
+                        "name": "openai",
+                        "version": "0.0.6",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.6",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.7": {
+                        "name": "openai",
+                        "version": "0.0.7",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.7",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      }
+                    },
+                    "time": {
+                      "created": "2020-07-09T13:31:41.309Z",
+                      "modified": "2026-03-17T17:54:04.034Z",
+                      "0.0.0": "2020-07-09T13:31:41.493Z",
+                      "0.0.1": "2021-07-27T19:32:56.099Z",
+                      "0.0.2": "2021-08-06T15:50:03.429Z",
+                      "0.0.3": "2021-08-06T16:03:15.842Z",
+                      "0.0.4": "2021-08-06T17:00:48.876Z",
+                      "0.0.5": "2021-08-12T18:55:25.791Z"
+                    },
+                    "bugs": {
+                      "url": "https://github.com/openai/openai-node/issues"
+                    },
+                    "author": {
+                      "name": "OpenAI",
+                      "email": "support@openai.com"
+                    }
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "domain": "npmjs.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:56:09.556Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 3927,
+            "tokens_used": 26,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+            "endpoints_discovered": 1,
+            "seeded_from": "canonical_document"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "learned_skill_only",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 26,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+                "endpoints_discovered": 1,
+                "seeded_from": "canonical_document"
+              }
+            },
+            {
+              "endpoint_id": "ANF3EfY_EsSqWtc6g0hl6",
+              "endpoint_url": "https://registry.npmjs.org/openai",
+              "trigger_url": "https://www.npmjs.com/package/openai",
+              "execute_ms": 1141,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "package_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 1,
+              "observed_entity_types": [
+                "package"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "ANF3EfY_EsSqWtc6g0hl6"
+              },
+              "excerpt": {
+                "name": "openai",
+                "version": "6.32.0",
+                "description": "The official TypeScript library for the OpenAI API",
+                "author": "OpenAI",
+                "url": "https://github.com/openai/openai-node#readme"
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/package/openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "ANF3EfY_EsSqWtc6g0hl6",
+            "max_rank": 5
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://www.npmjs.com/package/openai",
+          "force_capture": false,
+          "resolve_ms": 4658,
+          "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+          "available_endpoint_ids": [
+            "ANF3EfY_EsSqWtc6g0hl6"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
+            "selected_path": [
+              "ANF3EfY_EsSqWtc6g0hl6"
+            ],
+            "reason": "dag_path_found"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.npmjs.com/package/openai",
+              "domain": "www.npmjs.com",
+              "pathname": "/package/openai",
+              "slug_1": "package",
+              "slug_2": "openai"
+            },
+            "chunk": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "intent": "get package info",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
+              "available_operations": [
+                {
+                  "operation_id": "ANF3EfY_EsSqWtc6g0hl6",
+                  "method": "GET",
+                  "action_kind": "trending",
+                  "resource_kind": "resource",
+                  "title": "trending resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://registry.npmjs.org/openai",
+                  "requires": [],
+                  "yields": [
+                    "_id",
+                    "resource_name"
+                  ],
+                  "example_request": {
+                    "url": "https://www.npmjs.com/package/openai",
+                    "intent": "get package info"
+                  },
+                  "example_response_compact": {
+                    "_id": "openai",
+                    "_rev": "383-42f3e49d4f033018d69771dd1382c1a2",
+                    "name": "openai",
+                    "dist-tags": {
+                      "next": "4.0.0-beta.12",
+                      "alpha": "5.0.0-alpha.0",
+                      "beta": "5.0.0-beta.0",
+                      "latest": "6.32.0"
+                    },
+                    "versions": {
+                      "0.0.0": {
+                        "name": "openai",
+                        "version": "0.0.0",
+                        "license": "MIT",
+                        "_id": "openai@0.0.0",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "dist": {
+                          "shasum": "8de6a226b7f7ac71ae4e826e9e3d51cf9adf2dc6",
+                          "tarball": "https://registry.npmjs.org/openai/-/openai-0.0.0.tgz",
+                          "fileCount": 2,
+                          "integrity": "sha512-zMfA6bKY9mYD5+49ozQd3eKmVwIAlPmUNsn+ShgWaMzIy1DlTXnEgKQt/iD5YZr38qwQN/JDHdieV6l1nEB9jg==",
+                          "signatures": [],
+                          "unpackedSize": 93,
+                          "npm-signature": "-----BEGIN PGP SIGNATURE-----\r\nVersion: OpenPGP.js v3.0.4\r\nComment: https://openpgpjs.org\r\n\r\nwsFcBAEBCAAQBQJfBxw9CRA9TVsSAnZWagAAucEP/ia8NxNyN+238V5MYKeY\njII0ii7mp89qtNci/T3/HGVZe9VByGqCPiHPRFGBywzggaCpnwSDZEjTHmL1\nR8ZynNVd5j+MrRdZo8CAlIf6QzqCXz6qyO3U6rkUschQ1c3Fopv5tVWOV/yU\nwArwG5mwlrRAA4tfgPvTiZyBaGUxgL+TNrCjLZb6D3vvp3pWgcC7OsvrIv+V\nn/v6d3JJHBjr28nqAKaxT/MnUTHayZsyDsX6gi2jKH2LCwd0KupLsAj3r5es\nADPilFE02mjOJ2aezBDhbuBTYLj5pjB0nCG+i7FPUNMmuNeUCyIkadsNPgZN\nRF0JGBD0bUnXPiWuZNzKYDSwz94hBzzsOngMM1Y4juFpfImMUUQJFRdWZMO5\nzg9n5zV9WkbU+W801t/u/2tLXMzIGZ9zBRS3A5wqtHRevZ9rWXTlv7cTRgPu\nypSqiWnUU+Xr1x42NHhbVGYrCaguRRSSsuRouqh0dL1tL5NrsMhzlH4knQV4\nG7vgToBJzZJDNWeZZxQ4+plJpTjkVP3xZLGcrZWufY+nOTSGqWhqYKJTFeLh\nHoXPTLfFV9ZJhQvPGNzgro5Ijf+L8YebGafnR3iiplMqXK8kW5IQHGHpKZTm\nLkVlddnu4jh44mKui7AQp9udA02JiCxDNCpvyf8U0qXpPzjQoJ0vntC9c/fu\nncfu\r\n=/5IF\r\n-----END PGP SIGNATURE-----\r\n"
+                        },
+                        "main": "index.js",
+                        "_npmUser": {
+                          "name": "richienb",
+                          "email": "richiebendall@gmail.com"
+                        }
+                      },
+                      "0.0.1": {
+                        "name": "openai",
+                        "version": "0.0.1",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.1",
+                        "maintainers": [
+                          "[truncated]",
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.2": {
+                        "name": "openai",
+                        "version": "0.0.2",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.2",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.3": {
+                        "name": "openai",
+                        "version": "0.0.3",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.3",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.4": {
+                        "name": "openai",
+                        "version": "0.0.4",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.4",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.5": {
+                        "name": "openai",
+                        "version": "0.0.5",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.5",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.6": {
+                        "name": "openai",
+                        "version": "0.0.6",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.6",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      },
+                      "0.0.7": {
+                        "name": "openai",
+                        "version": "0.0.7",
+                        "keywords": [
+                          "gpt-3",
+                          "gpt",
+                          "ai"
+                        ],
+                        "author": {
+                          "name": "ceifa"
+                        },
+                        "license": "MIT",
+                        "_id": "openai@0.0.7",
+                        "maintainers": [
+                          "[truncated]"
+                        ],
+                        "homepage": "https://github.com/ceifa/openai#readme"
+                      }
+                    },
+                    "time": {
+                      "created": "2020-07-09T13:31:41.309Z",
+                      "modified": "2026-03-17T17:54:04.034Z",
+                      "0.0.0": "2020-07-09T13:31:41.493Z",
+                      "0.0.1": "2021-07-27T19:32:56.099Z",
+                      "0.0.2": "2021-08-06T15:50:03.429Z",
+                      "0.0.3": "2021-08-06T16:03:15.842Z",
+                      "0.0.4": "2021-08-06T17:00:48.876Z",
+                      "0.0.5": "2021-08-12T18:55:25.791Z"
+                    },
+                    "bugs": {
+                      "url": "https://github.com/openai/openai-node/issues"
+                    },
+                    "author": {
+                      "name": "OpenAI",
+                      "email": "support@openai.com"
+                    }
+                  }
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "domain": "npmjs.com",
+              "auth_required": false,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:56:15.278Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 3934,
+            "tokens_used": 26,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+            "endpoints_discovered": 1,
+            "seeded_from": "canonical_document"
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "learned_skill_only",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [],
+              "missing_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 26,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+                "endpoints_discovered": 1,
+                "seeded_from": "canonical_document"
+              }
+            },
+            {
+              "endpoint_id": "ANF3EfY_EsSqWtc6g0hl6",
+              "endpoint_url": "https://registry.npmjs.org/openai",
+              "trigger_url": "https://www.npmjs.com/package/openai",
+              "execute_ms": 716,
+              "attempt_count": 1,
+              "verdict": "pass",
+              "reason": "package_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 1,
+              "observed_entity_types": [
+                "package"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": true,
+                "reason": "selection_match",
+                "matched_endpoint_id": "ANF3EfY_EsSqWtc6g0hl6"
+              },
+              "excerpt": {
+                "name": "openai",
+                "version": "6.32.0",
+                "description": "The official TypeScript library for the OpenAI API",
+                "author": "OpenAI",
+                "url": "https://github.com/openai/openai-node#readme"
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.npmjs.com/package/openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          },
+          "retrieval_check": {
+            "ok": true,
+            "reason": "retrieval_match",
+            "matched_rank": 1,
+            "matched_endpoint_id": "ANF3EfY_EsSqWtc6g0hl6",
+            "max_rank": 5
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "package_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 4087,
+          "total_execute_ms": 1141,
+          "total_ms": 5228,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 52,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "pass",
+          "goal_satisfied": true,
+          "final_reason": "package_rows",
+          "total_rounds": 1,
+          "total_resolve_ms": 4658,
+          "total_execute_ms": 716,
+          "total_ms": 5374,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 52,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "delta": {
+          "speedup_ms": -146,
+          "speedup_ratio": 0.97,
+          "token_delta": 0,
+          "token_reduction_pct": 0
+        }
+      }
+    }
+  ]
+}

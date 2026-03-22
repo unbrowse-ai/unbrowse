@@ -1,49 +1,34 @@
 {
-  "generated_at": "2026-03-21T12:58:48.227Z",
-  "api_url": "https://unbrowse-backend-staging.lewis-6d8.workers.dev",
+  "generated_at": "2026-03-22T20:51:12.977Z",
+  "api_url": "https://beta-api.unbrowse.ai",
   "cases_path": "/Users/lekt9/Projects/unbrowse/evals/marketplace-retrieval-cases.json",
   "summary": {
-    "total_cases": 14,
-    "passed_cases": 12,
-    "failed_cases": 2,
-    "top1_hits": 12,
-    "within_rank_hits": 12,
-    "domain_filter_cases": 7,
-    "domain_filter_passes": 7,
+    "total_cases": 8,
+    "passed_cases": 3,
+    "failed_cases": 5,
+    "top1_hits": 3,
+    "within_rank_hits": 3,
+    "domain_filter_cases": 3,
+    "domain_filter_passes": 0,
     "cases_with_offdomain_results": 0
   },
   "results": [
-    {
-      "id": "global-gamma-quote",
-      "ok": false,
-      "route": "search",
-      "lane": "results",
-      "domain_filter_checked": false,
-      "metadata_available": false,
-      "expected_rank": null,
-      "max_rank": 1,
-      "total_results": 0,
-      "offdomain_results": 0,
-      "top_result": null,
-      "failures": [
-        {
-          "code": "missing_expected_result",
-          "detail": "missing marketplace-eval-gamma-market:gamma-stock-quote in results"
-        }
-      ]
-    },
     {
       "id": "global-alpha-docs",
       "ok": false,
       "route": "search",
       "lane": "results",
       "domain_filter_checked": false,
-      "metadata_available": false,
+      "metadata_available": true,
       "expected_rank": null,
       "max_rank": 1,
-      "total_results": 0,
+      "total_results": 1,
       "offdomain_results": 0,
-      "top_result": null,
+      "top_result": {
+        "skill_id": "marketplace-eval-beta-community",
+        "endpoint_id": "beta-thread-search",
+        "domain": "community.beta-eval.com"
+      },
       "failures": [
         {
           "code": "missing_expected_result",
@@ -52,83 +37,11 @@
       ]
     },
     {
-      "id": "global-alpha-package-info",
-      "ok": true,
-      "route": "search",
-      "lane": "results",
-      "domain_filter_checked": false,
-      "metadata_available": true,
-      "expected_rank": 1,
-      "max_rank": 1,
-      "total_results": 1,
-      "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-alpha-packages",
-        "endpoint_id": "alpha-package-info",
-        "domain": "packages.alpha-eval.com"
-      },
-      "failures": []
-    },
-    {
       "id": "global-beta-community",
       "ok": true,
       "route": "search",
       "lane": "results",
       "domain_filter_checked": false,
-      "metadata_available": true,
-      "expected_rank": 1,
-      "max_rank": 1,
-      "total_results": 4,
-      "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-beta-community",
-        "endpoint_id": "beta-thread-search",
-        "domain": "community.beta-eval.com"
-      },
-      "failures": []
-    },
-    {
-      "id": "domain-gamma-history",
-      "ok": true,
-      "route": "domain",
-      "lane": "results",
-      "domain_filter_checked": true,
-      "metadata_available": true,
-      "expected_rank": 1,
-      "max_rank": 1,
-      "total_results": 2,
-      "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-gamma-market",
-        "endpoint_id": "gamma-chart-history",
-        "domain": "quotes.gamma-eval.com"
-      },
-      "failures": []
-    },
-    {
-      "id": "domain-alpha-docs",
-      "ok": true,
-      "route": "domain",
-      "lane": "results",
-      "domain_filter_checked": true,
-      "metadata_available": true,
-      "expected_rank": 1,
-      "max_rank": 1,
-      "total_results": 2,
-      "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-alpha-docs",
-        "endpoint_id": "alpha-doc-search",
-        "domain": "docs.alpha-eval.com"
-      },
-      "failures": []
-    },
-    {
-      "id": "domain-beta-community",
-      "ok": true,
-      "route": "domain",
-      "lane": "results",
-      "domain_filter_checked": true,
       "metadata_available": true,
       "expected_rank": 1,
       "max_rank": 1,
@@ -143,78 +56,62 @@
     },
     {
       "id": "domain-gamma-news",
-      "ok": true,
+      "ok": false,
       "route": "domain",
       "lane": "results",
       "domain_filter_checked": true,
-      "metadata_available": true,
-      "expected_rank": 1,
+      "metadata_available": false,
+      "expected_rank": null,
       "max_rank": 1,
-      "total_results": 1,
+      "total_results": 0,
       "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-gamma-news",
-        "endpoint_id": "gamma-news-search",
-        "domain": "news.gamma-eval.com"
-      },
-      "failures": []
-    },
-    {
-      "id": "resolve-gamma-domain",
-      "ok": true,
-      "route": "resolve",
-      "lane": "domain_results",
-      "domain_filter_checked": true,
-      "metadata_available": true,
-      "expected_rank": 1,
-      "max_rank": 1,
-      "total_results": 2,
-      "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-gamma-market",
-        "endpoint_id": "gamma-chart-history",
-        "domain": "quotes.gamma-eval.com"
-      },
-      "skipped_global": true,
-      "failures": []
+      "top_result": null,
+      "failures": [
+        {
+          "code": "missing_expected_result",
+          "detail": "missing marketplace-eval-gamma-news:gamma-news-search in results"
+        }
+      ]
     },
     {
       "id": "resolve-alpha-docs-domain",
-      "ok": true,
+      "ok": false,
       "route": "resolve",
       "lane": "domain_results",
       "domain_filter_checked": true,
-      "metadata_available": true,
-      "expected_rank": 1,
+      "metadata_available": false,
+      "expected_rank": null,
       "max_rank": 1,
-      "total_results": 2,
+      "total_results": 0,
       "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-alpha-docs",
-        "endpoint_id": "alpha-doc-search",
-        "domain": "docs.alpha-eval.com"
-      },
-      "skipped_global": true,
-      "failures": []
+      "top_result": null,
+      "skipped_global": false,
+      "failures": [
+        {
+          "code": "missing_expected_result",
+          "detail": "missing marketplace-eval-alpha-docs:alpha-doc-search in domain_results"
+        }
+      ]
     },
     {
       "id": "resolve-gamma-news-domain",
-      "ok": true,
+      "ok": false,
       "route": "resolve",
       "lane": "domain_results",
       "domain_filter_checked": true,
-      "metadata_available": true,
-      "expected_rank": 1,
+      "metadata_available": false,
+      "expected_rank": null,
       "max_rank": 1,
-      "total_results": 1,
+      "total_results": 0,
       "offdomain_results": 0,
-      "top_result": {
-        "skill_id": "marketplace-eval-gamma-news",
-        "endpoint_id": "gamma-news-search",
-        "domain": "news.gamma-eval.com"
-      },
-      "skipped_global": true,
-      "failures": []
+      "top_result": null,
+      "skipped_global": false,
+      "failures": [
+        {
+          "code": "missing_expected_result",
+          "detail": "missing marketplace-eval-gamma-news:gamma-news-search in domain_results"
+        }
+      ]
     },
     {
       "id": "resolve-alpha-sibling-fallback",
@@ -244,7 +141,7 @@
       "metadata_available": true,
       "expected_rank": 1,
       "max_rank": 3,
-      "total_results": 4,
+      "total_results": 1,
       "offdomain_results": 0,
       "top_result": {
         "skill_id": "marketplace-eval-beta-community",
@@ -256,22 +153,27 @@
     },
     {
       "id": "resolve-gamma-news-fallback",
-      "ok": true,
+      "ok": false,
       "route": "resolve",
       "lane": "global_results",
       "domain_filter_checked": false,
       "metadata_available": true,
-      "expected_rank": 1,
+      "expected_rank": null,
       "max_rank": 3,
-      "total_results": 6,
+      "total_results": 1,
       "offdomain_results": 0,
       "top_result": {
-        "skill_id": "marketplace-eval-gamma-news",
-        "endpoint_id": "gamma-news-search",
-        "domain": "news.gamma-eval.com"
+        "skill_id": "marketplace-eval-beta-community",
+        "endpoint_id": "beta-thread-search",
+        "domain": "community.beta-eval.com"
       },
       "skipped_global": false,
-      "failures": []
+      "failures": [
+        {
+          "code": "missing_expected_result",
+          "detail": "missing marketplace-eval-gamma-news:gamma-news-search in global_results"
+        }
+      ]
     }
   ]
 }

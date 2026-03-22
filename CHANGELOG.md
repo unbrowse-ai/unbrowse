@@ -22,6 +22,12 @@
 - default frontend ToS consent to checked while keeping the toggle visible before API key generation
 - stop generic LinkedIn jobs/people marketplace skills from winning feed-post intents by requiring a feed/timeline endpoint match before cache or marketplace reuse
 - add a WebArena-style multistep eval lane with step-level retrieval and selection assertions, so workflows only pass when shortlist, chosen endpoint, and execution output all line up
+- consolidate the eval surface around `eval:core` and `eval:full`, with older stress/repeatability/many-domain lanes kept as advanced support signals instead of the default product story
+- make the canonical eval commands restart the local repo server before local CLI-backed runs, so stale dev servers do not contaminate product-success or WebArena workflow results
+- bound marketplace eval readiness probes and harden local eval PID parsing so clean-restart mode does not self-kill the harness process group
+- move the canonical WebArena multistep lane to stable public workflows, while keeping the auth-heavy demo workflows as an explicit debug lane
+- make `eval:retrieval` the deterministic fixture-backed marketplace regression gate, while keeping the live beta marketplace probe as an explicit advanced/debug lane
+- drop the flaky BeatSaver browser-fallback case from the canonical product-success corpus so `eval:core` reflects the stable public claim path
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
@@ -206,6 +212,7 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 
 ### Setup & onboarding
 
+- Added a repo-local `gh-paper-delivery` skill for turning whitepapers, repo context, and launch goals into prioritized GitHub issues, blockers, private Project boards, and dated roadmap bars.
 - Added a publish guard around `packages/skill` so direct folder-level npm publishes now fail closed with instructions to use the repo-root release flow, plus explicit root scripts for `bun run pack:cli` and `bun run publish:cli` when a synced local publish is intentional.
 - Release config now sets `npm.ignoreVersion=true` so `release-it` does not re-run `npm version` after `@release-it/bumper` has already synced the root package, skill package, and `version.json`.
 - Added a skill README callout asking users to post sites/APIs they could not get working in GitHub Discussion #53 so those failures can become explicit requirements in the next eval cycle.

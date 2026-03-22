@@ -13,6 +13,7 @@ import { getRegistrableDomain, isDomainMatch } from "../src/domain.js";
 import { startUnbrowseServer, type RunningUnbrowseServer } from "../src/server.js";
 import { storeCredential } from "../src/vault/index.js";
 import { compactForArtifact } from "./codex-harness-lib.js";
+import { parsePortListenerPids } from "./server-pid-utils.js";
 import {
   corpusSummary,
   filterAuthEvalCases,
@@ -142,13 +143,15 @@ const maxFollowUrls = Math.max(0, Number(getArg("max-follow-urls") || "3") || 3)
 const resultsPath = resolve(getArg("out") || DEFAULT_RESULTS_PATH);
 const interactiveLogin = hasFlag("interactive-login");
 const benchmarkMode = hasFlag("benchmark");
+const restartServer = hasFlag("restart-server") || process.env.UNBROWSE_EVAL_RESTART_SERVER === "1";
 let localServer: RunningUnbrowseServer | null = null;
+let initialServerResetDone = false;
 
 function usage(): never {
   console.error(
     "Usage:\n" +
     "  bun evals/codex-auth-runner.ts [--cases evals/codex-cases.auth-popular.json]\n" +
-    "Optional: --suite popular-cookie-reuse|scripted-demo|all --id <case-id> --top 10 --suite-rounds 3 --interactive-login --benchmark --max-rounds 6 --max-candidates 4 --max-follow-urls 3 --out <path>",
+    "Optional: --suite popular-cookie-reuse|scripted-demo|all --id <case-id> --top 10 --suite-rounds 3 --interactive-login --benchmark --restart-server --max-rounds 6 --max-candidates 4 --max-follow-urls 3 --out <path>",
   );
   process.exit(1);
 }
@@ -399,6 +402,18 @@ async function interactiveLoginBootstrap(testCase: AuthEvalCase): Promise<Bootst
 
 async function bootstrapCase(testCase: AuthEvalCase): Promise<BootstrapOutcome> {
   switch (testCase.auth_bootstrap.strategy) {
+    case "none":
+      return {
+        strategy: testCase.auth_bootstrap.strategy,
+        status: "ready",
+        reason: "no_bootstrap_required",
+        cookies_found: 0,
+        matched_required_cookies: [],
+        login_url: testCase.auth_bootstrap.login_url,
+        success_url: testCase.auth_bootstrap.success_url,
+        elapsed_ms: 0,
+        used_existing_session: false,
+      };
     case "cookie_reuse":
       return cookieReuse(testCase);
     case "scripted_login":
@@ -475,15 +490,13 @@ function listServerPids(): number[] {
   }
   try {
     const out = Bun.spawnSync(["lsof", "-ti", `tcp:${LOCAL_PORT}`], { cwd: ROOT, stdout: "pipe", stderr: "pipe" });
-    const text = out.stdout.toString().trim();
-    for (const line of text.split("\n")) {
-      const pid = Number(line.trim());
-      if (Number.isFinite(pid)) pids.add(pid);
-    }
+    const blocked = [process.pid, process.ppid];
+    for (const pid of parsePortListenerPids(out.stdout.toString(), blocked)) pids.add(pid);
   } catch {
     // best effort
   }
-  return [...pids];
+  const blocked = new Set<number>([process.pid, process.ppid]);
+  return [...pids].filter((pid) => !blocked.has(pid));
 }
 
 async function stopRepoServer(): Promise<void> {
@@ -505,9 +518,13 @@ async function stopRepoServer(): Promise<void> {
 }
 
 async function ensureRepoServer(): Promise<void> {
+  if (restartServer && !initialServerResetDone) {
+    await stopRepoServer();
+    initialServerResetDone = true;
+  }
   if (localServer) return;
-  // Reuse an already-healthy server instead of killing whatever currently owns
-  // the local port. The auth runner only needs a healthy API base.
+  // Outside explicit restart mode, reuse an already-healthy server instead of
+  // killing whatever currently owns the local port.
   if (await isServerUp()) return;
   process.env.UNBROWSE_DISABLE_RATE_LIMIT = "1";
   localServer = await startUnbrowseServer({

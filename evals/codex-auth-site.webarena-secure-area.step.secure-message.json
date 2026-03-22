@@ -1,0 +1,407 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 0,
+    "fail": 1,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 0,
+    "unsatisfied": 1,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": true,
+    "mode": "autonomous",
+    "benchmark_summary": {
+      "cases": 1,
+      "cold_total_ms": 20412,
+      "warm_total_ms": 33211,
+      "speedup_ms": -12799,
+      "cold_tokens_used": 166,
+      "warm_tokens_used": 332,
+      "token_delta": -166
+    }
+  },
+  "results": [
+    {
+      "id": "webarena-secure-area:secure-message",
+      "intent": "get secure area message",
+      "auth": true,
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "intent_mismatch",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "message"
+      ],
+      "missing_fields": [
+        "title"
+      ],
+      "repair_memory": {
+        "visited_urls": [
+          "https://the-internet.herokuapp.com/secure"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {
+          "intent": 2
+        },
+        "reasons_seen": [
+          "escalate_force_capture",
+          "intent_mismatch"
+        ]
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "run_label": "cold",
+          "url": "https://the-internet.herokuapp.com/secure",
+          "force_capture": true,
+          "resolve_ms": 20412,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://the-internet.herokuapp.com/secure",
+              "domain": "the-internet.herokuapp.com",
+              "pathname": "/secure",
+              "slug_1": "secure"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get secure area message",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:18:11.608Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 19419,
+            "tokens_used": 83,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "auth_required",
+            "provider": "herokuapp.com",
+            "login_url": "https://the-internet.herokuapp.com/login",
+            "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://the-internet.herokuapp.com/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "auth_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "message"
+              ],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 83,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "auth_required",
+                "provider": "herokuapp.com",
+                "login_url": "https://the-internet.herokuapp.com/login",
+                "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://the-internet.herokuapp.com/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://the-internet.herokuapp.com/secure"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 1
+            },
+            "reasons_seen": [
+              "intent_mismatch"
+            ]
+          },
+          "retrieval_check": {
+            "ok": false,
+            "reason": "retrieval_missing_top1",
+            "max_rank": 1
+          }
+        },
+        {
+          "round": 1,
+          "run_label": "warm",
+          "url": "https://the-internet.herokuapp.com/secure",
+          "force_capture": false,
+          "resolve_ms": 17817,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://the-internet.herokuapp.com/secure",
+              "domain": "the-internet.herokuapp.com",
+              "pathname": "/secure",
+              "slug_1": "secure"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get secure area message",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:18:11.608Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 16779,
+            "tokens_used": 83,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "auth_required",
+            "provider": "herokuapp.com",
+            "login_url": "https://the-internet.herokuapp.com/login",
+            "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://the-internet.herokuapp.com/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "auth_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "message"
+              ],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 83,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "auth_required",
+                "provider": "herokuapp.com",
+                "login_url": "https://the-internet.herokuapp.com/login",
+                "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://the-internet.herokuapp.com/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+              }
+            }
+          ],
+          "repair_action": "retry_force_capture",
+          "repair_reason": "escalate_force_capture",
+          "repair_memory": {
+            "visited_urls": [
+              "https://the-internet.herokuapp.com/secure"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 1
+            },
+            "reasons_seen": [
+              "escalate_force_capture"
+            ]
+          },
+          "retrieval_check": {
+            "ok": false,
+            "reason": "retrieval_missing_top1",
+            "max_rank": 1
+          }
+        },
+        {
+          "round": 2,
+          "run_label": "warm",
+          "url": "https://the-internet.herokuapp.com/secure",
+          "force_capture": true,
+          "resolve_ms": 15394,
+          "skill_id": "browser-capture",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": false,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_operation_graph"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://the-internet.herokuapp.com/secure",
+              "domain": "the-internet.herokuapp.com",
+              "pathname": "/secure",
+              "slug_1": "secure"
+            },
+            "chunk": {
+              "skill_id": "browser-capture",
+              "intent": "get secure area message",
+              "missing_bindings": [],
+              "available_operations": []
+            },
+            "skill_snapshot": {
+              "skill_id": "browser-capture",
+              "domain": "agent",
+              "auth_required": false,
+              "endpoint_count": 0,
+              "operation_count": 0,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T20:18:11.608Z"
+            },
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 14224,
+            "tokens_used": 83,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "error": "auth_required",
+            "provider": "herokuapp.com",
+            "login_url": "https://the-internet.herokuapp.com/login",
+            "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://the-internet.herokuapp.com/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+          },
+          "candidates": [
+            {
+              "endpoint_id": "browser-capture",
+              "attempt_count": 0,
+              "verdict": "fail",
+              "reason": "auth_required",
+              "failure_class": "transport",
+              "source_kind": "record",
+              "matched_fields": [
+                "message"
+              ],
+              "missing_fields": [
+                "title"
+              ],
+              "row_count": 1,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_missing_endpoint"
+              },
+              "tokens_used": 83,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": {
+                "error": "auth_required",
+                "provider": "herokuapp.com",
+                "login_url": "https://the-internet.herokuapp.com/login",
+                "message": "Site requires authentication. Call POST /v1/auth/login with {\"url\": \"https://the-internet.herokuapp.com/login\"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers."
+              }
+            }
+          ],
+          "repair_action": "stop",
+          "repair_reason": "intent_mismatch",
+          "repair_memory": {
+            "visited_urls": [
+              "https://the-internet.herokuapp.com/secure"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {
+              "intent": 2
+            },
+            "reasons_seen": [
+              "escalate_force_capture",
+              "intent_mismatch"
+            ]
+          },
+          "retrieval_check": {
+            "ok": false,
+            "reason": "retrieval_missing_top1",
+            "max_rank": 1
+          }
+        }
+      ],
+      "benchmark": {
+        "mode": "cold-warm",
+        "cold": {
+          "label": "cold",
+          "final_state": "fail",
+          "goal_satisfied": false,
+          "final_reason": "intent_mismatch",
+          "total_rounds": 1,
+          "total_resolve_ms": 20412,
+          "total_execute_ms": 0,
+          "total_ms": 20412,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 166,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "warm": {
+          "label": "warm",
+          "final_state": "fail",
+          "goal_satisfied": false,
+          "final_reason": "intent_mismatch",
+          "total_rounds": 2,
+          "total_resolve_ms": 33211,
+          "total_execute_ms": 0,
+          "total_ms": 33211,
+          "first_source": "live-capture",
+          "final_source": "live-capture",
+          "total_tokens_used": 332,
+          "total_tokens_saved": 0,
+          "avg_tokens_saved_pct": 0
+        },
+        "delta": {
+          "speedup_ms": -12799,
+          "speedup_ratio": 0.61,
+          "token_delta": -166,
+          "token_reduction_pct": -100
+        }
+      }
+    }
+  ]
+}

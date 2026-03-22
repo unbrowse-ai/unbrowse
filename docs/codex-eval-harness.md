@@ -1,9 +1,10 @@
 # Codex Eval Harness
 
 Purpose:
-- run the real CLI path from inside the repo
-- collect raw CLI evidence for the agent in this thread to inspect and judge
-- leave an artifact Codex can inspect in the same workspace
+- one canonical product-confidence stack
+- real CLI/orchestrator path, not low-level plumbing shortcuts
+- explicit judgment of retrieval, selection, and execution
+- leave artifacts in-workspace when deeper debugging is needed
 
 Script:
 - [evals/codex-harness.ts](/Users/lekt9/Projects/unbrowse/evals/codex-harness.ts)
@@ -28,7 +29,30 @@ npm install /Users/lekt9/Projects/unbrowse/packages/skill/unbrowse-*.tgz
 ```
 
 Use the packaged `unbrowse` binary for install/runtime smoke checks.
-Use `bun run eval:codex` for repo-path debugging and artifact inspection.
+
+## Default commands
+
+Run the canonical public-confidence stack:
+```bash
+bun run eval:core
+```
+
+This is the main product signal. It runs:
+- fixture-backed marketplace retrieval rank/leakage regression checks
+- task-shaped product-success cases
+- stable public WebArena-style multistep workflows with retrieval + selection + execution truth
+- clean local repo-server restarts for the local CLI-backed lanes so stale dev servers do not leak into eval results
+
+Run the fuller stack when auth behavior matters:
+```bash
+bun run eval:full
+```
+
+This adds the broader auth corpus on top of `eval:core`.
+
+## Debug / advanced
+
+Use `bun run eval:codex` for one-off repo-path debugging and artifact inspection.
 
 Run one case:
 ```bash
@@ -45,12 +69,30 @@ Run a case file:
 bun run eval:codex -- --cases evals/codex-cases.example.json --force-capture
 ```
 
-Run the canonical product-success suite:
+Run the task-shaped product-success suite directly:
 ```bash
 bun run eval:codex:product-success
 ```
 
-This now uses the autonomous harness, not the manual review queue.
+Run the WebArena-style multistep suite directly:
+```bash
+bun run eval:codex:webarena
+```
+
+Run the auth-heavy WebArena demo workflows directly:
+```bash
+bun run eval:codex:webarena:auth-demo
+```
+
+Run retrieval-only rank/leakage checks directly:
+```bash
+bun run eval:retrieval
+```
+
+Run the live marketplace retrieval probe directly:
+```bash
+bun run eval:retrieval:live
+```
 
 Run the autonomous repair loop:
 ```bash
@@ -73,14 +115,9 @@ bun run eval:codex:campaign -- \
   --max-candidates 4
 ```
 
-Run the auth corpus:
+Run the auth corpus directly:
 ```bash
 bun run eval:codex:auth
-```
-
-Run the WebArena-style multistep corpus:
-```bash
-bun run eval:codex:webarena
 ```
 
 Run only the scripted demo auth cases:
@@ -111,7 +148,7 @@ bun run eval:codex:many-domains:gate
 Notes:
 - uses the actual CLI resolve path:
   - `resolve --raw`
-- harness is collector-only:
+- `eval:codex` harness is collector-only:
   - every case stops at resolve
   - harness never auto-executes for scoring
   - the final verdict happens in-thread by the agent reviewing the artifact
@@ -146,7 +183,8 @@ Notes:
   - avoids the broken “1k sites in one process” pattern
 - auth cases require browser-imported cookies to already exist in the local vault
 - auth corpus lives in `evals/codex-cases.auth-popular.json`
-- WebArena-style multistep corpus lives in `evals/codex-cases.webarena.json`
+- canonical public WebArena-style multistep corpus lives in `evals/codex-cases.webarena.json`
+- auth-heavy WebArena demo corpus lives in `evals/codex-cases.webarena.auth-demo.json`
 - auth runner uses repo-native Unbrowse flows only:
   - `cookie_reuse`: reuse or import browser cookies into the vault
   - `scripted_demo`: run scripted login steps for stable demo sites, store cookies, then call the autonomous harness
@@ -160,22 +198,35 @@ Notes:
   - `evals/codex-auth-eval-last-run.json`
   - per-case autonomous artifacts:
     - `evals/codex-auth-site.<case-id>.json`
-- current corpus mixes:
+- current auth corpus mixes:
   - popularity-backed logged-in consumer sites from Similarweb's U.S. ranking
   - scripted demo login sites that should pass without user credentials
-- WebArena-style corpus focuses on stable scripted-demo workflows and adds step-level retrieval + selection assertions before execution truth is allowed to pass
+- canonical WebArena-style corpus focuses on stable public workflows and adds step-level retrieval + selection assertions before execution truth is allowed to pass
+- auth-demo WebArena corpus stays available for deeper browser/auth debugging, but is not part of the default product-confidence claim
 - AgentMail-style registration/OTP bootstrap is reserved as a future strategy; current runner records that case type as unsupported instead of pretending it passed
-- canonical product-success suite lives in `evals/codex-cases.product-success.json`
+- canonical public eval stack is:
+  - `eval:core`
+  - `eval:full`
+- task-shaped product-success suite lives in `evals/codex-cases.product-success.json`
 - stress suite lives in `evals/codex-cases.stress.json`
 - merged bulk-seed corpus lives in `evals/codex-cases.bulk-seed.json`
-- `eval:codex:public` is an alias to the autonomous product-success suite
-- `eval:codex:agent-targets` is an alias to the stress suite
+- public WebArena-style multistep suite lives in `evals/codex-cases.webarena.json`
+- auth-demo WebArena suite lives in `evals/codex-cases.webarena.auth-demo.json`
+- `eval:retrieval` is the concise fixture-backed alias for marketplace ranking regression checks
+- `eval:retrieval:live` hits the live beta marketplace and is useful for backend/index debugging, but not part of the canonical product-confidence gate
+- `eval:codex:public` is a legacy alias to the autonomous product-success suite
+- `eval:codex:agent-targets` is a legacy alias to the stress suite
 - `eval:codex:many-domains` runs the public-expansion corpus into `evals/codex-many-domains-last-run.json`
 - `eval:codex:many-domains:gate` adds breadth thresholds on top of that corpus:
   - enough cases
   - enough distinct hosts
   - enough intent diversity
   - enough satisfied outcomes to support broader public-coverage claims
+- `eval:core` should be the default product-confidence command because it covers:
+  - retrieval correctness
+  - endpoint selection correctness
+  - execution correctness
+  - multistep workflow correctness
 - product-success suite is intentionally task-shaped:
   - real result/detail pages, not random homepages
   - at least one param-seeded case
