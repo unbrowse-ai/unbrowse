@@ -276,6 +276,7 @@ jobs:
       - run: |
           export PATH="$HOME/.bun/bin:/usr/local/bin:$PATH"
           UNBROWSE_BACKEND_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
+          UNBROWSE_API_KEY=staging-eval \
             bun test ./evals/staging-browser.test.ts
         name: Run browser capture eval against staging
 
