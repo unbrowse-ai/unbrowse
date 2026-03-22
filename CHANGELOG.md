@@ -31,6 +31,7 @@
 - auto-accept ToS on registration and authenticated use, remove the extra CLI ToS handshake, and move the legal notice into the skill/package docs instead of runtime setup prompts
 - track the bundled Windows Kuri binary in git so clean CI/npm package validation uses the vendored runtime instead of trying to rebuild Kuri with Zig during `npm pack`
 - bundle Windows Kuri binaries in the npm CLI package, fix Windows eval artifact paths, and gate npm publish on a Windows packaged-CLI smoke install
+- normalize `SKILL.md` newline handling in the sync script so Windows CI stops failing false-positive sync checks on CRLF checkouts
 - propagate execute context (`url` and `intent`) through the MCP and framework adapters so browser-capture-backed skills replay correctly
 - treat JSON error payloads from the CLI as real adapter failures in MCP and plugin wrappers
 - stop blocked-shell capture retries from bubbling a generic internal error; degrade to typed auth/no-endpoint results instead
