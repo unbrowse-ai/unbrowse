@@ -147,7 +147,7 @@ bun run submodules:init
 
 This syncs and initializes the tracked Kuri submodule:
 
-- `submodules/kuri` from [justrach/kuri](https://github.com/justrach/kuri.git)
+- `submodules/kuri` from [lekt9/kuri](https://github.com/lekt9/kuri) on the `codex/fix-managed-discover-cdp` branch
 
 `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
 

@@ -1260,6 +1260,18 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
     if (Array.isArray(unwrapped.items)) return unwrapped.items;
   }
 
+  if (/\b(search|find|lookup)\b/.test(lower)) {
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).docs)) {
+      return (unwrapped as Record<string, unknown>).docs;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).results)) {
+      return (unwrapped as Record<string, unknown>).results;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).items)) {
+      return (unwrapped as Record<string, unknown>).items;
+    }
+  }
+
   if (/\b(email|emails|mail|inbox)\b/.test(lower)) {
     const normalizedEmails = normalizeEmailRows(unwrapped);
     if (normalizedEmails.length > 0) return normalizedEmails;
@@ -1506,6 +1518,15 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["description", "type", "member_count", "url"])
     );
     return matching.length >= 1 ? { verdict: "pass", reason: "channel_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(search|find|lookup)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["name", "title", "songName", "resource_name"]) &&
+      hasAnyPath(row, ["id", "url", "link", "href", "resource_id"]) &&
+      hasAnyPath(row, ["description", "summary", "metadata", "stats", "author", "uploader", "createdAt", "updatedAt"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "search_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
   return { verdict: "skip", reason: "unclassified_array" };

@@ -112,6 +112,24 @@ describe("intent result assessment", () => {
     expect(out.verdict).toBe("pass");
   });
 
+  test("passes beatsaver-style search payloads with top-level docs arrays", () => {
+    const out = assessIntentResult({
+      docs: [
+        {
+          id: "1573",
+          name: "Bad Apple",
+          description: "Beat Saber map",
+          uploader: { name: "redmagi" },
+          metadata: { songName: "Bad Apple" },
+          stats: { score: 0.92 },
+        },
+      ],
+      info: { total: 1, pages: 1 },
+    }, "search beat saber maps");
+
+    expect(out.verdict).toBe("pass");
+  });
+
   test("passes linkedin feed payloads when elements contain full update objects", () => {
     const verdict = assessIntentResult({
       data: {
