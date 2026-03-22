@@ -156,6 +156,8 @@ const apiUrl = getArg("api-url") || DEFAULT_API_URL;
 const apiKey = getArg("api-key") || DEFAULT_API_KEY;
 const skipPublish = hasFlag("skip-publish");
 const REQUEST_RETRIES = Math.max(0, Number(process.env.UNBROWSE_RETRIEVAL_RETRIES ?? "4"));
+const READINESS_TIMEOUT_MS = Math.max(15_000, Number(process.env.UNBROWSE_RETRIEVAL_READY_TIMEOUT_MS ?? "60000"));
+const READINESS_POLL_MS = Math.max(250, Number(process.env.UNBROWSE_RETRIEVAL_READY_POLL_MS ?? "1000"));
 
 function normalizeDomain(value: string): string {
   const trimmed = value.trim().toLowerCase();
@@ -387,6 +389,26 @@ export function evaluateRetrievalCase(
   };
 }
 
+export function hasExpectedResult(
+  corpus: RetrievalCorpus,
+  testCase: RetrievalCase,
+  payload: SearchPayload | ResolvePayload,
+): boolean {
+  const fixtures = expectedFixtureMap(corpus);
+  const expectedFixture = fixtures.get(testCase.expect.fixture);
+  if (!expectedFixture) {
+    throw new Error(`Unknown fixture ${testCase.expect.fixture} in case ${testCase.id}`);
+  }
+
+  const lane = testCase.lane ?? (testCase.route === "resolve" ? "domain_results" : "results");
+  return laneResults(payload, lane)
+    .map(parseSearchResultMetadata)
+    .some((entry) => (
+      entry.skill_id === expectedFixture.skill_id
+      && entry.endpoint_id === testCase.expect.endpoint_id
+    ));
+}
+
 function summarize(results: RetrievalEvaluation[]): RetrievalSummary {
   const totalCases = results.length;
   const passedCases = results.filter((result) => result.ok).length;
@@ -408,20 +430,19 @@ function summarize(results: RetrievalEvaluation[]): RetrievalSummary {
   };
 }
 
-async function waitForReadiness(corpus: RetrievalCorpus, timeoutMs = 15_000): Promise<void> {
+async function waitForReadiness(corpus: RetrievalCorpus, timeoutMs = READINESS_TIMEOUT_MS): Promise<void> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const checks = await Promise.all(corpus.cases.map(async (testCase) => {
       try {
         const payload = await runCaseQuery(testCase);
-        const lane = testCase.lane ?? (testCase.route === "resolve" ? "domain_results" : "results");
-        return laneResults(payload, lane).length > 0;
+        return hasExpectedResult(corpus, testCase, payload);
       } catch {
         return false;
       }
     }));
     if (checks.every(Boolean)) return;
-    await Bun.sleep(750);
+    await Bun.sleep(READINESS_POLL_MS);
   }
 }
 

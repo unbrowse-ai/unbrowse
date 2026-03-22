@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   domainMatchesRequested,
   evaluateRetrievalCase,
+  hasExpectedResult,
   parseSearchResultMetadata,
 } from "../scripts/eval-marketplace-retrieval.ts";
 
@@ -181,5 +182,33 @@ describe("marketplace retrieval eval helpers", () => {
     expect(evaluation.ok).toBe(false);
     expect(evaluation.metadata_available).toBe(false);
     expect(evaluation.failures.map((failure) => failure.code)).toContain("missing_result_metadata");
+  });
+
+  it("readiness requires the expected fixture in the target lane", () => {
+    const testCase = {
+      id: "resolve-alpha-sibling-fallback",
+      route: "resolve" as const,
+      lane: "global_results" as const,
+      intent: "package info",
+      domain: "docs.alpha-eval.com",
+      expect: {
+        fixture: "alpha-packages",
+        endpoint_id: "alpha-package-info",
+        max_rank: 3,
+        skipped_global: false,
+      },
+    };
+
+    expect(hasExpectedResult(FIXTURE_CORPUS as any, testCase, {
+      domain_results: [result("marketplace-eval-alpha-docs", "alpha-doc-search", "docs.alpha-eval.com")],
+      global_results: [result("marketplace-eval-alpha-packages", "alpha-package-info", "packages.alpha-eval.com")],
+      skipped_global: false,
+    })).toBe(true);
+
+    expect(hasExpectedResult(FIXTURE_CORPUS as any, testCase, {
+      domain_results: [result("marketplace-eval-alpha-docs", "alpha-doc-search", "docs.alpha-eval.com")],
+      global_results: [result("marketplace-eval-alpha-docs", "alpha-release-notes", "docs.alpha-eval.com")],
+      skipped_global: false,
+    })).toBe(false);
   });
 });
