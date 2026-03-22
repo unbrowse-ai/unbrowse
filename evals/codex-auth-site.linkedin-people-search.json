@@ -1,0 +1,233 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 2,
+    "max_candidates": 2,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "linkedin-people-search",
+      "intent": "search people",
+      "auth": true,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass",
+        "blocked",
+        "skip"
+      ],
+      "final_reason": "people_rows",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "name",
+        "headline",
+        "url"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://www.linkedin.com/search/results/people/?keywords=openai"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+          "force_capture": false,
+          "resolve_ms": 16013,
+          "skill_id": "rW6DiOftespg4kByDf2L1",
+          "available_endpoint_ids": [
+            "65z6uOtFplydqxjctTMIt"
+          ],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "target_operation_id": "65z6uOtFplydqxjctTMIt",
+            "selected_path": [],
+            "reason": "dag_unreachable"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+              "domain": "www.linkedin.com",
+              "pathname": "/search/results/people/",
+              "slug_1": "search",
+              "slug_2": "results",
+              "slug_3": "people",
+              "keywords": "openai"
+            },
+            "chunk": {
+              "skill_id": "rW6DiOftespg4kByDf2L1",
+              "intent": "search people",
+              "missing_bindings": [],
+              "suggested_next_operation_id": "65z6uOtFplydqxjctTMIt",
+              "available_operations": [
+                {
+                  "operation_id": "65z6uOtFplydqxjctTMIt",
+                  "method": "GET",
+                  "action_kind": "search",
+                  "resource_kind": "person",
+                  "title": "search person",
+                  "why_available": "Runnable now; required bindings already known: keywords.",
+                  "url_template": "https://www.linkedin.com/search/results/people/?keywords={keywords}",
+                  "requires": [
+                    "keywords"
+                  ],
+                  "yields": [
+                    "person_name",
+                    "profile_name",
+                    "user_name",
+                    "member_name",
+                    "person_url",
+                    "profile_url",
+                    "user_url",
+                    "member_url"
+                  ],
+                  "example_request": {
+                    "keywords": "openai"
+                  },
+                  "example_response_compact": [
+                    {
+                      "name": "Sharan T.",
+                      "url": "https://www.linkedin.com/in/sharanthangavel",
+                      "public_identifier": "sharanthangavel",
+                      "headline": "Sharan T. • 2nd"
+                    },
+                    {
+                      "name": "Bryan Koh",
+                      "url": "https://www.linkedin.com/in/bryan-koh-sg",
+                      "public_identifier": "bryan-koh-sg",
+                      "headline": "Bryan Koh, Brian Chew and 1 other mutual connection"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "rW6DiOftespg4kByDf2L1",
+              "domain": "linkedin.com",
+              "auth_required": true,
+              "endpoint_count": 1,
+              "operation_count": 1,
+              "edge_count": 0,
+              "updated_at": "2026-03-22T11:02:23.071Z"
+            },
+            "source": "live-capture",
+            "total_ms": 15930,
+            "tokens_used": 424,
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "name": "Sharan T.",
+                "url": "https://www.linkedin.com/in/sharanthangavel",
+                "public_identifier": "sharanthangavel",
+                "headline": "Sharan T. • 2nd"
+              },
+              {
+                "name": "Bryan Koh",
+                "url": "https://www.linkedin.com/in/bryan-koh-sg",
+                "public_identifier": "bryan-koh-sg",
+                "headline": "Bryan Koh, Brian Chew and 1 other mutual connection"
+              },
+              {
+                "name": "Brian Chew",
+                "url": "https://www.linkedin.com/in/brian-chew",
+                "public_identifier": "brian-chew",
+                "headline": "Bryan Koh, Brian Chew and 1 other mutual connection"
+              },
+              {
+                "name": "Jordan Seow",
+                "url": "https://www.linkedin.com/in/jordan-seow",
+                "public_identifier": "jordan-seow",
+                "headline": "Jordan Seow • 2nd"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.8500000000000001,
+              "source": "ssr-fast",
+              "final_url": "https://www.linkedin.com/search/results/people/?keywords=openai&type=accounts"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "65z6uOtFplydqxjctTMIt",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "people_rows",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "headline",
+                "url"
+              ],
+              "missing_fields": [],
+              "row_count": 9,
+              "observed_entity_types": [
+                "person"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 424,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
+              "excerpt": [
+                {
+                  "name": "Sharan T.",
+                  "headline": "Sharan T. • 2nd",
+                  "url": "https://www.linkedin.com/in/sharanthangavel",
+                  "public_identifier": "sharanthangavel"
+                },
+                {
+                  "name": "Bryan Koh",
+                  "headline": "Bryan Koh, Brian Chew and 1 other mutual connection",
+                  "url": "https://www.linkedin.com/in/bryan-koh-sg",
+                  "public_identifier": "bryan-koh-sg"
+                },
+                {
+                  "name": "Brian Chew",
+                  "headline": "Bryan Koh, Brian Chew and 1 other mutual connection",
+                  "url": "https://www.linkedin.com/in/brian-chew",
+                  "public_identifier": "brian-chew"
+                },
+                {
+                  "name": "Jordan Seow",
+                  "headline": "Jordan Seow • 2nd",
+                  "url": "https://www.linkedin.com/in/jordan-seow",
+                  "public_identifier": "jordan-seow"
+                }
+              ]
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://www.linkedin.com/search/results/people/?keywords=openai"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    }
+  ]
+}

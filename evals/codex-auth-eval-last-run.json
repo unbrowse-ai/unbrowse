@@ -1,501 +1,139 @@
 {
   "summary": {
-    "total": 4,
-    "attempts": 4,
-    "ready": 4,
+    "total": 1,
+    "attempts": 1,
+    "ready": 1,
     "skipped_bootstrap": 0,
     "failed_bootstrap": 0,
-    "pass": 2,
-    "fail": 2,
+    "pass": 1,
+    "fail": 0,
     "skip": 0,
     "blocked": 0,
-    "satisfied": 2,
-    "unsatisfied": 2,
-    "suite": "scripted-demo",
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "suite": "popular-cookie-reuse",
     "top": 0,
     "suite_rounds": 1,
     "benchmark": false,
     "interactive_login": false,
-    "max_rounds": 6,
-    "max_candidates": 4,
+    "max_rounds": 2,
+    "max_candidates": 2,
     "max_follow_urls": 3,
     "corpus": {
-      "total": 4,
+      "total": 1,
       "suites": {
-        "scripted-demo": 4
+        "popular-cookie-reuse": 1
       },
       "strategies": {
-        "scripted_login": 4
+        "cookie_reuse": 1
       }
     },
     "cases_path": "/Users/lekt9/Projects/unbrowse/evals/codex-cases.auth-popular.json"
   },
   "best_results": [
     {
-      "id": "orangehrm-dashboard",
+      "id": "linkedin-people-search",
       "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "opensource-demo.orangehrmlive.com",
-      "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-      "intent": "get dashboard widgets",
+      "suite": "popular-cookie-reuse",
+      "site": "linkedin.com",
+      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+      "intent": "search people",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 15,
+        "category": "professional-network",
+        "retrieved_at": "2026-03-13"
+      },
       "bootstrap": {
-        "strategy": "scripted_login",
+        "strategy": "cookie_reuse",
         "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 1,
-        "matched_required_cookies": [],
-        "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
-        "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-        "elapsed_ms": 5270,
-        "used_existing_session": false
+        "reason": "browser_auth_ready",
+        "cookies_found": 17,
+        "matched_required_cookies": [
+          "li_at",
+          "JSESSIONID"
+        ],
+        "login_url": "https://www.linkedin.com/login",
+        "elapsed_ms": 5,
+        "used_existing_session": true
       },
       "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.orangehrm-dashboard.json",
-        "exit_code": 1,
-        "stdout": "",
-        "stderr": "",
-        "final_state": "fail",
-        "goal_satisfied": false,
-        "final_reason": "step:dashboard-widgets:min_rows:1/2",
-        "matched_fields": [],
-        "missing_fields": [
-          "title"
-        ],
-        "rounds": 2,
-        "total_ms": 68667,
-        "performance_total_ms": 68667,
-        "performance_basis": "warm",
-        "total_errors": 2
-      },
-      "workflow": {
-        "total_ms": 68667,
-        "performance_total_ms": 68667,
-        "error_count": 2,
-        "failed_step_ids": [
-          "dashboard-widgets"
-        ],
-        "exceeded_step_budget_ids": [],
-        "exceeded_total_budget": true,
-        "step_results": [
-          {
-            "id": "dashboard-widgets",
-            "phase": "step",
-            "required": true,
-            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.orangehrm-dashboard.step.dashboard-widgets.json",
-            "final_state": "fail",
-            "goal_satisfied": false,
-            "final_reason": "min_rows:1/2",
-            "matched_fields": [],
-            "missing_fields": [
-              "title"
-            ],
-            "total_ms": 68667,
-            "performance_total_ms": 68667,
-            "performance_basis": "raw",
-            "rounds": 2
-          }
-        ]
-      },
-      "final_state": "fail",
-      "goal_satisfied": false,
-      "final_reason": "step:dashboard-widgets:min_rows:1/2"
-    },
-    {
-      "id": "practice-test-automation-success",
-      "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "practicetestautomation.com",
-      "url": "https://practicetestautomation.com/logged-in-successfully/",
-      "intent": "get login success message",
-      "bootstrap": {
-        "strategy": "scripted_login",
-        "status": "ready",
-        "reason": "scripted_login_profile_only",
-        "cookies_found": 0,
-        "matched_required_cookies": [],
-        "login_url": "https://practicetestautomation.com/practice-test-login/",
-        "success_url": "https://practicetestautomation.com/logged-in-successfully/",
-        "elapsed_ms": 1156,
-        "used_existing_session": false
-      },
-      "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.practice-test-automation-success.json",
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.linkedin-people-search.json",
         "exit_code": 0,
-        "stdout": "[domain-cache] loaded 4 entries from disk\n[route-cache] loaded 2 entries from disk\n[codex-autonomous] 1/1 practice-test-automation-success state=pass satisfied=true reason=message_record\n",
+        "stdout": "[domain-cache] loaded 162 entries from disk\n[route-cache] loaded 58 entries from disk\n[codex-autonomous] 1/1 linkedin-people-search state=pass satisfied=true reason=people_rows\n",
         "stderr": "",
         "final_state": "pass",
         "goal_satisfied": true,
-        "final_reason": "message_record",
+        "final_reason": "people_rows",
         "matched_fields": [
-          "title",
-          "message"
+          "name",
+          "headline",
+          "url"
         ],
         "missing_fields": [],
         "rounds": 1,
-        "total_ms": 772,
-        "performance_total_ms": 772,
+        "total_ms": 16013,
+        "performance_total_ms": 16013,
         "performance_basis": "raw",
         "total_errors": 0
       },
       "final_state": "pass",
       "goal_satisfied": true,
-      "final_reason": "message_record"
-    },
-    {
-      "id": "saucedemo-products",
-      "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "saucedemo.com",
-      "url": "https://www.saucedemo.com/inventory.html",
-      "intent": "get products",
-      "bootstrap": {
-        "strategy": "scripted_login",
-        "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 1,
-        "matched_required_cookies": [],
-        "login_url": "https://www.saucedemo.com/",
-        "success_url": "https://www.saucedemo.com/inventory.html",
-        "elapsed_ms": 1261,
-        "used_existing_session": false
-      },
-      "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.json",
-        "exit_code": 0,
-        "stdout": "",
-        "stderr": "",
-        "final_state": "pass",
-        "goal_satisfied": true,
-        "final_reason": "workflow_pass",
-        "matched_fields": [
-          "title",
-          "description",
-          "title",
-          "description",
-          "price"
-        ],
-        "missing_fields": [],
-        "rounds": 2,
-        "total_ms": 43468,
-        "performance_total_ms": 43468,
-        "performance_basis": "warm",
-        "total_errors": 0
-      },
-      "workflow": {
-        "total_ms": 43468,
-        "performance_total_ms": 43468,
-        "error_count": 0,
-        "failed_step_ids": [],
-        "exceeded_step_budget_ids": [],
-        "exceeded_total_budget": false,
-        "step_results": [
-          {
-            "id": "inventory",
-            "phase": "step",
-            "required": true,
-            "step_max_total_ms": 30000,
-            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.step.inventory.json",
-            "final_state": "pass",
-            "goal_satisfied": true,
-            "final_reason": "product_rows",
-            "matched_fields": [
-              "title",
-              "description"
-            ],
-            "missing_fields": [],
-            "total_ms": 25794,
-            "performance_total_ms": 25794,
-            "performance_basis": "raw",
-            "rounds": 1
-          },
-          {
-            "id": "backpack-detail",
-            "phase": "verify",
-            "required": true,
-            "step_max_total_ms": 30000,
-            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.verify.backpack-detail.json",
-            "final_state": "pass",
-            "goal_satisfied": true,
-            "final_reason": "product_rows",
-            "matched_fields": [
-              "title",
-              "description",
-              "price"
-            ],
-            "missing_fields": [],
-            "total_ms": 17674,
-            "performance_total_ms": 17674,
-            "performance_basis": "raw",
-            "rounds": 1
-          }
-        ]
-      },
-      "final_state": "pass",
-      "goal_satisfied": true,
-      "final_reason": "workflow_pass"
-    },
-    {
-      "id": "the-internet-secure-flash",
-      "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "the-internet.herokuapp.com",
-      "url": "https://the-internet.herokuapp.com/secure",
-      "intent": "get secure area message",
-      "bootstrap": {
-        "strategy": "scripted_login",
-        "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 5,
-        "matched_required_cookies": [],
-        "login_url": "https://the-internet.herokuapp.com/login",
-        "success_url": "https://the-internet.herokuapp.com/secure",
-        "elapsed_ms": 1274,
-        "used_existing_session": false
-      },
-      "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.the-internet-secure-flash.json",
-        "exit_code": 1,
-        "stdout": "[domain-cache] loaded 4 entries from disk\n[route-cache] loaded 4 entries from disk\n",
-        "stderr": "",
-        "performance_basis": "raw"
-      },
-      "final_state": "fail",
-      "goal_satisfied": false,
-      "final_reason": "missing_harness_result"
+      "final_reason": "people_rows"
     }
   ],
   "attempts": [
     {
-      "id": "orangehrm-dashboard",
+      "id": "linkedin-people-search",
       "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "opensource-demo.orangehrmlive.com",
-      "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-      "intent": "get dashboard widgets",
+      "suite": "popular-cookie-reuse",
+      "site": "linkedin.com",
+      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+      "intent": "search people",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 15,
+        "category": "professional-network",
+        "retrieved_at": "2026-03-13"
+      },
       "bootstrap": {
-        "strategy": "scripted_login",
+        "strategy": "cookie_reuse",
         "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 1,
-        "matched_required_cookies": [],
-        "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
-        "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
-        "elapsed_ms": 5270,
-        "used_existing_session": false
+        "reason": "browser_auth_ready",
+        "cookies_found": 17,
+        "matched_required_cookies": [
+          "li_at",
+          "JSESSIONID"
+        ],
+        "login_url": "https://www.linkedin.com/login",
+        "elapsed_ms": 5,
+        "used_existing_session": true
       },
       "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.orangehrm-dashboard.json",
-        "exit_code": 1,
-        "stdout": "",
-        "stderr": "",
-        "final_state": "fail",
-        "goal_satisfied": false,
-        "final_reason": "step:dashboard-widgets:min_rows:1/2",
-        "matched_fields": [],
-        "missing_fields": [
-          "title"
-        ],
-        "rounds": 2,
-        "total_ms": 68667,
-        "performance_total_ms": 68667,
-        "performance_basis": "warm",
-        "total_errors": 2
-      },
-      "workflow": {
-        "total_ms": 68667,
-        "performance_total_ms": 68667,
-        "error_count": 2,
-        "failed_step_ids": [
-          "dashboard-widgets"
-        ],
-        "exceeded_step_budget_ids": [],
-        "exceeded_total_budget": true,
-        "step_results": [
-          {
-            "id": "dashboard-widgets",
-            "phase": "step",
-            "required": true,
-            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.orangehrm-dashboard.step.dashboard-widgets.json",
-            "final_state": "fail",
-            "goal_satisfied": false,
-            "final_reason": "min_rows:1/2",
-            "matched_fields": [],
-            "missing_fields": [
-              "title"
-            ],
-            "total_ms": 68667,
-            "performance_total_ms": 68667,
-            "performance_basis": "raw",
-            "rounds": 2
-          }
-        ]
-      },
-      "final_state": "fail",
-      "goal_satisfied": false,
-      "final_reason": "step:dashboard-widgets:min_rows:1/2"
-    },
-    {
-      "id": "practice-test-automation-success",
-      "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "practicetestautomation.com",
-      "url": "https://practicetestautomation.com/logged-in-successfully/",
-      "intent": "get login success message",
-      "bootstrap": {
-        "strategy": "scripted_login",
-        "status": "ready",
-        "reason": "scripted_login_profile_only",
-        "cookies_found": 0,
-        "matched_required_cookies": [],
-        "login_url": "https://practicetestautomation.com/practice-test-login/",
-        "success_url": "https://practicetestautomation.com/logged-in-successfully/",
-        "elapsed_ms": 1156,
-        "used_existing_session": false
-      },
-      "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.practice-test-automation-success.json",
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.linkedin-people-search.json",
         "exit_code": 0,
-        "stdout": "[domain-cache] loaded 4 entries from disk\n[route-cache] loaded 2 entries from disk\n[codex-autonomous] 1/1 practice-test-automation-success state=pass satisfied=true reason=message_record\n",
+        "stdout": "[domain-cache] loaded 162 entries from disk\n[route-cache] loaded 58 entries from disk\n[codex-autonomous] 1/1 linkedin-people-search state=pass satisfied=true reason=people_rows\n",
         "stderr": "",
         "final_state": "pass",
         "goal_satisfied": true,
-        "final_reason": "message_record",
+        "final_reason": "people_rows",
         "matched_fields": [
-          "title",
-          "message"
+          "name",
+          "headline",
+          "url"
         ],
         "missing_fields": [],
         "rounds": 1,
-        "total_ms": 772,
-        "performance_total_ms": 772,
+        "total_ms": 16013,
+        "performance_total_ms": 16013,
         "performance_basis": "raw",
         "total_errors": 0
       },
       "final_state": "pass",
       "goal_satisfied": true,
-      "final_reason": "message_record"
-    },
-    {
-      "id": "saucedemo-products",
-      "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "saucedemo.com",
-      "url": "https://www.saucedemo.com/inventory.html",
-      "intent": "get products",
-      "bootstrap": {
-        "strategy": "scripted_login",
-        "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 1,
-        "matched_required_cookies": [],
-        "login_url": "https://www.saucedemo.com/",
-        "success_url": "https://www.saucedemo.com/inventory.html",
-        "elapsed_ms": 1261,
-        "used_existing_session": false
-      },
-      "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.json",
-        "exit_code": 0,
-        "stdout": "",
-        "stderr": "",
-        "final_state": "pass",
-        "goal_satisfied": true,
-        "final_reason": "workflow_pass",
-        "matched_fields": [
-          "title",
-          "description",
-          "title",
-          "description",
-          "price"
-        ],
-        "missing_fields": [],
-        "rounds": 2,
-        "total_ms": 43468,
-        "performance_total_ms": 43468,
-        "performance_basis": "warm",
-        "total_errors": 0
-      },
-      "workflow": {
-        "total_ms": 43468,
-        "performance_total_ms": 43468,
-        "error_count": 0,
-        "failed_step_ids": [],
-        "exceeded_step_budget_ids": [],
-        "exceeded_total_budget": false,
-        "step_results": [
-          {
-            "id": "inventory",
-            "phase": "step",
-            "required": true,
-            "step_max_total_ms": 30000,
-            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.step.inventory.json",
-            "final_state": "pass",
-            "goal_satisfied": true,
-            "final_reason": "product_rows",
-            "matched_fields": [
-              "title",
-              "description"
-            ],
-            "missing_fields": [],
-            "total_ms": 25794,
-            "performance_total_ms": 25794,
-            "performance_basis": "raw",
-            "rounds": 1
-          },
-          {
-            "id": "backpack-detail",
-            "phase": "verify",
-            "required": true,
-            "step_max_total_ms": 30000,
-            "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.saucedemo-products.verify.backpack-detail.json",
-            "final_state": "pass",
-            "goal_satisfied": true,
-            "final_reason": "product_rows",
-            "matched_fields": [
-              "title",
-              "description",
-              "price"
-            ],
-            "missing_fields": [],
-            "total_ms": 17674,
-            "performance_total_ms": 17674,
-            "performance_basis": "raw",
-            "rounds": 1
-          }
-        ]
-      },
-      "final_state": "pass",
-      "goal_satisfied": true,
-      "final_reason": "workflow_pass"
-    },
-    {
-      "id": "the-internet-secure-flash",
-      "suite_round": 1,
-      "suite": "scripted-demo",
-      "site": "the-internet.herokuapp.com",
-      "url": "https://the-internet.herokuapp.com/secure",
-      "intent": "get secure area message",
-      "bootstrap": {
-        "strategy": "scripted_login",
-        "status": "ready",
-        "reason": "scripted_login_ok",
-        "cookies_found": 5,
-        "matched_required_cookies": [],
-        "login_url": "https://the-internet.herokuapp.com/login",
-        "success_url": "https://the-internet.herokuapp.com/secure",
-        "elapsed_ms": 1274,
-        "used_existing_session": false
-      },
-      "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.the-internet-secure-flash.json",
-        "exit_code": 1,
-        "stdout": "[domain-cache] loaded 4 entries from disk\n[route-cache] loaded 4 entries from disk\n",
-        "stderr": "",
-        "performance_basis": "raw"
-      },
-      "final_state": "fail",
-      "goal_satisfied": false,
-      "final_reason": "missing_harness_result"
+      "final_reason": "people_rows"
     }
   ]
 }
