@@ -114,7 +114,12 @@ jobs:
         working-directory: packages/skill
         shell: pwsh
         run: |
-          $pack = npm pack --json | ConvertFrom-Json
+          $raw = npm pack --json | Out-String
+          $lines = $raw -split "`r?`n"
+          $jsonStart = ($lines | Select-String '^\[\s*$' | Select-Object -First 1).LineNumber
+          if (-not $jsonStart) { throw "npm pack --json did not emit a JSON payload" }
+          $json = ($lines[($jsonStart - 1)..($lines.Length - 1)] -join "`n")
+          $pack = $json | ConvertFrom-Json
           "UNBROWSE_TARBALL=$($pack[0].filename)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Smoke install packaged CLI
         shell: pwsh
