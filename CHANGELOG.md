@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.10...v2.0.11) (2026-03-22)
+
+### Bug Fixes
+
+* exempt staging eval token from search throttles ([1c29770](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c29770752cea8143eb9f4f654bd84bac3f53096))
+
 ## [2.0.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.9...v2.0.10) (2026-03-22)
 
 ### Bug Fixes
