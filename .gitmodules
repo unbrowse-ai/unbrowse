@@ -1,7 +1,4 @@
-[submodule "submodules/openclaw-unbrowse-plugin"]
-	path = submodules/openclaw-unbrowse-plugin
-	url = https://github.com/lekt9/unbrowse-openclaw.git
 [submodule "submodules/kuri"]
 	path = submodules/kuri
-	url = https://github.com/justrach/kuri.git
-	branch = main
+	url = https://github.com/lekt9/kuri.git
+	branch = codex/fix-managed-discover-cdp

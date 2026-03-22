@@ -1,0 +1,98 @@
+{
+  "meta": {
+    "benchmark_gate_defaults": {
+      "require_benchmark": true,
+      "require_warm_cache_hit": true,
+      "allowed_warm_sources": ["route-cache", "marketplace"],
+      "disallowed_warm_sources": ["live-capture"],
+      "max_warm_total_ms": 20000,
+      "max_warm_rounds": 2,
+      "max_warm_cold_ratio": 1.2,
+      "max_warm_slowdown_ms": 1500,
+      "min_speedup_ms": 0
+    }
+  },
+  "cases": [
+    {
+      "id": "github-search-repositories",
+      "intent": "search repositories",
+      "url": "https://github.com/search?q=openai&type=repositories",
+      "expected_fields": ["full_name", "description", "stargazers_count"],
+      "retention_signal": "developer lookup",
+      "sticky_rationale": "A user should be able to re-run a common developer search and get stable structured results without re-capture friction."
+    },
+    {
+      "id": "gitlab-search-projects",
+      "intent": "search projects",
+      "url": "https://gitlab.com/explore/projects?name=openai",
+      "expected_fields": ["name", "description", "web_url"],
+      "retention_signal": "repeat search",
+      "sticky_rationale": "Project search is a canonical 'come back tomorrow and do it again' workflow for retained technical users."
+    },
+    {
+      "id": "npm-package-info",
+      "intent": "get package info",
+      "url": "https://www.npmjs.com/package/openai",
+      "expected_fields": ["name", "version", "description"],
+      "retention_signal": "reference lookup",
+      "sticky_rationale": "Package detail lookups should warm well and stay reliable across repeated reads."
+    },
+    {
+      "id": "arxiv-search-papers",
+      "intent": "search papers",
+      "url": "https://arxiv.org/search/?query=transformers&searchtype=all&abstracts=show&order=-announced_date_first&size=50",
+      "expected_fields": ["title", "authors", "abstract"],
+      "retention_signal": "monitoring",
+      "sticky_rationale": "Research users only stick if recurring searches keep producing structured results without manual cleanup."
+    },
+    {
+      "id": "huggingface-search-models",
+      "intent": "search models",
+      "url": "https://huggingface.co/models?search=llama",
+      "expected_fields": ["model_name", "downloads", "likes"],
+      "retention_signal": "catalog re-check",
+      "sticky_rationale": "Model catalog lookups are naturally repeated; warm-path success is part of product stickiness."
+    },
+    {
+      "id": "mdn-search-docs",
+      "intent": "search docs",
+      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+      "expected_fields": ["title", "url", "summary"],
+      "retention_signal": "docs recall",
+      "sticky_rationale": "Documentation search is a default-browser-adjacent workflow that should feel boringly dependable."
+    },
+    {
+      "id": "stack-overflow-tag-questions",
+      "intent": "get tag questions",
+      "url": "https://stackoverflow.com/questions/tagged/javascript",
+      "expected_fields": ["title", "url", "score"],
+      "retention_signal": "community scan",
+      "sticky_rationale": "Community feed scans should remain stable enough that users trust the same route on repeated visits."
+    },
+    {
+      "id": "devto-tag-posts",
+      "intent": "get tag posts",
+      "url": "https://dev.to/t/javascript",
+      "expected_fields": ["title", "url", "author"],
+      "retention_signal": "community scan",
+      "sticky_rationale": "A second community source helps detect whether repeatability is ecosystem-specific or general."
+    },
+    {
+      "id": "docker-image-tags",
+      "intent": "get image tags",
+      "url": "https://hub.docker.com/r/library/nginx/tags",
+      "expected_fields": ["name", "last_updated"],
+      "retention_signal": "ops lookup",
+      "sticky_rationale": "Ops-oriented users need repeated tag checks to work consistently before Unbrowse can become a habit."
+    },
+    {
+      "id": "hn-search-param-seeded",
+      "intent": "search hacker news",
+      "url": "https://hn.algolia.com/",
+      "params": { "q": "openai" },
+      "expected_fields": ["title", "author", "url"],
+      "retention_signal": "seeded query reuse",
+      "sticky_rationale": "Seeded-query flows test whether repeated, parameterized searches survive warm-path reuse without manual intervention."
+    }
+  ]
+}

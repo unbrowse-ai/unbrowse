@@ -5,135 +5,117 @@
     "ready": 1,
     "skipped_bootstrap": 0,
     "failed_bootstrap": 0,
-    "pass": 1,
-    "fail": 0,
+    "pass": 0,
+    "fail": 1,
     "skip": 0,
     "blocked": 0,
-    "satisfied": 1,
-    "unsatisfied": 0,
-    "suite": "popular-cookie-reuse",
+    "satisfied": 0,
+    "unsatisfied": 1,
+    "suite": "scripted-demo",
     "top": 0,
     "suite_rounds": 1,
     "benchmark": false,
     "interactive_login": false,
-    "max_rounds": 2,
-    "max_candidates": 2,
+    "max_rounds": 1,
+    "max_candidates": 1,
     "max_follow_urls": 3,
     "corpus": {
       "total": 1,
       "suites": {
-        "popular-cookie-reuse": 1
+        "scripted-demo": 1
       },
       "strategies": {
-        "cookie_reuse": 1
+        "scripted_login": 1
       }
     },
     "cases_path": "/Users/lekt9/Projects/unbrowse/evals/codex-cases.auth-popular.json"
   },
   "best_results": [
     {
-      "id": "linkedin-people-search",
+      "id": "the-internet-secure-flash",
       "suite_round": 1,
-      "suite": "popular-cookie-reuse",
-      "site": "linkedin.com",
-      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
-      "intent": "search people",
-      "popularity": {
-        "source": "Similarweb Top Websites Ranking in United States",
-        "source_url": "https://www.similarweb.com/top-websites/united-states/",
-        "us_rank": 15,
-        "category": "professional-network",
-        "retrieved_at": "2026-03-13"
-      },
+      "suite": "scripted-demo",
+      "site": "the-internet.herokuapp.com",
+      "url": "https://the-internet.herokuapp.com/secure",
+      "intent": "get secure area message",
       "bootstrap": {
-        "strategy": "cookie_reuse",
+        "strategy": "scripted_login",
         "status": "ready",
-        "reason": "browser_auth_ready",
-        "cookies_found": 17,
-        "matched_required_cookies": [
-          "li_at",
-          "JSESSIONID"
-        ],
-        "login_url": "https://www.linkedin.com/login",
-        "elapsed_ms": 5,
-        "used_existing_session": true
+        "reason": "scripted_login_ok",
+        "cookies_found": 5,
+        "matched_required_cookies": [],
+        "login_url": "https://the-internet.herokuapp.com/login",
+        "success_url": "https://the-internet.herokuapp.com/secure",
+        "elapsed_ms": 2828,
+        "used_existing_session": false
       },
       "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.linkedin-people-search.json",
-        "exit_code": 0,
-        "stdout": "[domain-cache] loaded 162 entries from disk\n[route-cache] loaded 58 entries from disk\n[codex-autonomous] 1/1 linkedin-people-search state=pass satisfied=true reason=people_rows\n",
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.the-internet-secure-flash.json",
+        "exit_code": 1,
+        "stdout": "[domain-cache] loaded 185 entries from disk\n[route-cache] loaded 121 entries from disk\n[codex-autonomous] 1/1 the-internet-secure-flash state=fail satisfied=false reason=auth_required\n",
         "stderr": "",
-        "final_state": "pass",
-        "goal_satisfied": true,
-        "final_reason": "people_rows",
+        "final_state": "fail",
+        "goal_satisfied": false,
+        "final_reason": "auth_required",
         "matched_fields": [
-          "name",
-          "headline",
-          "url"
+          "message"
         ],
-        "missing_fields": [],
+        "missing_fields": [
+          "title"
+        ],
         "rounds": 1,
-        "total_ms": 16013,
-        "performance_total_ms": 16013,
+        "total_ms": 18415,
+        "performance_total_ms": 18415,
         "performance_basis": "raw",
-        "total_errors": 0
+        "total_errors": 1
       },
-      "final_state": "pass",
-      "goal_satisfied": true,
-      "final_reason": "people_rows"
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "final_reason": "auth_required"
     }
   ],
   "attempts": [
     {
-      "id": "linkedin-people-search",
+      "id": "the-internet-secure-flash",
       "suite_round": 1,
-      "suite": "popular-cookie-reuse",
-      "site": "linkedin.com",
-      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
-      "intent": "search people",
-      "popularity": {
-        "source": "Similarweb Top Websites Ranking in United States",
-        "source_url": "https://www.similarweb.com/top-websites/united-states/",
-        "us_rank": 15,
-        "category": "professional-network",
-        "retrieved_at": "2026-03-13"
-      },
+      "suite": "scripted-demo",
+      "site": "the-internet.herokuapp.com",
+      "url": "https://the-internet.herokuapp.com/secure",
+      "intent": "get secure area message",
       "bootstrap": {
-        "strategy": "cookie_reuse",
+        "strategy": "scripted_login",
         "status": "ready",
-        "reason": "browser_auth_ready",
-        "cookies_found": 17,
-        "matched_required_cookies": [
-          "li_at",
-          "JSESSIONID"
-        ],
-        "login_url": "https://www.linkedin.com/login",
-        "elapsed_ms": 5,
-        "used_existing_session": true
+        "reason": "scripted_login_ok",
+        "cookies_found": 5,
+        "matched_required_cookies": [],
+        "login_url": "https://the-internet.herokuapp.com/login",
+        "success_url": "https://the-internet.herokuapp.com/secure",
+        "elapsed_ms": 2828,
+        "used_existing_session": false
       },
       "harness": {
-        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.linkedin-people-search.json",
-        "exit_code": 0,
-        "stdout": "[domain-cache] loaded 162 entries from disk\n[route-cache] loaded 58 entries from disk\n[codex-autonomous] 1/1 linkedin-people-search state=pass satisfied=true reason=people_rows\n",
+        "artifact_path": "/Users/lekt9/Projects/unbrowse/evals/codex-auth-site.the-internet-secure-flash.json",
+        "exit_code": 1,
+        "stdout": "[domain-cache] loaded 185 entries from disk\n[route-cache] loaded 121 entries from disk\n[codex-autonomous] 1/1 the-internet-secure-flash state=fail satisfied=false reason=auth_required\n",
         "stderr": "",
-        "final_state": "pass",
-        "goal_satisfied": true,
-        "final_reason": "people_rows",
+        "final_state": "fail",
+        "goal_satisfied": false,
+        "final_reason": "auth_required",
         "matched_fields": [
-          "name",
-          "headline",
-          "url"
+          "message"
         ],
-        "missing_fields": [],
+        "missing_fields": [
+          "title"
+        ],
         "rounds": 1,
-        "total_ms": 16013,
-        "performance_total_ms": 16013,
+        "total_ms": 18415,
+        "performance_total_ms": 18415,
         "performance_basis": "raw",
-        "total_errors": 0
+        "total_errors": 1
       },
-      "final_state": "pass",
-      "goal_satisfied": true,
-      "final_reason": "people_rows"
+      "final_state": "fail",
+      "goal_satisfied": false,
+      "final_reason": "auth_required"
     }
   ]
 }

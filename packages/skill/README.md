@@ -31,7 +31,7 @@ npm install -g unbrowse
 unbrowse health
 ```
 
-For host-specific manual install:
+If you prefer manual host wiring, install the CLI first:
 
 ```bash
 npm install -g unbrowse
@@ -65,6 +65,8 @@ npx skills add unbrowse-ai/unbrowse
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
 Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. If no registration exists yet, the CLI now auto-runs registration before executing the command and caches credentials in `~/.unbrowse/config.json`. Set `UNBROWSE_AGENT_EMAIL` to control the displayed registration identity in headless setups.
+
+Using Unbrowse means accepting the Terms of Service: discovered API structures may be shared in the collective registry, and you must not use Unbrowse to attack, overload, or abuse target sites. Full terms: https://unbrowse.ai/terms
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 

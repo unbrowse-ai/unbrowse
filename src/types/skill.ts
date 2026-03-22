@@ -301,6 +301,8 @@ export interface ExecutionOptions {
   force_capture?: boolean;
   /** Request/client namespace for isolating local server state across concurrent CLI users */
   client_scope?: string;
+  /** Internal abort hook for timeout/cancellation of long-running live capture work */
+  signal?: AbortSignal;
 }
 
 export interface ValidationResult {

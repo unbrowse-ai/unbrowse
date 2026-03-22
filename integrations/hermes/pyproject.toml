@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "unbrowse-hermes"
-version = "0.1.0"
+version = "2.0.15"
 description = "Hermes Agent plugin that makes Unbrowse the preferred tool for website tasks."
 readme = "README.md"
 license = {text = "MIT"}

@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env } from "./types.js";
-import { bearerAuth } from "./middleware/auth.js";
 import { skillRoutes, publicSkillRoutes } from "./routes/skills.js";
 import { searchRoutes } from "./routes/search.js";
 import { statsRoutes, publicStatsRoutes, publicValidateRoutes } from "./routes/stats.js";
@@ -37,11 +36,8 @@ app.route("/v1", graphRoutes);
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
 
-// Protected routes (writes only)
-const api = new Hono<{ Bindings: Env }>();
-api.use("*", bearerAuth);
-api.route("/v1", skillRoutes);
-api.route("/v1", statsRoutes);
-app.route("/", api);
+// Protected routes scope auth inside the write-only routers.
+app.route("/v1", skillRoutes);
+app.route("/v1", statsRoutes);
 
 export default app;

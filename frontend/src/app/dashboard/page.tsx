@@ -29,13 +29,13 @@ export default function DashboardPage() {
     return (
       <div className="max-w-2xl mx-auto px-6 pt-32 pb-20 text-center">
         <h1 className="text-3xl font-bold mb-4">Agent Dashboard</h1>
-        <p className="text-text-secondary mb-8">Register your agent to view your dashboard.</p>
+        <p className="text-text-secondary mb-8">Run setup locally first. The CLI auto-registers your agent on first run.</p>
         <Link
-          href="/#get-started"
+          href="/#install"
           className="inline-flex items-center gap-2 px-7 py-3.5 bg-orange-500
                      text-white font-semibold rounded-2xl hover:bg-orange-600 transition-all"
         >
-          Get Your API Key
+          Run npx unbrowse setup
         </Link>
       </div>
     );

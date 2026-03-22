@@ -55,6 +55,8 @@ class SearchArgs(BaseModel):
 class ExecuteArgs(BaseModel):
     skill_id: str = Field(description="Skill ID to execute")
     endpoint_id: str = Field(description="Endpoint ID within the skill")
+    url: Optional[str] = Field(default=None, description="Optional source URL when the endpoint needs page context")
+    intent: Optional[str] = Field(default=None, description="Optional original intent when the endpoint needs selection context")
     path: Optional[str] = Field(default=None, description="Response path extraction hint")
     extract: Optional[str] = Field(default=None, description="Comma-separated fields or alias:path spec")
     limit: Optional[int] = Field(default=None, description="Max items to return (1-200)")
@@ -136,6 +138,8 @@ class UnbrowseExecuteTool(_UnbrowseBase):
 
     def _run(self, skill_id: str, endpoint_id: str, **kwargs: Any) -> str:
         args = ["execute", "--skill", skill_id, "--endpoint", endpoint_id]
+        _push_flag(args, "url", kwargs.get("url"))
+        _push_flag(args, "intent", kwargs.get("intent"))
         _push_flag(args, "path", kwargs.get("path"))
         _push_flag(args, "extract", kwargs.get("extract"))
         _push_flag(args, "limit", kwargs.get("limit"))

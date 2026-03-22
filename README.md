@@ -29,7 +29,7 @@ npm install -g unbrowse
 unbrowse health
 ```
 
-For host-specific manual install:
+If you prefer manual host wiring, install the CLI first:
 
 ```bash
 npm install -g unbrowse
@@ -71,10 +71,10 @@ Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host t
 For monorepo development, initialize submodules after cloning:
 
 ```bash
-git submodule update --init --recursive
+bun run submodules:init
 ```
 
-This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](https://github.com/justrach/kuri.git). `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
+This syncs and initializes the tracked Kuri submodule in `submodules/kuri` from [lekt9/kuri](https://github.com/lekt9/kuri.git) on the `codex/fix-managed-discover-cdp` branch. `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
 
 ## Automatic bootstrap
 

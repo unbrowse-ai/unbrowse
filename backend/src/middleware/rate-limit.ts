@@ -38,9 +38,29 @@ function getIp(c: Context): string {
     ?? "unknown";
 }
 
+function getPublicIdentity(c: Context): string {
+  const authHeader = c.req.header("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) return `auth:${token}`;
+  }
+  return `ip:${getIp(c)}`;
+}
+
+function isStagingEvalBypass(c: Context<PublicEnv>): boolean {
+  if (c.env.ENVIRONMENT !== "staging") return false;
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return false;
+  return authHeader.slice(7).trim() === "staging-eval";
+}
+
 export function rateLimit(opts: RateLimitOptions) {
   return async (c: Context<PublicEnv>, next: Next) => {
-    const blocked = check(`rl:${opts.prefix}:${getIp(c)}`, opts.limit, opts.window, c);
+    if (isStagingEvalBypass(c)) {
+      await next();
+      return;
+    }
+    const blocked = check(`rl:${opts.prefix}:${getPublicIdentity(c)}`, opts.limit, opts.window, c);
     if (blocked) return blocked;
     await next();
   };

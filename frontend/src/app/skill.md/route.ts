@@ -73,16 +73,13 @@ npx skills add unbrowse-ai/unbrowse
 
 ### Browser Engine Setup
 
-The browser engine is installed automatically on first capture. To preinstall it:
+The browser engine is installed automatically on first capture. If you want to verify the runtime explicitly:
 
 \`\`\`bash
 unbrowse health
-npx agent-browser install
 \`\`\`
 
-On Linux, include system dependencies: \`npx playwright install --with-deps chromium\`
-
-This is handled automatically by \`setup.sh\`, but must be done manually for other installation methods.
+On Linux, you may still need the host Chromium system dependencies for headed browser runs.
 
 ### Agent Registration (Getting an API Key)
 

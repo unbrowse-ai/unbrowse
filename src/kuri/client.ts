@@ -61,12 +61,14 @@ function kuriBinaryName(): string {
   return process.platform === "win32" ? "kuri.exe" : "kuri";
 }
 
-function currentBundledKuriTarget(): string | null {
-  if (process.platform === "darwin" && process.arch === "arm64") return "darwin-arm64";
-  if (process.platform === "darwin" && process.arch === "x64") return "darwin-x64";
-  if (process.platform === "linux" && process.arch === "arm64") return "linux-arm64";
-  if (process.platform === "linux" && process.arch === "x64") return "linux-x64";
-  return null;
+function currentBundledKuriTargets(): string[] {
+  if (process.platform === "darwin" && process.arch === "arm64") return ["darwin-arm64"];
+  if (process.platform === "darwin" && process.arch === "x64") return ["darwin-x64"];
+  if (process.platform === "linux" && process.arch === "arm64") return ["linux-arm64"];
+  if (process.platform === "linux" && process.arch === "x64") return ["linux-x64"];
+  if (process.platform === "win32" && process.arch === "arm64") return ["win32-x64"];
+  if (process.platform === "win32" && process.arch === "x64") return ["win32-x64"];
+  return [];
 }
 
 function resolveBinaryOnPath(name: string): string | null {
@@ -85,23 +87,34 @@ function addCandidate(candidates: string[], candidate?: string | null): void {
   if (!candidates.includes(candidate)) candidates.push(candidate);
 }
 
-export function getKuriSourceCandidates(): string[] {
+function getKuriWorkspaceRoots(): string[] {
   const packageRoot = getPackageRoot(import.meta.url);
   const candidates: string[] = [];
-  addCandidate(candidates, path.join(packageRoot, "vendor", "kuri-src"));
-  addCandidate(candidates, path.join(packageRoot, "submodules", "kuri"));
+  addCandidate(candidates, packageRoot);
+  addCandidate(candidates, path.join(packageRoot, "packages", "skill"));
+  return candidates;
+}
+
+export function getKuriSourceCandidates(): string[] {
+  const candidates: string[] = [];
+  for (const root of getKuriWorkspaceRoots()) {
+    addCandidate(candidates, path.join(root, "vendor", "kuri-src"));
+    addCandidate(candidates, path.join(root, "submodules", "kuri"));
+  }
   if (process.env.KURI_PATH) addCandidate(candidates, process.env.KURI_PATH);
   if (process.env.HOME) addCandidate(candidates, path.join(process.env.HOME, "kuri"));
   return candidates;
 }
 
 export function getKuriBinaryCandidates(): string[] {
-  const packageRoot = getPackageRoot(import.meta.url);
   const binaryName = kuriBinaryName();
-  const target = currentBundledKuriTarget();
   const candidates: string[] = [];
 
-  if (target) addCandidate(candidates, path.join(packageRoot, "vendor", "kuri", target, binaryName));
+  for (const root of getKuriWorkspaceRoots()) {
+    for (const target of currentBundledKuriTargets()) {
+      addCandidate(candidates, path.join(root, "vendor", "kuri", target, binaryName));
+    }
+  }
   for (const sourceDir of getKuriSourceCandidates()) {
     addCandidate(candidates, path.join(sourceDir, "zig-out", "bin", binaryName));
   }
@@ -156,10 +169,13 @@ async function findFreeCdpPort(): Promise<number> {
 function kuriUrl(path: string, params?: Record<string, string>): string {
   const base = `http://127.0.0.1:${kuriPort}${path}`;
   if (!params || Object.keys(params).length === 0) return base;
-  // Build query string manually — URLSearchParams encodes values which breaks
-  // URL parameters (Kuri's getQueryParam doesn't decode percent-encoding)
   const parts = Object.entries(params).map(([k, v]) => `${k}=${v}`);
   return `${base}?${parts.join("&")}`;
+}
+
+function kuriEncodedUrl(path: string, params: Record<string, string>): string {
+  const base = `http://127.0.0.1:${kuriPort}${path}`;
+  return `${base}?${new URLSearchParams(params).toString()}`;
 }
 
 async function kuriGet(path: string, params?: Record<string, string>): Promise<unknown> {
@@ -208,6 +224,7 @@ export async function start(port?: number): Promise<void> {
   if (kuriReady) return;
   kuriPort = port ?? KURI_DEFAULT_PORT;
   managedChromePid = null;
+  const attachExistingChrome = process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME === "1";
 
   // Check if kuri is already running on this port
   try {
@@ -230,6 +247,15 @@ export async function start(port?: number): Promise<void> {
     throw new Error(`Kuri binary not found at ${binary}`);
   }
 
+  // Eval and test runs should default to an isolated managed Chrome. Attaching
+  // to whatever is already on :9222 drags in unrelated tabs and destabilizes
+  // repeatability. Opt in explicitly when sharing an existing browser is
+  // actually desired.
+  if (attachExistingChrome) {
+    await discoverCdpPort();
+  } else {
+    kuriCdpPort = null;
+  }
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
     PORT: String(kuriPort),
@@ -240,6 +266,9 @@ export async function start(port?: number): Promise<void> {
   if (explicitCdpUrl) {
     env.CDP_URL = explicitCdpUrl;
     log("kuri", `connecting to explicit Chrome at ${explicitCdpUrl}`);
+  } else if (attachExistingChrome && kuriCdpPort) {
+    env.CDP_URL = `ws://127.0.0.1:${kuriCdpPort}`;
+    log("kuri", `connecting to existing Chrome on port ${kuriCdpPort}`);
   } else {
     delete env.CDP_URL;
     kuriCdpPort = null;
@@ -341,6 +370,39 @@ export async function discoverTabs(): Promise<KuriTab[]> {
   return [];
 }
 
+/**
+ * Create a Chrome tab directly via the CDP /json/new endpoint.
+ *
+ * Kuri's /tab/new path can panic under repeated eval churn; using Chrome's
+ * native target creation keeps tab provisioning outside that crashy path.
+ */
+export async function createChromeTabViaCdp(
+  url = "about:blank",
+  options?: { cdpPort?: number | null; rediscover?: boolean },
+): Promise<string> {
+  let cdpPort = options?.cdpPort ?? kuriCdpPort;
+  if (!cdpPort) {
+    await discoverCdpPort();
+    cdpPort = kuriCdpPort;
+  }
+  if (!cdpPort) throw new Error("Chrome CDP port unavailable");
+
+  const res = await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent(url)}`, {
+    method: "PUT",
+    signal: AbortSignal.timeout(5000),
+  });
+  const target = (await res.json()) as { id?: string };
+  if (!target?.id) throw new Error("Chrome tab creation returned no target id");
+
+  log("kuri", `created new Chrome tab: ${target.id}`);
+  if (options?.rediscover !== false) {
+    await new Promise((r) => setTimeout(r, 300));
+    await ensureTabsDiscovered();
+    await waitForTabReady(target.id);
+  }
+  return target.id;
+}
+
 /** Get or discover the first usable tab. */
 export async function getDefaultTab(): Promise<string> {
   // Ensure Kuri's /discover works by triggering it (it registers tabs from Chrome)
@@ -352,24 +414,10 @@ export async function getDefaultTab(): Promise<string> {
     if (Array.isArray(tabs) && tabs.length > 0) return tabs[0].id;
   } catch { /* no tabs registered */ }
 
-  // Create a new tab via Chrome CDP and re-discover
-  if (kuriCdpPort) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${kuriCdpPort}/json/new?about:blank`, {
-        method: "PUT",
-        signal: AbortSignal.timeout(5000),
-      });
-      const target = (await res.json()) as { id: string };
-      if (target?.id) {
-        log("kuri", `created new Chrome tab: ${target.id}`);
-        // Re-discover to register it with Kuri
-        await new Promise((r) => setTimeout(r, 300));
-        await ensureTabsDiscovered();
-        return target.id;
-      }
-    } catch (err) {
-      log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
-    }
+  try {
+    return await createChromeTabViaCdp("about:blank");
+  } catch (err) {
+    log("kuri", `Chrome tab creation failed: ${err instanceof Error ? err.message : err}`);
   }
 
   throw new Error("No tabs available and failed to create one");
@@ -388,9 +436,29 @@ async function ensureTabsDiscovered(): Promise<void> {
   }
 }
 
+async function waitForTabReady(tabId: string, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const tabs = (await kuriGet("/tabs")) as Array<{ id: string }>;
+      if (Array.isArray(tabs) && tabs.some((tab) => tab.id === tabId)) {
+        await evaluate(tabId, "1");
+        return;
+      }
+    } catch {
+      // Tab not attached yet
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`Chrome tab ${tabId} did not become ready within ${timeoutMs}ms`);
+}
+
 /** Navigate tab to URL. */
 export async function navigate(tabId: string, url: string): Promise<void> {
-  await kuriGet("/navigate", { tab_id: tabId, url });
+  const res = await fetch(kuriEncodedUrl("/navigate", { tab_id: tabId, url }), {
+    signal: AbortSignal.timeout(KURI_REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 /** Evaluate JavaScript in tab context. */
@@ -415,12 +483,18 @@ export async function evaluate(tabId: string, expression: string): Promise<unkno
         signal: controller.signal,
       });
       const text = await res.text();
+      if (!res.ok) throw new Error(text || `Kuri evaluate failed (${res.status})`);
       try { raw = JSON.parse(text); } catch { raw = text as never; }
     } finally {
       clearTimeout(timeout);
     }
   } else {
-    raw = (await kuriGet("/evaluate", { tab_id: tabId, expression })) as typeof raw;
+    const res = await fetch(kuriEncodedUrl("/evaluate", { tab_id: tabId, expression }), {
+      signal: AbortSignal.timeout(KURI_REQUEST_TIMEOUT_MS),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || `Kuri evaluate failed (${res.status})`);
+    try { raw = JSON.parse(text); } catch { raw = text as never; }
   }
   // CDP Runtime.evaluate response: { id, result: { result: { type, value } } }
   const inner = raw?.result?.result;
@@ -441,7 +515,7 @@ export async function getCookies(tabId: string): Promise<KuriCookie[]> {
 
 /** Set a single cookie. */
 export async function setCookie(tabId: string, cookie: KuriCookie): Promise<void> {
-  await kuriGet("/cookies", {
+  const url = kuriEncodedUrl("/cookies", {
     tab_id: tabId,
     name: cookie.name,
     value: cookie.value,
@@ -453,6 +527,14 @@ export async function setCookie(tabId: string, cookie: KuriCookie): Promise<void
     ...(cookie.sameSite ? { sameSite: cookie.sameSite } : {}),
     ...(cookie.expires != null ? { expires: String(cookie.expires) } : {}),
   });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KURI_REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(await res.text() || `Kuri cookie set failed (${res.status})`);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /** Set multiple cookies. */
@@ -527,10 +609,7 @@ export async function closeTab(tabId: string): Promise<void> {
 
 /** Create a new tab. */
 export async function newTab(url?: string): Promise<string> {
-  const params: Record<string, string> = {};
-  if (url) params.url = url;
-  const result = (await kuriGet("/tab/new", params)) as { tab_id?: string };
-  return result?.tab_id ?? "";
+  return createChromeTabViaCdp(url ?? "about:blank");
 }
 
 /** Get current page URL via evaluate. */

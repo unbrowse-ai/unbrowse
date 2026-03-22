@@ -1,6 +1,15 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Manual release workflow mode
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
   push:
     tags: ["v*"]
 
@@ -20,8 +29,12 @@ jobs:
           bun install --frozen-lockfile
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          bun test tests/path-params.test.ts tests/utils.test.ts
+          bun test tests/path-params.test.ts tests/utils.test.ts tests/repeatability-gate.test.ts tests/marketplace-retrieval-eval.test.ts tests/marketplace-retrieval-cases.test.ts tests/many-domains-gate.test.ts
         name: Unit tests
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun test backend/tests/
+        name: Backend tests
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun test ./evals/quality-gate.test.ts
@@ -30,15 +43,168 @@ jobs:
           export PATH="$HOME/.bun/bin:$PATH"
           bun test ./evals/resolve-execute.test.ts
         name: Resolve-execute eval
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install --prefix integrations/openclaw --no-package-lock
+        name: Install OpenClaw plugin deps
+      - run: npm run typecheck --prefix integrations/openclaw
+        name: OpenClaw plugin typecheck
+      - run: npm test --prefix integrations/openclaw
+        name: OpenClaw plugin tests
 
-  # ── Stage 2: Deploy to staging ──
-  deploy-staging:
-    name: Deploy to Staging
+  # ── Stage 2: Package dry-runs for manual branch validation ──
+  dry-run-cli:
+    name: Package CLI (Dry Run)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
     needs: test-gate
     steps:
       - uses: actions/checkout@v4
       - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun scripts/sync-skill-md.ts --check
+        name: Check SKILL.md sync
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          node scripts/prepare-pack.mjs
+          npm pack --dry-run
+        working-directory: packages/skill
+        name: Build CLI package
+
+  package-cli-windows:
+    name: Package CLI (Windows)
+    runs-on: windows-latest
+    needs: test-gate
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/sync-skill-md.ts --check
+        name: Check SKILL.md sync
+      - name: Build npm tarball
+        working-directory: packages/skill
+        shell: pwsh
+        run: |
+          $raw = npm pack --json | Out-String
+          $lines = $raw -split "`r?`n"
+          $jsonStart = ($lines | Select-String '^\[\s*$' | Select-Object -First 1).LineNumber
+          if (-not $jsonStart) { throw "npm pack --json did not emit a JSON payload" }
+          $json = ($lines[($jsonStart - 1)..($lines.Length - 1)] -join "`n")
+          $pack = $json | ConvertFrom-Json
+          "UNBROWSE_TARBALL=$($pack[0].filename)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Smoke install packaged CLI
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:RUNNER_TEMP "unbrowse-cli-smoke"
+          Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $tmp | Out-Null
+          Push-Location $tmp
+          npm init -y | Out-Null
+          npm install --omit=optional (Join-Path $env:GITHUB_WORKSPACE "packages/skill" $env:UNBROWSE_TARBALL)
+          npx unbrowse --help
+          Pop-Location
+
+  dry-run-frameworks-npm:
+    name: Package Frameworks (npm Dry Run)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: self-hosted
+    needs: test-gate
+    strategy:
+      fail-fast: false
+      matrix:
+        package_dir:
+          - integrations/elizaos
+          - integrations/mcp
+          - integrations/openclaw
+          - integrations/vercel-ai-sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - name: Install deps
+        working-directory: ${{ matrix.package_dir }}
+        run: npm install --no-package-lock
+      - name: Validate npm package
+        working-directory: ${{ matrix.package_dir }}
+        run: npm pack --dry-run
+
+  dry-run-frameworks-python:
+    name: Package Frameworks (PyPI Dry Run)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: self-hosted
+    needs: test-gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package_dir: integrations/hermes
+          - package_dir: integrations/langchain
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - name: Build Python package
+        working-directory: ${{ matrix.package_dir }}
+        run: python -m build
+
+  # ── Stage 3: Sync public repo + tag ──
+  sync-public-release:
+    name: Sync Public Repo (Release)
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    needs: test-gate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve public repo token
+        id: public-auth
+        env:
+          PUBLIC_REPO_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        run: |
+          if [ -z "$PUBLIC_REPO_TOKEN" ]; then
+            echo "::notice::No PUBLIC_REPO_TOKEN — skipping public repo sync."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$PUBLIC_REPO_TOKEN"
+          echo "PUBLIC_REMOTE=https://x-access-token:${PUBLIC_REPO_TOKEN}@github.com/unbrowse-ai/unbrowse.git" >> "$GITHUB_ENV"
+
+      - name: Mirror release commit + tag to public repo
+        if: steps.public-auth.outputs.skip != '1'
+        run: |
+          git fetch origin main --depth=1
+          git remote remove public >/dev/null 2>&1 || true
+          git remote add public "$PUBLIC_REMOTE"
+          git push public origin/main:refs/heads/main --force
+          git push public "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}" --force
+
+  # ── Stage 4: Deploy to staging ──
+  deploy-staging:
+    name: Deploy to Staging
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    needs:
+      - test-gate
+      - sync-public-release
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
@@ -50,9 +216,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  # ── Stage 3: Smoke test staging ──
+  # ── Stage 5: Smoke test staging ──
   smoke-staging:
     name: Smoke Test Staging
+    if: github.event_name == 'push'
     runs-on: self-hosted
     needs: deploy-staging
     steps:
@@ -67,9 +234,10 @@ jobs:
             bun test ./evals/staging-smoke.test.ts
         name: Run staging smoke tests
 
-  # ── Stage 4: Live client eval against staging ──
+  # ── Stage 6: Live client eval against staging ──
   live-eval-staging:
     name: Live Eval (Staging)
+    if: github.event_name == 'push'
     runs-on: self-hosted
     needs: smoke-staging
     timeout-minutes: 15
@@ -84,10 +252,18 @@ jobs:
           UNBROWSE_BACKEND_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
             bun test ./evals/staging-live.test.ts
         name: Run live client eval against staging
+      - run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          MARKETPLACE_RETRIEVAL_API_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
+          MARKETPLACE_RETRIEVAL_API_KEY=staging-eval \
+            bun run eval:marketplace:retrieval
+        name: Run marketplace retrieval eval against staging
+        continue-on-error: true
 
-  # ── Stage 5: Browser capture eval against staging ──
+  # ── Stage 7: Browser capture eval against staging ──
   browser-eval-staging:
     name: Browser Eval (Staging)
+    if: github.event_name == 'push'
     runs-on: self-hosted
     needs: live-eval-staging
     timeout-minutes: 15
@@ -100,14 +276,18 @@ jobs:
       - run: |
           export PATH="$HOME/.bun/bin:/usr/local/bin:$PATH"
           UNBROWSE_BACKEND_URL=https://unbrowse-backend-staging.lewis-6d8.workers.dev \
+          UNBROWSE_API_KEY=staging-eval \
             bun test ./evals/staging-browser.test.ts
         name: Run browser capture eval against staging
 
-  # ── Stage 6: Publish to npm ──
+  # ── Stage 8: Publish CLI to npm ──
   publish-cli:
     name: Publish CLI (npm)
+    if: github.event_name == 'push'
     runs-on: self-hosted
-    needs: browser-eval-staging
+    needs:
+      - browser-eval-staging
+      - package-cli-windows
     permissions:
       contents: read
       id-token: write
@@ -125,10 +305,10 @@ jobs:
       - name: Resolve npm token
         id: npm-auth
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NPM_PUBLISH_TOKEN }}
         run: |
           if [ -z "$NPM_TOKEN" ]; then
-            echo "::notice::No NPM_TOKEN — skipping npm publish."
+            echo "::notice::No NPM_TOKEN or NPM_PUBLISH_TOKEN — skipping npm publish."
             echo "skip=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -158,11 +338,156 @@ jobs:
         working-directory: packages/skill
         run: npm publish
 
-  # ── Stage 7: Deploy to production ──
+  # ── Stage 9: Publish framework npm packages ──
+  publish-frameworks-npm:
+    name: Publish Frameworks (npm)
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    needs: browser-eval-staging
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package_dir: integrations/elizaos
+            package_file: integrations/elizaos/package.json
+          - package_dir: integrations/mcp
+            package_file: integrations/mcp/package.json
+          - package_dir: integrations/openclaw
+            package_file: integrations/openclaw/package.json
+          - package_dir: integrations/vercel-ai-sdk
+            package_file: integrations/vercel-ai-sdk/package.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Check package presence
+        id: package-presence
+        run: |
+          if [ ! -f "${{ matrix.package_file }}" ]; then
+            echo "::notice::${{ matrix.package_file }} missing — skipping."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve npm token
+        if: steps.package-presence.outputs.skip != '1'
+        id: npm-auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::notice::No NPM_TOKEN or NPM_PUBLISH_TOKEN — skipping npm publish."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$NPM_TOKEN"
+          echo "NODE_AUTH_TOKEN=$NPM_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Check if version exists
+        if: steps.package-presence.outputs.skip != '1' && steps.npm-auth.outputs.skip != '1'
+        id: version-check
+        working-directory: ${{ matrix.package_dir }}
+        run: |
+          PKG_NAME="$(node -p "require('./package.json').name")"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} already published."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install deps
+        if: steps.package-presence.outputs.skip != '1' && steps.npm-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
+        working-directory: ${{ matrix.package_dir }}
+        run: npm install --no-package-lock
+
+      - name: Publish to npm
+        if: steps.package-presence.outputs.skip != '1' && steps.npm-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
+        working-directory: ${{ matrix.package_dir }}
+        run: npm publish --access public
+
+  # ── Stage 10: Publish framework Python packages ──
+  publish-frameworks-python:
+    name: Publish Frameworks (PyPI)
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    needs: browser-eval-staging
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package_dir: integrations/hermes
+            package_name: unbrowse-hermes
+          - package_dir: integrations/langchain
+            package_name: unbrowse-langchain
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check package presence
+        id: package-presence
+        run: |
+          if [ ! -f "${{ matrix.package_dir }}/pyproject.toml" ]; then
+            echo "::notice::${{ matrix.package_dir }}/pyproject.toml missing — skipping."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve PyPI token
+        if: steps.package-presence.outputs.skip != '1'
+        id: pypi-auth
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$PYPI_API_TOKEN" ]; then
+            echo "::notice::No PYPI_API_TOKEN — skipping PyPI publish."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "::add-mask::$PYPI_API_TOKEN"
+          echo "TWINE_USERNAME=__token__" >> "$GITHUB_ENV"
+          echo "TWINE_PASSWORD=$PYPI_API_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Check if version exists
+        if: steps.package-presence.outputs.skip != '1' && steps.pypi-auth.outputs.skip != '1'
+        id: version-check
+        working-directory: ${{ matrix.package_dir }}
+        run: |
+          PKG_VERSION="$(python -c "from pathlib import Path; import re; text = Path('pyproject.toml').read_text(); match = re.search(r'^version\\s*=\\s*\"([^\"]+)\"$', text, re.M); print(match.group(1))")"
+          export PKG_VERSION
+          STATUS="$(curl -L -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/${PKG_NAME}/${PKG_VERSION}/json")"
+          if [ "$STATUS" = "200" ]; then
+            echo "::notice::${{ matrix.package_name }}@${PKG_VERSION} already published."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PKG_NAME: ${{ matrix.package_name }}
+
+      - name: Build dist
+        if: steps.package-presence.outputs.skip != '1' && steps.pypi-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
+        working-directory: ${{ matrix.package_dir }}
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: Publish to PyPI
+        if: steps.package-presence.outputs.skip != '1' && steps.pypi-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
+        working-directory: ${{ matrix.package_dir }}
+        run: python -m twine upload dist/*
+
+  # ── Stage 11: Deploy to production ──
   deploy-prod:
     name: Deploy to Production
+    if: github.event_name == 'push'
     runs-on: self-hosted
-    needs: [browser-eval-staging, publish-cli]
+    needs: [browser-eval-staging, publish-cli, publish-frameworks-npm, publish-frameworks-python]
     steps:
       - uses: actions/checkout@v4
       - run: git submodule sync --recursive && git submodule update --init submodules/kuri
@@ -178,15 +503,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          cd frontend && npx wrangler pages deploy dist --project-name=unbrowse 2>/dev/null || echo "Frontend deploy skipped (no dist)"
+          cd frontend && npm run deploy
         name: Deploy frontend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  # ── Stage 6: Verify production ──
+  # ── Stage 12: Verify production ──
   verify-prod:
     name: Verify Production
+    if: github.event_name == 'push'
     runs-on: self-hosted
     needs: deploy-prod
     steps:

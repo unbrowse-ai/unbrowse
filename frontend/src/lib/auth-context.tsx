@@ -9,7 +9,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  register: (name: string, tosVersion: string) => Promise<{ agent_id: string; api_key: string }>;
+  register: (name: string, tosVersion?: string) => Promise<{ agent_id: string; api_key: string }>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -38,11 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (name: string, tosVersion: string) => {
+  const register = useCallback(async (name: string, tosVersion?: string) => {
     const res = await fetch(`${API_URL}/v1/agents/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, tos_version: tosVersion }),
+      body: JSON.stringify({
+        name,
+        ...(tosVersion ? { tos_version: tosVersion } : {}),
+      }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({})) as { error?: string };

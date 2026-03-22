@@ -823,15 +823,22 @@ function normalizeLinkedInFeedPosts(data: unknown): Record<string, unknown>[] {
     : Array.isArray(getPath(data, "data.included"))
       ? getPath(data, "data.included") as unknown[]
       : [];
-  if (included.length === 0) return [];
 
-  const elementRefs = Array.isArray(getPath(data, "data.data.feedDashMainFeedByMainFeed.*elements"))
-    ? getPath(data, "data.data.feedDashMainFeedByMainFeed.*elements") as unknown[]
-    : Array.isArray(getPath(data, "data.feedDashMainFeedByMainFeed.*elements"))
-      ? getPath(data, "data.feedDashMainFeedByMainFeed.*elements") as unknown[]
-      : Array.isArray(getPath(data, "feedDashMainFeedByMainFeed.*elements"))
-        ? getPath(data, "feedDashMainFeedByMainFeed.*elements") as unknown[]
-        : [];
+  const feed =
+    (isRecord(getPath(data, "data.data.feedDashMainFeedByMainFeed"))
+      ? getPath(data, "data.data.feedDashMainFeedByMainFeed")
+      : isRecord(getPath(data, "data.feedDashMainFeedByMainFeed"))
+        ? getPath(data, "data.feedDashMainFeedByMainFeed")
+        : isRecord(getPath(data, "feedDashMainFeedByMainFeed"))
+          ? getPath(data, "feedDashMainFeedByMainFeed")
+          : null) as Record<string, unknown> | null;
+  if (!feed) return [];
+
+  const elementRefs = Array.isArray(feed["*elements"])
+    ? feed["*elements"] as unknown[]
+    : Array.isArray(feed.elements)
+      ? feed.elements as unknown[]
+      : [];
   if (elementRefs.length === 0) return [];
 
   const entityIndex = new Map<string, Record<string, unknown>>();
@@ -846,14 +853,26 @@ function normalizeLinkedInFeedPosts(data: unknown): Record<string, unknown>[] {
   const seen = new Set<string>();
 
   for (const ref of elementRefs) {
-    if (!hasNonEmptyString(ref) || seen.has(String(ref))) continue;
-    const update = entityIndex.get(String(ref));
+    const update = hasNonEmptyString(ref)
+      ? entityIndex.get(String(ref))
+      : isRecord(ref)
+        ? ref
+        : null;
     if (!update) continue;
+    const rowId = firstNonEmptyString(
+      hasNonEmptyString(ref) ? ref : undefined,
+      getPath(update, "entityUrn"),
+      getPath(update, "socialContent.shareUrl"),
+      getPath(update, "permalink"),
+      getPath(update, "url"),
+    );
+    if (!rowId || seen.has(rowId)) continue;
 
     const actorProfileUrn = firstNonEmptyString(getPath(update, "actor.*profileUrn"), getPath(update, "actor.entityUrn"));
     const actorProfile = actorProfileUrn ? entityIndex.get(actorProfileUrn) : undefined;
     const author = firstNonEmptyString(
       getPath(update, "actor.name.text"),
+      getPath(update, "actor.title.text"),
       getPath(actorProfile, "name"),
       joinNameParts(getPath(actorProfile, "firstName"), getPath(actorProfile, "lastName")),
     );
@@ -876,14 +895,20 @@ function normalizeLinkedInFeedPosts(data: unknown): Record<string, unknown>[] {
     if (!content && !username && !author) continue;
 
     rows.push({
-      id: String(ref),
+      id: rowId,
       url,
       ...(content ? { content } : {}),
       ...(author ? { author } : {}),
       ...(username ? { username, public_identifier: username } : {}),
+      ...(typeof getPath(update, "socialDetail.totalSocialActivityCounts.numLikes") === "number"
+        ? { likes: getPath(update, "socialDetail.totalSocialActivityCounts.numLikes") }
+        : {}),
+      ...(typeof getPath(update, "socialDetail.totalSocialActivityCounts.numComments") === "number"
+        ? { num_comments: getPath(update, "socialDetail.totalSocialActivityCounts.numComments") }
+        : {}),
       ...(typeof getPath(update, "createdAt") === "number" ? { created_at: getPath(update, "createdAt") } : {}),
     });
-    seen.add(String(ref));
+    seen.add(rowId);
   }
 
   return rows;
@@ -1235,6 +1260,18 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
     if (Array.isArray(unwrapped.items)) return unwrapped.items;
   }
 
+  if (/\b(search|find|lookup)\b/.test(lower)) {
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).docs)) {
+      return (unwrapped as Record<string, unknown>).docs;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).results)) {
+      return (unwrapped as Record<string, unknown>).results;
+    }
+    if (isRecord(unwrapped) && Array.isArray((unwrapped as Record<string, unknown>).items)) {
+      return (unwrapped as Record<string, unknown>).items;
+    }
+  }
+
   if (/\b(email|emails|mail|inbox)\b/.test(lower)) {
     const normalizedEmails = normalizeEmailRows(unwrapped);
     if (normalizedEmails.length > 0) return normalizedEmails;
@@ -1413,6 +1450,24 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
     return matching.length >= 1 ? { verdict: "pass", reason: "recipe_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
+  if (/\b(module|modules|timetable|schedule|semester|semesters|lesson|lessons|class|classes)\b/.test(lower)) {
+    const moduleRows = objects.filter((row) =>
+      hasAnyPath(row, ["moduleCode", "module.code", "code"]) &&
+      hasAnyPath(row, ["title", "name"]) &&
+      (Array.isArray(getPath(row, "semesters")) || hasAnyPath(row, ["semester"]))
+    );
+    if (moduleRows.length >= 1) return { verdict: "pass", reason: "module_rows" };
+
+    const timetableRows = objects.filter((row) =>
+      hasAnyPath(row, ["moduleCode", "classNo", "lessonType", "title", "name"]) &&
+      countMatchingGroups(row, [
+        ["semester", "semesters", "lessonType", "classNo"],
+        ["day", "dayText", "startTime", "endTime", "venue"],
+      ]) >= 2
+    );
+    return timetableRows.length >= 1 ? { verdict: "pass", reason: "timetable_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
   if (/\b(course|courses)\b/.test(lower)) {
     const matching = objects.filter((row) =>
       hasAnyPath(row, ["title", "name"]) &&
@@ -1463,6 +1518,15 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
       hasAnyPath(row, ["description", "type", "member_count", "url"])
     );
     return matching.length >= 1 ? { verdict: "pass", reason: "channel_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
+  }
+
+  if (/\b(search|find|lookup)\b/.test(lower)) {
+    const matching = objects.filter((row) =>
+      hasAnyPath(row, ["name", "title", "songName", "resource_name"]) &&
+      hasAnyPath(row, ["id", "url", "link", "href", "resource_id"]) &&
+      hasAnyPath(row, ["description", "summary", "metadata", "stats", "author", "uploader", "createdAt", "updatedAt"])
+    );
+    return matching.length >= 1 ? { verdict: "pass", reason: "search_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
   return { verdict: "skip", reason: "unclassified_array" };

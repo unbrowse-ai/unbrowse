@@ -59,10 +59,46 @@ const CLIENT_HINT_HEADERS: Record<string, string> = {
   "sec-ch-ua-platform": '"macOS"',
 };
 
+function captureAbortError(): Error & { code: "aborted" } {
+  return Object.assign(new Error("capture_aborted"), { code: "aborted" as const, name: "AbortError" });
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw captureAbortError();
+}
+
+async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(captureAbortError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 async function resetTab(tabId: string): Promise<void> {
   try {
     await kuri.navigate(tabId, "about:blank");
   } catch { /* best-effort */ }
+}
+
+async function cleanupTab(tabId: string, closeTab = false): Promise<void> {
+  if (closeTab) {
+    try {
+      await kuri.closeTab(tabId);
+      return;
+    } catch {
+      // fall back to a soft reset when close fails
+    }
+  }
+  await resetTab(tabId);
 }
 
 type CaptureNavigationPage = {
@@ -177,6 +213,16 @@ export function isBlockedAppShell(html?: string): boolean {
   );
 }
 
+export function blockedAppShellErrorCode(
+  html: string | undefined,
+  hasAuth: boolean,
+): "auth_required" | "blocked_app_shell" {
+  if (html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html)) {
+    return "auth_required";
+  }
+  return hasAuth ? "blocked_app_shell" : "auth_required";
+}
+
 function shouldRetryEphemeralProfileError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
@@ -222,6 +268,11 @@ function deriveIntentHints(captureUrl?: string, intent?: string): string[] {
     derivedHints.add("about");
   }
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lowerIntent)) {
+    derivedHints.add("mainfeed");
+    derivedHints.add("feeddash");
+    derivedHints.add("feedupdate");
+    derivedHints.add("voyagerfeed");
+    derivedHints.add("feed");
     derivedHints.add("tweet");
     derivedHints.add("timeline");
     derivedHints.add("status");
@@ -261,8 +312,10 @@ async function maybeProbeIntentApis(
   captureUrl: string | undefined,
   intent: string | undefined,
   responseBodies: Map<string, string> | undefined,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!captureUrl || !responseBodies) return;
+  throwIfAborted(signal);
   const lowerIntent = intent?.toLowerCase() ?? "";
   let hostname = "";
   try {
@@ -279,6 +332,7 @@ async function maybeProbeIntentApis(
     ];
     try {
       for (const probe of probes) {
+        throwIfAborted(signal);
         if (hasCapturedHint(responseBodies.keys(), "/guild")) break;
         log("spa", `probing ${probe.label}: GET https://discord.com${probe.path}`);
         await kuri.evaluate(tabId, `(async function() {
@@ -287,7 +341,7 @@ async function maybeProbeIntentApis(
             await response.text();
           } catch(e) { /* best-effort probe */ }
         })()`);
-        await new Promise((r) => setTimeout(r, 1200));
+        await sleep(1200, signal);
       }
     } catch {
       // non-fatal
@@ -295,14 +349,18 @@ async function maybeProbeIntentApis(
   }
 }
 
-const CAPTURE_RESPONSE_NOISE = /user_flow|datasavermode|ces\/p2|intercom|badge_count|settings\.json|paymentfailure|saved_searches|launcher_settings|conversations|\/ping\b|verifiedorg|xchatdmsettings|scheduledpromotions|storytopic|sidebaruserrecommendations|subscriptions|live_pipeline|fleetline|authorizetoken|logintwittertoken/i;
+const CAPTURE_RESPONSE_NOISE = /user_flow|datasavermode|ces\/p2|intercom|badge_count|settings\.json|paymentfailure|saved_searches|launcher_settings|conversations|\/ping\b|verifiedorg|xchatdmsettings|scheduledpromotions|storytopic|sidebaruserrecommendations|subscriptions|realtimefrontendtimestamp|allowlist\/voyager-web-feed|voyagermessaginggraphql|live_pipeline|fleetline|authorizetoken|logintwittertoken/i;
+
+function isUsefulCapturedResponseUrl(url: string): boolean {
+  return !CAPTURE_RESPONSE_NOISE.test(url);
+}
 
 export function hasUsefulCapturedResponses(
   responseUrls: Iterable<string>,
   captureUrl?: string,
   intent?: string,
 ): boolean {
-  const usefulUrls = [...responseUrls].filter((url) => !CAPTURE_RESPONSE_NOISE.test(url));
+  const usefulUrls = [...responseUrls].filter(isUsefulCapturedResponseUrl);
   if (usefulUrls.length === 0) return false;
   const hints = deriveIntentHints(captureUrl, intent);
   if (hints.length === 0) return usefulUrls.length > 0;
@@ -446,14 +504,15 @@ async function collectInterceptedRequests(tabId: string): Promise<Array<{
  * Poll document.readyState until "complete" or timeout.
  * Replaces page.waitForLoadState("networkidle").
  */
-async function waitForReadyState(tabId: string, timeoutMs = 8000): Promise<void> {
+async function waitForReadyState(tabId: string, timeoutMs = 8000, signal?: AbortSignal): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    throwIfAborted(signal);
     try {
       const state = await kuri.evaluate(tabId, "document.readyState");
       if (state === "complete") return;
     } catch { /* tab may not be ready */ }
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500, signal);
   }
 }
 
@@ -470,16 +529,19 @@ async function waitForContentReady(
   captureUrl?: string,
   intent?: string,
   responseBodies?: Map<string, string>,
+  signal?: AbortSignal,
 ): Promise<void> {
   // Phase 1: Initial settle — let the page start rendering
-  await new Promise((r) => setTimeout(r, 1000));
+  await sleep(1000, signal);
 
   // Early exit: if interceptor already captured API responses, page is loaded enough
   if (responseBodies && responseBodies.size > 0) {
-    log("capture", `early exit: ${responseBodies.size} API responses already captured during navigation`);
-    // Brief extra settle to catch any trailing responses
-    await new Promise((r) => setTimeout(r, 500));
-    return;
+    if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent)) {
+      log("capture", `early exit: ${responseBodies.size} useful API responses already captured during navigation`);
+      await sleep(500, signal);
+      return;
+    }
+    log("capture", `ignoring ${responseBodies.size} early captured responses as noise; continuing wait`);
   }
 
   // Phase 2: Cloudflare challenge detection and wait
@@ -497,7 +559,7 @@ async function waitForContentReady(
   }
 
   // Phase 3: Wait for document ready state (replaces networkidle)
-  await waitForReadyState(tabId, 5000);
+  await waitForReadyState(tabId, 5000, signal);
 
   // Early exit: check again after readyState — SPAs often fire API calls during hydration
   if (responseBodies) {
@@ -507,8 +569,8 @@ async function waitForContentReady(
         responseBodies.set(entry.url, entry.response_body);
       }
     }
-    if (responseBodies.size > 0) {
-      log("capture", `early exit after readyState: ${responseBodies.size} API responses captured`);
+    if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent)) {
+      log("capture", `early exit after readyState: ${responseBodies.size} useful API responses captured`);
       return;
     }
   }
@@ -517,7 +579,7 @@ async function waitForContentReady(
   if (captureUrl && responseBodies) {
     const derivedHints = new Set(deriveIntentHints(captureUrl, intent));
     const wantedHints = [...derivedHints].filter((hint) =>
-      ![...responseBodies.keys()].some((u) => u.toLowerCase().includes(hint))
+      ![...responseBodies.keys()].some((u) => isUsefulCapturedResponseUrl(u) && u.toLowerCase().includes(hint))
     );
     if (wantedHints.length > 0) {
       log("capture", `intent-aware wait: looking for API matching one of [${wantedHints.join(", ")}] (from ${captureUrl})`);
@@ -525,11 +587,12 @@ async function waitForContentReady(
       const INTENT_MAX_WAIT = 8000;
       const INTENT_POLL_INTERVAL = 1000;
       while (Date.now() - intentStart < INTENT_MAX_WAIT) {
-        await new Promise((r) => setTimeout(r, INTENT_POLL_INTERVAL));
+        await sleep(INTENT_POLL_INTERVAL, signal);
         // Check newly intercepted requests
         const intercepted = await collectInterceptedRequests(tabId);
         for (const entry of intercepted) {
           const respUrl = entry.url.toLowerCase();
+          if (!isUsefulCapturedResponseUrl(respUrl)) continue;
           const matchedHint = wantedHints.find((hint) => respUrl.includes(hint));
           if (matchedHint) {
             log("capture", `intent-aware wait: matched ${matchedHint} via ${entry.url.substring(0, 120)}`);
@@ -537,7 +600,7 @@ async function waitForContentReady(
             if (entry.response_body && !entry.is_js) {
               responseBodies.set(entry.url, entry.response_body);
             }
-            await new Promise((r) => setTimeout(r, 500));
+            await sleep(500, signal);
             return;
           }
         }
@@ -560,17 +623,17 @@ async function waitForContentReady(
     try {
       const before = responseBodies.size;
       await kuri.evaluate(tabId, "window.scrollTo(0, Math.max(window.innerHeight, Math.min(document.body.scrollHeight, window.innerHeight * 2)))");
-      await new Promise((r) => setTimeout(r, 1200));
+      await sleep(1200, signal);
       await kuri.evaluate(tabId, "window.scrollTo(0, 0)");
       if (responseBodies.size === before) {
-        await new Promise((r) => setTimeout(r, 1500));
+        await sleep(1500, signal);
       }
     } catch {
       // non-fatal
     }
   }
 
-  await maybeProbeIntentApis(tabId, captureUrl, intent, responseBodies);
+  await maybeProbeIntentApis(tabId, captureUrl, intent, responseBodies, signal);
 }
 
 /**
@@ -652,38 +715,51 @@ export async function captureSession(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   intent?: string,
-  options?: { forceEphemeral?: boolean },
+  options?: { forceEphemeral?: boolean; signal?: AbortSignal },
 ): Promise<CaptureResult> {
+  const signal = options?.signal;
+  throwIfAborted(signal);
   await acquireTabSlot();
 
   // Ensure Kuri is running and tabs are discovered
+  throwIfAborted(signal);
   await kuri.start();
+  throwIfAborted(signal);
   await kuri.discoverTabs(); // Sync Chrome tabs into Kuri's registry
 
   // Prefer a fresh tab so capture is isolated from stale/disconnected tabs
   // already present in the attached Chrome instance.
   let tabId: string;
+  let createdFreshTab = false;
   try {
     tabId = await kuri.newTab("about:blank");
     await kuri.discoverTabs();
     if (!tabId) {
       tabId = await kuri.getDefaultTab();
     }
+    createdFreshTab = !!tabId;
   } catch {
     tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
+  let captureTimedOut = false;
+  const abortListener = () => {
+    captureTimedOut = true;
+    void resetTab(tabId);
+  };
+  signal?.addEventListener("abort", abortListener, { once: true });
 
   const domain = new URL(url).hostname;
-  let captureTimedOut = false;
   let retryFreshTab = false;
   let captureError: unknown;
+  let lastHtml: string | undefined;
   const timeoutHandle = setTimeout(async () => {
     captureTimedOut = true;
     await resetTab(tabId);
   }, CAPTURE_TIMEOUT_MS);
 
   try {
+    throwIfAborted(signal);
     // Set headers: client hints + auth headers
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
     await kuri.setHeaders(tabId, allHeaders);
@@ -705,26 +781,38 @@ export async function captureSession(
     // before the full page load — required for sites like LinkedIn that check auth on first load.
     try {
       const origin = new URL(url).origin;
+      log("capture", `navigating to origin: ${origin}`);
+      throwIfAborted(signal);
       await kuri.navigate(tabId, origin);
-      await new Promise((r) => setTimeout(r, 500));
 
       // Inject cookies AFTER origin navigation — CDP setCookie requires an active
       // page in the cookie's domain context (fails on about:blank).
       if (cookies && cookies.length > 0) {
+        log("capture", `injecting ${cookies.length} cookies after origin nav`);
+        throwIfAborted(signal);
         await injectCookies(tabId, cookies, origin);
+      } else {
+        log("capture", `no cookies to inject (cookies=${cookies?.length ?? 0})`);
       }
 
+      throwIfAborted(signal);
       await kuri.evaluate(tabId, STEALTH_SCRIPT);
+      throwIfAborted(signal);
       await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
-    } catch { /* best-effort */ }
+    } catch (originErr) {
+      log("capture", `origin pre-nav failed: ${originErr instanceof Error ? originErr.message : originErr}`);
+    }
 
     // Navigate to target URL
+    throwIfAborted(signal);
     await kuri.navigate(tabId, url);
 
     // Re-inject stealth + interceptor after navigation (page context resets on navigate)
     try {
-      await new Promise((r) => setTimeout(r, 300));
+      await sleep(300, signal);
+      throwIfAborted(signal);
       await kuri.evaluate(tabId, STEALTH_SCRIPT);
+      throwIfAborted(signal);
       await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
     } catch { /* page may not be ready */ }
 
@@ -734,7 +822,7 @@ export async function captureSession(
     const MAX_JS_BUNDLES = 20;
 
     // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
-    await waitForContentReady(tabId, url, intent, responseBodies);
+    await waitForContentReady(tabId, url, intent, responseBodies, signal);
 
     // Collect all intercepted requests
     const intercepted = await collectInterceptedRequests(tabId);
@@ -788,6 +876,7 @@ export async function captureSession(
       // Validate it's actually a URL, fall back to original if not
       try { new URL(final_url); } catch { final_url = url; }
       html = await kuri.getPageHtml(tabId);
+      lastHtml = html;
     } catch {}
 
     // Build requests from HAR entries
@@ -888,11 +977,20 @@ export async function captureSession(
     }
   } finally {
     clearTimeout(timeoutHandle);
-    await resetTab(tabId);
+    signal?.removeEventListener("abort", abortListener);
+    await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
   }
   if (retryFreshTab && !options?.forceEphemeral) {
     return captureSession(url, authHeaders, cookies, intent, { forceEphemeral: true });
+  }
+  if (retryFreshTab) {
+    const hasAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
+    const code = blockedAppShellErrorCode(lastHtml, hasAuth);
+    throw Object.assign(new Error(code), {
+      code,
+      login_url: url,
+    });
   }
   if (captureError) throw captureError;
   throw new Error(`captureSession failed without returning a result for ${url}`);
@@ -910,8 +1008,10 @@ export async function executeInBrowser(
   await kuri.discoverTabs();
 
   let tabId: string;
+  let createdFreshTab = false;
   try {
     tabId = await kuri.newTab("about:blank");
+    createdFreshTab = !!tabId;
     if (!tabId) tabId = await kuri.getDefaultTab();
   } catch {
     tabId = await kuri.getDefaultTab();
@@ -934,7 +1034,7 @@ export async function executeInBrowser(
     const result = await kuri.executeInPageFetch(tabId, url, method, requestHeaders, body);
     return { ...result, trace_id: nanoid() };
   } finally {
-    await resetTab(tabId);
+    await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
   }
 }
@@ -957,8 +1057,10 @@ export async function triggerAndIntercept(
   await kuri.discoverTabs();
 
   let tabId: string;
+  let createdFreshTab = false;
   try {
     tabId = await kuri.newTab("about:blank");
+    createdFreshTab = !!tabId;
     if (!tabId) tabId = await kuri.getDefaultTab();
   } catch {
     tabId = await kuri.getDefaultTab();
@@ -1026,7 +1128,7 @@ export async function triggerAndIntercept(
       trace_id: nanoid(),
     };
   } finally {
-    await resetTab(tabId);
+    await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
   }
 }

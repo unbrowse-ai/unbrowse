@@ -258,6 +258,46 @@ function withContextReplayEndpoint(
   };
 }
 
+export function isCachedSkillRelevantForIntent(
+  skill: SkillManifest,
+  intent?: string,
+  contextUrl?: string,
+): boolean {
+  if (!hasUsableEndpoints(skill)) return false;
+  if (!intent || intent.trim().length === 0) return true;
+  const resolvedSkill = withContextReplayEndpoint(skill, intent, contextUrl);
+  const ranked = rankEndpoints(
+    resolvedSkill.endpoints,
+    intent,
+    resolvedSkill.domain,
+    contextUrl,
+  );
+  const top = ranked[0];
+  if (
+    top &&
+    isEducationCatalogIntent(intent) &&
+    isRootContextUrl(contextUrl) &&
+    /captured page artifact/i.test(top.endpoint.description ?? "") &&
+    top.endpoint.url_template === contextUrl
+  ) {
+    return false;
+  }
+  return (top?.score ?? Number.NEGATIVE_INFINITY) >= 0;
+}
+
+function isEducationCatalogIntent(intent?: string): boolean {
+  return /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i.test(intent ?? "");
+}
+
+function isRootContextUrl(contextUrl?: string): boolean {
+  if (!contextUrl) return false;
+  try {
+    return new URL(contextUrl).pathname === "/";
+  } catch {
+    return false;
+  }
+}
+
 async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): Promise<T> {
   const prev = captureDomainLocks.get(domain);
   if (prev) {
@@ -552,6 +592,29 @@ async function withOpTimeout<T>(label: string, ms: number, work: Promise<T>): Pr
       setTimeout(() => reject(new Error(`${label}_timeout:${ms}`)), ms),
     ),
   ]);
+}
+
+async function withAbortableOpTimeout<T>(
+  label: string,
+  ms: number,
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error(`${label}_timeout:${ms}`)), ms);
+  try {
+    return await Promise.race([
+      work(controller.signal),
+      new Promise<never>((_, reject) =>
+        controller.signal.addEventListener(
+          "abort",
+          () => reject(controller.signal.reason ?? new Error(`${label}_timeout:${ms}`)),
+          { once: true },
+        ),
+      ),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function inferPreferredEntityTokens(intent: string): string[] {
@@ -1391,7 +1454,8 @@ export async function resolveAndExecute(
     if (cachedResult) {
       if (
         cachedResult.expires <= Date.now() ||
-        !isAcceptableIntentResult(cachedResult.result, intent)
+        !isAcceptableIntentResult(cachedResult.result, intent) ||
+        !isCachedSkillRelevantForIntent(cachedResult.skill, intent, context?.url)
       ) {
         routeResultCache.delete(cacheKey);
       } else {
@@ -1408,7 +1472,7 @@ export async function resolveAndExecute(
     const cached = skillRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
       const skill = await getSkill(cached.skillId, clientScope);
-      if (skill && hasUsableEndpoints(skill)) {
+      if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
         timing.cache_hit = true;
         const deferred = await buildDeferralWithAutoExec(skill, "marketplace");
         deferred.timing.cache_hit = true;
@@ -1425,12 +1489,19 @@ export async function resolveAndExecute(
     const domainCached = regDomain ? domainSkillCache.get(regDomain) : null;
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
       const skill = await getSkill(domainCached.skillId, clientScope);
-      if (skill && hasUsableEndpoints(skill)) {
+      if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
         timing.cache_hit = true;
         console.log(`[domain-cache] hit for ${regDomain} → skill ${skill.skill_id.slice(0, 15)}`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
         result.timing.cache_hit = true;
         return result;
+      } else if (skill) {
+        const ranked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
+        const top = ranked[0];
+        console.log(
+          `[domain-cache] skip ${regDomain}: no relevant endpoint for "${intent}"` +
+            (top ? ` (${top.endpoint.endpoint_id} score=${top.score.toFixed(1)})` : ""),
+        );
       }
     }
   }
@@ -1542,6 +1613,7 @@ export async function resolveAndExecute(
       if (!skill) continue;
       if (skill.lifecycle !== "active") continue;
       if (!hasUsableEndpoints(skill)) continue;
+      if (!isCachedSkillRelevantForIntent(skill, intent, context?.url)) continue;
       if (!marketplaceSkillMatchesContext(skill, intent, context?.url)) continue;
       if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
       const endpointId = extractEndpointId(c.metadata) ?? undefined;
@@ -1655,46 +1727,50 @@ export async function resolveAndExecute(
   // Check recently-captured cache: avoids re-capturing when EmergentDB hasn't indexed yet
   const domainHit = !forceCapture ? capturedDomainCache.get(cacheKey) : undefined;
   if (domainHit && Date.now() < domainHit.expires) {
-    timing.cache_hit = true;
-    let staleCachedEndpoint = false;
-    if (agentChoseEndpoint) {
-      const execOut = await executeSkill(
-        domainHit.skill,
-        { ...params, endpoint_id: params.endpoint_id ?? domainHit.endpointId },
-        projection,
-        { ...options, intent, contextUrl: context?.url },
-      );
-      if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
-        promoteResultSnapshot(
-          cacheKey,
+    if (!isCachedSkillRelevantForIntent(domainHit.skill, intent, context?.url)) {
+      capturedDomainCache.delete(cacheKey);
+    } else {
+      timing.cache_hit = true;
+      let staleCachedEndpoint = false;
+      if (agentChoseEndpoint) {
+        const execOut = await executeSkill(
           domainHit.skill,
-          params.endpoint_id ?? domainHit.endpointId,
-          execOut.result,
-          execOut.trace,
-          execOut.response_schema,
-          execOut.extraction_hints,
+          { ...params, endpoint_id: params.endpoint_id ?? domainHit.endpointId },
+          projection,
+          { ...options, intent, contextUrl: context?.url },
         );
-        return {
-          result: execOut.result,
-          trace: execOut.trace,
-          source: "marketplace",
-          skill: domainHit.skill,
-          timing: finalize(
-            "marketplace",
-            execOut.result,
-            domainHit.skill.skill_id,
+        if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
+          promoteResultSnapshot(
+            cacheKey,
             domainHit.skill,
+            params.endpoint_id ?? domainHit.endpointId,
+            execOut.result,
             execOut.trace,
-          ),
-          response_schema: execOut.response_schema,
-          extraction_hints: execOut.extraction_hints,
-        };
+            execOut.response_schema,
+            execOut.extraction_hints,
+          );
+          return {
+            result: execOut.result,
+            trace: execOut.trace,
+            source: "marketplace",
+            skill: domainHit.skill,
+            timing: finalize(
+              "marketplace",
+              execOut.result,
+              domainHit.skill.skill_id,
+              domainHit.skill,
+              execOut.trace,
+            ),
+            response_schema: execOut.response_schema,
+            extraction_hints: execOut.extraction_hints,
+          };
+        }
+        staleCachedEndpoint = true;
       }
-      staleCachedEndpoint = true;
+      const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
+      deferred.timing.cache_hit = true;
+      return deferred;
     }
-    const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
-    deferred.timing.cache_hit = true;
-    return deferred;
   }
 
   // In-flight capture queue: wait for the same domain capture instead of failing.
@@ -1754,10 +1830,16 @@ export async function resolveAndExecute(
   const te0 = Date.now();
   if (bypassLiveCaptureQueue) {
     captureSkill = await getOrCreateBrowserCaptureSkill();
-    const out = await withOpTimeout(
+    const out = await withAbortableOpTimeout(
       "live_capture_execute",
       LIVE_CAPTURE_TIMEOUT_MS,
-      executeSkill(captureSkill, { ...params, url: context.url, intent }),
+      (signal) =>
+        executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
+          ...options,
+          intent,
+          contextUrl: context?.url,
+          signal,
+        }),
     );
     trace = out.trace;
     result = out.result;
@@ -1765,10 +1847,16 @@ export async function resolveAndExecute(
   } else {
     const capturePromise = withDomainCaptureLock(captureDomain, async () => {
       const captureSkill = await getOrCreateBrowserCaptureSkill();
-      const out = await withOpTimeout(
+      const out = await withAbortableOpTimeout(
         "live_capture_execute",
         LIVE_CAPTURE_TIMEOUT_MS,
-        executeSkill(captureSkill, { ...params, url: context.url, intent }),
+        (signal) =>
+          executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
+            ...options,
+            intent,
+            contextUrl: context?.url,
+            signal,
+          }),
       );
       return {
         trace: out.trace,
@@ -1788,6 +1876,8 @@ export async function resolveAndExecute(
     }
   }
   timing.execute_ms = Date.now() - te0;
+  const captureResult = result as Record<string, unknown> | null;
+  const authRecommended = captureResult?.auth_recommended === true;
 
   const directDomCaptureResult =
     trace.success &&
@@ -1799,6 +1889,43 @@ export async function resolveAndExecute(
   if (learned_skill && !learnedSkillUsable) {
     console.warn("[capture] dropping unusable learned skill with no replayable endpoints");
     if (!directDomCaptureResult) learned_skill = undefined;
+  }
+
+  if (learned_skill && learnedSkillUsable && !isCachedSkillRelevantForIntent(learned_skill, intent, context?.url)) {
+    const resolvedSkill = withContextReplayEndpoint(learned_skill, intent, context?.url);
+    const ranked = rankEndpoints(
+      resolvedSkill.endpoints,
+      intent,
+      resolvedSkill.domain,
+      context?.url,
+    );
+    const rejectedTrace: ExecutionTrace = {
+      ...trace,
+      success: false,
+      error: `No relevant endpoint discovered for "${intent}"`,
+    };
+    console.warn(`[capture] dropping learned skill with no relevant endpoints for "${intent}"`);
+    return {
+      result: {
+        error: `No relevant endpoint discovered for "${intent}"`,
+        discovered_endpoints: ranked.slice(0, 3).map((candidate) => ({
+          endpoint_id: candidate.endpoint.endpoint_id,
+          score: Math.round(candidate.score * 10) / 10,
+          description: candidate.endpoint.description,
+          url: candidate.endpoint.url_template,
+        })),
+        ...(authRecommended
+          ? {
+              auth_recommended: true,
+              auth_hint: captureResult?.auth_hint,
+            }
+          : {}),
+      },
+      trace: rejectedTrace,
+      source: "live-capture",
+      skill: captureSkill!,
+      timing: finalize("live-capture", result, undefined, undefined, rejectedTrace),
+    };
   }
 
   // Stamp learned skill with real discovery cost so future cache hits use real baselines.
@@ -1924,9 +2051,6 @@ export async function resolveAndExecute(
       extraction_hints: execOut.extraction_hints,
     };
   }
-
-  const captureResult = result as Record<string, unknown> | null;
-  const authRecommended = captureResult?.auth_recommended === true;
   return await buildDeferralWithAutoExec(
     learned_skill!,
     "live-capture",

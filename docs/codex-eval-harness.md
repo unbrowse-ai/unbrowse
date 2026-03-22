@@ -98,6 +98,11 @@ Run the broader stress suite:
 bun run eval:codex:stress
 ```
 
+Run the broader many-domain public gate:
+```bash
+bun run eval:codex:many-domains:gate
+```
+
 Notes:
 - uses the actual CLI resolve path:
   - `resolve --raw`
@@ -158,6 +163,12 @@ Notes:
 - merged bulk-seed corpus lives in `evals/codex-cases.bulk-seed.json`
 - `eval:codex:public` is an alias to the autonomous product-success suite
 - `eval:codex:agent-targets` is an alias to the stress suite
+- `eval:codex:many-domains` runs the public-expansion corpus into `evals/codex-many-domains-last-run.json`
+- `eval:codex:many-domains:gate` adds breadth thresholds on top of that corpus:
+  - enough cases
+  - enough distinct hosts
+  - enough intent diversity
+  - enough satisfied outcomes to support broader public-coverage claims
 - product-success suite is intentionally task-shaped:
   - real result/detail pages, not random homepages
   - at least one param-seeded case

@@ -14,11 +14,11 @@
  * Uses two real domains: finance.yahoo.com and reddit.com
  *
  * Run against deployed API:
- *   GRAPH_TEST_API_URL=https://beta-api.unbrowse.ai bun test backend/tests/graph-api.test.ts
+ *   GRAPH_TEST_RUN=1 GRAPH_TEST_API_URL=https://beta-api.unbrowse.ai bun test backend/tests/graph-api.test.ts
  *
  * Run against local (start wrangler first in a separate terminal):
  *   cd backend && npx wrangler dev --port 9787
- *   GRAPH_TEST_API_URL=http://localhost:9787 GRAPH_TEST_API_KEY=local-test bun test tests/graph-api.test.ts
+ *   GRAPH_TEST_RUN=1 GRAPH_TEST_API_URL=http://localhost:9787 GRAPH_TEST_API_KEY=local-test bun test tests/graph-api.test.ts
  *
  * Note: miniflare 3.x crashes when bun test sends concurrent requests.
  * If running locally, ensure wrangler is started separately before running tests.
@@ -26,14 +26,16 @@
  *
  * Uses two real domains: finance.yahoo.com and reddit.com
  *
- * Run: bun test backend/tests/graph-api.test.ts
+ * These tests are opt-in. They are skipped unless GRAPH_TEST_RUN=1.
  *
  * Requires EMERGENTDB_API_KEY in environment or .dev.vars.
  */
 import { describe, it, expect, beforeAll } from "bun:test";
+const GRAPH_TEST_RUN = process.env.GRAPH_TEST_RUN === "1";
 const API_URL = process.env.GRAPH_TEST_API_URL ?? "https://beta-api.unbrowse.ai";
 const API_KEY = process.env.GRAPH_TEST_API_KEY ?? "";
 const TIMEOUT = 30_000;
+const graphDescribe = GRAPH_TEST_RUN ? describe : describe.skip;
 
 async function post(path: string, body: unknown) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -154,7 +156,7 @@ const REDDIT_SKILL = {
 
 // ─── Tests ───────────────────────────────────────────────────
 
-describe("Graph API — Index & Search", () => {
+graphDescribe("Graph API — Index & Search", () => {
   beforeAll(async () => {
     // Publish both skills (indexes endpoints via Graph API batch_insert)
     const [yahoo, reddit] = await Promise.all([
@@ -163,7 +165,7 @@ describe("Graph API — Index & Search", () => {
     ]);
     console.log(`  yahoo index_status: ${(yahoo.data as any).index_status}`);
     console.log(`  reddit index_status: ${(reddit.data as any).index_status}`);
-  }, 60_000);
+  });
 
   it("searches Yahoo Finance domain for stock quote", async () => {
     // Wait for vectors to be queryable
@@ -229,7 +231,7 @@ describe("Graph API — Index & Search", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — DAG Chain Resolution", () => {
+graphDescribe("Graph API — DAG Chain Resolution", () => {
   it("resolves chain for chart-v8 endpoint", async () => {
     const { status, data } = await post("/v1/graph/chain", {
       domain: "finance.yahoo.com",
@@ -259,7 +261,7 @@ describe("Graph API — DAG Chain Resolution", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — Sessions & Predictions", () => {
+graphDescribe("Graph API — Sessions & Predictions", () => {
   it("records session actions", async () => {
     const sessionId = `test-session-${Date.now()}`;
     const { status: s1 } = await post("/v1/graph/session", {
@@ -290,7 +292,7 @@ describe("Graph API — Sessions & Predictions", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — Negative Examples", () => {
+graphDescribe("Graph API — Negative Examples", () => {
   it("records a negative example", async () => {
     const { status, data } = await post("/v1/graph/negative", {
       domain: "finance.yahoo.com",
@@ -303,7 +305,7 @@ describe("Graph API — Negative Examples", () => {
   }, TIMEOUT);
 });
 
-describe("Graph API — Observability", () => {
+graphDescribe("Graph API — Observability", () => {
   it("returns credit balance", async () => {
     const { status, data } = await get("/v1/graph/credits");
     expect(status).toBe(200);
