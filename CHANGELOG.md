@@ -20,6 +20,8 @@
 - add the detection-based host installer for Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw
 - add the hosted `/install.sh` endpoint so the landing page can show a real copyable one-liner
 - default frontend ToS consent to checked while keeping the toggle visible before API key generation
+- stop generic LinkedIn jobs/people marketplace skills from winning feed-post intents by requiring a feed/timeline endpoint match before cache or marketplace reuse
+- add a WebArena-style multistep eval lane with step-level retrieval and selection assertions, so workflows only pass when shortlist, chosen endpoint, and execution output all line up
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 

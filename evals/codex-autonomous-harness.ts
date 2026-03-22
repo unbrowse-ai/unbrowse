@@ -12,12 +12,16 @@ import type { SkillManifest } from "../src/types/index.js";
 import {
   buildAgentExecuteCliArgs,
   compactForArtifact,
+  evaluateRetrievalExpectation,
+  evaluateSelectionExpectation,
   fallbackEndpointOrder,
   normalizeHarnessCases,
   pickFreeformFollowUpUrl,
   type DeferredEndpoint,
   type HarnessCase,
   type HarnessTerminalState,
+  type RetrievalExpectationResult,
+  type SelectionExpectationResult,
 } from "./codex-harness-lib.js";
 import {
   decideRepair,
@@ -68,6 +72,7 @@ type CandidateRecord = {
   validation_failures: string[];
   echoed_params: string[];
   side_effect_observed?: string;
+  selection_check?: SelectionExpectationResult;
   excerpt: unknown;
 };
 
@@ -111,6 +116,7 @@ type RoundRecord = {
   dag: DagEvaluation;
   trace_context: TraceContext;
   resolve_excerpt: unknown;
+  retrieval_check?: RetrievalExpectationResult;
   candidates: CandidateRecord[];
   repair_action: string;
   repair_reason: string;
@@ -135,6 +141,8 @@ type AutonomousResult = {
   final_source_kind?: string;
   matched_fields: string[];
   missing_fields: string[];
+  retrieval_ok?: boolean;
+  selection_ok?: boolean;
   repair_memory: RepairMemory;
   rounds: RoundRecord[];
   benchmark?: BenchmarkRecord;
@@ -401,7 +409,13 @@ export function synthesizeDeferredEndpointsFromSkill(skill?: SkillManifest): Def
     url: endpoint.url_template,
     trigger_url: endpoint.trigger_url,
     schema_summary: endpoint.response_schema,
+    description: endpoint.description,
   }));
+}
+
+function findEndpointById(endpoints: DeferredEndpoint[], endpointId?: string): DeferredEndpoint | undefined {
+  if (!endpointId) return undefined;
+  return endpoints.find((endpoint) => endpoint.endpoint_id === endpointId);
 }
 
 async function fetchResolvedSkill(skillId: string, clientId: string): Promise<SkillManifest | undefined> {
@@ -700,6 +714,10 @@ async function evaluateCase(
       repair_reason: "pending",
       repair_memory: summarizeRepairMemory({ visitedUrls, attemptedEndpointCounts, failureClassCounts, reasonsSeen }),
     };
+    const retrievalCheck = testCase.validate?.retrieval
+      ? evaluateRetrievalExpectation(hydratedResolveEndpoints, testCase.validate.retrieval)
+      : undefined;
+    if (retrievalCheck) roundRecord.retrieval_check = retrievalCheck;
 
     if (resolveResult.code !== 0 || resolveBody?.error) {
       const failure = classifyAutonomousFailure(String(resolveBody?.error ?? "resolve_failed"), resolveBody);
@@ -747,12 +765,30 @@ async function evaluateCase(
       validate: testCase.validate,
       params: testCase.params,
     });
+    const directEndpoint = findEndpointById(
+      hydratedResolveEndpoints,
+      typeof resolveBody?.trace?.endpoint_id === "string" ? resolveBody.trace.endpoint_id : undefined,
+    );
+    const directSelectionCheck = testCase.validate?.selection
+      ? evaluateSelectionExpectation(directEndpoint, testCase.validate.selection)
+      : undefined;
+    const directCandidateReason =
+      directReview.verdict === "pass" && retrievalCheck && !retrievalCheck.ok
+        ? retrievalCheck.reason
+        : directReview.verdict === "pass" && directSelectionCheck && !directSelectionCheck.ok
+          ? directSelectionCheck.reason
+          : directReview.reason;
     roundRecord.candidates.push({
       endpoint_id: resolveBody?.trace?.endpoint_id ?? "direct_result",
+      endpoint_url: directEndpoint?.url,
+      trigger_url: directEndpoint?.trigger_url,
       attempt_count: 0,
       verdict: directReview.verdict,
-      reason: directReview.reason,
-      failure_class: directReview.verdict === "pass" ? "none" : classifyAutonomousFailure(directReview.reason, directReview.projected_excerpt).class,
+      reason: directCandidateReason,
+      failure_class:
+        directReview.verdict === "pass" && directCandidateReason === directReview.reason
+          ? "none"
+          : classifyAutonomousFailure(directCandidateReason, directReview.projected_excerpt).class,
       source_kind: directReview.source_kind,
       matched_fields: directReview.matched_fields,
       missing_fields: directReview.missing_fields,
@@ -761,10 +797,15 @@ async function evaluateCase(
       validation_failures: directReview.validation_failures,
       echoed_params: directReview.echoed_params,
       side_effect_observed: directReview.side_effect_observed,
+      ...(directSelectionCheck ? { selection_check: directSelectionCheck } : {}),
       ...executeTelemetry(resolveBody),
       excerpt: compactForArtifact(directReview.projected_excerpt),
     });
-    if (directReview.verdict === "pass" && (!requireDagPath || dag.reachable)) {
+    const directChecksOk =
+      (!retrievalCheck || retrievalCheck.ok) &&
+      (!directSelectionCheck || directSelectionCheck.ok) &&
+      (!requireDagPath || dag.reachable);
+    if (directReview.verdict === "pass" && directChecksOk) {
       roundRecord.repair_action = "complete";
       roundRecord.repair_reason = "pass";
       rounds.push(roundRecord);
@@ -779,11 +820,20 @@ async function evaluateCase(
         final_source_kind: directReview.source_kind,
         matched_fields: directReview.matched_fields,
         missing_fields: directReview.missing_fields,
+        ...(retrievalCheck ? { retrieval_ok: retrievalCheck.ok } : {}),
+        ...(directSelectionCheck ? { selection_ok: directSelectionCheck.ok } : {}),
         repair_memory: summarizeRepairMemory({ visitedUrls, attemptedEndpointCounts, failureClassCounts, reasonsSeen }),
         rounds,
       };
     }
-    lastReason = directReview.verdict === "pass" && requireDagPath && !dag.reachable ? dag.reason : directReview.reason;
+    lastReason =
+      directReview.verdict === "pass" && retrievalCheck && !retrievalCheck.ok
+        ? retrievalCheck.reason
+        : directReview.verdict === "pass" && directSelectionCheck && !directSelectionCheck.ok
+          ? directSelectionCheck.reason
+          : directReview.verdict === "pass" && requireDagPath && !dag.reachable
+            ? dag.reason
+            : directReview.reason;
     lastSourceKind = directReview.source_kind;
     lastMatchedFields = directReview.matched_fields;
     lastMissingFields = directReview.missing_fields;
@@ -834,9 +884,21 @@ async function evaluateCase(
               echoed_params: [],
               side_effect_observed: undefined,
             };
-        const failureClass = review.verdict === "pass" ? "none" : classifyAutonomousFailure(review.reason, review.projected_excerpt).class;
+        const selectionCheck = testCase.validate?.selection
+          ? evaluateSelectionExpectation(endpoint, testCase.validate.selection)
+          : undefined;
+        const candidateReason =
+          review.verdict === "pass" && retrievalCheck && !retrievalCheck.ok
+            ? retrievalCheck.reason
+            : review.verdict === "pass" && selectionCheck && !selectionCheck.ok
+              ? selectionCheck.reason
+              : review.reason;
+        const failureClass =
+          review.verdict === "pass" && candidateReason === review.reason
+            ? "none"
+            : classifyAutonomousFailure(candidateReason, review.projected_excerpt).class;
         if (failureClass !== "none") incrementCount(failureClassCounts, failureClass);
-        if (review.reason) reasonsSeen.push(review.reason);
+        if (candidateReason) reasonsSeen.push(candidateReason);
         roundRecord.candidates.push({
           endpoint_id: endpointId,
           endpoint_url: endpoint?.url,
@@ -844,7 +906,7 @@ async function evaluateCase(
           execute_ms: executeMs,
           attempt_count: attemptCount,
           verdict: review.verdict,
-          reason: review.reason,
+          reason: candidateReason,
           failure_class: failureClass,
           source_kind: review.source_kind,
           matched_fields: review.matched_fields,
@@ -854,10 +916,15 @@ async function evaluateCase(
           validation_failures: review.validation_failures,
           echoed_params: review.echoed_params,
           side_effect_observed: review.side_effect_observed,
+          ...(selectionCheck ? { selection_check: selectionCheck } : {}),
           ...executeTelemetry(execute.body),
           excerpt: compactForArtifact(review.projected_excerpt),
         });
-        if (review.verdict === "pass" && (!requireDagPath || dag.reachable)) {
+        const candidateChecksOk =
+          (!retrievalCheck || retrievalCheck.ok) &&
+          (!selectionCheck || selectionCheck.ok) &&
+          (!requireDagPath || dag.reachable);
+        if (review.verdict === "pass" && candidateChecksOk) {
           roundRecord.repair_action = "complete";
           roundRecord.repair_reason = "pass";
           rounds.push(roundRecord);
@@ -872,11 +939,20 @@ async function evaluateCase(
             final_source_kind: review.source_kind,
             matched_fields: review.matched_fields,
             missing_fields: review.missing_fields,
+            ...(retrievalCheck ? { retrieval_ok: retrievalCheck.ok } : {}),
+            ...(selectionCheck ? { selection_ok: selectionCheck.ok } : {}),
             repair_memory: summarizeRepairMemory({ visitedUrls, attemptedEndpointCounts, failureClassCounts, reasonsSeen }),
             rounds,
           };
         }
-        lastReason = review.verdict === "pass" && requireDagPath && !dag.reachable ? dag.reason : review.reason;
+        lastReason =
+          review.verdict === "pass" && retrievalCheck && !retrievalCheck.ok
+            ? retrievalCheck.reason
+            : review.verdict === "pass" && selectionCheck && !selectionCheck.ok
+              ? selectionCheck.reason
+              : review.verdict === "pass" && requireDagPath && !dag.reachable
+                ? dag.reason
+                : review.reason;
         lastSourceKind = review.source_kind;
         lastMatchedFields = review.matched_fields;
         lastMissingFields = review.missing_fields;

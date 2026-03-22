@@ -104,7 +104,7 @@ export function classifyAutonomousFailure(reason: string, excerpt?: unknown): Au
   if (/missing_.*_auth|auth_missing|missing_browser_auth|missing_required_auth_cookie|interactive_login_required|unauthorized|login required|stale credentials|re-authenticate/.test(reasonText)) {
     return { class: "auth", terminal: true, reason: "auth_missing" };
   }
-  if (/wrong_entity_type|intent_mismatch/.test(haystack)) {
+  if (/wrong_entity_type|intent_mismatch|selection_mismatch|selection_missing_endpoint|retrieval_missing_top/.test(haystack)) {
     return { class: "intent", terminal: false, reason: "intent_mismatch" };
   }
   if (/missing_fields:/.test(haystack)) {

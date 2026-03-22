@@ -265,6 +265,12 @@ export function isCachedSkillRelevantForIntent(
 ): boolean {
   if (!hasUsableEndpoints(skill)) return false;
   if (!intent || intent.trim().length === 0) return true;
+  if (isFeedTimelineIntent(intent, contextUrl)) {
+    const hasFeedLikeEndpoint = skill.endpoints.some((endpoint) =>
+      endpointMatchesFeedTimelineContext(endpoint, contextUrl),
+    );
+    if (!hasFeedLikeEndpoint) return false;
+  }
   const resolvedSkill = withContextReplayEndpoint(skill, intent, contextUrl);
   const ranked = rankEndpoints(
     resolvedSkill.endpoints,
@@ -287,6 +293,49 @@ export function isCachedSkillRelevantForIntent(
 
 function isEducationCatalogIntent(intent?: string): boolean {
   return /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i.test(intent ?? "");
+}
+
+function isFeedTimelineIntent(intent?: string, contextUrl?: string): boolean {
+  const text = `${intent ?? ""} ${contextUrl ?? ""}`.toLowerCase();
+  const asksForPosts = /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(text);
+  if (!asksForPosts) return false;
+  return /\b(feed|timeline|stream|home|for-you|for_you|latest)\b/.test(text) || /\/(feed|home)\//.test(text);
+}
+
+function endpointMatchesFeedTimelineContext(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  const haystack = [
+    endpoint.url_template,
+    endpoint.trigger_url ?? "",
+    endpoint.description ?? "",
+    endpoint.semantic?.action_kind ?? "",
+    endpoint.semantic?.resource_kind ?? "",
+    endpoint.semantic?.description_in ?? "",
+    endpoint.semantic?.description_out ?? "",
+    JSON.stringify(endpoint.response_schema ?? {}),
+  ]
+    .join(" ")
+    .toLowerCase();
+  const mentionsFeed = /\b(feed|timeline|stream|mainfeed|main feed|home)\b/.test(haystack);
+  const mentionsPosts = /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(haystack);
+  if (mentionsFeed && mentionsPosts) return true;
+  if (!contextUrl) return false;
+  try {
+    const contextPath = new URL(contextUrl).pathname;
+    const endpointPath = new URL(endpoint.url_template).pathname;
+    if (endpointPath === contextPath) return true;
+  } catch {
+    // ignore
+  }
+  try {
+    if (!endpoint.trigger_url) return false;
+    const triggerPath = new URL(endpoint.trigger_url).pathname;
+    return triggerPath === new URL(contextUrl).pathname;
+  } catch {
+    return false;
+  }
 }
 
 function isRootContextUrl(contextUrl?: string): boolean {
@@ -711,6 +760,9 @@ export function marketplaceSkillMatchesContext(
   intent: string,
   contextUrl?: string,
 ): boolean {
+  if (isFeedTimelineIntent(intent, contextUrl)) {
+    return skill.endpoints.some((endpoint) => endpointMatchesFeedTimelineContext(endpoint, contextUrl));
+  }
   if (!contextUrl || !isConcreteEntityDetailIntent(intent, contextUrl)) return true;
   let contextPath = "";
   try {

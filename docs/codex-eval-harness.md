@@ -78,6 +78,11 @@ Run the auth corpus:
 bun run eval:codex:auth
 ```
 
+Run the WebArena-style multistep corpus:
+```bash
+bun run eval:codex:webarena
+```
+
 Run only the scripted demo auth cases:
 ```bash
 bun run eval:codex:auth:demos
@@ -141,6 +146,7 @@ Notes:
   - avoids the broken “1k sites in one process” pattern
 - auth cases require browser-imported cookies to already exist in the local vault
 - auth corpus lives in `evals/codex-cases.auth-popular.json`
+- WebArena-style multistep corpus lives in `evals/codex-cases.webarena.json`
 - auth runner uses repo-native Unbrowse flows only:
   - `cookie_reuse`: reuse or import browser cookies into the vault
   - `scripted_demo`: run scripted login steps for stable demo sites, store cookies, then call the autonomous harness
@@ -157,6 +163,7 @@ Notes:
 - current corpus mixes:
   - popularity-backed logged-in consumer sites from Similarweb's U.S. ranking
   - scripted demo login sites that should pass without user credentials
+- WebArena-style corpus focuses on stable scripted-demo workflows and adds step-level retrieval + selection assertions before execution truth is allowed to pass
 - AgentMail-style registration/OTP bootstrap is reserved as a future strategy; current runner records that case type as unsupported instead of pretending it passed
 - canonical product-success suite lives in `evals/codex-cases.product-success.json`
 - stress suite lives in `evals/codex-cases.stress.json`

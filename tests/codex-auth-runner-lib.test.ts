@@ -21,6 +21,14 @@ describe("codex auth runner lib", () => {
           validate: {
             min_rows: 1,
             terminal_ok: ["pass", "blocked", "skip"],
+            retrieval: {
+              max_rank: 2,
+              any_of: [
+                {
+                  url_includes: ["/i/bookmarks"],
+                },
+              ],
+            },
           },
           popularity: {
             source: "Similarweb",
@@ -53,6 +61,14 @@ describe("codex auth runner lib", () => {
       validate: {
         min_rows: 1,
         terminal_ok: ["pass", "blocked", "skip"],
+        retrieval: {
+          max_rank: 2,
+          any_of: [
+            {
+              url_includes: ["/i/bookmarks"],
+            },
+          ],
+        },
       },
     });
   });
@@ -135,6 +151,15 @@ describe("codex auth runner lib", () => {
                 intent: "get product details",
                 url: "https://www.saucedemo.com/inventory-item.html?id=4",
                 expected_fields: ["title", "description", "price"],
+                validate: {
+                  selection: {
+                    any_of: [
+                      {
+                        url_includes: ["/inventory-item.html?id=4"],
+                      },
+                    ],
+                  },
+                },
               },
             ],
           },
@@ -151,6 +176,15 @@ describe("codex auth runner lib", () => {
       auth: "www.saucedemo.com",
       auth_context: { domain: "www.saucedemo.com" },
       expected_fields: ["title", "description", "price"],
+      validate: {
+        selection: {
+          any_of: [
+            {
+              url_includes: ["/inventory-item.html?id=4"],
+            },
+          ],
+        },
+      },
     });
   });
 
