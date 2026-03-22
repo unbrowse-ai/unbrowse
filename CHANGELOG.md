@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 * stop staging live eval from assuming seeded search ([#20](https://github.com/unbrowse-ai/unbrowse-dev/issues/20)) ([e6b4c2b](https://github.com/unbrowse-ai/unbrowse-dev/commit/e6b4c2b2740e852a744a489e5e77e2d860717729))
+* exempt the staging marketplace eval token from public search throttling so release publishes can clear the staging gate
 
 ## [2.0.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.8...v2.0.9) (2026-03-22)
 
