@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/plugin-elizaos",
-  "version": "2.0.14",
+  "version": "2.0.15",
   "description": "ElizaOS plugin that routes web tasks through Unbrowse before Playwright browser automation.",
   "type": "module",
   "main": "src/index.ts",
