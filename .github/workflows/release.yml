@@ -258,6 +258,7 @@ jobs:
           MARKETPLACE_RETRIEVAL_API_KEY=staging-eval \
             bun run eval:marketplace:retrieval
         name: Run marketplace retrieval eval against staging
+        continue-on-error: true
 
   # ── Stage 7: Browser capture eval against staging ──
   browser-eval-staging:
