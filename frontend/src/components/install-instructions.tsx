@@ -11,8 +11,8 @@ const tabs = [
     label: "MCP",
     badge: "Recommended",
     note: "Built into the CLI. Best path for Claude Code, Cursor, Cline, Windsurf, and Claude Desktop.",
-    code: `# After running npx unbrowse setup
-# Claude Code
+    code: `# Claude Code
+npx unbrowse setup
 claude mcp add unbrowse -- unbrowse mcp
 
 # Generic MCP config snippet
@@ -30,8 +30,8 @@ claude mcp add unbrowse -- unbrowse mcp
     label: "OpenClaw",
     badge: "Hard Default",
     note: "Strict mode blocks the built-in browser and makes Unbrowse the default web path.",
-    code: `# After running npx unbrowse setup
-# Install the OpenClaw plugin
+    code: `# OpenClaw
+npx unbrowse setup
 openclaw plugins install unbrowse-openclaw
 
 # Make Unbrowse the default browser path
@@ -48,8 +48,8 @@ openclaw unbrowse-plugin health`,
     label: "ElizaOS",
     badge: "Default First",
     note: "Routes web work to Unbrowse first. Remove the browser plugin if you want a full replacement.",
-    code: `# After running npx unbrowse setup
-# In your Eliza project
+    code: `# In your Eliza project
+npx unbrowse setup
 npm install @unbrowse/plugin-elizaos
 
 # Add to your character config
@@ -68,8 +68,8 @@ npx elizaos start --character characters/my-agent.json`,
     label: "Hermes",
     badge: "Default First",
     note: "Auto-registers through the Hermes plugin entry point and teaches the agent to use Unbrowse first.",
-    code: `# After running npx unbrowse setup
-# Install the Hermes plugin
+    code: `# Hermes
+npx unbrowse setup
 pip install unbrowse-hermes
 
 # Start Hermes, then verify the tool is loaded
@@ -83,7 +83,8 @@ pip install unbrowse-hermes
     label: "LangChain",
     badge: "Toolkit",
     note: "Drop-in toolkit for agents that already choose tools through LangChain or LangGraph.",
-    code: `# After running npx unbrowse setup
+    code: `# LangChain
+npx unbrowse setup
 pip install unbrowse-langchain
 
 from unbrowse_langchain import create_unbrowse_toolkit
@@ -100,7 +101,8 @@ tools = create_unbrowse_toolkit()
     label: "Vercel AI SDK",
     badge: "Toolkit",
     note: "Single-tool install for generateText, streamText, route handlers, and chat surfaces.",
-    code: `# After running npx unbrowse setup
+    code: `# Vercel AI SDK
+npx unbrowse setup
 npm install @unbrowse/vercel-ai-sdk ai zod
 
 import { generateText } from "ai";

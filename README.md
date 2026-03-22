@@ -67,8 +67,10 @@ openclaw unbrowse-plugin health
 Default-first plugin path.
 
 ```bash
+# In your Eliza project
 npx unbrowse setup
 npm install @unbrowse/plugin-elizaos
+npx elizaos start --character characters/my-agent.json
 ```
 
 Add `@unbrowse/plugin-elizaos` to your character plugins. Remove `@elizaos/plugin-browser` if you want full replacement.
@@ -80,6 +82,8 @@ Default-first plugin path.
 ```bash
 npx unbrowse setup
 pip install unbrowse-hermes
+# Then inside Hermes:
+# /tools
 ```
 
 ### LangChain
@@ -91,6 +95,8 @@ npx unbrowse setup
 pip install unbrowse-langchain
 ```
 
+Then import `create_unbrowse_toolkit()` and pass the tools to your LangChain/LangGraph agent.
+
 ### Vercel AI SDK
 
 Toolkit path.
@@ -99,6 +105,8 @@ Toolkit path.
 npx unbrowse setup
 npm install @unbrowse/vercel-ai-sdk ai zod
 ```
+
+Then call `createUnbrowseTools()` in your route or agent surface and expose `tools.unbrowse`.
 
 If your agent host uses skills:
 
