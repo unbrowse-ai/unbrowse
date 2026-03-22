@@ -34,6 +34,7 @@
 
 ### Bug Fixes
 
+- bucket public search rate limits by bearer token when present, so staging marketplace evals and authed clients do not trip the anonymous IP-only search bucket
 - skip the live Graph API integration suite unless `GRAPH_TEST_RUN=1`, so normal CI and release gates stop failing on unauthenticated external graph endpoints
 
 ### Bug Fixes
