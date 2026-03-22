@@ -11,7 +11,7 @@ describe("release announce", () => {
       writeFileSync(path.join(root, "package.json"), JSON.stringify({ version: "1.2.3" }));
       writeFileSync(path.join(root, ".release-notes.md"), `## What's New
 
-Cleaner npm-first setup. unbrowse setup now handles bootstrap automatically.
+Cleaner npm-first onboarding. first command now bootstraps automatically.
 
 Public non-auth retrieval is much more reliable across npm, PyPI, GitLab, and Docker Hub.
 
@@ -24,7 +24,7 @@ Public non-auth retrieval is much more reliable across npm, PyPI, GitLab, and Do
       const announcement = collectAnnouncement(root);
       expect(announcement.version).toBe("1.2.3");
       expect(announcement.source).toBe("release-notes");
-      expect(announcement.highlights[0]).toContain("Cleaner npm-first setup");
+      expect(announcement.highlights[0]).toContain("Cleaner npm-first onboarding");
       expect(announcement.fixes[0]).toContain("Fixed payload ingestion");
       expect(announcement.x_post).toContain("Unbrowse v1.2.3 is out.");
       expect(announcement.x_post.length).toBeLessThanOrEqual(280);

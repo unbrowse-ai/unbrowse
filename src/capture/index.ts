@@ -587,12 +587,16 @@ async function injectCookies(
     httpOnly?: boolean;
     sameSite?: string;
     expires?: number;
-  }>
+  }>,
+  originUrl?: string,
 ): Promise<void> {
   const sanitized = cookies.map((c) => ({
     name: c.name,
     value: c.value,
-    domain: c.domain.startsWith(".") ? c.domain : `.${c.domain}`,
+    domain: c.domain.replace(/^\./, ""),
+    ...(originUrl ? {
+      url: `${new URL(originUrl).protocol}//${c.domain.replace(/^\./, "")}${c.path ?? "/"}`,
+    } : {}),
     path: c.path ?? "/",
     ...(c.secure != null ? { secure: c.secure } : {}),
     ...(c.httpOnly != null ? { httpOnly: c.httpOnly } : {}),
@@ -707,7 +711,7 @@ export async function captureSession(
       // Inject cookies AFTER origin navigation — CDP setCookie requires an active
       // page in the cookie's domain context (fails on about:blank).
       if (cookies && cookies.length > 0) {
-        await injectCookies(tabId, cookies);
+        await injectCookies(tabId, cookies, origin);
       }
 
       await kuri.evaluate(tabId, STEALTH_SCRIPT);
@@ -919,7 +923,7 @@ export async function executeInBrowser(
     await kuri.setHeaders(tabId, allHeaders);
 
     if (cookies && cookies.length > 0) {
-      await injectCookies(tabId, cookies);
+      await injectCookies(tabId, cookies, new URL(url).origin);
     }
 
     // Navigate to origin so in-page fetch inherits cookies/CORS
@@ -965,7 +969,7 @@ export async function triggerAndIntercept(
     // Set headers
     const headers = { ...CLIENT_HINT_HEADERS, ...authHeaders };
     await kuri.setHeaders(tabId, headers);
-    await injectCookies(tabId, cookies);
+    await injectCookies(tabId, cookies, new URL(triggerUrl).origin);
 
     // Build a URL matcher
     const targetBase = targetUrlPattern.replace(/\{[^}]+\}/g, "").split("?")[0];

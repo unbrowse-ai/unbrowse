@@ -4,18 +4,25 @@
 
 ## Install
 
-One-command setup that installs browser assets, configures your agent host, and starts the local server:
+Fastest path: detect installed hosts and wire Unbrowse automatically:
 
 ```
-npx unbrowse setup
+curl -fsSL https://www.unbrowse.ai/install.sh | bash
 ```
 
-Install globally for repeat use:
+Manual flow: install the CLI first:
 
 ```
 npm install -g unbrowse
-unbrowse setup
 ```
+
+First run bootstraps automatically:
+
+```
+unbrowse health
+```
+
+The packaged CLI checks npm for a newer release before each command and rolls forward automatically when it finds one. Disable with `UNBROWSE_DISABLE_AUTO_UPDATE=1`.
 
 If your agent host uses skills (OpenClaw, Claude Code, Cursor):
 
@@ -65,10 +72,11 @@ Base URL: `https://beta-api.unbrowse.ai`
 
 Works with any tool that supports CLI execution or the OpenClaw skill protocol:
 
-- **Claude Code**: Install via `npx unbrowse setup` — automatically detected
-- **Cursor**: Install via `npx unbrowse setup` — adds MCP server configuration
+- **Claude Code**: Install via `npm install -g unbrowse`, run `unbrowse health`, then add the skill with `npx skills add unbrowse-ai/unbrowse`
+- **Cursor**: Install via `npm install -g unbrowse`, run `unbrowse health`, then add the skill with `npx skills add unbrowse-ai/unbrowse`
 - **OpenClaw**: Install via `npx skills add unbrowse-ai/unbrowse`
 - **Any CLI agent**: Call `unbrowse resolve --intent "..." --url "..."` directly
+- **One-shot installer**: `scripts/install-agent-integrations.sh` detects Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw
 
 ## Source Code
 

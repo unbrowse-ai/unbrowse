@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const SKILL_MD = `---
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
-install: npx unbrowse setup
+install: "npm install -g unbrowse && unbrowse health && npx skills add unbrowse-ai/unbrowse"
 homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
 ---
@@ -14,16 +14,25 @@ repository: https://github.com/unbrowse-ai/unbrowse
 
 ## Install
 
+Fastest path:
+
 \`\`\`bash
-npx unbrowse setup
+curl -fsSL https://www.unbrowse.ai/install.sh | bash
 \`\`\`
 
-For repeat use, install globally:
+Manual flow:
 
 \`\`\`bash
 npm install -g unbrowse
-unbrowse setup
 \`\`\`
+
+First run bootstraps automatically:
+
+\`\`\`bash
+unbrowse health
+\`\`\`
+
+The packaged CLI checks npm for a newer release before each command and rolls forward automatically when it finds one. Disable with \`UNBROWSE_DISABLE_AUTO_UPDATE=1\`.
 
 If your agent host uses skills, add the Unbrowse skill too:
 
@@ -49,13 +58,14 @@ Skills published by live capture become available to all agents on the network.
 
 ## Quick Start
 
-Run full setup instantly:
+Run a first command and let it auto-bootstrap:
 
 \`\`\`bash
-npx unbrowse setup
+npm install -g unbrowse
+unbrowse health
 \`\`\`
 
-If your agent host uses skills, add the Unbrowse skill:
+If your agent host uses skills (Claude Code, Cursor, OpenClaw), add the Unbrowse skill too:
 
 \`\`\`bash
 npx skills add unbrowse-ai/unbrowse

@@ -153,7 +153,7 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
       ...process.env,
       ...deriveListenEnv(baseUrl),
       UNBROWSE_NON_INTERACTIVE: process.env.UNBROWSE_NON_INTERACTIVE || "1",
-      UNBROWSE_TOS_ACCEPTED: process.env.UNBROWSE_TOS_ACCEPTED || "1",
+      ...(process.env.UNBROWSE_TOS_ACCEPTED ? { UNBROWSE_TOS_ACCEPTED: process.env.UNBROWSE_TOS_ACCEPTED } : {}),
       UNBROWSE_PID_FILE: pidFile,
     },
   });

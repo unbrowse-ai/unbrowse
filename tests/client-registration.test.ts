@@ -146,6 +146,53 @@ describe("client registration recovery", () => {
     expect(saved.api_key).toBe("new-key");
     expect(saved.agent_id).toBe("new-agent");
   });
+
+  it("accepts ToS from env without requiring non-interactive mode", async () => {
+    const configDir = makeConfigDirWithConfig({
+      api_key: "stale-config-key",
+      agent_id: "stale-agent",
+      agent_name: "stale-agent",
+      registered_at: "2026-03-13T00:00:00.000Z",
+      tos_accepted_version: "2026-02-01-v1",
+      tos_accepted_at: "2026-03-13T00:00:00.000Z",
+    });
+    process.env.UNBROWSE_CONFIG_DIR = configDir;
+    delete process.env.UNBROWSE_API_KEY;
+    delete process.env.UNBROWSE_NON_INTERACTIVE;
+    process.env.UNBROWSE_TOS_ACCEPTED = "1";
+    process.env.UNBROWSE_AGENT_EMAIL = "agent@example.com";
+    console.warn = () => {};
+    console.log = () => {};
+
+    globalThis.fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const auth = init?.headers && typeof init.headers === "object"
+        ? (init.headers as Record<string, string>).Authorization
+        : undefined;
+      if (url.endsWith("/v1/agents/me") && auth === "Bearer stale-config-key") {
+        return jsonResponse({ error: "Agent profile not found" }, 404);
+      }
+      if (url.endsWith("/v1/tos/current")) {
+        return jsonResponse({
+          version: "2026-02-22-v1",
+          summary: "tos",
+          url: "https://unbrowse.ai/terms",
+        });
+      }
+      if (url.endsWith("/v1/agents/register") && init?.method === "POST") {
+        return jsonResponse({ agent_id: "new-agent", api_key: "new-key" }, 201);
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    };
+
+    const { ensureRegistered } = await loadClientModule();
+    await ensureRegistered();
+
+    expect(process.env.UNBROWSE_API_KEY).toBe("new-key");
+    const saved = JSON.parse(readFileSync(join(configDir, "config.json"), "utf8")) as { tos_accepted_version: string; api_key: string };
+    expect(saved.tos_accepted_version).toBe("2026-02-22-v1");
+    expect(saved.api_key).toBe("new-key");
+  });
 });
 
 describe("client registration identity", () => {
