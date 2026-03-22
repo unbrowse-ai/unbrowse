@@ -298,10 +298,10 @@ jobs:
       - name: Resolve npm token
         id: npm-auth
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NPM_PUBLISH_TOKEN }}
         run: |
           if [ -z "$NPM_TOKEN" ]; then
-            echo "::notice::No NPM_TOKEN — skipping npm publish."
+            echo "::notice::No NPM_TOKEN or NPM_PUBLISH_TOKEN — skipping npm publish."
             echo "skip=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -371,10 +371,10 @@ jobs:
         if: steps.package-presence.outputs.skip != '1'
         id: npm-auth
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NPM_PUBLISH_TOKEN }}
         run: |
           if [ -z "$NPM_TOKEN" ]; then
-            echo "::notice::No NPM_TOKEN — skipping npm publish."
+            echo "::notice::No NPM_TOKEN or NPM_PUBLISH_TOKEN — skipping npm publish."
             echo "skip=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -401,7 +401,7 @@ jobs:
       - name: Publish to npm
         if: steps.package-presence.outputs.skip != '1' && steps.npm-auth.outputs.skip != '1' && steps.version-check.outputs.skip != '1'
         working-directory: ${{ matrix.package_dir }}
-        run: npm publish --provenance --access public
+        run: npm publish --access public
 
   # ── Stage 10: Publish framework Python packages ──
   publish-frameworks-python:

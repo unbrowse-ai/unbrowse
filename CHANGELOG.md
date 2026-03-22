@@ -20,6 +20,7 @@
 ### CI
 
 - mirror successful `unbrowse-dev` `main` pushes into the public `unbrowse-ai/unbrowse` repo, and mirror release tags there before publish/deploy
+- let release npm publishes fall back to `NPM_PUBLISH_TOKEN`, and skip provenance on self-hosted runners so framework npm releases can actually publish
 
 ### Bug Fixes
 
