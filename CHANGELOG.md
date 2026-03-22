@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
+
+### Bug Fixes
+
+* seed staging browser eval auth ([#24](https://github.com/unbrowse-ai/unbrowse-dev/issues/24)) ([9caa74d](https://github.com/unbrowse-ai/unbrowse-dev/commit/9caa74d769aca1a61b17d962753bb17ae629578d))
+
 ## [2.0.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.12...v2.0.13) (2026-03-22)
 
 ## [2.0.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.11...v2.0.12) (2026-03-22)
