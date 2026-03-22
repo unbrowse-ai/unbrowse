@@ -15,7 +15,7 @@ One agent learns a site once. Every later agent gets the fast path.
 npx unbrowse setup
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, lets you register with an email-shaped display identity, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, auto-registers the agent, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
 
 For daily use:
 

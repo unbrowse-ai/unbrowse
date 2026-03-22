@@ -18,6 +18,8 @@ repository: https://github.com/unbrowse-ai/unbrowse
 npx unbrowse setup
 \`\`\`
 
+That one command installs the browser runtime, starts the local service, auto-registers the agent, and caches credentials in \`~/.unbrowse/config.json\`. No separate API-key setup step.
+
 For repeat use, install globally:
 
 \`\`\`bash
@@ -63,36 +65,12 @@ npx skills add unbrowse-ai/unbrowse
 
 ### Browser Engine Setup
 
-The browser engine is installed automatically on first capture. To preinstall it:
+The browser engine is installed automatically by \`npx unbrowse setup\` or on first capture. You usually do not need any extra install commands.
+
+If you want to verify the runtime explicitly:
 
 \`\`\`bash
 unbrowse health
-npx agent-browser install
-\`\`\`
-
-On Linux, include system dependencies: \`npx playwright install --with-deps chromium\`
-
-This is handled automatically by \`setup.sh\`, but must be done manually for other installation methods.
-
-### Agent Registration (Getting an API Key)
-
-The local server auto-registers on first startup and caches credentials in \`~/.unbrowse/config.json\`. If you need to register manually or get a fresh key:
-
-\`\`\`bash
-curl -s -X POST "$UNBROWSE/v1/agents/register" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name": "my-agent"}'
-\`\`\`
-
-Response:
-\`\`\`json
-{"agent_id": "abc123", "api_key": "ubr_xxxxxxxxxxxx"}
-\`\`\`
-
-Store the API key — authenticated endpoints require it as a Bearer token:
-
-\`\`\`bash
-curl -s -H "Authorization: Bearer $UNBROWSE_API_KEY" "$UNBROWSE/v1/agents/me"
 \`\`\`
 
 ## Core Workflow

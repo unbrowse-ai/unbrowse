@@ -4,7 +4,7 @@
 
 ## Install
 
-One-command setup that installs browser assets, configures your agent host, and starts the local server:
+One-command setup that installs browser assets, starts the local server, auto-registers the agent, and caches credentials locally:
 
 ```
 npx unbrowse setup
@@ -35,7 +35,7 @@ npx skills add unbrowse-ai/unbrowse
 
 - [Homepage](https://www.unbrowse.ai): Product overview, demo, and installation instructions
 - [Skill Registry](https://www.unbrowse.ai/search): Search discovered API skills by intent or domain — the shared marketplace of reverse-engineered APIs
-- [Agent Dashboard](https://www.unbrowse.ai/dashboard): View your discovered skills, execution stats, and API key management
+- [Agent Dashboard](https://www.unbrowse.ai/dashboard): View your discovered skills and execution stats
 - [Skill Documentation](https://www.unbrowse.ai/skill.md): Complete technical documentation for the unbrowse skill — all CLI commands, API endpoints, auth flows, and rules
 - [Privacy Policy](https://www.unbrowse.ai/privacy): Details on what data is shared to the registry vs kept local on your machine
 - [Terms of Service](https://www.unbrowse.ai/terms): Usage terms for unbrowse and the skill registry

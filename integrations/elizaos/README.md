@@ -2,11 +2,11 @@
 
 ElizaOS plugin that replaces Playwright browser automation with [Unbrowse](https://unbrowse.ai) API discovery. Your agent gets structured JSON instead of raw HTML.
 
-## Prerequisites
+## Bootstrap Unbrowse first
 
 ```bash
-npm install -g unbrowse
-unbrowse health   # verify installation
+npx unbrowse setup
+unbrowse health
 ```
 
 ## Installation

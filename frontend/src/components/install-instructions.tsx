@@ -3,16 +3,15 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 
+const bootstrapCommand = "npx unbrowse setup";
+
 const tabs = [
   {
     id: "mcp",
     label: "MCP",
     badge: "Recommended",
     note: "Built into the CLI. Best path for Claude Code, Cursor, Cline, Windsurf, and Claude Desktop.",
-    code: `# Install the CLI once
-npm install -g unbrowse@latest
-unbrowse health
-
+    code: `# After running npx unbrowse setup
 # Claude Code
 claude mcp add unbrowse -- unbrowse mcp
 
@@ -31,8 +30,8 @@ claude mcp add unbrowse -- unbrowse mcp
     label: "OpenClaw",
     badge: "Hard Default",
     note: "Strict mode blocks the built-in browser and makes Unbrowse the default web path.",
-    code: `# Install Unbrowse and the OpenClaw plugin
-npm install -g unbrowse@latest
+    code: `# After running npx unbrowse setup
+# Install the OpenClaw plugin
 openclaw plugins install unbrowse-openclaw
 
 # Make Unbrowse the default browser path
@@ -49,8 +48,9 @@ openclaw unbrowse-plugin health`,
     label: "ElizaOS",
     badge: "Default First",
     note: "Routes web work to Unbrowse first. Remove the browser plugin if you want a full replacement.",
-    code: `# In your Eliza project
-npm install @unbrowse/plugin-elizaos unbrowse
+    code: `# After running npx unbrowse setup
+# In your Eliza project
+npm install @unbrowse/plugin-elizaos
 
 # Add to your character config
 {
@@ -68,8 +68,8 @@ npx elizaos start --character characters/my-agent.json`,
     label: "Hermes",
     badge: "Default First",
     note: "Auto-registers through the Hermes plugin entry point and teaches the agent to use Unbrowse first.",
-    code: `# Install the CLI and Hermes plugin
-npm install -g unbrowse@latest
+    code: `# After running npx unbrowse setup
+# Install the Hermes plugin
 pip install unbrowse-hermes
 
 # Start Hermes, then verify the tool is loaded
@@ -83,7 +83,8 @@ pip install unbrowse-hermes
     label: "LangChain",
     badge: "Toolkit",
     note: "Drop-in toolkit for agents that already choose tools through LangChain or LangGraph.",
-    code: `pip install unbrowse-langchain
+    code: `# After running npx unbrowse setup
+pip install unbrowse-langchain
 
 from unbrowse_langchain import create_unbrowse_toolkit
 
@@ -99,7 +100,8 @@ tools = create_unbrowse_toolkit()
     label: "Vercel AI SDK",
     badge: "Toolkit",
     note: "Single-tool install for generateText, streamText, route handlers, and chat surfaces.",
-    code: `npm install @unbrowse/vercel-ai-sdk unbrowse ai zod
+    code: `# After running npx unbrowse setup
+npm install @unbrowse/vercel-ai-sdk ai zod
 
 import { generateText } from "ai";
 import { createUnbrowseTools } from "@unbrowse/vercel-ai-sdk";
@@ -114,6 +116,7 @@ const tools = createUnbrowseTools();
 export function InstallInstructions() {
   const [active, setActive] = useState<(typeof tabs)[number]["id"]>("mcp");
   const [copied, setCopied] = useState(false);
+  const [copiedBootstrap, setCopiedBootstrap] = useState(false);
 
   const tab = tabs.find((entry) => entry.id === active) ?? tabs[0];
 
@@ -121,6 +124,12 @@ export function InstallInstructions() {
     await navigator.clipboard.writeText(tab.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleBootstrapCopy = async () => {
+    await navigator.clipboard.writeText(bootstrapCommand);
+    setCopiedBootstrap(true);
+    setTimeout(() => setCopiedBootstrap(false), 2000);
   };
 
   return (
@@ -132,7 +141,7 @@ export function InstallInstructions() {
               Verified Install Paths
             </p>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">
-              Pick your host. Every path below was tested in a clean install, then run against a live public resolve flow. Copy-paste safe.
+              Start with one command. It installs the browser runtime, starts the local service, auto-registers your agent, and caches the API key. Then pick your host-specific hookup below.
             </p>
           </div>
           <button
@@ -142,6 +151,31 @@ export function InstallInstructions() {
           >
             {copied ? <Check className="h-4 w-4 text-orange-500" /> : <Copy className="h-4 w-4" />}
           </button>
+        </div>
+      </div>
+
+      <div className="border-b border-border bg-surface px-4 py-5 sm:px-5">
+        <div className="rounded-2xl border border-orange-500/20 bg-orange-50/70 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-mono font-medium uppercase tracking-[0.18em] text-orange-700">
+                Step 1
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-orange-950">
+                Run this once on the machine. No separate API-key form. No manual registration step.
+              </p>
+            </div>
+            <button
+              onClick={handleBootstrapCopy}
+              className="shrink-0 self-start rounded-lg p-2 text-orange-700 transition-colors hover:bg-orange-100 hover:text-orange-900"
+              title="Copy bootstrap command"
+            >
+              {copiedBootstrap ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </button>
+          </div>
+          <pre className="mt-4 overflow-x-auto rounded-xl border border-orange-500/15 bg-surface px-4 py-3 font-mono text-sm font-medium leading-relaxed text-orange-600">
+            {bootstrapCommand}
+          </pre>
         </div>
       </div>
 
@@ -167,7 +201,9 @@ export function InstallInstructions() {
       </div>
 
       <div className="border-b border-border bg-orange-50/70 px-4 py-3 sm:px-5">
-        <p className="text-sm leading-relaxed text-orange-950">{tab.note}</p>
+        <p className="text-sm leading-relaxed text-orange-950">
+          <span className="font-medium">Step 2:</span> {tab.note}
+        </p>
       </div>
 
       <div className="relative bg-surface px-4 py-5 sm:px-6">

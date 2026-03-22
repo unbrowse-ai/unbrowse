@@ -7,8 +7,8 @@ Built into the `unbrowse` CLI. No separate package needed.
 ### 1. Install unbrowse
 
 ```bash
-npm install -g unbrowse
-unbrowse health   # verify it works
+npx unbrowse setup
+unbrowse health
 ```
 
 ### 2. Add to your MCP client

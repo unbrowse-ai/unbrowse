@@ -2,11 +2,11 @@
 
 Hermes Agent plugin that makes [Unbrowse](https://unbrowse.ai) the preferred tool for website tasks, replacing the built-in CDP browser automation.
 
-## Prerequisites
+## Bootstrap Unbrowse first
 
 ```bash
-npm install -g unbrowse
-unbrowse health   # verify installation
+npx unbrowse setup
+unbrowse health
 ```
 
 ## Installation
@@ -14,6 +14,7 @@ unbrowse health   # verify installation
 ### Option A: pip install (recommended)
 
 ```bash
+npx unbrowse setup
 pip install unbrowse-hermes
 ```
 
