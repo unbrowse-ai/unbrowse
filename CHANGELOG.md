@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.11...v2.0.12) (2026-03-22)
+
+### Bug Fixes
+
+* bypass staging eval search cache ([b1b2038](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1b2038291e2536599ff0cf3fb3b51487e1654e6))
+
 ## Unreleased
 
 ### Bug Fixes
