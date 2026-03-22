@@ -85,23 +85,33 @@ function addCandidate(candidates: string[], candidate?: string | null): void {
   if (!candidates.includes(candidate)) candidates.push(candidate);
 }
 
-export function getKuriSourceCandidates(): string[] {
+function getKuriWorkspaceRoots(): string[] {
   const packageRoot = getPackageRoot(import.meta.url);
   const candidates: string[] = [];
-  addCandidate(candidates, path.join(packageRoot, "vendor", "kuri-src"));
-  addCandidate(candidates, path.join(packageRoot, "submodules", "kuri"));
+  addCandidate(candidates, packageRoot);
+  addCandidate(candidates, path.join(packageRoot, "packages", "skill"));
+  return candidates;
+}
+
+export function getKuriSourceCandidates(): string[] {
+  const candidates: string[] = [];
+  for (const root of getKuriWorkspaceRoots()) {
+    addCandidate(candidates, path.join(root, "vendor", "kuri-src"));
+    addCandidate(candidates, path.join(root, "submodules", "kuri"));
+  }
   if (process.env.KURI_PATH) addCandidate(candidates, process.env.KURI_PATH);
   if (process.env.HOME) addCandidate(candidates, path.join(process.env.HOME, "kuri"));
   return candidates;
 }
 
 export function getKuriBinaryCandidates(): string[] {
-  const packageRoot = getPackageRoot(import.meta.url);
   const binaryName = kuriBinaryName();
   const candidates: string[] = [];
 
-  for (const target of currentBundledKuriTargets()) {
-    addCandidate(candidates, path.join(packageRoot, "vendor", "kuri", target, binaryName));
+  for (const root of getKuriWorkspaceRoots()) {
+    for (const target of currentBundledKuriTargets()) {
+      addCandidate(candidates, path.join(root, "vendor", "kuri", target, binaryName));
+    }
   }
   for (const sourceDir of getKuriSourceCandidates()) {
     addCandidate(candidates, path.join(sourceDir, "zig-out", "bin", binaryName));

@@ -82,6 +82,40 @@ describe("kuri client", () => {
     expect(kuri.findKuriBinary()).toBe(binaryPath);
   });
 
+  it("falls back to the monorepo skill package vendor binary", () => {
+    delete process.env.KURI_BIN;
+    const packageRoot = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-workspace-"));
+    tmpDirs.push(packageRoot);
+    process.env.UNBROWSE_PACKAGE_ROOT = packageRoot;
+
+    const target = process.platform === "darwin" && process.arch === "arm64"
+      ? "darwin-arm64"
+      : process.platform === "darwin" && process.arch === "x64"
+        ? "darwin-x64"
+        : process.platform === "linux" && process.arch === "arm64"
+          ? "linux-arm64"
+          : process.platform === "linux" && process.arch === "x64"
+            ? "linux-x64"
+            : null;
+
+    if (!target) return;
+
+    const binaryPath = path.join(
+      packageRoot,
+      "packages",
+      "skill",
+      "vendor",
+      "kuri",
+      target,
+      process.platform === "win32" ? "kuri.exe" : "kuri",
+    );
+    mkdirSync(path.dirname(binaryPath), { recursive: true });
+    writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
+    chmodSync(binaryPath, 0o755);
+
+    expect(kuri.findKuriBinary()).toBe(binaryPath);
+  });
+
   it("creates tabs through Chrome CDP instead of Kuri /tab/new", async () => {
     const seen: string[] = [];
     const server = createServer((req, res) => {

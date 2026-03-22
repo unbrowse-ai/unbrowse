@@ -1011,6 +1011,116 @@ async function trySeedStructuredDocumentSkill(
   };
 }
 
+async function trySeedDirectJsonFetchSkill(
+  skill: SkillManifest,
+  url: string,
+  intent: string,
+  targetDomain: string,
+  authHeaders: Record<string, string> | undefined,
+  cookies: Array<{ name: string; value: string; domain: string }> | undefined,
+  usedStoredAuth: boolean,
+): Promise<ExecutionResult | undefined> {
+  const headers: Record<string, string> = {
+    accept: "application/json,text/plain,*/*",
+    "user-agent": DEFAULT_BROWSER_UA,
+    ...(authHeaders ?? {}),
+  };
+  if (cookies && cookies.length > 0) {
+    headers.cookie = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  }
+
+  const res = await fetch(url, { method: "GET", headers, redirect: "follow" }).catch(() => null);
+  if (!res?.ok) return undefined;
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!/application\/json|\/json|[+]json/i.test(contentType)) return undefined;
+
+  const text = await res.text();
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+
+  const assessment = assessIntentResult(data, intent);
+  if (assessment.verdict === "fail") return undefined;
+
+  const endpoint: EndpointDescriptor = {
+    endpoint_id: nanoid(),
+    method: "GET",
+    url_template: res.url || url,
+    idempotency: "safe",
+    verification_status: "verified",
+    reliability_score: 0.95,
+    description: `Direct JSON fetch for ${intent}`,
+    trigger_url: url,
+    response_schema: inferSchema([compactSchemaSample(data)]),
+  };
+  endpoint.semantic = {
+    ...inferEndpointSemantic(endpoint, {
+      sampleResponse: compactSchemaSample(data),
+      sampleRequest: buildSampleRequestFromUrl(url),
+      observedAt: new Date().toISOString(),
+      sampleRequestUrl: url,
+    }),
+    ...(usedStoredAuth ? { auth_required: true } : {}),
+  };
+
+  const domain = getRegistrableDomain(targetDomain);
+  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const localEndpoints = await prepareLearnedEndpoints(
+    existingSkill ? mergeEndpoints(existingSkill.endpoints, [endpoint]) : [endpoint],
+    intent,
+    domain,
+  );
+
+  const localDraft: SkillManifest = {
+    skill_id: existingSkill?.skill_id ?? nanoid(),
+    version: "1.0.0",
+    schema_version: "1",
+    lifecycle: "active" as const,
+    execution_type: "http" as const,
+    created_at: existingSkill?.created_at ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    name: domain,
+    intent_signature: intent,
+    domain,
+    description: `API skill for ${domain}`,
+    owner_type: "agent" as const,
+    endpoints: localEndpoints,
+    operation_graph: buildSkillOperationGraph(localEndpoints),
+    intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
+  };
+
+  let learned: SkillManifest = localDraft;
+  const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
+  if (validation.valid) {
+    try {
+      const { operation_graph: _graph, ...publishDraft } = localDraft;
+      const published = await publishSkill(publishDraft);
+      learned = { ...published, endpoints: localEndpoints, operation_graph: localDraft.operation_graph };
+    } catch {
+      learned = localDraft;
+    }
+  }
+  try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+
+  const trace: ExecutionTrace = stampTrace({
+    trace_id: nanoid(),
+    skill_id: learned.skill_id,
+    endpoint_id: "browser-capture",
+    started_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    success: true,
+    result: {
+      learned_skill_id: learned.skill_id,
+      endpoints_discovered: 1,
+      seeded_from: "direct_json",
+    },
+  });
+  return { trace, result: trace.result, learned_skill: learned };
+}
+
 async function trySeedPublicDocumentFetchSkill(
   skill: SkillManifest,
   url: string,
@@ -1189,6 +1299,16 @@ async function executeBrowserCapture(
     usedStoredAuth,
   );
   if (seeded) return seeded;
+  const directJsonSeed = await trySeedDirectJsonFetchSkill(
+    skill,
+    url,
+    intent,
+    targetDomain,
+    authHeaders,
+    cookies,
+    usedStoredAuth,
+  );
+  if (directJsonSeed) return directJsonSeed;
   const documentSeed = await trySeedPublicDocumentFetchSkill(
     skill,
     url,
@@ -1242,7 +1362,18 @@ async function executeBrowserCapture(
         },
       };
     }
-    throw captureErr;
+    const ssrFallback = await tryHttpFetch(url, authHeaders, cookies);
+    if (!ssrFallback) throw captureErr;
+    console.log(`[capture-fallback] browser capture failed (${err.message || "unknown error"}) — retrying with plain HTTP fetch`);
+    captured = {
+      requests: [],
+      har_lineage_id: nanoid(),
+      domain: targetDomain,
+      cookies,
+      final_url: ssrFallback.final_url,
+      html: ssrFallback.html,
+      js_bundles: new Map<string, string>(),
+    };
   }
 
   const finalDomain = (() => {
@@ -1741,7 +1872,20 @@ async function executeDomExtractionEndpoint(
         trace_id: nanoid(),
       };
     }
-    throw captureErr;
+    const ssrFallback = await tryHttpFetch(url, authHeaders, cookies);
+    if (!ssrFallback) throw captureErr;
+    console.log(`[capture-fallback] browser capture failed (${err.message || "unknown error"}) — using plain HTTP fetch HTML`);
+    captured = {
+      requests: [],
+      har_lineage_id: nanoid(),
+      domain: (() => {
+        try { return new URL(url).hostname; } catch { return ""; }
+      })(),
+      cookies,
+      final_url: ssrFallback.final_url,
+      html: ssrFallback.html,
+      js_bundles: new Map<string, string>(),
+    };
   }
   const html = captured.html ?? "";
   const extracted = extractFromDOMWithHint(html, extractionIntent, endpoint.dom_extraction);

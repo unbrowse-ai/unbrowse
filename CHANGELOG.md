@@ -1,5 +1,7 @@
 ## Unreleased
 
+- fix: let repo checkouts find the bundled Kuri binary under `packages/skill/vendor`, fall back to plain HTTP HTML capture when browser tabs are unavailable, and seed direct JSON URLs into replayable skills so evals and CLI site checks keep working in repo mode
+- docs: point the repo setup docs at the current `lekt9/kuri` submodule remote and `codex/fix-managed-discover-cdp` branch so local checkouts and GitHub Actions expectations match
 - fix: update frontend deployment docs and release workflow to use the OpenNext Cloudflare Worker deploy path
 - docs: refresh frontend install/deploy guidance to keep onboarding easy across MCP, OpenClaw, ElizaOS, Hermes, LangChain, Vercel AI SDK, and skill hosts
 
