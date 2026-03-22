@@ -656,17 +656,17 @@ export async function captureSession(
   await kuri.start();
   await kuri.discoverTabs(); // Sync Chrome tabs into Kuri's registry
 
-  // Get a tab for this capture
+  // Prefer a fresh tab so capture is isolated from stale/disconnected tabs
+  // already present in the attached Chrome instance.
   let tabId: string;
   try {
-    tabId = await kuri.getDefaultTab();
-  } catch {
-    // If no tabs available, try creating one and re-discover so Bridge registers it
     tabId = await kuri.newTab("about:blank");
     await kuri.discoverTabs();
     if (!tabId) {
       tabId = await kuri.getDefaultTab();
     }
+  } catch {
+    tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
 
@@ -679,6 +679,7 @@ export async function captureSession(
     await resetTab(tabId);
   }, CAPTURE_TIMEOUT_MS);
 
+  try {
     // Set headers: client hints + auth headers
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
     await kuri.setHeaders(tabId, allHeaders);
@@ -788,9 +789,9 @@ export async function captureSession(
     // Build requests from HAR entries
     const requests: RawRequest[] = harEntries.map((entry) => {
       const reqHeaders: Record<string, string> = {};
-      for (const h of entry.request.headers) reqHeaders[h.name] = h.value;
+      for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
       const respHeaders: Record<string, string> = {};
-      for (const h of entry.response.headers) respHeaders[h.name] = h.value;
+      for (const h of entry.response.headers ?? []) respHeaders[h.name] = h.value;
       return {
         url: entry.request.url,
         method: entry.request.method,

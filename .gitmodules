@@ -3,4 +3,4 @@
 	url = https://github.com/lekt9/unbrowse-openclaw.git
 [submodule "submodules/kuri"]
 	path = submodules/kuri
-	url = https://github.com/justrach/kuri.git
+	url = https://github.com/lekt9/kuri.git

@@ -69,6 +69,13 @@ Server-side rendered sites (Amazon, etc.) no longer launch a browser for cached 
 
 ## Unreleased
 
+### Bug Fixes
+
+- Hardened the bundled Kuri runtime so HAR capture survives long-lived sessions: stable bridge keys for tabs/recorders, post-navigate event draining, and CDP reconnect-on-failure.
+- Made Unbrowse tolerate sparse Kuri HAR entries and prefer fresh capture tabs, fixing LinkedIn capture regressions where capture crashed or silently returned zero requests.
+- Made the CLI auto-restart stale managed local servers when `/health` reports an older code hash, fixing false regressions where fresh code still hit an old background server.
+- Pointed CI/deploy submodule sync at the maintained `lekt9/kuri` fork so release/test jobs pick up the committed Kuri fixes instead of upstream `justrach/kuri`.
+
 ### Packaging
 
 - Added the upstream `justrach/kuri` repo as a tracked git submodule and restored `.gitmodules` metadata for the existing OpenClaw plugin submodule, so repo checkouts can initialize both dependencies cleanly.
