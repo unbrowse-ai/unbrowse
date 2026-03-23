@@ -4,7 +4,7 @@ import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
-import { findStoredAuthReference, getStoredAuthBundle, getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
+import { findStoredAuthReference, getStoredAuthBundle, getStoredAuth, getAuthCookies, refreshAuthFromBrowser, storedAuthNeedsBrowserRefresh } from "../auth/index.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { generateExtractionHints } from "../transform/schema-hints.js";
@@ -1434,9 +1434,14 @@ async function executeBrowserCapture(
   let authHeaders = params.auth_headers as Record<string, string> | undefined;
   let cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
   let usedStoredAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
+  let authSourceMeta = null;
 
   if ((!cookies || cookies.length === 0) || !authHeaders || Object.keys(authHeaders).length === 0) {
-    const storedBundle = await getStoredAuthBundle(targetDomain);
+    let storedBundle = await getStoredAuthBundle(targetDomain);
+    if (storedAuthNeedsBrowserRefresh(storedBundle)) {
+      await refreshAuthFromBrowser(targetDomain);
+      storedBundle = await getStoredAuthBundle(targetDomain);
+    }
     if (storedBundle) {
       if ((!cookies || cookies.length === 0) && storedBundle.cookies.length > 0) {
         cookies = storedBundle.cookies;
@@ -1444,6 +1449,7 @@ async function executeBrowserCapture(
       if ((!authHeaders || Object.keys(authHeaders).length === 0) && Object.keys(storedBundle.headers).length > 0) {
         authHeaders = { ...storedBundle.headers };
       }
+      authSourceMeta = storedBundle.source_meta ?? authSourceMeta;
       usedStoredAuth = usedStoredAuth || storedBundle.cookies.length > 0 || Object.keys(storedBundle.headers).length > 0;
     }
   }
@@ -1456,6 +1462,15 @@ async function executeBrowserCapture(
       usedStoredAuth = true;
     }
   }
+  const forceProfileContext = (() => {
+    if (authSourceMeta?.family !== "chromium") return false;
+    try {
+      const pathname = new URL(url).pathname.toLowerCase();
+      return /\/(home|feed|timeline|bookmarks|notifications|messages|inbox|dashboard|search\/results|i\/)/.test(pathname);
+    } catch {
+      return false;
+    }
+  })();
   const seeded = await trySeedStructuredDocumentSkill(
     skill,
     url,
@@ -1489,7 +1504,11 @@ async function executeBrowserCapture(
   if (documentSeed) return documentSeed;
   let captured;
   try {
-    captured = await captureSession(url, authHeaders, cookies, intent, { signal: options?.signal });
+    captured = await captureSession(url, authHeaders, cookies, intent, {
+      signal: options?.signal,
+      authSource: authSourceMeta,
+      forceProfileContext,
+    });
   } catch (captureErr: unknown) {
     const err = captureErr as Error & { code?: string; login_url?: string };
     if (err.code === "auth_required") {
@@ -2262,6 +2281,7 @@ export async function executeEndpoint(
   const startedAt = new Date().toISOString();
   const authHeaders: Record<string, string> = {};
   const cookies: Array<{ name: string; value: string; domain: string }> = [];
+  let authSourceMeta = null;
 
   if (skill.auth_profile_ref) {
     const stored = await getCredential(skill.auth_profile_ref);
@@ -2270,9 +2290,11 @@ export async function executeEndpoint(
         const parsed = JSON.parse(stored) as {
           headers?: Record<string, string>;
           cookies?: typeof cookies;
+          source_meta?: unknown;
         };
         Object.assign(authHeaders, parsed.headers ?? {});
         cookies.push(...(parsed.cookies ?? []));
+        authSourceMeta = parsed.source_meta ?? authSourceMeta;
       } catch {
         // malformed stored cred — skip
       }
@@ -2283,14 +2305,19 @@ export async function executeEndpoint(
   const epDomain = (() => { try { return new URL(endpoint.url_template).hostname; } catch { return skill.domain; } })();
 
   // Bird-style: auto-resolve stored auth bundle first, then cookie-only vault/browser fallback
-  if (cookies.length === 0 || Object.keys(authHeaders).length === 0) {
+  if (cookies.length === 0 || Object.keys(authHeaders).length === 0 || !authSourceMeta) {
     try {
-      const storedBundle = await getStoredAuthBundle(epDomain);
+      let storedBundle = await getStoredAuthBundle(epDomain);
+      if (storedAuthNeedsBrowserRefresh(storedBundle)) {
+        await refreshAuthFromBrowser(epDomain);
+        storedBundle = await getStoredAuthBundle(epDomain);
+      }
       if (storedBundle) {
         if (cookies.length === 0) cookies.push(...storedBundle.cookies);
         if (Object.keys(authHeaders).length === 0 && Object.keys(storedBundle.headers).length > 0) {
           Object.assign(authHeaders, storedBundle.headers);
         }
+        authSourceMeta = storedBundle.source_meta ?? authSourceMeta;
       } else if (cookies.length === 0) {
         const resolved = await getAuthCookies(epDomain, {
           autoExtract: !!skill.auth_profile_ref || endpoint.semantic?.auth_required === true,
@@ -2541,7 +2568,9 @@ export async function executeEndpoint(
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
       } else if (endpoint.trigger_url && isSafe) {
-        result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+        result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+          authSource: authSourceMeta,
+        });
         strategy = "trigger-intercept";
       } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
@@ -2559,7 +2588,9 @@ export async function executeEndpoint(
     } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
       // Proven: this endpoint needs trigger-intercept
       log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
-      result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+      result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+        authSource: authSourceMeta,
+      });
       strategy = "trigger-intercept";
     } else if (endpointStrategy === "browser") {
       if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
@@ -2591,7 +2622,9 @@ export async function executeEndpoint(
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
           if (endpoint.trigger_url && isSafe) {
-            result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+            result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+              authSource: authSourceMeta,
+            });
             strategy = "trigger-intercept";
           } else {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
