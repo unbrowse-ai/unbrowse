@@ -11,6 +11,14 @@ MONO_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILL_PKG="$MONO_ROOT/packages/skill"
 TARGET_REPO="${UNBROWSE_SKILL_REPO:-$HOME/Projects/unbrowse-skill}"
 KURI_SUBMODULE="$MONO_ROOT/submodules/kuri"
+WHITEPAPER_DOCS_DIR="$MONO_ROOT/docs/whitepaper"
+TARGET_BRANCH="${UNBROWSE_SKILL_BRANCH:-$(git -C "$TARGET_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)}"
+
+PACKAGE_SYNC_PATHS=()
+while IFS= read -r path; do
+  PACKAGE_SYNC_PATHS+=("$path")
+done < <(cd "$SKILL_PKG" && find . -mindepth 1 -maxdepth 1 | sed 's#^\./##' | sort)
+STAGE_PATHS=("${PACKAGE_SYNC_PATHS[@]}")
 
 # --------------------------------------------------------------------------
 # 1. Install / update Claude Code local skill
@@ -74,6 +82,14 @@ fi
 
 echo "=== Syncing $SKILL_PKG -> $TARGET_REPO ==="
 
+# Replace any top-level symlinks in the target with real files/directories from the package.
+for path in "${PACKAGE_SYNC_PATHS[@]}"; do
+  if [ -L "$TARGET_REPO/$path" ]; then
+    echo "Removing target symlink before sync: $path"
+    rm "$TARGET_REPO/$path"
+  fi
+done
+
 # Sync all files except .git, resolving symlinks (-L follows symlinks)
 rsync -avL --delete \
   --exclude '.git' \
@@ -89,11 +105,21 @@ if [ -d "$KURI_SUBMODULE" ]; then
     --exclude '.zig-cache' \
     --exclude 'zig-out' \
     "$KURI_SUBMODULE/" "$TARGET_REPO/vendor/kuri-src/"
+  STAGE_PATHS+=("vendor/kuri-src")
 fi
 
 # Also copy root-level .env.example if it exists
 if [ -f "$MONO_ROOT/.env.example" ]; then
   cp "$MONO_ROOT/.env.example" "$TARGET_REPO/.env.example"
+  STAGE_PATHS+=(".env.example")
+fi
+
+if [ -d "$WHITEPAPER_DOCS_DIR" ]; then
+  mkdir -p "$TARGET_REPO/docs"
+  rsync -av --delete \
+    --exclude '.git' \
+    "$WHITEPAPER_DOCS_DIR/" "$TARGET_REPO/docs/whitepaper/"
+  STAGE_PATHS+=("docs/whitepaper")
 fi
 
 echo ""
@@ -103,11 +129,21 @@ ls -la "$TARGET_REPO/"
 # Optionally commit, tag, and push
 MSG="${1:-chore: sync from monorepo}"
 cd "$TARGET_REPO"
-if git diff --quiet && git diff --staged --quiet; then
+FILTERED_STAGE_PATHS=()
+for path in "${STAGE_PATHS[@]}"; do
+  if git check-ignore -q -- "$path" && ! git ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then
+    continue
+  fi
+  if [ -e "$TARGET_REPO/$path" ] || [ -L "$TARGET_REPO/$path" ] || git ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then
+    FILTERED_STAGE_PATHS+=("$path")
+  fi
+done
+
+git add -A -- "${FILTERED_STAGE_PATHS[@]}"
+if git diff --cached --quiet -- "${FILTERED_STAGE_PATHS[@]}"; then
   echo ""
   echo "No changes to commit."
 else
-  git add -A
   echo ""
   echo "Changes to commit:"
   git diff --staged --stat
@@ -115,13 +151,13 @@ else
   if [ "${CI:-}" = "true" ]; then
     # Non-interactive mode for CI
     git commit -m "$MSG"
-    git push origin main
+    git push origin "$TARGET_BRANCH"
     echo "Pushed to $(git remote get-url origin)"
   else
     read -p "Commit and push with message '$MSG'? [y/N] " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
       git commit -m "$MSG"
-      git push origin main
+      git push origin "$TARGET_BRANCH"
       echo "Pushed to $(git remote get-url origin)"
     else
       echo "Skipped commit. Changes are staged."

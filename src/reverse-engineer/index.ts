@@ -5,7 +5,7 @@ import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
-import { buildQueryBindingMap } from "../template-params.js";
+import { buildTemplatedQuery } from "../template-params.js";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -703,9 +703,8 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // endpoint.query stores the captured defaults for execution-time fallback.
     const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
     let pathTemplate = sanitizeUrlTemplate(normalized);
-    const qBindings = sanitizedQParams ? buildQueryBindingMap(Object.keys(sanitizedQParams)) : {};
     const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
-      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${qBindings[k] ?? k}}`).join("&")
+      ? Object.entries(buildTemplatedQuery(sanitizedQParams)).map(([k, v]) => `${encodeURIComponent(k)}=${v}`).join("&")
       : null;
 
     // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)

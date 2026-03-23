@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const INSTALL_SH = `#!/usr/bin/env bash
 set -euo pipefail
 
-curl -fsSL https://raw.githubusercontent.com/unbrowse-ai/unbrowse/main/scripts/install-agent-integrations.sh | bash -s -- "$@"
+curl -fsSL https://www.unbrowse.ai/install-agent-integrations.sh | bash -s -- "$@"
 `;
 
 export function GET() {

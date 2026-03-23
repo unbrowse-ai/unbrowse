@@ -27,7 +27,7 @@ import { buildSkillOperationGraph, inferEndpointSemantic, resolveEndpointSemanti
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
-import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
+import { buildQueryBindingMap, buildTemplatedQuery, extractTemplateQueryBindings, extractTemplateVariables, mergeContextTemplateParams, parseStructuredQueryTuple } from "../template-params.js";
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import * as cheerio from "cheerio";
 
@@ -782,59 +782,93 @@ function buildLinkedInEmbeddedFeedCapture(
     return {};
   }
 
-  try {
-    const $ = cheerio.load(html);
-    let metadata: {
-      request?: string;
-      method?: string;
-      headers?: Record<string, string>;
-      body?: string;
-    } | null = null;
+  const $ = cheerio.load(html);
+  let metadata: {
+    request?: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  } | null = null;
 
-    $("code").each((_, el) => {
-      if (metadata) return;
-      const text = $(el).text().trim();
-      if (!/voyagerFeedDashMainFeed/.test(text)) return;
-      if (!/"request":"\/voyager\/api\/graphql/.test(text)) return;
+  $("code").each((_, el) => {
+    if (metadata) return;
+    const text = $(el).text().trim();
+    if (!/voyagerFeedDashMainFeed/.test(text)) return;
+    if (!/"request":"\/voyager\/api\/graphql/.test(text)) return;
+    try {
       metadata = JSON.parse(text);
-    });
-    if (!metadata?.body) return {};
-
-    let payloadText = "";
-    $("code").each((_, el) => {
-      if (payloadText) return;
-      const id = $(el).attr("id");
-      if (id !== metadata?.body) return;
-      payloadText = $(el).text().trim();
-    });
-    if (!payloadText) return {};
-
-    const payload = JSON.parse(payloadText);
-    const semanticAssessment = assessIntentResult(payload, intent);
-    if (semanticAssessment.verdict === "fail") {
-      return { quality_note: semanticAssessment.reason };
+    } catch {
+      metadata = null;
     }
+  });
+  if (!metadata?.body) return {};
 
-    const requestUrl = metadata.request?.startsWith("http")
-      ? metadata.request
-      : `https://www.linkedin.com${metadata.request?.startsWith("/") ? "" : "/"}${metadata.request ?? ""}`;
-    if (!requestUrl || requestUrl === "https://www.linkedin.com/") return {};
+  let payloadText = "";
+  $("code").each((_, el) => {
+    if (payloadText) return;
+    const id = $(el).attr("id");
+    if (id !== metadata?.body) return;
+    payloadText = $(el).text().trim();
+  });
+  if (!payloadText) return {};
 
-    const endpoint: EndpointDescriptor = {
-      endpoint_id: nanoid(),
-      method: (metadata.method ?? "GET").toUpperCase() as EndpointDescriptor["method"],
-      url_template: requestUrl,
-      exec_strategy: "trigger-intercept",
-      idempotency: "safe",
-      verification_status: "verified",
-      reliability_score: 0.95,
-      description: `Embedded LinkedIn feed payload for ${intent}`,
-      response_schema: inferSchema([payload]),
-      trigger_url: url,
-      ...(metadata.headers && Object.keys(metadata.headers).length > 0
-        ? { headers_template: metadata.headers }
-        : {}),
-    };
+  let payload: unknown;
+  try {
+    payload = JSON.parse(payloadText);
+  } catch {
+    return {};
+  }
+
+  const semanticAssessment = assessIntentResult(payload, intent);
+  if (semanticAssessment.verdict === "fail") {
+    return { quality_note: semanticAssessment.reason };
+  }
+
+  const requestUrl = metadata.request?.startsWith("http")
+    ? metadata.request
+    : `https://www.linkedin.com${metadata.request?.startsWith("/") ? "" : "/"}${metadata.request ?? ""}`;
+  if (!requestUrl || requestUrl === "https://www.linkedin.com/") return {};
+
+  const queryDefaults = (() => {
+    try {
+      return Object.fromEntries(new URL(requestUrl).searchParams.entries());
+    } catch {
+      return {} as Record<string, string>;
+    }
+  })();
+  let urlTemplate = requestUrl;
+  try {
+    const parsed = new URL(requestUrl);
+    const templatedQuery = buildTemplatedQuery(queryDefaults);
+    const query = Object.entries(templatedQuery)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${value}`)
+      .join("&");
+    urlTemplate = query ? `${parsed.origin}${parsed.pathname}?${query}` : `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    urlTemplate = requestUrl;
+  }
+
+  const endpoint: EndpointDescriptor = {
+    endpoint_id: nanoid(),
+    method: (metadata.method ?? "GET").toUpperCase() as EndpointDescriptor["method"],
+    url_template: urlTemplate,
+    exec_strategy: "trigger-intercept",
+    idempotency: "safe",
+    verification_status: "verified",
+    reliability_score: 0.95,
+    description: `Embedded LinkedIn feed payload for ${intent}`,
+    trigger_url: url,
+    ...(Object.keys(queryDefaults).length > 0 ? { query: queryDefaults } : {}),
+    ...(metadata.headers && Object.keys(metadata.headers).length > 0
+      ? { headers_template: metadata.headers }
+      : {}),
+  };
+  try {
+    endpoint.response_schema = inferSchema([payload]);
+  } catch {
+    // keep embedded endpoint even if schema inference chokes on the payload
+  }
+  try {
     endpoint.semantic = {
       ...inferEndpointSemantic(endpoint, {
         sampleResponse: payload,
@@ -844,21 +878,21 @@ function buildLinkedInEmbeddedFeedCapture(
       }),
       ...(authRequired ? { auth_required: true } : {}),
     };
-
-    return {
-      endpoint,
-      result: {
-        data: payload,
-        _extraction: {
-          method: "linkedin-embedded-feed",
-          confidence: 0.95,
-          source: "html-embedded",
-        },
-      },
-    };
   } catch {
-    return {};
+    endpoint.semantic = authRequired ? { action_kind: "timeline", resource_kind: "post", auth_required: true } : undefined;
   }
+
+  return {
+    endpoint,
+    result: {
+      data: payload,
+      _extraction: {
+        method: "linkedin-embedded-feed",
+        confidence: 0.95,
+        source: "html-embedded",
+      },
+    },
+  };
 }
 
 export function buildPageArtifactCapture(
@@ -2380,6 +2414,7 @@ export async function executeEndpoint(
       }
     }
   }
+  applyStructuredQueryDefaults(mergedParams, endpoint.url_template, endpoint.query);
 
   // Merge captured query params into URL — user params override endpoint defaults
   let urlTemplate = resolveExecutionUrlTemplate(endpoint, options?.contextUrl);
@@ -2388,12 +2423,23 @@ export async function executeEndpoint(
       const u = new URL(urlTemplate);
       const queryBindings = extractTemplateQueryBindings(endpoint.url_template);
       for (const [k, v] of Object.entries(endpoint.query)) {
+        const currentTemplateValue = u.searchParams.get(k) ?? "";
+        const structuredOverride = typeof v === "string"
+          ? mergeStructuredQueryValue(currentTemplateValue, v, mergedParams)
+          : null;
+        const hasStructuredPlaceholders = parseStructuredQueryTuple(currentTemplateValue)?.some((entry) =>
+          extractTemplateVariables(entry.value).length > 0
+        ) ?? false;
         const bindingKey = queryBindings[k];
         // User params override captured query defaults
         if (bindingKey && mergedParams[bindingKey] != null) {
           u.searchParams.set(k, String(mergedParams[bindingKey]));
         } else if (mergedParams[k] != null) {
           u.searchParams.set(k, String(mergedParams[k]));
+        } else if (structuredOverride) {
+          u.searchParams.set(k, structuredOverride);
+        } else if (hasStructuredPlaceholders) {
+          continue;
         } else if (v != null) {
           u.searchParams.set(k, String(v));
         }
@@ -2416,6 +2462,13 @@ export async function executeEndpoint(
       ...Object.keys(endpoint.path_params ?? {}),
       ...Object.keys(endpoint.query ?? {}),
     ]);
+    for (const value of Object.values(endpoint.query ?? {})) {
+      if (typeof value !== "string") continue;
+      for (const entry of parseStructuredQueryTuple(value) ?? []) {
+        consumedKeys.add(entry.key);
+        for (const placeholder of extractTemplateVariables(entry.value)) consumedKeys.add(placeholder);
+      }
+    }
     for (const [rawKey, bindingKey] of Object.entries(extractTemplateQueryBindings(endpoint.url_template))) {
       consumedKeys.add(rawKey);
       consumedKeys.add(bindingKey);
@@ -2889,6 +2942,68 @@ function interpolate(template: string, params: Record<string, unknown>): string 
   );
 
   return `${interpolatedBase}?${interpolatedQuery}`;
+}
+
+function applyStructuredQueryDefaults(
+  mergedParams: Record<string, unknown>,
+  urlTemplate: string,
+  queryDefaults?: Record<string, unknown>,
+): void {
+  if (!queryDefaults || Object.keys(queryDefaults).length === 0) return;
+  try {
+    const templateUrl = new URL(urlTemplate);
+    for (const [key, rawValue] of Object.entries(queryDefaults)) {
+      if (typeof rawValue !== "string") continue;
+      const templateValue = templateUrl.searchParams.get(key);
+      if (!templateValue) continue;
+      const templateTuple = parseStructuredQueryTuple(templateValue);
+      const defaultTuple = parseStructuredQueryTuple(rawValue);
+      if (!templateTuple || !defaultTuple || templateTuple.length === 0 || defaultTuple.length === 0) continue;
+      const defaultByKey = new Map(defaultTuple.map((entry) => [entry.key, entry.value]));
+      for (const entry of templateTuple) {
+        const placeholder = entry.value.match(/^\{([^}]+)\}$/)?.[1];
+        if (!placeholder || mergedParams[placeholder] != null) continue;
+        const fallback = defaultByKey.get(entry.key);
+        if (fallback != null && fallback !== "") mergedParams[placeholder] = fallback;
+      }
+    }
+  } catch {
+    // ignore malformed template URL
+  }
+}
+
+function mergeStructuredQueryValue(
+  currentValue: string,
+  fallbackValue: string | undefined,
+  mergedParams: Record<string, unknown>,
+): string | null {
+  const templateTuple = parseStructuredQueryTuple(currentValue);
+  const fallbackTuple = fallbackValue ? parseStructuredQueryTuple(fallbackValue) : null;
+  const activeTuple = templateTuple ?? fallbackTuple;
+  if (!activeTuple || activeTuple.length === 0) return null;
+
+  const fallbackByKey = new Map((fallbackTuple ?? []).map((entry) => [entry.key, entry.value]));
+  let changed = false;
+  const rewritten = activeTuple.map((entry) => {
+    const placeholder = entry.value.match(/^\{([^}]+)\}$/)?.[1];
+    const directOverride = mergedParams[entry.key];
+    const placeholderOverride = placeholder ? mergedParams[placeholder] : undefined;
+    const nextValue = placeholderOverride ?? directOverride;
+    if (nextValue != null) {
+      changed = true;
+      return `${entry.key}:${String(nextValue)}`;
+    }
+    if (placeholder) {
+      const fallback = fallbackByKey.get(entry.key);
+      if (fallback != null && fallback !== "") {
+        changed = true;
+        return `${entry.key}:${fallback}`;
+      }
+    }
+    return `${entry.key}:${entry.value}`;
+  });
+
+  return changed ? `(${rewritten.join(",")})` : null;
 }
 
 function interpolateObj(
