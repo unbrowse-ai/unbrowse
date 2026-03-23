@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
-import { isBlockedAppShell } from "../src/capture/index.js";
+import { isBlockedAppShell, shouldRestartKuriForError } from "../src/capture/index.js";
 
 function isChromiumNavigationError(url: string, html?: string): boolean {
   if (!url.startsWith("chrome-error://")) return false;
@@ -33,5 +33,9 @@ describe("capture regressions", () => {
     const match = source.match(/const INTERCEPTOR_SCRIPT = `([\s\S]*?)`;/);
     expect(typeof match?.[1]).toBe("string");
     expect(match![1].length).toBeLessThan(3000);
+  });
+
+  it("treats empty-kuri-tab failures as restartable transport errors", () => {
+    expect(shouldRestartKuriForError(new Error("No tabs available and failed to create one"))).toBe(true);
   });
 });

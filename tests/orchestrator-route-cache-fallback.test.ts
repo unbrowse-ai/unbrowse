@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { chooseBestRouteCacheCandidate } from "../src/orchestrator/index.js";
+import {
+  chooseBestRouteCacheCandidate,
+  isCachedSkillRelevantForIntent,
+  shouldFallbackToLiveCaptureAfterAutoexecFailure,
+} from "../src/orchestrator/index.js";
 import type { SkillManifest } from "../src/types/index.js";
 
 function makeSkill(): SkillManifest {
@@ -162,5 +166,82 @@ describe("chooseBestRouteCacheCandidate", () => {
 
     expect(chosen?.scope).toBe("cli-1");
     expect(chosen?.entry.endpointId).toBe("structured-search");
+  });
+});
+
+describe("shouldFallbackToLiveCaptureAfterAutoexecFailure", () => {
+  test("falls through to live capture when cached auto-exec exhausts all candidates on a real page", () => {
+    expect(
+      shouldFallbackToLiveCaptureAfterAutoexecFailure(
+        true,
+        "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search",
+      ),
+    ).toBe(true);
+  });
+
+  test("keeps deferral when there is no page context to capture", () => {
+    expect(shouldFallbackToLiveCaptureAfterAutoexecFailure(true, undefined)).toBe(false);
+    expect(shouldFallbackToLiveCaptureAfterAutoexecFailure(false, "https://www.lawnet.sg")).toBe(
+      false,
+    );
+  });
+});
+
+describe("isCachedSkillRelevantForIntent", () => {
+  test("rejects single search page artifacts that only mirror the same search shell", () => {
+    const contextUrl = "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search";
+    const skill: SkillManifest = {
+      skill_id: "lawnet-capture-artifact",
+      version: "1.0.0",
+      schema_version: "1",
+      lifecycle: "active",
+      execution_type: "http",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      name: "LawNet captured page",
+      intent_signature: "search cases",
+      domain: "www.lawnet.sg",
+      description: "LawNet captured page artifact",
+      owner_type: "agent",
+      endpoints: [
+        {
+          endpoint_id: "artifact",
+          method: "GET",
+          url_template: contextUrl,
+          idempotency: "safe",
+          verification_status: "verified",
+          reliability_score: 0.8,
+          description: "Captured page artifact for search cases",
+          trigger_url: contextUrl,
+          response_schema: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              link: { type: "string" },
+            },
+          },
+          dom_extraction: {
+            extraction_method: "key-value",
+            confidence: 0.8,
+            selector: "div#layout-column_column-2",
+          },
+          semantic: {
+            action_kind: "search",
+            resource_kind: "resource",
+            description_out: "Captured page artifact for search cases",
+          },
+        },
+      ],
+      intents: ["search cases"],
+      operation_graph: { operations: [], edges: [] },
+    };
+
+    expect(
+      isCachedSkillRelevantForIntent(
+        skill,
+        "search Singapore case law for leave to adduce new evidence after assessment of damages started",
+        contextUrl,
+      ),
+    ).toBe(false);
   });
 });
