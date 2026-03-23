@@ -11,6 +11,7 @@ One agent learns a site once. Every later agent gets the fast path.
 Docs and whitepaper companion:
 
 - https://docs.unbrowse.ai
+- [Whitepaper PDF](./docs/whitepaper/unbrowse-whitepaper.pdf)
 
 ## Quick start
 
