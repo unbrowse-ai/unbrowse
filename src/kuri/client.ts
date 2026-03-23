@@ -9,7 +9,7 @@
  */
 
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { log } from "../logger.js";
 import { getPackageRoot } from "../runtime/paths.js";
@@ -54,8 +54,16 @@ export interface KuriHarEntry {
 let kuriProcess: ChildProcess | null = null;
 let kuriPort = KURI_DEFAULT_PORT;
 let kuriCdpPort: number | null = null;
+let kuriCdpUrl: string | null = null;
 let managedChromePid: number | null = null;
 let kuriReady = false;
+let externalChromeOverride: {
+  cdpUrl: string;
+  child: ChildProcess | null;
+  tempDir: string | null;
+  previousCdpUrl?: string;
+  previousAttach?: string;
+} | null = null;
 
 function kuriBinaryName(): string {
   return process.platform === "win32" ? "kuri.exe" : "kuri";
@@ -132,6 +140,7 @@ async function discoverCdpPort(): Promise<void> {
       });
       if (res.ok) {
         kuriCdpPort = port;
+        kuriCdpUrl = `ws://127.0.0.1:${port}`;
         log("kuri", `found Chrome CDP on port ${port}`);
         return;
       }
@@ -296,6 +305,7 @@ export async function start(port?: number): Promise<void> {
     await discoverCdpPort();
   } else {
     kuriCdpPort = null;
+    kuriCdpUrl = null;
   }
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
@@ -304,15 +314,17 @@ export async function start(port?: number): Promise<void> {
   };
   const explicitCdpUrl = process.env.CDP_URL || process.env.KURI_CDP_URL;
   kuriCdpPort = parsePortFromCdpUrl(explicitCdpUrl);
+  kuriCdpUrl = explicitCdpUrl || (attachExistingChrome && kuriCdpPort ? `ws://127.0.0.1:${kuriCdpPort}` : null);
   if (explicitCdpUrl) {
     env.CDP_URL = explicitCdpUrl;
     log("kuri", `connecting to explicit Chrome at ${explicitCdpUrl}`);
   } else if (attachExistingChrome && kuriCdpPort) {
-    env.CDP_URL = `ws://127.0.0.1:${kuriCdpPort}`;
+    env.CDP_URL = kuriCdpUrl || `ws://127.0.0.1:${kuriCdpPort}`;
     log("kuri", `connecting to existing Chrome on port ${kuriCdpPort}`);
   } else {
     delete env.CDP_URL;
     kuriCdpPort = null;
+    kuriCdpUrl = null;
     log("kuri", "launching isolated managed Chrome");
   }
 
@@ -330,12 +342,14 @@ export async function start(port?: number): Promise<void> {
       if (launchedMatch) {
         managedChromePid = parseInt(launchedMatch[1], 10);
         kuriCdpPort = parseInt(launchedMatch[2], 10);
+        kuriCdpUrl = `ws://127.0.0.1:${kuriCdpPort}`;
         log("kuri", `managed Chrome pid=${managedChromePid} cdp_port=${kuriCdpPort}`);
         continue;
       }
       const cdpMatch = line.match(/CDP port:\s*(\d+)/);
       if (cdpMatch) {
         kuriCdpPort = parseInt(cdpMatch[1], 10);
+        if (!kuriCdpUrl) kuriCdpUrl = `ws://127.0.0.1:${kuriCdpPort}`;
         log("kuri", `discovered CDP port: ${kuriCdpPort}`);
       }
     }
@@ -404,6 +418,37 @@ export async function stop(): Promise<void> {
   }
   kuriReady = false;
   kuriCdpPort = null;
+  kuriCdpUrl = null;
+  if (externalChromeOverride) {
+    try {
+      externalChromeOverride.child?.kill("SIGTERM");
+    } catch {
+      // ignore
+    }
+    if (externalChromeOverride.tempDir) {
+      rmSync(externalChromeOverride.tempDir, { recursive: true, force: true });
+    }
+    if (externalChromeOverride.previousCdpUrl == null) delete process.env.CDP_URL;
+    else process.env.CDP_URL = externalChromeOverride.previousCdpUrl;
+    if (externalChromeOverride.previousAttach == null) delete process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME;
+    else process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME = externalChromeOverride.previousAttach;
+    externalChromeOverride = null;
+  }
+}
+
+export function useExternalChrome(
+  cdpUrl: string,
+  options?: { child?: ChildProcess | null; tempDir?: string | null },
+): void {
+  externalChromeOverride = {
+    cdpUrl,
+    child: options?.child ?? null,
+    tempDir: options?.tempDir ?? null,
+    previousCdpUrl: process.env.CDP_URL,
+    previousAttach: process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME,
+  };
+  process.env.CDP_URL = cdpUrl;
+  process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME = "1";
 }
 
 /** List discovered Chrome tabs. */
@@ -448,7 +493,12 @@ export async function createChromeTabViaCdp(
   if (options?.rediscover !== false) {
     await new Promise((r) => setTimeout(r, 300));
     await ensureTabsDiscovered();
-    await waitForTabReady(target.id);
+    try {
+      await waitForTabReady(target.id, externalChromeOverride ? 10_000 : 5_000);
+    } catch (error) {
+      if (!externalChromeOverride) throw error;
+      log("kuri", `using external Chrome tab ${target.id} without registry confirmation (${error instanceof Error ? error.message : String(error)})`);
+    }
   }
   return target.id;
 }
@@ -479,7 +529,8 @@ async function ensureTabsDiscovered(): Promise<void> {
   try {
     // Pass CDP URL as query param so /discover works even if Kuri was started without CDP_URL env
     const params: Record<string, string> = {};
-    if (kuriCdpPort) params.cdp_url = `ws://127.0.0.1:${kuriCdpPort}`;
+    if (kuriCdpUrl) params.cdp_url = kuriCdpUrl;
+    else if (kuriCdpPort) params.cdp_url = `ws://127.0.0.1:${kuriCdpPort}`;
     await kuriGet("/discover", params);
   } catch {
     // /discover may fail if no Chrome running — that's OK

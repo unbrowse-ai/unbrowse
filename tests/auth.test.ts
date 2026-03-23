@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { isDomainMatch, getRegistrableDomain } from "../src/domain.js";
 import { storeCredential, getCredential, deleteCredential } from "../src/vault/index.js";
-import { findStoredAuthReference, getStoredAuth, getStoredAuthBundle, getAuthCookies } from "../src/auth/index.js";
+import { findStoredAuthReference, getStoredAuth, getStoredAuthBundle, getAuthCookies, storedAuthNeedsBrowserRefresh } from "../src/auth/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -233,6 +233,59 @@ describe("stored auth bundle resolution", () => {
     expect(result!.headers["csrf-token"]).toBe("ajax:123");
     expect(result!.headers.authorization).toBe("Bearer abc");
     expect(await findStoredAuthReference("www.example.com")).toBe("example.com-session");
+  });
+
+  it("preserves browser source metadata for downstream profile attach", async () => {
+    await storeTestCredential("auth:example.com", JSON.stringify({
+      cookies: [makeCookie({ name: "auth_cookie", domain: ".example.com" })],
+      source_meta: {
+        family: "chromium",
+        browserName: "Dia",
+        source: "Dia user data",
+        userDataDir: "/tmp/dia-user-data",
+        profile: "Profile 7",
+      },
+    }));
+
+    const result = await getStoredAuthBundle("www.example.com");
+    expect(result).not.toBeNull();
+    expect(result!.source_meta).toEqual({
+      family: "chromium",
+      browserName: "Dia",
+      source: "Dia user data",
+      userDataDir: "/tmp/dia-user-data",
+      profile: "Profile 7",
+    });
+  });
+});
+
+describe("storedAuthNeedsBrowserRefresh", () => {
+  it("refreshes when chromium source metadata lacks a concrete profile path", () => {
+    expect(storedAuthNeedsBrowserRefresh({
+      cookies: [makeCookie()],
+      headers: {},
+      source_keys: ["auth:example.com"],
+      source_meta: {
+        family: "chromium",
+        browserName: "Chrome",
+        source: "Chrome default profile",
+      },
+    })).toBe(true);
+  });
+
+  it("does not refresh when chromium source metadata includes userDataDir", () => {
+    expect(storedAuthNeedsBrowserRefresh({
+      cookies: [makeCookie()],
+      headers: {},
+      source_keys: ["auth:example.com"],
+      source_meta: {
+        family: "chromium",
+        browserName: "Dia",
+        source: "Dia user data",
+        userDataDir: "/tmp/dia",
+        profile: "Default",
+      },
+    })).toBe(false);
   });
 });
 

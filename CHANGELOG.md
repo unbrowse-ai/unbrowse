@@ -16,6 +16,7 @@
 
 ### Bug Fixes
 
+- prefer the user’s actual default browser during auth auto-extraction, refresh stale vault auth that lacks usable browser source metadata, and restore richer LinkedIn/Dia capture state instead of silently replaying weaker Chrome cookies
 - fall back to browser capture when pre-capture structured/document replay fetches fail, instead of returning a generic `fetch failed` error for authenticated SPA pages like LinkedIn feed
 - make live-capture indexing passive: first-run browser results now return from the local learned skill path immediately, while marketplace validation/publish happen in the background after a successful execution and explicit skill lookups fall back to the local disk cache if remote indexing has not landed yet
 - add a soft background parity gate for passive indexing: when live capture has a browser-visible baseline and a replay/API result, promotion now prefers local overlap checks plus an agent-side parity verdict instead of exact equality
@@ -24,7 +25,7 @@
 - restart Kuri once on raw CDP transport failures during capture, instead of hard-failing installed CLI runs that attach to a dirty existing browser session
 - filter injected auth cookies down to the actual page host before capture, avoiding Kuri crashes on oversized sibling-subdomain cookie sets like X’s `api.x.com` / `upload.x.com` bundle
 - add a generic live-capture auth-strategy ladder: replay stored auth as `Cookie` + CSRF headers first, prefer clean `auth_required` over crash-prone CDP cookie injection during automatic capture, and remember when cookie injection is unsafe for a site/runtime
-- bump the local package version to `2.0.20` so local tarball installs do not immediately auto-update downward/upward to the currently published npm build during smoke tests
+- bump the local package version to `2.0.21` so local tarball installs do not immediately auto-update downward/upward to the currently published npm build during smoke tests
 - launch isolated managed Chrome for Kuri by default and terminate the managed Chrome pid on shutdown, avoiding stale CDP browser reuse across local CLI runs
 - honor `UNBROWSE_TOS_ACCEPTED=1` even when the packaged CLI/server auto-start path runs non-interactively, so local smoke tests and agent-driven runs do not hang on an interactive ToS prompt
 - let repo checkouts find the bundled Kuri binary under `packages/skill/vendor`, fall back to plain HTTP HTML capture when browser tabs are unavailable, and seed direct JSON URLs into replayable skills so evals and CLI site checks keep working in repo mode
@@ -67,6 +68,7 @@
 - move the hosted installer path back to the first homepage tab while keeping the shared skill, OpenClaw, and Claude Code tabs immediately after it
 - bring back the broader integration matrix behind a compact “More integrations” selector so the homepage stays readable without hiding Cursor, Windsurf, Claude Desktop, Codex, MCP, Hermes, ElizaOS, and LangChain
 - flatten the homepage install section into one primary tab row plus a single “Other integrations” disclosure, removing the nested tabs-plus-dropdown install UI
+- fix the Hermes install copy: bootstrap the real CLI/runtime first, then install `unbrowse-hermes`, restart Hermes, and verify the `unbrowse` tool is loaded
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 

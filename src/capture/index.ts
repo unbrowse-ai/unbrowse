@@ -5,6 +5,8 @@ import { log } from "../logger.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
+import type { BrowserAuthSourceMeta } from "../auth/browser-cookies.js";
+import { browserCdpBaseUrl, launchChromiumProfileContext, primeChromiumProfileContext } from "../auth/profile-context.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -899,10 +901,50 @@ export async function captureSession(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   intent?: string,
-  options?: { forceEphemeral?: boolean; signal?: AbortSignal; restartedKuri?: boolean; authStrategy?: CaptureAuthStrategy; triedCookieInjection?: boolean },
+  options?: {
+    forceEphemeral?: boolean;
+    signal?: AbortSignal;
+    restartedKuri?: boolean;
+    authStrategy?: CaptureAuthStrategy;
+    triedCookieInjection?: boolean;
+    authSource?: BrowserAuthSourceMeta | null;
+    usedProfileContext?: boolean;
+    preferExistingTab?: boolean;
+    forceProfileContext?: boolean;
+  },
 ): Promise<CaptureResult> {
   const signal = options?.signal;
   throwIfAborted(signal);
+  if (
+    options?.forceProfileContext &&
+    !options?.usedProfileContext &&
+    options?.authSource?.family === "chromium"
+  ) {
+    try {
+      log("capture", `forcing attached ${options.authSource.browserName} profile context for ${url}`);
+      const profileCtx = await launchChromiumProfileContext(options.authSource);
+      let preferExistingTab = false;
+      if ((cookies?.length ?? 0) > 0) {
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies ?? [], { keepTargetOpen: true });
+        preferExistingTab = !!primed.targetId;
+      }
+      await kuri.stop();
+      kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+      try {
+        return await captureSession(url, undefined, undefined, intent, {
+          ...options,
+          forceEphemeral: true,
+          usedProfileContext: true,
+          preferExistingTab,
+          authStrategy: "header-replay",
+        });
+      } finally {
+        await kuri.stop();
+      }
+    } catch (attachErr) {
+      log("capture", `forced profile context failed for ${url}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+    }
+  }
   await acquireTabSlot();
 
   // Ensure Kuri is running and tabs are discovered
@@ -913,17 +955,38 @@ export async function captureSession(
 
   // Prefer a fresh tab so capture is isolated from stale/disconnected tabs
   // already present in the attached Chrome instance.
-  let tabId: string;
+  let tabId: string | undefined;
   let createdFreshTab = false;
-  try {
-    tabId = await kuri.newTab("about:blank");
-    await kuri.discoverTabs();
-    if (!tabId) {
+  if (options?.preferExistingTab) {
+    const existingTabs = (await kuri.discoverTabs()).filter((tab) => !/^chrome-extension:|^devtools:/.test(tab.url));
+    if (existingTabs[0]?.id) {
+      tabId = existingTabs[0].id;
+    } else {
+      try {
+        tabId = await kuri.newTab("about:blank");
+        await kuri.discoverTabs();
+        if (!tabId) {
+          tabId = await kuri.getDefaultTab();
+        }
+        createdFreshTab = !!tabId;
+      } catch {
+        tabId = await kuri.getDefaultTab();
+      }
+    }
+  } else {
+    try {
+      tabId = await kuri.newTab("about:blank");
+      await kuri.discoverTabs();
+      if (!tabId) {
+        tabId = await kuri.getDefaultTab();
+      }
+      createdFreshTab = !!tabId;
+    } catch {
       tabId = await kuri.getDefaultTab();
     }
-    createdFreshTab = !!tabId;
-  } catch {
-    tabId = await kuri.getDefaultTab();
+  }
+  if (!tabId) {
+    throw new Error("Failed to acquire browser tab");
   }
   activeTabRegistry.add(tabId);
   let captureTimedOut = false;
@@ -1206,6 +1269,37 @@ export async function captureSession(
     await kuri.stop();
     return captureSession(url, authHeaders, cookies, intent, { ...options, forceEphemeral: true, restartedKuri: true });
   }
+  if (
+    retryFreshTab &&
+    !options?.usedProfileContext &&
+    options?.authSource?.family === "chromium" &&
+    ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0)
+  ) {
+    try {
+      log("capture", `managed browser auth replay was insufficient for ${url}; retrying with attached ${options.authSource.browserName} profile clone`);
+      const profileCtx = await launchChromiumProfileContext(options.authSource);
+      let preferExistingTab = false;
+      if ((cookies?.length ?? 0) > 0) {
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies ?? [], { keepTargetOpen: true });
+        preferExistingTab = !!primed.targetId;
+      }
+      await kuri.stop();
+      kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+      try {
+        return await captureSession(url, undefined, undefined, intent, {
+          ...options,
+          forceEphemeral: true,
+          usedProfileContext: true,
+          preferExistingTab,
+          authStrategy: "header-replay",
+        });
+      } finally {
+        await kuri.stop();
+      }
+    } catch (attachErr) {
+      log("capture", `profile attach failed for ${url}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+    }
+  }
   if (retryFreshTab && !options?.forceEphemeral) {
     return captureSession(url, authHeaders, cookies, intent, { ...options, forceEphemeral: true });
   }
@@ -1311,6 +1405,11 @@ export async function triggerAndIntercept(
   targetUrlPattern: string,
   cookies: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   authHeaders?: Record<string, string>,
+  options?: {
+    authSource?: BrowserAuthSourceMeta | null;
+    usedProfileContext?: boolean;
+    preferExistingTab?: boolean;
+  },
 ): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
   startedDateTime: string;
   request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
@@ -1320,18 +1419,42 @@ export async function triggerAndIntercept(
   await kuri.start();
   await kuri.discoverTabs();
 
-  let tabId: string;
+  let tabId: string | undefined;
   let createdFreshTab = false;
-  try {
-    tabId = await kuri.newTab("about:blank");
-    createdFreshTab = !!tabId;
-    if (!tabId) tabId = await kuri.getDefaultTab();
-  } catch {
-    tabId = await kuri.getDefaultTab();
+  if (options?.preferExistingTab) {
+    const existingTabs = (await kuri.discoverTabs()).filter((tab) => !/^chrome-extension:|^devtools:/.test(tab.url));
+    if (existingTabs[0]?.id) {
+      tabId = existingTabs[0].id;
+    } else {
+      try {
+        tabId = await kuri.newTab("about:blank");
+        createdFreshTab = !!tabId;
+        if (!tabId) tabId = await kuri.getDefaultTab();
+      } catch {
+        tabId = await kuri.getDefaultTab();
+      }
+    }
+  } else {
+    try {
+      tabId = await kuri.newTab("about:blank");
+      createdFreshTab = !!tabId;
+      if (!tabId) tabId = await kuri.getDefaultTab();
+    } catch {
+      tabId = await kuri.getDefaultTab();
+    }
   }
+  if (!tabId) throw new Error("Failed to acquire browser tab");
   activeTabRegistry.add(tabId);
 
   try {
+    let harStarted = false;
+    try {
+      await kuri.harStart(tabId);
+      harStarted = true;
+    } catch {
+      // best-effort
+    }
+
     // Set headers
     const headers = { ...CLIENT_HINT_HEADERS, ...authHeaders };
     await kuri.setHeaders(tabId, headers);
@@ -1413,6 +1536,58 @@ export async function triggerAndIntercept(
     }
 
     log("capture", `trigger-and-intercept: timeout waiting for ${targetBase}`);
+    if (harStarted) {
+      try {
+        const { entries } = await kuri.harStop(tabId);
+        const matched = entries.find((entry) => {
+          const respUrl = entry.request?.url ?? "";
+          const baseMatch = respUrl.includes(targetBase);
+          const queryIdMatch = !targetQueryId || respUrl.includes(targetQueryId);
+          return baseMatch && queryIdMatch;
+        });
+        if (matched) {
+          let data: unknown = matched.response?.content?.text;
+          try { data = JSON.parse(matched.response?.content?.text ?? ""); } catch { /* keep text */ }
+          log("capture", `trigger-and-intercept: recovered ${targetBase} from HAR`);
+          return {
+            status: matched.response?.status ?? 0,
+            data,
+            trace_id: nanoid(),
+            network_events: [{
+              startedDateTime: matched.startedDateTime,
+              request: matched.request,
+              response: matched.response,
+            }],
+          };
+        }
+      } catch {
+        // keep falling through
+      }
+    }
+    if (
+      !options?.usedProfileContext &&
+      options?.authSource?.family === "chromium" &&
+      (cookies.length > 0 || Object.keys(authHeaders ?? {}).length > 0)
+    ) {
+      try {
+        log("capture", `trigger-and-intercept: managed browser replay was insufficient for ${triggerUrl}; retrying with attached ${options.authSource.browserName} profile clone`);
+        const profileCtx = await launchChromiumProfileContext(options.authSource);
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies, { keepTargetOpen: true });
+        await kuri.stop();
+        kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+        try {
+          return await triggerAndIntercept(triggerUrl, targetUrlPattern, [], undefined, {
+            ...options,
+            usedProfileContext: true,
+            preferExistingTab: !!primed.targetId,
+          });
+        } finally {
+          await kuri.stop();
+        }
+      } catch (attachErr) {
+        log("capture", `trigger-and-intercept profile attach failed for ${triggerUrl}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+      }
+    }
     return {
       status: 0,
       data: { error: "trigger_timeout", message: "Target API call not intercepted within 15s" },
