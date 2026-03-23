@@ -66,6 +66,8 @@
 
 ### Bug Fixes
 
+- fix warm retrieval for exact cached results: when `resolve` already has a valid route-result snapshot for the same intent + URL, reuse that snapshot directly instead of re-running full endpoint replay and deleting the cache on a stricter second-pass semantic check
+- fix unstable local cache scoping: default CLI requests now share a stable client id and API requests without an explicit client id fall back to `global`, so route-result/route-skill retrieval caches survive across repeated local commands instead of fragmenting per request
 - include `dist/supervisor.js` in the published CLI package so installed builds can autostart the new self-healing local supervisor instead of crashing on missing module
 - treat canonical structured replay endpoints (for sites like npm package pages) as usable learned endpoints, so live capture stops dropping valid replay skills and staging browser evals can auto-execute the replay path after a Cloudflare-gated capture
 - run the autostarted local API behind a supervisor that probes `/health`, tracks the child pid, and restarts wedged local-server children automatically instead of requiring manual restarts

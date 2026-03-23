@@ -141,7 +141,7 @@ export async function registerRoutes(app: FastifyInstance) {
   const clientScopeFor = (req: { headers: Record<string, unknown>; id: string }) =>
     (typeof req.headers["x-unbrowse-client-id"] === "string" && req.headers["x-unbrowse-client-id"].trim())
       ? req.headers["x-unbrowse-client-id"].trim()
-      : req.id;
+      : "global";
 
   // Auth gate: block all routes except /health when no API key is configured
   app.addHook("onRequest", async (req, reply) => {

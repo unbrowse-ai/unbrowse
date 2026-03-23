@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   chooseBestRouteCacheCandidate,
   isCachedSkillRelevantForIntent,
+  shouldReuseRouteResultSnapshot,
   shouldFallbackToLiveCaptureAfterAutoexecFailure,
 } from "../src/orchestrator/index.js";
 import type { SkillManifest } from "../src/types/index.js";
@@ -243,5 +244,22 @@ describe("isCachedSkillRelevantForIntent", () => {
         contextUrl,
       ),
     ).toBe(false);
+  });
+});
+
+describe("shouldReuseRouteResultSnapshot", () => {
+  test("keeps noisy but previously accepted LawNet search rows reusable on warm retrieval", () => {
+    const contextUrl = "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search";
+    const skill = makeSkill();
+    expect(
+      shouldReuseRouteResultSnapshot(
+        {
+          expires: Date.now() + 60_000,
+          skill,
+        },
+        "search Singapore case law for leave to adduce new evidence after assessment of damages started",
+        contextUrl,
+      ),
+    ).toBe(true);
   });
 });
