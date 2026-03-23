@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.23...v2.1.0) (2026-03-23)
+
+### Features
+
+* improve capture resilience and align kuri upstream ([4607822](https://github.com/unbrowse-ai/unbrowse-dev/commit/46078224f8fafda4de7b9a2a9df04f37fd9a5b71))
+
 ## [2.0.23](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.22...v2.0.23) (2026-03-23)
 
 ### Bug Fixes
