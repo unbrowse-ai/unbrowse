@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { blockedAppShellErrorCode, hasUsefulCapturedResponses, isBlockedAppShell } from "../src/capture/index.js";
+import { blockedAppShellErrorCode, hasUsefulCapturedResponses, isBlockedAppShell, shouldShortCircuitEmbeddedPayloadCapture } from "../src/capture/index.js";
 
 describe("isBlockedAppShell", () => {
   it("detects x blocked shell markers", () => {
@@ -110,5 +110,23 @@ describe("blockedAppShellErrorCode", () => {
 
   it("keeps cloudflare shells as auth_required even with auth", () => {
     expect(blockedAppShellErrorCode("<html><title>Attention Required! | Cloudflare</title></html>", true)).toBe("auth_required");
+  });
+});
+
+describe("shouldShortCircuitEmbeddedPayloadCapture", () => {
+  it("short-circuits linkedin feed pages with embedded main feed payloads", () => {
+    expect(shouldShortCircuitEmbeddedPayloadCapture(
+      "https://www.linkedin.com/feed/",
+      "get feed posts",
+      "<html><code>{\"request\":\"/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.abc\"}</code></html>",
+    )).toBe(true);
+  });
+
+  it("does not short-circuit unrelated linkedin pages", () => {
+    expect(shouldShortCircuitEmbeddedPayloadCapture(
+      "https://www.linkedin.com/in/lewistham/",
+      "get profile details",
+      "<html><code>{\"request\":\"/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.abc\"}</code></html>",
+    )).toBe(false);
   });
 });

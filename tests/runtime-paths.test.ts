@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { isMainModule } from "../src/runtime/paths.js";
+import { isMainModule, runtimeInvocationForEntrypoint } from "../src/runtime/paths.js";
 
 const tmpDirs: string[] = [];
 
@@ -31,6 +31,25 @@ describe("runtime paths", () => {
       expect(isMainModule(pathToFileURL(realEntrypoint).href)).toBe(true);
     } finally {
       process.argv[1] = originalArgv1;
+    }
+  });
+
+  it("prefers bun for ts entrypoints when bun is installed outside bun runtime", () => {
+    const originalBun = process.versions.bun;
+    const hadEnv = Object.prototype.hasOwnProperty.call(process.env, "BUN_BIN");
+    const originalEnv = process.env.BUN_BIN;
+    const entrypoint = "/tmp/unbrowse-runtime-test.ts";
+
+    try {
+      Object.defineProperty(process.versions, "bun", { value: undefined, configurable: true });
+      process.env.BUN_BIN = "/usr/local/bin/bun";
+      const runtime = runtimeInvocationForEntrypoint(import.meta.url, entrypoint);
+      expect(runtime.command).toBe("/usr/local/bin/bun");
+      expect(runtime.args).toEqual([entrypoint]);
+    } finally {
+      Object.defineProperty(process.versions, "bun", { value: originalBun, configurable: true });
+      if (hadEnv) process.env.BUN_BIN = originalEnv;
+      else delete process.env.BUN_BIN;
     }
   });
 });

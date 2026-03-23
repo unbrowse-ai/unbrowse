@@ -2,7 +2,7 @@ import { closeSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync 
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { execFileSync } from "node:child_process";
-import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
+import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeInvocationForEntrypoint } from "./paths.js";
 import { CODE_HASH } from "../version.js";
 
 type PidState = {
@@ -222,7 +222,8 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
     const logFile = getServerAutostartLogFile();
     ensureDir(path.dirname(logFile));
     const logFd = openSync(logFile, "a");
-    const child = spawn(process.execPath, runtimeArgsForEntrypoint(metaUrl, entrypoint), {
+    const runtime = runtimeInvocationForEntrypoint(metaUrl, entrypoint);
+    const child = spawn(runtime.command, runtime.args, {
       cwd: packageRoot,
       detached: true,
       stdio: ["ignore", logFd, logFd],

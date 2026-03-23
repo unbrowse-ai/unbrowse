@@ -38,6 +38,25 @@ export interface LaunchedProfileContext {
   tempDir: string;
 }
 
+async function waitForChildExit(child: ChildProcess, timeoutMs = 2_000): Promise<void> {
+  if (child.exitCode !== null || child.killed) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+function removeTempDirQuietly(dir: string): void {
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // best-effort cleanup; do not fail captures on temp profile removal
+  }
+}
+
 function resolveChromiumBinary(browserName: string): string | null {
   const macos = new Map<string, string>([
     ["Chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
@@ -296,13 +315,14 @@ export async function launchChromiumProfileContext(meta: BrowserAuthSourceMeta):
     };
   } catch (error) {
     try { child.kill("SIGTERM"); } catch {}
-    rmSync(tempDir, { recursive: true, force: true });
+    removeTempDirQuietly(tempDir);
     throw error;
   }
 }
 
-export function cleanupProfileContext(ctx: LaunchedProfileContext | null | undefined): void {
+export async function cleanupProfileContext(ctx: LaunchedProfileContext | null | undefined): Promise<void> {
   if (!ctx) return;
   try { ctx.child.kill("SIGTERM"); } catch {}
-  rmSync(ctx.tempDir, { recursive: true, force: true });
+  await waitForChildExit(ctx.child);
+  removeTempDirQuietly(ctx.tempDir);
 }
