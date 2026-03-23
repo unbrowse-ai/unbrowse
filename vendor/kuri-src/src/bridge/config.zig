@@ -10,6 +10,7 @@ pub const Config = struct {
     request_timeout_ms: u32,
     navigate_timeout_ms: u32,
     extensions: ?[]const u8,
+    headless: bool,
 };
 
 pub fn load() Config {
@@ -23,6 +24,7 @@ pub fn load() Config {
         .request_timeout_ms = parseU32("REQUEST_TIMEOUT_MS") orelse 30_000,
         .navigate_timeout_ms = parseU32("NAVIGATE_TIMEOUT_MS") orelse 30_000,
         .extensions = std.posix.getenv("BROWDIE_EXTENSIONS"),
+        .headless = parseBool("HEADLESS") orelse true,
     };
 }
 
@@ -34,6 +36,12 @@ fn parsePort() ?u16 {
 fn parseU32(name: []const u8) ?u32 {
     const val = std.posix.getenv(name) orelse return null;
     return std.fmt.parseInt(u32, val, 10) catch null;
+}
+
+fn parseBool(name: []const u8) ?bool {
+    const val = std.posix.getenv(name) orelse return null;
+    if (std.mem.eql(u8, val, "false") or std.mem.eql(u8, val, "0")) return false;
+    return true;
 }
 
 test "load returns defaults" {

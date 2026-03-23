@@ -36,7 +36,11 @@ function computeCodeHash(): string {
 
 function getGitSha(): string {
   try {
-    return execSync("git rev-parse --short HEAD", { encoding: "utf-8", cwd: MODULE_DIR }).trim();
+    return execSync("git rev-parse --short HEAD", {
+      encoding: "utf-8",
+      cwd: MODULE_DIR,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
   } catch {
     return "unknown";
   }

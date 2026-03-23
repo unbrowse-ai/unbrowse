@@ -136,4 +136,22 @@ pub fn build(b: *std.Build) void {
     const run_bench = b.addRunArtifact(bench);
     const bench_step = b.step("bench", "Run benchmarks");
     bench_step.dependOn(&run_bench.step);
+
+    // kuri-agent: scriptable agentic CLI (no HTTP server)
+    const agent_exe = b.addExecutable(.{
+        .name = "kuri-agent",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/agent_main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    b.installArtifact(agent_exe);
+    const run_agent = b.addRunArtifact(agent_exe);
+    run_agent.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_agent.addArgs(args);
+    }
+    const agent_step = b.step("agent", "Run kuri-agent scriptable CLI");
+    agent_step.dependOn(&run_agent.step);
 }

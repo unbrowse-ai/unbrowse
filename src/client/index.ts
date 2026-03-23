@@ -216,14 +216,15 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
 // --- ToS acceptance ---
 
 async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
+  if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
+    console.log("[unbrowse] ToS accepted by user via agent.");
+    return true;
+  }
+
   // Non-interactive mode: skip the readline prompt, return false.
   // The calling agent is expected to show the ToS to the user and ask for consent,
   // then re-run with UNBROWSE_TOS_ACCEPTED=1 after the user agrees.
   if (process.env.UNBROWSE_NON_INTERACTIVE === "1") {
-    if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
-      console.log("[unbrowse] ToS accepted by user via agent.");
-      return true;
-    }
     console.log("[unbrowse] ToS acceptance required. Set UNBROWSE_TOS_ACCEPTED=1 after user consents.");
     console.log(`[unbrowse] ToS summary:\n${summary}`);
     console.log(`[unbrowse] Full terms: ${tosUrl}`);
@@ -315,6 +316,31 @@ async function checkTosStatus(): Promise<void> {
   }
 }
 
+async function registerAndPersist(
+  name: string,
+  tosVersion?: string | null,
+): Promise<void> {
+  const result = await api<{
+    agent_id: string;
+    api_key: string;
+    tos_accepted_version?: string;
+    tos_accepted_at?: string;
+  }>("POST", "/v1/agents/register", {
+    name,
+    ...(tosVersion ? { tos_version: tosVersion } : {}),
+  });
+
+  process.env.UNBROWSE_API_KEY = result.api_key;
+  saveConfig({
+    api_key: result.api_key,
+    agent_id: result.agent_id,
+    agent_name: name,
+    registered_at: new Date().toISOString(),
+    tos_accepted_version: result.tos_accepted_version ?? tosVersion ?? null,
+    tos_accepted_at: result.tos_accepted_at ?? new Date().toISOString(),
+  });
+}
+
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
@@ -325,6 +351,24 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
     }
     await checkTosStatus();
     return;
+  }
+
+  const existingConfig = loadConfig();
+  if (existingConfig?.tos_accepted_version && process.env.UNBROWSE_TOS_ACCEPTED !== "1") {
+    const fallbackName = buildDefaultAgentName();
+    const name = options?.promptForEmail
+      ? await promptAgentEmail(fallbackName)
+      : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
+    console.log(`Registering as "${name}"...`);
+
+    try {
+      await registerAndPersist(name, existingConfig.tos_accepted_version);
+      console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
+      return;
+    } catch (err) {
+      console.warn(`Registration failed: ${(err as Error).message}`);
+      console.warn("Falling back to live ToS lookup.");
+    }
   }
 
   // Step 1: Fetch current ToS version from backend
@@ -350,20 +394,7 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   console.log(`Registering as "${name}"...`);
 
   try {
-    const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
-    );
-
-    process.env.UNBROWSE_API_KEY = api_key;
-    saveConfig({
-      api_key,
-      agent_id,
-      agent_name: name,
-      registered_at: new Date().toISOString(),
-      tos_accepted_version: tosInfo.version,
-      tos_accepted_at: new Date().toISOString(),
-    });
-
+    await registerAndPersist(name, tosInfo.version);
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
@@ -476,15 +507,16 @@ export function findExistingSkillForDomain(domain: string, intent?: string): Ski
 export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
   const recent = getRecentLocalSkill(skillId, scopeId ?? process.env.UNBROWSE_CLIENT_ID);
   if (recent) return recent;
+  const cached = readSkillCache(skillId);
   if (LOCAL_ONLY) {
-    return readSkillCache(skillId);
+    return cached;
   }
   try {
     const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true });
     writeSkillCache(skill, scopeId);
     return skill;
   } catch {
-    return null;
+    return cached;
   }
 }
 

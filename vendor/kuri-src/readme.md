@@ -14,45 +14,106 @@
 
 **Browser automation & web crawling for AI agents. Written in Zig. Zero Node.js.**
 
-CDP automation · A11y snapshots · HAR recording · Standalone fetcher · Interactive terminal browser · QuickJS scripting
+CDP automation · A11y snapshots · HAR recording · Standalone fetcher · Interactive terminal browser · Agentic CLI · Security testing
 
-[Quick Start](#-quick-start) · [API](#-http-api) · [kuri-fetch](#-kuri-fetch) · [kuri-browse](#-kuri-browse) · [Architecture](#-architecture) · [Configuration](#-configuration)
+[Quick Start](#-quick-start) · [Benchmarks](#-benchmarks) · [kuri-agent](#-kuri-agent) · [Security Testing](#-security-testing) · [API](#-http-api) · [Changelog](CHANGELOG.md)
+
+> **Why teams switch to Kuri:** 464 KB binary, ~3 ms cold start. On Google Flights, a full agent loop (go→snap→click→snap→eval) costs **4,110 tokens** vs **4,880** for agent-browser — **16% less per cycle**, compounding across multi-step tasks.
 
 ---
+
+## Why Kuri Wins for Agents
+
+Most browser tooling was built for QA engineers. Kuri is built for agent loops: read the page, keep token cost low, act on stable refs, and move on.
+
+- The product story is not "most commands." It is "useful state from real pages at the lowest model cost."
+- A tiny output only counts if the page actually rendered. Empty-shell output is a failure mode, not a win.
+- The best proof is same-page, same-session, same-tokenizer comparisons.
+
+### Snapshot tokens: Google Flights `SIN → TPE`
+
+Same Chrome session, measured with `tiktoken` `cl100k_base`. Run `./bench/token_benchmark.sh` to reproduce.
+
+| Tool / Mode | Bytes | Tokens | vs `kuri` | Note |
+|---|---:|---:|---:|---|
+| `kuri snap` (compact) | 13,479 | **4,328** | baseline | |
+| `kuri snap --interactive` | 7,024 | **1,927** | 0.4x | Best for agent loops |
+| `kuri snap --json` | 102,124 | 31,280 | 7.2x | Old default |
+| `agent-browser snapshot` | 17,103 | 4,641 | 1.1x | |
+| `agent-browser snapshot -i` | 8,704 | 2,425 | 0.6x | |
+| `lightpanda semantic_tree` | 67,830 | 26,244 | 6.1x | ⚠ no JS — raw DOM |
+| `lightpanda semantic_tree_text` | 1,909 | 507 | 0.1x | ⚠ no JS — empty shell |
+
+### Full workflow cost: `go → snap → click → snap → eval`
+
+| Tool | Tokens per cycle |
+|---|---:|
+| **kuri-agent** | **4,110** |
+| agent-browser | 4,880 |
+
+kuri saves **16% tokens per workflow cycle** — compounding across multi-step tasks.
+
+Action responses are flat JSON (`{"ok":true}`) instead of nested CDP, which adds up:
+`click` = 9 tokens, `back` = 5 tokens, `scroll` = 5 tokens.
+
+> **Why lightpanda scores low:** Lightpanda can't execute JS-heavy SPAs. Google Flights renders via client-side `fetch()` — lightpanda returns a 507-token empty nav shell with zero flight data. The low token count is a failed render, not efficiency.
+
+### Small binary, fast start
+
+Measured on Apple M3 Pro, macOS 15.3. `kuri` built with `-Doptimize=ReleaseFast`. `agent-browser` v0.20.0.
+
+```
+                        agent-browser        kuri             delta
+                        (v0.20)              (v0.2)
+─────────────────────────────────────────────────────────────────────
+CLI binary              6.0 MB               464 KB           13× smaller
+Cold start (--version)  3.4 ms               3.0 ms           ~same
+Install (npm)           33 MB                3.3 MB (3 bins)  10× smaller
+Commands                140+                 40+ endpoints    different focus
+Standalone fetcher      ❌                    ✅ kuri-fetch     no Chrome needed
+Terminal browser        ❌                    ✅ kuri-browse    interactive REPL
+JS engine (no Chrome)   ❌                    ✅ QuickJS        SSR-style DOM
+HTTP API server         ❌ (CLI only)         ✅ kuri           thread-per-conn
+```
+
+> agent-browser exposes a broader browser-control surface. Kuri is intentionally narrower: a lightweight HTTP API and CLI stack optimized for agent integration, token economy, and deployment simplicity.
 
 ## The Problem
 
 Every browser automation tool drags in Playwright (~300 MB), a Node.js runtime, and a cascade of npm dependencies. Your AI agent just wants to read a page, click a button, and move on.
-
-**Kuri is a single Zig binary.** Three modes, zero runtime:
+**Kuri is a single Zig binary.** Four modes, zero runtime:
 
 ```
 kuri           →  CDP server (Chrome automation, a11y snapshots, HAR)
 kuri-fetch     →  standalone fetcher (no Chrome, QuickJS for JS, ~2 MB)
 kuri-browse    →  interactive terminal browser (navigate, follow links, search)
+kuri-agent     →  agentic CLI (scriptable Chrome automation + security testing)
 ```
 
 ---
-
 ## 📦 Installation
 
-### Pre-built binaries
+### One-line install (macOS / Linux)
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/justrach/kuri/releases/latest).
-
-```bash
-# macOS Apple Silicon
-curl -L https://github.com/justrach/kuri/releases/latest/download/kuri-$(curl -s https://api.github.com/repos/justrach/kuri/releases/latest | grep tag_name | cut -d '"' -f4)-aarch64-macos.tar.gz | tar xz
-
-# macOS Intel
-curl -L https://github.com/justrach/kuri/releases/latest/download/kuri-$(curl -s https://api.github.com/repos/justrach/kuri/releases/latest | grep tag_name | cut -d '"' -f4)-x86_64-macos.tar.gz | tar xz
-
-# Linux amd64
-curl -L https://github.com/justrach/kuri/releases/latest/download/kuri-$(curl -s https://api.github.com/repos/justrach/kuri/releases/latest | grep tag_name | cut -d '"' -f4)-x86_64-linux.tar.gz | tar xz
-
-# Linux arm64
-curl -L https://github.com/justrach/kuri/releases/latest/download/kuri-$(curl -s https://api.github.com/repos/justrach/kuri/releases/latest | grep tag_name | cut -d '"' -f4)-aarch64-linux.tar.gz | tar xz
+```sh
+curl -fsSL https://raw.githubusercontent.com/justrach/kuri/main/install.sh | sh
 ```
+
+Detects your platform, downloads the right binary, installs to `~/.local/bin`.
+macOS binaries are notarized — no Gatekeeper prompt.
+
+### bun / npm
+
+```sh
+bun install -g kuri-agent
+# or: npm install -g kuri-agent
+```
+
+Downloads the correct native binary for your platform at install time.
+
+### Manual
+
+Download the tarball for your platform from [GitHub Releases](https://github.com/justrach/kuri/releases/latest) and unpack it to your `$PATH`.
 
 ### Build from source
 
@@ -62,7 +123,7 @@ Requires [Zig ≥ 0.15.0](https://ziglang.org/download/).
 git clone https://github.com/justrach/kuri.git
 cd kuri
 zig build -Doptimize=ReleaseFast
-# Binaries in zig-out/bin/: kuri, kuri-fetch, kuri-browse
+# Binaries in zig-out/bin/: kuri  kuri-agent  kuri-fetch  kuri-browse
 ```
 
 ---
@@ -72,8 +133,8 @@ zig build -Doptimize=ReleaseFast
 **Requirements:** [Zig ≥ 0.15.1](https://ziglang.org/download/) · Chrome/Chromium (for CDP mode)
 
 ```bash
-git clone https://github.com/justrach/agentic-browdie.git
-cd agentic-browdie
+git clone https://github.com/justrach/kuri.git
+cd kuri
 
 zig build              # build everything
 zig build test         # run 230+ tests
@@ -107,49 +168,6 @@ curl -s "http://localhost:8080/snapshot?tab_id=ABC123&filter=interactive"
 # → [{"ref":"e0","role":"link","name":"VercelLogotype"},
 #    {"ref":"e1","role":"button","name":"Ask AI"}, ...]
 ```
-
----
-
-## 📊 Benchmarks
-
-Measured on Apple M3 Pro, macOS 15.3. `kuri` built with `-Doptimize=ReleaseFast`. `agent-browser` v0.20.0 (Rust native binary).
-
-### vs agent-browser (Rust)
-
-Both are native binaries — agent-browser is Rust, kuri is Zig. Measured with agent-browser v0.20.0.
-
-```
-                        agent-browser        kuri             delta
-                        (Rust, v0.20)        (Zig, v0.2)
-─────────────────────────────────────────────────────────────────────
-CLI binary              6.0 MB               464 KB           13× smaller
-Cold start (--version)  3.4 ms               3.0 ms           ~same
-Install (npm)           33 MB                3.3 MB (3 bins)  10× smaller
-Commands                140+                 40+ endpoints    different focus
-Standalone fetcher      ❌                    ✅ kuri-fetch     no Chrome needed
-Terminal browser        ❌                    ✅ kuri-browse    interactive REPL
-JS engine (no Chrome)   ❌                    ✅ QuickJS        SSR-style DOM
-HTTP API server         ❌ (CLI only)         ✅ kuri           thread-per-conn
-```
-
-> **Note:** agent-browser has significantly more browser automation commands (140+) including
-> drag-and-drop, file upload/download, iOS simulator support, auth vault, and video recording.
-> Kuri focuses on being a lightweight HTTP API server for AI agent integration.
-
-### vs Playwright / Lightpanda
-
-|  | **Kuri** | **Playwright** | **Lightpanda** |
-|---|---|---|---|
-| Runtime | None (native binary) | Node.js ≥ 18 | None (Zig) |
-| `node_modules` | **0 files** | ~300 MB | **0 files** |
-| Binary size | **464 KB** server | N/A (interpreted) | ~15 MB |
-| Cold start | **~3 ms** | ~1–3 s | < 5 ms |
-| Standalone fetcher | ✅ `kuri-fetch` | ❌ | ❌ |
-| Terminal browser | ✅ `kuri-browse` | ❌ | ❌ |
-| JS execution (no Chrome) | ✅ QuickJS | ❌ | ❌ |
-| A11y snapshots | ✅ `@eN` refs | Via CDP | ✅ |
-| HAR recording | ✅ CDP Network | ✅ | ✅ |
-| Token cost reduction | **97%** (interactive filter) | Manual | Varies |
 
 ---
 
@@ -328,6 +346,118 @@ Learn more [1]
 
 ---
 
+## 🤖 kuri-agent
+
+Scriptable CLI for Chrome automation — drives the browser command-by-command from your terminal or shell scripts. Shares session state across invocations via `~/.kuri/session.json`.
+
+```bash
+zig build agent   # build kuri-agent
+
+# 1. Find a Chrome tab
+kuri-agent tabs
+# → ws://127.0.0.1:9222/devtools/page/ABC123  https://example.com
+
+# 2. Attach to it
+kuri-agent use ws://127.0.0.1:9222/devtools/page/ABC123
+
+# 3. Navigate + interact
+kuri-agent go https://example.com
+kuri-agent snap --interactive        # → [{"ref":"e0","role":"link","name":"More info"}]
+kuri-agent click e0
+kuri-agent shot                      # saves ~/.kuri/screenshots/<ts>.png
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `tabs [--port N]` | List Chrome tabs |
+| `use <ws_url>` | Attach to a tab (saves session) |
+| `status` | Show current session |
+| `go <url>` | Navigate to URL |
+| `snap [--interactive] [--text] [--depth N]` | A11y snapshot, saves `@eN` refs |
+| `click <ref>` | Click element by ref |
+| `type <ref> <text>` | Type into element |
+| `fill <ref> <text>` | Fill input value |
+| `select <ref> <value>` | Select dropdown option |
+| `eval <js>` | Evaluate JavaScript |
+| `text [selector]` | Get page text |
+| `shot [--out file.png]` | Screenshot |
+| `cookies` | List cookies with security flags |
+| `headers` | Check security response headers |
+| `audit` | Full security audit |
+
+---
+
+## 🔒 Security Testing
+
+`kuri-agent` supports browser-native security trajectories — log in once, then run reconnaissance and header/cookie audits without leaving the terminal.
+
+### Trajectories
+
+**Enumerate → Inspect** — after authenticating, dump auth cookies and check security flags:
+
+```bash
+kuri-agent go https://target.example.com/login
+kuri-agent snap --interactive
+kuri-agent fill e2 myuser
+kuri-agent fill e3 mypassword
+kuri-agent click e4                  # submit login
+
+kuri-agent cookies
+# cookies (3):
+#   session_id  domain=.example.com path=/  [Secure] [HttpOnly] [SameSite=Strict]
+#   csrf_token  domain=.example.com path=/  [Secure] [!HttpOnly]
+#   tracking    domain=.example.com path=/  [!Secure] [!HttpOnly]
+```
+
+**Header audit** — check what security headers the target sends:
+
+```bash
+kuri-agent go https://target.example.com
+kuri-agent headers
+# → {"url":"https://...","status":200,"headers":{
+#     "content-security-policy":"default-src 'self'",
+#     "strict-transport-security":"max-age=31536000",
+#     "x-frame-options":"(missing)",
+#     "x-content-type-options":"nosniff", ...}}
+```
+
+**Full audit** — HTTPS, missing headers, JS-visible cookies in one shot:
+
+```bash
+kuri-agent audit
+# → {"protocol":"https:","url":"https://...","score":6,
+#     "issues":["MISSING:x-frame-options","COOKIES_EXPOSED_TO_JS:2"],
+#     "headers":{"content-security-policy":"default-src 'self'", ...}}
+```
+
+**Cross-account trajectory** — use `eval` to replay API calls with different tokens:
+
+```bash
+# After login, grab the auth token from localStorage
+kuri-agent eval "localStorage.getItem('token')"
+
+# Probe a resource ID with the current session
+kuri-agent eval "fetch('/api/assessments/42').then(r=>r.status)"
+
+# Check for IDOR: does a different user's resource return 200 or 403?
+kuri-agent eval "fetch('/api/assessments/99').then(r=>r.status)"
+```
+
+### Trajectory Report Format
+
+kuri-agent outputs JSON suitable for pipeline integration. Each security command emits a single JSON line — pipe through `jq` for triage:
+
+```bash
+kuri-agent audit | jq '.issues[]'
+kuri-agent cookies | head -20
+kuri-agent headers | jq '.headers | to_entries[] | select(.value == "(missing)") | .key'
+```
+
+---
+
+
 ## 🏗 Architecture
 
 ```
@@ -454,8 +584,8 @@ For a 50-page monitoring task (from Pinchtab benchmarks):
 Open an issue before submitting a large PR so we can align on the approach.
 
 ```bash
-git clone https://github.com/justrach/agentic-browdie.git
-cd agentic-browdie
+git clone https://github.com/justrach/kuri.git
+cd kuri
 zig build test         # 230+ tests must pass
 zig build test-fetch   # kuri-fetch tests (66 tests)
 zig build test-browse  # kuri-browse tests

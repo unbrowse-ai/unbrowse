@@ -9,49 +9,162 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # ── Linux: cross-compile both arches on one runner ─────────────────────────
+  build-linux:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-linux
-          - aarch64-linux
-          - x86_64-macos
-          - aarch64-macos
+        target: [x86_64-linux, aarch64-linux]
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Zig 0.15.0
-        uses: mlugg/setup-zig@v2
+      - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.0
-
       - name: Build
         run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseFast
-
       - name: Package
         run: |
           VERSION="${GITHUB_REF_NAME}"
           mkdir -p dist
           tar -czf "dist/kuri-${VERSION}-${{ matrix.target }}.tar.gz" -C zig-out/bin .
-
       - uses: actions/upload-artifact@v4
         with:
           name: kuri-${{ matrix.target }}
           path: dist/*.tar.gz
 
+  # ── macOS arm64: build + sign + notarize on real macOS runner ───────────────
+  build-macos-arm:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.0
+      - name: Build
+        run: zig build -Dtarget=aarch64-macos -Doptimize=ReleaseFast
+
+      - name: Sign & notarize
+        if: ${{ env.APPLE_CERTIFICATE != '' }}
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          KEYCHAIN="build-$(uuidgen).keychain"
+          KEYCHAIN_PASS="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productsign
+          security list-keychain -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN"
+          for BIN in zig-out/bin/*; do
+            codesign --sign "Developer ID Application: $APPLE_TEAM_ID" \
+              --options runtime --timestamp --force "$BIN"
+          done
+          zip -j /tmp/kuri-macos-arm.zip zig-out/bin/*
+          xcrun notarytool submit /tmp/kuri-macos-arm.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          for BIN in zig-out/bin/*; do xcrun stapler staple "$BIN" || true; done
+          security delete-keychain "$KEYCHAIN"
+
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          tar -czf "dist/kuri-${VERSION}-aarch64-macos.tar.gz" -C zig-out/bin .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kuri-aarch64-macos
+          path: dist/*.tar.gz
+
+  # ── macOS x86_64: build + sign + notarize ───────────────────────────────────
+  build-macos-x86:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.0
+      - name: Build
+        run: zig build -Dtarget=x86_64-macos -Doptimize=ReleaseFast
+
+      - name: Sign & notarize
+        if: ${{ env.APPLE_CERTIFICATE != '' }}
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          KEYCHAIN="build-$(uuidgen).keychain"
+          KEYCHAIN_PASS="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productsign
+          security list-keychain -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN"
+          for BIN in zig-out/bin/*; do
+            codesign --sign "Developer ID Application: $APPLE_TEAM_ID" \
+              --options runtime --timestamp --force "$BIN"
+          done
+          zip -j /tmp/kuri-macos-x86.zip zig-out/bin/*
+          xcrun notarytool submit /tmp/kuri-macos-x86.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          for BIN in zig-out/bin/*; do xcrun stapler staple "$BIN" || true; done
+          security delete-keychain "$KEYCHAIN"
+
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          tar -czf "dist/kuri-${VERSION}-x86_64-macos.tar.gz" -C zig-out/bin .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kuri-x86_64-macos
+          path: dist/*.tar.gz
+
+  # ── Create GitHub Release with all artifacts ─────────────────────────────────
   release:
-    needs: build
+    needs: [build-linux, build-macos-arm, build-macos-x86]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
           path: dist
-
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*.tar.gz
           prerelease: ${{ contains(github.ref_name, 'rc') }}
           generate_release_notes: true
+          body: |
+            ## Install
+
+            **curl (macOS / Linux):**
+            ```sh
+            curl -fsSL https://raw.githubusercontent.com/justrach/kuri/main/install.sh | sh
+            ```
+
+            **bun / npm:**
+            ```sh
+            bun install -g kuri-agent
+            # or: npm install -g kuri-agent
+            ```
+
+            **Manual:** download the tarball for your platform below, unpack to your `$PATH`.

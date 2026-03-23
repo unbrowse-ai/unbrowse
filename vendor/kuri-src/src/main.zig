@@ -10,6 +10,7 @@ pub fn main() !void {
     const gpa = gpa_impl.allocator();
 
     const cfg = config.load();
+    var server_cfg = cfg;
 
     std.log.info("kuri v0.1.0", .{});
     std.log.info("listening on {s}:{d}", .{ cfg.host, cfg.port });
@@ -29,13 +30,19 @@ pub fn main() !void {
         break :blk @as(u16, 9222);
     };
     std.log.info("CDP port: {d}", .{cdp_port});
+    var managed_cdp_url: ?[]u8 = null;
+    defer if (managed_cdp_url) |url| gpa.free(url);
+    if (server_cfg.cdp_url == null and chrome.mode == .managed and chrome.child != null) {
+        managed_cdp_url = try std.fmt.allocPrint(gpa, "ws://127.0.0.1:{d}", .{cdp_port});
+        server_cfg.cdp_url = managed_cdp_url;
+    }
 
     // Initialize bridge (central state)
     var bridge = Bridge.init(gpa);
     defer bridge.deinit();
 
     // Start HTTP server
-    try server.run(gpa, &bridge, cfg);
+    try server.run(gpa, &bridge, server_cfg);
 }
 
 test {
