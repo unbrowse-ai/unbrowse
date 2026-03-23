@@ -8,6 +8,10 @@ One agent learns a site once. Every later agent gets the fast path.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
+Docs and whitepaper companion:
+
+- https://docs.unbrowse.ai
+
 ## Quick start
 
 ```bash
@@ -174,6 +178,10 @@ GET endpoints auto-execute. Mutations never fire without opt-in.
 ## API reference
 
 See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, search, feedback, auth, and issue reporting.
+
+For product docs, whitepaper companion pages, and shipped-vs-roadmap guidance, use:
+
+- https://docs.unbrowse.ai
 
 | Method | Endpoint                 | Description                                    |
 | ------ | ------------------------ | ---------------------------------------------- |
