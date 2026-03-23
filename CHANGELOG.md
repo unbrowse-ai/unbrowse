@@ -45,6 +45,7 @@
 - treat nested WebArena-Verified `retrieved_data` arrays as alias sets, so benchmark answers can match any accepted reviewer spelling instead of failing on literal-array equality
 - point the WebArena-Verified `shopping_admin` env at `/admin`, use the official `X-M2-Admin-Auto-Login` header flow for admin pages, and source review-term counts from the Magento review store so the hard-slice admin tasks line up with the benchmark ground truth
 - adapt `shopping_admin` best-seller benchmark intents to the Magento bestsellers report with concrete alias-materialized answers, so the official tasks `1,2,3` stop failing on low-quality DOM extraction and answer-shape mismatches
+- bump the bundled Kuri submodule to pick up owned tab-state keys, safer URL/body decoding in router handlers, managed-CDP wiring, and the compact snapshot leak fix needed for a clean Zig test gate
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
