@@ -268,6 +268,20 @@ export function blockedAppShellErrorCode(
   return hasAuth ? "blocked_app_shell" : "auth_required";
 }
 
+export function shouldShortCircuitEmbeddedPayloadCapture(url: string, intent: string | undefined, html?: string): boolean {
+  if (!html) return false;
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  if (
+    /linkedin\.com/i.test(url) &&
+    /\/feed(?:\/|$)/i.test(url) &&
+    /\b(feed|timeline|stream|post|posts|update|updates|home)\b/.test(lowerIntent) &&
+    /voyagerFeedDashMainFeed/.test(html)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function shouldRetryEphemeralProfileError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
@@ -930,16 +944,23 @@ export async function captureSession(
       }
       await kuri.stop();
       kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+      let nestedResult: CaptureResult | null = null;
       try {
-        return await captureSession(url, undefined, undefined, intent, {
+        nestedResult = await captureSession(url, undefined, undefined, intent, {
           ...options,
           forceEphemeral: true,
           usedProfileContext: true,
           preferExistingTab,
           authStrategy: "header-replay",
         });
+        return nestedResult;
       } finally {
-        await kuri.stop();
+        try {
+          await kuri.stop();
+        } catch (stopErr) {
+          log("capture", `profile-context cleanup failed for ${url}: ${stopErr instanceof Error ? stopErr.message : String(stopErr)}`);
+          if (!nestedResult) throw stopErr;
+        }
       }
     } catch (attachErr) {
       log("capture", `forced profile context failed for ${url}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
@@ -1080,6 +1101,40 @@ export async function captureSession(
       throwIfAborted(signal);
       await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
     } catch { /* page may not be ready */ }
+
+    // For pages that embed the task payload directly in the HTML, return before
+    // the longer network/intercept wait. This avoids losing useful captures to
+    // later browser-engine instability on auth-gated SPAs like LinkedIn feed.
+    try {
+      await sleep(1_500, signal);
+      throwIfAborted(signal);
+      const earlyHtml = await kuri.getPageHtml(tabId);
+      if (shouldShortCircuitEmbeddedPayloadCapture(url, intent, earlyHtml)) {
+        let final_url = url;
+        try {
+          const rawUrl = await kuri.getCurrentUrl(tabId);
+          final_url = typeof rawUrl === "string" ? rawUrl : String(rawUrl ?? url);
+          try { new URL(final_url); } catch { final_url = url; }
+        } catch {
+          final_url = url;
+        }
+        lastHtml = earlyHtml;
+        const rawCookies = await extractCookiesFromPage(tabId, url);
+        const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
+        log("capture", `short-circuiting embedded payload capture for ${url}`);
+        return {
+          requests: [],
+          har_lineage_id: nanoid(),
+          domain,
+          cookies: sessionCookies,
+          final_url,
+          html: earlyHtml,
+          js_bundles: new Map(),
+        };
+      }
+    } catch {
+      // fall through to the longer capture path
+    }
 
     // Build response bodies map from intercepted requests
     const responseBodies = new Map<string, string>();

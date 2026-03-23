@@ -38,6 +38,7 @@
 - add a generic live-capture auth-strategy ladder: replay stored auth as `Cookie` + CSRF headers first, prefer clean `auth_required` over crash-prone CDP cookie injection during automatic capture, and remember when cookie injection is unsafe for a site/runtime
 - bump the local package version to `2.0.21` so local tarball installs do not immediately auto-update downward/upward to the currently published npm build during smoke tests
 - launch isolated managed Chrome for Kuri by default and terminate the managed Chrome pid on shutdown, avoiding stale CDP browser reuse across local CLI runs
+- make packaged local-server autostart prefer Bun for `runtime-src/*.ts` entrypoints when Bun is installed, so installed CLI capture behavior matches repo-local runs instead of going through the flakier Node+`tsx` path
 - honor `UNBROWSE_TOS_ACCEPTED=1` even when the packaged CLI/server auto-start path runs non-interactively, so local smoke tests and agent-driven runs do not hang on an interactive ToS prompt
 - let repo checkouts find the bundled Kuri binary under `packages/skill/vendor`, fall back to plain HTTP HTML capture when browser tabs are unavailable, and seed direct JSON URLs into replayable skills so evals and CLI site checks keep working in repo mode
 - make the local autostart path replace stale code-hash-mismatched servers while also clearing dead startup lock files

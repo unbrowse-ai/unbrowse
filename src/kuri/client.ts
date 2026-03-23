@@ -65,6 +65,18 @@ let externalChromeOverride: {
   previousAttach?: string;
 } | null = null;
 
+async function waitForChildExit(child: ChildProcess | null | undefined, timeoutMs = 2_000): Promise<void> {
+  if (!child) return;
+  if (child.exitCode !== null || child.killed) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 function kuriBinaryName(): string {
   return process.platform === "win32" ? "kuri.exe" : "kuri";
 }
@@ -426,7 +438,12 @@ export async function stop(): Promise<void> {
       // ignore
     }
     if (externalChromeOverride.tempDir) {
-      rmSync(externalChromeOverride.tempDir, { recursive: true, force: true });
+      await waitForChildExit(externalChromeOverride.child);
+      try {
+        rmSync(externalChromeOverride.tempDir, { recursive: true, force: true });
+      } catch {
+        // best-effort cleanup; don't fail the caller on temp profile removal
+      }
     }
     if (externalChromeOverride.previousCdpUrl == null) delete process.env.CDP_URL;
     else process.env.CDP_URL = externalChromeOverride.previousCdpUrl;
