@@ -15,9 +15,9 @@
     "mode": "autonomous",
     "benchmark_summary": {
       "cases": 1,
-      "cold_total_ms": 5264,
-      "warm_total_ms": 2150,
-      "speedup_ms": 3114,
+      "cold_total_ms": 14514,
+      "warm_total_ms": 2156,
+      "speedup_ms": 12358,
       "cold_tokens_used": 11370,
       "warm_tokens_used": 11370,
       "token_delta": 0
@@ -57,7 +57,7 @@
           "run_label": "cold",
           "url": "https://gitlab.com/explore/projects?name=openai",
           "force_capture": true,
-          "resolve_ms": 5264,
+          "resolve_ms": 14514,
           "skill_id": "R-IDziRyWktILQmn9GFOf",
           "available_endpoint_ids": [
             "6mqrRf9xqhQ0dwHyRIjUY"
@@ -142,11 +142,11 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:31.518Z"
+              "updated_at": "2026-03-23T02:24:28.277Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 5107,
+            "total_ms": 13389,
             "tokens_used": 5685,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -322,7 +322,7 @@
           "run_label": "warm",
           "url": "https://gitlab.com/explore/projects?name=openai",
           "force_capture": false,
-          "resolve_ms": 2150,
+          "resolve_ms": 2156,
           "skill_id": "R-IDziRyWktILQmn9GFOf",
           "available_endpoint_ids": [
             "6mqrRf9xqhQ0dwHyRIjUY"
@@ -407,11 +407,11 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:32.069Z"
+              "updated_at": "2026-03-23T02:24:30.941Z"
             },
             "source": "marketplace",
             "cache_hit": true,
-            "total_ms": 1988,
+            "total_ms": 785,
             "tokens_used": 5685,
             "tokens_saved": 24315,
             "tokens_saved_pct": 81
@@ -591,9 +591,9 @@
           "goal_satisfied": true,
           "final_reason": "repository_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 5264,
+          "total_resolve_ms": 14514,
           "total_execute_ms": 0,
-          "total_ms": 5264,
+          "total_ms": 14514,
           "first_source": "live-capture",
           "final_source": "live-capture",
           "total_tokens_used": 11370,
@@ -606,9 +606,9 @@
           "goal_satisfied": true,
           "final_reason": "repository_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 2150,
+          "total_resolve_ms": 2156,
           "total_execute_ms": 0,
-          "total_ms": 2150,
+          "total_ms": 2156,
           "first_source": "marketplace",
           "final_source": "marketplace",
           "total_tokens_used": 11370,
@@ -616,8 +616,8 @@
           "avg_tokens_saved_pct": 81
         },
         "delta": {
-          "speedup_ms": 3114,
-          "speedup_ratio": 2.45,
+          "speedup_ms": 12358,
+          "speedup_ratio": 6.73,
           "token_delta": 0,
           "token_reduction_pct": 0
         }

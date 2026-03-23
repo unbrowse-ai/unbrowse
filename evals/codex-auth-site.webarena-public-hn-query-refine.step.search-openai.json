@@ -15,11 +15,11 @@
     "mode": "autonomous",
     "benchmark_summary": {
       "cases": 1,
-      "cold_total_ms": 3133,
-      "warm_total_ms": 634,
-      "speedup_ms": 2499,
-      "cold_tokens_used": 23558,
-      "warm_tokens_used": 23558,
+      "cold_total_ms": 3189,
+      "warm_total_ms": 571,
+      "speedup_ms": 2618,
+      "cold_tokens_used": 23564,
+      "warm_tokens_used": 23564,
       "token_delta": 0
     }
   },
@@ -57,7 +57,7 @@
           "run_label": "cold",
           "url": "https://hn.algolia.com/",
           "force_capture": true,
-          "resolve_ms": 3133,
+          "resolve_ms": 3189,
           "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
           "available_endpoint_ids": [
             "IYGNDKbsI2h1DK1Vcfe_b"
@@ -156,7 +156,7 @@
                       }
                     ],
                     "hitsPerPage": 20,
-                    "nbHits": 24137,
+                    "nbHits": 24141,
                     "nbPages": 50,
                     "page": 0
                   }
@@ -170,12 +170,12 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:47.674Z"
+              "updated_at": "2026-03-23T02:24:41.089Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 2969,
-            "tokens_used": 11779,
+            "total_ms": 2332,
+            "tokens_used": 11782,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
           },
@@ -374,14 +374,15 @@
               }
             ],
             "hitsPerPage": 20,
-            "nbHits": 24137,
+            "nbHits": 24141,
             "nbPages": 50,
             "page": 0,
             "params": "query=openai&tags=story&advancedSyntax=true&analyticsTags=backend",
             "processingTimeMS": 13,
             "processingTimingsMS": {
               "_request": {
-                "roundTrip": 15
+                "queue": 4,
+                "roundTrip": 16
               },
               "fetch": {
                 "query": 2,
@@ -419,7 +420,7 @@
                 "reason": "selection_match",
                 "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b"
               },
-              "tokens_used": 11779,
+              "tokens_used": 11782,
               "tokens_saved": 0,
               "tokens_saved_pct": 0,
               "excerpt": [
@@ -481,7 +482,7 @@
           "run_label": "warm",
           "url": "https://hn.algolia.com/",
           "force_capture": false,
-          "resolve_ms": 634,
+          "resolve_ms": 571,
           "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
           "available_endpoint_ids": [
             "IYGNDKbsI2h1DK1Vcfe_b"
@@ -580,7 +581,7 @@
                       }
                     ],
                     "hitsPerPage": 20,
-                    "nbHits": 24137,
+                    "nbHits": 24141,
                     "nbPages": 50,
                     "page": 0
                   }
@@ -594,13 +595,13 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:48.068Z"
+              "updated_at": "2026-03-23T02:24:41.535Z"
             },
             "source": "marketplace",
             "cache_hit": true,
-            "total_ms": 475,
-            "tokens_used": 11779,
-            "tokens_saved": 18221,
+            "total_ms": 414,
+            "tokens_used": 11782,
+            "tokens_saved": 18218,
             "tokens_saved_pct": 61
           },
           "resolve_excerpt": {
@@ -798,14 +799,15 @@
               }
             ],
             "hitsPerPage": 20,
-            "nbHits": 24137,
+            "nbHits": 24141,
             "nbPages": 50,
             "page": 0,
             "params": "query=openai&tags=story&advancedSyntax=true&analyticsTags=backend",
             "processingTimeMS": 13,
             "processingTimingsMS": {
               "_request": {
-                "roundTrip": 15
+                "queue": 4,
+                "roundTrip": 16
               },
               "fetch": {
                 "query": 2,
@@ -843,8 +845,8 @@
                 "reason": "selection_match",
                 "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b"
               },
-              "tokens_used": 11779,
-              "tokens_saved": 18221,
+              "tokens_used": 11782,
+              "tokens_saved": 18218,
               "tokens_saved_pct": 61,
               "excerpt": [
                 {
@@ -909,12 +911,12 @@
           "goal_satisfied": true,
           "final_reason": "story_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 3133,
+          "total_resolve_ms": 3189,
           "total_execute_ms": 0,
-          "total_ms": 3133,
+          "total_ms": 3189,
           "first_source": "live-capture",
           "final_source": "live-capture",
-          "total_tokens_used": 23558,
+          "total_tokens_used": 23564,
           "total_tokens_saved": 0,
           "avg_tokens_saved_pct": 0
         },
@@ -924,18 +926,18 @@
           "goal_satisfied": true,
           "final_reason": "story_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 634,
+          "total_resolve_ms": 571,
           "total_execute_ms": 0,
-          "total_ms": 634,
+          "total_ms": 571,
           "first_source": "marketplace",
           "final_source": "marketplace",
-          "total_tokens_used": 23558,
-          "total_tokens_saved": 36442,
+          "total_tokens_used": 23564,
+          "total_tokens_saved": 36436,
           "avg_tokens_saved_pct": 61
         },
         "delta": {
-          "speedup_ms": 2499,
-          "speedup_ratio": 4.94,
+          "speedup_ms": 2618,
+          "speedup_ratio": 5.58,
           "token_delta": 0,
           "token_reduction_pct": 0
         }

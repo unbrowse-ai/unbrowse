@@ -3,8 +3,8 @@
     "final_state": "pass",
     "goal_satisfied": true,
     "final_reason": "workflow_pass",
-    "total_ms": 17669,
-    "performance_total_ms": 9972,
+    "total_ms": 19889,
+    "performance_total_ms": 3248,
     "error_count": 0,
     "failed_step_ids": [],
     "exceeded_step_budget_ids": [],
@@ -37,14 +37,14 @@
           "web_url"
         ],
         "missing_fields": [],
-        "total_ms": 7414,
-        "performance_total_ms": 2150,
+        "total_ms": 16670,
+        "performance_total_ms": 2156,
         "performance_basis": "warm",
         "rounds": 2,
         "benchmark": {
-          "cold_total_ms": 5264,
-          "warm_total_ms": 2150,
-          "speedup_ms": 3114,
+          "cold_total_ms": 14514,
+          "warm_total_ms": 2156,
+          "speedup_ms": 12358,
           "token_delta": 0
         }
       },
@@ -64,15 +64,15 @@
           "web_url"
         ],
         "missing_fields": [],
-        "total_ms": 10255,
-        "performance_total_ms": 7822,
+        "total_ms": 3219,
+        "performance_total_ms": 1092,
         "performance_basis": "warm",
-        "rounds": 3,
+        "rounds": 2,
         "benchmark": {
-          "cold_total_ms": 2433,
-          "warm_total_ms": 7822,
-          "speedup_ms": -5389,
-          "token_delta": -15088
+          "cold_total_ms": 2127,
+          "warm_total_ms": 1092,
+          "speedup_ms": 1035,
+          "token_delta": 0
         }
       }
     ]

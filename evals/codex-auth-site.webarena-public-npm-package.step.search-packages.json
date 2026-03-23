@@ -15,9 +15,9 @@
     "mode": "autonomous",
     "benchmark_summary": {
       "cases": 1,
-      "cold_total_ms": 1773,
-      "warm_total_ms": 7990,
-      "speedup_ms": -6217,
+      "cold_total_ms": 9261,
+      "warm_total_ms": 5797,
+      "speedup_ms": 3464,
       "cold_tokens_used": 52,
       "warm_tokens_used": 52,
       "token_delta": 0
@@ -48,7 +48,7 @@
           "https://www.npmjs.com/search?q=openai"
         ],
         "attempted_endpoint_counts": {
-          "wNe9NcXejbwmMOecSzUgO": 1
+          "qBw41YAcuS_e2jtaKdAWG": 1
         },
         "failure_class_counts": {},
         "reasons_seen": [
@@ -61,16 +61,16 @@
           "run_label": "cold",
           "url": "https://www.npmjs.com/search?q=openai",
           "force_capture": true,
-          "resolve_ms": 1322,
+          "resolve_ms": 8499,
           "skill_id": "BvZOl107sp7VI9ZiGaBjM",
           "available_endpoint_ids": [
-            "wNe9NcXejbwmMOecSzUgO",
+            "qBw41YAcuS_e2jtaKdAWG",
             "ANF3EfY_EsSqWtc6g0hl6"
           ],
           "dag": {
             "available": true,
             "reachable": false,
-            "target_operation_id": "wNe9NcXejbwmMOecSzUgO",
+            "target_operation_id": "qBw41YAcuS_e2jtaKdAWG",
             "selected_path": [],
             "reason": "dag_unreachable"
           },
@@ -86,10 +86,10 @@
               "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "intent": "search packages",
               "missing_bindings": [],
-              "suggested_next_operation_id": "wNe9NcXejbwmMOecSzUgO",
+              "suggested_next_operation_id": "qBw41YAcuS_e2jtaKdAWG",
               "available_operations": [
                 {
-                  "operation_id": "wNe9NcXejbwmMOecSzUgO",
+                  "operation_id": "qBw41YAcuS_e2jtaKdAWG",
                   "method": "GET",
                   "action_kind": "search",
                   "resource_kind": "resource",
@@ -117,7 +117,7 @@
                         },
                         "dependents": "9304",
                         "updated": "2026-03-22T04:26:47.106Z",
-                        "searchScore": 2288.6377,
+                        "searchScore": 2288.6982,
                         "package": {
                           "name": "openai",
                           "keywords": [],
@@ -131,7 +131,7 @@
                           "links": "[truncated]"
                         },
                         "score": {
-                          "final": 2288.6377,
+                          "final": 2288.6982,
                           "detail": "[truncated]"
                         },
                         "flags": {
@@ -145,7 +145,7 @@
                         },
                         "dependents": "8",
                         "updated": "2026-03-22T04:29:54.888Z",
-                        "searchScore": 499.6911,
+                        "searchScore": 499.0197,
                         "package": {
                           "name": "@opentelemetry/instrumentation-openai",
                           "keywords": [],
@@ -159,7 +159,7 @@
                           "links": "[truncated]"
                         },
                         "score": {
-                          "final": 499.6911,
+                          "final": 499.0197,
                           "detail": "[truncated]"
                         },
                         "flags": {
@@ -167,8 +167,8 @@
                         }
                       }
                     ],
-                    "total": 15049,
-                    "time": "2026-03-22T20:51:54.420Z"
+                    "total": 15065,
+                    "time": "2026-03-23T02:23:20.209Z"
                   }
                 }
               ]
@@ -180,11 +180,11 @@
               "endpoint_count": 2,
               "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:58.198Z"
+              "updated_at": "2026-03-23T02:25:00.211Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 1164,
+            "total_ms": 8326,
             "tokens_used": 26,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -228,10 +228,10 @@
               }
             },
             {
-              "endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+              "endpoint_id": "qBw41YAcuS_e2jtaKdAWG",
               "endpoint_url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
               "trigger_url": "https://www.npmjs.com/search?q=openai",
-              "execute_ms": 451,
+              "execute_ms": 762,
               "attempt_count": 1,
               "verdict": "pass",
               "reason": "package_rows",
@@ -252,7 +252,7 @@
               "selection_check": {
                 "ok": true,
                 "reason": "selection_match",
-                "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO"
+                "matched_endpoint_id": "qBw41YAcuS_e2jtaKdAWG"
               },
               "excerpt": [
                 {
@@ -302,7 +302,7 @@
             "ok": true,
             "reason": "retrieval_match",
             "matched_rank": 2,
-            "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+            "matched_endpoint_id": "qBw41YAcuS_e2jtaKdAWG",
             "max_rank": 5
           }
         },
@@ -311,16 +311,16 @@
           "run_label": "warm",
           "url": "https://www.npmjs.com/search?q=openai",
           "force_capture": false,
-          "resolve_ms": 7807,
+          "resolve_ms": 5568,
           "skill_id": "BvZOl107sp7VI9ZiGaBjM",
           "available_endpoint_ids": [
-            "wNe9NcXejbwmMOecSzUgO",
+            "qBw41YAcuS_e2jtaKdAWG",
             "ANF3EfY_EsSqWtc6g0hl6"
           ],
           "dag": {
             "available": true,
             "reachable": false,
-            "target_operation_id": "wNe9NcXejbwmMOecSzUgO",
+            "target_operation_id": "qBw41YAcuS_e2jtaKdAWG",
             "selected_path": [],
             "reason": "dag_unreachable"
           },
@@ -336,10 +336,10 @@
               "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "intent": "search packages",
               "missing_bindings": [],
-              "suggested_next_operation_id": "wNe9NcXejbwmMOecSzUgO",
+              "suggested_next_operation_id": "qBw41YAcuS_e2jtaKdAWG",
               "available_operations": [
                 {
-                  "operation_id": "wNe9NcXejbwmMOecSzUgO",
+                  "operation_id": "qBw41YAcuS_e2jtaKdAWG",
                   "method": "GET",
                   "action_kind": "search",
                   "resource_kind": "resource",
@@ -367,7 +367,7 @@
                         },
                         "dependents": "9304",
                         "updated": "2026-03-22T04:26:47.106Z",
-                        "searchScore": 2288.6377,
+                        "searchScore": 2288.6982,
                         "package": {
                           "name": "openai",
                           "keywords": [],
@@ -381,7 +381,7 @@
                           "links": "[truncated]"
                         },
                         "score": {
-                          "final": 2288.6377,
+                          "final": 2288.6982,
                           "detail": "[truncated]"
                         },
                         "flags": {
@@ -395,7 +395,7 @@
                         },
                         "dependents": "8",
                         "updated": "2026-03-22T04:29:54.888Z",
-                        "searchScore": 499.6911,
+                        "searchScore": 499.0197,
                         "package": {
                           "name": "@opentelemetry/instrumentation-openai",
                           "keywords": [],
@@ -409,7 +409,7 @@
                           "links": "[truncated]"
                         },
                         "score": {
-                          "final": 499.6911,
+                          "final": 499.0197,
                           "detail": "[truncated]"
                         },
                         "flags": {
@@ -417,8 +417,8 @@
                         }
                       }
                     ],
-                    "total": 15049,
-                    "time": "2026-03-22T20:51:54.420Z"
+                    "total": 15065,
+                    "time": "2026-03-23T02:23:20.209Z"
                   }
                 }
               ]
@@ -430,11 +430,11 @@
               "endpoint_count": 2,
               "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:56:01.546Z"
+              "updated_at": "2026-03-23T02:25:12.610Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 7652,
+            "total_ms": 5377,
             "tokens_used": 26,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -478,10 +478,10 @@
               }
             },
             {
-              "endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+              "endpoint_id": "qBw41YAcuS_e2jtaKdAWG",
               "endpoint_url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
               "trigger_url": "https://www.npmjs.com/search?q=openai",
-              "execute_ms": 183,
+              "execute_ms": 229,
               "attempt_count": 1,
               "verdict": "pass",
               "reason": "package_rows",
@@ -502,7 +502,7 @@
               "selection_check": {
                 "ok": true,
                 "reason": "selection_match",
-                "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO"
+                "matched_endpoint_id": "qBw41YAcuS_e2jtaKdAWG"
               },
               "excerpt": [
                 {
@@ -552,7 +552,7 @@
             "ok": true,
             "reason": "retrieval_match",
             "matched_rank": 2,
-            "matched_endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+            "matched_endpoint_id": "qBw41YAcuS_e2jtaKdAWG",
             "max_rank": 5
           }
         }
@@ -565,9 +565,9 @@
           "goal_satisfied": true,
           "final_reason": "package_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 1322,
-          "total_execute_ms": 451,
-          "total_ms": 1773,
+          "total_resolve_ms": 8499,
+          "total_execute_ms": 762,
+          "total_ms": 9261,
           "first_source": "live-capture",
           "final_source": "live-capture",
           "total_tokens_used": 52,
@@ -580,9 +580,9 @@
           "goal_satisfied": true,
           "final_reason": "package_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 7807,
-          "total_execute_ms": 183,
-          "total_ms": 7990,
+          "total_resolve_ms": 5568,
+          "total_execute_ms": 229,
+          "total_ms": 5797,
           "first_source": "live-capture",
           "final_source": "live-capture",
           "total_tokens_used": 52,
@@ -590,8 +590,8 @@
           "avg_tokens_saved_pct": 0
         },
         "delta": {
-          "speedup_ms": -6217,
-          "speedup_ratio": 0.22,
+          "speedup_ms": 3464,
+          "speedup_ratio": 1.6,
           "token_delta": 0,
           "token_reduction_pct": 0
         }

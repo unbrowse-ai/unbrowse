@@ -45,17 +45,20 @@
           "round": 1,
           "url": "https://github.com/search?q=openai&type=repositories",
           "force_capture": false,
-          "resolve_ms": 3916,
-          "skill_id": "kddsSfJM54gvZqn51c5pI",
+          "resolve_ms": 3808,
+          "skill_id": "96zlt5PA0mXMZxrxBzj8-",
           "available_endpoint_ids": [
-            "40SgyY_MYhG5n_pbXSCE0"
+            "40SgyY_MYhG5n_pbXSCE0",
+            "FLVcXo9RiT9WsMM5wKr0l"
           ],
           "dag": {
             "available": true,
-            "reachable": false,
-            "target_operation_id": "40SgyY_MYhG5n_pbXSCE0",
-            "selected_path": [],
-            "reason": "dag_unreachable"
+            "reachable": true,
+            "target_operation_id": "FLVcXo9RiT9WsMM5wKr0l",
+            "selected_path": [
+              "FLVcXo9RiT9WsMM5wKr0l"
+            ],
+            "reason": "dag_path_found"
           },
           "trace_context": {
             "known_bindings": {
@@ -67,29 +70,62 @@
               "type": "repositories"
             },
             "chunk": {
-              "skill_id": "kddsSfJM54gvZqn51c5pI",
+              "skill_id": "96zlt5PA0mXMZxrxBzj8-",
               "intent": "search repositories",
               "missing_bindings": [],
-              "available_operations": []
+              "suggested_next_operation_id": "FLVcXo9RiT9WsMM5wKr0l",
+              "available_operations": [
+                {
+                  "operation_id": "FLVcXo9RiT9WsMM5wKr0l",
+                  "method": "GET",
+                  "action_kind": "list",
+                  "resource_kind": "resource",
+                  "title": "list resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://github.com/trending",
+                  "requires": [],
+                  "yields": [
+                    "resource_name",
+                    "resource_url"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "full_name": "FujiwaraChoki/MoneyPrinterV2",
+                      "url": "https://github.com/FujiwaraChoki/MoneyPrinterV2",
+                      "description": "Automate the process of making money online.",
+                      "language": "Python",
+                      "stars": "18,785"
+                    },
+                    {
+                      "full_name": "TauricResearch/TradingAgents",
+                      "url": "https://github.com/TauricResearch/TradingAgents",
+                      "description": "TradingAgents: Multi-Agents LLM Financial Trading Framework",
+                      "language": "Python",
+                      "stars": "36,225"
+                    }
+                  ]
+                }
+              ]
             },
             "skill_snapshot": {
-              "skill_id": "kddsSfJM54gvZqn51c5pI",
+              "skill_id": "96zlt5PA0mXMZxrxBzj8-",
               "domain": "github.com",
               "auth_required": false,
-              "endpoint_count": 1,
+              "endpoint_count": 2,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:30.618Z"
+              "updated_at": "2026-03-22T22:25:31.070Z"
             },
-            "source": "live-capture",
-            "cache_hit": false,
-            "total_ms": 3446,
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 2320,
             "tokens_used": 27548,
-            "tokens_saved": 0,
-            "tokens_saved_pct": 0
+            "tokens_saved": 2452,
+            "tokens_saved_pct": 8
           },
           "resolve_excerpt": {
-            "total_count": 165332,
+            "total_count": 165383,
             "incomplete_results": false,
             "items": [
               {
@@ -204,9 +240,9 @@
           },
           "candidates": [
             {
-              "endpoint_id": "40SgyY_MYhG5n_pbXSCE0",
-              "endpoint_url": "https://api.github.com/search/repositories?q={q}&per_page=20",
-              "trigger_url": "https://github.com/search?q=openai&type=repositories",
+              "endpoint_id": "FLVcXo9RiT9WsMM5wKr0l",
+              "endpoint_url": "https://github.com/trending",
+              "trigger_url": "https://github.com/trending",
               "attempt_count": 0,
               "verdict": "pass",
               "reason": "repository_rows",
@@ -226,8 +262,8 @@
               "validation_failures": [],
               "echoed_params": [],
               "tokens_used": 27548,
-              "tokens_saved": 0,
-              "tokens_saved_pct": 0,
+              "tokens_saved": 2452,
+              "tokens_saved_pct": 8,
               "excerpt": [
                 {
                   "id": 468576060,
@@ -383,7 +419,7 @@
           "round": 1,
           "url": "https://gitlab.com/explore/projects?name=openai",
           "force_capture": false,
-          "resolve_ms": 6266,
+          "resolve_ms": 4311,
           "skill_id": "R-IDziRyWktILQmn9GFOf",
           "available_endpoint_ids": [
             "6mqrRf9xqhQ0dwHyRIjUY"
@@ -468,14 +504,14 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:35.958Z"
+              "updated_at": "2026-03-22T20:53:34.960Z"
             },
-            "source": "live-capture",
-            "cache_hit": false,
-            "total_ms": 5342,
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 2932,
             "tokens_used": 5685,
-            "tokens_saved": 0,
-            "tokens_saved_pct": 0
+            "tokens_saved": 24315,
+            "tokens_saved_pct": 81
           },
           "resolve_excerpt": [
             {
@@ -558,8 +594,8 @@
               "validation_failures": [],
               "echoed_params": [],
               "tokens_used": 5685,
-              "tokens_saved": 0,
-              "tokens_saved_pct": 0,
+              "tokens_saved": 24315,
+              "tokens_saved_pct": 81,
               "excerpt": [
                 {
                   "id": 80484832,
@@ -655,7 +691,7 @@
           "https://www.npmjs.com/search?q=openai"
         ],
         "attempted_endpoint_counts": {
-          "wNe9NcXejbwmMOecSzUgO": 1
+          "VDos5awCrO4MZRTYuEZCS": 1
         },
         "failure_class_counts": {},
         "reasons_seen": [
@@ -667,16 +703,15 @@
           "round": 1,
           "url": "https://www.npmjs.com/search?q=openai",
           "force_capture": false,
-          "resolve_ms": 2146,
+          "resolve_ms": 9196,
           "skill_id": "BvZOl107sp7VI9ZiGaBjM",
           "available_endpoint_ids": [
-            "wNe9NcXejbwmMOecSzUgO",
-            "ANF3EfY_EsSqWtc6g0hl6"
+            "VDos5awCrO4MZRTYuEZCS"
           ],
           "dag": {
             "available": true,
             "reachable": false,
-            "target_operation_id": "wNe9NcXejbwmMOecSzUgO",
+            "target_operation_id": "VDos5awCrO4MZRTYuEZCS",
             "selected_path": [],
             "reason": "dag_unreachable"
           },
@@ -692,10 +727,10 @@
               "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "intent": "search packages",
               "missing_bindings": [],
-              "suggested_next_operation_id": "wNe9NcXejbwmMOecSzUgO",
+              "suggested_next_operation_id": "VDos5awCrO4MZRTYuEZCS",
               "available_operations": [
                 {
-                  "operation_id": "wNe9NcXejbwmMOecSzUgO",
+                  "operation_id": "VDos5awCrO4MZRTYuEZCS",
                   "method": "GET",
                   "action_kind": "search",
                   "resource_kind": "resource",
@@ -723,7 +758,7 @@
                         },
                         "dependents": "9304",
                         "updated": "2026-03-22T04:26:47.106Z",
-                        "searchScore": 2288.6377,
+                        "searchScore": 2288.6982,
                         "package": {
                           "name": "openai",
                           "keywords": [],
@@ -737,7 +772,7 @@
                           "links": "[truncated]"
                         },
                         "score": {
-                          "final": 2288.6377,
+                          "final": 2288.6982,
                           "detail": "[truncated]"
                         },
                         "flags": {
@@ -751,7 +786,7 @@
                         },
                         "dependents": "8",
                         "updated": "2026-03-22T04:29:54.888Z",
-                        "searchScore": 499.6911,
+                        "searchScore": 499.0197,
                         "package": {
                           "name": "@opentelemetry/instrumentation-openai",
                           "keywords": [],
@@ -765,7 +800,7 @@
                           "links": "[truncated]"
                         },
                         "score": {
-                          "final": 499.6911,
+                          "final": 499.0197,
                           "detail": "[truncated]"
                         },
                         "flags": {
@@ -773,8 +808,8 @@
                         }
                       }
                     ],
-                    "total": 15049,
-                    "time": "2026-03-22T20:51:54.420Z"
+                    "total": 15065,
+                    "time": "2026-03-23T02:23:20.209Z"
                   }
                 }
               ]
@@ -783,14 +818,14 @@
               "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "domain": "npmjs.com",
               "auth_required": false,
-              "endpoint_count": 2,
-              "operation_count": 2,
+              "endpoint_count": 1,
+              "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:39.868Z"
+              "updated_at": "2026-03-23T02:23:22.568Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 1971,
+            "total_ms": 7875,
             "tokens_used": 26,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -828,10 +863,10 @@
               }
             },
             {
-              "endpoint_id": "wNe9NcXejbwmMOecSzUgO",
+              "endpoint_id": "VDos5awCrO4MZRTYuEZCS",
               "endpoint_url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
               "trigger_url": "https://www.npmjs.com/search?q=openai",
-              "execute_ms": 184,
+              "execute_ms": 1498,
               "attempt_count": 1,
               "verdict": "pass",
               "reason": "package_rows",
@@ -930,8 +965,8 @@
           "round": 1,
           "url": "https://www.npmjs.com/package/openai",
           "force_capture": false,
-          "resolve_ms": 1129,
-          "skill_id": "gdh61pE2tZDMVrVB5nvfm",
+          "resolve_ms": 3247,
+          "skill_id": "BvZOl107sp7VI9ZiGaBjM",
           "available_endpoint_ids": [
             "ANF3EfY_EsSqWtc6g0hl6"
           ],
@@ -953,7 +988,7 @@
               "slug_2": "openai"
             },
             "chunk": {
-              "skill_id": "gdh61pE2tZDMVrVB5nvfm",
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "intent": "get package info",
               "missing_bindings": [],
               "suggested_next_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
@@ -1159,23 +1194,23 @@
               ]
             },
             "skill_snapshot": {
-              "skill_id": "gdh61pE2tZDMVrVB5nvfm",
+              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "domain": "npmjs.com",
               "auth_required": false,
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:41.361Z"
+              "updated_at": "2026-03-23T02:23:28.957Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 943,
+            "total_ms": 3086,
             "tokens_used": 26,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
           },
           "resolve_excerpt": {
-            "learned_skill_id": "gdh61pE2tZDMVrVB5nvfm",
+            "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
             "endpoints_discovered": 1,
             "seeded_from": "canonical_document"
           },
@@ -1201,7 +1236,7 @@
               "tokens_saved": 0,
               "tokens_saved_pct": 0,
               "excerpt": {
-                "learned_skill_id": "gdh61pE2tZDMVrVB5nvfm",
+                "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
                 "endpoints_discovered": 1,
                 "seeded_from": "canonical_document"
               }
@@ -1210,7 +1245,7 @@
               "endpoint_id": "ANF3EfY_EsSqWtc6g0hl6",
               "endpoint_url": "https://registry.npmjs.org/openai",
               "trigger_url": "https://www.npmjs.com/package/openai",
-              "execute_ms": 317,
+              "execute_ms": 486,
               "attempt_count": 1,
               "verdict": "pass",
               "reason": "package_rows",
@@ -1280,7 +1315,7 @@
           "round": 1,
           "url": "https://pypi.org/project/openai/",
           "force_capture": false,
-          "resolve_ms": 2473,
+          "resolve_ms": 3464,
           "skill_id": "q1Xei3eOGRjpkoUkcQhHT",
           "available_endpoint_ids": [
             "g3Y8qmzx0eAp8x-ZeTCzf"
@@ -1550,11 +1585,11 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:43.541Z"
+              "updated_at": "2026-03-23T02:23:33.163Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 2309,
+            "total_ms": 2433,
             "tokens_used": 132708,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -1970,10 +2005,11 @@
           "round": 1,
           "url": "https://developer.mozilla.org/en-US/search?q=fetch",
           "force_capture": false,
-          "resolve_ms": 1960,
+          "resolve_ms": 3504,
           "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
           "available_endpoint_ids": [
-            "UGRLFKukijkFjG933wOWD"
+            "UGRLFKukijkFjG933wOWD",
+            "E6ZYe6OqAVtFaJk3RxJGM"
           ],
           "dag": {
             "available": true,
@@ -2068,14 +2104,14 @@
               "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
               "domain": "mozilla.org",
               "auth_required": false,
-              "endpoint_count": 1,
-              "operation_count": 1,
+              "endpoint_count": 2,
+              "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:45.745Z"
+              "updated_at": "2026-03-23T02:23:35.825Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 1808,
+            "total_ms": 3342,
             "tokens_used": 2071,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -2275,7 +2311,7 @@
           "round": 1,
           "url": "https://hn.algolia.com/",
           "force_capture": false,
-          "resolve_ms": 2990,
+          "resolve_ms": 737,
           "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
           "available_endpoint_ids": [
             "IYGNDKbsI2h1DK1Vcfe_b"
@@ -2374,7 +2410,7 @@
                       }
                     ],
                     "hitsPerPage": 20,
-                    "nbHits": 24137,
+                    "nbHits": 24127,
                     "nbPages": 50,
                     "page": 0
                   }
@@ -2388,14 +2424,14 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:48.276Z"
+              "updated_at": "2026-03-22T23:58:16.343Z"
             },
-            "source": "live-capture",
-            "cache_hit": false,
-            "total_ms": 2836,
-            "tokens_used": 11779,
-            "tokens_saved": 0,
-            "tokens_saved_pct": 0
+            "source": "marketplace",
+            "cache_hit": true,
+            "total_ms": 571,
+            "tokens_used": 11780,
+            "tokens_saved": 18220,
+            "tokens_saved_pct": 61
           },
           "resolve_excerpt": {
             "exhaustive": {
@@ -2592,21 +2628,21 @@
               }
             ],
             "hitsPerPage": 20,
-            "nbHits": 24137,
+            "nbHits": 24141,
             "nbPages": 50,
             "page": 0,
             "params": "query=openai&tags=story&advancedSyntax=true&analyticsTags=backend",
-            "processingTimeMS": 13,
+            "processingTimeMS": 19,
             "processingTimingsMS": {
               "_request": {
-                "roundTrip": 15
+                "roundTrip": 26
               },
               "fetch": {
-                "query": 2,
-                "scanning": 9,
-                "total": 12
+                "query": 3,
+                "scanning": 14,
+                "total": 18
               },
-              "total": 13
+              "total": 19
             },
             "query": "openai"
           },
@@ -2632,9 +2668,9 @@
               ],
               "validation_failures": [],
               "echoed_params": [],
-              "tokens_used": 11779,
-              "tokens_saved": 0,
-              "tokens_saved_pct": 0,
+              "tokens_used": 11780,
+              "tokens_saved": 18220,
+              "tokens_saved_pct": 61,
               "excerpt": [
                 {
                   "id": "38309611",
@@ -2714,7 +2750,7 @@
           "round": 1,
           "url": "https://www.reddit.com/r/programming/",
           "force_capture": false,
-          "resolve_ms": 4013,
+          "resolve_ms": 4570,
           "skill_id": "hBmU3wEYpll_oBZwsdJ7P",
           "available_endpoint_ids": [
             "7KtsbrhoREaEwdrvKW9ks"
@@ -2786,12 +2822,12 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:51.746Z"
+              "updated_at": "2026-03-23T02:23:40.991Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 3813,
-            "tokens_used": 26886,
+            "total_ms": 4279,
+            "tokens_used": 25312,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
           },
@@ -2829,7 +2865,7 @@
                     "upvote_ratio": 0.94,
                     "author_flair_background_color": null,
                     "subreddit_type": "public",
-                    "ups": 116,
+                    "ups": 118,
                     "total_awards_received": 0,
                     "media_embed": {},
                     "author_flair_template_id": null,
@@ -2842,7 +2878,7 @@
                     "secure_media_embed": {},
                     "link_flair_text": null,
                     "can_mod_post": false,
-                    "score": 116,
+                    "score": 118,
                     "approved_by": null,
                     "is_created_from_ads_ui": false,
                     "author_premium": false,
@@ -2894,7 +2930,7 @@
                     "report_reasons": null,
                     "author": "ketralnis",
                     "discussion_type": null,
-                    "num_comments": 88,
+                    "num_comments": 89,
                     "send_replies": false,
                     "contest_mode": false,
                     "mod_reports": [],
@@ -2903,7 +2939,7 @@
                     "permalink": "/r/programming/comments/1qoxwdt/state_of_the_subreddit_january_2027_mods/",
                     "stickied": true,
                     "url": "https://www.reddit.com/r/programming/comments/1qoxwdt/state_of_the_subreddit_january_2027_mods/",
-                    "subreddit_subscribers": 6856554,
+                    "subreddit_subscribers": 6856618,
                     "created_utc": 1769565254,
                     "num_crossposts": 0,
                     "media": null,
@@ -2933,10 +2969,10 @@
                     "name": "t3_1s0rldb",
                     "quarantine": false,
                     "link_flair_text_color": "dark",
-                    "upvote_ratio": 0.89,
+                    "upvote_ratio": 0.91,
                     "author_flair_background_color": null,
                     "subreddit_type": "public",
-                    "ups": 80,
+                    "ups": 209,
                     "total_awards_received": 0,
                     "media_embed": {},
                     "author_flair_template_id": null,
@@ -2949,7 +2985,7 @@
                     "secure_media_embed": {},
                     "link_flair_text": null,
                     "can_mod_post": false,
-                    "score": 80,
+                    "score": 209,
                     "approved_by": null,
                     "is_created_from_ads_ui": false,
                     "author_premium": false,
@@ -3002,7 +3038,7 @@
                     "report_reasons": null,
                     "author": "NosePersonal326",
                     "discussion_type": null,
-                    "num_comments": 7,
+                    "num_comments": 12,
                     "send_replies": true,
                     "contest_mode": false,
                     "mod_reports": [],
@@ -3011,7 +3047,7 @@
                     "permalink": "/r/programming/comments/1s0rldb/lets_see_paul_allens_simd_csv_parser/",
                     "stickied": false,
                     "url": "https://chunkofcoal.com/posts/simd-csv/",
-                    "subreddit_subscribers": 6856554,
+                    "subreddit_subscribers": 6856618,
                     "created_utc": 1774200358,
                     "num_crossposts": 0,
                     "media": null,
@@ -3041,10 +3077,10 @@
                     "name": "t3_1s0kr42",
                     "quarantine": false,
                     "link_flair_text_color": "dark",
-                    "upvote_ratio": 0.9,
+                    "upvote_ratio": 0.93,
                     "author_flair_background_color": null,
                     "subreddit_type": "public",
-                    "ups": 72,
+                    "ups": 114,
                     "total_awards_received": 0,
                     "media_embed": {},
                     "author_flair_template_id": null,
@@ -3057,7 +3093,7 @@
                     "secure_media_embed": {},
                     "link_flair_text": null,
                     "can_mod_post": false,
-                    "score": 72,
+                    "score": 114,
                     "approved_by": null,
                     "is_created_from_ads_ui": false,
                     "author_premium": false,
@@ -3110,7 +3146,7 @@
                     "report_reasons": null,
                     "author": "yusufaytas",
                     "discussion_type": null,
-                    "num_comments": 4,
+                    "num_comments": 5,
                     "send_replies": true,
                     "contest_mode": false,
                     "mod_reports": [],
@@ -3119,7 +3155,7 @@
                     "permalink": "/r/programming/comments/1s0kr42/my_first_patch_to_the_linux_kernel/",
                     "stickied": false,
                     "url": "https://pooladkhay.com/posts/first-kernel-patch/",
-                    "subreddit_subscribers": 6856554,
+                    "subreddit_subscribers": 6856618,
                     "created_utc": 1774183683,
                     "num_crossposts": 0,
                     "media": null,
@@ -3152,7 +3188,7 @@
                     "upvote_ratio": 0.98,
                     "author_flair_background_color": null,
                     "subreddit_type": "public",
-                    "ups": 1054,
+                    "ups": 1106,
                     "total_awards_received": 0,
                     "media_embed": {},
                     "author_flair_template_id": null,
@@ -3165,7 +3201,7 @@
                     "secure_media_embed": {},
                     "link_flair_text": null,
                     "can_mod_post": false,
-                    "score": 1054,
+                    "score": 1106,
                     "approved_by": null,
                     "is_created_from_ads_ui": false,
                     "author_premium": false,
@@ -3218,7 +3254,7 @@
                     "report_reasons": null,
                     "author": "soupgasm",
                     "discussion_type": null,
-                    "num_comments": 119,
+                    "num_comments": 123,
                     "send_replies": true,
                     "contest_mode": false,
                     "mod_reports": [],
@@ -3227,7 +3263,7 @@
                     "permalink": "/r/programming/comments/1s02cq1/storing_2_bytes_of_data_in_your_logitech_mouse/",
                     "stickied": false,
                     "url": "https://www.timwehrle.de/blog/what-if-i-stored-data-in-my-mouse/",
-                    "subreddit_subscribers": 6856554,
+                    "subreddit_subscribers": 6856618,
                     "created_utc": 1774126117,
                     "num_crossposts": 0,
                     "media": null,
@@ -3261,7 +3297,7 @@
               ],
               "validation_failures": [],
               "echoed_params": [],
-              "tokens_used": 26886,
+              "tokens_used": 25312,
               "tokens_saved": 0,
               "tokens_saved_pct": 0,
               "excerpt": [
@@ -3269,8 +3305,8 @@
                   "id": "1qoxwdt",
                   "title": "State of the Subreddit (January 2027): Mods applications and rules updates",
                   "author": "ketralnis",
-                  "score": 116,
-                  "num_comments": 88,
+                  "score": 118,
+                  "num_comments": 89,
                   "subreddit": "programming",
                   "permalink": "/r/programming/comments/1qoxwdt/state_of_the_subreddit_january_2027_mods/",
                   "url": "https://www.reddit.com/r/programming/comments/1qoxwdt/state_of_the_subreddit_january_2027_mods/"
@@ -3279,8 +3315,8 @@
                   "id": "1s0rldb",
                   "title": "Let's see Paul Allen's SIMD CSV parser",
                   "author": "NosePersonal326",
-                  "score": 80,
-                  "num_comments": 7,
+                  "score": 209,
+                  "num_comments": 12,
                   "subreddit": "programming",
                   "permalink": "/r/programming/comments/1s0rldb/lets_see_paul_allens_simd_csv_parser/",
                   "url": "https://www.reddit.com/r/programming/comments/1s0rldb/lets_see_paul_allens_simd_csv_parser/"
@@ -3289,8 +3325,8 @@
                   "id": "1s0kr42",
                   "title": "my first patch to the linux kernel",
                   "author": "yusufaytas",
-                  "score": 72,
-                  "num_comments": 4,
+                  "score": 114,
+                  "num_comments": 5,
                   "subreddit": "programming",
                   "permalink": "/r/programming/comments/1s0kr42/my_first_patch_to_the_linux_kernel/",
                   "url": "https://www.reddit.com/r/programming/comments/1s0kr42/my_first_patch_to_the_linux_kernel/"
@@ -3299,8 +3335,8 @@
                   "id": "1s02cq1",
                   "title": "Storing 2 bytes of data in your Logitech mouse",
                   "author": "soupgasm",
-                  "score": 1054,
-                  "num_comments": 119,
+                  "score": 1106,
+                  "num_comments": 123,
                   "subreddit": "programming",
                   "permalink": "/r/programming/comments/1s02cq1/storing_2_bytes_of_data_in_your_logitech_mouse/",
                   "url": "https://www.reddit.com/r/programming/comments/1s02cq1/storing_2_bytes_of_data_in_your_logitech_mouse/"
@@ -3350,7 +3386,7 @@
           "round": 1,
           "url": "https://hub.docker.com/r/library/nginx/tags",
           "force_capture": false,
-          "resolve_ms": 2754,
+          "resolve_ms": 4343,
           "skill_id": "SVYYg32nrSO9T5-SySDiQ",
           "available_endpoint_ids": [
             "hqgrnTsj2w8Uoj98jiqdu",
@@ -3388,12 +3424,12 @@
               "endpoint_count": 2,
               "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:55.214Z"
+              "updated_at": "2026-03-23T02:23:45.846Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 2554,
-            "tokens_used": 34574,
+            "total_ms": 4050,
+            "tokens_used": 34585,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
           },
@@ -3416,7 +3452,7 @@
                     "os_version": null,
                     "size": 62935203,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:42:14.476315944Z",
+                    "last_pulled": "2026-03-23T02:12:25.273489583Z",
                     "last_pushed": "2026-03-17T01:50:22.630451031Z"
                   },
                   {
@@ -3429,7 +3465,7 @@
                     "os_version": null,
                     "size": 2852416,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:45:43.878865474Z",
+                    "last_pulled": "2026-03-23T02:16:57.071764862Z",
                     "last_pushed": "2026-03-17T01:50:23.21223426Z"
                   },
                   {
@@ -3442,7 +3478,7 @@
                     "os_version": null,
                     "size": 54147253,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:43:42.947746631Z",
+                    "last_pulled": "2026-03-23T02:15:34.935971179Z",
                     "last_pushed": "2026-03-17T01:50:23.695933348Z"
                   },
                   {
@@ -3455,7 +3491,7 @@
                     "os_version": null,
                     "size": 2878684,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:50:06.026714083Z",
+                    "last_pulled": "2026-03-23T02:12:52.549618229Z",
                     "last_pushed": "2026-03-17T01:50:24.18001936Z"
                   }
                 ],
@@ -3467,7 +3503,7 @@
                 "full_size": 62935203,
                 "v2": true,
                 "tag_status": "active",
-                "tag_last_pulled": "2026-03-22T20:50:10.65876461Z"
+                "tag_last_pulled": "2026-03-23T02:18:48.730424481Z"
               },
               {
                 "creator": 1156886,
@@ -3483,7 +3519,7 @@
                     "os_version": null,
                     "size": 75095441,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:40:43.745541284Z",
+                    "last_pulled": "2026-03-23T02:22:50.448428849Z",
                     "last_pushed": "2026-03-17T01:50:56.312581223Z"
                   },
                   {
@@ -3496,7 +3532,7 @@
                     "os_version": null,
                     "size": 4265139,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:47:56.473081974Z",
+                    "last_pulled": "2026-03-23T02:22:50.565193165Z",
                     "last_pushed": "2026-03-17T01:50:56.846032807Z"
                   },
                   {
@@ -3509,7 +3545,7 @@
                     "os_version": null,
                     "size": 66093165,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:37:21.35987327Z",
+                    "last_pulled": "2026-03-23T01:54:34.734311749Z",
                     "last_pushed": "2026-03-17T01:50:57.175580423Z"
                   },
                   {
@@ -3522,7 +3558,7 @@
                     "os_version": null,
                     "size": 4297323,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:37:21.472197861Z",
+                    "last_pulled": "2026-03-23T01:00:21.783631608Z",
                     "last_pushed": "2026-03-17T01:50:57.715215818Z"
                   }
                 ],
@@ -3534,7 +3570,7 @@
                 "full_size": 75095441,
                 "v2": true,
                 "tag_status": "active",
-                "tag_last_pulled": "2026-03-22T20:47:56.473081974Z"
+                "tag_last_pulled": "2026-03-23T02:22:50.565193165Z"
               },
               {
                 "creator": 1156886,
@@ -3550,7 +3586,7 @@
                     "os_version": null,
                     "size": 75050159,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.130785778Z",
+                    "last_pulled": "2026-03-23T02:11:20.556063369Z",
                     "last_pushed": "2026-03-17T01:51:57.618583667Z"
                   },
                   {
@@ -3563,7 +3599,7 @@
                     "os_version": null,
                     "size": 4262690,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.236739689Z",
+                    "last_pulled": "2026-03-23T01:00:21.568670448Z",
                     "last_pushed": "2026-03-17T01:51:58.068951105Z"
                   },
                   {
@@ -3576,7 +3612,7 @@
                     "os_version": null,
                     "size": 66033761,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.336941094Z",
+                    "last_pulled": "2026-03-23T01:23:51.218847159Z",
                     "last_pushed": "2026-03-17T01:51:58.402194268Z"
                   },
                   {
@@ -3589,7 +3625,7 @@
                     "os_version": null,
                     "size": 4294811,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.443575589Z",
+                    "last_pulled": "2026-03-23T01:00:22.165628339Z",
                     "last_pushed": "2026-03-17T01:51:58.837352346Z"
                   }
                 ],
@@ -3601,7 +3637,7 @@
                 "full_size": 75050159,
                 "v2": true,
                 "tag_status": "active",
-                "tag_last_pulled": "2026-03-22T20:45:14.881899108Z"
+                "tag_last_pulled": "2026-03-23T02:16:45.482838649Z"
               },
               {
                 "creator": 2215,
@@ -3617,7 +3653,7 @@
                     "os_version": null,
                     "size": 75050159,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.130785778Z",
+                    "last_pulled": "2026-03-23T02:11:20.556063369Z",
                     "last_pushed": "2026-03-17T01:51:57.618583667Z"
                   },
                   {
@@ -3630,7 +3666,7 @@
                     "os_version": null,
                     "size": 4262690,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.236739689Z",
+                    "last_pulled": "2026-03-23T01:00:21.568670448Z",
                     "last_pushed": "2026-03-17T01:51:58.068951105Z"
                   },
                   {
@@ -3643,7 +3679,7 @@
                     "os_version": null,
                     "size": 66033761,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.336941094Z",
+                    "last_pulled": "2026-03-23T01:23:51.218847159Z",
                     "last_pushed": "2026-03-17T01:51:58.402194268Z"
                   },
                   {
@@ -3656,7 +3692,7 @@
                     "os_version": null,
                     "size": 4294811,
                     "status": "active",
-                    "last_pulled": "2026-03-22T20:41:28.443575589Z",
+                    "last_pulled": "2026-03-23T01:00:22.165628339Z",
                     "last_pushed": "2026-03-17T01:51:58.837352346Z"
                   }
                 ],
@@ -3668,7 +3704,7 @@
                 "full_size": 75050159,
                 "v2": true,
                 "tag_status": "active",
-                "tag_last_pulled": "2026-03-22T20:45:14.881899108Z"
+                "tag_last_pulled": "2026-03-23T02:16:45.482838649Z"
               }
             ]
           },
@@ -3693,7 +3729,7 @@
               ],
               "validation_failures": [],
               "echoed_params": [],
-              "tokens_used": 34574,
+              "tokens_used": 34585,
               "tokens_saved": 0,
               "tokens_saved_pct": 0,
               "excerpt": [
@@ -3771,7 +3807,7 @@
           "round": 1,
           "url": "https://stackoverflow.com/questions/tagged/javascript",
           "force_capture": false,
-          "resolve_ms": 1783,
+          "resolve_ms": 2929,
           "skill_id": "Jy1yKZuQ758pOMr7Y-KZ8",
           "available_endpoint_ids": [
             "PHE5e2qtTLNYZh3B_vAFa"
@@ -3807,11 +3843,11 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:57.583Z"
+              "updated_at": "2026-03-23T02:23:49.394Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 1624,
+            "total_ms": 2752,
             "tokens_used": 26,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -3852,7 +3888,7 @@
               "endpoint_id": "PHE5e2qtTLNYZh3B_vAFa",
               "endpoint_url": "https://api.stackexchange.com/2.3/questions?site=stackoverflow&tagged={tag}&order=desc&sort=activity&pagesize=20&filter=default",
               "trigger_url": "https://stackoverflow.com/questions/tagged/javascript",
-              "execute_ms": 922,
+              "execute_ms": 1529,
               "attempt_count": 1,
               "verdict": "pass",
               "reason": "question_rows",
@@ -3949,7 +3985,7 @@
           "round": 1,
           "url": "https://dev.to/t/javascript",
           "force_capture": false,
-          "resolve_ms": 18539,
+          "resolve_ms": 3401,
           "skill_id": "yEczqf1xGH_6V0wt8FD1w",
           "available_endpoint_ids": [
             "F1xbI8HDDFZlQ8kFegnut"
@@ -3984,12 +4020,12 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:03.750Z"
+              "updated_at": "2026-03-23T02:23:54.089Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 18081,
-            "tokens_used": 10429,
+            "total_ms": 2313,
+            "tokens_used": 10230,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
           },
@@ -4003,52 +4039,52 @@
               "slug": "why-i-ditched-nextjs-and-rebuilt-my-site-with-astro-2moh",
               "path": "/waseemrajashaik/why-i-ditched-nextjs-and-rebuilt-my-site-with-astro-2moh",
               "url": "https://dev.to/waseemrajashaik/why-i-ditched-nextjs-and-rebuilt-my-site-with-astro-2moh",
-              "comments_count": 2,
+              "comments_count": 5,
               "public_reactions_count": 0,
               "collection_id": 37359,
               "published_timestamp": "2026-03-22T18:49:33Z"
             },
             {
               "type_of": "article",
-              "id": 3382321,
-              "title": "Beyond Array and Map: What `data-structure-typed` Brings to TypeScript Collections",
-              "description": "When TypeScript developers need a collection, we almost always start with Array, Map, or Set.  That...",
-              "readable_publish_date": "Mar 22",
-              "slug": "beyond-array-and-map-what-data-structure-typed-brings-to-typescript-collections-3mk",
-              "path": "/ruiwen_zeng_ea2f69399242a/beyond-array-and-map-what-data-structure-typed-brings-to-typescript-collections-3mk",
-              "url": "https://dev.to/ruiwen_zeng_ea2f69399242a/beyond-array-and-map-what-data-structure-typed-brings-to-typescript-collections-3mk",
-              "comments_count": 0,
-              "public_reactions_count": 1,
-              "collection_id": null,
-              "published_timestamp": "2026-03-22T04:49:28Z"
-            },
-            {
-              "type_of": "article",
-              "id": 3384356,
-              "title": "GDPR for Developers: What German Websites Actually Need",
-              "description": "Building for German clients means GDPR (DSGVO) compliance isn't optional. Courts are enforcing it...",
-              "readable_publish_date": "Mar 22",
-              "slug": "gdpr-for-developers-what-german-websites-actually-need-2h1a",
-              "path": "/nevik_schmidt_3635afa2b85/gdpr-for-developers-what-german-websites-actually-need-2h1a",
-              "url": "https://dev.to/nevik_schmidt_3635afa2b85/gdpr-for-developers-what-german-websites-actually-need-2h1a",
+              "id": 3310183,
+              "title": "I created a CodePen project inspired by the horror manga UZUMAKI",
+              "description": "A spiral is a curving line that revolves around an originating point,      Inspired by Junji Ito's...",
+              "readable_publish_date": "Mar 23",
+              "slug": "uzumaki-ali",
+              "path": "/alansdead/uzumaki-ali",
+              "url": "https://dev.to/alansdead/uzumaki-ali",
               "comments_count": 0,
               "public_reactions_count": 0,
               "collection_id": null,
-              "published_timestamp": "2026-03-22T14:39:45Z"
+              "published_timestamp": "2026-03-23T01:00:17Z"
             },
             {
               "type_of": "article",
-              "id": 3383797,
-              "title": "What is WebMCP? Chrome's browser-native API for AI agents",
-              "description": "AI agents are getting good at using the web. But the way they interact with it today is fragile: CSS...",
+              "id": 3386338,
+              "title": "My Portfolio's AI Chatbot Hates Its Job. It's the Best Career Decision I've Made.",
+              "description": "How a depressed robot, 15 hidden easter eggs, and a 0.95 temperature setting turned a forgettable...",
               "readable_publish_date": "Mar 22",
-              "slug": "what-is-webmcp-chromes-browser-native-api-for-ai-agents-2mmc",
-              "path": "/prasannagyde/what-is-webmcp-chromes-browser-native-api-for-ai-agents-2mmc",
-              "url": "https://dev.to/prasannagyde/what-is-webmcp-chromes-browser-native-api-for-ai-agents-2mmc",
-              "comments_count": 2,
-              "public_reactions_count": 1,
+              "slug": "my-portfolios-ai-chatbot-hates-its-job-its-the-best-career-decision-ive-made-4jel",
+              "path": "/markring/my-portfolios-ai-chatbot-hates-its-job-its-the-best-career-decision-ive-made-4jel",
+              "url": "https://dev.to/markring/my-portfolios-ai-chatbot-hates-its-job-its-the-best-career-decision-ive-made-4jel",
+              "comments_count": 0,
+              "public_reactions_count": 0,
               "collection_id": null,
-              "published_timestamp": "2026-03-22T12:38:31Z"
+              "published_timestamp": "2026-03-22T23:59:01Z"
+            },
+            {
+              "type_of": "article",
+              "id": 3300886,
+              "title": "Signals in React (III): Lifecycle Never Disappeared",
+              "description": "The Lifecycle Never Went Away   From the beginning of this series up to the current...",
+              "readable_publish_date": "Mar 23",
+              "slug": "signals-in-react-iii-lifecycle-never-disappeared-1jjg",
+              "path": "/luciano0322/signals-in-react-iii-lifecycle-never-disappeared-1jjg",
+              "url": "https://dev.to/luciano0322/signals-in-react-iii-lifecycle-never-disappeared-1jjg",
+              "comments_count": 0,
+              "public_reactions_count": 0,
+              "collection_id": null,
+              "published_timestamp": "2026-03-23T01:52:24Z"
             }
           ],
           "candidates": [
@@ -4074,7 +4110,8 @@
               ],
               "validation_failures": [],
               "echoed_params": [],
-              "tokens_used": 10429,
+              "side_effect_observed": "created",
+              "tokens_used": 10230,
               "tokens_saved": 0,
               "tokens_saved_pct": 0,
               "excerpt": [
@@ -4084,35 +4121,35 @@
                   "description": "Sometimes the best code is the code you don't ship to the browser.     // package.json diff -...",
                   "author": "Waseem raja Shaik",
                   "likes": 0,
-                  "comments": 2,
+                  "comments": 5,
                   "date": "2026-03-22T18:49:33Z"
                 },
                 {
-                  "title": "Beyond Array and Map: What `data-structure-typed` Brings to TypeScript Collections",
-                  "url": "https://dev.to/ruiwen_zeng_ea2f69399242a/beyond-array-and-map-what-data-structure-typed-brings-to-typescript-collections-3mk",
-                  "description": "When TypeScript developers need a collection, we almost always start with Array, Map, or Set.  That...",
-                  "author": "Ruiwen Zeng",
-                  "likes": 1,
-                  "comments": 0,
-                  "date": "2026-03-22T04:49:28Z"
-                },
-                {
-                  "title": "GDPR for Developers: What German Websites Actually Need",
-                  "url": "https://dev.to/nevik_schmidt_3635afa2b85/gdpr-for-developers-what-german-websites-actually-need-2h1a",
-                  "description": "Building for German clients means GDPR (DSGVO) compliance isn't optional. Courts are enforcing it...",
-                  "author": "Nevik Schmidt",
+                  "title": "I created a CodePen project inspired by the horror manga UZUMAKI",
+                  "url": "https://dev.to/alansdead/uzumaki-ali",
+                  "description": "A spiral is a curving line that revolves around an originating point,      Inspired by Junji Ito's...",
+                  "author": "Jules Mendonca",
                   "likes": 0,
                   "comments": 0,
-                  "date": "2026-03-22T14:39:45Z"
+                  "date": "2026-03-23T01:00:17Z"
                 },
                 {
-                  "title": "What is WebMCP? Chrome's browser-native API for AI agents",
-                  "url": "https://dev.to/prasannagyde/what-is-webmcp-chromes-browser-native-api-for-ai-agents-2mmc",
-                  "description": "AI agents are getting good at using the web. But the way they interact with it today is fragile: CSS...",
-                  "author": "Prasanna Vaidya",
-                  "likes": 1,
-                  "comments": 2,
-                  "date": "2026-03-22T12:38:31Z"
+                  "title": "My Portfolio's AI Chatbot Hates Its Job. It's the Best Career Decision I've Made.",
+                  "url": "https://dev.to/markring/my-portfolios-ai-chatbot-hates-its-job-its-the-best-career-decision-ive-made-4jel",
+                  "description": "How a depressed robot, 15 hidden easter eggs, and a 0.95 temperature setting turned a forgettable...",
+                  "author": "markring",
+                  "likes": 0,
+                  "comments": 0,
+                  "date": "2026-03-22T23:59:01Z"
+                },
+                {
+                  "title": "Signals in React (III): Lifecycle Never Disappeared",
+                  "url": "https://dev.to/luciano0322/signals-in-react-iii-lifecycle-never-disappeared-1jjg",
+                  "description": "The Lifecycle Never Went Away   From the beginning of this series up to the current...",
+                  "author": "Luciano0322",
+                  "likes": 0,
+                  "comments": 0,
+                  "date": "2026-03-23T01:52:24Z"
                 }
               ]
             }
@@ -4160,16 +4197,19 @@
           "round": 1,
           "url": "https://rubygems.org/gems/rails",
           "force_capture": false,
-          "resolve_ms": 2027,
+          "resolve_ms": 2439,
           "skill_id": "VRW5qtjs7wplhQMeDs592",
           "available_endpoint_ids": [
             "5zGshoKLZtDUa0pebUK0m"
           ],
           "dag": {
-            "available": false,
-            "reachable": false,
-            "selected_path": [],
-            "reason": "missing_operation_graph"
+            "available": true,
+            "reachable": true,
+            "target_operation_id": "5zGshoKLZtDUa0pebUK0m",
+            "selected_path": [
+              "5zGshoKLZtDUa0pebUK0m"
+            ],
+            "reason": "dag_path_found"
           },
           "trace_context": {
             "known_bindings": {
@@ -4203,10 +4243,10 @@
                   },
                   "example_response_compact": {
                     "name": "rails",
-                    "downloads": 722653425,
+                    "downloads": 722713690,
                     "version": "8.1.2",
                     "version_created_at": "2026-01-08T20:18:51.400Z",
-                    "version_downloads": 3559711,
+                    "version_downloads": 3572719,
                     "platform": "ruby",
                     "authors": "David Heinemeier Hansson",
                     "info": "Ruby on Rails is a full-stack web framework optimized for programmer happiness and sustainable productivity. It encourages beautiful code by favoring convent..."
@@ -4219,23 +4259,23 @@
               "domain": "rubygems.org",
               "auth_required": false,
               "endpoint_count": 1,
-              "operation_count": 0,
+              "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:54:17.466Z"
+              "updated_at": "2026-03-23T02:23:56.603Z"
             },
-            "source": "marketplace",
-            "cache_hit": true,
-            "total_ms": 1204,
+            "source": "live-capture",
+            "cache_hit": false,
+            "total_ms": 2161,
             "tokens_used": 523,
-            "tokens_saved": 29477,
-            "tokens_saved_pct": 98
+            "tokens_saved": 0,
+            "tokens_saved_pct": 0
           },
           "resolve_excerpt": {
             "name": "rails",
-            "downloads": 722653425,
+            "downloads": 722713690,
             "version": "8.1.2",
             "version_created_at": "2026-01-08T20:18:51.400Z",
-            "version_downloads": 3559711,
+            "version_downloads": 3572719,
             "platform": "ruby",
             "authors": "David Heinemeier Hansson",
             "info": "Ruby on Rails is a full-stack web framework optimized for programmer happiness and sustainable productivity. It encourages beautiful code by favoring convention over configuration.",
@@ -4276,8 +4316,8 @@
               "validation_failures": [],
               "echoed_params": [],
               "tokens_used": 523,
-              "tokens_saved": 29477,
-              "tokens_saved_pct": 98,
+              "tokens_saved": 0,
+              "tokens_saved_pct": 0,
               "excerpt": {
                 "name": "rails",
                 "version": "8.1.2",
@@ -4328,7 +4368,7 @@
           "round": 1,
           "url": "https://pub.dev/packages/http",
           "force_capture": false,
-          "resolve_ms": 5348,
+          "resolve_ms": 9118,
           "skill_id": "3F9OS99A_4mcn6QS8xgou",
           "available_endpoint_ids": [
             "JHIUYMlKfxdNORTdAx_mp"
@@ -4451,11 +4491,11 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:22.964Z"
+              "updated_at": "2026-03-23T02:23:59.559Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 4401,
+            "total_ms": 8398,
             "tokens_used": 18673,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -4638,7 +4678,7 @@
           "round": 1,
           "url": "https://jmail.world/search?q=clinton",
           "force_capture": false,
-          "resolve_ms": 2564,
+          "resolve_ms": 10582,
           "skill_id": "db6OuR9tdR2QCmVa3UMam",
           "available_endpoint_ids": [
             "g5xXeU264iI9lwEqK4oZU"
@@ -4675,11 +4715,11 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:26.561Z"
+              "updated_at": "2026-03-23T02:24:13.210Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 1951,
+            "total_ms": 9378,
             "tokens_used": 4365,
             "tokens_saved": 0,
             "tokens_saved_pct": 0

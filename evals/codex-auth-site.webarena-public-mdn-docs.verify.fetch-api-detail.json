@@ -15,9 +15,9 @@
     "mode": "autonomous",
     "benchmark_summary": {
       "cases": 1,
-      "cold_total_ms": 1329,
-      "warm_total_ms": 441,
-      "speedup_ms": 888,
+      "cold_total_ms": 2758,
+      "warm_total_ms": 4132,
+      "speedup_ms": -1374,
       "cold_tokens_used": 1114,
       "warm_tokens_used": 1114,
       "token_delta": 0
@@ -56,19 +56,18 @@
           "run_label": "cold",
           "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
           "force_capture": true,
-          "resolve_ms": 1329,
-          "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+          "resolve_ms": 2758,
+          "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
           "available_endpoint_ids": [
-            "Egm5u4kRXTj9ysbHnvwRY"
+            "UGRLFKukijkFjG933wOWD",
+            "E6ZYe6OqAVtFaJk3RxJGM"
           ],
           "dag": {
             "available": true,
-            "reachable": true,
-            "target_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
-            "selected_path": [
-              "Egm5u4kRXTj9ysbHnvwRY"
-            ],
-            "reason": "dag_path_found"
+            "reachable": false,
+            "target_operation_id": "UGRLFKukijkFjG933wOWD",
+            "selected_path": [],
+            "reason": "dag_unreachable"
           },
           "trace_context": {
             "known_bindings": {
@@ -82,57 +81,25 @@
               "slug_5": "Fetch_API"
             },
             "chunk": {
-              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
               "intent": "get doc detail",
-              "missing_bindings": [],
-              "suggested_next_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
-              "available_operations": [
-                {
-                  "operation_id": "Egm5u4kRXTj9ysbHnvwRY",
-                  "method": "GET",
-                  "action_kind": "detail",
-                  "resource_kind": "message",
-                  "title": "detail message",
-                  "why_available": "Runnable now; no missing dependencies.",
-                  "url_template": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
-                  "requires": [],
-                  "yields": [
-                    "message_name",
-                    "post_name",
-                    "message_url",
-                    "post_url"
-                  ],
-                  "example_request": {},
-                  "example_response_compact": [
-                    {
-                      "title": "Concepts and usage",
-                      "link": "/en-US/docs/Web/API/Request",
-                      "url": "/en-US/docs/Web/API/Request",
-                      "description": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Orig...",
-                      "message": "even if the server response is an HTTP error status"
-                    },
-                    {
-                      "title": "Deferred Fetch",
-                      "link": "/en-US/docs/Web/API/Window/fetchLater",
-                      "url": "/en-US/docs/Web/API/Window/fetchLater",
-                      "description": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or naviga..."
-                    }
-                  ]
-                }
-              ]
+              "missing_bindings": [
+                "q"
+              ],
+              "available_operations": []
             },
             "skill_snapshot": {
-              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
               "domain": "mozilla.org",
               "auth_required": false,
-              "endpoint_count": 1,
-              "operation_count": 1,
+              "endpoint_count": 2,
+              "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:56.302Z"
+              "updated_at": "2026-03-23T02:24:54.604Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 1180,
+            "total_ms": 1744,
             "tokens_used": 557,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -176,7 +143,7 @@
           },
           "candidates": [
             {
-              "endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+              "endpoint_id": "E6ZYe6OqAVtFaJk3RxJGM",
               "endpoint_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
               "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
               "attempt_count": 0,
@@ -199,7 +166,7 @@
               "selection_check": {
                 "ok": true,
                 "reason": "selection_match",
-                "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY"
+                "matched_endpoint_id": "E6ZYe6OqAVtFaJk3RxJGM"
               },
               "tokens_used": 557,
               "tokens_saved": 0,
@@ -242,7 +209,7 @@
             "ok": true,
             "reason": "retrieval_match",
             "matched_rank": 1,
-            "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+            "matched_endpoint_id": "E6ZYe6OqAVtFaJk3RxJGM",
             "max_rank": 5
           }
         },
@@ -251,19 +218,18 @@
           "run_label": "warm",
           "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
           "force_capture": false,
-          "resolve_ms": 441,
-          "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+          "resolve_ms": 4132,
+          "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
           "available_endpoint_ids": [
-            "Egm5u4kRXTj9ysbHnvwRY"
+            "UGRLFKukijkFjG933wOWD",
+            "E6ZYe6OqAVtFaJk3RxJGM"
           ],
           "dag": {
             "available": true,
-            "reachable": true,
-            "target_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
-            "selected_path": [
-              "Egm5u4kRXTj9ysbHnvwRY"
-            ],
-            "reason": "dag_path_found"
+            "reachable": false,
+            "target_operation_id": "UGRLFKukijkFjG933wOWD",
+            "selected_path": [],
+            "reason": "dag_unreachable"
           },
           "trace_context": {
             "known_bindings": {
@@ -277,57 +243,25 @@
               "slug_5": "Fetch_API"
             },
             "chunk": {
-              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
               "intent": "get doc detail",
-              "missing_bindings": [],
-              "suggested_next_operation_id": "Egm5u4kRXTj9ysbHnvwRY",
-              "available_operations": [
-                {
-                  "operation_id": "Egm5u4kRXTj9ysbHnvwRY",
-                  "method": "GET",
-                  "action_kind": "detail",
-                  "resource_kind": "message",
-                  "title": "detail message",
-                  "why_available": "Runnable now; no missing dependencies.",
-                  "url_template": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
-                  "requires": [],
-                  "yields": [
-                    "message_name",
-                    "post_name",
-                    "message_url",
-                    "post_url"
-                  ],
-                  "example_request": {},
-                  "example_response_compact": [
-                    {
-                      "title": "Concepts and usage",
-                      "link": "/en-US/docs/Web/API/Request",
-                      "url": "/en-US/docs/Web/API/Request",
-                      "description": "The Fetch API uses Request and Response objects (and other things involved with network requests), as well as related concepts such as CORS and the HTTP Orig...",
-                      "message": "even if the server response is an HTTP error status"
-                    },
-                    {
-                      "title": "Deferred Fetch",
-                      "link": "/en-US/docs/Web/API/Window/fetchLater",
-                      "url": "/en-US/docs/Web/API/Window/fetchLater",
-                      "description": "The fetchLater() API enables a developer to request a deferred fetch, that can be sent after a specified period of time, or when the page is closed or naviga..."
-                    }
-                  ]
-                }
-              ]
+              "missing_bindings": [
+                "q"
+              ],
+              "available_operations": []
             },
             "skill_snapshot": {
-              "skill_id": "_nvcNb4JjBx1Dqk4D6zPe",
+              "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
               "domain": "mozilla.org",
               "auth_required": false,
-              "endpoint_count": 1,
-              "operation_count": 1,
+              "endpoint_count": 2,
+              "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:56.746Z"
+              "updated_at": "2026-03-23T02:24:55.004Z"
             },
             "source": "marketplace",
             "cache_hit": true,
-            "total_ms": 20,
+            "total_ms": 260,
             "tokens_used": 557,
             "tokens_saved": 29443,
             "tokens_saved_pct": 98
@@ -371,7 +305,7 @@
           },
           "candidates": [
             {
-              "endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+              "endpoint_id": "E6ZYe6OqAVtFaJk3RxJGM",
               "endpoint_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
               "trigger_url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
               "attempt_count": 0,
@@ -394,7 +328,7 @@
               "selection_check": {
                 "ok": true,
                 "reason": "selection_match",
-                "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY"
+                "matched_endpoint_id": "E6ZYe6OqAVtFaJk3RxJGM"
               },
               "tokens_used": 557,
               "tokens_saved": 29443,
@@ -437,7 +371,7 @@
             "ok": true,
             "reason": "retrieval_match",
             "matched_rank": 1,
-            "matched_endpoint_id": "Egm5u4kRXTj9ysbHnvwRY",
+            "matched_endpoint_id": "E6ZYe6OqAVtFaJk3RxJGM",
             "max_rank": 5
           }
         }
@@ -450,9 +384,9 @@
           "goal_satisfied": true,
           "final_reason": "document_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 1329,
+          "total_resolve_ms": 2758,
           "total_execute_ms": 0,
-          "total_ms": 1329,
+          "total_ms": 2758,
           "first_source": "live-capture",
           "final_source": "live-capture",
           "total_tokens_used": 1114,
@@ -465,9 +399,9 @@
           "goal_satisfied": true,
           "final_reason": "document_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 441,
+          "total_resolve_ms": 4132,
           "total_execute_ms": 0,
-          "total_ms": 441,
+          "total_ms": 4132,
           "first_source": "marketplace",
           "final_source": "marketplace",
           "total_tokens_used": 1114,
@@ -475,8 +409,8 @@
           "avg_tokens_saved_pct": 98
         },
         "delta": {
-          "speedup_ms": 888,
-          "speedup_ratio": 3.01,
+          "speedup_ms": -1374,
+          "speedup_ratio": 0.67,
           "token_delta": 0,
           "token_reduction_pct": 0
         }
