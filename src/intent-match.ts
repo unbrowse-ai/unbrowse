@@ -1682,8 +1682,8 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
   if (/\b(search|find|lookup)\b/.test(lower)) {
     const matching = objects.filter((row) =>
       hasAnyPath(row, ["name", "title", "songName", "resource_name"]) &&
-      hasAnyPath(row, ["id", "url", "link", "href", "resource_id"]) &&
-      hasAnyPath(row, ["description", "summary", "metadata", "stats", "author", "uploader", "createdAt", "updatedAt"])
+      hasAnyPath(row, ["id", "url", "link", "href", "resource_id", "citation", "case_number"]) &&
+      hasAnyPath(row, ["description", "summary", "metadata", "stats", "author", "uploader", "createdAt", "updatedAt", "court", "decision_date", "coram", "catchword"])
     );
     return matching.length >= 1 ? { verdict: "pass", reason: "search_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
