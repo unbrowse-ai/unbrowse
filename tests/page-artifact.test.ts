@@ -32,7 +32,13 @@ describe("page artifact capture", () => {
     `;
 
     const artifact = buildPageArtifactCapture("https://www.linkedin.com/feed/", "get linkedin feed posts", html, true);
-    expect(artifact.endpoint?.url_template).toContain("voyagerFeedDashMainFeed");
+    expect(artifact.endpoint?.url_template).toContain("https://www.linkedin.com/voyager/api/graphql");
+    expect(artifact.endpoint?.url_template).toContain("variables=(start:{start},count:{count},sortOrder:{sortOrder})");
+    expect(artifact.endpoint?.query).toEqual({
+      includeWebMetadata: "true",
+      variables: "(start:0,count:3,sortOrder:MEMBER_SETTING)",
+      queryId: "voyagerFeedDashMainFeed.923020905727c01516495a0ac90bb475",
+    });
     expect(artifact.endpoint?.exec_strategy).toBe("trigger-intercept");
     expect(artifact.endpoint?.semantic?.auth_required).toBe(true);
     expect(artifact.result && typeof artifact.result.data === "object").toBe(true);
@@ -51,7 +57,8 @@ describe("page artifact capture", () => {
     `;
 
     const artifact = buildPageArtifactCapture("https://www.linkedin.com/feed/", "get my linkedin feed", html, true);
-    expect(artifact.endpoint?.url_template).toContain("voyagerFeedDashMainFeed");
+    expect(artifact.endpoint?.url_template).toContain("https://www.linkedin.com/voyager/api/graphql");
+    expect(artifact.endpoint?.url_template).toContain("variables=(start:{start},count:{count},sortOrder:{sortOrder})");
     expect(artifact.endpoint?.exec_strategy).toBe("trigger-intercept");
     expect(artifact.endpoint?.semantic?.auth_required).toBe(true);
     expect(artifact.result?._extraction?.method).toBe("linkedin-embedded-feed");

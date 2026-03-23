@@ -18,6 +18,8 @@
 
 ## Unreleased
 
+- fix LinkedIn/X-style structured query params (`variables=(start:...,count:...)`) so new captures learn templated nested query fields, `unbrowse execute --params ...` rewrites those nested fields instead of appending dead top-level params, and even older concrete skills can retrofit `start`/`count` overrides at execution time
+- replace the packaged `dist/index.js` Node+`tsx` wrapper with a real bundled server entrypoint, avoiding Node 25 `tsx` module-resolution failures like Fastify’s missing `logger-pino.js` on fresh global installs
 - feat: add WebArena-Verified benchmark lane with full/hard/inventory scripts backed by the official 812-task dataset
 - feat: record HAR-like executed request events in execution traces so retrieval/selection/execution judges can score real network evidence instead of endpoint ids only
 - feat: add `bun run release:local` to rehearse CLI packaging, local install smoke, integration package builds, and app compile checks before a tag
@@ -80,10 +82,15 @@
 - restore explicit OpenClaw and Claude Code install tabs right after the shared skill tab so the homepage install order matches the intended host priority
 - move the hosted installer path back to the first homepage tab while keeping the shared skill, OpenClaw, and Claude Code tabs immediately after it
 - bring back the broader integration matrix behind a compact “More integrations” selector so the homepage stays readable without hiding Cursor, Windsurf, Claude Desktop, Codex, MCP, Hermes, ElizaOS, and LangChain
+- move the whitepaper companion into a canonical `docs/whitepaper/` GitBook-ready doc set, separate shipped product behavior from forward-looking paper claims, and mark non-implemented sections as `coming soon`
+- bake shipped-vs-coming-soon product-truth guidance directly into the public Unbrowse skill so docs, copy, eval messaging, and whitepaper explanations all share the same canonical source
+- adapt the old `unbrowse-docs` explainer pages into the current GitBook whitepaper companion, grounding the narrative docs against the current repo and labeling stale paper-only concepts instead of reintroducing legacy claims
 - flatten the homepage install section into one primary tab row plus a single “Other integrations” disclosure, removing the nested tabs-plus-dropdown install UI
 - fix the Hermes install copy: bootstrap the real CLI/runtime first, then install `unbrowse-hermes`, restart Hermes, and verify the `unbrowse` tool is loaded
 - remove the homepage API-key generator block from the post-install footer so the landing page stays focused on install/docs/community
 - hide the homepage “Recently Indexed Skills” section entirely when the registry feed returns nothing, instead of showing a dead loading panel
+- serve `/install.sh` from the app bundle and repoint installer self-links at `https://www.unbrowse.ai/install.sh`, fixing the live curl 404 caused by dead GitHub raw URLs
+- fix the Claude Code host installer command so `claude mcp add` does not treat `unbrowse` as a malformed env var during all-host setup
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
