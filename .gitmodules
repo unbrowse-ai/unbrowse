@@ -1,4 +1,4 @@
 [submodule "submodules/kuri"]
 	path = submodules/kuri
 	url = https://github.com/lekt9/kuri.git
-	branch = codex/fix-managed-discover-cdp
+	branch = main
