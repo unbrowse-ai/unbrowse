@@ -35,7 +35,7 @@ export default function DashboardPage() {
           className="inline-flex items-center gap-2 px-7 py-3.5 bg-orange-500
                      text-white font-semibold rounded-2xl hover:bg-orange-600 transition-all"
         >
-          Run npx unbrowse setup
+          Open install guide
         </Link>
       </div>
     );

@@ -5,6 +5,7 @@ import { getSkillChunk, knownBindingsFromInputs } from "../graph/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { mergeContextTemplateParams } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
+import { queuePassiveSkillPublish } from "./passive-publish.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -15,7 +16,7 @@ import type {
 } from "../types/index.js";
 import { TRACE_VERSION } from "../version.js";
 import { nanoid } from "nanoid";
-import { assessIntentResult } from "../intent-match.js";
+import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -50,7 +51,7 @@ const capturedDomainCache = new Map<
 // the same live capture instead of failing fast.
 const captureInFlight = new Map<
   string,
-  Promise<{ learned_skill?: SkillManifest; trace: ExecutionTrace; result: unknown }>
+  Promise<{ learned_skill?: SkillManifest; trace: ExecutionTrace; result: unknown; parity_baseline?: unknown }>
 >();
 // Cross-client profile lock: some sites/profile dirs do not tolerate parallel browser
 // launches against the same domain/profile. Serialize live captures per domain.
@@ -963,6 +964,111 @@ async function agentJudgeExecution(
         "pass only if the returned data directly answers the intent",
         "fail if the data is empty, unrelated, config, experiment, telemetry, status, auth/session, or only a weak proxy",
         "for list/search intents, wrong entity type is fail",
+      ],
+    }),
+    { verdict: "skip" as const },
+  );
+  return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
+}
+
+function normalizeParityRows(data: unknown, intent: string): Array<Record<string, unknown>> {
+  const projected = projectIntentData(data, intent);
+  if (Array.isArray(projected)) {
+    return projected.filter((row): row is Record<string, unknown> => !!row && typeof row === "object");
+  }
+  if (projected && typeof projected === "object") return [projected as Record<string, unknown>];
+  return [];
+}
+
+function compactParityValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim().toLowerCase().slice(0, 160);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.slice(0, 3).map((item) => compactParityValue(item)).filter(Boolean).join("|");
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).slice(0, 3).map((item) => compactParityValue(item)).filter(Boolean).join("|");
+  }
+  return "";
+}
+
+function parityFingerprint(row: Record<string, unknown>): string {
+  const preferredKeys = [
+    "id",
+    "entityUrn",
+    "urn",
+    "url",
+    "link",
+    "slug",
+    "name",
+    "title",
+    "headline",
+    "author",
+    "user",
+    "content",
+    "text",
+    "body",
+  ];
+  const parts = preferredKeys
+    .map((key) => compactParityValue(row[key]))
+    .filter(Boolean)
+    .slice(0, 4);
+  if (parts.length > 0) return parts.join("::");
+  return compactParityValue(row);
+}
+
+function localParityVerdict(
+  intent: string,
+  browserBaseline: unknown,
+  replayResult: unknown,
+): { verdict: "pass" | "fail" | "skip"; reason: string } {
+  const browserAssessment = assessIntentResult(browserBaseline, intent);
+  const replayAssessment = assessIntentResult(replayResult, intent);
+  if (replayAssessment.verdict === "fail") return { verdict: "fail", reason: `replay_${replayAssessment.reason}` };
+  if (browserAssessment.verdict === "fail") return { verdict: "skip", reason: `browser_${browserAssessment.reason}` };
+
+  const browserRows = normalizeParityRows(browserBaseline, intent);
+  const replayRows = normalizeParityRows(replayResult, intent);
+  if (browserRows.length === 0 || replayRows.length === 0) return { verdict: "skip", reason: "insufficient_rows" };
+
+  const browserPrints = new Set(browserRows.map(parityFingerprint).filter(Boolean));
+  const replayPrints = new Set(replayRows.map(parityFingerprint).filter(Boolean));
+  if (browserPrints.size === 0 || replayPrints.size === 0) return { verdict: "skip", reason: "insufficient_fingerprints" };
+
+  let overlap = 0;
+  for (const fingerprint of browserPrints) {
+    if (replayPrints.has(fingerprint)) overlap += 1;
+  }
+  const overlapRatio = overlap / Math.max(1, Math.min(browserPrints.size, replayPrints.size));
+  if (overlapRatio >= 0.4) return { verdict: "pass", reason: `fingerprint_overlap_${overlap}/${Math.min(browserPrints.size, replayPrints.size)}` };
+  if (overlap === 0 && browserPrints.size >= 2 && replayPrints.size >= 1) {
+    return { verdict: "fail", reason: "zero_overlap" };
+  }
+  return { verdict: "skip", reason: `low_overlap_${overlapRatio.toFixed(2)}` };
+}
+
+async function agentJudgeParity(
+  intent: string,
+  browserBaseline: unknown,
+  replayResult: unknown,
+): Promise<"pass" | "fail" | "skip"> {
+  const browserProjected = projectIntentData(browserBaseline, intent);
+  const replayProjected = projectIntentData(replayResult, intent);
+  const verdict = await callJsonAgent<{
+    verdict?: "pass" | "fail" | "skip";
+    result?: "pass" | "fail" | "skip";
+    judgment?: "pass" | "fail" | "skip";
+  }>(
+    "You judge whether a replay/API result is close enough to the browser-visible result for the same web task. Return JSON only.",
+    JSON.stringify({
+      task: "judge_browser_replay_parity",
+      intent,
+      browser_result: browserProjected,
+      replay_result: replayProjected,
+      rules: [
+        "This is a soft parity check, not strict equality.",
+        "Pass when the replay captures substantially the same user-visible entities or records, even if order, counts, or some fields differ.",
+        "Fail when the replay is a different entity type, obviously unrelated, or misses almost all visible items.",
+        "Skip when evidence is too sparse or ambiguous.",
       ],
     }),
     { verdict: "skip" as const },
@@ -1901,6 +2007,7 @@ export async function resolveAndExecute(
       trace = waited.trace;
       result = waited.result;
       learned_skill = waited.learned_skill;
+      const parityBaseline = waited.parity_baseline;
       timing.execute_ms = 0;
       if (!learned_skill && !trace.success) {
         return {
@@ -1924,6 +2031,7 @@ export async function resolveAndExecute(
               }
             : undefined,
         );
+        queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
         deferred.timing.cache_hit = true;
         return deferred;
       }
@@ -1940,6 +2048,7 @@ export async function resolveAndExecute(
   let learned_skill: SkillManifest | undefined;
   let trace: import("../types/index.js").ExecutionTrace;
   let result: unknown;
+  let parityBaseline: unknown;
   let captureSkill: SkillManifest;
   const te0 = Date.now();
   if (bypassLiveCaptureQueue) {
@@ -1958,6 +2067,7 @@ export async function resolveAndExecute(
     trace = out.trace;
     result = out.result;
     learned_skill = out.learned_skill;
+    parityBaseline = out.parity_baseline;
   } else {
     const capturePromise = withDomainCaptureLock(captureDomain, async () => {
       const captureSkill = await getOrCreateBrowserCaptureSkill();
@@ -1976,6 +2086,7 @@ export async function resolveAndExecute(
         trace: out.trace,
         result: out.result,
         learned_skill: out.learned_skill,
+        parity_baseline: out.parity_baseline,
       };
     });
     captureInFlight.set(captureLockKey, capturePromise);
@@ -1985,6 +2096,7 @@ export async function resolveAndExecute(
       trace = out.trace;
       result = out.result;
       learned_skill = out.learned_skill;
+      parityBaseline = out.parity_baseline;
     } finally {
       captureInFlight.delete(captureLockKey);
     }
@@ -2059,32 +2171,22 @@ export async function resolveAndExecute(
         ep.description = generateLocalDescription(ep);
       }
     }
+  }
 
-    // Await publish so backend-generated LLM descriptions come back before auto-exec
-    try {
-      const published = await publishSkill(learned_skill);
-      // Update local copy with backend descriptions
-      if (published.endpoints) {
-        for (const ep of learned_skill.endpoints) {
-          const backendEp = published.endpoints.find((e) => e.endpoint_id === ep.endpoint_id);
-          if (backendEp?.description) ep.description = backendEp.description;
-        }
-      }
-      // Cache at domain level for cross-intent reuse
-      const domainKey = getDomainReuseKey(context?.url ?? learned_skill.domain);
-      if (domainKey) {
-        const bestEp = learned_skill.endpoints.find(e => e.dom_extraction) ?? learned_skill.endpoints[0];
-        domainSkillCache.set(domainKey, {
-          skillId: learned_skill.skill_id,
-          endpointId: bestEp?.endpoint_id,
-          ts: Date.now(),
-        });
-        persistDomainCache();
-        console.log(`[domain-cache] cached ${domainKey} → ${learned_skill.skill_id.slice(0, 15)}`);
-      }
-    } catch (err) {
-      console.error("[publish] discovery_cost update failed:", (err as Error).message);
-    }
+  function queuePassivePublishIfExecuted(
+    skill: SkillManifest,
+    orchestratorResult: OrchestratorResult,
+    browserBaseline?: unknown,
+  ): void {
+    if (!orchestratorResult.trace.success || !orchestratorResult.trace.endpoint_id) return;
+    const parity = browserBaseline === undefined
+      ? undefined
+      : (async () => {
+          const local = localParityVerdict(intent, browserBaseline, orchestratorResult.result);
+          if (local.verdict !== "skip") return local.verdict;
+          return await agentJudgeParity(intent, browserBaseline, orchestratorResult.result);
+        })();
+    void queuePassiveSkillPublish(skill, { parity });
   }
 
   // Auth-gated or no data: pass through error
@@ -2106,6 +2208,7 @@ export async function resolveAndExecute(
   if (isDirectDomResult && !hasNonDomApiEndpoints) {
     if (learned_skill) {
       const deferred = await buildDeferralWithAutoExec(learned_skill, "live-capture");
+      queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
       return deferred;
     }
     return {
@@ -2139,6 +2242,27 @@ export async function resolveAndExecute(
     if (execOut.trace.success)
       promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id, context?.url);
     if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
+      queuePassivePublishIfExecuted(
+        learned_skill,
+        {
+          result: execOut.result,
+          trace: execOut.trace,
+          source: "live-capture",
+          skill: learned_skill,
+          timing: finalize(
+            "live-capture",
+            execOut.result,
+            learned_skill.skill_id,
+            learned_skill,
+            execOut.trace,
+          ),
+          response_schema: execOut.response_schema,
+          extraction_hints: execOut.extraction_hints,
+        },
+        parityBaseline,
+      );
+    }
+    if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
       promoteResultSnapshot(
         cacheKey,
         learned_skill,
@@ -2165,7 +2289,7 @@ export async function resolveAndExecute(
       extraction_hints: execOut.extraction_hints,
     };
   }
-  return await buildDeferralWithAutoExec(
+  const deferred = await buildDeferralWithAutoExec(
     learned_skill!,
     "live-capture",
     authRecommended
@@ -2175,6 +2299,8 @@ export async function resolveAndExecute(
         }
       : undefined,
   );
+  queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
+  return deferred;
 }
 
 async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {

@@ -1,141 +1,170 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 
-const tabs = [
-    {
-      id: "auto",
-      label: "Auto-detect All",
-      code: `# Install CLI + wire detected hosts automatically
-curl -fsSL https://www.unbrowse.ai/install.sh | bash
+type InstallOption = {
+  id: string;
+  label: string;
+  summary: string;
+  code: string;
+  badge?: string;
+};
 
-# Force every supported host
-curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --all
-
-# Dry run first if you want
-curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --dry-run`,
-    },
-    {
-      id: "claude",
-      label: "Claude Code",
-      code: `# Install the CLI
-npm install -g unbrowse
-
-# This global install is for the local unbrowse runtime, not the skill
-
-# First run bootstraps automatically
-unbrowse health
-
-# Auto-update runs before each command. Manual refresh still works:
-npm install -g unbrowse@latest
-unbrowse health
-
-# Add the skill for agent workflows
-npx skills add unbrowse-ai/unbrowse
-
-# Use it
-unbrowse resolve --intent "get events" --url "https://lu.ma"`,
-    },
-    {
-      id: "openclaw",
-      label: "OpenClaw Plugin",
-      code: `# Bootstrap the local Unbrowse runtime once
-npx unbrowse setup
-
-# Install the OpenClaw plugin from npm
-openclaw plugins install unbrowse-openclaw
-
-# No separate npm install -g needed for the plugin itself
-
-# Enable it and route normal web work through Unbrowse
-openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
-openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
-openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
-openclaw gateway restart
-
-# Verify
-openclaw plugins info unbrowse-openclaw
-openclaw unbrowse-plugin health`,
-    },
-    {
-      id: "cursor",
-      label: "Cursor",
-      code: `# Install the CLI
-npm install -g unbrowse
-
-# This global install is for the local unbrowse runtime, not the skill
-
-# First run bootstraps automatically
-unbrowse health
-
-# Auto-update runs before each command. Manual refresh still works:
-npm install -g unbrowse@latest
-unbrowse health
-
-# Add the skill in Cursor
-npx skills add unbrowse-ai/unbrowse
-
-# Check the install
-unbrowse health`,
-    },
-] as const;
+const installOptions: InstallOption[] = [
+  {
+    id: "one-shot",
+    label: "One-shot",
+    badge: "Recommended",
+    summary: "Installs the local runtime and wires detected hosts automatically.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash`,
+  },
+  {
+    id: "skill",
+    label: "Skill",
+    summary: "Best for skill-compatible agents. Add the shared skill first.",
+    code: `npx skills add unbrowse-ai/unbrowse`,
+  },
+  {
+    id: "openclaw",
+    label: "OpenClaw",
+    summary: "Full OpenClaw wiring via the hosted installer. Native plugin replaces browser-first routing inside OpenClaw.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --openclaw --no-cli`,
+  },
+  {
+    id: "manual",
+    label: "Manual",
+    summary: "CLI-only fallback when you do not want auto-detect.",
+    code: `npm install -g unbrowse`,
+  },
+  {
+    id: "claude-code",
+    label: "Claude Code",
+    summary: "Explicit Claude Code wiring via the hosted installer.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --claude-code --no-cli`,
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    summary: "Explicit Cursor MCP wiring via the hosted installer.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --cursor --no-cli`,
+  },
+  {
+    id: "windsurf",
+    label: "Windsurf",
+    summary: "Explicit Windsurf MCP wiring via the hosted installer.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --windsurf --no-cli`,
+  },
+  {
+    id: "claude-desktop",
+    label: "Claude Desktop",
+    summary: "Explicit Claude Desktop config wiring via the hosted installer.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --claude-desktop --no-cli`,
+  },
+  {
+    id: "codex",
+    label: "Codex",
+    summary: "Explicit Codex MCP wiring via the hosted installer.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --codex --no-cli`,
+  },
+];
 
 export function InstallInstructions() {
-  const [active, setActive] = useState<string>("auto");
+  const [active, setActive] = useState<string>("one-shot");
   const [copied, setCopied] = useState(false);
-
-  const tab = tabs.find((t) => t.id === active) ?? tabs[0];
+  const selected = installOptions.find((option) => option.id === active) ?? installOptions[0];
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(tab.code);
+    await navigator.clipboard.writeText(selected.code);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    window.setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-surface overflow-hidden shadow-sm transition-colors">
-      {/* Tab bar */}
-      <div className="flex items-center justify-between border-b border-border bg-surface-raised pl-2 pr-4">
-          <div className="flex overflow-x-auto hide-scrollbar">
-            {tabs.map((t) => (
-        <button
-                  key={t.id}
-                  onClick={() => setActive(t.id)}
-                  className={`px-4 sm:px-6 py-3.5 text-xs sm:text-sm font-medium whitespace-nowrap transition-all border-b-2 relative top-[1px]
-                  ${active === t.id
-                    ? "text-orange-600 border-orange-500"
-                    : "text-text-muted border-transparent hover:text-text-secondary hover:bg-surface"
-                  }`}
-              >
-                {t.label}
-              </button>
-            ))}
+    <div className="overflow-hidden rounded-[28px] border border-border-strong bg-surface-raised shadow-[0_20px_60px_rgba(0,0,0,0.22)]">
+      <div className="border-b border-border-strong bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] px-5 py-5 sm:px-6">
+        <div className="flex flex-col gap-3">
+          <div className="overflow-x-auto scrollbar-hide">
+            <div className="flex min-w-max gap-2 pr-2">
+              {installOptions.map((option) => {
+                const isActive = option.id === active;
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setActive(option.id)}
+                    className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 ${
+                      isActive
+                        ? "border-orange-500 bg-orange-500 text-white shadow-[0_0_0_1px_rgba(255,109,0,0.2)]"
+                        : "border-border-strong bg-surface-sunken text-text-primary hover:border-orange-500/40 hover:text-white"
+                    }`}
+                  >
+                    <span>{option.label}</span>
+                    {option.badge ? (
+                      <span className="rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-700">
+                        {option.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <button 
+
+          <p className="max-w-3xl text-base leading-relaxed text-text-primary">
+            {selected.summary}
+          </p>
+        </div>
+      </div>
+
+      <div className="p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4 rounded-2xl border border-border-strong bg-[#0b0907] px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="min-w-0 flex-1">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-mono uppercase tracking-[0.18em] text-orange-500">Install path</span>
+              <span className="rounded-full border border-border-strong bg-surface-raised px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-primary">
+                {selected.label}
+              </span>
+            </div>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-base leading-relaxed text-white sm:text-lg">
+              <span className="text-orange-500">$ </span>
+              {selected.code}
+            </pre>
+          </div>
+
+          <button
+            type="button"
             onClick={handleCopy}
-            className="shrink-0 p-2 rounded-lg text-text-muted hover:text-orange-500 hover:bg-orange-50 transition-colors"
-            title="Copy code"
+            aria-label="Copy install command"
+            title="Copy install command"
+            className="inline-flex min-h-12 min-w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-orange-500/30 bg-orange-500/12 text-orange-500 transition-colors hover:border-orange-500/60 hover:bg-orange-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
           >
-            {copied ? <Check className="w-4 h-4 text-orange-500" /> : <Copy className="w-4 h-4" />}
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </button>
         </div>
-        {/* Code block */}
-        <div className="p-6 relative group bg-surface border-t border-border">
-          <div className="absolute top-6 left-6 flex flex-col gap-1.5 opacity-50 select-none">
-            {tab.code.split('\n').map((_, i) => (
-              <div key={i} className="text-xs font-mono text-border-strong text-right w-4">{i + 1}</div>
-            ))}
+
+        <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-border-strong bg-surface-sunken px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-base font-semibold text-text-primary">Already installed?</p>
+            <p className="mt-1 text-sm leading-relaxed text-text-primary">
+              Upgrade in place. Hermes, ElizaOS, and generic MCP setup docs stay in the docs because they include native browser-replacement wiring, not just package install.
+            </p>
           </div>
-          <pre className="pl-8 text-sm font-mono text-text-primary overflow-x-auto leading-relaxed whitespace-pre-wrap">
-            {tab.code.split('\n').map((line, i) => {
-              if (line.startsWith('#')) return <div key={i} className="text-text-muted">{line}</div>;
-              if (line.startsWith('npx') || line.startsWith('bash ')) return <div key={i} className="text-orange-600 font-medium">{line}</div>;
-              if (line.startsWith('export') || line.startsWith('UNBROWSE')) return <div key={i} className="text-orange-500">{line}</div>;
-              return <div key={i}>{line}</div>;
-            })}
-          </pre>
+
+          <div className="flex flex-col items-stretch gap-3 sm:items-end">
+            <code className="rounded-xl border border-border-strong bg-[#0b0907] px-3 py-2 font-mono text-sm leading-relaxed text-white">
+              curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --upgrade-cli
+            </code>
+            <a
+              href="/skill.md"
+              className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:border-orange-500/40 hover:text-white"
+            >
+              Open setup docs
+            </a>
+          </div>
         </div>
+      </div>
     </div>
   );
 }

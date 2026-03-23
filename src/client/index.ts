@@ -507,15 +507,16 @@ export function findExistingSkillForDomain(domain: string, intent?: string): Ski
 export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
   const recent = getRecentLocalSkill(skillId, scopeId ?? process.env.UNBROWSE_CLIENT_ID);
   if (recent) return recent;
+  const cached = readSkillCache(skillId);
   if (LOCAL_ONLY) {
-    return readSkillCache(skillId);
+    return cached;
   }
   try {
     const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true });
     writeSkillCache(skill, scopeId);
     return skill;
   } catch {
-    return null;
+    return cached;
   }
 }
 

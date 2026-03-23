@@ -17,6 +17,14 @@
 ### Bug Fixes
 
 - fall back to browser capture when pre-capture structured/document replay fetches fail, instead of returning a generic `fetch failed` error for authenticated SPA pages like LinkedIn feed
+- make live-capture indexing passive: first-run browser results now return from the local learned skill path immediately, while marketplace validation/publish happen in the background after a successful execution and explicit skill lookups fall back to the local disk cache if remote indexing has not landed yet
+- add a soft background parity gate for passive indexing: when live capture has a browser-visible baseline and a replay/API result, promotion now prefers local overlap checks plus an agent-side parity verdict instead of exact equality
+- return `auth_required` with a concrete `unbrowse login --url ...` hint when protected app pages like `x.com/home` or LinkedIn feed render only blocked/login shells instead of falling through to generic `no_endpoints`
+- replace stale healthy local servers even when the pid file is missing, so upgraded installs on the default port do not stay pinned to older behavior
+- restart Kuri once on raw CDP transport failures during capture, instead of hard-failing installed CLI runs that attach to a dirty existing browser session
+- filter injected auth cookies down to the actual page host before capture, avoiding Kuri crashes on oversized sibling-subdomain cookie sets like X’s `api.x.com` / `upload.x.com` bundle
+- add a generic live-capture auth-strategy ladder: replay stored auth as `Cookie` + CSRF headers first, prefer clean `auth_required` over crash-prone CDP cookie injection during automatic capture, and remember when cookie injection is unsafe for a site/runtime
+- bump the local package version to `2.0.20` so local tarball installs do not immediately auto-update downward/upward to the currently published npm build during smoke tests
 - launch isolated managed Chrome for Kuri by default and terminate the managed Chrome pid on shutdown, avoiding stale CDP browser reuse across local CLI runs
 - honor `UNBROWSE_TOS_ACCEPTED=1` even when the packaged CLI/server auto-start path runs non-interactively, so local smoke tests and agent-driven runs do not hang on an interactive ToS prompt
 - let repo checkouts find the bundled Kuri binary under `packages/skill/vendor`, fall back to plain HTTP HTML capture when browser tabs are unavailable, and seed direct JSON URLs into replayable skills so evals and CLI site checks keep working in repo mode
@@ -48,6 +56,17 @@
 - restore the marketplace retrieval fixture corpus to five fixtures / twelve cases with a `gamma-market` family, so the unit gate again covers rank, exact-domain filtering, and resolve fallback breadth instead of failing its own minimum-bar contract
 - bump the bundled Kuri submodule to the merged `lekt9/kuri` mainline fix for tab-state ownership, safer router decoding, managed-CDP wiring, and the compact snapshot leak cleanup
 - disable the `release-it` npm plugin so bumper-owned version sync can tag cleanly without a duplicate `npm version` failure
+- replace fake frontend install steps with exact host-specific installer flows for Cursor, Claude Code, and OpenClaw, plus restart/verify guidance
+- add the missing frontend install surfaces for generic MCP clients plus Hermes and ElizaOS plugin installs
+- extend the frontend install matrix to cover Windsurf, Claude Desktop, Codex, and LangChain too
+- surface the public whitepaper link in the landing page, llms.txt, and skill.md metadata/docs
+- serve the whitepaper through a first-party `/whitepaper` route with inline PDF headers so it opens in a new tab instead of forcing a download
+- simplify frontend install surfaces around the one-liner plus npm fallback, and drop unnecessary `unbrowse health` steps from the landing/docs copy
+- make the shared skill install path (`npx skills add unbrowse-ai/unbrowse`) the first install option shown across frontend/docs surfaces
+- restore explicit OpenClaw and Claude Code install tabs right after the shared skill tab so the homepage install order matches the intended host priority
+- move the hosted installer path back to the first homepage tab while keeping the shared skill, OpenClaw, and Claude Code tabs immediately after it
+- bring back the broader integration matrix behind a compact “More integrations” selector so the homepage stays readable without hiding Cursor, Windsurf, Claude Desktop, Codex, MCP, Hermes, ElizaOS, and LangChain
+- flatten the homepage install section into one primary tab row plus a single “Other integrations” disclosure, removing the nested tabs-plus-dropdown install UI
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
