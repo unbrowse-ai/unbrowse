@@ -329,6 +329,21 @@ function promoteResultSnapshot(
   });
 }
 
+function invalidateResolveCacheEntries(cacheKeys: string[], domainKeys: string[] = []): void {
+  let routeCacheDirty = false;
+  let domainCacheDirty = false;
+  for (const cacheKey of new Set(cacheKeys.filter(Boolean))) {
+    routeResultCache.delete(cacheKey);
+    capturedDomainCache.delete(cacheKey);
+    if (skillRouteCache.delete(cacheKey)) routeCacheDirty = true;
+  }
+  for (const domainKey of new Set(domainKeys.filter(Boolean))) {
+    if (domainSkillCache.delete(domainKey)) domainCacheDirty = true;
+  }
+  if (routeCacheDirty) persistRouteCache();
+  if (domainCacheDirty) persistDomainCache();
+}
+
 async function getSkillWithTimeout(
   skillId: string,
   scope: string,
@@ -408,6 +423,23 @@ export function isCachedSkillRelevantForIntent(
     contextUrl,
   );
   const top = ranked[0];
+  const isSearchIntent = /\b(search|find|lookup|browse|discover)\b/i.test(intent);
+  if (
+    top &&
+    isSearchIntent &&
+    contextUrl &&
+    /captured page artifact/i.test(top.endpoint.description ?? "") &&
+    top.endpoint.response_schema?.type !== "array" &&
+    top.endpoint.url_template === contextUrl &&
+    !skillHasBetterStructuredSearchEndpoint(
+      resolvedSkill,
+      top.endpoint.endpoint_id,
+      intent,
+      contextUrl,
+    )
+  ) {
+    return false;
+  }
   if (
     top &&
     isEducationCatalogIntent(intent) &&
@@ -624,6 +656,18 @@ export interface OrchestratorResult {
   timing: OrchestrationTiming;
   response_schema?: ResponseSchema;
   extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
+}
+
+type AutoExecDecision = {
+  orchestratorResult: OrchestratorResult;
+  autoexecFailedAll: boolean;
+};
+
+export function shouldFallbackToLiveCaptureAfterAutoexecFailure(
+  autoexecFailedAll: boolean,
+  contextUrl?: string,
+): boolean {
+  return autoexecFailedAll && !!contextUrl;
 }
 
 function computeCompositeScore(embeddingScore: number, skill: SkillManifest): number {
@@ -1391,7 +1435,7 @@ export async function resolveAndExecute(
     skill: SkillManifest,
     source: "marketplace" | "live-capture",
     extraFields?: Record<string, unknown>,
-  ): Promise<OrchestratorResult> {
+  ): Promise<AutoExecDecision> {
     // Only attempt auto-exec if we have an intent to infer params from
     if (intent && intent.trim().length > 0) {
       try {
@@ -1399,13 +1443,20 @@ export async function resolveAndExecute(
         if (autoResult) {
           // Promote to marketplace cache so subsequent requests skip live-capture
           promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "", context?.url);
-          return autoResult;
+          return { orchestratorResult: autoResult, autoexecFailedAll: false };
         }
+        return {
+          orchestratorResult: buildDeferral(skill, source, extraFields),
+          autoexecFailedAll: true,
+        };
       } catch (err) {
         console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
       }
     }
-    return buildDeferral(skill, source, extraFields);
+    return {
+      orchestratorResult: buildDeferral(skill, source, extraFields),
+      autoexecFailedAll: false,
+    };
   }
 
   /** Build a deferral response — returns the skill + ranked endpoints for the agent to choose. */
@@ -1882,6 +1933,7 @@ export async function resolveAndExecute(
   }
 
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
+  const requestedDomainCacheKey = getDomainReuseKey(context?.url ?? requestedDomain);
   const resolveCacheKey = buildResolveCacheKey(requestedDomain, intent, context?.url);
   const cacheKey = scopedCacheKey(clientScope, resolveCacheKey);
 
@@ -1895,10 +1947,15 @@ export async function resolveAndExecute(
       ) {
         routeResultCache.delete(cacheKey);
       } else {
-        timing.cache_hit = true;
         const deferred = await buildDeferralWithAutoExec(cachedResult.skill, "marketplace");
-        deferred.timing.cache_hit = true;
-        return deferred;
+        if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+          console.log("[route-result-cache] stale cached skill; retrying via live capture");
+          invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
+        } else {
+          timing.cache_hit = true;
+          deferred.orchestratorResult.timing.cache_hit = true;
+          return deferred.orchestratorResult;
+        }
       }
     }
   }
@@ -1940,10 +1997,18 @@ export async function resolveAndExecute(
           context?.url,
         );
       }
-      timing.cache_hit = true;
       const deferred = await buildDeferralWithAutoExec(bestCached.skill, "marketplace");
-      deferred.timing.cache_hit = true;
-      return deferred;
+      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+        console.log("[route-cache] stale cached skill; retrying via live capture");
+        invalidateResolveCacheEntries(
+          [cacheKey, bestCached.scopedKey],
+          requestedDomainCacheKey ? [requestedDomainCacheKey] : [],
+        );
+      } else {
+        timing.cache_hit = true;
+        deferred.orchestratorResult.timing.cache_hit = true;
+        return deferred.orchestratorResult;
+      }
     }
   }
 
@@ -1954,11 +2019,16 @@ export async function resolveAndExecute(
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
       const skill = readSkillSnapshot(domainCached.localSkillPath) ?? await getSkill(domainCached.skillId, clientScope);
       if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
-        timing.cache_hit = true;
         console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)}`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
-        result.timing.cache_hit = true;
-        return result;
+        if (shouldFallbackToLiveCaptureAfterAutoexecFailure(result.autoexecFailedAll, context?.url)) {
+          console.log(`[domain-cache] stale skill for ${domainKey}; retrying via live capture`);
+          invalidateResolveCacheEntries([cacheKey], [domainKey]);
+        } else {
+          timing.cache_hit = true;
+          result.orchestratorResult.timing.cache_hit = true;
+          return result.orchestratorResult;
+        }
       } else if (skill) {
         const ranked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
         const top = ranked[0];
@@ -2202,7 +2272,11 @@ export async function resolveAndExecute(
             `[search] endpoint-level hit hint: ${best.endpointId} score=${best.candidate.score.toFixed(3)}`,
           );
         }
-        return await buildDeferralWithAutoExec(best.skill, "marketplace");
+        const deferred = await buildDeferralWithAutoExec(best.skill, "marketplace");
+        if (!shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+          return deferred.orchestratorResult;
+        }
+        console.log("[marketplace] stale top skill; retrying via live capture");
       }
     }
   } // end !forceCapture
@@ -2222,8 +2296,6 @@ export async function resolveAndExecute(
     if (!isCachedSkillRelevantForIntent(domainHit.skill, intent, context?.url)) {
       capturedDomainCache.delete(cacheKey);
     } else {
-      timing.cache_hit = true;
-      let staleCachedEndpoint = false;
       if (agentChoseEndpoint) {
         const execOut = await executeSkill(
           domainHit.skill,
@@ -2254,14 +2326,20 @@ export async function resolveAndExecute(
               execOut.trace,
             ),
             response_schema: execOut.response_schema,
-            extraction_hints: execOut.extraction_hints,
-          };
+              extraction_hints: execOut.extraction_hints,
+            };
         }
-        staleCachedEndpoint = true;
+        invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
       }
       const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
-      deferred.timing.cache_hit = true;
-      return deferred;
+      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+        console.log("[captured-domain-cache] stale skill; retrying via live capture");
+        invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
+      } else {
+        timing.cache_hit = true;
+        deferred.orchestratorResult.timing.cache_hit = true;
+        return deferred.orchestratorResult;
+      }
     }
   }
 
@@ -2299,13 +2377,13 @@ export async function resolveAndExecute(
           authRecommended
             ? {
                 auth_recommended: true,
-                auth_hint: captureResult!.auth_hint,
-              }
+              auth_hint: captureResult!.auth_hint,
+            }
             : undefined,
         );
-        queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
-        deferred.timing.cache_hit = true;
-        return deferred;
+        queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
+        deferred.orchestratorResult.timing.cache_hit = true;
+        return deferred.orchestratorResult;
       }
       return {
         result,
@@ -2596,8 +2674,8 @@ export async function resolveAndExecute(
         }
       : undefined,
   );
-  queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
-  return deferred;
+  queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
+  return deferred.orchestratorResult;
 }
 
 async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {

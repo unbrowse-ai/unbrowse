@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.1...v2.1.2) (2026-03-24)
+
+### Bug Fixes
+
+* treat Kuri tab-acquisition failures (`No tabs available and failed to create one`) as restartable capture errors, so authenticated heavy apps like LawNet retry with a fresh Kuri session instead of bailing out to web search
+* fail fast on LawNet-style search homepage/auth bounces during execution, so captured page artifacts stop escalating into doomed browser replay loops
+* fall through to fresh live capture when cached marketplace/domain LawNet-style skills exhaust every auto-exec candidate, and reject single same-page search artifacts learned from that fallback, so installed `resolve` stops returning stale or bogus deferrals after a dead cached search endpoint
+
 ## [2.1.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.0...v2.1.1) (2026-03-24)
 
 ### Bug Fixes

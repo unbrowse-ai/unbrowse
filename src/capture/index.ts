@@ -315,9 +315,9 @@ function shouldRetryEphemeralProfileError(error: unknown): boolean {
   return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
 }
 
-function shouldRestartKuriForError(error: unknown): boolean {
+export function shouldRestartKuriForError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /CDP command failed|target closed|session closed|No target with given id/i.test(message);
+  return /CDP command failed|target closed|session closed|No target with given id|No tabs available and failed to create one/i.test(message);
 }
 
 /**

@@ -746,7 +746,7 @@ export function buildStructuredReplayHeaders(
   return headers;
 }
 
-function shouldFallbackToBrowserReplay(
+export function shouldFallbackToBrowserReplay(
   data: unknown,
   endpoint: EndpointDescriptor,
   intent?: string,
@@ -755,9 +755,35 @@ function shouldFallbackToBrowserReplay(
   const replayUrl = resolveExecutionUrlTemplate(endpoint, contextUrl);
   if (!isDocumentLikeUrl(replayUrl)) return false;
   if (endpoint.dom_extraction && typeof data === "string" && isHtml(data)) return false;
-  if (typeof data === "string") return isHtml(data) || isSpaShell(data);
+  if (typeof data === "string") {
+    if (isHtml(data) && looksLikeSearchAuthOrHomepageBounceHtml(data)) return false;
+    return isHtml(data) || isSpaShell(data);
+  }
   const assessment = assessIntentResult(data, intent);
   return assessment.verdict === "fail";
+}
+
+export function looksLikeSearchAuthOrHomepageBounceHtml(
+  html: string,
+  finalUrl?: string,
+): boolean {
+  if (!isHtml(html)) return false;
+  const lower = html.toLowerCase();
+  const titleMatch = lower.match(/<title[^>]*>([^<]+)</i);
+  const title = titleMatch?.[1]?.trim() ?? "";
+  const final = finalUrl?.toLowerCase() ?? "";
+  const combined = `${title} ${lower}`;
+  const hasLawnetBounceMarkers =
+    /about lawnet legal research/.test(combined) ||
+    /what is lawnet/.test(combined) ||
+    /forgot password/.test(combined) ||
+    /lawnet legal research, a service of/.test(combined) ||
+    /\/lawnet\/web\/lawnet\/about-lawnet\b/.test(combined) ||
+    /\/lawnet\/web\/lawnet\/home\b/.test(final);
+  const hasGenericAuthMarkers =
+    /\b(login|log in|sign in|forgot password)\b/.test(combined) &&
+    /\b(search|legal research|lawnet)\b/.test(combined);
+  return hasLawnetBounceMarkers || hasGenericAuthMarkers;
 }
 
 function buildSampleRequestFromUrl(url: string): Record<string, unknown> {
@@ -2127,10 +2153,12 @@ async function executeDomExtractionEndpoint(
   cookies: Array<{ name: string; value: string; domain: string }>,
 ): Promise<{ data: unknown; status: number; trace_id: string; network_events?: TraceNetworkEvent[] }> {
   const extractionIntent = deriveDomExecutionIntent(endpoint, intent);
+  const isCapturedPageArtifact = /captured page artifact/i.test(endpoint.description ?? "");
 
   // SSR fast-path: try plain HTTP fetch before browser
   const ssrResult = await tryHttpFetch(url, authHeaders, cookies);
   if (ssrResult) {
+    const looksLikeBounce = looksLikeSearchAuthOrHomepageBounceHtml(ssrResult.html, ssrResult.final_url);
     const ssrExtracted = extractFromDOMWithHint(ssrResult.html, extractionIntent, endpoint.dom_extraction);
     if (ssrExtracted.data) {
       const ssrQuality = validateExtractionQuality(ssrExtracted.data, ssrExtracted.confidence, extractionIntent);
@@ -2162,6 +2190,41 @@ async function executeDomExtractionEndpoint(
           };
         }
       }
+      if (isCapturedPageArtifact) {
+        return {
+          data: {
+            error: "low_quality_dom_extraction",
+            message: `Structured DOM extraction was rejected: ${looksLikeBounce ? "search_auth_or_homepage_bounce" : "captured_page_artifact_miss"}`,
+          },
+          status: 422,
+          trace_id: nanoid(),
+          network_events: [toTraceNetworkEvent({
+            url: ssrResult.final_url,
+            method: "GET",
+            requestHeaders: authHeaders,
+            responseStatus: 200,
+            responseHeaders: { "content-type": "text/html" },
+            responseBody: ssrResult.html,
+          })],
+        };
+      }
+    } else if (isCapturedPageArtifact && looksLikeBounce) {
+      return {
+        data: {
+          error: "low_quality_dom_extraction",
+          message: "Structured DOM extraction was rejected: search_auth_or_homepage_bounce",
+        },
+        status: 422,
+        trace_id: nanoid(),
+        network_events: [toTraceNetworkEvent({
+          url: ssrResult.final_url,
+          method: "GET",
+          requestHeaders: authHeaders,
+          responseStatus: 200,
+          responseHeaders: { "content-type": "text/html" },
+          responseBody: ssrResult.html,
+        })],
+      };
     }
     console.log(`[ssr-fast] miss, falling back to browser`);
   } else {
