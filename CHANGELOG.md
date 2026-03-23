@@ -47,6 +47,7 @@
 - adapt `shopping_admin` best-seller benchmark intents to the Magento bestsellers report with concrete alias-materialized answers, so the official tasks `1,2,3` stop failing on low-quality DOM extraction and answer-shape mismatches
 - restore the marketplace retrieval fixture corpus to five fixtures / twelve cases with a `gamma-market` family, so the unit gate again covers rank, exact-domain filtering, and resolve fallback breadth instead of failing its own minimum-bar contract
 - bump the bundled Kuri submodule to the merged `lekt9/kuri` mainline fix for tab-state ownership, safer router decoding, managed-CDP wiring, and the compact snapshot leak cleanup
+- disable the `release-it` npm plugin so bumper-owned version sync can tag cleanly without a duplicate `npm version` failure
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
