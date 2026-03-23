@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
+import { GitBookProviderBoundary } from "@/components/gitbook-provider";
 import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
 import "./globals.css";
@@ -162,14 +163,16 @@ export default function RootLayout({
         <script defer src="https://cloud.umami.is/script.js" data-website-id="66d811d2-a320-4b38-87b9-b15a60022313"></script>
       </head>
       <body className="antialiased">
-        <ThemeProvider>
-          <AuthProvider>
-            <Navbar />
-            <main className="min-h-screen">
-              {children}
-            </main>
-          </AuthProvider>
-        </ThemeProvider>
+        <GitBookProviderBoundary>
+          <ThemeProvider>
+            <AuthProvider>
+              <Navbar />
+              <main className="min-h-screen">
+                {children}
+              </main>
+            </AuthProvider>
+          </ThemeProvider>
+        </GitBookProviderBoundary>
       </body>
     </html>
   );

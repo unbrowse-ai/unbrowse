@@ -35,6 +35,7 @@
       "name": "frontend",
       "version": "0.1.0",
       "dependencies": {
+        "@gitbook/embed": "0.4.0",
         "@opennextjs/cloudflare": "^1.15.1",
         "lucide-react": "^0.577.0",
         "next": "16.1.5",
@@ -56,7 +57,7 @@
     },
     "packages/skill": {
       "name": "unbrowse",
-      "version": "2.0.1",
+      "version": "2.0.22",
       "bin": {
         "unbrowse": "dist/cli.js",
       },
@@ -320,6 +321,18 @@
     "@fastify/proxy-addr": ["@fastify/proxy-addr@5.1.0", "", { "dependencies": { "@fastify/forwarded": "^3.0.0", "ipaddr.js": "^2.1.0" } }, "sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw=="],
 
     "@fastify/rate-limit": ["@fastify/rate-limit@10.3.0", "", { "dependencies": { "@lukeed/ms": "^2.0.2", "fastify-plugin": "^5.0.0", "toad-cache": "^3.7.0" } }, "sha512-eIGkG9XKQs0nyynatApA3EVrojHOuq4l6fhB4eeCk4PIOeadvOJz9/4w3vGI44Go17uaXOWEcPkaD8kuKm7g6Q=="],
+
+    "@fortawesome/fontawesome-common-types": ["@fortawesome/fontawesome-common-types@7.2.0", "", {}, "sha512-IpR0bER9FY25p+e7BmFH25MZKEwFHTfRAfhOyJubgiDnoJNsSvJ7nigLraHtp4VOG/cy8D7uiV0dLkHOne5Fhw=="],
+
+    "@fortawesome/fontawesome-svg-core": ["@fortawesome/fontawesome-svg-core@7.2.0", "", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.2.0" } }, "sha512-6639htZMjEkwskf3J+e6/iar+4cTNM9qhoWuRfj9F3eJD6r7iCzV1SWnQr2Mdv0QT0suuqU8BoJCZUyCtP9R4Q=="],
+
+    "@gitbook/api": ["@gitbook/api@0.167.0", "", { "dependencies": { "event-iterator": "^2.0.0", "eventsource-parser": "^3.0.0" } }, "sha512-9A9Bsgi2aRbGf3DPejK4YQh9M/+grtNymFwUkK3B3N4m7VOxcUMQ2HaV7s51mtrBdWKcEdeFm4LEnEaAGHcM1A=="],
+
+    "@gitbook/embed": ["@gitbook/embed@0.4.0", "", { "dependencies": { "@gitbook/api": "0.167.0", "@gitbook/icons": "", "bidc": "^0.0.2" }, "peerDependencies": { "react": "*" } }, "sha512-pmOAcbrhCQdhe0e2CbyIEKJ4cfAo2grJXWL5Ry6Z4t8uUvvanou3lMz7DVEKXlIrOWmqG4M+5mLZ7skAWl8emA=="],
+
+    "@gitbook/fontawesome-pro": ["@gitbook/fontawesome-pro@1.0.16", "", { "dependencies": { "@fortawesome/fontawesome-common-types": "^7.1.0" } }, "sha512-jypE3FpC5U7lealzpGVq1Jie5Ay5jYv/UkOLxPhOpffjCd98A+Ex08M6GyINMDO7KCBaF5p8pbdl693hf0DwNg=="],
+
+    "@gitbook/icons": ["@gitbook/icons@0.4.3", "", { "dependencies": { "@fortawesome/fontawesome-svg-core": "^7.1.0", "@gitbook/fontawesome-pro": "1.0.16" }, "peerDependencies": { "react": "*" }, "bin": { "gitbook-icons": "bin/gitbook-icons.js" } }, "sha512-BszvEOMdsxQCmRMw7hxKn8p/bYJQ1kBfy6FW3ClgLtziQBjWkxEPPnyoWdDrZji8Qwa/X5DLBT6oeGRzmvum/g=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.1", "", {}, "sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA=="],
 
@@ -827,6 +840,8 @@
 
     "before-after-hook": ["before-after-hook@4.0.0", "", {}, "sha512-q6tR3RPqIB1pMiTRMFcZwuG5T8vwp+vUvEG0vuI6B+Rikh5BfPp2fQ82c925FOs+b0lcFQ8CFrL+KbilfZFhOQ=="],
 
+    "bidc": ["bidc@0.0.2", "", {}, "sha512-+t2xK8oQEpxYEM+350mMHSx7eZNoOX6SpjqD+p+lDpVwpYVXjkTCfy0N60xyjelZ2AOa8NAg/12uhAX3MuAR0g=="],
+
     "bl": ["bl@4.1.0", "", { "dependencies": { "buffer": "^5.5.0", "inherits": "^2.0.4", "readable-stream": "^3.4.0" } }, "sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w=="],
 
     "blake3-wasm": ["blake3-wasm@2.1.5", "", {}, "sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g=="],
@@ -1091,7 +1106,11 @@
 
     "etag": ["etag@1.8.1", "", {}, "sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg=="],
 
+    "event-iterator": ["event-iterator@2.0.0", "", {}, "sha512-KGft0ldl31BZVV//jj+IAIGCxkvvUkkON+ScH6zfoX+l+omX6001ggyRSpI0Io2Hlro0ThXotswCtfzS8UkIiQ=="],
+
     "event-target-shim": ["event-target-shim@5.0.1", "", {}, "sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ=="],
+
+    "eventsource-parser": ["eventsource-parser@3.0.6", "", {}, "sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg=="],
 
     "execa": ["execa@5.1.1", "", { "dependencies": { "cross-spawn": "^7.0.3", "get-stream": "^6.0.0", "human-signals": "^2.1.0", "is-stream": "^2.0.0", "merge-stream": "^2.0.0", "npm-run-path": "^4.0.1", "onetime": "^5.1.2", "signal-exit": "^3.0.3", "strip-final-newline": "^2.0.0" } }, "sha512-8uSpZZocAZRBAPIEINJj3Lo9HyGitllczc27Eh5YYojjMFMn8yHMDMaUHE2Jqfq05D/wucwI4JGURyXt1vchyg=="],
 

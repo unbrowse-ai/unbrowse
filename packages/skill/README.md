@@ -8,6 +8,11 @@ One agent learns a site once. Every later agent gets the fast path.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
+Docs and whitepaper companion:
+
+- https://docs.unbrowse.ai
+- <a href="./docs/whitepaper/unbrowse-whitepaper.pdf" target="_blank" rel="noopener noreferrer">Whitepaper PDF</a>
+
 ## Quick start
 
 ```bash
@@ -93,6 +98,25 @@ Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host t
 - Browser/runtime checks happen lazily as capture needs them.
 - `scripts/install-agent-integrations.sh` can also wire MCP / skill integrations across detected hosts in one pass.
 
+## Make It The Default
+
+Native browser-replacement routing exists only in the framework-specific integrations today:
+
+- OpenClaw: use `routingMode="strict"` plus `preferInBootstrap=true`
+
+Generic MCP hosts like Claude Code, Claude Desktop, Cursor, Windsurf, and Codex still choose between competing tools based on tool descriptions plus project memory. MCP install alone does not hard-disable other browser tools there.
+
+Add a short host-level rule if you want Unbrowse chosen first consistently:
+
+```md
+Always use the Unbrowse MCP server for website tasks, browser automation, logged-in pages, scraping, and structured extraction unless I explicitly ask for generic web search or Unbrowse has already failed. Start with `unbrowse_resolve`. Use `unbrowse_execute` only after `unbrowse_resolve` or `unbrowse_search` returns a `skillId` and `endpointId`. Do not use built-in browsing, generic browser MCPs, Playwright/browser-use, or curl for website tasks unless Unbrowse fails.
+```
+
+Put that in:
+
+- `CLAUDE.md` for Claude Code
+- `AGENTS.md` for Codex and other agent hosts that read repo instructions
+
 ## Common commands
 
 ```bash
@@ -174,6 +198,10 @@ GET endpoints auto-execute. Mutations never fire without opt-in.
 ## API reference
 
 See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, search, feedback, auth, and issue reporting.
+
+For product docs, whitepaper companion pages, and shipped-vs-roadmap guidance, use:
+
+- https://docs.unbrowse.ai
 
 | Method | Endpoint                 | Description                                    |
 | ------ | ------------------------ | ---------------------------------------------- |

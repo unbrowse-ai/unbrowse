@@ -3,7 +3,7 @@
 Implementation-aware companion docs for the Unbrowse whitepaper.
 
 - Authors: Lewis Tham, Nicholas Mac Gregor Garcia
-- Canonical PDF: [unbrowse-whitepaper.pdf](./unbrowse-whitepaper.pdf)
+- Canonical PDF: <a href="./unbrowse-whitepaper.pdf" target="_blank" rel="noopener noreferrer">unbrowse-whitepaper.pdf</a>
 - Status: official paper plus implementation-aware companion docs
 - Codebase snapshot used for this companion: March 23, 2026
 

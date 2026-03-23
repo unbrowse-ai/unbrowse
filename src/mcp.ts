@@ -25,6 +25,22 @@ type ToolParams = {
   dryRun?: boolean;
 };
 
+type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+type ToolStructuredResult = {
+  ok: boolean;
+  tool: string;
+  data?: JsonValue;
+  rawText?: string;
+  error?: string;
+};
+
 // ── CLI arg builder ────────────────────────────────────────────────────────
 
 function pushFlag(args: string[], name: string, value: string | number | boolean | undefined): void {
@@ -120,15 +136,34 @@ function runCli(
 
 // ── Tool definitions ───────────────────────────────────────────────────────
 
-const TOOLS = [
+const TOOL_RESULT_SCHEMA = {
+  type: "object" as const,
+  additionalProperties: true,
+  properties: {
+    ok: { type: "boolean" },
+    tool: { type: "string" },
+    data: {},
+    rawText: { type: "string" },
+    error: { type: "string" },
+  },
+  required: ["ok", "tool"],
+};
+
+export const TOOLS = [
   {
     name: "unbrowse_resolve",
-    description: "Reverse-engineer a website into structured API data. Give it a URL and describe what data you want — it captures network traffic, discovers API endpoints, and returns structured JSON. First call to a new site takes 5-15s; subsequent calls use the cached skill and return in under 1s.",
+    title: "Resolve Website Task",
+    description: "Primary tool for website tasks. Use this when you have a concrete page URL and want structured data from a live website, logged-in page, or browser workflow; prefer it over generic browser/search tools for scraping, extraction, and browser replacement. Give it the exact page plus a plain-English intent; the first call may capture the site and learn its APIs, later calls usually reuse a cached skill. Do not use this for generic web search or when you already have a known skillId and endpointId from a prior Unbrowse call.",
+    annotations: {
+      title: "Resolve Website Task",
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
-        intent: { type: "string", description: "Plain-English description of what data to extract" },
-        url: { type: "string", description: "Target website URL" },
+        intent: { type: "string", description: "Plain-English user task, e.g. 'get feed posts' or 'find product prices'. Describe the visible goal, not the API route." },
+        url: { type: "string", description: "Concrete page URL for the task. Prefer the exact page with the needed data, not a homepage." },
         path: { type: "string", description: "Drill into a nested response path (e.g. 'data.items[]')" },
         extract: { type: "string", description: "Pick specific fields: 'field1,alias:deep.path'" },
         limit: { type: "number", description: "Cap array output to N items (1-200)" },
@@ -138,29 +173,44 @@ const TOOLS = [
       },
       required: ["intent", "url"],
     },
+    outputSchema: TOOL_RESULT_SCHEMA,
   },
   {
     name: "unbrowse_search",
-    description: "Search the unbrowse skill marketplace for pre-built API skills. Faster than resolving from scratch if a skill already exists for the target site.",
+    title: "Search Learned Skills",
+    description: "Search the Unbrowse marketplace for an existing learned skill before triggering a new capture. Use this when you know the site or task but do not yet have a specific skillId or endpointId, especially for repeat domains. Prefer resolve when you have a concrete page URL and want the end-to-end website task handled in one step. Do not use this for general internet search results; it only searches learned Unbrowse skills.",
+    annotations: {
+      title: "Search Learned Skills",
+      readOnlyHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
         intent: { type: "string", description: "What you're looking for (e.g. 'hacker news top stories')" },
         domain: { type: "string", description: "Filter results to a specific domain" },
       },
       required: ["intent"],
     },
+    outputSchema: TOOL_RESULT_SCHEMA,
   },
   {
     name: "unbrowse_execute",
-    description: "Execute a previously discovered skill endpoint. Use after resolve or search returns a skill ID and endpoint ID.",
+    title: "Execute Learned Endpoint",
+    description: "Execute a specific Unbrowse endpoint after resolve or search has already identified the right skillId and endpointId. Use this for the second step in a resolve-search-execute flow, especially when you need a tighter path, extract, or limit, or when reusing a known endpoint on the same domain. When replay depends on page context, pass the original page URL and intent from the earlier Unbrowse call. Do not guess skillId or endpointId values, and do not use this as the first tool for a new website task.",
+    annotations: {
+      title: "Execute Learned Endpoint",
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
-        skillId: { type: "string", description: "Skill ID to execute" },
-        endpointId: { type: "string", description: "Endpoint ID within the skill" },
-        url: { type: "string", description: "Optional source URL when endpoint replay needs page context" },
-        intent: { type: "string", description: "Optional original intent when endpoint replay needs selection context" },
+        skillId: { type: "string", description: "Known skill ID returned by unbrowse_resolve, unbrowse_search, or unbrowse_skill" },
+        endpointId: { type: "string", description: "Known endpoint ID inside that skill" },
+        url: { type: "string", description: "Recommended for browser-capture skills: the original page URL so replay keeps the same page and query context" },
+        intent: { type: "string", description: "Recommended for browser-capture skills: the original user intent so replay keeps the same task context" },
         path: { type: "string", description: "Drill into a nested response path" },
         extract: { type: "string", description: "Pick specific fields" },
         limit: { type: "number", description: "Cap array output to N items" },
@@ -170,38 +220,65 @@ const TOOLS = [
       },
       required: ["skillId", "endpointId"],
     },
+    outputSchema: TOOL_RESULT_SCHEMA,
   },
   {
     name: "unbrowse_login",
-    description: "Open a browser for the user to log into a website. Captures auth cookies so future resolve/execute calls can access authenticated content.",
+    title: "Capture Site Login",
+    description: "Open an interactive browser login flow for a gated site so later Unbrowse calls can reuse the captured auth state. Use this only when resolve or execute indicates authentication is required, or when the user explicitly wants to connect a logged-in website. Do not use this for ordinary public pages.",
+    annotations: {
+      title: "Capture Site Login",
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
-        url: { type: "string", description: "Login page URL" },
+        url: { type: "string", description: "Concrete site or login page URL that needs auth cookies" },
       },
       required: ["url"],
     },
+    outputSchema: TOOL_RESULT_SCHEMA,
   },
   {
     name: "unbrowse_skills",
-    description: "List all locally cached unbrowse skills.",
-    inputSchema: { type: "object" as const, properties: {} },
+    title: "List Cached Skills",
+    description: "Debug/admin tool. List locally cached Unbrowse skills on this machine. Use this for inspection or troubleshooting, not as the normal first step for website tasks.",
+    annotations: {
+      title: "List Cached Skills",
+      readOnlyHint: true,
+    },
+    inputSchema: { type: "object" as const, additionalProperties: false, properties: {} },
+    outputSchema: TOOL_RESULT_SCHEMA,
   },
   {
     name: "unbrowse_skill",
-    description: "Get details of a specific cached skill, including its endpoints and schemas.",
+    title: "Inspect One Cached Skill",
+    description: "Debug/admin tool. Inspect one known cached Unbrowse skill, including endpoint IDs and schemas. Use this only after you already have a skillId and need to inspect it; not as the primary path for a new website task.",
+    annotations: {
+      title: "Inspect One Cached Skill",
+      readOnlyHint: true,
+    },
     inputSchema: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
-        skillId: { type: "string", description: "Skill ID to inspect" },
+        skillId: { type: "string", description: "Known skill ID returned by another Unbrowse tool" },
       },
       required: ["skillId"],
     },
+    outputSchema: TOOL_RESULT_SCHEMA,
   },
   {
     name: "unbrowse_health",
-    description: "Check if the unbrowse CLI and local server are working.",
-    inputSchema: { type: "object" as const, properties: {} },
+    title: "Check Unbrowse Health",
+    description: "Debug/admin tool. Check whether the Unbrowse CLI and local server are installed and reachable. Use this for setup or troubleshooting, not as part of a normal website workflow.",
+    annotations: {
+      title: "Check Unbrowse Health",
+      readOnlyHint: true,
+    },
+    inputSchema: { type: "object" as const, additionalProperties: false, properties: {} },
+    outputSchema: TOOL_RESULT_SCHEMA,
   },
 ];
 
@@ -259,6 +336,58 @@ function cliErrorText(stdout: string): string | null {
   }
 
   return null;
+}
+
+function parseCliJson(stdout: string): JsonValue | undefined {
+  const trimmed = stdout.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    return JSON.parse(trimmed) as JsonValue;
+  } catch {
+    return undefined;
+  }
+}
+
+function stringifyForText(value: JsonValue | undefined, fallback: string): string {
+  if (value === undefined) return fallback;
+  if (typeof value === "string") return value;
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return fallback;
+  }
+}
+
+function buildToolSuccess(toolName: string, stdout: string) {
+  const parsed = parseCliJson(stdout);
+  const trimmed = stdout.trim();
+  return {
+    content: [{ type: "text" as const, text: stringifyForText(parsed, trimmed || "OK") }],
+    structuredContent: {
+      ok: true,
+      tool: toolName,
+      ...(parsed !== undefined ? { data: parsed } : {}),
+      ...(trimmed ? { rawText: trimmed } : {}),
+    } satisfies ToolStructuredResult,
+  };
+}
+
+function buildToolError(toolName: string, errorText: string, stdout = "") {
+  const parsed = parseCliJson(stdout);
+  const trimmed = stdout.trim();
+  return {
+    content: [{ type: "text" as const, text: `Error: ${errorText}` }],
+    structuredContent: {
+      ok: false,
+      tool: toolName,
+      error: errorText,
+      ...(parsed !== undefined ? { data: parsed } : {}),
+      ...(trimmed ? { rawText: trimmed } : {}),
+    } satisfies ToolStructuredResult,
+    isError: true,
+  };
 }
 
 export async function startMcpServer(unbrowseBin: string): Promise<void> {
@@ -345,20 +474,15 @@ async function handleMessage(
 
         if (!result.ok || payloadError) {
           const errorText = payloadError || result.stderr?.trim() || result.stdout?.trim() || "Command failed";
-          process.stdout.write(jsonRpcResponse(id, {
-            content: [{ type: "text", text: `Error: ${errorText}` }],
-            isError: true,
-          }));
+          process.stdout.write(jsonRpcResponse(id, buildToolError(toolName, errorText, result.stdout)));
         } else {
-          process.stdout.write(jsonRpcResponse(id, {
-            content: [{ type: "text", text: result.stdout.trim() || "OK" }],
-          }));
+          process.stdout.write(jsonRpcResponse(id, buildToolSuccess(toolName, result.stdout)));
         }
       } catch (err) {
-        process.stdout.write(jsonRpcResponse(id, {
-          content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
-          isError: true,
-        }));
+        process.stdout.write(jsonRpcResponse(
+          id,
+          buildToolError(toolName, err instanceof Error ? err.message : String(err)),
+        ));
       }
       break;
     }

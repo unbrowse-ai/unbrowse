@@ -18,7 +18,7 @@
 
 ## Unreleased
 
-- docs: split the whitepaper GitBook companion into a plain-English explainer plus dedicated technical and investor reading paths
+- docs: split the whitepaper GitBook companion into a plain-English explainer plus dedicated technical and investor reading paths, point public package docs at `docs.unbrowse.ai`, restore the direct whitepaper PDF link, and stop syncing packed `.tgz` artifacts into the public repo
 - fix LinkedIn/X-style structured query params (`variables=(start:...,count:...)`) so new captures learn templated nested query fields, `unbrowse execute --params ...` rewrites those nested fields instead of appending dead top-level params, and even older concrete skills can retrofit `start`/`count` overrides at execution time
 - replace the packaged `dist/index.js` Node+`tsx` wrapper with a real bundled server entrypoint, avoiding Node 25 `tsx` module-resolution failures like Fastify’s missing `logger-pino.js` on fresh global installs
 - feat: add WebArena-Verified benchmark lane with full/hard/inventory scripts backed by the official 812-task dataset
@@ -29,6 +29,7 @@
 
 ### Bug Fixes
 
+- sharpen MCP tool descriptions, annotations, and structured outputs so Claude/Codex-style hosts choose Unbrowse first more reliably and can chain `skillId`/`endpointId` without guessing
 - prefer the user’s actual default browser during auth auto-extraction, refresh stale vault auth that lacks usable browser source metadata, and restore richer LinkedIn/Dia capture state instead of silently replaying weaker Chrome cookies
 - treat authenticated LinkedIn embedded feed payloads as valid for plain feed intents like `get my linkedin feed`, not only explicit `feed posts` phrasing, and learn those embedded `voyagerFeedDashMainFeed` routes with trigger-intercept execution by default so fresh forced captures stop dropping into irrelevant messaging/realtime endpoints or replaying unauthenticated server fetches
 - fall back to browser capture when pre-capture structured/document replay fetches fail, instead of returning a generic `fetch failed` error for authenticated SPA pages like LinkedIn feed
