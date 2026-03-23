@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.23](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.22...v2.0.23) (2026-03-23)
+
+### Bug Fixes
+
+* sharpen mcp routing defaults ([3e1b355](https://github.com/unbrowse-ai/unbrowse-dev/commit/3e1b35591c7ba7231061bcea5bfd927133013f99))
+
 ## [2.0.16](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.15...v2.0.16) (2026-03-23)
 
 ### Bug Fixes
