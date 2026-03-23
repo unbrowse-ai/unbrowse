@@ -12,7 +12,7 @@ describe("eval command contract", () => {
     const scripts = pkg.scripts ?? {};
 
     expect(scripts["eval:core"]).toBe(
-      "npm run eval:retrieval && npm run eval:codex:product-success && npm run eval:codex:webarena",
+      "npm run eval:retrieval && npm run eval:codex:product-success && npm run eval:codex:webarena && npm run eval:webarena:verified:stable",
     );
     expect(scripts["eval:full"]).toBe(
       "npm run eval:core && npm run eval:codex:auth",
@@ -22,6 +22,9 @@ describe("eval command contract", () => {
     );
     expect(scripts["eval:codex:webarena"]).toBe(
       "UNBROWSE_FORCE_CAPTURE=0 bun evals/codex-auth-runner.ts --cases evals/codex-cases.webarena.json --benchmark --restart-server",
+    );
+    expect(scripts["eval:webarena:verified:stable"]).toBe(
+      "bun scripts/eval-webarena-verified.ts --task-ids 11,15,21,25,28,29",
     );
     expect(scripts["eval:codex:auth"]).toBe(
       "bun evals/codex-auth-runner.ts --restart-server",

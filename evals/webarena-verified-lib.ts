@@ -68,7 +68,7 @@ export const DEFAULT_WEBARENA_VERIFIED_DIR =
 
 export const DEFAULT_WEBARENA_ENV: WebArenaEnvMap = {
   __SHOPPING__: "http://localhost:7770",
-  __SHOPPING_ADMIN__: "http://localhost:7780",
+  __SHOPPING_ADMIN__: "http://localhost:7780/admin",
   __REDDIT__: "http://localhost:9999",
   __GITLAB__: "http://localhost:8023",
   __WIKIPEDIA__: "http://localhost:8888",

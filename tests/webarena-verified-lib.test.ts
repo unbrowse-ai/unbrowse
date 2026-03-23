@@ -93,6 +93,11 @@ describe("webarena verified lib", () => {
     expect(url).toBe("http://localhost:8023/dashboard/todos");
   });
 
+  it("defaults shopping_admin to the admin login root", () => {
+    const env = resolveWebArenaEnvMap();
+    expect(env.__SHOPPING_ADMIN__).toBe("http://localhost:7780/admin");
+  });
+
   it("judges retrieval, selection, network, and execution on benchmark-style evidence", () => {
     const env = resolveWebArenaEnvMap({
       overrides: {

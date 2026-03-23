@@ -1,0 +1,724 @@
+{
+  "meta": {
+    "name": "Resolve-Execute Adapted Corpus",
+    "description": "Adapted from historical resolve/execute telemetry. Uses observed endpoint_ids as retrieval/selection truth and infers intents/expected_fields heuristically from scenario class, host, and stdout samples.",
+    "generated_at": "2026-03-21T01:54:14.982Z",
+    "source": {
+      "details_path": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv",
+      "summary_path": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_summary.csv"
+    },
+    "source_summary": {
+      "total_scenarios": 20,
+      "resolve_ok_count": 20,
+      "resolve_ok_pct": 100,
+      "execute_attempted_count": 20,
+      "execute_attempted_pct": 100,
+      "execute_ok_count": 20,
+      "execute_ok_pct": 100,
+      "chain_success_count": 13,
+      "chain_success_pct": 65
+    },
+    "adaptation_notes": [
+      "Successful rows become runnable harness cases with terminal_ok=pass.",
+      "Retrieval and selection truth are adapted from observed endpoint_id values in the CSV, because shortlist URLs are not present in the source telemetry.",
+      "Intent strings and expected_fields are inferred heuristically from host/class metadata and stdout samples; review before promoting to canonical eval:core.",
+      "Rows that ended in browser-capture/no_endpoints or other chain failures are preserved under known_gaps instead of being silently dropped."
+    ],
+    "counts": {
+      "runnable_cases": 13,
+      "known_gaps": 7,
+      "total_rows": 20
+    }
+  },
+  "cases": [
+    {
+      "id": "l01-irs-gov",
+      "intent": "get homepage links",
+      "url": "https://www.irs.gov",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "3ODvqOUhprhPY0zTOgA3Q"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "3ODvqOUhprhPY0zTOgA3Q"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L01",
+        "class": "gov_portal",
+        "mutation_expected": false,
+        "observed_skill_id": "HasWbmMInGmr-p62bkoxd",
+        "observed_endpoint_id": "3ODvqOUhprhPY0zTOgA3Q",
+        "resolve_latency_sec": 2.009,
+        "execute_latency_sec": 1.141,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l02-uscis-gov",
+      "intent": "get homepage links",
+      "url": "https://www.uscis.gov",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "0ZlqiSVZj3w0KpOIpF88K"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "0ZlqiSVZj3w0KpOIpF88K"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L02",
+        "class": "gov_portal",
+        "mutation_expected": false,
+        "observed_skill_id": "gY7zBjK2TODK6UHE4yVLH",
+        "observed_endpoint_id": "0ZlqiSVZj3w0KpOIpF88K",
+        "resolve_latency_sec": 0.988,
+        "execute_latency_sec": 0.896,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l03-ssa-gov",
+      "intent": "get homepage links",
+      "url": "https://www.ssa.gov",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "dZVl6tPAiCWIvyRV6wTHM"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "dZVl6tPAiCWIvyRV6wTHM"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L03",
+        "class": "gov_portal",
+        "mutation_expected": false,
+        "observed_skill_id": "y_TcpNODmMjuLYYk24WLS",
+        "observed_endpoint_id": "dZVl6tPAiCWIvyRV6wTHM",
+        "resolve_latency_sec": 1.341,
+        "execute_latency_sec": 1.201,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l04-mychart-org",
+      "intent": "get homepage cards",
+      "url": "https://www.mychart.org",
+      "expected_fields": [
+        "title",
+        "url",
+        "link",
+        "image"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "Xq-3hYGFAEUyBXe690uyf"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "Xq-3hYGFAEUyBXe690uyf"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L04",
+        "class": "healthcare_portal",
+        "mutation_expected": false,
+        "observed_skill_id": "qBx2eqGWt7htUDWI1WqTK",
+        "observed_endpoint_id": "Xq-3hYGFAEUyBXe690uyf",
+        "resolve_latency_sec": 0.963,
+        "execute_latency_sec": 0.809,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l05-instructure-com",
+      "intent": "get homepage resources",
+      "url": "https://www.instructure.com/canvas",
+      "expected_fields": [
+        "title",
+        "url",
+        "image"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "165-A1KXtrSQONXD_Zd1Q"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "165-A1KXtrSQONXD_Zd1Q"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L05",
+        "class": "education_platform",
+        "mutation_expected": false,
+        "observed_skill_id": "alwSEcAf6qBEgchWNY72q",
+        "observed_endpoint_id": "165-A1KXtrSQONXD_Zd1Q",
+        "resolve_latency_sec": 0.989,
+        "execute_latency_sec": 0.906,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l06-blackboard-com",
+      "intent": "get homepage resources",
+      "url": "https://www.blackboard.com",
+      "expected_fields": [
+        "title",
+        "url",
+        "image"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "JU8VLv9YggKRTxbfUGfNj"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "JU8VLv9YggKRTxbfUGfNj"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L06",
+        "class": "education_platform",
+        "mutation_expected": false,
+        "observed_skill_id": "g7_DyDAiu5A5eJsNSd0Kh",
+        "observed_endpoint_id": "JU8VLv9YggKRTxbfUGfNj",
+        "resolve_latency_sec": 1.709,
+        "execute_latency_sec": 1.042,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l09-aljazeera-com",
+      "intent": "get homepage headlines",
+      "url": "https://www.aljazeera.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "y5EfA2sUG6pJtBjbUEaD6"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "y5EfA2sUG6pJtBjbUEaD6"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L09",
+        "class": "legacy_cms",
+        "mutation_expected": false,
+        "observed_skill_id": "CytUI3AVQsUx9GI6_9nmW",
+        "observed_endpoint_id": "y5EfA2sUG6pJtBjbUEaD6",
+        "resolve_latency_sec": 1.387,
+        "execute_latency_sec": 0.869,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l10-npr-org",
+      "intent": "get homepage headlines",
+      "url": "https://www.npr.org",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "jNVwMIFXVfnCuQzEQCKQS"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "jNVwMIFXVfnCuQzEQCKQS"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L10",
+        "class": "legacy_cms",
+        "mutation_expected": false,
+        "observed_skill_id": "WDk60cGGIGYgZn8sqgGa1",
+        "observed_endpoint_id": "jNVwMIFXVfnCuQzEQCKQS",
+        "resolve_latency_sec": 1.635,
+        "execute_latency_sec": 1.193,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l11-asahi-com",
+      "intent": "get homepage headlines",
+      "url": "https://www.asahi.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "KTbPJ8dQa15pGV6eXS6Mo"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "KTbPJ8dQa15pGV6eXS6Mo"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L11",
+        "class": "international_site",
+        "mutation_expected": false,
+        "observed_skill_id": "9srvmj0HOJR8m0mqeg-ez",
+        "observed_endpoint_id": "KTbPJ8dQa15pGV6eXS6Mo",
+        "resolve_latency_sec": 2.567,
+        "execute_latency_sec": 1.668,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l12-faz-net",
+      "intent": "get homepage headlines",
+      "url": "https://www.faz.net",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "nWy0rYcJ5FuGN8u1lZHj4"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "nWy0rYcJ5FuGN8u1lZHj4"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L12",
+        "class": "international_site",
+        "mutation_expected": false,
+        "observed_skill_id": "OiBhA1Jl2eX_CShuwY-AV",
+        "observed_endpoint_id": "nWy0rYcJ5FuGN8u1lZHj4",
+        "resolve_latency_sec": 1.832,
+        "execute_latency_sec": 1.253,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l17-seetickets-com",
+      "intent": "start ticket purchase flow",
+      "url": "https://www.seetickets.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "_uykV4_eUk5toLM-AEF2t"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "_uykV4_eUk5toLM-AEF2t"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L17",
+        "class": "regional_ticketing",
+        "mutation_expected": true,
+        "observed_skill_id": "wzX8l_pR8a0oouRGBHXAL",
+        "observed_endpoint_id": "_uykV4_eUk5toLM-AEF2t",
+        "resolve_latency_sec": 1.231,
+        "execute_latency_sec": 1.134,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l19-dice-fm",
+      "intent": "get homepage events",
+      "url": "https://www.dice.fm",
+      "expected_fields": [
+        "url",
+        "href",
+        "id",
+        "uid"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "1Tt_E418Z9ZWJ6Ch-Jr2w"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "1Tt_E418Z9ZWJ6Ch-Jr2w"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L19",
+        "class": "regional_ticketing",
+        "mutation_expected": false,
+        "observed_skill_id": "tU7IwzInHCzE8F5DBvEWB",
+        "observed_endpoint_id": "1Tt_E418Z9ZWJ6Ch-Jr2w",
+        "resolve_latency_sec": 1.459,
+        "execute_latency_sec": 0.968,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l20-marketwatch-com",
+      "intent": "get market news",
+      "url": "https://www.marketwatch.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": [
+          "pass"
+        ],
+        "retrieval": {
+          "max_rank": 5,
+          "any_of": [
+            {
+              "endpoint_id": "jhR9FM8eeHVjwM_tzLwB0"
+            }
+          ]
+        },
+        "selection": {
+          "any_of": [
+            {
+              "endpoint_id": "jhR9FM8eeHVjwM_tzLwB0"
+            }
+          ]
+        }
+      },
+      "source": {
+        "scenario_id": "L20",
+        "class": "finance_portal",
+        "mutation_expected": false,
+        "observed_skill_id": "YRNj33rXrgnI9gqPlHUKY",
+        "observed_endpoint_id": "jhR9FM8eeHVjwM_tzLwB0",
+        "resolve_latency_sec": 1.117,
+        "execute_latency_sec": 0.979,
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    }
+  ],
+  "known_gaps": [
+    {
+      "id": "l07-gymshark-com",
+      "intent": "get homepage products",
+      "url": "https://gymshark.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "expected_terminal": [
+        "fail",
+        "blocked"
+      ],
+      "source": {
+        "scenario_id": "L07",
+        "class": "smb_commerce",
+        "mutation_expected": false,
+        "observed_skill_id": "browser-capture",
+        "observed_endpoint_id": "browser-capture",
+        "resolve_error": "",
+        "execute_error": "no_endpoints",
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l08-bluebottlecoffee-com",
+      "intent": "get homepage products",
+      "url": "https://bluebottlecoffee.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "expected_terminal": [
+        "fail",
+        "blocked"
+      ],
+      "source": {
+        "scenario_id": "L08",
+        "class": "smb_commerce",
+        "mutation_expected": false,
+        "observed_skill_id": "browser-capture",
+        "observed_endpoint_id": "browser-capture",
+        "resolve_error": "",
+        "execute_error": "no_endpoints",
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l13-g1-globo-com",
+      "intent": "get homepage headlines",
+      "url": "https://g1.globo.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "expected_terminal": [
+        "fail",
+        "blocked"
+      ],
+      "source": {
+        "scenario_id": "L13",
+        "class": "international_site",
+        "mutation_expected": false,
+        "observed_skill_id": "browser-capture",
+        "observed_endpoint_id": "browser-capture",
+        "resolve_error": "",
+        "execute_error": "no_endpoints",
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l14-ryanair-com",
+      "intent": "start booking flow",
+      "url": "https://www.ryanair.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "expected_terminal": [
+        "fail",
+        "blocked"
+      ],
+      "source": {
+        "scenario_id": "L14",
+        "class": "travel_booking",
+        "mutation_expected": true,
+        "observed_skill_id": "browser-capture",
+        "observed_endpoint_id": "browser-capture",
+        "resolve_error": "",
+        "execute_error": "no_endpoints",
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l15-thetrainline-com",
+      "intent": "start ticket booking flow",
+      "url": "https://www.thetrainline.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "expected_terminal": [
+        "fail",
+        "blocked"
+      ],
+      "source": {
+        "scenario_id": "L15",
+        "class": "travel_booking",
+        "mutation_expected": true,
+        "observed_skill_id": "browser-capture",
+        "observed_endpoint_id": "browser-capture",
+        "resolve_error": "",
+        "execute_error": "no_endpoints",
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l16-booking-com",
+      "intent": "get homepage content",
+      "url": "https://www.booking.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "expected_terminal": [
+        "fail",
+        "blocked"
+      ],
+      "source": {
+        "scenario_id": "L16",
+        "class": "travel_booking",
+        "mutation_expected": false,
+        "observed_skill_id": "browser-capture",
+        "observed_endpoint_id": "browser-capture",
+        "resolve_error": "",
+        "execute_error": "no_endpoints",
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    },
+    {
+      "id": "l18-axs-com",
+      "intent": "start ticket purchase flow",
+      "url": "https://www.axs.com",
+      "expected_fields": [
+        "title",
+        "url"
+      ],
+      "expected_terminal": [
+        "fail",
+        "blocked"
+      ],
+      "source": {
+        "scenario_id": "L18",
+        "class": "regional_ticketing",
+        "mutation_expected": true,
+        "observed_skill_id": "browser-capture",
+        "observed_endpoint_id": "browser-capture",
+        "resolve_error": "",
+        "execute_error": "no_endpoints",
+        "adapted_from": "/Users/lekt9/Projects/unbrowse/evals/resolve_execute_details.csv"
+      }
+    }
+  ]
+}
