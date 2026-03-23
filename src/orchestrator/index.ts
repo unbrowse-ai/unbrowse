@@ -2628,11 +2628,18 @@ async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
   return skill;
 }
 
-/** Reject skills where no endpoint returns structured data from the skill's domain */
-function hasUsableEndpoints(skill: SkillManifest): boolean {
+/** Reject skills where no endpoint returns structured data or a replayable canonical document route. */
+export function hasUsableEndpoints(skill: SkillManifest): boolean {
   if (!skill.endpoints || skill.endpoints.length === 0) return false;
   return skill.endpoints.some((ep) => {
     try {
+      const isCanonicalReplay =
+        typeof ep.trigger_url === "string" &&
+        !!ep.trigger_url &&
+        (ep.url_template === deriveStructuredDataReplayUrl(ep.trigger_url) ||
+          ep.url_template === deriveStructuredDataReplayTemplate(ep.trigger_url));
+      if (isCanonicalReplay) return true;
+
       const u = new URL(ep.url_template);
       const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`);
       if (!onDomain) return false;
