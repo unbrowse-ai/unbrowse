@@ -18,6 +18,7 @@
 
 ## Unreleased
 
+- docs: split the whitepaper GitBook companion into a plain-English explainer plus dedicated technical and investor reading paths
 - fix LinkedIn/X-style structured query params (`variables=(start:...,count:...)`) so new captures learn templated nested query fields, `unbrowse execute --params ...` rewrites those nested fields instead of appending dead top-level params, and even older concrete skills can retrofit `start`/`count` overrides at execution time
 - replace the packaged `dist/index.js` Node+`tsx` wrapper with a real bundled server entrypoint, avoiding Node 25 `tsx` module-resolution failures like Fastify’s missing `logger-pino.js` on fresh global installs
 - feat: add WebArena-Verified benchmark lane with full/hard/inventory scripts backed by the official 812-task dataset

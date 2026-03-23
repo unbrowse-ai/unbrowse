@@ -19,8 +19,19 @@ Implementation-aware companion docs for the Unbrowse whitepaper.
 - Which paper sections are still `coming soon`
 - Which evaluation paths are current product truth versus paper benchmark context
 
+## The Short Hook
+
+The web contains a huge amount of usable value, but most of it is trapped behind interfaces built for humans.
+
+Unbrowse is a way to unlock that layer for agents.
+
+It learns the request paths underneath websites, turns successful routes into reusable skills, and makes later agents faster and less brittle because they do not have to rediscover the same workflows from scratch.
+
 ## Quick Navigation
 
+- [Unbrowse In Plain English](./plain-english.md)
+- [For Technical Readers](./for-technical-readers.md)
+- [For Investors](./for-investors.md)
 - [What Is Unbrowse?](./what-is-unbrowse.md)
 - [The Problem](./the-problem.md)
 - [Mental Models](./mental-models.md)
@@ -46,6 +57,12 @@ Unbrowse today is a local-first web capability layer for agents:
 - canonical product evals in this repo
 
 ## What To Read First
+
+Read [Unbrowse In Plain English](./plain-english.md) if you want the shortest narrative explainer in normal language.
+
+Read [For Technical Readers](./for-technical-readers.md) if you want the current architecture, eval truth, and paper-vs-product boundary in one place.
+
+Read [For Investors](./for-investors.md) if you want the market framing, compounding product loop, and the clean line between shipped product and roadmap.
 
 Read [System Today](./system-today.md) if you want the current product.
 
