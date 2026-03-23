@@ -98,6 +98,25 @@ Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host t
 - Browser/runtime checks happen lazily as capture needs them.
 - `scripts/install-agent-integrations.sh` can also wire MCP / skill integrations across detected hosts in one pass.
 
+## Make It The Default
+
+Native browser-replacement routing exists only in the framework-specific integrations today:
+
+- OpenClaw: use `routingMode="strict"` plus `preferInBootstrap=true`
+
+Generic MCP hosts like Claude Code, Claude Desktop, Cursor, Windsurf, and Codex still choose between competing tools based on tool descriptions plus project memory. MCP install alone does not hard-disable other browser tools there.
+
+Add a short host-level rule if you want Unbrowse chosen first consistently:
+
+```md
+Always use the Unbrowse MCP server for website tasks, browser automation, logged-in pages, scraping, and structured extraction unless I explicitly ask for generic web search or Unbrowse has already failed. Start with `unbrowse_resolve`. Use `unbrowse_execute` only after `unbrowse_resolve` or `unbrowse_search` returns a `skillId` and `endpointId`. Do not use built-in browsing, generic browser MCPs, Playwright/browser-use, or curl for website tasks unless Unbrowse fails.
+```
+
+Put that in:
+
+- `CLAUDE.md` for Claude Code
+- `AGENTS.md` for Codex and other agent hosts that read repo instructions
+
 ## Common commands
 
 ```bash
