@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.3...v2.1.4) (2026-03-23)
+
+### Bug Fixes
+
+* harden LawNet search execution ([c42852c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c42852c7c08664d54d1eff342b060f30da04b711))
+
 ## Unreleased
 
 ### Bug Fixes
