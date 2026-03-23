@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "path";
 import net from "node:net";
+import { execFileSync } from "node:child_process";
 import { getAuthCookies } from "../src/auth/index.js";
 import { CODE_HASH } from "../src/version.js";
 
@@ -21,6 +22,20 @@ async function isServerUp(baseUrl = BASE_URL): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+async function getServerHealth(baseUrl = BASE_URL): Promise<{ ok: boolean; code_hash?: string }> {
+  try {
+    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(2_000) });
+    if (!res.ok) return { ok: false };
+    const body = await res.json();
+    return {
+      ok: true,
+      ...(typeof body?.code_hash === "string" ? { code_hash: body.code_hash } : {}),
+    };
+  } catch {
+    return { ok: false };
   }
 }
 
@@ -142,11 +157,44 @@ async function startStaleHealthServer(port: number, codeHash: string): Promise<B
     process.on("SIGTERM", () => server.close(() => process.exit(0)));
     setInterval(() => {}, 1000);
   `;
-  return Bun.spawn([process.execPath, "-e", script, String(port), codeHash], {
+  return Bun.spawn([process.execPath, "-e", script, String(port), codeHash, "unbrowse-stale-server"], {
     cwd: ROOT,
     stdout: "ignore",
     stderr: "pipe",
   });
+}
+
+function findListeningPid(port: number): number | null {
+  try {
+    const output = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const pid = Number(output.split(/\s+/).find(Boolean));
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function readProcessCommand(pid: number): string {
+  try {
+    return execFileSync("ps", ["-o", "command=", "-p", String(pid)], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+async function stopListeningUnbrowse(baseUrl = BASE_URL): Promise<void> {
+  const port = Number(new URL(baseUrl).port || "80");
+  const pid = findListeningPid(port);
+  if (!pid) return;
+  if (!/\bunbrowse\b|src\/index\.ts|runtime-src\/index\.ts|dist\/index\.js/i.test(readProcessCommand(pid))) return;
+  process.kill(pid, "SIGTERM");
+  await waitForServerDown(10_000, baseUrl);
 }
 
 function getSkillId(body: any): string | undefined {
@@ -183,7 +231,9 @@ function hasData(body: any): boolean {
 }
 
 beforeAll(async () => {
-  if (await isServerUp()) return;
+  const health = await getServerHealth();
+  if (health.ok && health.code_hash === CODE_HASH) return;
+  if (health.ok) await stopListeningUnbrowse();
 
   serverProc = Bun.spawn([process.execPath, "src/index.ts"], {
     cwd: ROOT,
@@ -254,6 +304,46 @@ describe("CLI end-to-end", () => {
         base_url: baseUrl,
         started_at: new Date().toISOString(),
       }, null, 2));
+
+      const { code, body } = await runCliWithAutoStart(["health"], {
+        UNBROWSE_URL: baseUrl,
+        UNBROWSE_RUN_DIR: runDir,
+        UNBROWSE_DISABLE_AUTO_UPDATE: "1",
+      });
+
+      expect(code).toBe(0);
+      expect(body.status).toBe("ok");
+      expect(body.code_hash).toBe(CODE_HASH);
+      expect(body.code_hash).not.toBe(staleHash);
+
+      const exited = await Promise.race([
+        staleProc.exited.then(() => true),
+        Bun.sleep(5_000).then(() => false),
+      ]);
+      expect(exited).toBe(true);
+    } finally {
+      try {
+        const pid = JSON.parse(readFileSync(pidFileFor(runDir, port), "utf-8")) as { pid: number };
+        process.kill(pid.pid, "SIGTERM");
+        await waitForServerDown(10_000, baseUrl);
+      } catch {
+        // best-effort cleanup
+      }
+      staleProc?.kill();
+      rmSync(runDir, { recursive: true, force: true });
+    }
+  }, 45_000);
+
+  it("health auto-restarts a stale unmanaged unbrowse server when code_hash drifts", async () => {
+    const port = await getFreePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const runDir = mkdtempSync(join(tmpdir(), "unbrowse-run-"));
+    const staleHash = "111111111111";
+    let staleProc: Bun.Subprocess<"ignore", "ignore", "pipe"> | null = null;
+
+    try {
+      staleProc = await startStaleHealthServer(port, staleHash);
+      await waitForServer(10_000, baseUrl);
 
       const { code, body } = await runCliWithAutoStart(["health"], {
         UNBROWSE_URL: baseUrl,

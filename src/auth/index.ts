@@ -6,6 +6,7 @@ import { log } from "../logger.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
+import type { BrowserAuthSourceMeta } from "./browser-cookies.js";
 
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -30,6 +31,18 @@ export interface StoredAuthBundle {
   cookies: AuthCookie[];
   headers: Record<string, string>;
   source_keys: string[];
+  source_meta?: BrowserAuthSourceMeta | null;
+}
+
+export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | undefined): boolean {
+  if (!bundle) return true;
+  if (bundle.cookies.length === 0 && Object.keys(bundle.headers).length === 0) return true;
+  const sourceMeta = bundle.source_meta;
+  if (!sourceMeta) return true;
+  if (sourceMeta.family === "chromium" && !sourceMeta.userDataDir && !sourceMeta.cookieDbPath) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -118,7 +131,7 @@ export async function extractBrowserAuth(
   const vaultKey = `auth:${getRegistrableDomain(domain)}`;
   await storeCredential(
     vaultKey,
-    JSON.stringify({ cookies: storableCookies })
+    JSON.stringify({ cookies: storableCookies, source_meta: result.sourceMeta ?? null })
   );
 
   log("auth", `stored ${storableCookies.length} cookies for ${domain} (key: ${vaultKey}) from ${result.source}`);
@@ -172,6 +185,7 @@ export async function getStoredAuthBundle(
   const cookies: AuthCookie[] = [];
   const headers: Record<string, string> = {};
   const source_keys: string[] = [];
+  let source_meta: BrowserAuthSourceMeta | null = null;
 
   for (const key of getStoredAuthKeys(domain)) {
     const stored = await getCredential(key);
@@ -180,6 +194,7 @@ export async function getStoredAuthBundle(
       const parsed = JSON.parse(stored) as {
         cookies?: AuthCookie[];
         headers?: Record<string, string>;
+        source_meta?: BrowserAuthSourceMeta | null;
       };
       const rawCookies = parsed.cookies ?? [];
       const validCookies = filterExpired(rawCookies);
@@ -198,6 +213,7 @@ export async function getStoredAuthBundle(
       }
       if ((validCookies.length > 0 || Object.keys(parsedHeaders).length > 0) && !source_keys.includes(key)) {
         source_keys.push(key);
+        if (!source_meta && parsed.source_meta) source_meta = parsed.source_meta;
       }
     } catch {
       continue;
@@ -205,7 +221,7 @@ export async function getStoredAuthBundle(
   }
 
   if (cookies.length === 0 && Object.keys(headers).length === 0) return null;
-  return { cookies, headers, source_keys };
+  return { cookies, headers, source_keys, source_meta };
 }
 
 export async function findStoredAuthReference(domain: string): Promise<string | null> {
@@ -234,12 +250,14 @@ export async function getAuthCookies(
   domain: string,
   opts?: { autoExtract?: boolean }
 ): Promise<AuthCookie[] | null> {
-  const vaultCookies = await getStoredAuth(domain);
-  if (vaultCookies && vaultCookies.length > 0) return vaultCookies;
+  const bundle = await getStoredAuthBundle(domain);
+  if (bundle && bundle.cookies.length > 0 && !storedAuthNeedsBrowserRefresh(bundle)) {
+    return bundle.cookies;
+  }
 
-  if (opts?.autoExtract === false) return null;
+  if (opts?.autoExtract === false) return bundle?.cookies ?? null;
 
-  log("auth", `no vault cookies for ${domain} — auto-extracting from browser`);
+  log("auth", `${bundle ? "stored auth lacks usable browser source metadata" : "no vault cookies"} for ${domain} — auto-extracting from browser`);
   try {
     const result = await extractBrowserAuth(domain);
     if (result.success && result.cookies_stored > 0) {
@@ -249,7 +267,7 @@ export async function getAuthCookies(
     log("auth", `browser auto-extract failed for ${domain}: ${err instanceof Error ? err.message : err}`);
   }
 
-  return null;
+  return bundle?.cookies ?? null;
 }
 
 /**

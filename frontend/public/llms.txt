@@ -4,6 +4,12 @@
 
 ## Install
 
+Skill-first path for skill-compatible hosts:
+
+```
+npx skills add unbrowse-ai/unbrowse
+```
+
 Fastest path: detect installed hosts and wire Unbrowse automatically:
 
 ```
@@ -16,19 +22,17 @@ Manual flow: install the CLI first:
 npm install -g unbrowse
 ```
 
-First run bootstraps automatically:
-
-```
-unbrowse health
-```
-
 The packaged CLI checks npm for a newer release before each command and rolls forward automatically when it finds one. Disable with `UNBROWSE_DISABLE_AUTO_UPDATE=1`.
 
-If your agent host uses skills (OpenClaw, Claude Code, Cursor):
+Manual host wiring examples:
 
 ```
-npx skills add unbrowse-ai/unbrowse
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --cursor --no-cli
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --claude-code --no-cli
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --openclaw --no-cli
 ```
+
+Advanced setup docs: https://www.unbrowse.ai/skill.md
 
 ## How It Works
 
@@ -41,6 +45,7 @@ npx skills add unbrowse-ai/unbrowse
 ## Key Pages
 
 - [Homepage](https://www.unbrowse.ai): Product overview, demo, and installation instructions
+- [Whitepaper](https://www.unbrowse.ai/whitepaper): Technical paper covering the Unbrowse approach and system design
 - [Skill Registry](https://www.unbrowse.ai/search): Search discovered API skills by intent or domain — the shared marketplace of reverse-engineered APIs
 - [Agent Dashboard](https://www.unbrowse.ai/dashboard): View your discovered skills, execution stats, and API key management
 - [Skill Documentation](https://www.unbrowse.ai/skill.md): Complete technical documentation for the unbrowse skill — all CLI commands, API endpoints, auth flows, and rules
@@ -72,9 +77,14 @@ Base URL: `https://beta-api.unbrowse.ai`
 
 Works with any tool that supports CLI execution or the OpenClaw skill protocol:
 
-- **Claude Code**: Install via `npm install -g unbrowse`, run `unbrowse health`, then add the skill with `npx skills add unbrowse-ai/unbrowse`
-- **Cursor**: Install via `npm install -g unbrowse`, run `unbrowse health`, then add the skill with `npx skills add unbrowse-ai/unbrowse`
-- **OpenClaw**: Install via `npx skills add unbrowse-ai/unbrowse`
+- **Shared skill**: `npx skills add unbrowse-ai/unbrowse`
+- **Auto-detect installer**: `curl -fsSL https://www.unbrowse.ai/install.sh | bash`
+- **Manual runtime fallback**: `npm install -g unbrowse`
+- **Claude Code / Claude Desktop / Cursor / Windsurf / Codex / OpenClaw**: use the installer with the matching host flag and `--no-cli`
+- **Generic MCP clients**: point the client at `unbrowse mcp`
+- **Hermes**: native browser-replacement plugin; package install starts with `pip install unbrowse-hermes`, then follow Hermes plugin setup in docs
+- **ElizaOS**: native browser-replacement plugin; package install starts with `npm install @unbrowse/plugin-elizaos`, then add it to your character config
+- **LangChain**: `pip install unbrowse-langchain`
 - **Any CLI agent**: Call `unbrowse resolve --intent "..." --url "..."` directly
 - **One-shot installer**: `scripts/install-agent-integrations.sh` detects Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw
 

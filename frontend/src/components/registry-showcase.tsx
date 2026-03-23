@@ -8,11 +8,15 @@ export async function RegistryShowcase() {
   try {
     skills = await listSkills();
   } catch (e) {
-    // silently fail and show empty or ignore
+    // Silently skip the showcase when registry data is unavailable.
   }
 
   // Pick top 8 skills to showcase (based on something like highest reliability or just first 8), ignoring deprecated
   const displaySkills = skills.filter((s) => s.lifecycle !== "deprecated").slice(0, 8);
+
+  if (displaySkills.length === 0) {
+    return null;
+  }
 
   return (
       <section id="registry" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
@@ -39,20 +43,12 @@ export async function RegistryShowcase() {
               View full registry <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
-
-        {displaySkills.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {displaySkills.map(skill => (
               <SkillCard key={skill.skill_id} skill={skill} />
             ))}
           </div>
-        ) : (
-          <div className="text-center py-12 bg-surface border border-border rounded-xl">
-            <p className="text-text-muted">Loading registry skills...</p>
-          </div>
-        )}
       </div>
     </section>
   );
 }
-

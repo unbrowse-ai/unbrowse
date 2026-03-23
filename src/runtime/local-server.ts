@@ -1,6 +1,7 @@
 import { closeSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
 import { CODE_HASH } from "../version.js";
 
@@ -82,6 +83,37 @@ function clearStalePidFile(pidFile: string): void {
   }
 }
 
+function findListeningPid(baseUrl: string): number | null {
+  try {
+    const url = new URL(baseUrl);
+    const port = url.port || (url.protocol === "https:" ? "443" : "80");
+    const output = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const pid = Number(output.split(/\s+/).find(Boolean));
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function readProcessCommand(pid: number): string {
+  try {
+    return execFileSync("ps", ["-o", "command=", "-p", String(pid)], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function isLikelyUnbrowseServerProcess(pid: number): boolean {
+  const command = readProcessCommand(pid);
+  return /\bunbrowse\b|runtime-src\/index\.ts|src\/index\.ts|dist\/index\.js/i.test(command);
+}
+
 async function stopManagedServer(pid: number, pidFile: string, baseUrl: string): Promise<void> {
   try {
     process.kill(pid, "SIGTERM");
@@ -140,7 +172,13 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
       existing = null;
     } else {
       if (existing) clearStalePidFile(pidFile);
-      return;
+      const discoveredPid = findListeningPid(baseUrl);
+      if (discoveredPid && isLikelyUnbrowseServerProcess(discoveredPid)) {
+        await stopManagedServer(discoveredPid, pidFile, baseUrl);
+        existing = null;
+      } else {
+        return;
+      }
     }
   }
 
