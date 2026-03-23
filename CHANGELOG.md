@@ -24,6 +24,11 @@
 
 ## Unreleased
 
+- fix: make `unbrowse login` browser-aware with explicit `--browser ...` support and fast errors for unsupported macOS default browsers like Safari
+- fix: preserve response schemas and extraction hints for CLI `--schema` runs by forcing raw projection on resolve/execute
+- fix: unwrap carrier-shaped raw page artifacts before CLI `--path` / `--extract` transforms so schema-guided paths like `initialData.*` resolve correctly
+- fix: stop reusing the wrong same-domain skill when live capture revisits a different entity page with the same intent
+- build: bump the local package version to `2.0.24-local.1` so global installs from this repo stay ahead of the npm `latest` auto-update check during smoke tests
 - docs: split the whitepaper GitBook companion into a plain-English explainer plus dedicated technical and investor reading paths, point public package docs at `docs.unbrowse.ai`, restore the direct whitepaper PDF link, and stop syncing packed `.tgz` artifacts into the public repo
 - fix LinkedIn/X-style structured query params (`variables=(start:...,count:...)`) so new captures learn templated nested query fields, `unbrowse execute --params ...` rewrites those nested fields instead of appending dead top-level params, and even older concrete skills can retrofit `start`/`count` overrides at execution time
 - replace the packaged `dist/index.js` Node+`tsx` wrapper with a real bundled server entrypoint, avoiding Node 25 `tsx` module-resolution failures like Fastify’s missing `logger-pino.js` on fresh global installs

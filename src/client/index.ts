@@ -477,13 +477,37 @@ function isIntentCompatible(lhs: string | undefined, rhs: string | undefined): b
   return intentFamily(left) === intentFamily(right);
 }
 
-export function findExistingSkillForDomain(domain: string, intent?: string): SkillManifest | null {
+function normalizeContextPath(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const pathname = new URL(value).pathname.replace(/\/+$/, "");
+    return pathname || "/";
+  } catch {
+    return null;
+  }
+}
+
+function skillMatchesContextPath(skill: SkillManifest, contextUrl?: string): boolean {
+  const contextPath = normalizeContextPath(contextUrl);
+  if (!contextPath) return true;
+  for (const endpoint of skill.endpoints) {
+    const triggerPath = normalizeContextPath(endpoint.trigger_url);
+    if (triggerPath === contextPath) return true;
+    const templatePath = normalizeContextPath(endpoint.url_template);
+    if (templatePath === contextPath) return true;
+  }
+  return false;
+}
+
+export function findExistingSkillForDomain(domain: string, intent?: string, contextUrl?: string): SkillManifest | null {
   try {
     const skillCacheDir = getSkillCacheDir();
     if (!existsSync(skillCacheDir)) return null;
     const files = readdirSync(skillCacheDir);
     let compatible: SkillManifest | null = null;
     let fallback: SkillManifest | null = null;
+    let pathCompatible: SkillManifest | null = null;
+    let pathFallback: SkillManifest | null = null;
     for (const f of files) {
       if (!f.endsWith(".json") || f === "browser-capture.json") continue;
       try {
@@ -491,12 +515,25 @@ export function findExistingSkillForDomain(domain: string, intent?: string): Ski
         const skill = JSON.parse(raw) as SkillManifest;
         if (skill.domain === domain && skill.execution_type === "http") {
           if (!fallback) fallback = skill;
-          if (isIntentCompatible(skill.intent_signature, intent) || (skill.intents ?? []).some((candidate) => isIntentCompatible(candidate, intent))) {
+          if (skillMatchesContextPath(skill, contextUrl) && !pathFallback) {
+            pathFallback = skill;
+          }
+          const intentCompatible =
+            isIntentCompatible(skill.intent_signature, intent) ||
+            (skill.intents ?? []).some((candidate) => isIntentCompatible(candidate, intent));
+          if (intentCompatible) {
             compatible = skill;
-            break;
+            if (skillMatchesContextPath(skill, contextUrl)) {
+              pathCompatible = skill;
+              break;
+            }
           }
         }
       } catch { /* skip corrupt files */ }
+    }
+    if (contextUrl && normalizeContextPath(contextUrl)) {
+      if (intent && normalizeIntent(intent)) return pathCompatible;
+      return pathFallback;
     }
     if (intent && normalizeIntent(intent)) return compatible;
     return compatible ?? fallback;

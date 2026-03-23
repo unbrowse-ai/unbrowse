@@ -1192,7 +1192,7 @@ async function trySeedStructuredDocumentSkill(
   };
 
   const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill
       ? mergeEndpoints(existingSkill.endpoints, [canonicalDocumentEndpoint])
@@ -1297,7 +1297,7 @@ async function trySeedDirectJsonFetchSkill(
   };
 
   const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill ? mergeEndpoints(existingSkill.endpoints, [endpoint]) : [endpoint],
     intent,
@@ -1381,7 +1381,7 @@ async function trySeedPublicDocumentFetchSkill(
   if (!built.endpoint) return undefined;
 
   const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill
       ? mergeEndpoints(existingSkill.endpoints, [built.endpoint])
@@ -1872,7 +1872,7 @@ async function executeBrowserCapture(
   if (cleanEndpoints.length === 0) {
     // DOM fallback: extract structured data from rendered page, learn a DOM skill
     if (domArtifactEndpoint && domArtifactResult) {
-        const existingDomSkill = findExistingSkillForDomain(domain, intent);
+        const existingDomSkill = findExistingSkillForDomain(domain, intent, url);
         const domEndpoints = await prepareLearnedEndpoints(
           existingDomSkill
             ? mergeEndpoints(existingDomSkill.endpoints, [domArtifactEndpoint])
@@ -1959,7 +1959,7 @@ async function executeBrowserCapture(
 
   // Reuse existing skill for this domain to preserve skill_id and learned exec_strategy.
   // This prevents duplicate skills accumulating in the marketplace on re-captures.
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   if (existingSkill) {
     // Carry forward learned exec_strategy from old endpoints to matching new ones
     for (const ep of cleanEndpoints) {

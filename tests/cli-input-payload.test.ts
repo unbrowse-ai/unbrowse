@@ -125,9 +125,91 @@ describe("CLI input payload ingestion", () => {
           endpoint_id: "ep-search",
           page: 2,
           query: "openai",
+          url: "https://npmjs.com/search?q=openai",
+          intent: "search packages",
         },
         context_url: "https://npmjs.com/search?q=openai",
         intent: "search packages",
+        projection: { raw: true },
+      },
+    });
+  });
+
+  it("login forwards the chosen browser to the auth endpoint", async () => {
+    const server = await startJsonEchoServer({ success: true });
+
+    const cli = await runCli(server.baseUrl, [
+      "login",
+      "--url", "https://lu.ma/signin",
+      "--browser", "chrome",
+    ]);
+
+    expect(cli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      path: "/v1/auth/login",
+      body: {
+        url: "https://lu.ma/signin",
+        browser: "chrome",
+      },
+    });
+  });
+
+  it("schema mode forces raw projection for resolve", async () => {
+    const server = await startJsonEchoServer({
+      trace: { trace_id: "trace-1", skill_id: "skill-123", endpoint_id: "ep-search", success: true },
+      response_schema: { type: "object", properties: { items: { type: "array" } } },
+      extraction_hints: { path: "items[]", fields: ["name"], confidence: "high" },
+      result: { items: [{ name: "one" }] },
+    });
+
+    const resolveCli = await runCli(server.baseUrl, [
+      "resolve",
+      "--intent", "search packages",
+      "--url", "https://npmjs.com/search?q=openai",
+      "--schema",
+    ]);
+
+    expect(resolveCli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      path: "/v1/intent/resolve",
+      body: {
+        intent: "search packages",
+        params: {
+          url: "https://npmjs.com/search?q=openai",
+        },
+        context: {
+          url: "https://npmjs.com/search?q=openai",
+        },
+        projection: { raw: true },
+      },
+    });
+  });
+
+  it("schema mode forces raw projection for execute", async () => {
+    const server = await startJsonEchoServer({
+      trace: { trace_id: "trace-1", skill_id: "skill-123", endpoint_id: "ep-search", success: true },
+      response_schema: { type: "object", properties: { items: { type: "array" } } },
+      extraction_hints: { path: "items[]", fields: ["name"], confidence: "high" },
+      result: { items: [{ name: "one" }] },
+    });
+
+    const executeCli = await runCli(server.baseUrl, [
+      "execute",
+      "--skill", "skill-123",
+      "--endpoint", "ep-search",
+      "--schema",
+    ]);
+
+    expect(executeCli.code).toBe(0);
+    expect(server.lastRequest()).toEqual({
+      method: "POST",
+      path: "/v1/skills/skill-123/execute",
+      body: {
+        params: {
+          endpoint_id: "ep-search",
+        },
         projection: { raw: true },
       },
     });
@@ -175,6 +257,68 @@ describe("CLI input payload ingestion", () => {
     expect(body.result).toHaveLength(12);
     expect(body._response_too_large).toBeUndefined();
     expect(body.extraction_hints).toBeUndefined();
+    expect(cli.stderr).not.toContain('resolved to undefined');
+  });
+
+  it("applies --path against unwrapped carrier data for page-artifact results", async () => {
+    const server = await startJsonEchoServer({
+      trace: {
+        trace_id: "trace-luma",
+        skill_id: "skill-luma",
+        endpoint_id: "ep-discover",
+        success: true,
+        status_code: 200,
+      },
+      result: {
+        data: {
+          initialData: {
+            debug_info: {
+              ip_city: "Boardman",
+              ip_country: "US",
+            },
+          },
+        },
+        _extraction: {
+          source: "page-artifact",
+        },
+      },
+      extraction_hints: {
+        path: "initialData.featured_place.events[]",
+        fields: ["event.name"],
+        confidence: "high",
+      },
+      response_schema: {
+        type: "object",
+        properties: {
+          initialData: {
+            type: "object",
+            properties: {
+              debug_info: {
+                type: "object",
+                properties: {
+                  ip_city: { type: "string" },
+                  ip_country: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const cli = await runCli(server.baseUrl, [
+      "execute",
+      "--skill", "skill-luma",
+      "--endpoint", "ep-discover",
+      "--path", "initialData.debug_info",
+    ]);
+
+    expect(cli.code).toBe(0);
+    const body = JSON.parse(cli.stdout.trim() || "{}");
+    expect(body.result).toEqual({
+      ip_city: "Boardman",
+      ip_country: "US",
+    });
     expect(cli.stderr).not.toContain('resolved to undefined');
   });
 });
