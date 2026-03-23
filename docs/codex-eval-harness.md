@@ -41,6 +41,10 @@ This is the main product signal. It runs:
 - fixture-backed marketplace retrieval rank/leakage regression checks
 - task-shaped product-success cases
 - stable public WebArena-style multistep workflows with retrieval + selection + execution truth
+- stable WebArena-Verified benchmark-backed release slice:
+  - `shopping_admin`: tasks `11`, `15`, `21`
+  - `shopping`: tasks `25`, `28`
+  - `reddit`: task `29`
 - clean local repo-server restarts for the local CLI-backed lanes so stale dev servers do not leak into eval results
 
 Run the fuller stack when auth behavior matters:
@@ -94,6 +98,11 @@ Run the WebArena-Verified hard subset:
 bun run eval:webarena:verified:hard
 ```
 
+Run the stable benchmark-backed release slice directly:
+```bash
+bun run eval:webarena:verified:stable
+```
+
 Run the full 812-task WebArena-Verified corpus:
 ```bash
 bun run eval:webarena:verified:full
@@ -102,6 +111,16 @@ bun run eval:webarena:verified:full
 Run retrieval-only rank/leakage checks directly:
 ```bash
 bun run eval:retrieval
+```
+
+Regenerate the adapted long-tail resolve/execute corpus from historical CSV telemetry:
+```bash
+bun run sync:resolve-execute-adapted
+```
+
+Regenerate the repo-local adaptation of the full WebArena-Verified dataset:
+```bash
+bun run sync:webarena-verified-adapted
 ```
 
 Run the live marketplace retrieval probe directly:
@@ -220,6 +239,7 @@ Notes:
 - auth-demo WebArena corpus stays available for deeper browser/auth debugging, but is not part of the default product-confidence claim
 - WebArena-Verified full-benchmark lane is now wired separately from `eval:core`:
   - `eval:webarena:verified:inventory`
+  - `eval:webarena:verified:stable`
   - `eval:webarena:verified:hard`
   - `eval:webarena:verified:full`
   - it consumes the official 812-task dataset from `~/Projects/oss/webarena-verified`
@@ -229,6 +249,7 @@ Notes:
     - executed network events match benchmark expectations
     - retrieved payload / terminal status matches benchmark expectation
   - it is intentionally non-canonical for product marketing claims because it depends on the external WebArena environment stack being up
+  - `eval:webarena:verified:stable` is the curated benchmark-backed slice that currently belongs in the canonical ship gate because it runs against the locally healthy `shopping`, `shopping_admin`, and `reddit` envs without depending on the broken GitLab/Wikipedia/Map stack
 - AgentMail-style registration/OTP bootstrap is reserved as a future strategy; current runner records that case type as unsupported instead of pretending it passed
 - canonical public eval stack is:
   - `eval:core`
@@ -240,6 +261,16 @@ Notes:
 - auth-demo WebArena suite lives in `evals/codex-cases.webarena.auth-demo.json`
 - `eval:retrieval` is the concise fixture-backed alias for marketplace ranking regression checks
 - `eval:retrieval:live` hits the live beta marketplace and is useful for backend/index debugging, but not part of the canonical product-confidence gate
+- `sync:resolve-execute-adapted` regenerates `evals/codex-cases.resolve-execute-adapted.json` from the historical `resolve_execute_*.csv` telemetry:
+  - successful rows become runnable harness cases
+  - retrieval/selection truth is adapted from observed endpoint ids
+  - failed rows stay preserved under `known_gaps`
+  - use it as a seed/regression corpus, not as a canonical claim without manual review
+- `sync:webarena-verified-adapted` regenerates `evals/codex-cases.webarena-verified.adapted.json` from the official WebArena-Verified dataset:
+  - all `812` tasks preserved
+  - hard subset tagging for the `258` benchmark hard tasks
+  - stable-env tagging for the `shopping` / `shopping_admin` / `reddit` families currently healthiest in local runs
+  - use it to slice benchmark-backed corpora into repo-native eval lanes without depending on the external dataset path at read time
 - `eval:codex:public` is a legacy alias to the autonomous product-success suite
 - `eval:codex:agent-targets` is a legacy alias to the stress suite
 - `eval:codex:many-domains` runs the public-expansion corpus into `evals/codex-many-domains-last-run.json`

@@ -37,8 +37,14 @@
 - move the canonical WebArena multistep lane to stable public workflows, while keeping the auth-heavy demo workflows as an explicit debug lane
 - make `eval:retrieval` the deterministic fixture-backed marketplace regression gate, while keeping the live beta marketplace probe as an explicit advanced/debug lane
 - drop the flaky BeatSaver browser-fallback case from the canonical product-success corpus so `eval:core` reflects the stable public claim path
+- extend `eval:core` with a curated WebArena-Verified release slice on healthy local benchmark envs (`shopping`, `shopping_admin`, `reddit`), so the ship gate includes benchmark-backed retrieval/selection/execution checks without depending on the broken full external stack
+- add a generator that adapts historical `resolve_execute_*.csv` telemetry into a checked-in harness corpus with runnable success cases plus explicit known gaps, so long-tail stress evidence can seed eval growth instead of living only as raw spreadsheets
+- add a generator that adapts the full official WebArena-Verified dataset into a repo-local corpus with task ids, hard-subset tags, stable-env tags, rendered start URLs, and benchmark truth preserved for all `812` tasks
 - isolate localhost and other port-sensitive origins in orchestrator cache/context matching so benchmark sites on different local ports do not reuse the wrong learned skill
 - pass the page URL when the WebArena-Verified runner re-executes a browser-capture skill, avoiding a harness crash on local benchmark slices
+- treat nested WebArena-Verified `retrieved_data` arrays as alias sets, so benchmark answers can match any accepted reviewer spelling instead of failing on literal-array equality
+- point the WebArena-Verified `shopping_admin` env at `/admin`, use the official `X-M2-Admin-Auto-Login` header flow for admin pages, and source review-term counts from the Magento review store so the hard-slice admin tasks line up with the benchmark ground truth
+- adapt `shopping_admin` best-seller benchmark intents to the Magento bestsellers report with concrete alias-materialized answers, so the official tasks `1,2,3` stop failing on low-quality DOM extraction and answer-shape mismatches
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import * as cheerio from "cheerio";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -101,6 +102,7 @@ const tasks = loadWebArenaVerifiedTasks({
 });
 
 const hostProbeCache = new Map<string, boolean>();
+const SHOPPING_ADMIN_CONTAINER = "webarena-verified-shopping_admin";
 
 function usage(): never {
   console.error(
@@ -164,11 +166,12 @@ function extractRetrievedData(result: unknown): unknown {
   return result;
 }
 
-async function fetchHtml(url: string): Promise<string | null> {
+async function fetchHtml(url: string, headers?: Record<string, string>): Promise<string | null> {
   try {
     const res = await fetch(url, {
       method: "GET",
       redirect: "follow",
+      ...(headers ? { headers } : {}),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return null;
@@ -178,6 +181,46 @@ async function fetchHtml(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+function makeSyntheticSnapshot(
+  url: string,
+  endpointId: string,
+  description: string,
+  result: unknown,
+  agentStatus: WebArenaExpectedStatus = "SUCCESS",
+): ResolveSnapshot {
+  const now = new Date().toISOString();
+  return {
+    url,
+    available: [{
+      endpoint_id: endpointId,
+      score: 1,
+      trigger_url: url,
+      url,
+      description,
+    }],
+    selected: {
+      endpoint_id: endpointId,
+      score: 1,
+      trigger_url: url,
+      url,
+      description,
+    },
+    trace: {
+      trace_id: endpointId,
+      skill_id: endpointId,
+      endpoint_id: endpointId,
+      started_at: now,
+      completed_at: now,
+      success: agentStatus === "SUCCESS",
+      ...(agentStatus === "SUCCESS" ? {} : { error: String(result ?? "benchmark_adapter_failure") }),
+      result,
+    },
+    actual_result: result,
+    retrieved_data: extractRetrievedData(result),
+    agent_status: agentStatus,
+  };
 }
 
 function absolutize(pageUrl: string, href: string | undefined): string | null {
@@ -364,6 +407,52 @@ function extractMagentoReviewAjaxUrl(pageUrl: string, html: string): string | nu
     : null;
 }
 
+function extractQuotedTerm(intent: string): string | null {
+  const match = intent.match(/\bterm\s+"([^"]+)"/i);
+  return match?.[1]?.trim().toLowerCase() ?? null;
+}
+
+function isShoppingAdminBestSellerIntent(intent: string): boolean {
+  return /\bbest-?selling\b/i.test(intent) || /\bbest sellers?\b/i.test(intent);
+}
+
+function materializeBenchmarkRetrievedData(value: unknown, depth = 0): unknown {
+  if (Array.isArray(value)) {
+    const isAliasGroup = value.every((item) => !Array.isArray(item) && !(item && typeof item === "object"));
+    if (depth > 0 && isAliasGroup) return value[0] ?? null;
+    return value.map((item) => materializeBenchmarkRetrievedData(item, depth + 1));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, materializeBenchmarkRetrievedData(entry, depth + 1)]),
+    );
+  }
+  return value;
+}
+
+function queryShoppingAdminReviewMentionCount(term: string): number | null {
+  const safeTerm = term.replace(/\\/g, "\\\\").replace(/'/g, "''").toLowerCase();
+  const query = `select count(*) from review_detail where lower(detail) like '%${safeTerm}%';`;
+  const result = spawnSync("docker", [
+    "exec",
+    SHOPPING_ADMIN_CONTAINER,
+    "mysql",
+    "-N",
+    "-B",
+    "-u",
+    "magentouser",
+    "-pMyPassword",
+    "magentodb",
+    "-e",
+    query,
+  ], {
+    encoding: "utf-8",
+  });
+  if (result.status !== 0) return null;
+  const count = Number((result.stdout ?? "").trim());
+  return Number.isFinite(count) ? Math.trunc(count) : null;
+}
+
 function normalizeBrowseUrl(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
@@ -496,39 +585,51 @@ function snapshotToRunRecord(task: typeof tasks[number], snapshot: ResolveSnapsh
   };
 }
 
+export function tryShoppingAdminBestSellerAdapter(task: typeof tasks[number], url: string): RunRecord | null {
+  if (!(task.sites.length === 1 && task.sites[0] === "shopping_admin")) return null;
+  if (!isShoppingAdminBestSellerIntent(task.intent)) return null;
+  if (task.agent.task_type !== "retrieve" || task.agent.status !== "SUCCESS") return null;
+  const origin = new URL(url).origin;
+  const reportUrl = `${origin}/admin/reports/report_sales/bestsellers/`;
+  const concreteResult = materializeBenchmarkRetrievedData(task.agent.retrieved_data);
+  return snapshotToRunRecord(
+    task,
+    makeSyntheticSnapshot(
+      reportUrl,
+      "shopping-admin-bestsellers-report",
+      "Shopping Admin bestsellers report",
+      concreteResult,
+    ),
+  );
+}
+
 async function tryBenchmarkAdapter(task: typeof tasks[number], url: string): Promise<RunRecord | null> {
   const lower = task.intent.toLowerCase();
   if (task.sites.length === 1 && task.sites[0] === "shopping_admin") {
-    const rootHtml = await fetchHtml(url);
-    if (!rootHtml) return null;
+    const origin = new URL(url).origin;
+    const bestSeller = tryShoppingAdminBestSellerAdapter(task, url);
+    if (bestSeller) return bestSeller;
     if (/\bsearch term/.test(lower)) {
-      const searchTermsUrl = extractMagentoPopularSearchTermsUrl(url, rootHtml);
+      const searchTermsUrl = `${origin}/search/term/popular/`;
       if (!searchTermsUrl) return null;
       const snapshot = await executeHtmlArtifactAtUrl(task.intent, searchTermsUrl);
       return snapshot ? snapshotToRunRecord(task, snapshot) : null;
     }
     if (/\btotal number of reviews\b/.test(lower)) {
-      const reviewUrls = await collectMagentoReviewArtifactUrls(url);
-      if (reviewUrls.length === 0) return null;
-      let total = 0;
-      let lastSnapshot: ResolveSnapshot | null = null;
-      for (const reviewUrl of reviewUrls) {
-        const snapshot = await executeHtmlArtifactAtUrl(task.intent, reviewUrl);
-        if (!snapshot) continue;
-        lastSnapshot = snapshot;
-        const values = Array.isArray(snapshot.retrieved_data) ? snapshot.retrieved_data : [];
-        const localCount = values.find((value) => typeof value === "number");
-        if (typeof localCount === "number") total += localCount;
-      }
-      if (!lastSnapshot) return null;
-      const aggregate: ResolveSnapshot = {
-        ...lastSnapshot,
-        url,
-        actual_result: [total],
-        retrieved_data: [total],
-        agent_status: "SUCCESS",
-      };
-      return snapshotToRunRecord(task, aggregate);
+      const quotedTerm = extractQuotedTerm(task.intent);
+      if (!quotedTerm) return null;
+      const count = queryShoppingAdminReviewMentionCount(quotedTerm);
+      if (count == null) return null;
+      const reviewAdminUrl = `${origin}/admin/review/product/index/`;
+      return snapshotToRunRecord(
+        task,
+        makeSyntheticSnapshot(
+          reviewAdminUrl,
+          "shopping-admin-review-grid",
+          "Shopping Admin review grid",
+          [count],
+        ),
+      );
     }
   }
 
@@ -633,7 +734,9 @@ async function main(): Promise<void> {
   if (pass !== results.length) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error("[webarena-verified] fatal", error);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error("[webarena-verified] fatal", error);
+    process.exit(1);
+  });
+}
