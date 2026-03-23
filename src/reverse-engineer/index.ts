@@ -5,7 +5,7 @@ import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
-import { buildQueryBindingMap } from "../template-params.js";
+import { buildTemplatedQuery } from "../template-params.js";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -381,8 +381,30 @@ function inferCsrfPlan(req: RawRequest, parsedBody?: unknown): CsrfPlan | undefi
     Object.entries(req.request_headers).map(([key, value]) => [key.toLowerCase(), value]),
   );
   const cookies = parseCookieHeader(headers["cookie"]);
-  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf)$/i.test(name));
-  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
+  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf|JSESSIONID)$/i.test(name));
+  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken", "csrf-token"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
+
+  // Also detect CSRF by value matching: if any cookie value appears as a header value,
+  // that's a CSRF token pattern regardless of naming convention
+  if (!headerName && csrfCookieNames.length === 0) {
+    for (const [cookieName, cookieValue] of Object.entries(cookies)) {
+      if (!cookieValue || cookieValue.length < 8) continue;
+      const unquoted = cookieValue.startsWith('"') && cookieValue.endsWith('"') ? cookieValue.slice(1, -1) : cookieValue;
+      for (const [hName, hValue] of Object.entries(headers)) {
+        if (hName === "cookie" || hName === "host" || hName === "content-length") continue;
+        const hUnquoted = hValue.startsWith('"') && hValue.endsWith('"') ? hValue.slice(1, -1) : hValue;
+        if (unquoted === hUnquoted && unquoted.length >= 8) {
+          return {
+            source: "cookie",
+            param_name: hName,
+            refresh_on_401: true,
+            extractor_sequence: [cookieName],
+          };
+        }
+      }
+    }
+  }
+
   if (headerName && csrfCookieNames.length > 0) {
     return {
       source: "cookie",
@@ -528,6 +550,12 @@ const ON_DOMAIN_NOISE = /\/(recaptcha|captcha|update-recaptcha|csrf|consent|data
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
   let score = 0;
+  let pathname = "";
+  try {
+    pathname = new URL(req.url).pathname;
+  } catch {
+    pathname = "";
+  }
   // GET is preferred — safe, idempotent, more useful for data retrieval
   if (req.method === "GET") score += 2;
   if (RPC_HINTS.test(req.url)) score += 3;
@@ -542,14 +570,15 @@ function scoreRequest(req: RawRequest): number {
   if (ct.includes("x-protobuf") || ct.includes("json+protobuf")) score += 0;
   // Penalise long URLs — but only the path, not query params (GraphQL endpoints
   // have long variables/features query strings that inflate the URL length)
-  try { if (new URL(req.url).pathname.length > 200) score -= 5; } catch { if (req.url.length > 500) score -= 5; }
+  if (pathname.length > 200) score -= 5;
+  else if (req.url.length > 500) score -= 5;
   // Penalise telemetry paths even if they passed the host filter
-  if (SKIP_TELEMETRY_PATHS.test(new URL(req.url).pathname)) score -= 8;
+  if (pathname && SKIP_TELEMETRY_PATHS.test(pathname)) score -= 8;
   // Penalise Next.js RSC navigation requests — framework wire format, not data
   if (req.url.includes("_rsc=")) score -= 3;
   if (ct.includes("text/x-component")) score -= 10; // RSC wire format
   // Penalise on-domain noise (framework plumbing, recaptcha, consent, ad bids)
-  try { if (ON_DOMAIN_NOISE.test(new URL(req.url).pathname)) score -= 15; } catch {}
+  if (pathname && ON_DOMAIN_NOISE.test(pathname)) score -= 15;
   // Reward rich JSON responses (data endpoints have deep objects, noise has shallow)
   if (req.response_body) {
     try {
@@ -674,9 +703,8 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // endpoint.query stores the captured defaults for execution-time fallback.
     const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
     let pathTemplate = sanitizeUrlTemplate(normalized);
-    const qBindings = sanitizedQParams ? buildQueryBindingMap(Object.keys(sanitizedQParams)) : {};
     const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
-      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${qBindings[k] ?? k}}`).join("&")
+      ? Object.entries(buildTemplatedQuery(sanitizedQParams)).map(([k, v]) => `${encodeURIComponent(k)}=${v}`).join("&")
       : null;
 
     // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)

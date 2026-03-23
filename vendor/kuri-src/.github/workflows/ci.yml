@@ -30,7 +30,7 @@ jobs:
             zig-${{ runner.os }}-
 
       - name: Build
-        run: zig build
+        run: zig build -Doptimize=ReleaseSafe
 
       - name: Run tests
-        run: zig build test
+        run: zig build test -Doptimize=ReleaseSafe

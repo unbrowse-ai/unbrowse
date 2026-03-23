@@ -11,17 +11,31 @@ One agent learns a site once. Every later agent gets the fast path.
 ## Quick start
 
 ```bash
-# Fastest full setup
-npx unbrowse setup
+# Fastest path: detect installed hosts and wire them automatically
+curl -fsSL https://www.unbrowse.ai/install.sh | bash
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, lets you register with an email-shaped display identity, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+The installer detects supported hosts and wires Unbrowse into them automatically:
 
-For daily use:
+- Cursor
+- Windsurf
+- Claude Code
+- Claude Desktop
+- Codex
+- OpenClaw
+
+Manual path still works:
 
 ```bash
 npm install -g unbrowse
-unbrowse setup
+unbrowse health
+```
+
+If you prefer manual host wiring, install the CLI first:
+
+```bash
+npm install -g unbrowse
+unbrowse health
 ```
 
 If your agent host uses skills:
@@ -30,22 +44,26 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
-## Whitepaper
+If you use OpenClaw, use the native plugin path instead:
 
-The official Unbrowse whitepaper is [`Internal APIs Are All You Need`](./docs/whitepaper/README.md).
-
-- Read the overview: [`docs/whitepaper/README.md`](./docs/whitepaper/README.md)
-- Download the canonical PDF: [`docs/whitepaper/unbrowse-whitepaper.pdf`](./docs/whitepaper/unbrowse-whitepaper.pdf)
+```bash
+openclaw plugins install unbrowse-openclaw
+openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
+openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
+openclaw gateway restart
+```
 
 ## Upgrading
 
-Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
+Unbrowse now checks npm for a newer CLI release before each command. If your installed copy is stale, it upgrades the global npm install in place when possible, otherwise it re-runs the command through the latest npm package immediately.
 
-If you installed the CLI globally:
+Disable that behavior with `UNBROWSE_DISABLE_AUTO_UPDATE=1`.
+
+If you want to refresh a global install manually anyway:
 
 ```bash
 npm install -g unbrowse@latest
-unbrowse setup
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
@@ -54,18 +72,26 @@ If your agent host uses skills, rerun its skill install/update command too:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+If you use OpenClaw, rerun the plugin install/update command too:
+
+```bash
+openclaw plugins install unbrowse-openclaw
+```
+
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. If no registration exists yet, the CLI now auto-runs registration before executing the command and caches credentials in `~/.unbrowse/config.json`. Set `UNBROWSE_AGENT_EMAIL` to control the displayed registration identity in headless setups.
+
+Using Unbrowse means accepting the Terms of Service: discovered API structures may be shared in the collective registry, and you must not use Unbrowse to attack, overload, or abuse target sites. Full terms: https://unbrowse.ai/terms
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
-## What setup does
+## Automatic bootstrap
 
-- Checks local prerequisites for the npm/npx flow.
-- Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
-- Registers the Open Code `/unbrowse` command when Open Code is present.
-- Starts the local Unbrowse server unless `--no-start` is passed.
+- Any CLI command auto-registers first if needed.
+- Any CLI command auto-starts the local server unless `--no-auto-start` is passed.
+- Browser/runtime checks happen lazily as capture needs them.
+- `scripts/install-agent-integrations.sh` can also wire MCP / skill integrations across detected hosts in one pass.
 
 ## Common commands
 

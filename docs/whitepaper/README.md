@@ -21,6 +21,11 @@ Implementation-aware companion docs for the Unbrowse whitepaper.
 
 ## Quick Navigation
 
+- [What Is Unbrowse?](./what-is-unbrowse.md)
+- [The Problem](./the-problem.md)
+- [Mental Models](./mental-models.md)
+- [How It Works](./how-it-works.md)
+- [Key Concepts](./key-concepts.md)
 - [System Today](./system-today.md)
 - [Paper vs Product Status](./paper-vs-product.md)
 - [Evaluation and Benchmarks](./evaluation.md)
@@ -43,6 +48,8 @@ Unbrowse today is a local-first web capability layer for agents:
 ## What To Read First
 
 Read [System Today](./system-today.md) if you want the current product.
+
+Read [What Is Unbrowse?](./what-is-unbrowse.md) and [How It Works](./how-it-works.md) if you want the narrative explainer layer that used to live in the old docs set, now rewritten against the current repo and whitepaper.
 
 Read [Paper vs Product Status](./paper-vs-product.md) if you want the strict audit: shipped, partial, or `coming soon`.
 

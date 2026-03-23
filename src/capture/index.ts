@@ -1,10 +1,49 @@
 import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
-import { getRegistrableDomain } from "../domain.js";
+import { getRegistrableDomain, isDomainMatch } from "../domain.js";
 import { log } from "../logger.js";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import { join } from "node:path";
+import type { BrowserAuthSourceMeta } from "../auth/browser-cookies.js";
+import { browserCdpBaseUrl, launchChromiumProfileContext, primeChromiumProfileContext } from "../auth/profile-context.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+// Stealth script — hides headless Chrome indicators from bot detection.
+// Ported from kuri's cdp/js/stealth.js (commit 4dbbd89).
+const STEALTH_SCRIPT = `
+Object.defineProperty(navigator, 'webdriver', { get: () => false, configurable: true });
+Object.defineProperty(navigator, 'plugins', {
+  get: () => {
+    const p = [
+      { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+      { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+      { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
+    ];
+    p.length = 3;
+    return p;
+  },
+  configurable: true,
+});
+Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'], configurable: true });
+if (!window.chrome) window.chrome = {};
+if (!window.chrome.runtime) window.chrome.runtime = { connect: () => {}, sendMessage: () => {}, id: undefined };
+const origQuery = window.navigator.permissions?.query;
+if (origQuery) {
+  window.navigator.permissions.query = (p) =>
+    p.name === 'notifications' ? Promise.resolve({ state: Notification.permission }) : origQuery(p);
+}
+try {
+  const d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow');
+  if (d) Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', { get: function() { return d.get.call(this); } });
+} catch {}
+Object.defineProperty(navigator, 'userAgent', {
+  get: () => '${CHROME_UA}',
+  configurable: true,
+});
+`;
 
 // Tab semaphore: max 3 concurrent capture tabs
 const MAX_CONCURRENT_TABS = 3;
@@ -25,10 +64,86 @@ const CLIENT_HINT_HEADERS: Record<string, string> = {
   "sec-ch-ua-platform": '"macOS"',
 };
 
+type CaptureAuthStrategy = "header-replay" | "cookie-injection";
+
+const AUTH_STRATEGY_CACHE_FILE = join(os.homedir(), ".unbrowse", "auth-strategy-cache.json");
+const authStrategyCache = new Map<string, {
+  preferred?: CaptureAuthStrategy;
+  cookieInjectionUnsafe?: boolean;
+  updatedAt: number;
+}>();
+
+function loadAuthStrategyCache(): void {
+  try {
+    if (!existsSync(AUTH_STRATEGY_CACHE_FILE)) return;
+    const parsed = JSON.parse(readFileSync(AUTH_STRATEGY_CACHE_FILE, "utf8")) as Record<string, {
+      preferred?: CaptureAuthStrategy;
+      cookieInjectionUnsafe?: boolean;
+      updatedAt?: number;
+    }>;
+    for (const [domain, entry] of Object.entries(parsed)) {
+      authStrategyCache.set(domain, {
+        preferred: entry.preferred,
+        cookieInjectionUnsafe: entry.cookieInjectionUnsafe === true,
+        updatedAt: entry.updatedAt ?? Date.now(),
+      });
+    }
+  } catch {
+    // best-effort cache
+  }
+}
+
+function persistAuthStrategyCache(): void {
+  try {
+    mkdirSync(join(os.homedir(), ".unbrowse"), { recursive: true });
+    writeFileSync(AUTH_STRATEGY_CACHE_FILE, JSON.stringify(Object.fromEntries(authStrategyCache), null, 2), "utf8");
+  } catch {
+    // best-effort cache
+  }
+}
+
+loadAuthStrategyCache();
+
+function captureAbortError(): Error & { code: "aborted" } {
+  return Object.assign(new Error("capture_aborted"), { code: "aborted" as const, name: "AbortError" });
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw captureAbortError();
+}
+
+async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(captureAbortError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 async function resetTab(tabId: string): Promise<void> {
   try {
     await kuri.navigate(tabId, "about:blank");
   } catch { /* best-effort */ }
+}
+
+async function cleanupTab(tabId: string, closeTab = false): Promise<void> {
+  if (closeTab) {
+    try {
+      await kuri.closeTab(tabId);
+      return;
+    } catch {
+      // fall back to a soft reset when close fails
+    }
+  }
+  await resetTab(tabId);
 }
 
 type CaptureNavigationPage = {
@@ -137,13 +252,44 @@ export function isBlockedAppShell(html?: string): boolean {
     /switch to a supported browser/i.test(html) ||
     /Something went wrong, but don.?t fret/i.test(html) ||
     /class=["']errorContainer["']/i.test(html) ||
-    /#placeholder,\s*#react-root\s*\{\s*display:\s*none/i.test(html)
+    /#placeholder,\s*#react-root\s*\{\s*display:\s*none/i.test(html) ||
+    /Attention Required!\s*\|\s*Cloudflare/i.test(html) ||
+    /cf-error-details|cf\.errors\.css/i.test(html)
   );
+}
+
+export function blockedAppShellErrorCode(
+  html: string | undefined,
+  hasAuth: boolean,
+): "auth_required" | "blocked_app_shell" {
+  if (html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html)) {
+    return "auth_required";
+  }
+  return hasAuth ? "blocked_app_shell" : "auth_required";
+}
+
+export function shouldShortCircuitEmbeddedPayloadCapture(url: string, intent: string | undefined, html?: string): boolean {
+  if (!html) return false;
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  if (
+    /linkedin\.com/i.test(url) &&
+    /\/feed(?:\/|$)/i.test(url) &&
+    /\b(feed|timeline|stream|post|posts|update|updates|home)\b/.test(lowerIntent) &&
+    /voyagerFeedDashMainFeed/.test(html)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function shouldRetryEphemeralProfileError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
+}
+
+function shouldRestartKuriForError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /CDP command failed|target closed|session closed|No target with given id/i.test(message);
 }
 
 /**
@@ -186,6 +332,11 @@ function deriveIntentHints(captureUrl?: string, intent?: string): string[] {
     derivedHints.add("about");
   }
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lowerIntent)) {
+    derivedHints.add("mainfeed");
+    derivedHints.add("feeddash");
+    derivedHints.add("feedupdate");
+    derivedHints.add("voyagerfeed");
+    derivedHints.add("feed");
     derivedHints.add("tweet");
     derivedHints.add("timeline");
     derivedHints.add("status");
@@ -225,8 +376,10 @@ async function maybeProbeIntentApis(
   captureUrl: string | undefined,
   intent: string | undefined,
   responseBodies: Map<string, string> | undefined,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!captureUrl || !responseBodies) return;
+  throwIfAborted(signal);
   const lowerIntent = intent?.toLowerCase() ?? "";
   let hostname = "";
   try {
@@ -243,6 +396,7 @@ async function maybeProbeIntentApis(
     ];
     try {
       for (const probe of probes) {
+        throwIfAborted(signal);
         if (hasCapturedHint(responseBodies.keys(), "/guild")) break;
         log("spa", `probing ${probe.label}: GET https://discord.com${probe.path}`);
         await kuri.evaluate(tabId, `(async function() {
@@ -251,7 +405,7 @@ async function maybeProbeIntentApis(
             await response.text();
           } catch(e) { /* best-effort probe */ }
         })()`);
-        await new Promise((r) => setTimeout(r, 1200));
+        await sleep(1200, signal);
       }
     } catch {
       // non-fatal
@@ -259,14 +413,18 @@ async function maybeProbeIntentApis(
   }
 }
 
-const CAPTURE_RESPONSE_NOISE = /user_flow|datasavermode|ces\/p2|intercom|badge_count|settings\.json|paymentfailure|saved_searches|launcher_settings|conversations|\/ping\b|verifiedorg|xchatdmsettings|scheduledpromotions|storytopic|sidebaruserrecommendations|subscriptions|live_pipeline|fleetline|authorizetoken|logintwittertoken/i;
+const CAPTURE_RESPONSE_NOISE = /user_flow|datasavermode|ces\/p2|intercom|badge_count|settings\.json|paymentfailure|saved_searches|launcher_settings|conversations|\/ping\b|verifiedorg|xchatdmsettings|scheduledpromotions|storytopic|sidebaruserrecommendations|subscriptions|realtimefrontendtimestamp|allowlist\/voyager-web-feed|voyagermessaginggraphql|live_pipeline|fleetline|authorizetoken|logintwittertoken/i;
+
+function isUsefulCapturedResponseUrl(url: string): boolean {
+  return !CAPTURE_RESPONSE_NOISE.test(url);
+}
 
 export function hasUsefulCapturedResponses(
   responseUrls: Iterable<string>,
   captureUrl?: string,
   intent?: string,
 ): boolean {
-  const usefulUrls = [...responseUrls].filter((url) => !CAPTURE_RESPONSE_NOISE.test(url));
+  const usefulUrls = [...responseUrls].filter(isUsefulCapturedResponseUrl);
   if (usefulUrls.length === 0) return false;
   const hints = deriveIntentHints(captureUrl, intent);
   if (hints.length === 0) return usefulUrls.length > 0;
@@ -410,14 +568,15 @@ async function collectInterceptedRequests(tabId: string): Promise<Array<{
  * Poll document.readyState until "complete" or timeout.
  * Replaces page.waitForLoadState("networkidle").
  */
-async function waitForReadyState(tabId: string, timeoutMs = 8000): Promise<void> {
+async function waitForReadyState(tabId: string, timeoutMs = 8000, signal?: AbortSignal): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    throwIfAborted(signal);
     try {
       const state = await kuri.evaluate(tabId, "document.readyState");
       if (state === "complete") return;
     } catch { /* tab may not be ready */ }
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500, signal);
   }
 }
 
@@ -434,9 +593,20 @@ async function waitForContentReady(
   captureUrl?: string,
   intent?: string,
   responseBodies?: Map<string, string>,
+  signal?: AbortSignal,
 ): Promise<void> {
   // Phase 1: Initial settle — let the page start rendering
-  await new Promise((r) => setTimeout(r, 2000));
+  await sleep(1000, signal);
+
+  // Early exit: if interceptor already captured API responses, page is loaded enough
+  if (responseBodies && responseBodies.size > 0) {
+    if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent)) {
+      log("capture", `early exit: ${responseBodies.size} useful API responses already captured during navigation`);
+      await sleep(500, signal);
+      return;
+    }
+    log("capture", `ignoring ${responseBodies.size} early captured responses as noise; continuing wait`);
+  }
 
   // Phase 2: Cloudflare challenge detection and wait
   try {
@@ -453,25 +623,40 @@ async function waitForContentReady(
   }
 
   // Phase 3: Wait for document ready state (replaces networkidle)
-  await waitForReadyState(tabId, 8000);
+  await waitForReadyState(tabId, 5000, signal);
+
+  // Early exit: check again after readyState — SPAs often fire API calls during hydration
+  if (responseBodies) {
+    const intercepted = await collectInterceptedRequests(tabId);
+    for (const entry of intercepted) {
+      if (entry.response_body && !entry.is_js) {
+        responseBodies.set(entry.url, entry.response_body);
+      }
+    }
+    if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent)) {
+      log("capture", `early exit after readyState: ${responseBodies.size} useful API responses captured`);
+      return;
+    }
+  }
 
   // Phase 4: Intent-aware API wait — poll intercepted requests for matching API URLs
   if (captureUrl && responseBodies) {
     const derivedHints = new Set(deriveIntentHints(captureUrl, intent));
     const wantedHints = [...derivedHints].filter((hint) =>
-      ![...responseBodies.keys()].some((u) => u.toLowerCase().includes(hint))
+      ![...responseBodies.keys()].some((u) => isUsefulCapturedResponseUrl(u) && u.toLowerCase().includes(hint))
     );
     if (wantedHints.length > 0) {
       log("capture", `intent-aware wait: looking for API matching one of [${wantedHints.join(", ")}] (from ${captureUrl})`);
       const intentStart = Date.now();
-      const INTENT_MAX_WAIT = 15000;
-      const INTENT_POLL_INTERVAL = 1500;
+      const INTENT_MAX_WAIT = 8000;
+      const INTENT_POLL_INTERVAL = 1000;
       while (Date.now() - intentStart < INTENT_MAX_WAIT) {
-        await new Promise((r) => setTimeout(r, INTENT_POLL_INTERVAL));
+        await sleep(INTENT_POLL_INTERVAL, signal);
         // Check newly intercepted requests
         const intercepted = await collectInterceptedRequests(tabId);
         for (const entry of intercepted) {
           const respUrl = entry.url.toLowerCase();
+          if (!isUsefulCapturedResponseUrl(respUrl)) continue;
           const matchedHint = wantedHints.find((hint) => respUrl.includes(hint));
           if (matchedHint) {
             log("capture", `intent-aware wait: matched ${matchedHint} via ${entry.url.substring(0, 120)}`);
@@ -479,7 +664,7 @@ async function waitForContentReady(
             if (entry.response_body && !entry.is_js) {
               responseBodies.set(entry.url, entry.response_body);
             }
-            await new Promise((r) => setTimeout(r, 500));
+            await sleep(500, signal);
             return;
           }
         }
@@ -502,17 +687,17 @@ async function waitForContentReady(
     try {
       const before = responseBodies.size;
       await kuri.evaluate(tabId, "window.scrollTo(0, Math.max(window.innerHeight, Math.min(document.body.scrollHeight, window.innerHeight * 2)))");
-      await new Promise((r) => setTimeout(r, 1200));
+      await sleep(1200, signal);
       await kuri.evaluate(tabId, "window.scrollTo(0, 0)");
       if (responseBodies.size === before) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await sleep(1500, signal);
       }
     } catch {
       // non-fatal
     }
   }
 
-  await maybeProbeIntentApis(tabId, captureUrl, intent, responseBodies);
+  await maybeProbeIntentApis(tabId, captureUrl, intent, responseBodies, signal);
 }
 
 /**
@@ -529,12 +714,18 @@ async function injectCookies(
     httpOnly?: boolean;
     sameSite?: string;
     expires?: number;
-  }>
+  }>,
+  originUrl?: string,
 ): Promise<void> {
-  const sanitized = cookies.map((c) => ({
+  const applicable = filterCookiesForOriginHost(cookies, originUrl);
+
+  const sanitized = applicable.map((c) => ({
     name: c.name,
     value: c.value,
-    domain: c.domain.startsWith(".") ? c.domain : `.${c.domain}`,
+    domain: c.domain.replace(/^\./, ""),
+    ...(originUrl ? {
+      url: `${new URL(originUrl).protocol}//${c.domain.replace(/^\./, "")}${c.path ?? "/"}`,
+    } : {}),
     path: c.path ?? "/",
     ...(c.secure != null ? { secure: c.secure } : {}),
     ...(c.httpOnly != null ? { httpOnly: c.httpOnly } : {}),
@@ -558,6 +749,140 @@ async function injectCookies(
     }
     log("capture", `per-cookie fallback: ${injected}/${sanitized.length} injected`);
   }
+}
+
+function hasHeader(headers: Record<string, string> | undefined, name: string): boolean {
+  if (!headers) return false;
+  const lower = name.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === lower);
+}
+
+function normalizeCookieValue(value: string): string {
+  return value.startsWith("\"") && value.endsWith("\"") ? value.slice(1, -1) : value;
+}
+
+export function shouldUseHeaderAuthShim(
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  originUrl?: string,
+): boolean {
+  const originHost = (() => {
+    if (!originUrl) return null;
+    try { return new URL(originUrl).hostname; } catch { return null; }
+  })();
+  if (!originHost) return false;
+  const applicable = filterCookiesForOriginHost(cookies, originUrl);
+  return applicable.length > 0;
+}
+
+export function buildHeaderAuthForOrigin(
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  originUrl?: string,
+  existingHeaders?: Record<string, string>,
+): Record<string, string> {
+  if (!shouldUseHeaderAuthShim(cookies, originUrl)) return {};
+  const applicable = filterCookiesForOriginHost(cookies, originUrl);
+  if (applicable.length === 0) return {};
+
+  const headers: Record<string, string> = {};
+  if (!hasHeader(existingHeaders, "cookie")) {
+    headers.cookie = applicable
+      .map((cookie) => `${cookie.name}=${normalizeCookieValue(cookie.value)}`)
+      .join("; ");
+  }
+  if (
+    !hasHeader(existingHeaders, "x-csrf-token") &&
+    !hasHeader(existingHeaders, "x-xsrf-token") &&
+    !hasHeader(existingHeaders, "csrf-token")
+  ) {
+    const csrfCookie = applicable.find((cookie) => /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf|JSESSIONID)$/i.test(cookie.name));
+    if (csrfCookie) {
+      const headerName = csrfCookie.name === "JSESSIONID" ? "csrf-token" : "x-csrf-token";
+      headers[headerName] = normalizeCookieValue(csrfCookie.value);
+    }
+  }
+  return headers;
+}
+
+function authStrategyDomain(url: string): string {
+  try {
+    return getRegistrableDomain(new URL(url).hostname);
+  } catch {
+    return "";
+  }
+}
+
+function chooseCaptureAuthStrategy(
+  url: string,
+  cookies?: Array<{ name: string; value: string; domain: string }>,
+  authHeaders?: Record<string, string>,
+  explicit?: CaptureAuthStrategy,
+): CaptureAuthStrategy {
+  if (explicit) return explicit;
+  const hasAuth = (cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0;
+  if (!hasAuth) return "cookie-injection";
+  return "header-replay";
+}
+
+function rememberCaptureAuthStrategy(url: string, strategy: CaptureAuthStrategy): void {
+  const domain = authStrategyDomain(url);
+  if (!domain) return;
+  const previous = authStrategyCache.get(domain);
+  authStrategyCache.set(domain, {
+    preferred: strategy,
+    cookieInjectionUnsafe: previous?.cookieInjectionUnsafe === true && strategy !== "cookie-injection" ? true : previous?.cookieInjectionUnsafe,
+    updatedAt: Date.now(),
+  });
+  persistAuthStrategyCache();
+}
+
+function markCookieInjectionUnsafe(url: string): void {
+  const domain = authStrategyDomain(url);
+  if (!domain) return;
+  const previous = authStrategyCache.get(domain);
+  authStrategyCache.set(domain, {
+    preferred: "header-replay",
+    cookieInjectionUnsafe: true,
+    updatedAt: Date.now(),
+  });
+  if (previous?.cookieInjectionUnsafe !== true) {
+    log("capture", `marked cookie injection unsafe for ${domain}; preferring header replay`);
+  }
+  persistAuthStrategyCache();
+}
+
+function isCookieInjectionUnsafe(url: string): boolean {
+  return authStrategyCache.get(authStrategyDomain(url))?.cookieInjectionUnsafe === true;
+}
+
+export function filterCookiesForOriginHost<T extends { domain: string }>(
+  cookies: T[],
+  originUrl?: string,
+): T[] {
+  const originHost = (() => {
+    if (!originUrl) return null;
+    try { return new URL(originUrl).hostname; } catch { return null; }
+  })();
+  if (!originHost) return cookies;
+  const hostFiltered = cookies.filter((cookie) => isDomainMatch(cookie.domain, originHost));
+  const registrable = getRegistrableDomain(originHost);
+  if (registrable === "x.com" && hostFiltered.length > 8) {
+    const preferred = new Set([
+      "auth_token",
+      "ct0",
+      "twid",
+      "kdt",
+      "auth_multi",
+      "lang",
+      "dnt",
+      "guest_id",
+      "guest_id_ads",
+      "guest_id_marketing",
+      "personalization_id",
+    ]);
+    const trimmed = hostFiltered.filter((cookie) => preferred.has((cookie as { name?: string }).name ?? ""));
+    if (trimmed.length > 0) return trimmed;
+  }
+  return hostFiltered;
 }
 
 /**
@@ -590,45 +915,132 @@ export async function captureSession(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   intent?: string,
-  options?: { forceEphemeral?: boolean },
+  options?: {
+    forceEphemeral?: boolean;
+    signal?: AbortSignal;
+    restartedKuri?: boolean;
+    authStrategy?: CaptureAuthStrategy;
+    triedCookieInjection?: boolean;
+    authSource?: BrowserAuthSourceMeta | null;
+    usedProfileContext?: boolean;
+    preferExistingTab?: boolean;
+    forceProfileContext?: boolean;
+  },
 ): Promise<CaptureResult> {
+  const signal = options?.signal;
+  throwIfAborted(signal);
+  if (
+    options?.forceProfileContext &&
+    !options?.usedProfileContext &&
+    options?.authSource?.family === "chromium"
+  ) {
+    try {
+      log("capture", `forcing attached ${options.authSource.browserName} profile context for ${url}`);
+      const profileCtx = await launchChromiumProfileContext(options.authSource);
+      let preferExistingTab = false;
+      if ((cookies?.length ?? 0) > 0) {
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies ?? [], { keepTargetOpen: true });
+        preferExistingTab = !!primed.targetId;
+      }
+      await kuri.stop();
+      kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+      let nestedResult: CaptureResult | null = null;
+      try {
+        nestedResult = await captureSession(url, undefined, undefined, intent, {
+          ...options,
+          forceEphemeral: true,
+          usedProfileContext: true,
+          preferExistingTab,
+          authStrategy: "header-replay",
+        });
+        return nestedResult;
+      } finally {
+        try {
+          await kuri.stop();
+        } catch (stopErr) {
+          log("capture", `profile-context cleanup failed for ${url}: ${stopErr instanceof Error ? stopErr.message : String(stopErr)}`);
+          if (!nestedResult) throw stopErr;
+        }
+      }
+    } catch (attachErr) {
+      log("capture", `forced profile context failed for ${url}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+    }
+  }
   await acquireTabSlot();
 
   // Ensure Kuri is running and tabs are discovered
+  throwIfAborted(signal);
   await kuri.start();
+  throwIfAborted(signal);
   await kuri.discoverTabs(); // Sync Chrome tabs into Kuri's registry
 
-  // Get a tab for this capture
-  let tabId: string;
-  try {
-    tabId = await kuri.getDefaultTab();
-  } catch {
-    // If no tabs available, try creating one
-    tabId = await kuri.newTab("about:blank");
-    if (!tabId) {
+  // Prefer a fresh tab so capture is isolated from stale/disconnected tabs
+  // already present in the attached Chrome instance.
+  let tabId: string | undefined;
+  let createdFreshTab = false;
+  if (options?.preferExistingTab) {
+    const existingTabs = (await kuri.discoverTabs()).filter((tab) => !/^chrome-extension:|^devtools:/.test(tab.url));
+    if (existingTabs[0]?.id) {
+      tabId = existingTabs[0].id;
+    } else {
+      try {
+        tabId = await kuri.newTab("about:blank");
+        await kuri.discoverTabs();
+        if (!tabId) {
+          tabId = await kuri.getDefaultTab();
+        }
+        createdFreshTab = !!tabId;
+      } catch {
+        tabId = await kuri.getDefaultTab();
+      }
+    }
+  } else {
+    try {
+      tabId = await kuri.newTab("about:blank");
+      await kuri.discoverTabs();
+      if (!tabId) {
+        tabId = await kuri.getDefaultTab();
+      }
+      createdFreshTab = !!tabId;
+    } catch {
       tabId = await kuri.getDefaultTab();
     }
   }
+  if (!tabId) {
+    throw new Error("Failed to acquire browser tab");
+  }
   activeTabRegistry.add(tabId);
+  let captureTimedOut = false;
+  const abortListener = () => {
+    captureTimedOut = true;
+    void resetTab(tabId);
+  };
+  signal?.addEventListener("abort", abortListener, { once: true });
 
   const domain = new URL(url).hostname;
-  let captureTimedOut = false;
+  const authStrategy = chooseCaptureAuthStrategy(url, cookies, authHeaders, options?.authStrategy);
+  const useHeaderReplay = authStrategy === "header-replay";
   let retryFreshTab = false;
+  let restartKuri = false;
+  let restartWithAuthStrategy: CaptureAuthStrategy | null = null;
   let captureError: unknown;
+  let lastHtml: string | undefined;
   const timeoutHandle = setTimeout(async () => {
     captureTimedOut = true;
     await resetTab(tabId);
   }, CAPTURE_TIMEOUT_MS);
 
   try {
+    throwIfAborted(signal);
     // Set headers: client hints + auth headers
-    const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
+    const headerAuthShim = useHeaderReplay ? buildHeaderAuthForOrigin(cookies ?? [], url, authHeaders) : {};
+    const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}), ...headerAuthShim };
     await kuri.setHeaders(tabId, allHeaders);
 
-    // Inject cookies
-    if (cookies && cookies.length > 0) {
-      await injectCookies(tabId, cookies);
-    }
+    // Inject stealth patches — hide headless Chrome indicators from bot detection
+    try {
+      await kuri.evaluate(tabId, STEALTH_SCRIPT);
+    } catch { /* best-effort */ }
 
     // Start HAR recording
     await kuri.harStart(tabId);
@@ -638,23 +1050,91 @@ export async function captureSession(
     try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
 
     // Inject fetch/XHR interceptor BEFORE navigation to capture all response bodies
-    // Navigate to origin first so the interceptor runs in the correct context
+    // Navigate to origin first so cookies are applied in the correct domain context
+    // before the full page load — required for sites like LinkedIn that check auth on first load.
     try {
       const origin = new URL(url).origin;
+      log("capture", `navigating to origin: ${origin}`);
+      throwIfAborted(signal);
       await kuri.navigate(tabId, origin);
-      await new Promise((r) => setTimeout(r, 500));
-    } catch { /* best-effort */ }
 
-    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      // Inject cookies AFTER origin navigation — CDP setCookie requires an active
+      // page in the cookie's domain context (fails on about:blank).
+      if (cookies && cookies.length > 0) {
+        if (useHeaderReplay && shouldUseHeaderAuthShim(cookies, origin)) {
+          log("capture", `using header auth shim for ${origin} — skipping cookie injection`);
+        } else {
+          log("capture", `injecting ${cookies.length} cookies after origin nav`);
+          throwIfAborted(signal);
+          try {
+            await injectCookies(tabId, cookies, origin);
+          } catch (injectErr) {
+            markCookieInjectionUnsafe(url);
+            restartKuri = true;
+            restartWithAuthStrategy = "header-replay";
+            throw Object.assign(new Error(injectErr instanceof Error ? injectErr.message : String(injectErr)), {
+              code: "cookie_injection_failed",
+            });
+          }
+        }
+      } else {
+        log("capture", `no cookies to inject (cookies=${cookies?.length ?? 0})`);
+      }
+
+      throwIfAborted(signal);
+      await kuri.evaluate(tabId, STEALTH_SCRIPT);
+      throwIfAborted(signal);
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+    } catch (originErr) {
+      log("capture", `origin pre-nav failed: ${originErr instanceof Error ? originErr.message : originErr}`);
+    }
 
     // Navigate to target URL
+    throwIfAborted(signal);
     await kuri.navigate(tabId, url);
 
-    // Re-inject interceptor after navigation (page context resets on navigate)
+    // Re-inject stealth + interceptor after navigation (page context resets on navigate)
     try {
-      await new Promise((r) => setTimeout(r, 300));
+      await sleep(300, signal);
+      throwIfAborted(signal);
+      await kuri.evaluate(tabId, STEALTH_SCRIPT);
+      throwIfAborted(signal);
       await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
     } catch { /* page may not be ready */ }
+
+    // For pages that embed the task payload directly in the HTML, return before
+    // the longer network/intercept wait. This avoids losing useful captures to
+    // later browser-engine instability on auth-gated SPAs like LinkedIn feed.
+    try {
+      await sleep(1_500, signal);
+      throwIfAborted(signal);
+      const earlyHtml = await kuri.getPageHtml(tabId);
+      if (shouldShortCircuitEmbeddedPayloadCapture(url, intent, earlyHtml)) {
+        let final_url = url;
+        try {
+          const rawUrl = await kuri.getCurrentUrl(tabId);
+          final_url = typeof rawUrl === "string" ? rawUrl : String(rawUrl ?? url);
+          try { new URL(final_url); } catch { final_url = url; }
+        } catch {
+          final_url = url;
+        }
+        lastHtml = earlyHtml;
+        const rawCookies = await extractCookiesFromPage(tabId, url);
+        const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
+        log("capture", `short-circuiting embedded payload capture for ${url}`);
+        return {
+          requests: [],
+          har_lineage_id: nanoid(),
+          domain,
+          cookies: sessionCookies,
+          final_url,
+          html: earlyHtml,
+          js_bundles: new Map(),
+        };
+      }
+    } catch {
+      // fall through to the longer capture path
+    }
 
     // Build response bodies map from intercepted requests
     const responseBodies = new Map<string, string>();
@@ -662,7 +1142,7 @@ export async function captureSession(
     const MAX_JS_BUNDLES = 20;
 
     // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
-    await waitForContentReady(tabId, url, intent, responseBodies);
+    await waitForContentReady(tabId, url, intent, responseBodies, signal);
 
     // Collect all intercepted requests
     const intercepted = await collectInterceptedRequests(tabId);
@@ -707,19 +1187,24 @@ export async function captureSession(
       log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
     }
 
+
     let final_url = url;
     let html: string | undefined;
     try {
-      final_url = await kuri.getCurrentUrl(tabId);
+      const rawUrl = await kuri.getCurrentUrl(tabId);
+      final_url = typeof rawUrl === "string" ? rawUrl : String(rawUrl ?? url);
+      // Validate it's actually a URL, fall back to original if not
+      try { new URL(final_url); } catch { final_url = url; }
       html = await kuri.getPageHtml(tabId);
+      lastHtml = html;
     } catch {}
 
     // Build requests from HAR entries
     const requests: RawRequest[] = harEntries.map((entry) => {
       const reqHeaders: Record<string, string> = {};
-      for (const h of entry.request.headers) reqHeaders[h.name] = h.value;
+      for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
       const respHeaders: Record<string, string> = {};
-      for (const h of entry.response.headers) respHeaders[h.name] = h.value;
+      for (const h of entry.response.headers ?? []) respHeaders[h.name] = h.value;
       return {
         url: entry.request.url,
         method: entry.request.method,
@@ -779,9 +1264,20 @@ export async function captureSession(
       responseBodyCount < 10 &&
       !hasUsefulCapturedResponses(responseBodies.keys(), url, intent)
     ) {
+      // On ephemeral retry, if still blocked by Cloudflare WAF, throw auth_required
+      // so the caller can surface a login prompt instead of retrying forever
+      if (options?.forceEphemeral && html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html)) {
+        throw Object.assign(new Error("cloudflare_waf_block"), {
+          code: "auth_required",
+          login_url: url,
+        });
+      }
       retryFreshTab = true;
       log("capture", `rendered blocked app shell for ${url}; retrying with fresh tab`);
     } else {
+      if ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0) {
+        rememberCaptureAuthStrategy(url, authStrategy);
+      }
       return {
         requests,
         har_lineage_id,
@@ -796,19 +1292,79 @@ export async function captureSession(
     }
   } catch (error) {
     captureError = error;
-    if (shouldRetryEphemeralProfileError(error)) {
+    const err = error as Error & { code?: string };
+    if (err.code === "cookie_injection_failed" && restartWithAuthStrategy && !options?.restartedKuri) {
+      log("capture", `cookie injection failed for ${url}; restarting Kuri and retrying with ${restartWithAuthStrategy}`);
+    } else if (shouldRetryEphemeralProfileError(error)) {
       retryFreshTab = true;
       log("capture", `tab failed for ${url}; retrying with fresh tab (${error instanceof Error ? error.message : String(error)})`);
+    } else if (shouldRestartKuriForError(error) && !options?.restartedKuri) {
+      restartKuri = true;
+      log("capture", `CDP transport failed for ${url}; restarting Kuri and retrying once (${error instanceof Error ? error.message : String(error)})`);
     } else {
       throw error;
     }
   } finally {
     clearTimeout(timeoutHandle);
-    await resetTab(tabId);
+    signal?.removeEventListener("abort", abortListener);
+    await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
   }
+  if (restartKuri && restartWithAuthStrategy && !options?.restartedKuri) {
+    await kuri.stop();
+    return captureSession(url, authHeaders, cookies, intent, {
+      ...options,
+      forceEphemeral: true,
+      restartedKuri: true,
+      authStrategy: restartWithAuthStrategy,
+      triedCookieInjection: true,
+    });
+  }
+  if (restartKuri && !options?.restartedKuri) {
+    await kuri.stop();
+    return captureSession(url, authHeaders, cookies, intent, { ...options, forceEphemeral: true, restartedKuri: true });
+  }
+  if (
+    retryFreshTab &&
+    !options?.usedProfileContext &&
+    options?.authSource?.family === "chromium" &&
+    ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0)
+  ) {
+    try {
+      log("capture", `managed browser auth replay was insufficient for ${url}; retrying with attached ${options.authSource.browserName} profile clone`);
+      const profileCtx = await launchChromiumProfileContext(options.authSource);
+      let preferExistingTab = false;
+      if ((cookies?.length ?? 0) > 0) {
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies ?? [], { keepTargetOpen: true });
+        preferExistingTab = !!primed.targetId;
+      }
+      await kuri.stop();
+      kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+      try {
+        return await captureSession(url, undefined, undefined, intent, {
+          ...options,
+          forceEphemeral: true,
+          usedProfileContext: true,
+          preferExistingTab,
+          authStrategy: "header-replay",
+        });
+      } finally {
+        await kuri.stop();
+      }
+    } catch (attachErr) {
+      log("capture", `profile attach failed for ${url}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+    }
+  }
+  if (retryFreshTab && !options?.forceEphemeral) {
+    return captureSession(url, authHeaders, cookies, intent, { ...options, forceEphemeral: true });
+  }
   if (retryFreshTab) {
-    return captureSession(url, authHeaders, cookies, intent, { forceEphemeral: true });
+    const hasAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
+    const code = blockedAppShellErrorCode(lastHtml, hasAuth);
+    throw Object.assign(new Error(code), {
+      code,
+      login_url: url,
+    });
   }
   if (captureError) throw captureError;
   throw new Error(`captureSession failed without returning a result for ${url}`);
@@ -821,13 +1377,19 @@ export async function executeInBrowser(
   body?: unknown,
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
-): Promise<{ status: number; data: unknown; trace_id: string }> {
+): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
+  startedDateTime: string;
+  request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
+  response: { status: number; headers: Array<{ name: string; value: string }>; content?: { mimeType?: string; text?: string } };
+}> }> {
   await kuri.start();
   await kuri.discoverTabs();
 
   let tabId: string;
+  let createdFreshTab = false;
   try {
     tabId = await kuri.newTab("about:blank");
+    createdFreshTab = !!tabId;
     if (!tabId) tabId = await kuri.getDefaultTab();
   } catch {
     tabId = await kuri.getDefaultTab();
@@ -839,7 +1401,7 @@ export async function executeInBrowser(
     await kuri.setHeaders(tabId, allHeaders);
 
     if (cookies && cookies.length > 0) {
-      await injectCookies(tabId, cookies);
+      await injectCookies(tabId, cookies, new URL(url).origin);
     }
 
     // Navigate to origin so in-page fetch inherits cookies/CORS
@@ -847,10 +1409,41 @@ export async function executeInBrowser(
     await kuri.navigate(tabId, origin);
     await waitForReadyState(tabId, 5000);
 
+    const startedDateTime = new Date().toISOString();
     const result = await kuri.executeInPageFetch(tabId, url, method, requestHeaders, body);
-    return { ...result, trace_id: nanoid() };
+    const responseText = typeof result.data === "string" ? result.data : JSON.stringify(result.data);
+    return {
+      ...result,
+      trace_id: nanoid(),
+      network_events: [{
+        startedDateTime,
+        request: {
+          url,
+          method: method.toUpperCase(),
+          headers: Object.entries({ ...allHeaders, ...requestHeaders }).map(([name, value]) => ({ name, value: String(value) })),
+          ...(body == null ? {} : {
+            postData: {
+              mimeType: requestHeaders["content-type"] ?? requestHeaders["Content-Type"] ?? "application/json",
+              text: typeof body === "string" ? body : JSON.stringify(body),
+            },
+          }),
+        },
+        response: {
+          status: result.status,
+          headers: [],
+          ...(responseText
+            ? {
+                content: {
+                  mimeType: "application/json",
+                  text: responseText,
+                },
+              }
+            : {}),
+        },
+      }],
+    };
   } finally {
-    await resetTab(tabId);
+    await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
   }
 }
@@ -867,25 +1460,60 @@ export async function triggerAndIntercept(
   targetUrlPattern: string,
   cookies: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   authHeaders?: Record<string, string>,
-): Promise<{ status: number; data: unknown; trace_id: string }> {
+  options?: {
+    authSource?: BrowserAuthSourceMeta | null;
+    usedProfileContext?: boolean;
+    preferExistingTab?: boolean;
+  },
+): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
+  startedDateTime: string;
+  request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
+  response: { status: number; headers: Array<{ name: string; value: string }>; content?: { mimeType?: string; text?: string } };
+}> }> {
   await acquireTabSlot();
   await kuri.start();
   await kuri.discoverTabs();
 
-  let tabId: string;
-  try {
-    tabId = await kuri.newTab("about:blank");
-    if (!tabId) tabId = await kuri.getDefaultTab();
-  } catch {
-    tabId = await kuri.getDefaultTab();
+  let tabId: string | undefined;
+  let createdFreshTab = false;
+  if (options?.preferExistingTab) {
+    const existingTabs = (await kuri.discoverTabs()).filter((tab) => !/^chrome-extension:|^devtools:/.test(tab.url));
+    if (existingTabs[0]?.id) {
+      tabId = existingTabs[0].id;
+    } else {
+      try {
+        tabId = await kuri.newTab("about:blank");
+        createdFreshTab = !!tabId;
+        if (!tabId) tabId = await kuri.getDefaultTab();
+      } catch {
+        tabId = await kuri.getDefaultTab();
+      }
+    }
+  } else {
+    try {
+      tabId = await kuri.newTab("about:blank");
+      createdFreshTab = !!tabId;
+      if (!tabId) tabId = await kuri.getDefaultTab();
+    } catch {
+      tabId = await kuri.getDefaultTab();
+    }
   }
+  if (!tabId) throw new Error("Failed to acquire browser tab");
   activeTabRegistry.add(tabId);
 
   try {
+    let harStarted = false;
+    try {
+      await kuri.harStart(tabId);
+      harStarted = true;
+    } catch {
+      // best-effort
+    }
+
     // Set headers
     const headers = { ...CLIENT_HINT_HEADERS, ...authHeaders };
     await kuri.setHeaders(tabId, headers);
-    await injectCookies(tabId, cookies);
+    await injectCookies(tabId, cookies, new URL(triggerUrl).origin);
 
     // Build a URL matcher
     const targetBase = targetUrlPattern.replace(/\{[^}]+\}/g, "").split("?")[0];
@@ -930,19 +1558,98 @@ export async function triggerAndIntercept(
           let data: unknown = entry.response_body;
           try { data = JSON.parse(entry.response_body ?? ""); } catch { /* keep as string */ }
           log("capture", `trigger-and-intercept: got status ${entry.response_status} for ${targetBase}`);
-          return { status: entry.response_status, data, trace_id: nanoid() };
+          return {
+            status: entry.response_status,
+            data,
+            trace_id: nanoid(),
+            network_events: [{
+              startedDateTime: entry.timestamp,
+              request: {
+                url: entry.url,
+                method: entry.method,
+                headers: Object.entries(entry.request_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                ...(entry.request_body == null ? {} : {
+                  postData: {
+                    text: entry.request_body,
+                  },
+                }),
+              },
+              response: {
+                status: entry.response_status,
+                headers: Object.entries(entry.response_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                ...(entry.response_body == null ? {} : {
+                  content: {
+                    mimeType: entry.content_type,
+                    text: entry.response_body,
+                  },
+                }),
+              },
+            }],
+          };
         }
       }
     }
 
     log("capture", `trigger-and-intercept: timeout waiting for ${targetBase}`);
+    if (harStarted) {
+      try {
+        const { entries } = await kuri.harStop(tabId);
+        const matched = entries.find((entry) => {
+          const respUrl = entry.request?.url ?? "";
+          const baseMatch = respUrl.includes(targetBase);
+          const queryIdMatch = !targetQueryId || respUrl.includes(targetQueryId);
+          return baseMatch && queryIdMatch;
+        });
+        if (matched) {
+          let data: unknown = matched.response?.content?.text;
+          try { data = JSON.parse(matched.response?.content?.text ?? ""); } catch { /* keep text */ }
+          log("capture", `trigger-and-intercept: recovered ${targetBase} from HAR`);
+          return {
+            status: matched.response?.status ?? 0,
+            data,
+            trace_id: nanoid(),
+            network_events: [{
+              startedDateTime: matched.startedDateTime,
+              request: matched.request,
+              response: matched.response,
+            }],
+          };
+        }
+      } catch {
+        // keep falling through
+      }
+    }
+    if (
+      !options?.usedProfileContext &&
+      options?.authSource?.family === "chromium" &&
+      (cookies.length > 0 || Object.keys(authHeaders ?? {}).length > 0)
+    ) {
+      try {
+        log("capture", `trigger-and-intercept: managed browser replay was insufficient for ${triggerUrl}; retrying with attached ${options.authSource.browserName} profile clone`);
+        const profileCtx = await launchChromiumProfileContext(options.authSource);
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies, { keepTargetOpen: true });
+        await kuri.stop();
+        kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+        try {
+          return await triggerAndIntercept(triggerUrl, targetUrlPattern, [], undefined, {
+            ...options,
+            usedProfileContext: true,
+            preferExistingTab: !!primed.targetId,
+          });
+        } finally {
+          await kuri.stop();
+        }
+      } catch (attachErr) {
+        log("capture", `trigger-and-intercept profile attach failed for ${triggerUrl}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+      }
+    }
     return {
       status: 0,
       data: { error: "trigger_timeout", message: "Target API call not intercepted within 15s" },
       trace_id: nanoid(),
     };
   } finally {
-    await resetTab(tabId);
+    await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
   }
 }
