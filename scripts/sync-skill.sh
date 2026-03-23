@@ -18,7 +18,16 @@ PACKAGE_SYNC_PATHS=()
 while IFS= read -r path; do
   PACKAGE_SYNC_PATHS+=("$path")
 done < <(cd "$SKILL_PKG" && find . -mindepth 1 -maxdepth 1 | sed 's#^\./##' | sort)
+FILTERED_PACKAGE_SYNC_PATHS=()
+for path in "${PACKAGE_SYNC_PATHS[@]}"; do
+  case "$path" in
+    *.tgz) ;;
+    *) FILTERED_PACKAGE_SYNC_PATHS+=("$path") ;;
+  esac
+done
+PACKAGE_SYNC_PATHS=("${FILTERED_PACKAGE_SYNC_PATHS[@]}")
 STAGE_PATHS=("${PACKAGE_SYNC_PATHS[@]}")
+STAGE_PATHS+=("*.tgz")
 
 # --------------------------------------------------------------------------
 # 1. Install / update Claude Code local skill
@@ -90,11 +99,20 @@ for path in "${PACKAGE_SYNC_PATHS[@]}"; do
   fi
 done
 
+# Remove stale packaged tarballs from the publish repo root. These are local build artifacts,
+# not source, and `rsync --delete` will not remove excluded files for us.
+while IFS= read -r tgz; do
+  [ -n "$tgz" ] || continue
+  echo "Removing stale package artifact from target: $(basename "$tgz")"
+  rm -f "$tgz"
+done < <(find "$TARGET_REPO" -maxdepth 1 -type f -name '*.tgz' | sort)
+
 # Sync all files except .git, resolving symlinks (-L follows symlinks)
 rsync -avL --delete \
   --exclude '.git' \
   --exclude 'node_modules' \
   --exclude '.env' \
+  --exclude '*.tgz' \
   --exclude 'traces' \
   "$SKILL_PKG/" "$TARGET_REPO/"
 
