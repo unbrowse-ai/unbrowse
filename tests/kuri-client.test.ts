@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { spawn, type ChildProcess } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import os from "node:os";
@@ -11,6 +12,7 @@ const originalKuriBin = process.env.KURI_BIN;
 const originalPackageRoot = process.env.UNBROWSE_PACKAGE_ROOT;
 const tmpDirs: string[] = [];
 const servers: Server[] = [];
+const childProcs: ChildProcess[] = [];
 
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -37,8 +39,33 @@ afterEach(async () => {
     const dir = tmpDirs.pop();
     if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
   }
+  while (childProcs.length > 0) {
+    const child = childProcs.pop();
+    if (!child) continue;
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      // ignore
+    }
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 1_000);
+      child.once("exit", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
   await kuri.stop();
 });
+
+async function waitForFileContents(file: string, timeoutMs = 5_000): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(file)) return Bun.file(file).text();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`timed out waiting for ${file}`);
+}
 
 describe("kuri client", () => {
   it("finds the repo root for nested src modules", () => {
@@ -138,5 +165,57 @@ describe("kuri client", () => {
 
     expect(tabId).toBe("tab-123");
     expect(seen).toEqual([`PUT /json/new?${encodeURIComponent("https://example.com/path?q=1")}`]);
+  });
+
+  it("prefers the Chrome child under the running kuri process over stray local CDP ports", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-proc-tree-"));
+    tmpDirs.push(dir);
+    const childScript = path.join(dir, "child.cjs");
+    const parentScript = path.join(dir, "parent.cjs");
+    const portFile = path.join(dir, "child-port.txt");
+
+    writeFileSync(childScript, `
+const { createServer } = require("node:http");
+const { writeFileSync } = require("node:fs");
+const portFile = process.argv[2];
+const server = createServer((req, res) => {
+  if (req.url === "/json/version") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ Browser: "Chrome/131.0.0.0" }));
+    return;
+  }
+  res.writeHead(404);
+  res.end("nope");
+});
+server.listen(0, "127.0.0.1", () => {
+  const addr = server.address();
+  writeFileSync(portFile, String(addr.port));
+});
+process.on("SIGTERM", () => server.close(() => process.exit(0)));
+setInterval(() => {}, 1000);
+`.trim() + "\n");
+
+    writeFileSync(parentScript, `
+const { spawn } = require("node:child_process");
+const childScript = process.argv[2];
+const portFile = process.argv[3];
+const child = spawn("bash", ["-lc", \`exec -a "Google Chrome" node \${JSON.stringify(childScript)} \${JSON.stringify(portFile)}\`], {
+  stdio: "ignore",
+});
+process.on("SIGTERM", () => {
+  try { child.kill("SIGTERM"); } catch {}
+  process.exit(0);
+});
+setInterval(() => {}, 1000);
+`.trim() + "\n");
+
+    const parent = spawn("bash", ["-lc", `exec -a kuri node ${JSON.stringify(parentScript)} ${JSON.stringify(childScript)} ${JSON.stringify(portFile)}`], {
+      stdio: "ignore",
+    });
+    childProcs.push(parent);
+
+    const expectedPort = Number((await waitForFileContents(portFile)).trim());
+    const discoveredPort = await kuri.__test.discoverManagedChromeCdpPortForPid(parent.pid!);
+    expect(discoveredPort).toBe(expectedPort);
   });
 });

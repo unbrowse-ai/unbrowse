@@ -19,6 +19,7 @@ import { nanoid } from "nanoid";
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY ?? "";
@@ -59,13 +60,14 @@ const captureDomainLocks = new Map<string, Promise<void>>();
 // Route cache: intent+domain → skill_id, skips search+getSkill on repeat queries.
 const skillRouteCache = new Map<
   string,
-  { skillId: string; domain: string; endpointId?: string; ts: number }
+  { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number }
 >();
 const ROUTE_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "route-cache.json");
+const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
 
 // Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
 // This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it
-const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; ts: number }>();
+const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
 const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-skill-cache.json");
 
 function persistDomainCache() {
@@ -80,7 +82,7 @@ try {
   if (existsSync(DOMAIN_CACHE_FILE)) {
     const data = JSON.parse(readFileSync(DOMAIN_CACHE_FILE, "utf-8"));
     for (const [k, v] of Object.entries(data)) {
-      const entry = v as { skillId: string; endpointId?: string; ts: number };
+      const entry = v as { skillId: string; endpointId?: string; localSkillPath?: string; ts: number };
       if (Date.now() - entry.ts < 7 * 24 * 60 * 60_000) { // 7 day TTL
         domainSkillCache.set(k, entry);
       }
@@ -110,7 +112,7 @@ try {
   if (existsSync(ROUTE_CACHE_FILE)) {
     const data = JSON.parse(readFileSync(ROUTE_CACHE_FILE, "utf-8"));
     for (const [k, v] of Object.entries(data)) {
-      const entry = v as { skillId: string; domain: string; endpointId?: string; ts: number };
+      const entry = v as { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number };
       // Only load entries less than 24h old
       if (Date.now() - entry.ts < 24 * 60 * 60_000) {
         skillRouteCache.set(k, entry);
@@ -136,9 +138,53 @@ const MARKETPLACE_HYDRATE_LIMIT = Math.max(1, Number(process.env.UNBROWSE_MARKET
 const MARKETPLACE_GET_SKILL_TIMEOUT_MS = Math.max(250, Number(process.env.UNBROWSE_MARKETPLACE_GET_SKILL_TIMEOUT_MS ?? 2500));
 const MARKETPLACE_DOMAIN_SEARCH_K = Math.max(1, Number(process.env.UNBROWSE_MARKETPLACE_DOMAIN_SEARCH_K ?? 5));
 const MARKETPLACE_GLOBAL_SEARCH_K = Math.max(1, Number(process.env.UNBROWSE_MARKETPLACE_GLOBAL_SEARCH_K ?? 10));
+type SkillRouteCacheEntry = {
+  skillId: string;
+  domain: string;
+  endpointId?: string;
+  localSkillPath?: string;
+  ts: number;
+};
+type RouteCacheCandidate = {
+  scopedKey: string;
+  scope: string;
+  entry: SkillRouteCacheEntry;
+  skill: SkillManifest;
+};
 
 function scopedCacheKey(scope: string, key: string): string {
   return `${scope}:${key}`;
+}
+
+function scopedResolveCacheKeys(scope: string, key: string): string[] {
+  return scope === "global"
+    ? [scopedCacheKey("global", key)]
+    : [scopedCacheKey(scope, key), scopedCacheKey("global", key)];
+}
+
+function snapshotPathForCacheKey(cacheKey: string): string {
+  const digest = createHash("sha1").update(cacheKey).digest("hex");
+  return join(SKILL_SNAPSHOT_DIR, `${digest}.json`);
+}
+
+function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
+  try {
+    mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
+    const target = snapshotPathForCacheKey(cacheKey);
+    writeFileSync(target, JSON.stringify(skill), "utf-8");
+    return target;
+  } catch {
+    return undefined;
+  }
+}
+
+function readSkillSnapshot(path?: string): SkillManifest | undefined {
+  if (!path || !existsSync(path)) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, "utf-8")) as SkillManifest;
+  } catch {
+    return undefined;
+  }
 }
 
 function isIpv4Hostname(hostname: string): boolean {
@@ -224,20 +270,43 @@ function promoteLearnedSkill(
   endpointId?: string,
   contextUrl?: string,
 ): void {
+  const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   capturedDomainCache.set(cacheKey, { skill, endpointId, expires: Date.now() + 5 * 60_000 });
   skillRouteCache.set(cacheKey, {
     skillId: skill.skill_id,
     domain: skill.domain,
     endpointId,
+    ...(localSkillPath ? { localSkillPath } : {}),
     ts: Date.now(),
   });
   persistRouteCache();
   // Also cache at domain level for cross-intent reuse
   const domainKey = getDomainReuseKey(contextUrl ?? skill.domain);
   if (domainKey) {
-    domainSkillCache.set(domainKey, { skillId: skill.skill_id, endpointId, ts: Date.now() });
+    domainSkillCache.set(domainKey, {
+      skillId: skill.skill_id,
+      endpointId,
+      ...(localSkillPath ? { localSkillPath } : {}),
+      ts: Date.now(),
+    });
     persistDomainCache();
   }
+}
+
+function cacheResolvedSkill(
+  cacheKey: string,
+  skill: SkillManifest,
+  endpointId?: string,
+): void {
+  const localSkillPath = writeSkillSnapshot(cacheKey, skill);
+  skillRouteCache.set(cacheKey, {
+    skillId: skill.skill_id,
+    domain: skill.domain,
+    endpointId,
+    ...(localSkillPath ? { localSkillPath } : {}),
+    ts: Date.now(),
+  });
+  persistRouteCache();
 }
 
 function promoteResultSnapshot(
@@ -351,6 +420,39 @@ export function isCachedSkillRelevantForIntent(
   return (top?.score ?? Number.NEGATIVE_INFINITY) >= 0;
 }
 
+export function assessLocalExecutionResult(
+  endpoint: SkillManifest["endpoints"][number],
+  result: unknown,
+  intent: string,
+  trace?: ExecutionTrace,
+): { verdict: "pass" | "fail" | "skip"; reason: string } {
+  const semanticAssessment = assessIntentResult(result, intent);
+  if (!/\b(search|find|lookup|browse|discover)\b/i.test(intent)) return semanticAssessment;
+  if (endpoint.response_schema?.type !== "array") return semanticAssessment;
+  if (Array.isArray(result) || result == null || typeof result !== "object") return semanticAssessment;
+
+  const record = result as Record<string, unknown>;
+  const title = String(record.title ?? "").trim().toLowerCase();
+  const link = String(record.link ?? record.url ?? "").trim().toLowerCase();
+  const description = String(record.description ?? "").trim().toLowerCase();
+  const finalUrl = String(
+    (trace?.result as Record<string, unknown> | undefined)?._extraction &&
+      typeof (trace?.result as Record<string, unknown>)._extraction === "object"
+      ? ((trace?.result as Record<string, unknown>)._extraction as Record<string, unknown>).final_url ?? ""
+      : "",
+  )
+    .trim()
+    .toLowerCase();
+  const looksLikeHomeOrAuthPage =
+    /^(about|home|welcome)\b/.test(title) ||
+    /\b(login|log in|sign in|password)\b/.test(`${title} ${description}`) ||
+    /\/(?:about|home|login)\b/.test(`${link} ${finalUrl}`);
+  if (looksLikeHomeOrAuthPage) {
+    return { verdict: "fail", reason: "search_auth_or_homepage_bounce" };
+  }
+  return { verdict: "fail", reason: "search_result_shape_mismatch" };
+}
+
 function isEducationCatalogIntent(intent?: string): boolean {
   return /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i.test(intent ?? "");
 }
@@ -396,6 +498,91 @@ function endpointMatchesFeedTimelineContext(
   } catch {
     return false;
   }
+}
+
+function endpointHasSearchBindings(
+  endpoint: SkillManifest["endpoints"][number],
+): boolean {
+  const haystack = JSON.stringify({
+    query: endpoint.query ?? {},
+    body: endpoint.body ?? {},
+    body_params: endpoint.body_params ?? {},
+    semantic: endpoint.semantic ?? {},
+  }).toLowerCase();
+  return /(basicsearchkey|basic_search_key|query|keyword|search|lookup|find|term)/.test(haystack);
+}
+
+function skillHasBetterStructuredSearchEndpoint(
+  skill: SkillManifest,
+  currentEndpointId: string | undefined,
+  intent: string,
+  contextUrl?: string,
+): boolean {
+  if (!/\b(search|find|lookup|browse|discover)\b/i.test(intent)) return false;
+  return rankEndpoints(skill.endpoints, intent, skill.domain, contextUrl).some((candidate) =>
+    candidate.endpoint.endpoint_id !== currentEndpointId &&
+    endpointHasSearchBindings(candidate.endpoint) &&
+    (!!candidate.endpoint.dom_extraction || !!candidate.endpoint.response_schema) &&
+    candidate.score >= 0
+  );
+}
+
+function scoreRouteCacheCandidate(
+  candidate: RouteCacheCandidate,
+  intent: string,
+  contextUrl?: string,
+): number {
+  const resolvedSkill = withContextReplayEndpoint(candidate.skill, intent, contextUrl);
+  const ranked = dedupeObservedOverBundle(
+    rankEndpoints(resolvedSkill.endpoints, intent, resolvedSkill.domain, contextUrl),
+  );
+  const top = ranked[0];
+  let score = top?.score ?? Number.NEGATIVE_INFINITY;
+  const cachedEndpoint = candidate.entry.endpointId
+    ? resolvedSkill.endpoints.find((endpoint) => endpoint.endpoint_id === candidate.entry.endpointId)
+    : undefined;
+
+  if (!cachedEndpoint && candidate.entry.endpointId) return score - 25;
+  if (!cachedEndpoint) return score;
+
+  const cachedRank = ranked.findIndex(
+    (rankedCandidate) => rankedCandidate.endpoint.endpoint_id === cachedEndpoint.endpoint_id,
+  );
+  if (cachedRank === 0) score += 25;
+  else if (cachedRank > 0) score += Math.max(0, 10 - cachedRank);
+  else score -= 20;
+
+  if (endpointHasSearchBindings(cachedEndpoint)) score += 15;
+  if (cachedEndpoint.dom_extraction || cachedEndpoint.response_schema) score += 8;
+
+  const isCapturedPageArtifact = /captured page artifact/i.test(cachedEndpoint.description ?? "");
+  if (isCapturedPageArtifact) score -= 10;
+  if (
+    isCapturedPageArtifact &&
+    skillHasBetterStructuredSearchEndpoint(
+      resolvedSkill,
+      cachedEndpoint.endpoint_id,
+      intent,
+      contextUrl,
+    )
+  ) {
+    score -= 80;
+  }
+
+  return score;
+}
+
+export function chooseBestRouteCacheCandidate(
+  candidates: RouteCacheCandidate[],
+  intent: string,
+  contextUrl?: string,
+): RouteCacheCandidate | null {
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => {
+    const scoreDelta = scoreRouteCacheCandidate(b, intent, contextUrl) - scoreRouteCacheCandidate(a, intent, contextUrl);
+    if (scoreDelta !== 0) return scoreDelta;
+    return b.entry.ts - a.entry.ts;
+  })[0] ?? null;
 }
 
 function isRootContextUrl(contextUrl?: string): boolean {
@@ -1357,10 +1544,13 @@ export async function resolveAndExecute(
       known_bindings: knownBindingsFromInputs(resolvedParams, context?.url),
       max_operations: 8,
     });
+    const preferredAutoexecIds = new Set(
+      epRanked.slice(0, Math.min(5, epRanked.length)).map((ranked) => ranked.endpoint.endpoint_id),
+    );
     const graphEndpointIds = new Set(
       chunk.available_operation_ids.length > 0
-        ? chunk.available_operation_ids
-        : chunk.operations.map((operation) => operation.operation_id),
+        ? [...chunk.available_operation_ids, ...preferredAutoexecIds]
+        : [...chunk.operations.map((operation) => operation.operation_id), ...preferredAutoexecIds],
     );
     if (graphEndpointIds.size > 0) {
       epRanked = epRanked.filter((ranked) => graphEndpointIds.has(ranked.endpoint.endpoint_id));
@@ -1494,8 +1684,13 @@ export async function resolveAndExecute(
         ? [...ready, ...epRanked.filter((r) => !canAutoExecuteEndpoint(r.endpoint))]
         : epRanked;
     const MAX_TRIES = Math.min(tryList.length, 5);
+    const deterministicStructuredSearchLeader =
+      /\b(search|find|lookup|browse|discover)\b/i.test(intent) &&
+      !!epRanked[0] &&
+      endpointHasSearchBindings(epRanked[0].endpoint) &&
+      (!!epRanked[0].endpoint.dom_extraction || !!epRanked[0].endpoint.response_schema);
     const agentOrder =
-      !agentChoseEndpoint && tryList.length > 1
+      !agentChoseEndpoint && tryList.length > 1 && !deterministicStructuredSearchLeader
         ? await agentSelectEndpoint(intent, skill, tryList.slice(0, MAX_TRIES), context?.url)
         : null;
     const orderedTryList = agentOrder
@@ -1566,7 +1761,12 @@ export async function resolveAndExecute(
         );
         timing.execute_ms = Date.now() - te0;
         if (execOut.trace.success) {
-          const localAssessment = assessIntentResult(execOut.result, intent);
+          const localAssessment = assessLocalExecutionResult(
+            candidate.endpoint,
+            execOut.result,
+            intent,
+            execOut.trace,
+          );
           if (localAssessment.verdict === "fail") {
             (decisionTrace.autoexec_attempts as unknown[]).push({
               endpoint_id: candidate.endpoint.endpoint_id,
@@ -1581,11 +1781,33 @@ export async function resolveAndExecute(
             );
             continue;
           }
+          const isCapturedPageArtifact = /captured page artifact/i.test(
+            candidate.endpoint.description ?? "",
+          );
+          if (candidate.endpoint.dom_extraction && isCapturedPageArtifact && localAssessment.verdict !== "pass") {
+            (decisionTrace.autoexec_attempts as unknown[]).push({
+              endpoint_id: candidate.endpoint.endpoint_id,
+              score: Math.round(candidate.score * 10) / 10,
+              trace_success: true,
+              judge: "fail",
+              status_code: execOut.trace.status_code ?? null,
+              local_reason: `artifact_${localAssessment.reason}`,
+            });
+            console.log(
+              `[auto-exec] #${i + 1} local fail: ${candidate.endpoint.endpoint_id} (artifact_${localAssessment.reason})`,
+            );
+            continue;
+          }
           // For DOM extraction endpoints, trust the local assessment more — the LLM judge
           // often fails on DOM-extracted data because the schema (heading_1, heading_2, etc.)
           // looks unfamiliar. If the extraction succeeded and wasn't locally rejected, pass it.
+          const trustDomExtraction =
+            candidate.endpoint.dom_extraction &&
+            !isCapturedPageArtifact &&
+            localAssessment.verdict !== "fail" &&
+            candidate.score >= 0;
           const judged =
-            localAssessment.verdict === "pass" || candidate.endpoint.dom_extraction
+            localAssessment.verdict === "pass" || trustDomExtraction
               ? "pass"
               : await agentJudgeExecution(intent, candidate.endpoint, execOut.result);
           (decisionTrace.autoexec_attempts as unknown[]).push({
@@ -1602,11 +1824,7 @@ export async function resolveAndExecute(
             );
             continue;
           }
-          skillRouteCache.set(cacheKey, {
-            skillId: skill.skill_id,
-            domain: skill.domain,
-            ts: Date.now(),
-          });
+          cacheResolvedSkill(cacheKey, skill, candidate.endpoint.endpoint_id);
           writeDebugTrace("resolve", {
             ...decisionTrace,
             outcome: "autoexec_success",
@@ -1664,10 +1882,8 @@ export async function resolveAndExecute(
   }
 
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
-  const cacheKey = scopedCacheKey(
-    clientScope,
-    buildResolveCacheKey(requestedDomain, intent, context?.url),
-  );
+  const resolveCacheKey = buildResolveCacheKey(requestedDomain, intent, context?.url);
+  const cacheKey = scopedCacheKey(clientScope, resolveCacheKey);
 
   if (!forceCapture && !agentChoseEndpoint) {
     const cachedResult = routeResultCache.get(cacheKey);
@@ -1689,17 +1905,45 @@ export async function resolveAndExecute(
 
   // Route-cache fast path: exact intent+url match from prior resolve
   if (!forceCapture && !agentChoseEndpoint) {
-    const cached = skillRouteCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
-      const skill = await getSkill(cached.skillId, clientScope);
-      if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
-        timing.cache_hit = true;
-        const deferred = await buildDeferralWithAutoExec(skill, "marketplace");
-        deferred.timing.cache_hit = true;
-        return deferred;
+    const routeCacheCandidates: RouteCacheCandidate[] = [];
+    for (const scopedKey of scopedResolveCacheKeys(clientScope, resolveCacheKey)) {
+      const cached = skillRouteCache.get(scopedKey);
+      if (!cached) continue;
+      if (Date.now() - cached.ts >= ROUTE_CACHE_TTL) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
       }
-      skillRouteCache.delete(cacheKey);
-      persistRouteCache();
+      const skill =
+        readSkillSnapshot(cached.localSkillPath) ??
+        await getSkillWithTimeout(cached.skillId, clientScope);
+      if (!skill || !isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
+      }
+      routeCacheCandidates.push({
+        scopedKey,
+        scope: scopedKey.slice(0, scopedKey.indexOf(":")),
+        entry: cached,
+        skill,
+      });
+    }
+    const bestCached = chooseBestRouteCacheCandidate(routeCacheCandidates, intent, context?.url);
+    if (bestCached) {
+      if (bestCached.scopedKey !== cacheKey) {
+        promoteLearnedSkill(
+          clientScope,
+          resolveCacheKey,
+          bestCached.skill,
+          bestCached.entry.endpointId,
+          context?.url,
+        );
+      }
+      timing.cache_hit = true;
+      const deferred = await buildDeferralWithAutoExec(bestCached.skill, "marketplace");
+      deferred.timing.cache_hit = true;
+      return deferred;
     }
   }
 
@@ -1708,7 +1952,7 @@ export async function resolveAndExecute(
     const domainKey = getDomainReuseKey(context?.url ?? requestedDomain);
     const domainCached = domainKey ? domainSkillCache.get(domainKey) : null;
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
-      const skill = await getSkill(domainCached.skillId, clientScope);
+      const skill = readSkillSnapshot(domainCached.localSkillPath) ?? await getSkill(domainCached.skillId, clientScope);
       if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
         timing.cache_hit = true;
         console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)}`);
@@ -1729,25 +1973,54 @@ export async function resolveAndExecute(
   // --- Agent explicitly chose an endpoint — execute directly via any cache/skill path ---
   if (!forceCapture && agentChoseEndpoint) {
     // Route cache
-    const cached = skillRouteCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
-      const skill = await getSkill(cached.skillId, clientScope);
+    const routeCacheCandidates: RouteCacheCandidate[] = [];
+    for (const scopedKey of scopedResolveCacheKeys(clientScope, resolveCacheKey)) {
+      const cached = skillRouteCache.get(scopedKey);
+      if (!cached) continue;
+      if (Date.now() - cached.ts >= ROUTE_CACHE_TTL) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
+      }
+      const skill =
+        readSkillSnapshot(cached.localSkillPath) ??
+        await getSkillWithTimeout(cached.skillId, clientScope);
+      if (!skill) continue;
+      routeCacheCandidates.push({
+        scopedKey,
+        scope: scopedKey.slice(0, scopedKey.indexOf(":")),
+        entry: cached,
+        skill,
+      });
+    }
+    const cached = chooseBestRouteCacheCandidate(routeCacheCandidates, intent, context?.url);
+    if (cached) {
+      if (cached.scopedKey !== cacheKey) {
+        promoteLearnedSkill(
+          clientScope,
+          resolveCacheKey,
+          cached.skill,
+          cached.entry.endpointId,
+          context?.url,
+        );
+      }
+      const skill = cached.skill;
       if (skill) {
         const te0 = Date.now();
         try {
           const execOut = await executeSkill(
             skill,
-            { ...params, endpoint_id: params.endpoint_id ?? cached.endpointId },
+            { ...params, endpoint_id: params.endpoint_id ?? cached.entry.endpointId },
             projection,
             { ...options, intent, contextUrl: context?.url },
           );
           timing.execute_ms = Date.now() - te0;
           if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
-            timing.cache_hit = true;
+              timing.cache_hit = true;
             promoteResultSnapshot(
               cacheKey,
               skill,
-              params.endpoint_id ?? cached.endpointId,
+              params.endpoint_id ?? cached.entry.endpointId,
               execOut.result,
               execOut.trace,
               execOut.response_schema,
@@ -1758,7 +2031,7 @@ export async function resolveAndExecute(
               trace: execOut.trace,
               source: "marketplace",
               skill,
-              timing: finalize("route-cache", execOut.result, cached.skillId, skill, execOut.trace),
+              timing: finalize("route-cache", execOut.result, cached.entry.skillId, skill, execOut.trace),
               response_schema: execOut.response_schema,
               extraction_hints: execOut.extraction_hints,
             };
@@ -1767,7 +2040,7 @@ export async function resolveAndExecute(
           timing.execute_ms = Date.now() - te0;
         }
       }
-      skillRouteCache.delete(cacheKey);
+      skillRouteCache.delete(cached.scopedKey);
     }
   }
 
@@ -1885,12 +2158,11 @@ export async function resolveAndExecute(
             ),
           );
           timing.execute_ms = Date.now() - te0;
-          skillRouteCache.set(cacheKey, {
-            skillId: winner.candidate.skill.skill_id,
-            domain: winner.candidate.skill.domain,
-            endpointId: winner.trace.endpoint_id,
-            ts: Date.now(),
-          });
+          cacheResolvedSkill(
+            cacheKey,
+            winner.candidate.skill,
+            winner.trace.endpoint_id,
+          );
           promoteResultSnapshot(
             cacheKey,
             winner.candidate.skill,
@@ -2204,12 +2476,21 @@ export async function resolveAndExecute(
   const hasNonDomApiEndpoints = !!learned_skill?.endpoints?.some(
     (ep) => !ep.dom_extraction && ep.method !== "WS",
   );
+  const hasBetterStructuredSearchEndpoint = learned_skill
+    ? skillHasBetterStructuredSearchEndpoint(learned_skill, trace.endpoint_id, intent, context?.url)
+    : false;
   const isDirectDomResult = directDomCaptureResult;
   const directExtractionSource =
     isDirectDomResult && result && typeof result === "object"
       ? ((result as Record<string, unknown>)._extraction as Record<string, unknown> | undefined)?.source
       : undefined;
-  if (isDirectDomResult && (directExtractionSource === "html-embedded" || !hasNonDomApiEndpoints)) {
+  if (
+    isDirectDomResult &&
+    (
+      (directExtractionSource === "html-embedded" && !hasBetterStructuredSearchEndpoint) ||
+      !hasNonDomApiEndpoints
+    )
+  ) {
     if (learned_skill) {
       const direct: OrchestratorResult = {
         result,

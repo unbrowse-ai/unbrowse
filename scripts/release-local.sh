@@ -83,7 +83,7 @@ process.stdout.write(payload[0].filename);
 }
 
 run git submodule sync --recursive
-run git submodule update --init submodules/kuri
+run git submodule update --init --remote submodules/kuri
 run bun install --frozen-lockfile
 run bun scripts/sync-skill-md.ts --check
 

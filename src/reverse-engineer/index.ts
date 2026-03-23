@@ -6,6 +6,8 @@ import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildTemplatedQuery } from "../template-params.js";
+import { extractFromDOM } from "../extraction/index.js";
+import { assessIntentResult } from "../intent-match.js";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -299,6 +301,44 @@ function inferIntentActionKind(intent: string | undefined): IntentActionKind {
   return "read";
 }
 
+function extractStructuredHtmlResult(
+  body: string | undefined,
+  intent: string | undefined,
+): {
+  data: unknown;
+  extraction_method: string;
+  confidence: number;
+  selector?: string;
+} | null {
+  if (!body || !intent || !isHtmlResponseBody(body)) return null;
+  const extracted = extractFromDOM(body, intent);
+  if (!extracted.data || extracted.confidence <= 0.2) return null;
+  const assessment = assessIntentResult(extracted.data, intent);
+  if (assessment.verdict === "fail") return null;
+  return extracted;
+}
+
+function shouldTreatSubmissionAsSafe(
+  req: RawRequest,
+  sampleRequest: Record<string, unknown>,
+  context: ExtractionContext | undefined,
+  _actionKind?: string,
+): boolean {
+  if (req.method === "GET") return true;
+  const lowerIntent = context?.intent?.toLowerCase() ?? "";
+  const explicitReadIntent = /\b(search|find|lookup|get|fetch|list)\b/.test(lowerIntent);
+  const explicitWriteIntent = /\b(create|add|compose|draft|publish|send|post|delete|remove|update|edit)\b/.test(lowerIntent);
+  if (!explicitReadIntent && (explicitWriteIntent || inferIntentActionKind(context?.intent) !== "read")) return false;
+  const signals = [
+    req.url,
+    JSON.stringify(sampleRequest),
+  ].join(" ").toLowerCase();
+  if (/\b(delete|remove|create|publish|checkout|purchase|register|login|logout|comment|reply|message|send|post)\b/.test(signals)) {
+    return false;
+  }
+  return /search|query|keyword|lookup|find|filter|result|detail|fetch|list|read/.test(signals);
+}
+
 function parseCookieHeader(header: string | undefined): Record<string, string> {
   if (!header) return {};
   const out: Record<string, string> = {};
@@ -314,6 +354,7 @@ function parseCookieHeader(header: string | undefined): Record<string, string> {
 
 function normalizeBodyBindingKey(path: string): string {
   const normalized = path
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .replace(/\.(\d+)\./g, "_$1_")
     .replace(/\[(\d+)\]/g, "_$1")
     .replace(/[.[\]]+/g, "_")
@@ -325,7 +366,7 @@ function normalizeBodyBindingKey(path: string): string {
 }
 
 function shouldTemplateBodyValue(path: string, value: unknown, context?: ExtractionContext): boolean {
-  const lowerPath = path.toLowerCase();
+  const lowerPath = normalizeBodyBindingKey(path);
   if (value == null) return false;
   if (typeof value === "boolean") return false;
   if (typeof value === "number") {
@@ -503,6 +544,8 @@ function isSemanticallyAdmissibleResponse(
 
   const bodyIsJson = isJsonResponseBody(req.response_body);
   if (!bodyIsJson && isHtmlResponseBody(req.response_body)) {
+    const extracted = extractStructuredHtmlResult(req.response_body, context?.intent);
+    if (extracted) return { ok: true, reason: "semantic_html_dom_match" };
     try {
       const reqPath = new URL(req.url).pathname;
       const pagePath = context?.pageUrl ? new URL(context.pageUrl).pathname : "";
@@ -677,6 +720,8 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
 
     const isGet = req.method === "GET";
 
+    const domArtifact = extractStructuredHtmlResult(req.response_body, context?.intent);
+
     // Infer response schema from captured body
     let response_schema = undefined;
     if (req.response_body) {
@@ -687,6 +732,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       } catch {
         // not valid JSON — skip schema inference
       }
+    }
+    if (!response_schema && domArtifact) {
+      response_schema = inferSchema([domArtifact.data]);
     }
 
     // BUG-008: mark endpoints with no response body as potentially CF-blocked
@@ -716,7 +764,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const templatedRequestBody = !isGet && parsedRequestBody && typeof parsedRequestBody === "object" && !Array.isArray(parsedRequestBody)
       ? templatizeBodyObject(parsedRequestBody, context, "", bodyParams) as Record<string, unknown>
       : parsedRequestBody;
-    const sampleResponse = req.response_body ? tryParseBody(req.response_body) : undefined;
+    const sampleResponse = domArtifact?.data ?? (req.response_body ? tryParseBody(req.response_body) : undefined);
     const sampleRequest = flattenRequestExample({
       path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
       query: sanitizedQParams,
@@ -739,6 +787,13 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       verification_status: verificationStatus,
       reliability_score: 0.5,
       response_schema,
+      ...(domArtifact ? {
+        dom_extraction: {
+          extraction_method: domArtifact.extraction_method,
+          confidence: domArtifact.confidence,
+          ...(domArtifact.selector ? { selector: domArtifact.selector } : {}),
+        },
+      } : {}),
       // Record which page triggered this API call — used for trigger-and-intercept execution
       trigger_url: context?.pageUrl,
     };
@@ -757,6 +812,22 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       };
     }
     endpoint.description = endpoint.semantic?.description_out ?? endpoint.description;
+    if (shouldTreatSubmissionAsSafe(req, sampleRequest, context, endpoint.semantic?.action_kind)) {
+      const searchLike = /\b(search|find|lookup)\b/.test(context?.intent ?? "");
+      const resourceKind = /\b(case|cases|document|documents|paper|papers|article|articles)\b/.test(context?.intent ?? "")
+        ? "document"
+        : "resource";
+      const responseSummary = summarizeResponseExample(sampleResponse);
+      const fieldText = responseSummary.fields.length > 0 ? ` with ${responseSummary.fields.join(", ")}` : "";
+      endpoint.idempotency = "safe";
+      endpoint.semantic = {
+        ...(endpoint.semantic ?? {}),
+        action_kind: searchLike ? "search" : "detail",
+        resource_kind: resourceKind,
+        description_out: `${searchLike ? "Searches" : "Returns"} ${resourceKind === "document" ? "documents" : "results"}${fieldText}`,
+      };
+      endpoint.description = endpoint.semantic.description_out ?? endpoint.description;
+    }
     const admission = isSemanticallyAdmissibleResponse(req, sampleResponse, sampleRequest, context);
     if (!admission.ok) {
       traceRows.push({
@@ -1110,7 +1181,16 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
   try {
     const params = new URLSearchParams(body);
     const result: Record<string, unknown> = {};
-    params.forEach((v, k) => { result[k] = v; });
+    params.forEach((v, k) => {
+      const existing = result[k];
+      if (existing == null) {
+        result[k] = v;
+      } else if (Array.isArray(existing)) {
+        existing.push(v);
+      } else {
+        result[k] = [existing, v];
+      }
+    });
     if (Object.keys(result).length > 0) return result;
   } catch {}
 

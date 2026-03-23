@@ -14,11 +14,11 @@ fi
 
 echo "[submodules] syncing tracked submodules"
 git submodule sync -- submodules/kuri
-git submodule update --init --recursive submodules/kuri
+git submodule update --init --remote --recursive submodules/kuri
 
 if [ ! -f "$KURI_DIR/build.zig" ]; then
   echo "[submodules] ERROR: missing Kuri checkout at $KURI_DIR"
-  echo "[submodules] Run: git submodule update --init --recursive"
+  echo "[submodules] Run: git submodule update --init --remote --recursive"
   exit 1
 fi
 

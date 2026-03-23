@@ -144,6 +144,14 @@ export function getKuriBinaryCandidates(): string[] {
 
 /** Try common CDP ports to find where Chrome is listening. */
 async function discoverCdpPort(): Promise<void> {
+  const managedPort = await discoverManagedChromeCdpPort();
+  if (managedPort) {
+    kuriCdpPort = managedPort;
+    kuriCdpUrl = `ws://127.0.0.1:${managedPort}`;
+    log("kuri", `found Kuri-managed Chrome CDP on port ${managedPort}`);
+    return;
+  }
+
   const portsToTry = [9222, 9223, 9224, 9225];
   for (const port of portsToTry) {
     try {
@@ -161,6 +169,17 @@ async function discoverCdpPort(): Promise<void> {
     }
   }
   log("kuri", "could not discover CDP port — tab discovery may fail");
+}
+
+async function isChromeCdpPort(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: AbortSignal.timeout(500),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 function parsePortFromCdpUrl(cdpUrl?: string | null): number | null {
@@ -199,6 +218,67 @@ function readProcessCommand(pid: number): string {
 function isLikelyKuriProcess(pid: number): boolean {
   return /(^|[\/\s])kuri(?:\.exe)?(\s|$)|vendor\/kuri|zig-out\/bin\/kuri/i.test(readProcessCommand(pid));
 }
+
+function isLikelyChromeProcess(pid: number): boolean {
+  return /\bGoogle Chrome\b|\bChromium\b|\bchrome\b/i.test(readProcessCommand(pid));
+}
+
+function findChildPids(pid: number): number[] {
+  try {
+    const output = execFileSync("pgrep", ["-P", String(pid)], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return output
+      .split(/\s+/)
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+  } catch {
+    return [];
+  }
+}
+
+function findListeningPortsForPid(pid: number): number[] {
+  try {
+    const output = execFileSync("lsof", ["-nP", "-a", "-p", String(pid), "-iTCP", "-sTCP:LISTEN", "-Fn"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const ports = output
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("n"))
+      .map((line) => {
+        const match = line.match(/:(\d+)(?:->|$)/);
+        return match ? Number(match[1]) : NaN;
+      })
+      .filter((value) => Number.isInteger(value) && value > 0);
+    return [...new Set(ports)];
+  } catch {
+    return [];
+  }
+}
+
+async function discoverManagedChromeCdpPortForPid(kuriPid: number): Promise<number | null> {
+  if (!isLikelyKuriProcess(kuriPid)) return null;
+  for (const childPid of findChildPids(kuriPid)) {
+    if (!isLikelyChromeProcess(childPid)) continue;
+    for (const port of findListeningPortsForPid(childPid)) {
+      if (await isChromeCdpPort(port)) return port;
+    }
+  }
+
+  return null;
+}
+
+async function discoverManagedChromeCdpPort(): Promise<number | null> {
+  const kuriPid = kuriProcess?.pid ?? findListeningPid(kuriPort);
+  if (!kuriPid) return null;
+  return discoverManagedChromeCdpPortForPid(kuriPid);
+}
+
+export const __test = {
+  discoverManagedChromeCdpPortForPid,
+};
 
 async function waitForKuriDown(port: number, timeoutMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
