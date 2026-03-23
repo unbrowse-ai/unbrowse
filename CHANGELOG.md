@@ -17,6 +17,7 @@
 ### Bug Fixes
 
 - prefer the user’s actual default browser during auth auto-extraction, refresh stale vault auth that lacks usable browser source metadata, and restore richer LinkedIn/Dia capture state instead of silently replaying weaker Chrome cookies
+- treat authenticated LinkedIn embedded feed payloads as valid for plain feed intents like `get my linkedin feed`, not only explicit `feed posts` phrasing, and learn those embedded `voyagerFeedDashMainFeed` routes with trigger-intercept execution by default so fresh forced captures stop dropping into irrelevant messaging/realtime endpoints or replaying unauthenticated server fetches
 - fall back to browser capture when pre-capture structured/document replay fetches fail, instead of returning a generic `fetch failed` error for authenticated SPA pages like LinkedIn feed
 - make live-capture indexing passive: first-run browser results now return from the local learned skill path immediately, while marketplace validation/publish happen in the background after a successful execution and explicit skill lookups fall back to the local disk cache if remote indexing has not landed yet
 - add a soft background parity gate for passive indexing: when live capture has a browser-visible baseline and a replay/API result, promotion now prefers local overlap checks plus an agent-side parity verdict instead of exact equality
@@ -69,6 +70,8 @@
 - bring back the broader integration matrix behind a compact “More integrations” selector so the homepage stays readable without hiding Cursor, Windsurf, Claude Desktop, Codex, MCP, Hermes, ElizaOS, and LangChain
 - flatten the homepage install section into one primary tab row plus a single “Other integrations” disclosure, removing the nested tabs-plus-dropdown install UI
 - fix the Hermes install copy: bootstrap the real CLI/runtime first, then install `unbrowse-hermes`, restart Hermes, and verify the `unbrowse` tool is loaded
+- remove the homepage API-key generator block from the post-install footer so the landing page stays focused on install/docs/community
+- hide the homepage “Recently Indexed Skills” section entirely when the registry feed returns nothing, instead of showing a dead loading panel
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
