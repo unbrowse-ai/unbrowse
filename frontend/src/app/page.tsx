@@ -2,12 +2,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
-import { ApiKeyGenerator } from "@/components/api-key-generator";
 import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { ArrowRight, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
+
+const WHITEPAPER_URL = "/whitepaper";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -58,7 +59,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Use the one-shot installer script to detect supported hosts and wire Unbrowse automatically, or install the CLI with npm install -g unbrowse and run unbrowse health or any real command. That global npm install is for the local unbrowse runtime. The host integrations themselves do not need their own global npm install. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. Claude Code and Cursor can add the shared skill with npx skills add unbrowse-ai/unbrowse. OpenClaw also supports a native plugin flow with openclaw plugins install unbrowse-openclaw, and that installs the plugin package for you without a separate global npm install.",
+        text: "For skill-compatible hosts, start with npx skills add unbrowse-ai/unbrowse. If you want the local runtime wired automatically, use the one-shot installer script. If you do not want auto-detect, the manual fallback is npm install -g unbrowse. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths. OpenClaw, Hermes, and ElizaOS use native browser-replacement integrations rather than simple package installs, so their full setup lives in the docs.",
       },
     },
     {
@@ -85,17 +86,16 @@ export default function Home() {
           <p>
             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
+          <p>Skill: npx skills add unbrowse-ai/unbrowse</p>
           <p>One-shot: curl -fsSL https://www.unbrowse.ai/install.sh | bash</p>
-          <p>Manual install: npm install -g unbrowse</p>
-          <p>The global npm install is for the local `unbrowse` runtime. Host integrations do not need their own global install.</p>
-          <p>Manual first run: unbrowse health</p>
-          <p>Auto-update: packaged CLI checks npm before each command; disable with UNBROWSE_DISABLE_AUTO_UPDATE=1</p>
-          <p>Claude Code / Cursor skill: npx skills add unbrowse-ai/unbrowse</p>
-          <p>OpenClaw plugin: openclaw plugins install unbrowse-openclaw</p>
-          <p>OpenClaw plugin install fetches the package for you; no separate npm install -g for the plugin.</p>
+          <p>Manual fallback: npm install -g unbrowse</p>
+          <p>Advanced setup docs: https://www.unbrowse.ai/skill.md</p>
+          <p>Supported: Cursor, Windsurf, Claude Code, Claude Desktop, Codex, OpenClaw, MCP, Hermes, ElizaOS, LangChain</p>
+          <p>Native browser replacement integrations: OpenClaw, Hermes, ElizaOS</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
+          <p>Whitepaper: {WHITEPAPER_URL}</p>
       </section>
 
       {/* ═══ Hero ═══ */}
@@ -131,29 +131,21 @@ export default function Home() {
                            Log in, search, book, and submit through direct API calls instead of driving a flaky browser.
                          </p>
 
-            <div id="install" className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-4xl text-left">
-              <div className="rounded-2xl border border-border bg-surface shadow-sm overflow-hidden">
-                <div className="border-b border-border bg-surface-raised px-5 py-4 sm:px-6 sm:py-5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">Install First</p>
-                      <h2 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-text-primary">
-                        Install Unbrowse and start using it.
-                      </h2>
-                    </div>
-                    <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      One-shot installer first. Manual flow still works if you prefer it.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-4 sm:p-6">
-                  <InstallInstructions />
-                </div>
-                <div className="border-t border-border bg-orange-50 px-5 py-4 sm:px-6 text-sm leading-relaxed text-orange-900">
-                  <span className="font-medium">Already installed?</span>
-                  <code className="ml-2 text-orange-700 font-medium">npm install -g unbrowse@latest</code>
-                  <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
-                </div>
+            <div id="install" className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-6xl text-left">
+              <div className="max-w-3xl">
+                <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">
+                  Install First
+                </p>
+                <h2 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-text-primary">
+                  Install Unbrowse once. Pick the path that matches your host.
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-text-secondary sm:text-base">
+                  Main paths first. Other integrations behind one disclosure. No stacked install navigation.
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <InstallInstructions />
               </div>
             </div>
 
@@ -188,6 +180,17 @@ export default function Home() {
               >
                 Join Discord
               </a>
+              <a
+                href={WHITEPAPER_URL}
+                target="_blank"
+                rel="noopener"
+                className="flex items-center justify-center gap-2 px-6 py-3
+                           bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
+                           hover:border-orange-500/40 hover:bg-orange-50/50
+                           active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Read Whitepaper
+              </a>
             </div>
 
               {/* Supported Agents */}
@@ -197,6 +200,9 @@ export default function Home() {
                   <span className="text-base sm:text-lg font-medium tracking-tight">Claude Code</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">Cursor</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">OpenClaw</span>
+                  <span className="text-base sm:text-lg font-medium tracking-tight">Hermes</span>
+                  <span className="text-base sm:text-lg font-medium tracking-tight">ElizaOS</span>
+                  <span className="text-base sm:text-lg font-medium tracking-tight">MCP</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight flex items-center gap-1.5">Any Skill <Zap className="w-4 h-4" /></span>
                 </div>
               </div>
@@ -377,22 +383,18 @@ export default function Home() {
                 After Install
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-text-primary">
-                Register, verify, and <span className="text-orange-500">start using it.</span>
+                Install once. <span className="text-orange-500">Then use the docs.</span>
               </h2>
                 <p className="text-text-secondary text-lg max-w-xl mx-auto leading-relaxed">
-                  Once the CLI is installed, grab your key, verify the local server, and jump into the docs and community.
+                  Keep the finish clean: docs, registry, GitHub, community. No API-key box on the homepage.
                 </p>
             </div>
 
           <div className="space-y-8">
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 text-sm leading-relaxed text-text-secondary">
-              Verify the install with
-              <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
-              . The packaged CLI checks npm before each command and rolls forward automatically when a newer release exists. Disable with
+              The packaged CLI checks npm before each command and rolls forward automatically when a newer release exists. Disable with
               <code className="mx-2 text-orange-700 font-medium">UNBROWSE_DISABLE_AUTO_UPDATE=1</code>.
             </div>
-
-            <ApiKeyGenerator />
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-text-secondary font-mono pt-8">
               <a href="/skill.md" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> skill.md</a>
@@ -434,7 +436,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Fastest path: run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">curl -fsSL https://www.unbrowse.ai/install.sh | bash</code> to detect supported hosts and wire Unbrowse automatically. Manual flow still works too: <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse</code>, then <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse health</code> or any real command. That global npm install is for the local <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse</code> runtime. The host integrations themselves do not need their own global npm install. The CLI auto-registers and auto-starts on first use. The packaged CLI checks npm for updates before each command and rolls forward automatically when it finds a newer release. Disable that with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">UNBROWSE_DISABLE_AUTO_UPDATE=1</code>. Claude Code and Cursor can add the shared skill with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>. OpenClaw can use the native plugin path with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">openclaw plugins install unbrowse-openclaw</code>, which installs the plugin package for you without a separate global npm install.</p>
+               <p className="text-text-secondary leading-relaxed">Fastest path: run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">curl -fsSL https://www.unbrowse.ai/install.sh | bash</code>. That installs Unbrowse and wires detected hosts automatically. If you do not want auto-detect, the fallback is just <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse</code>. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, OpenClaw, MCP, Hermes, ElizaOS, and LangChain are supported. OpenClaw, Hermes, and ElizaOS use native browser-replacement integrations, so their full setup details live in <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">/skill.md</code> instead of cluttering the homepage.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

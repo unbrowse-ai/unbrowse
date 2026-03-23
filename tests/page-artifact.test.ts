@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildPageArtifactCapture } from "../src/execution/index.js";
+import { buildPageArtifactCapture, shouldIgnoreLearnedBrowserStrategy } from "../src/execution/index.js";
 
 describe("page artifact capture", () => {
   it("creates a replayable page endpoint from structured html", () => {
@@ -33,7 +33,45 @@ describe("page artifact capture", () => {
 
     const artifact = buildPageArtifactCapture("https://www.linkedin.com/feed/", "get linkedin feed posts", html, true);
     expect(artifact.endpoint?.url_template).toContain("voyagerFeedDashMainFeed");
+    expect(artifact.endpoint?.exec_strategy).toBe("trigger-intercept");
     expect(artifact.endpoint?.semantic?.auth_required).toBe(true);
     expect(artifact.result && typeof artifact.result.data === "object").toBe(true);
+  });
+
+  it("extracts linkedin embedded feed payloads for plain feed intents", () => {
+    const html = `
+      <html><body>
+        <code style="display:none" id="bpr-guid-1">
+          {&quot;data&quot;:{&quot;data&quot;:{&quot;feedDashMainFeedByMainFeed&quot;:{&quot;*elements&quot;:[&quot;urn:li:fsd_update:(urn:li:activity:1,MAIN_FEED,DEBUG_REASON,DEFAULT,false)&quot;]}}},&quot;included&quot;:[{&quot;entityUrn&quot;:&quot;urn:li:fsd_update:(urn:li:activity:1,MAIN_FEED,DEBUG_REASON,DEFAULT,false)&quot;,&quot;commentary&quot;:{&quot;text&quot;:{&quot;text&quot;:&quot;hello linkedin&quot;}},&quot;actor&quot;:{&quot;*profileUrn&quot;:&quot;urn:li:fsd_profile:abc&quot;},&quot;permalink&quot;:&quot;/feed/update/urn:li:activity:1/&quot;},{&quot;entityUrn&quot;:&quot;urn:li:fsd_profile:abc&quot;,&quot;firstName&quot;:&quot;Lewis&quot;,&quot;lastName&quot;:&quot;Tham&quot;,&quot;publicIdentifier&quot;:&quot;lew&quot;}]}
+        </code>
+        <code style="display:none" id="datalet-bpr-guid-1">
+          {"request":"/voyager/api/graphql?includeWebMetadata=true&variables=(start:0,count:3,sortOrder:MEMBER_SETTING)&queryId=voyagerFeedDashMainFeed.923020905727c01516495a0ac90bb475","status":200,"body":"bpr-guid-1","method":"GET","headers":{"x-li-uuid":"abc"}}
+        </code>
+      </body></html>
+    `;
+
+    const artifact = buildPageArtifactCapture("https://www.linkedin.com/feed/", "get my linkedin feed", html, true);
+    expect(artifact.endpoint?.url_template).toContain("voyagerFeedDashMainFeed");
+    expect(artifact.endpoint?.exec_strategy).toBe("trigger-intercept");
+    expect(artifact.endpoint?.semantic?.auth_required).toBe(true);
+    expect(artifact.result?._extraction?.method).toBe("linkedin-embedded-feed");
+  });
+
+  it("keeps learned browser strategy for auth-gated page replay endpoints", () => {
+    expect(shouldIgnoreLearnedBrowserStrategy({
+      endpoint_id: "ep",
+      method: "GET",
+      url_template: "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.test",
+      trigger_url: "https://www.linkedin.com/feed/",
+      exec_strategy: "browser",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.95,
+      semantic: {
+        action_kind: "timeline",
+        resource_kind: "post",
+        auth_required: true,
+      },
+    }, "https://www.linkedin.com/voyager/api/graphql?queryId=voyagerFeedDashMainFeed.test")).toBe(false);
   });
 });

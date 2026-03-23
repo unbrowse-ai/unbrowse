@@ -857,6 +857,13 @@ function absoluteLinkedInUrl(value: string | undefined): string | undefined {
   return value.startsWith("http") ? value : `https://www.linkedin.com${value.startsWith("/") ? "" : "/"}${value}`;
 }
 
+function isFeedPostIntent(lower: string): boolean {
+  return (
+    /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(lower) ||
+    /\b(feed|timeline|stream|home|for-you|for_you|latest)\b/.test(lower)
+  );
+}
+
 function normalizeLinkedInFeedPosts(data: unknown): Record<string, unknown>[] {
   if (!isRecord(data)) return [];
 
@@ -1317,7 +1324,7 @@ export function projectIntentData(data: unknown, intent?: string): unknown {
 
   if (!isRecord(unwrapped) && !Array.isArray(unwrapped)) return unwrapped;
 
-  if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) {
+  if (isFeedPostIntent(lower)) {
     const normalizedDevPosts = normalizeDevToPosts(unwrapped);
     if (normalizedDevPosts.length > 0) return normalizedDevPosts;
     const normalizedLobsters = normalizeLobstersPosts(unwrapped);
@@ -1532,7 +1539,7 @@ function classifyRows(rows: unknown[], intent: string): { verdict: "pass" | "fai
     return matching.length >= 1 ? { verdict: "pass", reason: "email_rows" } : { verdict: "fail", reason: "wrong_entity_type" };
   }
 
-  if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower)) {
+  if (isFeedPostIntent(lower)) {
     const matching = objects.filter((row) =>
       hasAnyPath(row, ["id", "url", "uri", "permalink"]) &&
       countMatchingGroups(row, [
@@ -1721,7 +1728,7 @@ export function assessIntentResult(data: unknown, intent?: string): {
       }
       return { verdict: "fail", reason: "message_only", projected };
     }
-    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages|doc|docs|documentation|question|questions|recipe|recipes|course|courses|definition|dictionary|meaning|product|products|item|items|stock|stocks|ticker|tickers|quote|quotes|channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower)) {
+    if (/\b(company|companies|organization|organisations|business|person|people|profile|profiles|member|members|user|users|repo|repository|repositories|project|projects|package|packages|doc|docs|documentation|question|questions|recipe|recipes|course|courses|definition|dictionary|meaning|product|products|item|items|stock|stocks|ticker|tickers|quote|quotes|channel|channels|server|servers|guild|guilds|workspace|workspaces)\b/.test(lower) || isFeedPostIntent(lower)) {
       const classified = classifyRows([projected], intent ?? "");
       return { ...classified, projected };
     }

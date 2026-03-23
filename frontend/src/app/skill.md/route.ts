@@ -3,9 +3,10 @@ import { NextResponse } from "next/server";
 const SKILL_MD = `---
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
-install: "npm install -g unbrowse && unbrowse health"
+install: "npx skills add unbrowse-ai/unbrowse"
 homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
+paper: https://www.unbrowse.ai/whitepaper
 ---
 
 # Unbrowse — Website-to-API Reverse Engineering
@@ -14,7 +15,13 @@ repository: https://github.com/unbrowse-ai/unbrowse
 
 ## Install
 
-Fastest path:
+Skill-first path for skill-compatible hosts:
+
+\`\`\`bash
+npx skills add unbrowse-ai/unbrowse
+\`\`\`
+
+Fastest runtime path:
 
 \`\`\`bash
 curl -fsSL https://www.unbrowse.ai/install.sh | bash
@@ -26,35 +33,31 @@ Manual flow:
 npm install -g unbrowse
 \`\`\`
 
-First run bootstraps automatically:
-
-\`\`\`bash
-unbrowse health
-\`\`\`
-
 The packaged CLI checks npm for a newer release before each command and rolls forward automatically when it finds one. Disable with \`UNBROWSE_DISABLE_AUTO_UPDATE=1\`.
 
-If your agent host uses skills, add the Unbrowse skill too:
+Manual host wiring examples:
 
 \`\`\`bash
-npx skills add unbrowse-ai/unbrowse
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --cursor --no-cli
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --claude-code --no-cli
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --openclaw --no-cli
 \`\`\`
 
-If you use OpenClaw, use the native plugin path instead:
+Restart the agent host after wiring so it reloads the new MCP or plugin config.
 
-\`\`\`bash
-openclaw plugins install unbrowse-openclaw
-openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
-openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
-openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
-openclaw gateway restart
-\`\`\`
+OpenClaw, Hermes, and ElizaOS use native browser-replacement integrations rather than simple package installs. Follow each integration guide fully so the host routes website tasks through Unbrowse instead of its default browser path.
 
 ## Overview
 
 Unbrowse is a local service backed by a shared skill marketplace. When you ask it to do something, it first searches the marketplace for an existing skill discovered by any agent. If none exists, it captures the site, reverse-engineers the API, publishes the skill to the marketplace, and executes it. Future requests from any agent reuse the learned skill instantly.
 
 The \`unbrowse\` CLI auto-starts the local server on \`http://localhost:6969\` (or \`$UNBROWSE_URL\` if configured) and proxies marketplace operations to \`beta-api.unbrowse.ai\`. On first startup it auto-registers as an agent and caches the API key in \`~/.unbrowse/config.json\`.
+
+Whitepaper:
+
+\`\`\`
+https://www.unbrowse.ai/whitepaper
+\`\`\`
 
 ## How Intent Resolution Works
 
@@ -68,32 +71,24 @@ Skills published by live capture become available to all agents on the network.
 
 ## Quick Start
 
-Run a first command and let it auto-bootstrap:
+Install the runtime, then run a real command and let it auto-bootstrap:
 
 \`\`\`bash
 npm install -g unbrowse
-unbrowse health
+unbrowse resolve --intent "get feed posts" --url "https://www.linkedin.com/feed/"
 \`\`\`
 
-If your agent host uses skills (Claude Code, Cursor), add the Unbrowse skill too:
+If you want a host-specific manual fallback after installing the runtime:
 
 \`\`\`bash
-npx skills add unbrowse-ai/unbrowse
-\`\`\`
-
-If you use OpenClaw, use the native plugin path instead:
-
-\`\`\`bash
-openclaw plugins install unbrowse-openclaw
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --cursor --no-cli
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --claude-code --no-cli
+curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --openclaw --no-cli
 \`\`\`
 
 ### Browser Engine Setup
 
-The browser engine is installed automatically on first capture. If you want to verify the runtime explicitly:
-
-\`\`\`bash
-unbrowse health
-\`\`\`
+The browser engine is installed automatically on first capture.
 
 On Linux, you may still need the host Chromium system dependencies for headed browser runs.
 

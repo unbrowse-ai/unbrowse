@@ -1,7 +1,12 @@
 import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
-import { getRegistrableDomain } from "../domain.js";
+import { getRegistrableDomain, isDomainMatch } from "../domain.js";
 import { log } from "../logger.js";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import { join } from "node:path";
+import type { BrowserAuthSourceMeta } from "../auth/browser-cookies.js";
+import { browserCdpBaseUrl, launchChromiumProfileContext, primeChromiumProfileContext } from "../auth/profile-context.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -58,6 +63,46 @@ const CLIENT_HINT_HEADERS: Record<string, string> = {
   "sec-ch-ua-mobile": "?0",
   "sec-ch-ua-platform": '"macOS"',
 };
+
+type CaptureAuthStrategy = "header-replay" | "cookie-injection";
+
+const AUTH_STRATEGY_CACHE_FILE = join(os.homedir(), ".unbrowse", "auth-strategy-cache.json");
+const authStrategyCache = new Map<string, {
+  preferred?: CaptureAuthStrategy;
+  cookieInjectionUnsafe?: boolean;
+  updatedAt: number;
+}>();
+
+function loadAuthStrategyCache(): void {
+  try {
+    if (!existsSync(AUTH_STRATEGY_CACHE_FILE)) return;
+    const parsed = JSON.parse(readFileSync(AUTH_STRATEGY_CACHE_FILE, "utf8")) as Record<string, {
+      preferred?: CaptureAuthStrategy;
+      cookieInjectionUnsafe?: boolean;
+      updatedAt?: number;
+    }>;
+    for (const [domain, entry] of Object.entries(parsed)) {
+      authStrategyCache.set(domain, {
+        preferred: entry.preferred,
+        cookieInjectionUnsafe: entry.cookieInjectionUnsafe === true,
+        updatedAt: entry.updatedAt ?? Date.now(),
+      });
+    }
+  } catch {
+    // best-effort cache
+  }
+}
+
+function persistAuthStrategyCache(): void {
+  try {
+    mkdirSync(join(os.homedir(), ".unbrowse"), { recursive: true });
+    writeFileSync(AUTH_STRATEGY_CACHE_FILE, JSON.stringify(Object.fromEntries(authStrategyCache), null, 2), "utf8");
+  } catch {
+    // best-effort cache
+  }
+}
+
+loadAuthStrategyCache();
 
 function captureAbortError(): Error & { code: "aborted" } {
   return Object.assign(new Error("capture_aborted"), { code: "aborted" as const, name: "AbortError" });
@@ -226,6 +271,11 @@ export function blockedAppShellErrorCode(
 function shouldRetryEphemeralProfileError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
+}
+
+function shouldRestartKuriForError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /CDP command failed|target closed|session closed|No target with given id/i.test(message);
 }
 
 /**
@@ -653,7 +703,9 @@ async function injectCookies(
   }>,
   originUrl?: string,
 ): Promise<void> {
-  const sanitized = cookies.map((c) => ({
+  const applicable = filterCookiesForOriginHost(cookies, originUrl);
+
+  const sanitized = applicable.map((c) => ({
     name: c.name,
     value: c.value,
     domain: c.domain.replace(/^\./, ""),
@@ -683,6 +735,140 @@ async function injectCookies(
     }
     log("capture", `per-cookie fallback: ${injected}/${sanitized.length} injected`);
   }
+}
+
+function hasHeader(headers: Record<string, string> | undefined, name: string): boolean {
+  if (!headers) return false;
+  const lower = name.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === lower);
+}
+
+function normalizeCookieValue(value: string): string {
+  return value.startsWith("\"") && value.endsWith("\"") ? value.slice(1, -1) : value;
+}
+
+export function shouldUseHeaderAuthShim(
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  originUrl?: string,
+): boolean {
+  const originHost = (() => {
+    if (!originUrl) return null;
+    try { return new URL(originUrl).hostname; } catch { return null; }
+  })();
+  if (!originHost) return false;
+  const applicable = filterCookiesForOriginHost(cookies, originUrl);
+  return applicable.length > 0;
+}
+
+export function buildHeaderAuthForOrigin(
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  originUrl?: string,
+  existingHeaders?: Record<string, string>,
+): Record<string, string> {
+  if (!shouldUseHeaderAuthShim(cookies, originUrl)) return {};
+  const applicable = filterCookiesForOriginHost(cookies, originUrl);
+  if (applicable.length === 0) return {};
+
+  const headers: Record<string, string> = {};
+  if (!hasHeader(existingHeaders, "cookie")) {
+    headers.cookie = applicable
+      .map((cookie) => `${cookie.name}=${normalizeCookieValue(cookie.value)}`)
+      .join("; ");
+  }
+  if (
+    !hasHeader(existingHeaders, "x-csrf-token") &&
+    !hasHeader(existingHeaders, "x-xsrf-token") &&
+    !hasHeader(existingHeaders, "csrf-token")
+  ) {
+    const csrfCookie = applicable.find((cookie) => /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf|JSESSIONID)$/i.test(cookie.name));
+    if (csrfCookie) {
+      const headerName = csrfCookie.name === "JSESSIONID" ? "csrf-token" : "x-csrf-token";
+      headers[headerName] = normalizeCookieValue(csrfCookie.value);
+    }
+  }
+  return headers;
+}
+
+function authStrategyDomain(url: string): string {
+  try {
+    return getRegistrableDomain(new URL(url).hostname);
+  } catch {
+    return "";
+  }
+}
+
+function chooseCaptureAuthStrategy(
+  url: string,
+  cookies?: Array<{ name: string; value: string; domain: string }>,
+  authHeaders?: Record<string, string>,
+  explicit?: CaptureAuthStrategy,
+): CaptureAuthStrategy {
+  if (explicit) return explicit;
+  const hasAuth = (cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0;
+  if (!hasAuth) return "cookie-injection";
+  return "header-replay";
+}
+
+function rememberCaptureAuthStrategy(url: string, strategy: CaptureAuthStrategy): void {
+  const domain = authStrategyDomain(url);
+  if (!domain) return;
+  const previous = authStrategyCache.get(domain);
+  authStrategyCache.set(domain, {
+    preferred: strategy,
+    cookieInjectionUnsafe: previous?.cookieInjectionUnsafe === true && strategy !== "cookie-injection" ? true : previous?.cookieInjectionUnsafe,
+    updatedAt: Date.now(),
+  });
+  persistAuthStrategyCache();
+}
+
+function markCookieInjectionUnsafe(url: string): void {
+  const domain = authStrategyDomain(url);
+  if (!domain) return;
+  const previous = authStrategyCache.get(domain);
+  authStrategyCache.set(domain, {
+    preferred: "header-replay",
+    cookieInjectionUnsafe: true,
+    updatedAt: Date.now(),
+  });
+  if (previous?.cookieInjectionUnsafe !== true) {
+    log("capture", `marked cookie injection unsafe for ${domain}; preferring header replay`);
+  }
+  persistAuthStrategyCache();
+}
+
+function isCookieInjectionUnsafe(url: string): boolean {
+  return authStrategyCache.get(authStrategyDomain(url))?.cookieInjectionUnsafe === true;
+}
+
+export function filterCookiesForOriginHost<T extends { domain: string }>(
+  cookies: T[],
+  originUrl?: string,
+): T[] {
+  const originHost = (() => {
+    if (!originUrl) return null;
+    try { return new URL(originUrl).hostname; } catch { return null; }
+  })();
+  if (!originHost) return cookies;
+  const hostFiltered = cookies.filter((cookie) => isDomainMatch(cookie.domain, originHost));
+  const registrable = getRegistrableDomain(originHost);
+  if (registrable === "x.com" && hostFiltered.length > 8) {
+    const preferred = new Set([
+      "auth_token",
+      "ct0",
+      "twid",
+      "kdt",
+      "auth_multi",
+      "lang",
+      "dnt",
+      "guest_id",
+      "guest_id_ads",
+      "guest_id_marketing",
+      "personalization_id",
+    ]);
+    const trimmed = hostFiltered.filter((cookie) => preferred.has((cookie as { name?: string }).name ?? ""));
+    if (trimmed.length > 0) return trimmed;
+  }
+  return hostFiltered;
 }
 
 /**
@@ -715,10 +901,50 @@ export async function captureSession(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   intent?: string,
-  options?: { forceEphemeral?: boolean; signal?: AbortSignal },
+  options?: {
+    forceEphemeral?: boolean;
+    signal?: AbortSignal;
+    restartedKuri?: boolean;
+    authStrategy?: CaptureAuthStrategy;
+    triedCookieInjection?: boolean;
+    authSource?: BrowserAuthSourceMeta | null;
+    usedProfileContext?: boolean;
+    preferExistingTab?: boolean;
+    forceProfileContext?: boolean;
+  },
 ): Promise<CaptureResult> {
   const signal = options?.signal;
   throwIfAborted(signal);
+  if (
+    options?.forceProfileContext &&
+    !options?.usedProfileContext &&
+    options?.authSource?.family === "chromium"
+  ) {
+    try {
+      log("capture", `forcing attached ${options.authSource.browserName} profile context for ${url}`);
+      const profileCtx = await launchChromiumProfileContext(options.authSource);
+      let preferExistingTab = false;
+      if ((cookies?.length ?? 0) > 0) {
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies ?? [], { keepTargetOpen: true });
+        preferExistingTab = !!primed.targetId;
+      }
+      await kuri.stop();
+      kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+      try {
+        return await captureSession(url, undefined, undefined, intent, {
+          ...options,
+          forceEphemeral: true,
+          usedProfileContext: true,
+          preferExistingTab,
+          authStrategy: "header-replay",
+        });
+      } finally {
+        await kuri.stop();
+      }
+    } catch (attachErr) {
+      log("capture", `forced profile context failed for ${url}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+    }
+  }
   await acquireTabSlot();
 
   // Ensure Kuri is running and tabs are discovered
@@ -729,17 +955,38 @@ export async function captureSession(
 
   // Prefer a fresh tab so capture is isolated from stale/disconnected tabs
   // already present in the attached Chrome instance.
-  let tabId: string;
+  let tabId: string | undefined;
   let createdFreshTab = false;
-  try {
-    tabId = await kuri.newTab("about:blank");
-    await kuri.discoverTabs();
-    if (!tabId) {
+  if (options?.preferExistingTab) {
+    const existingTabs = (await kuri.discoverTabs()).filter((tab) => !/^chrome-extension:|^devtools:/.test(tab.url));
+    if (existingTabs[0]?.id) {
+      tabId = existingTabs[0].id;
+    } else {
+      try {
+        tabId = await kuri.newTab("about:blank");
+        await kuri.discoverTabs();
+        if (!tabId) {
+          tabId = await kuri.getDefaultTab();
+        }
+        createdFreshTab = !!tabId;
+      } catch {
+        tabId = await kuri.getDefaultTab();
+      }
+    }
+  } else {
+    try {
+      tabId = await kuri.newTab("about:blank");
+      await kuri.discoverTabs();
+      if (!tabId) {
+        tabId = await kuri.getDefaultTab();
+      }
+      createdFreshTab = !!tabId;
+    } catch {
       tabId = await kuri.getDefaultTab();
     }
-    createdFreshTab = !!tabId;
-  } catch {
-    tabId = await kuri.getDefaultTab();
+  }
+  if (!tabId) {
+    throw new Error("Failed to acquire browser tab");
   }
   activeTabRegistry.add(tabId);
   let captureTimedOut = false;
@@ -750,7 +997,11 @@ export async function captureSession(
   signal?.addEventListener("abort", abortListener, { once: true });
 
   const domain = new URL(url).hostname;
+  const authStrategy = chooseCaptureAuthStrategy(url, cookies, authHeaders, options?.authStrategy);
+  const useHeaderReplay = authStrategy === "header-replay";
   let retryFreshTab = false;
+  let restartKuri = false;
+  let restartWithAuthStrategy: CaptureAuthStrategy | null = null;
   let captureError: unknown;
   let lastHtml: string | undefined;
   const timeoutHandle = setTimeout(async () => {
@@ -761,7 +1012,8 @@ export async function captureSession(
   try {
     throwIfAborted(signal);
     // Set headers: client hints + auth headers
-    const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
+    const headerAuthShim = useHeaderReplay ? buildHeaderAuthForOrigin(cookies ?? [], url, authHeaders) : {};
+    const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}), ...headerAuthShim };
     await kuri.setHeaders(tabId, allHeaders);
 
     // Inject stealth patches — hide headless Chrome indicators from bot detection
@@ -788,9 +1040,22 @@ export async function captureSession(
       // Inject cookies AFTER origin navigation — CDP setCookie requires an active
       // page in the cookie's domain context (fails on about:blank).
       if (cookies && cookies.length > 0) {
-        log("capture", `injecting ${cookies.length} cookies after origin nav`);
-        throwIfAborted(signal);
-        await injectCookies(tabId, cookies, origin);
+        if (useHeaderReplay && shouldUseHeaderAuthShim(cookies, origin)) {
+          log("capture", `using header auth shim for ${origin} — skipping cookie injection`);
+        } else {
+          log("capture", `injecting ${cookies.length} cookies after origin nav`);
+          throwIfAborted(signal);
+          try {
+            await injectCookies(tabId, cookies, origin);
+          } catch (injectErr) {
+            markCookieInjectionUnsafe(url);
+            restartKuri = true;
+            restartWithAuthStrategy = "header-replay";
+            throw Object.assign(new Error(injectErr instanceof Error ? injectErr.message : String(injectErr)), {
+              code: "cookie_injection_failed",
+            });
+          }
+        }
       } else {
         log("capture", `no cookies to inject (cookies=${cookies?.length ?? 0})`);
       }
@@ -955,6 +1220,9 @@ export async function captureSession(
       retryFreshTab = true;
       log("capture", `rendered blocked app shell for ${url}; retrying with fresh tab`);
     } else {
+      if ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0) {
+        rememberCaptureAuthStrategy(url, authStrategy);
+      }
       return {
         requests,
         har_lineage_id,
@@ -969,9 +1237,15 @@ export async function captureSession(
     }
   } catch (error) {
     captureError = error;
-    if (shouldRetryEphemeralProfileError(error)) {
+    const err = error as Error & { code?: string };
+    if (err.code === "cookie_injection_failed" && restartWithAuthStrategy && !options?.restartedKuri) {
+      log("capture", `cookie injection failed for ${url}; restarting Kuri and retrying with ${restartWithAuthStrategy}`);
+    } else if (shouldRetryEphemeralProfileError(error)) {
       retryFreshTab = true;
       log("capture", `tab failed for ${url}; retrying with fresh tab (${error instanceof Error ? error.message : String(error)})`);
+    } else if (shouldRestartKuriForError(error) && !options?.restartedKuri) {
+      restartKuri = true;
+      log("capture", `CDP transport failed for ${url}; restarting Kuri and retrying once (${error instanceof Error ? error.message : String(error)})`);
     } else {
       throw error;
     }
@@ -981,8 +1255,53 @@ export async function captureSession(
     await cleanupTab(tabId, createdFreshTab);
     releaseTabSlot(tabId);
   }
+  if (restartKuri && restartWithAuthStrategy && !options?.restartedKuri) {
+    await kuri.stop();
+    return captureSession(url, authHeaders, cookies, intent, {
+      ...options,
+      forceEphemeral: true,
+      restartedKuri: true,
+      authStrategy: restartWithAuthStrategy,
+      triedCookieInjection: true,
+    });
+  }
+  if (restartKuri && !options?.restartedKuri) {
+    await kuri.stop();
+    return captureSession(url, authHeaders, cookies, intent, { ...options, forceEphemeral: true, restartedKuri: true });
+  }
+  if (
+    retryFreshTab &&
+    !options?.usedProfileContext &&
+    options?.authSource?.family === "chromium" &&
+    ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0)
+  ) {
+    try {
+      log("capture", `managed browser auth replay was insufficient for ${url}; retrying with attached ${options.authSource.browserName} profile clone`);
+      const profileCtx = await launchChromiumProfileContext(options.authSource);
+      let preferExistingTab = false;
+      if ((cookies?.length ?? 0) > 0) {
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies ?? [], { keepTargetOpen: true });
+        preferExistingTab = !!primed.targetId;
+      }
+      await kuri.stop();
+      kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+      try {
+        return await captureSession(url, undefined, undefined, intent, {
+          ...options,
+          forceEphemeral: true,
+          usedProfileContext: true,
+          preferExistingTab,
+          authStrategy: "header-replay",
+        });
+      } finally {
+        await kuri.stop();
+      }
+    } catch (attachErr) {
+      log("capture", `profile attach failed for ${url}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+    }
+  }
   if (retryFreshTab && !options?.forceEphemeral) {
-    return captureSession(url, authHeaders, cookies, intent, { forceEphemeral: true });
+    return captureSession(url, authHeaders, cookies, intent, { ...options, forceEphemeral: true });
   }
   if (retryFreshTab) {
     const hasAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
@@ -1086,6 +1405,11 @@ export async function triggerAndIntercept(
   targetUrlPattern: string,
   cookies: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>,
   authHeaders?: Record<string, string>,
+  options?: {
+    authSource?: BrowserAuthSourceMeta | null;
+    usedProfileContext?: boolean;
+    preferExistingTab?: boolean;
+  },
 ): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
   startedDateTime: string;
   request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
@@ -1095,18 +1419,42 @@ export async function triggerAndIntercept(
   await kuri.start();
   await kuri.discoverTabs();
 
-  let tabId: string;
+  let tabId: string | undefined;
   let createdFreshTab = false;
-  try {
-    tabId = await kuri.newTab("about:blank");
-    createdFreshTab = !!tabId;
-    if (!tabId) tabId = await kuri.getDefaultTab();
-  } catch {
-    tabId = await kuri.getDefaultTab();
+  if (options?.preferExistingTab) {
+    const existingTabs = (await kuri.discoverTabs()).filter((tab) => !/^chrome-extension:|^devtools:/.test(tab.url));
+    if (existingTabs[0]?.id) {
+      tabId = existingTabs[0].id;
+    } else {
+      try {
+        tabId = await kuri.newTab("about:blank");
+        createdFreshTab = !!tabId;
+        if (!tabId) tabId = await kuri.getDefaultTab();
+      } catch {
+        tabId = await kuri.getDefaultTab();
+      }
+    }
+  } else {
+    try {
+      tabId = await kuri.newTab("about:blank");
+      createdFreshTab = !!tabId;
+      if (!tabId) tabId = await kuri.getDefaultTab();
+    } catch {
+      tabId = await kuri.getDefaultTab();
+    }
   }
+  if (!tabId) throw new Error("Failed to acquire browser tab");
   activeTabRegistry.add(tabId);
 
   try {
+    let harStarted = false;
+    try {
+      await kuri.harStart(tabId);
+      harStarted = true;
+    } catch {
+      // best-effort
+    }
+
     // Set headers
     const headers = { ...CLIENT_HINT_HEADERS, ...authHeaders };
     await kuri.setHeaders(tabId, headers);
@@ -1188,6 +1536,58 @@ export async function triggerAndIntercept(
     }
 
     log("capture", `trigger-and-intercept: timeout waiting for ${targetBase}`);
+    if (harStarted) {
+      try {
+        const { entries } = await kuri.harStop(tabId);
+        const matched = entries.find((entry) => {
+          const respUrl = entry.request?.url ?? "";
+          const baseMatch = respUrl.includes(targetBase);
+          const queryIdMatch = !targetQueryId || respUrl.includes(targetQueryId);
+          return baseMatch && queryIdMatch;
+        });
+        if (matched) {
+          let data: unknown = matched.response?.content?.text;
+          try { data = JSON.parse(matched.response?.content?.text ?? ""); } catch { /* keep text */ }
+          log("capture", `trigger-and-intercept: recovered ${targetBase} from HAR`);
+          return {
+            status: matched.response?.status ?? 0,
+            data,
+            trace_id: nanoid(),
+            network_events: [{
+              startedDateTime: matched.startedDateTime,
+              request: matched.request,
+              response: matched.response,
+            }],
+          };
+        }
+      } catch {
+        // keep falling through
+      }
+    }
+    if (
+      !options?.usedProfileContext &&
+      options?.authSource?.family === "chromium" &&
+      (cookies.length > 0 || Object.keys(authHeaders ?? {}).length > 0)
+    ) {
+      try {
+        log("capture", `trigger-and-intercept: managed browser replay was insufficient for ${triggerUrl}; retrying with attached ${options.authSource.browserName} profile clone`);
+        const profileCtx = await launchChromiumProfileContext(options.authSource);
+        const primed = await primeChromiumProfileContext(profileCtx.cdpUrl, cookies, { keepTargetOpen: true });
+        await kuri.stop();
+        kuri.useExternalChrome(browserCdpBaseUrl(profileCtx.cdpUrl), { child: profileCtx.child, tempDir: profileCtx.tempDir });
+        try {
+          return await triggerAndIntercept(triggerUrl, targetUrlPattern, [], undefined, {
+            ...options,
+            usedProfileContext: true,
+            preferExistingTab: !!primed.targetId,
+          });
+        } finally {
+          await kuri.stop();
+        }
+      } catch (attachErr) {
+        log("capture", `trigger-and-intercept profile attach failed for ${triggerUrl}: ${attachErr instanceof Error ? attachErr.message : String(attachErr)}`);
+      }
+    }
     return {
       status: 0,
       data: { error: "trigger_timeout", message: "Target API call not intercepted within 15s" },

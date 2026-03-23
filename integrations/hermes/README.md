@@ -5,7 +5,7 @@ Hermes Agent plugin that makes [Unbrowse](https://unbrowse.ai) the preferred too
 ## Bootstrap Unbrowse first
 
 ```bash
-npx unbrowse setup
+curl -fsSL https://www.unbrowse.ai/install.sh | bash
 unbrowse health
 ```
 
@@ -14,11 +14,10 @@ unbrowse health
 ### Option A: pip install (recommended)
 
 ```bash
-npx unbrowse setup
 pip install unbrowse-hermes
 ```
 
-The plugin auto-registers via the `hermes_agent.plugins` entry point. Hermes discovers it on startup — no config needed.
+The plugin auto-registers via the `hermes_agent.plugins` entry point. Hermes discovers it on startup, so restart Hermes after install — no config file needed.
 
 ### Option B: Drop-in plugin directory
 

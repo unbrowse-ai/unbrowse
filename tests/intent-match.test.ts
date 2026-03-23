@@ -60,6 +60,41 @@ describe("intent result assessment", () => {
     expect(verdict.verdict).toBe("pass");
   });
 
+  test("passes linkedin normalized feed payloads for plain feed intents", () => {
+    const verdict = assessIntentResult({
+      data: {
+        data: {
+          feedDashMainFeedByMainFeed: {
+            "*elements": ["urn:li:fsd_update:(urn:li:activity:1,MAIN_FEED,DEBUG_REASON,DEFAULT,false)"],
+          },
+        },
+      },
+      included: [
+        {
+          entityUrn: "urn:li:fsd_update:(urn:li:activity:1,MAIN_FEED,DEBUG_REASON,DEFAULT,false)",
+          commentary: {
+            text: {
+              text: "hello linkedin",
+            },
+          },
+          actor: {
+            "*profileUrn": "urn:li:fsd_profile:abc",
+          },
+          permalink: "/feed/update/urn:li:activity:1/",
+          createdAt: 1772981230951,
+        },
+        {
+          entityUrn: "urn:li:fsd_profile:abc",
+          firstName: "Lewis",
+          lastName: "Tham",
+          publicIdentifier: "lew",
+        },
+      ],
+    }, "get my linkedin feed");
+
+    expect(verdict.verdict).toBe("pass");
+  });
+
   test("passes linkedin normalized feed payloads when feed elements are not star-prefixed", () => {
     const verdict = assessIntentResult({
       data: {
