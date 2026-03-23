@@ -15,11 +15,11 @@
     "mode": "autonomous",
     "benchmark_summary": {
       "cases": 1,
-      "cold_total_ms": 2525,
-      "warm_total_ms": 575,
-      "speedup_ms": 1950,
-      "cold_tokens_used": 17520,
-      "warm_tokens_used": 17520,
+      "cold_total_ms": 3827,
+      "warm_total_ms": 2019,
+      "speedup_ms": 1808,
+      "cold_tokens_used": 17522,
+      "warm_tokens_used": 17522,
       "token_delta": 0
     }
   },
@@ -57,7 +57,7 @@
           "run_label": "cold",
           "url": "https://hn.algolia.com/",
           "force_capture": true,
-          "resolve_ms": 2525,
+          "resolve_ms": 3827,
           "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
           "available_endpoint_ids": [
             "IYGNDKbsI2h1DK1Vcfe_b"
@@ -157,7 +157,7 @@
                       }
                     ],
                     "hitsPerPage": 20,
-                    "nbHits": 4294,
+                    "nbHits": 4535,
                     "nbPages": 50,
                     "page": 0
                   }
@@ -171,12 +171,12 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:51.809Z"
+              "updated_at": "2026-03-23T02:24:45.116Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 2367,
-            "tokens_used": 8760,
+            "total_ms": 3547,
+            "tokens_used": 8761,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
           },
@@ -385,21 +385,21 @@
               }
             ],
             "hitsPerPage": 20,
-            "nbHits": 4294,
+            "nbHits": 4535,
             "nbPages": 50,
             "page": 0,
             "params": "query=anthropic&tags=story&advancedSyntax=true&analyticsTags=backend",
-            "processingTimeMS": 8,
+            "processingTimeMS": 9,
             "processingTimingsMS": {
               "_request": {
-                "roundTrip": 15
+                "roundTrip": 20
               },
               "fetch": {
-                "query": 5,
+                "query": 6,
                 "scanning": 1,
-                "total": 7
+                "total": 8
               },
-              "total": 8
+              "total": 9
             },
             "query": "anthropic"
           },
@@ -431,7 +431,7 @@
                 "reason": "selection_match",
                 "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b"
               },
-              "tokens_used": 8760,
+              "tokens_used": 8761,
               "tokens_saved": 0,
               "tokens_saved_pct": 0,
               "excerpt": [
@@ -493,7 +493,7 @@
           "run_label": "warm",
           "url": "https://hn.algolia.com/",
           "force_capture": false,
-          "resolve_ms": 575,
+          "resolve_ms": 2019,
           "skill_id": "lGNcJEyi2FFZqSmM5uXDJ",
           "available_endpoint_ids": [
             "IYGNDKbsI2h1DK1Vcfe_b"
@@ -592,7 +592,7 @@
                       }
                     ],
                     "hitsPerPage": 20,
-                    "nbHits": 24137,
+                    "nbHits": 24141,
                     "nbPages": 50,
                     "page": 0
                   }
@@ -606,13 +606,13 @@
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:48.068Z"
+              "updated_at": "2026-03-23T02:24:41.535Z"
             },
             "source": "marketplace",
             "cache_hit": true,
-            "total_ms": 424,
-            "tokens_used": 8760,
-            "tokens_saved": 21240,
+            "total_ms": 484,
+            "tokens_used": 8761,
+            "tokens_saved": 21239,
             "tokens_saved_pct": 71
           },
           "resolve_excerpt": {
@@ -820,21 +820,21 @@
               }
             ],
             "hitsPerPage": 20,
-            "nbHits": 4294,
+            "nbHits": 4535,
             "nbPages": 50,
             "page": 0,
             "params": "query=anthropic&tags=story&advancedSyntax=true&analyticsTags=backend",
-            "processingTimeMS": 8,
+            "processingTimeMS": 9,
             "processingTimingsMS": {
               "_request": {
-                "roundTrip": 15
+                "roundTrip": 20
               },
               "fetch": {
-                "query": 5,
+                "query": 6,
                 "scanning": 1,
-                "total": 7
+                "total": 8
               },
-              "total": 8
+              "total": 9
             },
             "query": "anthropic"
           },
@@ -866,8 +866,8 @@
                 "reason": "selection_match",
                 "matched_endpoint_id": "IYGNDKbsI2h1DK1Vcfe_b"
               },
-              "tokens_used": 8760,
-              "tokens_saved": 21240,
+              "tokens_used": 8761,
+              "tokens_saved": 21239,
               "tokens_saved_pct": 71,
               "excerpt": [
                 {
@@ -932,12 +932,12 @@
           "goal_satisfied": true,
           "final_reason": "story_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 2525,
+          "total_resolve_ms": 3827,
           "total_execute_ms": 0,
-          "total_ms": 2525,
+          "total_ms": 3827,
           "first_source": "live-capture",
           "final_source": "live-capture",
-          "total_tokens_used": 17520,
+          "total_tokens_used": 17522,
           "total_tokens_saved": 0,
           "avg_tokens_saved_pct": 0
         },
@@ -947,18 +947,18 @@
           "goal_satisfied": true,
           "final_reason": "story_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 575,
+          "total_resolve_ms": 2019,
           "total_execute_ms": 0,
-          "total_ms": 575,
+          "total_ms": 2019,
           "first_source": "marketplace",
           "final_source": "marketplace",
-          "total_tokens_used": 17520,
-          "total_tokens_saved": 42480,
+          "total_tokens_used": 17522,
+          "total_tokens_saved": 42478,
           "avg_tokens_saved_pct": 71
         },
         "delta": {
-          "speedup_ms": 1950,
-          "speedup_ratio": 4.39,
+          "speedup_ms": 1808,
+          "speedup_ratio": 1.9,
           "token_delta": 0,
           "token_reduction_pct": 0
         }

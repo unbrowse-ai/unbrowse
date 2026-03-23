@@ -15,9 +15,9 @@
     "mode": "autonomous",
     "benchmark_summary": {
       "cases": 1,
-      "cold_total_ms": 5228,
-      "warm_total_ms": 5374,
-      "speedup_ms": -146,
+      "cold_total_ms": 5027,
+      "warm_total_ms": 2252,
+      "speedup_ms": 2775,
       "cold_tokens_used": 52,
       "warm_tokens_used": 52,
       "token_delta": 0
@@ -61,19 +61,18 @@
           "run_label": "cold",
           "url": "https://www.npmjs.com/package/openai",
           "force_capture": true,
-          "resolve_ms": 4087,
+          "resolve_ms": 3509,
           "skill_id": "BvZOl107sp7VI9ZiGaBjM",
           "available_endpoint_ids": [
+            "qBw41YAcuS_e2jtaKdAWG",
             "ANF3EfY_EsSqWtc6g0hl6"
           ],
           "dag": {
             "available": true,
-            "reachable": true,
-            "target_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
-            "selected_path": [
-              "ANF3EfY_EsSqWtc6g0hl6"
-            ],
-            "reason": "dag_path_found"
+            "reachable": false,
+            "target_operation_id": "qBw41YAcuS_e2jtaKdAWG",
+            "selected_path": [],
+            "reason": "dag_unreachable"
           },
           "trace_context": {
             "known_bindings": {
@@ -86,221 +85,23 @@
             "chunk": {
               "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "intent": "get package info",
-              "missing_bindings": [],
-              "suggested_next_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
-              "available_operations": [
-                {
-                  "operation_id": "ANF3EfY_EsSqWtc6g0hl6",
-                  "method": "GET",
-                  "action_kind": "trending",
-                  "resource_kind": "resource",
-                  "title": "trending resource",
-                  "why_available": "Runnable now; no missing dependencies.",
-                  "url_template": "https://registry.npmjs.org/openai",
-                  "requires": [],
-                  "yields": [
-                    "_id",
-                    "resource_name"
-                  ],
-                  "example_request": {
-                    "url": "https://www.npmjs.com/package/openai",
-                    "intent": "get package info"
-                  },
-                  "example_response_compact": {
-                    "_id": "openai",
-                    "_rev": "383-42f3e49d4f033018d69771dd1382c1a2",
-                    "name": "openai",
-                    "dist-tags": {
-                      "next": "4.0.0-beta.12",
-                      "alpha": "5.0.0-alpha.0",
-                      "beta": "5.0.0-beta.0",
-                      "latest": "6.32.0"
-                    },
-                    "versions": {
-                      "0.0.0": {
-                        "name": "openai",
-                        "version": "0.0.0",
-                        "license": "MIT",
-                        "_id": "openai@0.0.0",
-                        "maintainers": [
-                          "[truncated]"
-                        ],
-                        "dist": {
-                          "shasum": "8de6a226b7f7ac71ae4e826e9e3d51cf9adf2dc6",
-                          "tarball": "https://registry.npmjs.org/openai/-/openai-0.0.0.tgz",
-                          "fileCount": 2,
-                          "integrity": "sha512-zMfA6bKY9mYD5+49ozQd3eKmVwIAlPmUNsn+ShgWaMzIy1DlTXnEgKQt/iD5YZr38qwQN/JDHdieV6l1nEB9jg==",
-                          "signatures": [],
-                          "unpackedSize": 93,
-                          "npm-signature": "-----BEGIN PGP SIGNATURE-----\r\nVersion: OpenPGP.js v3.0.4\r\nComment: https://openpgpjs.org\r\n\r\nwsFcBAEBCAAQBQJfBxw9CRA9TVsSAnZWagAAucEP/ia8NxNyN+238V5MYKeY\njII0ii7mp89qtNci/T3/HGVZe9VByGqCPiHPRFGBywzggaCpnwSDZEjTHmL1\nR8ZynNVd5j+MrRdZo8CAlIf6QzqCXz6qyO3U6rkUschQ1c3Fopv5tVWOV/yU\nwArwG5mwlrRAA4tfgPvTiZyBaGUxgL+TNrCjLZb6D3vvp3pWgcC7OsvrIv+V\nn/v6d3JJHBjr28nqAKaxT/MnUTHayZsyDsX6gi2jKH2LCwd0KupLsAj3r5es\nADPilFE02mjOJ2aezBDhbuBTYLj5pjB0nCG+i7FPUNMmuNeUCyIkadsNPgZN\nRF0JGBD0bUnXPiWuZNzKYDSwz94hBzzsOngMM1Y4juFpfImMUUQJFRdWZMO5\nzg9n5zV9WkbU+W801t/u/2tLXMzIGZ9zBRS3A5wqtHRevZ9rWXTlv7cTRgPu\nypSqiWnUU+Xr1x42NHhbVGYrCaguRRSSsuRouqh0dL1tL5NrsMhzlH4knQV4\nG7vgToBJzZJDNWeZZxQ4+plJpTjkVP3xZLGcrZWufY+nOTSGqWhqYKJTFeLh\nHoXPTLfFV9ZJhQvPGNzgro5Ijf+L8YebGafnR3iiplMqXK8kW5IQHGHpKZTm\nLkVlddnu4jh44mKui7AQp9udA02JiCxDNCpvyf8U0qXpPzjQoJ0vntC9c/fu\nncfu\r\n=/5IF\r\n-----END PGP SIGNATURE-----\r\n"
-                        },
-                        "main": "index.js",
-                        "_npmUser": {
-                          "name": "richienb",
-                          "email": "richiebendall@gmail.com"
-                        }
-                      },
-                      "0.0.1": {
-                        "name": "openai",
-                        "version": "0.0.1",
-                        "keywords": [
-                          "gpt-3",
-                          "gpt",
-                          "ai"
-                        ],
-                        "author": {
-                          "name": "ceifa"
-                        },
-                        "license": "MIT",
-                        "_id": "openai@0.0.1",
-                        "maintainers": [
-                          "[truncated]",
-                          "[truncated]"
-                        ],
-                        "homepage": "https://github.com/ceifa/openai#readme"
-                      },
-                      "0.0.2": {
-                        "name": "openai",
-                        "version": "0.0.2",
-                        "keywords": [
-                          "gpt-3",
-                          "gpt",
-                          "ai"
-                        ],
-                        "author": {
-                          "name": "ceifa"
-                        },
-                        "license": "MIT",
-                        "_id": "openai@0.0.2",
-                        "maintainers": [
-                          "[truncated]"
-                        ],
-                        "homepage": "https://github.com/ceifa/openai#readme"
-                      },
-                      "0.0.3": {
-                        "name": "openai",
-                        "version": "0.0.3",
-                        "keywords": [
-                          "gpt-3",
-                          "gpt",
-                          "ai"
-                        ],
-                        "author": {
-                          "name": "ceifa"
-                        },
-                        "license": "MIT",
-                        "_id": "openai@0.0.3",
-                        "maintainers": [
-                          "[truncated]"
-                        ],
-                        "homepage": "https://github.com/ceifa/openai#readme"
-                      },
-                      "0.0.4": {
-                        "name": "openai",
-                        "version": "0.0.4",
-                        "keywords": [
-                          "gpt-3",
-                          "gpt",
-                          "ai"
-                        ],
-                        "author": {
-                          "name": "ceifa"
-                        },
-                        "license": "MIT",
-                        "_id": "openai@0.0.4",
-                        "maintainers": [
-                          "[truncated]"
-                        ],
-                        "homepage": "https://github.com/ceifa/openai#readme"
-                      },
-                      "0.0.5": {
-                        "name": "openai",
-                        "version": "0.0.5",
-                        "keywords": [
-                          "gpt-3",
-                          "gpt",
-                          "ai"
-                        ],
-                        "author": {
-                          "name": "ceifa"
-                        },
-                        "license": "MIT",
-                        "_id": "openai@0.0.5",
-                        "maintainers": [
-                          "[truncated]"
-                        ],
-                        "homepage": "https://github.com/ceifa/openai#readme"
-                      },
-                      "0.0.6": {
-                        "name": "openai",
-                        "version": "0.0.6",
-                        "keywords": [
-                          "gpt-3",
-                          "gpt",
-                          "ai"
-                        ],
-                        "author": {
-                          "name": "ceifa"
-                        },
-                        "license": "MIT",
-                        "_id": "openai@0.0.6",
-                        "maintainers": [
-                          "[truncated]"
-                        ],
-                        "homepage": "https://github.com/ceifa/openai#readme"
-                      },
-                      "0.0.7": {
-                        "name": "openai",
-                        "version": "0.0.7",
-                        "keywords": [
-                          "gpt-3",
-                          "gpt",
-                          "ai"
-                        ],
-                        "author": {
-                          "name": "ceifa"
-                        },
-                        "license": "MIT",
-                        "_id": "openai@0.0.7",
-                        "maintainers": [
-                          "[truncated]"
-                        ],
-                        "homepage": "https://github.com/ceifa/openai#readme"
-                      }
-                    },
-                    "time": {
-                      "created": "2020-07-09T13:31:41.309Z",
-                      "modified": "2026-03-17T17:54:04.034Z",
-                      "0.0.0": "2020-07-09T13:31:41.493Z",
-                      "0.0.1": "2021-07-27T19:32:56.099Z",
-                      "0.0.2": "2021-08-06T15:50:03.429Z",
-                      "0.0.3": "2021-08-06T16:03:15.842Z",
-                      "0.0.4": "2021-08-06T17:00:48.876Z",
-                      "0.0.5": "2021-08-12T18:55:25.791Z"
-                    },
-                    "bugs": {
-                      "url": "https://github.com/openai/openai-node/issues"
-                    },
-                    "author": {
-                      "name": "OpenAI",
-                      "email": "support@openai.com"
-                    }
-                  }
-                }
-              ]
+              "missing_bindings": [
+                "q"
+              ],
+              "available_operations": []
             },
             "skill_snapshot": {
               "skill_id": "BvZOl107sp7VI9ZiGaBjM",
               "domain": "npmjs.com",
               "auth_required": false,
-              "endpoint_count": 1,
-              "operation_count": 1,
+              "endpoint_count": 2,
+              "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:56:09.556Z"
+              "updated_at": "2026-03-23T02:25:00.211Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 3927,
+            "total_ms": 3321,
             "tokens_used": 26,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -342,10 +143,255 @@
               }
             },
             {
+              "endpoint_id": "qBw41YAcuS_e2jtaKdAWG",
+              "endpoint_url": "https://registry.npmjs.org/-/v1/search?text={q}&size=20",
+              "trigger_url": "https://www.npmjs.com/search?q=openai",
+              "execute_ms": 1029,
+              "attempt_count": 1,
+              "verdict": "fail",
+              "reason": "intent_mismatch",
+              "failure_class": "intent",
+              "source_kind": "record",
+              "matched_fields": [
+                "name",
+                "version",
+                "description"
+              ],
+              "missing_fields": [],
+              "row_count": 20,
+              "observed_entity_types": [
+                "package",
+                "question"
+              ],
+              "validation_failures": [],
+              "echoed_params": [],
+              "side_effect_observed": "updated",
+              "selection_check": {
+                "ok": false,
+                "reason": "selection_mismatch:qBw41YAcuS_e2jtaKdAWG",
+                "matched_endpoint_id": "qBw41YAcuS_e2jtaKdAWG"
+              },
+              "excerpt": {
+                "error": "intent_mismatch",
+                "message": "Execution result did not satisfy intent \"get package info\": wrong_entity_type",
+                "projected": {
+                  "objects": [
+                    {
+                      "downloads": {
+                        "monthly": 25456680,
+                        "weekly": 3452251
+                      },
+                      "dependents": "145",
+                      "updated": "2026-03-22T04:28:18.423Z",
+                      "searchScore": 590.5836,
+                      "package": {
+                        "name": "@types/q",
+                        "keywords": [],
+                        "version": "1.5.8",
+                        "description": "TypeScript definitions for q",
+                        "sanitized_name": "@types/q",
+                        "publisher": {
+                          "email": "ts-npm-types@microsoft.com",
+                          "username": "types"
+                        },
+                        "maintainers": [
+                          {
+                            "email": "ts-npm-types@microsoft.com",
+                            "username": "types"
+                          }
+                        ],
+                        "license": "MIT",
+                        "date": "2023-11-07T20:31:08.127Z",
+                        "links": {
+                          "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/q",
+                          "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+                          "npm": "https://www.npmjs.com/package/@types/q"
+                        }
+                      },
+                      "score": {
+                        "final": 590.5836,
+                        "detail": {
+                          "popularity": 1,
+                          "quality": 1,
+                          "maintenance": 1
+                        }
+                      },
+                      "flags": {
+                        "insecure": 0
+                      }
+                    },
+                    {
+                      "downloads": {
+                        "monthly": 173673,
+                        "weekly": 20267
+                      },
+                      "dependents": "241",
+                      "updated": "2026-03-22T04:26:21.411Z",
+                      "searchScore": 410.07016,
+                      "package": {
+                        "name": "q-io",
+                        "keywords": [],
+                        "version": "1.13.6",
+                        "description": "IO using Q promises",
+                        "sanitized_name": "q-io",
+                        "publisher": {
+                          "email": "hthetiot@gmail.com",
+                          "username": "hthetiot"
+                        },
+                        "maintainers": [
+                          {
+                            "email": "peimei@ya.ru",
+                            "username": "arikon"
+                          },
+                          {
+                            "email": "hthetiot@gmail.com",
+                            "username": "hthetiot"
+                          },
+                          {
+                            "email": "marchant@mac.com",
+                            "username": "marchant"
+                          },
+                          {
+                            "email": "kris.kowal@cixar.com",
+                            "username": "kriskowal"
+                          },
+                          {
+                            "email": "Martin.vGagern@gmx.net",
+                            "username": "gagern"
+                          },
+                          {
+                            "email": "talpa@yandex.ru",
+                            "username": "hypnosphi"
+                          }
+                        ],
+                        "license": "MIT",
+                        "date": "2018-07-11T17:05:42.671Z",
+                        "links": {
+                          "homepage": "http://github.com/kriskowal/q-io/",
+                          "repository": "git+ssh://git@github.com/kriskowal/q-io.git",
+                          "bugs": "http://github.com/kriskowal/q-io/issues",
+                          "npm": "https://www.npmjs.com/package/q-io"
+                        }
+                      },
+                      "score": {
+                        "final": 410.07016,
+                        "detail": {
+                          "popularity": 1,
+                          "quality": 1,
+                          "maintenance": 1
+                        }
+                      },
+                      "flags": {
+                        "insecure": 0
+                      }
+                    },
+                    {
+                      "downloads": {
+                        "monthly": 8895,
+                        "weekly": 1828
+                      },
+                      "dependents": "31",
+                      "updated": "2026-03-20T11:16:09.661Z",
+                      "searchScore": 290.7214,
+                      "package": {
+                        "name": "async-q",
+                        "keywords": [
+                          "async",
+                          "Q",
+                          "q-async",
+                          "series",
+                          "parallel",
+                          "queue"
+                        ],
+                        "version": "0.3.1",
+                        "description": "Port of async.js to Q",
+                        "sanitized_name": "async-q",
+                        "publisher": {
+                          "email": "david+npm@bushong.net",
+                          "username": "dbushong"
+                        },
+                        "maintainers": [
+                          {
+                            "email": "david+npm@bushong.net",
+                            "username": "dbushong"
+                          }
+                        ],
+                        "license": "MIT",
+                        "date": "2016-01-13T02:16:23.177Z",
+                        "links": {
+                          "homepage": "https://github.com/dbushong/async-q#readme",
+                          "repository": "git://github.com/dbushong/async-q.git",
+                          "bugs": "https://github.com/dbushong/async-q/issues",
+                          "npm": "https://www.npmjs.com/package/async-q"
+                        }
+                      },
+                      "score": {
+                        "final": 290.7214,
+                        "detail": {
+                          "popularity": 1,
+                          "quality": 1,
+                          "maintenance": 1
+                        }
+                      },
+                      "flags": {
+                        "insecure": 0
+                      }
+                    },
+                    {
+                      "downloads": {
+                        "monthly": 5429,
+                        "weekly": 576
+                      },
+                      "dependents": "2",
+                      "updated": "2026-03-22T10:16:07.518Z",
+                      "searchScore": 270.2851,
+                      "package": {
+                        "name": "@types/q-io",
+                        "keywords": [],
+                        "version": "0.0.34",
+                        "description": "TypeScript definitions for q-io",
+                        "sanitized_name": "@types/q-io",
+                        "publisher": {
+                          "email": "ts-npm-types@microsoft.com",
+                          "username": "types"
+                        },
+                        "maintainers": [
+                          {
+                            "email": "ts-npm-types@microsoft.com",
+                            "username": "types"
+                          }
+                        ],
+                        "license": "MIT",
+                        "date": "2023-11-07T13:38:07.190Z",
+                        "links": {
+                          "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/q-io",
+                          "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+                          "npm": "https://www.npmjs.com/package/@types/q-io"
+                        }
+                      },
+                      "score": {
+                        "final": 270.2851,
+                        "detail": {
+                          "popularity": 1,
+                          "quality": 1,
+                          "maintenance": 1
+                        }
+                      },
+                      "flags": {
+                        "insecure": 0
+                      }
+                    }
+                  ],
+                  "total": 19721,
+                  "time": "2026-03-23T02:23:26.784Z"
+                }
+              }
+            },
+            {
               "endpoint_id": "ANF3EfY_EsSqWtc6g0hl6",
               "endpoint_url": "https://registry.npmjs.org/openai",
               "trigger_url": "https://www.npmjs.com/package/openai",
-              "execute_ms": 1141,
+              "execute_ms": 489,
               "attempt_count": 1,
               "verdict": "pass",
               "reason": "package_rows",
@@ -400,8 +446,8 @@
           "run_label": "warm",
           "url": "https://www.npmjs.com/package/openai",
           "force_capture": false,
-          "resolve_ms": 4658,
-          "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+          "resolve_ms": 1812,
+          "skill_id": "gdh61pE2tZDMVrVB5nvfm",
           "available_endpoint_ids": [
             "ANF3EfY_EsSqWtc6g0hl6"
           ],
@@ -423,7 +469,7 @@
               "slug_2": "openai"
             },
             "chunk": {
-              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "skill_id": "gdh61pE2tZDMVrVB5nvfm",
               "intent": "get package info",
               "missing_bindings": [],
               "suggested_next_operation_id": "ANF3EfY_EsSqWtc6g0hl6",
@@ -629,23 +675,23 @@
               ]
             },
             "skill_snapshot": {
-              "skill_id": "BvZOl107sp7VI9ZiGaBjM",
+              "skill_id": "gdh61pE2tZDMVrVB5nvfm",
               "domain": "npmjs.com",
               "auth_required": false,
               "endpoint_count": 1,
               "operation_count": 1,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:56:15.278Z"
+              "updated_at": "2026-03-23T02:25:21.442Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 3934,
+            "total_ms": 1620,
             "tokens_used": 26,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
           },
           "resolve_excerpt": {
-            "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+            "learned_skill_id": "gdh61pE2tZDMVrVB5nvfm",
             "endpoints_discovered": 1,
             "seeded_from": "canonical_document"
           },
@@ -675,7 +721,7 @@
               "tokens_saved": 0,
               "tokens_saved_pct": 0,
               "excerpt": {
-                "learned_skill_id": "BvZOl107sp7VI9ZiGaBjM",
+                "learned_skill_id": "gdh61pE2tZDMVrVB5nvfm",
                 "endpoints_discovered": 1,
                 "seeded_from": "canonical_document"
               }
@@ -684,7 +730,7 @@
               "endpoint_id": "ANF3EfY_EsSqWtc6g0hl6",
               "endpoint_url": "https://registry.npmjs.org/openai",
               "trigger_url": "https://www.npmjs.com/package/openai",
-              "execute_ms": 716,
+              "execute_ms": 440,
               "attempt_count": 1,
               "verdict": "pass",
               "reason": "package_rows",
@@ -743,9 +789,9 @@
           "goal_satisfied": true,
           "final_reason": "package_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 4087,
-          "total_execute_ms": 1141,
-          "total_ms": 5228,
+          "total_resolve_ms": 3509,
+          "total_execute_ms": 1518,
+          "total_ms": 5027,
           "first_source": "live-capture",
           "final_source": "live-capture",
           "total_tokens_used": 52,
@@ -758,9 +804,9 @@
           "goal_satisfied": true,
           "final_reason": "package_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 4658,
-          "total_execute_ms": 716,
-          "total_ms": 5374,
+          "total_resolve_ms": 1812,
+          "total_execute_ms": 440,
+          "total_ms": 2252,
           "first_source": "live-capture",
           "final_source": "live-capture",
           "total_tokens_used": 52,
@@ -768,8 +814,8 @@
           "avg_tokens_saved_pct": 0
         },
         "delta": {
-          "speedup_ms": -146,
-          "speedup_ratio": 0.97,
+          "speedup_ms": 2775,
+          "speedup_ratio": 2.23,
           "token_delta": 0,
           "token_reduction_pct": 0
         }

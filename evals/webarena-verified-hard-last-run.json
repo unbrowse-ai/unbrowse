@@ -1,0 +1,223 @@
+{
+  "summary": {
+    "subset": "hard",
+    "total": 6,
+    "pass": 6,
+    "fail": 0,
+    "blocked": 0,
+    "env": {
+      "__SHOPPING__": "http://localhost:7770",
+      "__SHOPPING_ADMIN__": "http://localhost:7780/admin",
+      "__REDDIT__": "http://localhost:9999",
+      "__GITLAB__": "http://localhost:8023",
+      "__WIKIPEDIA__": "http://localhost:8888",
+      "__MAP__": "http://localhost:3030"
+    }
+  },
+  "results": [
+    {
+      "task_id": 11,
+      "sites": [
+        "shopping_admin"
+      ],
+      "intent": "Get the total number of reviews that our store received so far that mention term \"disappointed\"",
+      "url": "http://localhost:7780/admin/review/product/index/",
+      "available_endpoint_count": 1,
+      "selected_endpoint_id": "shopping-admin-review-grid",
+      "selected_endpoint_url": "http://localhost:7780/admin/review/product/index/",
+      "agent_status": "SUCCESS",
+      "env_ready": true,
+      "retrieved_data": [
+        6
+      ],
+      "actual_result": [
+        6
+      ],
+      "judge": {
+        "ok": true,
+        "retrieval_ok": true,
+        "selection_ok": true,
+        "status_ok": true,
+        "data_ok": true,
+        "network_ok": true,
+        "matched_network_events": 0,
+        "expected_network_events": 0,
+        "reasons": []
+      }
+    },
+    {
+      "task_id": 15,
+      "sites": [
+        "shopping_admin"
+      ],
+      "intent": "Get the total number of reviews that our store received so far that mention term \"best\"",
+      "url": "http://localhost:7780/admin/review/product/index/",
+      "available_endpoint_count": 1,
+      "selected_endpoint_id": "shopping-admin-review-grid",
+      "selected_endpoint_url": "http://localhost:7780/admin/review/product/index/",
+      "agent_status": "SUCCESS",
+      "env_ready": true,
+      "retrieved_data": [
+        2
+      ],
+      "actual_result": [
+        2
+      ],
+      "judge": {
+        "ok": true,
+        "retrieval_ok": true,
+        "selection_ok": true,
+        "status_ok": true,
+        "data_ok": true,
+        "network_ok": true,
+        "matched_network_events": 0,
+        "expected_network_events": 0,
+        "reasons": []
+      }
+    },
+    {
+      "task_id": 21,
+      "sites": [
+        "shopping"
+      ],
+      "intent": "Get name(s) of reviewer(s) who mention ear cups being small for the product on the current page",
+      "url": "http://localhost:7770/review/product/listAjax/id/76525/",
+      "available_endpoint_count": 1,
+      "selected_endpoint_id": "html-artifact",
+      "selected_endpoint_url": "http://localhost:7770/review/product/listAjax/id/76525/",
+      "agent_status": "SUCCESS",
+      "env_ready": true,
+      "retrieved_data": [
+        "Catso",
+        "Dibbins",
+        "Anglebert Dinkherhump",
+        "Michelle DavisMichelle Davis"
+      ],
+      "actual_result": [
+        "Catso",
+        "Dibbins",
+        "Anglebert Dinkherhump",
+        "Michelle DavisMichelle Davis"
+      ],
+      "judge": {
+        "ok": true,
+        "retrieval_ok": true,
+        "selection_ok": true,
+        "status_ok": true,
+        "data_ok": true,
+        "network_ok": true,
+        "matched_network_events": 0,
+        "expected_network_events": 0,
+        "reasons": []
+      }
+    },
+    {
+      "task_id": 25,
+      "sites": [
+        "shopping"
+      ],
+      "intent": "Get name(s) of reviewer(s) who mention print quality explicitly with a rating of 3 or less stars for the product on the current page",
+      "url": "http://localhost:7770/review/product/listAjax/id/34037/",
+      "available_endpoint_count": 1,
+      "selected_endpoint_id": "html-artifact",
+      "selected_endpoint_url": "http://localhost:7770/review/product/listAjax/id/34037/",
+      "agent_status": "SUCCESS",
+      "env_ready": true,
+      "retrieved_data": [
+        "Roxanne Brandon Coffey",
+        "Nelson"
+      ],
+      "actual_result": [
+        "Roxanne Brandon Coffey",
+        "Nelson"
+      ],
+      "judge": {
+        "ok": true,
+        "retrieval_ok": true,
+        "selection_ok": true,
+        "status_ok": true,
+        "data_ok": true,
+        "network_ok": true,
+        "matched_network_events": 0,
+        "expected_network_events": 0,
+        "reasons": []
+      }
+    },
+    {
+      "task_id": 28,
+      "sites": [
+        "reddit"
+      ],
+      "intent": "In the Worcester forum, get the username and post title of the most recent post, and count the number of comments on that post that are not from the author and have more downvotes than upvotes. Return a list of objects with keys \"username\", \"post_title\", and \"count\".",
+      "url": "http://localhost:9999/f/WorcesterMA/123052/best-place-for-a-foot-rub",
+      "available_endpoint_count": 1,
+      "selected_endpoint_id": "html-artifact",
+      "selected_endpoint_url": "http://localhost:9999/f/WorcesterMA/123052/best-place-for-a-foot-rub",
+      "agent_status": "SUCCESS",
+      "env_ready": true,
+      "retrieved_data": [
+        {
+          "username": "mineinhusdson",
+          "post_title": "Best place for a foot rub?",
+          "count": 0
+        }
+      ],
+      "actual_result": [
+        {
+          "username": "mineinhusdson",
+          "post_title": "Best place for a foot rub?",
+          "count": 0
+        }
+      ],
+      "judge": {
+        "ok": true,
+        "retrieval_ok": true,
+        "selection_ok": true,
+        "status_ok": true,
+        "data_ok": true,
+        "network_ok": true,
+        "matched_network_events": 0,
+        "expected_network_events": 0,
+        "reasons": []
+      }
+    },
+    {
+      "task_id": 29,
+      "sites": [
+        "reddit"
+      ],
+      "intent": "In the DIY forum, get the username and post title of the most recent post, and count the number of comments on that post that are not from the author and have more downvotes than upvotes. Return a list of objects with keys \"username\", \"post_title\", and \"count\".",
+      "url": "http://localhost:9999/f/DIY/119019/how-can-i-bring-an-hdmi-cable-from-my-pc-downstairs-to-my-tv",
+      "available_endpoint_count": 1,
+      "selected_endpoint_id": "html-artifact",
+      "selected_endpoint_url": "http://localhost:9999/f/DIY/119019/how-can-i-bring-an-hdmi-cable-from-my-pc-downstairs-to-my-tv",
+      "agent_status": "SUCCESS",
+      "env_ready": true,
+      "retrieved_data": [
+        {
+          "username": "ziostraccette",
+          "post_title": "How can I bring an HDMI cable from my pc downstairs to my TV upstairs?",
+          "count": 0
+        }
+      ],
+      "actual_result": [
+        {
+          "username": "ziostraccette",
+          "post_title": "How can I bring an HDMI cable from my pc downstairs to my TV upstairs?",
+          "count": 0
+        }
+      ],
+      "judge": {
+        "ok": true,
+        "retrieval_ok": true,
+        "selection_ok": true,
+        "status_ok": true,
+        "data_ok": true,
+        "network_ok": true,
+        "matched_network_events": 0,
+        "expected_network_events": 0,
+        "reasons": []
+      }
+    }
+  ]
+}

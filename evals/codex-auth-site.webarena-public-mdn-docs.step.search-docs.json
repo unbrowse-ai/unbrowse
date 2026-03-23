@@ -15,9 +15,9 @@
     "mode": "autonomous",
     "benchmark_summary": {
       "cases": 1,
-      "cold_total_ms": 1243,
-      "warm_total_ms": 625,
-      "speedup_ms": 618,
+      "cold_total_ms": 2635,
+      "warm_total_ms": 583,
+      "speedup_ms": 2052,
       "cold_tokens_used": 4142,
       "warm_tokens_used": 4142,
       "token_delta": 0
@@ -56,10 +56,11 @@
           "run_label": "cold",
           "url": "https://developer.mozilla.org/en-US/search?q=fetch",
           "force_capture": true,
-          "resolve_ms": 1243,
+          "resolve_ms": 2635,
           "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
           "available_endpoint_ids": [
-            "UGRLFKukijkFjG933wOWD"
+            "UGRLFKukijkFjG933wOWD",
+            "E6ZYe6OqAVtFaJk3RxJGM"
           ],
           "dag": {
             "available": true,
@@ -154,14 +155,14 @@
               "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
               "domain": "mozilla.org",
               "auth_required": false,
-              "endpoint_count": 1,
-              "operation_count": 1,
+              "endpoint_count": 2,
+              "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:54.269Z"
+              "updated_at": "2026-03-23T02:24:49.851Z"
             },
             "source": "live-capture",
             "cache_hit": false,
-            "total_ms": 1085,
+            "total_ms": 2350,
             "tokens_used": 2071,
             "tokens_saved": 0,
             "tokens_saved_pct": 0
@@ -335,7 +336,7 @@
           "retrieval_check": {
             "ok": true,
             "reason": "retrieval_match",
-            "matched_rank": 1,
+            "matched_rank": 2,
             "matched_endpoint_id": "UGRLFKukijkFjG933wOWD",
             "max_rank": 5
           }
@@ -345,10 +346,11 @@
           "run_label": "warm",
           "url": "https://developer.mozilla.org/en-US/search?q=fetch",
           "force_capture": false,
-          "resolve_ms": 625,
+          "resolve_ms": 583,
           "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
           "available_endpoint_ids": [
-            "UGRLFKukijkFjG933wOWD"
+            "UGRLFKukijkFjG933wOWD",
+            "E6ZYe6OqAVtFaJk3RxJGM"
           ],
           "dag": {
             "available": true,
@@ -443,14 +445,14 @@
               "skill_id": "jRddzL2KzxPkGnRVEEwlQ",
               "domain": "mozilla.org",
               "auth_required": false,
-              "endpoint_count": 1,
-              "operation_count": 1,
+              "endpoint_count": 2,
+              "operation_count": 2,
               "edge_count": 0,
-              "updated_at": "2026-03-22T20:55:54.698Z"
+              "updated_at": "2026-03-23T02:24:50.332Z"
             },
             "source": "marketplace",
             "cache_hit": true,
-            "total_ms": 344,
+            "total_ms": 421,
             "tokens_used": 2071,
             "tokens_saved": 27929,
             "tokens_saved_pct": 93
@@ -624,7 +626,7 @@
           "retrieval_check": {
             "ok": true,
             "reason": "retrieval_match",
-            "matched_rank": 1,
+            "matched_rank": 2,
             "matched_endpoint_id": "UGRLFKukijkFjG933wOWD",
             "max_rank": 5
           }
@@ -638,9 +640,9 @@
           "goal_satisfied": true,
           "final_reason": "document_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 1243,
+          "total_resolve_ms": 2635,
           "total_execute_ms": 0,
-          "total_ms": 1243,
+          "total_ms": 2635,
           "first_source": "live-capture",
           "final_source": "live-capture",
           "total_tokens_used": 4142,
@@ -653,9 +655,9 @@
           "goal_satisfied": true,
           "final_reason": "document_rows",
           "total_rounds": 1,
-          "total_resolve_ms": 625,
+          "total_resolve_ms": 583,
           "total_execute_ms": 0,
-          "total_ms": 625,
+          "total_ms": 583,
           "first_source": "marketplace",
           "final_source": "marketplace",
           "total_tokens_used": 4142,
@@ -663,8 +665,8 @@
           "avg_tokens_saved_pct": 93
         },
         "delta": {
-          "speedup_ms": 618,
-          "speedup_ratio": 1.99,
+          "speedup_ms": 2052,
+          "speedup_ratio": 4.52,
           "token_delta": 0,
           "token_reduction_pct": 0
         }
