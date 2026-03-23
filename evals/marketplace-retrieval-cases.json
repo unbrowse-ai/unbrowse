@@ -116,6 +116,32 @@
           "idempotency": "safe"
         }
       ]
+    },
+    {
+      "id": "gamma-market",
+      "skill_id": "marketplace-eval-gamma-market",
+      "version": "1.0.0",
+      "schema_version": "1",
+      "name": "VXGAMMA market quote search",
+      "intent_signature": "search VXGAMMA market quotes price history ticker data",
+      "domain": "quotes.gamma-eval.com",
+      "description": "VXGAMMA market quote search ticker prices intraday chart history lookup",
+      "owner_type": "agent",
+      "lifecycle": "active",
+      "execution_type": "http",
+      "created_at": "2026-03-21T00:00:00Z",
+      "updated_at": "2026-03-21T00:00:00Z",
+      "endpoints": [
+        {
+          "endpoint_id": "gamma-market-search",
+          "description": "VXGAMMA market quote search ticker prices intraday chart history lookup",
+          "method": "GET",
+          "url_template": "https://quotes.gamma-eval.com/api/quotes/search?q={query}",
+          "reliability_score": 0.92,
+          "verification_status": "verified",
+          "idempotency": "safe"
+        }
+      ]
     }
   ],
   "cases": [
@@ -159,6 +185,18 @@
       }
     },
     {
+      "id": "global-gamma-market",
+      "route": "search",
+      "lane": "results",
+      "intent": "search VXGAMMA market quotes price history ticker data",
+      "k": 5,
+      "expect": {
+        "fixture": "gamma-market",
+        "endpoint_id": "gamma-market-search",
+        "max_rank": 1
+      }
+    },
+    {
       "id": "resolve-alpha-docs-domain",
       "route": "resolve",
       "lane": "domain_results",
@@ -175,6 +213,21 @@
       }
     },
     {
+      "id": "domain-gamma-market",
+      "route": "domain",
+      "lane": "results",
+      "intent": "search VXGAMMA market quotes ticker prices",
+      "domain": "quotes.gamma-eval.com",
+      "k": 5,
+      "expect": {
+        "fixture": "gamma-market",
+        "endpoint_id": "gamma-market-search",
+        "max_rank": 1,
+        "domain_match": "exact",
+        "max_offdomain_results": 0
+      }
+    },
+    {
       "id": "resolve-gamma-news-domain",
       "route": "resolve",
       "lane": "domain_results",
@@ -185,6 +238,22 @@
       "expect": {
         "fixture": "gamma-news",
         "endpoint_id": "gamma-news-search",
+        "max_rank": 1,
+        "domain_match": "exact",
+        "max_offdomain_results": 0
+      }
+    },
+    {
+      "id": "resolve-gamma-market-domain",
+      "route": "resolve",
+      "lane": "domain_results",
+      "intent": "search VXGAMMA market quotes ticker price history",
+      "domain": "quotes.gamma-eval.com",
+      "domain_k": 3,
+      "global_k": 5,
+      "expect": {
+        "fixture": "gamma-market",
+        "endpoint_id": "gamma-market-search",
         "max_rank": 1,
         "domain_match": "exact",
         "max_offdomain_results": 0
@@ -231,6 +300,21 @@
       "expect": {
         "fixture": "gamma-news",
         "endpoint_id": "gamma-news-search",
+        "max_rank": 3,
+        "skipped_global": false
+      }
+    },
+    {
+      "id": "resolve-gamma-market-fallback",
+      "route": "resolve",
+      "lane": "global_results",
+      "intent": "search VXGAMMA market quotes price history ticker data",
+      "domain": "news.gamma-eval.com",
+      "domain_k": 3,
+      "global_k": 8,
+      "expect": {
+        "fixture": "gamma-market",
+        "endpoint_id": "gamma-market-search",
         "max_rank": 3,
         "skipped_global": false
       }
