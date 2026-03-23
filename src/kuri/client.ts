@@ -151,6 +151,47 @@ function parsePortFromCdpUrl(cdpUrl?: string | null): number | null {
   }
 }
 
+function findListeningPid(port: number): number | null {
+  try {
+    const output = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const pid = Number(output.split(/\s+/).find(Boolean));
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function readProcessCommand(pid: number): string {
+  try {
+    return execFileSync("ps", ["-o", "command=", "-p", String(pid)], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function isLikelyKuriProcess(pid: number): boolean {
+  return /(^|[\/\s])kuri(?:\.exe)?(\s|$)|vendor\/kuri|zig-out\/bin\/kuri/i.test(readProcessCommand(pid));
+}
+
+async function waitForKuriDown(port: number, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(300) });
+      if (!res.ok) return;
+    } catch {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
 /** Find a free port for CDP starting from 9222. */
 async function findFreeCdpPort(): Promise<number> {
   for (let port = 9222; port < 9230; port++) {
@@ -351,6 +392,15 @@ export async function stop(): Promise<void> {
       // ignore
     }
     managedChromePid = null;
+  }
+  const externalPid = findListeningPid(kuriPort);
+  if (externalPid && externalPid !== kuriProcess?.pid && isLikelyKuriProcess(externalPid)) {
+    try {
+      process.kill(externalPid, "SIGTERM");
+    } catch {
+      // ignore
+    }
+    await waitForKuriDown(kuriPort);
   }
   kuriReady = false;
   kuriCdpPort = null;

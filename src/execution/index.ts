@@ -1,8 +1,7 @@
-import { executeInBrowser, triggerAndIntercept } from "../capture/index.js";
-import { captureSession } from "../capture/index.js";
+import { captureSession, executeInBrowser, isBlockedAppShell, triggerAndIntercept } from "../capture/index.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
 import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
-import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
+import { mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { findStoredAuthReference, getStoredAuthBundle, getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
@@ -10,7 +9,6 @@ import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { generateExtractionHints } from "../transform/schema-hints.js";
 import { recordExecution, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
-import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type {
   EndpointDescriptor,
@@ -111,6 +109,81 @@ function toTraceNetworkEvent(input: {
 
 const DEFAULT_BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+const AUTH_PROVIDER_HOSTS = /accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com|facebook\.com/i;
+const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
+const PROTECTED_APP_PATHS = /\/(home|feed|timeline|bookmarks|notifications|messages|inbox|dashboard|settings|orders|checkout|search\/results|i\/bookmarks|i\/lists|i\/communities)(?:\/|$)/i;
+const AUTH_PAGE_COPY = /\b(sign in|log in|login|join now|join today|create account|forgot password|continue with google|continue with apple|continue with email)\b/i;
+
+function finalizePassiveLearnedSkill(
+  skill: SkillManifest,
+  clientScope?: string,
+): SkillManifest {
+  try { cachePublishedSkill(skill, clientScope); } catch { /* best-effort */ }
+  return skill;
+}
+
+function suggestedLoginUrl(pageUrl: string): string {
+  try {
+    const parsed = new URL(pageUrl);
+    const host = parsed.hostname.toLowerCase();
+    if (/(^|\.)x\.com$|(^|\.)twitter\.com$/.test(host)) return `${parsed.origin}/i/flow/login`;
+    if (/(^|\.)linkedin\.com$/.test(host)) return `${parsed.origin}/uas/login`;
+    if (/(^|\.)github\.com$/.test(host)) return `${parsed.origin}/login`;
+    return `${parsed.origin}/login`;
+  } catch {
+    return pageUrl;
+  }
+}
+
+export function detectAuthWallFromPage(
+  url: string,
+  finalUrl?: string,
+  html?: string,
+): { provider: string; login_url: string; reason: string } | null {
+  const currentUrl = finalUrl || url;
+  let current: URL | null = null;
+  let original: URL | null = null;
+  try { current = new URL(currentUrl); } catch { /* ignore */ }
+  try { original = new URL(url); } catch { /* ignore */ }
+
+  const provider =
+    (current && getRegistrableDomain(current.hostname)) ||
+    (original && getRegistrableDomain(original.hostname)) ||
+    "website";
+  const login_url = suggestedLoginUrl(currentUrl);
+  const currentPath = current?.pathname ?? "";
+  const originalPath = original?.pathname ?? "";
+  const protectedPath = PROTECTED_APP_PATHS.test(currentPath) || PROTECTED_APP_PATHS.test(originalPath);
+
+  if (currentPath && LOGIN_PATHS.test(currentPath)) {
+    return { provider, login_url: currentUrl, reason: "redirected to login" };
+  }
+
+  if (!html) return null;
+  if (isBlockedAppShell(html) && protectedPath) {
+    return { provider, login_url, reason: "blocked app shell" };
+  }
+
+  try {
+    const $ = cheerio.load(html);
+    const title = $("title").text().replace(/\s+/g, " ").trim();
+    const bodyText = $("body").text().replace(/\s+/g, " ").trim().slice(0, 4000);
+    const joined = `${title} ${bodyText}`.trim();
+    const hasPasswordInput = $('input[type="password"]').length > 0;
+    const hasAuthCopy = AUTH_PAGE_COPY.test(joined);
+    if (hasPasswordInput || (protectedPath && hasAuthCopy)) {
+      return {
+        provider,
+        login_url,
+        reason: hasPasswordInput ? "password prompt" : "login prompt",
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Quality gate — validate extracted data before marketplace publishing
@@ -262,6 +335,8 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
+  /** Browser-visible extracted data captured during live discovery, used for soft replay parity checks. */
+  parity_baseline?: unknown;
   /** Inferred JSON schema of the endpoint's response, for agent-side extraction */
   response_schema?: import("../types/index.js").ResponseSchema;
   /** Ready-to-use extraction hints derived from response_schema */
@@ -1101,22 +1176,7 @@ async function trySeedStructuredDocumentSkill(
     intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
   };
 
-  let learned: SkillManifest = localDraft;
-  const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
-  if (validation.valid) {
-    try {
-      const { operation_graph: _graph, ...publishDraft } = localDraft;
-      const published = await publishSkill(publishDraft);
-      learned = {
-        ...published,
-        endpoints: localEndpoints,
-        operation_graph: localDraft.operation_graph,
-      };
-    } catch {
-      learned = localDraft;
-    }
-  }
-  try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+  const learned = finalizePassiveLearnedSkill(localDraft);
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: nanoid(),
@@ -1219,18 +1279,7 @@ async function trySeedDirectJsonFetchSkill(
     intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
   };
 
-  let learned: SkillManifest = localDraft;
-  const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
-  if (validation.valid) {
-    try {
-      const { operation_graph: _graph, ...publishDraft } = localDraft;
-      const published = await publishSkill(publishDraft);
-      learned = { ...published, endpoints: localEndpoints, operation_graph: localDraft.operation_graph };
-    } catch {
-      learned = localDraft;
-    }
-  }
-  try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+  const learned = finalizePassiveLearnedSkill(localDraft);
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: nanoid(),
@@ -1317,22 +1366,7 @@ async function trySeedPublicDocumentFetchSkill(
     ...(usedStoredAuth ? { auth_profile_ref: `${domain}-session` } : {}),
   };
 
-  let learned: SkillManifest = localDraft;
-  const validation = await validateManifest({ ...localDraft, skill_id: "__validate__" });
-  if (validation.valid) {
-    try {
-      const { operation_graph: _graph, ...publishDraft } = localDraft;
-      const published = await publishSkill(publishDraft);
-      learned = {
-        ...published,
-        endpoints: localEndpoints,
-        operation_graph: localDraft.operation_graph,
-      };
-    } catch {
-      learned = localDraft;
-    }
-  }
-  try { cachePublishedSkill(learned); } catch { /* best-effort */ }
+  const learned = finalizePassiveLearnedSkill(localDraft);
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: nanoid(),
@@ -1479,6 +1513,36 @@ async function executeBrowserCapture(
       };
     }
     if (err.code === "blocked_app_shell") {
+      let protectedRoute = false;
+      let provider = getRegistrableDomain(targetDomain);
+      try {
+        const parsed = new URL(url);
+        protectedRoute = PROTECTED_APP_PATHS.test(parsed.pathname);
+        provider = getRegistrableDomain(parsed.hostname);
+      } catch {
+        protectedRoute = false;
+      }
+      if (protectedRoute) {
+        const loginUrl = suggestedLoginUrl(url);
+        const trace: ExecutionTrace = stampTrace({
+          trace_id: traceId,
+          skill_id: skill.skill_id,
+          endpoint_id: "browser-capture",
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "auth_required",
+        });
+        return {
+          trace,
+          result: {
+            error: "auth_required",
+            provider,
+            login_url: loginUrl,
+            message: `Stored auth was not enough to open this protected page. Run: unbrowse login --url "${loginUrl}" and retry.`,
+          },
+        };
+      }
       const trace: ExecutionTrace = stampTrace({
         trace_id: traceId,
         skill_id: skill.skill_id,
@@ -1513,13 +1577,12 @@ async function executeBrowserCapture(
   const finalDomain = (() => {
     try { return new URL(captured.final_url).hostname; } catch { return targetDomain; }
   })();
-  const AUTH_PROVIDERS = /accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|appleid\.apple\.com|github\.com|facebook\.com/i;
-  const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
 
-  const redirectedToAuth = finalDomain !== targetDomain && AUTH_PROVIDERS.test(finalDomain);
+  const redirectedToAuth = finalDomain !== targetDomain && AUTH_PROVIDER_HOSTS.test(finalDomain);
   const redirectedToLogin = captured.final_url !== url && (() => { try { return LOGIN_PATHS.test(new URL(String(captured.final_url)).pathname); } catch { return false; } })();
 
   if (redirectedToAuth || redirectedToLogin) {
+    const loginUrl = redirectedToLogin ? captured.final_url : suggestedLoginUrl(captured.final_url);
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
       skill_id: skill.skill_id,
@@ -1534,8 +1597,8 @@ async function executeBrowserCapture(
       result: {
         error: "auth_required",
         provider: getRegistrableDomain(finalDomain),
-        login_url: captured.final_url,
-        message: `Site requires authentication. Call POST /v1/auth/login with {"url": "${captured.final_url}"} to log in interactively, or pass cookies via params.cookies / headers via params.auth_headers.`,
+        login_url: loginUrl,
+        message: `Site requires authentication. Run: unbrowse login --url "${loginUrl}" and retry.`,
       },
     };
   }
@@ -1633,7 +1696,7 @@ async function executeBrowserCapture(
   const cleanEndpoints = endpoints.filter((ep) => {
     try {
       const host = new URL(ep.url_template).hostname;
-      return !AUTH_PROVIDERS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
+      return !AUTH_PROVIDER_HOSTS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
     } catch { return true; }
   });
 
@@ -1702,6 +1765,28 @@ async function executeBrowserCapture(
   const domArtifactResult = pageArtifact.result;
   const inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
   const hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
+  const authWall = !usedStoredAuth ? detectAuthWallFromPage(url, captured.final_url, captured.html) : null;
+
+  if (authWall && !hasSupportEvidence) {
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: skill.skill_id,
+      endpoint_id: "browser-capture",
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "auth_required",
+    });
+    return {
+      trace,
+      result: {
+        error: "auth_required",
+        provider: authWall.provider,
+        login_url: authWall.login_url,
+        message: `Site likely requires authentication for this page (${authWall.reason}). Run: unbrowse login --url "${authWall.login_url}" and retry.`,
+      },
+    };
+  }
 
   if (inferredOnlyCapture && !hasSupportEvidence) {
     const trace: ExecutionTrace = stampTrace({
@@ -1752,17 +1837,7 @@ async function executeBrowserCapture(
           ...(auth_profile_ref ? { auth_profile_ref } : {}),
         };
 
-        // Only publish to marketplace if quality passes
-        let learned: SkillManifest | undefined = domDraft;
-        try {
-          const validation = await validateManifest({ ...domDraft, skill_id: "__validate__" });
-          if (validation.valid) {
-            learned = await publishSkill(domDraft);
-          }
-        } catch { /* publish failure is non-fatal */ }
-        if (learned) {
-          try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
-        }
+        const learned = finalizePassiveLearnedSkill(domDraft, options?.client_scope);
 
         const trace: ExecutionTrace = stampTrace({
           trace_id: traceId,
@@ -1778,6 +1853,7 @@ async function executeBrowserCapture(
           trace,
           result: domArtifactResult,
           learned_skill: learned,
+          parity_baseline: domArtifactResult.data,
         };
       }
 
@@ -1848,8 +1924,6 @@ async function executeBrowserCapture(
     intent,
     domain,
   );
-  const publishableEndpoints = localEndpoints.filter((ep) => ep.method !== "WS");
-
   const localDraft: SkillManifest = {
     skill_id: existingSkill?.skill_id ?? nanoid(),
     version: "1.0.0",
@@ -1868,21 +1942,7 @@ async function executeBrowserCapture(
     intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
-  let learned: SkillManifest = localDraft;
-  if (publishableEndpoints.length > 0) {
-    const { operation_graph: _graph, ...publishBase } = localDraft;
-    const publishDraft: SkillManifest = { ...publishBase, endpoints: publishableEndpoints };
-    const validation = await validateManifest({ ...publishDraft, skill_id: "__validate__" });
-    if (!validation.valid) throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
-    const published = await publishSkill(publishDraft);
-    learned = {
-      ...published,
-      endpoints: localEndpoints,
-      operation_graph: localDraft.operation_graph,
-      ...(auth_profile_ref ? { auth_profile_ref } : {}),
-    };
-  }
-  try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
+  const learned = finalizePassiveLearnedSkill(localDraft, options?.client_scope);
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,
@@ -1911,6 +1971,7 @@ async function executeBrowserCapture(
       } : {}),
     },
     learned_skill: learned,
+    parity_baseline: domArtifactResult?.data,
   };
 }
 
