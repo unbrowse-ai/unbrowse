@@ -18,7 +18,7 @@ loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
-const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
+const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || "cli-local";
 
 // ---------------------------------------------------------------------------
 // Arg parser

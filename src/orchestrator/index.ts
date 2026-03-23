@@ -329,6 +329,37 @@ function promoteResultSnapshot(
   });
 }
 
+function buildCachedResultResponse(
+  cached: {
+    skill: SkillManifest;
+    endpointId?: string;
+    result: unknown;
+    trace: ExecutionTrace;
+    response_schema?: ResponseSchema;
+    extraction_hints?: OrchestratorResult["extraction_hints"];
+  },
+  source: "marketplace" | "live-capture",
+  timing: OrchestrationTiming,
+): OrchestratorResult {
+  const now = new Date().toISOString();
+  return {
+    result: cached.result,
+    trace: {
+      ...cached.trace,
+      trace_id: nanoid(),
+      started_at: now,
+      completed_at: now,
+      endpoint_id: cached.endpointId ?? cached.trace.endpoint_id,
+      skill_id: cached.skill.skill_id,
+    },
+    source,
+    skill: cached.skill,
+    timing,
+    response_schema: cached.response_schema,
+    extraction_hints: cached.extraction_hints,
+  };
+}
+
 function invalidateResolveCacheEntries(cacheKeys: string[], domainKeys: string[] = []): void {
   let routeCacheDirty = false;
   let domainCacheDirty = false;
@@ -668,6 +699,19 @@ export function shouldFallbackToLiveCaptureAfterAutoexecFailure(
   contextUrl?: string,
 ): boolean {
   return autoexecFailedAll && !!contextUrl;
+}
+
+export function shouldReuseRouteResultSnapshot(
+  cached: {
+    expires: number;
+    skill: SkillManifest;
+  },
+  intent: string,
+  contextUrl?: string,
+  now = Date.now(),
+): boolean {
+  if (cached.expires <= now) return false;
+  return isCachedSkillRelevantForIntent(cached.skill, intent, contextUrl);
 }
 
 function computeCompositeScore(embeddingScore: number, skill: SkillManifest): number {
@@ -1940,22 +1984,28 @@ export async function resolveAndExecute(
   if (!forceCapture && !agentChoseEndpoint) {
     const cachedResult = routeResultCache.get(cacheKey);
     if (cachedResult) {
-      if (
-        cachedResult.expires <= Date.now() ||
-        !isAcceptableIntentResult(cachedResult.result, intent) ||
-        !isCachedSkillRelevantForIntent(cachedResult.skill, intent, context?.url)
-      ) {
+      if (!shouldReuseRouteResultSnapshot(cachedResult, intent, context?.url)) {
         routeResultCache.delete(cacheKey);
       } else {
-        const deferred = await buildDeferralWithAutoExec(cachedResult.skill, "marketplace");
-        if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
-          console.log("[route-result-cache] stale cached skill; retrying via live capture");
-          invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
-        } else {
-          timing.cache_hit = true;
-          deferred.orchestratorResult.timing.cache_hit = true;
-          return deferred.orchestratorResult;
-        }
+        timing.cache_hit = true;
+        writeDebugTrace("resolve", {
+          ...decisionTrace,
+          outcome: "route_result_cache_hit",
+          source: "route-cache",
+          skill_id: cachedResult.skill.skill_id,
+          selected_endpoint_id: cachedResult.endpointId ?? cachedResult.trace.endpoint_id,
+        });
+        return buildCachedResultResponse(
+          cachedResult,
+          "marketplace",
+          finalize(
+            "route-cache",
+            cachedResult.result,
+            cachedResult.skill.skill_id,
+            cachedResult.skill,
+            cachedResult.trace,
+          ),
+        );
       }
     }
   }
