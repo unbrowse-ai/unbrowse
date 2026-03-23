@@ -192,7 +192,7 @@ async function stopListeningUnbrowse(baseUrl = BASE_URL): Promise<void> {
   const port = Number(new URL(baseUrl).port || "80");
   const pid = findListeningPid(port);
   if (!pid) return;
-  if (!/\bunbrowse\b|src\/index\.ts|runtime-src\/index\.ts|dist\/index\.js/i.test(readProcessCommand(pid))) return;
+  if (!/\bunbrowse\b|src\/(index|supervisor)\.ts|runtime-src\/(index|supervisor)\.ts|dist\/(index|supervisor)\.js/i.test(readProcessCommand(pid))) return;
   process.kill(pid, "SIGTERM");
   await waitForServerDown(10_000, baseUrl);
 }

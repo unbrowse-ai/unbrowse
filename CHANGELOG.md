@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.0...v2.1.1) (2026-03-24)
+
+### Bug Fixes
+
+* include `dist/supervisor.js` in the published CLI package so installed builds can autostart the new self-healing local supervisor instead of crashing on missing module
+* treat canonical structured replay endpoints as usable learned endpoints, so live capture keeps valid replay skills and staging browser evals can auto-execute the replay path after a Cloudflare-gated capture
+* reclaim stale local-server startup lock files immediately when no live owner remains, so `unbrowse health` no longer hangs behind a dead `server-localhost-6969.json.lock`
+* run the autostarted local API behind a supervisor that probes `/health`, tracks the child pid, and restarts wedged local-server children automatically instead of requiring manual restarts
+
 ## [2.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.23...v2.1.0) (2026-03-23)
 
 ### Features
@@ -49,6 +58,9 @@
 
 ### Bug Fixes
 
+- include `dist/supervisor.js` in the published CLI package so installed builds can autostart the new self-healing local supervisor instead of crashing on missing module
+- treat canonical structured replay endpoints (for sites like npm package pages) as usable learned endpoints, so live capture stops dropping valid replay skills and staging browser evals can auto-execute the replay path after a Cloudflare-gated capture
+- run the autostarted local API behind a supervisor that probes `/health`, tracks the child pid, and restarts wedged local-server children automatically instead of requiring manual restarts
 - prefer the managed Chrome child under an already-running Kuri server when discovering CDP, so tab creation stops attaching to unrelated local Chrome debug ports like `9222`
 - sharpen MCP tool descriptions, annotations, and structured outputs so Claude/Codex-style hosts choose Unbrowse first more reliably and can chain `skillId`/`endpointId` without guessing
 - prefer the user’s actual default browser during auth auto-extraction, refresh stale vault auth that lacks usable browser source metadata, and restore richer LinkedIn/Dia capture state instead of silently replaying weaker Chrome cookies
