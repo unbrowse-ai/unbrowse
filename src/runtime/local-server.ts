@@ -158,6 +158,13 @@ function deriveListenEnv(baseUrl: string): Record<string, string> {
   return { HOST: host, PORT: port, UNBROWSE_URL: baseUrl };
 }
 
+function describeListenTarget(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  const host = !url.hostname || url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
+  const port = url.port || (url.protocol === "https:" ? "443" : "80");
+  return `${host}:${port}`;
+}
+
 export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
   const pidFile = getServerPidFile(baseUrl);
   const startupLockFile = `${pidFile}.lock`;
@@ -216,6 +223,19 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
 
   try {
     if (await isServerHealthy(baseUrl)) return;
+
+    const discoveredPid = findListeningPid(baseUrl);
+    if (discoveredPid) {
+      if (isLikelyUnbrowseServerProcess(discoveredPid)) {
+        if (await waitForHealthy(baseUrl, 5_000)) return;
+        throw new Error(
+          `Port ${describeListenTarget(baseUrl)} already has an unbrowse server (pid ${discoveredPid}), but it did not become healthy.`,
+        );
+      }
+      throw new Error(
+        `Port ${describeListenTarget(baseUrl)} already in use by pid ${discoveredPid}.`,
+      );
+    }
 
     const entrypoint = resolveSiblingEntrypoint(metaUrl, "index");
     const packageRoot = getPackageRoot(metaUrl);

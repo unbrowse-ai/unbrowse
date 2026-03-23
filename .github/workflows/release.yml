@@ -23,7 +23,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
@@ -62,7 +62,7 @@ jobs:
     needs: test-gate
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
@@ -83,7 +83,7 @@ jobs:
     needs: test-gate
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-node@v4
         with:
@@ -204,7 +204,7 @@ jobs:
       - sync-public-release
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
@@ -224,7 +224,7 @@ jobs:
     needs: deploy-staging
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
@@ -243,7 +243,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
@@ -269,7 +269,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:/usr/local/bin:$PATH"
           bun install --frozen-lockfile
@@ -293,7 +293,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -490,7 +490,7 @@ jobs:
     needs: [browser-eval-staging, publish-cli, publish-frameworks-npm, publish-frameworks-python]
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile
@@ -517,7 +517,7 @@ jobs:
     needs: deploy-prod
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule sync --recursive && git submodule update --init submodules/kuri
+      - run: git submodule sync --recursive && git submodule update --init --remote submodules/kuri
       - run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun install --frozen-lockfile

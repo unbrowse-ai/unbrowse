@@ -90,7 +90,7 @@ For monorepo development, initialize submodules after cloning:
 bun run submodules:init
 ```
 
-This syncs and initializes the tracked Kuri submodule in `submodules/kuri` from [lekt9/kuri](https://github.com/lekt9/kuri.git) on the `codex/fix-managed-discover-cdp` branch. `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
+This syncs and initializes the tracked Kuri submodule in `submodules/kuri` from [justrach/kuri](https://github.com/justrach/kuri) on `main`. `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
 
 ## Automatic bootstrap
 

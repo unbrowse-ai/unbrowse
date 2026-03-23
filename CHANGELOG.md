@@ -28,6 +28,9 @@
 - fix: preserve response schemas and extraction hints for CLI `--schema` runs by forcing raw projection on resolve/execute
 - fix: unwrap carrier-shaped raw page artifacts before CLI `--path` / `--extract` transforms so schema-guided paths like `initialData.*` resolve correctly
 - fix: stop reusing the wrong same-domain skill when live capture revisits a different entity page with the same intent
+- feat: let capture use Kuri for a bounded interactive exploration pass on search/discover/action flows, so it can type into visible inputs, click likely CTAs, and record the requests those UI actions trigger
+- fix: honor `--force-capture` all the way through browser-capture execution, skipping structured/document seed shortcuts so a forced run actually reaches the Kuri browser path
+- fix: recover LawNet-style HTML search forms by submitting the detected form over HTTP when browser interaction flakes, learn the resulting HTML response as a replayable safe DOM endpoint, and replay form bodies as `application/x-www-form-urlencoded`
 - build: bump the local package version to `2.0.24-local.1` so global installs from this repo stay ahead of the npm `latest` auto-update check during smoke tests
 - docs: split the whitepaper GitBook companion into a plain-English explainer plus dedicated technical and investor reading paths, point public package docs at `docs.unbrowse.ai`, restore the direct whitepaper PDF link, and stop syncing packed `.tgz` artifacts into the public repo
 - fix LinkedIn/X-style structured query params (`variables=(start:...,count:...)`) so new captures learn templated nested query fields, `unbrowse execute --params ...` rewrites those nested fields instead of appending dead top-level params, and even older concrete skills can retrofit `start`/`count` overrides at execution time
@@ -40,6 +43,7 @@
 
 ### Bug Fixes
 
+- prefer the managed Chrome child under an already-running Kuri server when discovering CDP, so tab creation stops attaching to unrelated local Chrome debug ports like `9222`
 - sharpen MCP tool descriptions, annotations, and structured outputs so Claude/Codex-style hosts choose Unbrowse first more reliably and can chain `skillId`/`endpointId` without guessing
 - prefer the user’s actual default browser during auth auto-extraction, refresh stale vault auth that lacks usable browser source metadata, and restore richer LinkedIn/Dia capture state instead of silently replaying weaker Chrome cookies
 - treat authenticated LinkedIn embedded feed payloads as valid for plain feed intents like `get my linkedin feed`, not only explicit `feed posts` phrasing, and learn those embedded `voyagerFeedDashMainFeed` routes with trigger-intercept execution by default so fresh forced captures stop dropping into irrelevant messaging/realtime endpoints or replaying unauthenticated server fetches
