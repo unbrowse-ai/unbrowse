@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* preserve literal query semantics for single search-param endpoints during param inference, falling back to condensed keyword extraction only when needed
+* improve LawNet-style long-form search prompts by keeping salient clauses and quoted phrases intact instead of sending a lossy token bag
+* stop feeding long narrative LawNet-style factual backgrounds into single search fields, so auto-exec uses bounded keyword queries when literal clauses are too large for the target form field
+* repair LawNet retrieval from local reuse paths so resolve falls through to the richer structured search snapshot instead of stale artifact-only deferrals
+* treat LawNet-style case rows as valid search results and bias extraction away from shell-style heading wrappers
+* allow safe form-style POST endpoints with trigger pages to use trigger-intercept fallback, instead of limiting that recovery path to GET-only endpoints
+
 ## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.2...v2.1.3) (2026-03-23)
 
 ### Bug Fixes
@@ -72,6 +83,8 @@
 
 ### Bug Fixes
 
+- repair LawNet retrieval from local reuse paths: preserve search verbs/late keywords when condensing long legal prompts, prefer the richest local snapshot for a cached skill, and fall back to same-domain local snapshots before live capture when marketplace/domain cache misses
+- treat LawNet-style case rows as valid search results and bias DOM extraction away from `Search Results` shell wrappers toward normalized repeated case rows, so `resolve` can auto-execute the structured `result-page` search endpoint instead of returning artifact junk
 - fix warm retrieval for exact cached results: when `resolve` already has a valid route-result snapshot for the same intent + URL, reuse that snapshot directly instead of re-running full endpoint replay and deleting the cache on a stricter second-pass semantic check
 - fix unstable local cache scoping: default CLI requests now share a stable client id and API requests without an explicit client id fall back to `global`, so route-result/route-skill retrieval caches survive across repeated local commands instead of fragmenting per request
 - include `dist/supervisor.js` in the published CLI package so installed builds can autostart the new self-healing local supervisor instead of crashing on missing module
