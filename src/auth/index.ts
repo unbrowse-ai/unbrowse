@@ -6,6 +6,7 @@ import { log } from "../logger.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
+import type { BrowserAuthSourceMeta } from "./browser-cookies.js";
 
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -26,6 +27,24 @@ export interface LoginResult {
   error?: string;
 }
 
+export interface StoredAuthBundle {
+  cookies: AuthCookie[];
+  headers: Record<string, string>;
+  source_keys: string[];
+  source_meta?: BrowserAuthSourceMeta | null;
+}
+
+export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | undefined): boolean {
+  if (!bundle) return true;
+  if (bundle.cookies.length === 0 && Object.keys(bundle.headers).length === 0) return true;
+  const sourceMeta = bundle.source_meta;
+  if (!sourceMeta) return true;
+  if (sourceMeta.family === "chromium" && !sourceMeta.userDataDir && !sourceMeta.cookieDbPath) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Open a visible browser for the user to complete login.
  * Uses Kuri to manage the browser tab, polls for login completion via cookies.
@@ -38,95 +57,43 @@ export async function interactiveLogin(
   domain?: string,
 ): Promise<LoginResult> {
   const targetDomain = domain ?? new URL(url).hostname;
-  const profileDir = getProfilePath(targetDomain);
 
   log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}`);
 
-  try {
-    fs.mkdirSync(profileDir, { recursive: true });
+  // Open URL in the user's default browser (visible, not headless)
+  const { exec } = await import("node:child_process");
+  const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+  exec(`${openCmd} ${JSON.stringify(url)}`);
+  log("auth", `opened ${url} in default browser via ${openCmd}`);
 
-    // Start Kuri and get a tab
-    await kuri.start();
-    const tabId = await kuri.getDefaultTab();
-    await kuri.networkEnable(tabId);
+  // Poll extractBrowserAuth until cookies appear or timeout
+  const startTime = Date.now();
+  while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-    // Navigate to login URL
-    await kuri.navigate(tabId, url);
-
-    const startTime = Date.now();
-
-    // Snapshot initial cookies
-    const initialCookies = await kuri.getCookies(tabId);
-    const initialCookieCount = initialCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
-    log("auth", `initial cookies for ${targetDomain}: ${initialCookieCount}`);
-
-    // Wait for user to complete login — detect via cookie changes + URL change
-    let loggedIn = false;
-    let lastLoggedUrl = "";
-    while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-      const elapsed = Date.now() - startTime;
-
-      try {
-        const currentUrl = await kuri.getCurrentUrl(tabId);
-        const currentDomain = new URL(currentUrl).hostname.toLowerCase();
-        const targetNorm = targetDomain.toLowerCase();
-
-        if (currentUrl !== lastLoggedUrl) {
-          log("auth", `navigated to: ${currentUrl}`);
-          lastLoggedUrl = currentUrl;
-        }
-
-        if (elapsed < MIN_WAIT_MS) continue;
-
-        const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
-        if (isOnTarget) {
-          const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/.test(new URL(currentUrl).pathname);
-
-          const currentCookies = await kuri.getCookies(tabId);
-          const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
-          const gotNewCookies = currentCookieCount > initialCookieCount;
-
-          if (!isStillLogin && gotNewCookies) {
-            loggedIn = true;
-            log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount})`);
-            break;
-          }
-
-          if (!isStillLogin && currentCookieCount > 0) {
-            loggedIn = true;
-            log("auth", `already logged in — ${currentUrl} (${currentCookieCount} cookies present)`);
-            break;
-          }
-        }
-      } catch { /* page navigating */ }
+    try {
+      const result = await extractBrowserAuth(targetDomain);
+      if (result.success && result.cookies_stored > 0) {
+        log("auth", `login detected — ${result.cookies_stored} cookies captured for ${targetDomain}`);
+        return result;
+      }
+    } catch (err) {
+      log("auth", `poll error: ${err instanceof Error ? err.message : err}`);
     }
 
-    if (!loggedIn) {
-      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — capturing cookies anyway`);
+    // Log progress every 10s
+    const elapsed = Date.now() - startTime;
+    if (elapsed % 10_000 < POLL_INTERVAL_MS) {
+      log("auth", `waiting for login... ${Math.round(elapsed / 1000)}s elapsed`);
     }
-
-    // Extract and store cookies
-    const cookies = await kuri.getCookies(tabId);
-    const domainCookies = cookies.filter((c) => isDomainMatch(c.domain, targetDomain));
-
-    if (domainCookies.length === 0) {
-      return { success: false, domain: targetDomain, cookies_stored: 0, error: "No cookies captured for domain" };
-    }
-
-    const storableCookies = domainCookies.map((c) => ({
-      name: c.name, value: c.value, domain: c.domain, path: c.path,
-      secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, expires: c.expires,
-    }));
-
-    const vaultKey = `auth:${getRegistrableDomain(targetDomain)}`;
-    await storeCredential(vaultKey, JSON.stringify({ cookies: storableCookies }));
-    log("auth", `stored ${storableCookies.length} cookies under ${vaultKey}`);
-
-    return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
-  } finally {
-    // Cleanup handled by Kuri's tab management
   }
+
+  return {
+    success: false,
+    domain: targetDomain,
+    cookies_stored: 0,
+    error: `Login timed out after ${LOGIN_TIMEOUT_MS / 1000}s — no cookies detected in browser`,
+  };
 }
 
 /**
@@ -164,7 +131,7 @@ export async function extractBrowserAuth(
   const vaultKey = `auth:${getRegistrableDomain(domain)}`;
   await storeCredential(
     vaultKey,
-    JSON.stringify({ cookies: storableCookies })
+    JSON.stringify({ cookies: storableCookies, source_meta: result.sourceMeta ?? null })
   );
 
   log("auth", `stored ${storableCookies.length} cookies for ${domain} (key: ${vaultKey}) from ${result.source}`);
@@ -182,6 +149,15 @@ type AuthCookie = {
   expires?: number;
 };
 
+function getStoredAuthKeys(domain: string): string[] {
+  const regDomain = getRegistrableDomain(domain);
+  const keys = [`${regDomain}-session`];
+  if (domain !== regDomain) keys.push(`${domain}-session`);
+  keys.push(`auth:${regDomain}`);
+  if (domain !== regDomain) keys.push(`auth:${domain}`);
+  return keys;
+}
+
 /** Filter out expired cookies. Session cookies (expires <= 0) are kept. */
 function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
   const now = Math.floor(Date.now() / 1000);
@@ -191,6 +167,68 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
   });
 }
 
+function mergeCookies(target: AuthCookie[], incoming: AuthCookie[]): void {
+  const seen = new Set(
+    target.map((cookie) => `${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`),
+  );
+  for (const cookie of incoming) {
+    const key = `${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    target.push(cookie);
+  }
+}
+
+export async function getStoredAuthBundle(
+  domain: string
+): Promise<StoredAuthBundle | null> {
+  const cookies: AuthCookie[] = [];
+  const headers: Record<string, string> = {};
+  const source_keys: string[] = [];
+  let source_meta: BrowserAuthSourceMeta | null = null;
+
+  for (const key of getStoredAuthKeys(domain)) {
+    const stored = await getCredential(key);
+    if (!stored) continue;
+    try {
+      const parsed = JSON.parse(stored) as {
+        cookies?: AuthCookie[];
+        headers?: Record<string, string>;
+        source_meta?: BrowserAuthSourceMeta | null;
+      };
+      const rawCookies = parsed.cookies ?? [];
+      const validCookies = filterExpired(rawCookies);
+      const parsedHeaders = parsed.headers ?? {};
+      if (rawCookies.length > 0 && validCookies.length === 0 && Object.keys(parsedHeaders).length === 0) {
+        log("auth", `all ${rawCookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
+        await deleteCredential(key);
+        continue;
+      }
+      if (validCookies.length < rawCookies.length) {
+        log("auth", `filtered ${rawCookies.length - validCookies.length} expired cookies for ${domain}`);
+      }
+      mergeCookies(cookies, validCookies);
+      for (const [header, value] of Object.entries(parsedHeaders)) {
+        if (headers[header] == null) headers[header] = value;
+      }
+      if ((validCookies.length > 0 || Object.keys(parsedHeaders).length > 0) && !source_keys.includes(key)) {
+        source_keys.push(key);
+        if (!source_meta && parsed.source_meta) source_meta = parsed.source_meta;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (cookies.length === 0 && Object.keys(headers).length === 0) return null;
+  return { cookies, headers, source_keys, source_meta };
+}
+
+export async function findStoredAuthReference(domain: string): Promise<string | null> {
+  const bundle = await getStoredAuthBundle(domain);
+  return bundle?.source_keys[0] ?? null;
+}
+
 /**
  * Retrieve stored auth cookies for a domain from the vault.
  * Filters out expired cookies automatically.
@@ -198,33 +236,7 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
 export async function getStoredAuth(
   domain: string
 ): Promise<AuthCookie[] | null> {
-  const regDomain = getRegistrableDomain(domain);
-  const keysToTry = [`auth:${regDomain}`];
-  if (domain !== regDomain) keysToTry.push(`auth:${domain}`);
-
-  for (const key of keysToTry) {
-    const stored = await getCredential(key);
-    if (!stored) continue;
-    try {
-      const parsed = JSON.parse(stored) as { cookies?: AuthCookie[] };
-      const cookies = parsed.cookies;
-      if (!cookies || cookies.length === 0) continue;
-
-      const valid = filterExpired(cookies);
-      if (valid.length === 0) {
-        log("auth", `all ${cookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
-        await deleteCredential(key);
-        continue;
-      }
-      if (valid.length < cookies.length) {
-        log("auth", `filtered ${cookies.length - valid.length} expired cookies for ${domain}`);
-      }
-      return valid;
-    } catch {
-      continue;
-    }
-  }
-  return null;
+  return (await getStoredAuthBundle(domain))?.cookies ?? null;
 }
 
 /**
@@ -235,12 +247,17 @@ export async function getStoredAuth(
  *   2. Auto-extract from Chrome/Firefox SQLite (bird pattern — always fresh)
  */
 export async function getAuthCookies(
-  domain: string
+  domain: string,
+  opts?: { autoExtract?: boolean }
 ): Promise<AuthCookie[] | null> {
-  const vaultCookies = await getStoredAuth(domain);
-  if (vaultCookies && vaultCookies.length > 0) return vaultCookies;
+  const bundle = await getStoredAuthBundle(domain);
+  if (bundle && bundle.cookies.length > 0 && !storedAuthNeedsBrowserRefresh(bundle)) {
+    return bundle.cookies;
+  }
 
-  log("auth", `no vault cookies for ${domain} — auto-extracting from browser`);
+  if (opts?.autoExtract === false) return bundle?.cookies ?? null;
+
+  log("auth", `${bundle ? "stored auth lacks usable browser source metadata" : "no vault cookies"} for ${domain} — auto-extracting from browser`);
   try {
     const result = await extractBrowserAuth(domain);
     if (result.success && result.cookies_stored > 0) {
@@ -250,7 +267,7 @@ export async function getAuthCookies(
     log("auth", `browser auto-extract failed for ${domain}: ${err instanceof Error ? err.message : err}`);
   }
 
-  return null;
+  return bundle?.cookies ?? null;
 }
 
 /**

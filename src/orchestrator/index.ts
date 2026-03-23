@@ -5,6 +5,7 @@ import { getSkillChunk, knownBindingsFromInputs } from "../graph/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { mergeContextTemplateParams } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
+import { queuePassiveSkillPublish } from "./passive-publish.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -15,7 +16,7 @@ import type {
 } from "../types/index.js";
 import { TRACE_VERSION } from "../version.js";
 import { nanoid } from "nanoid";
-import { assessIntentResult } from "../intent-match.js";
+import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -50,7 +51,7 @@ const capturedDomainCache = new Map<
 // the same live capture instead of failing fast.
 const captureInFlight = new Map<
   string,
-  Promise<{ learned_skill?: SkillManifest; trace: ExecutionTrace; result: unknown }>
+  Promise<{ learned_skill?: SkillManifest; trace: ExecutionTrace; result: unknown; parity_baseline?: unknown }>
 >();
 // Cross-client profile lock: some sites/profile dirs do not tolerate parallel browser
 // launches against the same domain/profile. Serialize live captures per domain.
@@ -140,6 +141,61 @@ function scopedCacheKey(scope: string, key: string): string {
   return `${scope}:${key}`;
 }
 
+function isIpv4Hostname(hostname: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+}
+
+function isIpv6Hostname(hostname: string): boolean {
+  return hostname.includes(":");
+}
+
+function isPortSensitiveHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "::1" ||
+    normalized === "[::1]" ||
+    isIpv4Hostname(normalized) ||
+    isIpv6Hostname(normalized) ||
+    !normalized.includes(".")
+  );
+}
+
+function getDomainReuseKey(input?: string | null): string | null {
+  if (!input) return null;
+  try {
+    const parsed = new URL(input);
+    if (isPortSensitiveHostname(parsed.hostname)) return parsed.host.toLowerCase();
+    return getRegistrableDomain(parsed.hostname);
+  } catch {
+    return getRegistrableDomain(input);
+  }
+}
+
+function endpointMatchesContextOrigin(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  if (!contextUrl) return true;
+  try {
+    const context = new URL(contextUrl);
+    if (!isPortSensitiveHostname(context.hostname)) return true;
+    const sameOrigin = (candidate?: string | null): boolean => {
+      if (!candidate) return false;
+      try {
+        return new URL(candidate).origin === context.origin;
+      } catch {
+        return false;
+      }
+    };
+    return sameOrigin(endpoint.url_template) || sameOrigin(endpoint.trigger_url ?? null);
+  } catch {
+    return true;
+  }
+}
+
 function normalizeRouteContext(url?: string): string {
   if (!url) return "root";
   try {
@@ -166,6 +222,7 @@ function promoteLearnedSkill(
   cacheKey: string,
   skill: SkillManifest,
   endpointId?: string,
+  contextUrl?: string,
 ): void {
   capturedDomainCache.set(cacheKey, { skill, endpointId, expires: Date.now() + 5 * 60_000 });
   skillRouteCache.set(cacheKey, {
@@ -176,9 +233,9 @@ function promoteLearnedSkill(
   });
   persistRouteCache();
   // Also cache at domain level for cross-intent reuse
-  const regDomain = getRegistrableDomain(skill.domain);
-  if (regDomain) {
-    domainSkillCache.set(regDomain, { skillId: skill.skill_id, endpointId, ts: Date.now() });
+  const domainKey = getDomainReuseKey(contextUrl ?? skill.domain);
+  if (domainKey) {
+    domainSkillCache.set(domainKey, { skillId: skill.skill_id, endpointId, ts: Date.now() });
     persistDomainCache();
   }
 }
@@ -226,7 +283,7 @@ export function promoteExplicitExecution(
   const assessment = assessIntentResult(result, intent);
   if (assessment.verdict === "fail") return false;
   const cacheKey = buildResolveCacheKey(skill.domain, intent, contextUrl);
-  promoteLearnedSkill(scope, cacheKey, skill, endpointId);
+  promoteLearnedSkill(scope, cacheKey, skill, endpointId, contextUrl);
   return true;
 }
 
@@ -256,6 +313,98 @@ function withContextReplayEndpoint(
     ...skill,
     endpoints: [canonical, ...skill.endpoints],
   };
+}
+
+export function isCachedSkillRelevantForIntent(
+  skill: SkillManifest,
+  intent?: string,
+  contextUrl?: string,
+): boolean {
+  if (!hasUsableEndpoints(skill)) return false;
+  if (contextUrl && !skill.endpoints.some((endpoint) => endpointMatchesContextOrigin(endpoint, contextUrl))) {
+    return false;
+  }
+  if (!intent || intent.trim().length === 0) return true;
+  if (isFeedTimelineIntent(intent, contextUrl)) {
+    const hasFeedLikeEndpoint = skill.endpoints.some((endpoint) =>
+      endpointMatchesFeedTimelineContext(endpoint, contextUrl),
+    );
+    if (!hasFeedLikeEndpoint) return false;
+  }
+  const resolvedSkill = withContextReplayEndpoint(skill, intent, contextUrl);
+  const ranked = rankEndpoints(
+    resolvedSkill.endpoints,
+    intent,
+    resolvedSkill.domain,
+    contextUrl,
+  );
+  const top = ranked[0];
+  if (
+    top &&
+    isEducationCatalogIntent(intent) &&
+    isRootContextUrl(contextUrl) &&
+    /captured page artifact/i.test(top.endpoint.description ?? "") &&
+    top.endpoint.url_template === contextUrl
+  ) {
+    return false;
+  }
+  return (top?.score ?? Number.NEGATIVE_INFINITY) >= 0;
+}
+
+function isEducationCatalogIntent(intent?: string): boolean {
+  return /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i.test(intent ?? "");
+}
+
+function isFeedTimelineIntent(intent?: string, contextUrl?: string): boolean {
+  const text = `${intent ?? ""} ${contextUrl ?? ""}`.toLowerCase();
+  const asksForPosts = /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(text);
+  if (!asksForPosts) return false;
+  return /\b(feed|timeline|stream|home|for-you|for_you|latest)\b/.test(text) || /\/(feed|home)\//.test(text);
+}
+
+function endpointMatchesFeedTimelineContext(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  const haystack = [
+    endpoint.url_template,
+    endpoint.trigger_url ?? "",
+    endpoint.description ?? "",
+    endpoint.semantic?.action_kind ?? "",
+    endpoint.semantic?.resource_kind ?? "",
+    endpoint.semantic?.description_in ?? "",
+    endpoint.semantic?.description_out ?? "",
+    JSON.stringify(endpoint.response_schema ?? {}),
+  ]
+    .join(" ")
+    .toLowerCase();
+  const mentionsFeed = /\b(feed|timeline|stream|mainfeed|main feed|home)\b/.test(haystack);
+  const mentionsPosts = /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(haystack);
+  if (mentionsFeed && mentionsPosts) return true;
+  if (!contextUrl) return false;
+  try {
+    const contextPath = new URL(contextUrl).pathname;
+    const endpointPath = new URL(endpoint.url_template).pathname;
+    if (endpointPath === contextPath) return true;
+  } catch {
+    // ignore
+  }
+  try {
+    if (!endpoint.trigger_url) return false;
+    const triggerPath = new URL(endpoint.trigger_url).pathname;
+    return triggerPath === new URL(contextUrl).pathname;
+  } catch {
+    return false;
+  }
+}
+
+function isRootContextUrl(contextUrl?: string): boolean {
+  if (!contextUrl) return false;
+  try {
+    return new URL(contextUrl).pathname === "/";
+  } catch {
+    return false;
+  }
 }
 
 async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): Promise<T> {
@@ -554,6 +703,29 @@ async function withOpTimeout<T>(label: string, ms: number, work: Promise<T>): Pr
   ]);
 }
 
+async function withAbortableOpTimeout<T>(
+  label: string,
+  ms: number,
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error(`${label}_timeout:${ms}`)), ms);
+  try {
+    return await Promise.race([
+      work(controller.signal),
+      new Promise<never>((_, reject) =>
+        controller.signal.addEventListener(
+          "abort",
+          () => reject(controller.signal.reason ?? new Error(`${label}_timeout:${ms}`)),
+          { once: true },
+        ),
+      ),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function inferPreferredEntityTokens(intent: string): string[] {
   const lower = intent.toLowerCase();
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower))
@@ -648,6 +820,12 @@ export function marketplaceSkillMatchesContext(
   intent: string,
   contextUrl?: string,
 ): boolean {
+  if (contextUrl && !skill.endpoints.some((endpoint) => endpointMatchesContextOrigin(endpoint, contextUrl))) {
+    return false;
+  }
+  if (isFeedTimelineIntent(intent, contextUrl)) {
+    return skill.endpoints.some((endpoint) => endpointMatchesFeedTimelineContext(endpoint, contextUrl));
+  }
   if (!contextUrl || !isConcreteEntityDetailIntent(intent, contextUrl)) return true;
   let contextPath = "";
   try {
@@ -793,6 +971,111 @@ async function agentJudgeExecution(
   return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
 }
 
+function normalizeParityRows(data: unknown, intent: string): Array<Record<string, unknown>> {
+  const projected = projectIntentData(data, intent);
+  if (Array.isArray(projected)) {
+    return projected.filter((row): row is Record<string, unknown> => !!row && typeof row === "object");
+  }
+  if (projected && typeof projected === "object") return [projected as Record<string, unknown>];
+  return [];
+}
+
+function compactParityValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim().toLowerCase().slice(0, 160);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.slice(0, 3).map((item) => compactParityValue(item)).filter(Boolean).join("|");
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).slice(0, 3).map((item) => compactParityValue(item)).filter(Boolean).join("|");
+  }
+  return "";
+}
+
+function parityFingerprint(row: Record<string, unknown>): string {
+  const preferredKeys = [
+    "id",
+    "entityUrn",
+    "urn",
+    "url",
+    "link",
+    "slug",
+    "name",
+    "title",
+    "headline",
+    "author",
+    "user",
+    "content",
+    "text",
+    "body",
+  ];
+  const parts = preferredKeys
+    .map((key) => compactParityValue(row[key]))
+    .filter(Boolean)
+    .slice(0, 4);
+  if (parts.length > 0) return parts.join("::");
+  return compactParityValue(row);
+}
+
+function localParityVerdict(
+  intent: string,
+  browserBaseline: unknown,
+  replayResult: unknown,
+): { verdict: "pass" | "fail" | "skip"; reason: string } {
+  const browserAssessment = assessIntentResult(browserBaseline, intent);
+  const replayAssessment = assessIntentResult(replayResult, intent);
+  if (replayAssessment.verdict === "fail") return { verdict: "fail", reason: `replay_${replayAssessment.reason}` };
+  if (browserAssessment.verdict === "fail") return { verdict: "skip", reason: `browser_${browserAssessment.reason}` };
+
+  const browserRows = normalizeParityRows(browserBaseline, intent);
+  const replayRows = normalizeParityRows(replayResult, intent);
+  if (browserRows.length === 0 || replayRows.length === 0) return { verdict: "skip", reason: "insufficient_rows" };
+
+  const browserPrints = new Set(browserRows.map(parityFingerprint).filter(Boolean));
+  const replayPrints = new Set(replayRows.map(parityFingerprint).filter(Boolean));
+  if (browserPrints.size === 0 || replayPrints.size === 0) return { verdict: "skip", reason: "insufficient_fingerprints" };
+
+  let overlap = 0;
+  for (const fingerprint of browserPrints) {
+    if (replayPrints.has(fingerprint)) overlap += 1;
+  }
+  const overlapRatio = overlap / Math.max(1, Math.min(browserPrints.size, replayPrints.size));
+  if (overlapRatio >= 0.4) return { verdict: "pass", reason: `fingerprint_overlap_${overlap}/${Math.min(browserPrints.size, replayPrints.size)}` };
+  if (overlap === 0 && browserPrints.size >= 2 && replayPrints.size >= 1) {
+    return { verdict: "fail", reason: "zero_overlap" };
+  }
+  return { verdict: "skip", reason: `low_overlap_${overlapRatio.toFixed(2)}` };
+}
+
+async function agentJudgeParity(
+  intent: string,
+  browserBaseline: unknown,
+  replayResult: unknown,
+): Promise<"pass" | "fail" | "skip"> {
+  const browserProjected = projectIntentData(browserBaseline, intent);
+  const replayProjected = projectIntentData(replayResult, intent);
+  const verdict = await callJsonAgent<{
+    verdict?: "pass" | "fail" | "skip";
+    result?: "pass" | "fail" | "skip";
+    judgment?: "pass" | "fail" | "skip";
+  }>(
+    "You judge whether a replay/API result is close enough to the browser-visible result for the same web task. Return JSON only.",
+    JSON.stringify({
+      task: "judge_browser_replay_parity",
+      intent,
+      browser_result: browserProjected,
+      replay_result: replayProjected,
+      rules: [
+        "This is a soft parity check, not strict equality.",
+        "Pass when the replay captures substantially the same user-visible entities or records, even if order, counts, or some fields differ.",
+        "Fail when the replay is a different entity type, obviously unrelated, or misses almost all visible items.",
+        "Skip when evidence is too sparse or ambiguous.",
+      ],
+    }),
+    { verdict: "skip" as const },
+  );
+  return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
+}
+
 export function resolveEndpointTemplateBindings(
   endpoint: SkillManifest["endpoints"][number],
   params: Record<string, unknown> = {},
@@ -857,7 +1140,7 @@ export async function resolveAndExecute(
   const clientScope = options?.client_scope ?? "global";
   // force_capture: clear domain caches so we go straight to browser capture
   if (forceCapture && context?.url) {
-    const d = new URL(context.url).hostname;
+    const d = getDomainReuseKey(context.url) ?? new URL(context.url).hostname;
     for (const [k] of capturedDomainCache) {
       if (k.startsWith(`${clientScope}:`) && k.includes(`:${d}:`)) capturedDomainCache.delete(k);
     }
@@ -928,7 +1211,7 @@ export async function resolveAndExecute(
         const autoResult = await tryAutoExecute(skill, source);
         if (autoResult) {
           // Promote to marketplace cache so subsequent requests skip live-capture
-          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "");
+          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "", context?.url);
           return autoResult;
         }
       } catch (err) {
@@ -1391,7 +1674,8 @@ export async function resolveAndExecute(
     if (cachedResult) {
       if (
         cachedResult.expires <= Date.now() ||
-        !isAcceptableIntentResult(cachedResult.result, intent)
+        !isAcceptableIntentResult(cachedResult.result, intent) ||
+        !isCachedSkillRelevantForIntent(cachedResult.skill, intent, context?.url)
       ) {
         routeResultCache.delete(cacheKey);
       } else {
@@ -1408,7 +1692,7 @@ export async function resolveAndExecute(
     const cached = skillRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
       const skill = await getSkill(cached.skillId, clientScope);
-      if (skill && hasUsableEndpoints(skill)) {
+      if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
         timing.cache_hit = true;
         const deferred = await buildDeferralWithAutoExec(skill, "marketplace");
         deferred.timing.cache_hit = true;
@@ -1421,16 +1705,23 @@ export async function resolveAndExecute(
 
   // Domain-level cache: different intent, same domain → reuse skill with new params
   if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
-    const regDomain = getRegistrableDomain(requestedDomain);
-    const domainCached = regDomain ? domainSkillCache.get(regDomain) : null;
+    const domainKey = getDomainReuseKey(context?.url ?? requestedDomain);
+    const domainCached = domainKey ? domainSkillCache.get(domainKey) : null;
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
       const skill = await getSkill(domainCached.skillId, clientScope);
-      if (skill && hasUsableEndpoints(skill)) {
+      if (skill && isCachedSkillRelevantForIntent(skill, intent, context?.url)) {
         timing.cache_hit = true;
-        console.log(`[domain-cache] hit for ${regDomain} → skill ${skill.skill_id.slice(0, 15)}`);
+        console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)}`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
         result.timing.cache_hit = true;
         return result;
+      } else if (skill) {
+        const ranked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
+        const top = ranked[0];
+        console.log(
+          `[domain-cache] skip ${domainKey}: no relevant endpoint for "${intent}"` +
+            (top ? ` (${top.endpoint.endpoint_id} score=${top.score.toFixed(1)})` : ""),
+        );
       }
     }
   }
@@ -1542,6 +1833,7 @@ export async function resolveAndExecute(
       if (!skill) continue;
       if (skill.lifecycle !== "active") continue;
       if (!hasUsableEndpoints(skill)) continue;
+      if (!isCachedSkillRelevantForIntent(skill, intent, context?.url)) continue;
       if (!marketplaceSkillMatchesContext(skill, intent, context?.url)) continue;
       if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
       const endpointId = extractEndpointId(c.metadata) ?? undefined;
@@ -1655,46 +1947,50 @@ export async function resolveAndExecute(
   // Check recently-captured cache: avoids re-capturing when EmergentDB hasn't indexed yet
   const domainHit = !forceCapture ? capturedDomainCache.get(cacheKey) : undefined;
   if (domainHit && Date.now() < domainHit.expires) {
-    timing.cache_hit = true;
-    let staleCachedEndpoint = false;
-    if (agentChoseEndpoint) {
-      const execOut = await executeSkill(
-        domainHit.skill,
-        { ...params, endpoint_id: params.endpoint_id ?? domainHit.endpointId },
-        projection,
-        { ...options, intent, contextUrl: context?.url },
-      );
-      if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
-        promoteResultSnapshot(
-          cacheKey,
+    if (!isCachedSkillRelevantForIntent(domainHit.skill, intent, context?.url)) {
+      capturedDomainCache.delete(cacheKey);
+    } else {
+      timing.cache_hit = true;
+      let staleCachedEndpoint = false;
+      if (agentChoseEndpoint) {
+        const execOut = await executeSkill(
           domainHit.skill,
-          params.endpoint_id ?? domainHit.endpointId,
-          execOut.result,
-          execOut.trace,
-          execOut.response_schema,
-          execOut.extraction_hints,
+          { ...params, endpoint_id: params.endpoint_id ?? domainHit.endpointId },
+          projection,
+          { ...options, intent, contextUrl: context?.url },
         );
-        return {
-          result: execOut.result,
-          trace: execOut.trace,
-          source: "marketplace",
-          skill: domainHit.skill,
-          timing: finalize(
-            "marketplace",
-            execOut.result,
-            domainHit.skill.skill_id,
+        if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
+          promoteResultSnapshot(
+            cacheKey,
             domainHit.skill,
+            params.endpoint_id ?? domainHit.endpointId,
+            execOut.result,
             execOut.trace,
-          ),
-          response_schema: execOut.response_schema,
-          extraction_hints: execOut.extraction_hints,
-        };
+            execOut.response_schema,
+            execOut.extraction_hints,
+          );
+          return {
+            result: execOut.result,
+            trace: execOut.trace,
+            source: "marketplace",
+            skill: domainHit.skill,
+            timing: finalize(
+              "marketplace",
+              execOut.result,
+              domainHit.skill.skill_id,
+              domainHit.skill,
+              execOut.trace,
+            ),
+            response_schema: execOut.response_schema,
+            extraction_hints: execOut.extraction_hints,
+          };
+        }
+        staleCachedEndpoint = true;
       }
-      staleCachedEndpoint = true;
+      const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
+      deferred.timing.cache_hit = true;
+      return deferred;
     }
-    const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
-    deferred.timing.cache_hit = true;
-    return deferred;
   }
 
   // In-flight capture queue: wait for the same domain capture instead of failing.
@@ -1711,6 +2007,7 @@ export async function resolveAndExecute(
       trace = waited.trace;
       result = waited.result;
       learned_skill = waited.learned_skill;
+      const parityBaseline = waited.parity_baseline;
       timing.execute_ms = 0;
       if (!learned_skill && !trace.success) {
         return {
@@ -1734,6 +2031,7 @@ export async function resolveAndExecute(
               }
             : undefined,
         );
+        queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
         deferred.timing.cache_hit = true;
         return deferred;
       }
@@ -1750,30 +2048,45 @@ export async function resolveAndExecute(
   let learned_skill: SkillManifest | undefined;
   let trace: import("../types/index.js").ExecutionTrace;
   let result: unknown;
+  let parityBaseline: unknown;
   let captureSkill: SkillManifest;
   const te0 = Date.now();
   if (bypassLiveCaptureQueue) {
     captureSkill = await getOrCreateBrowserCaptureSkill();
-    const out = await withOpTimeout(
+    const out = await withAbortableOpTimeout(
       "live_capture_execute",
       LIVE_CAPTURE_TIMEOUT_MS,
-      executeSkill(captureSkill, { ...params, url: context.url, intent }),
+      (signal) =>
+        executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
+          ...options,
+          intent,
+          contextUrl: context?.url,
+          signal,
+        }),
     );
     trace = out.trace;
     result = out.result;
     learned_skill = out.learned_skill;
+    parityBaseline = out.parity_baseline;
   } else {
     const capturePromise = withDomainCaptureLock(captureDomain, async () => {
       const captureSkill = await getOrCreateBrowserCaptureSkill();
-      const out = await withOpTimeout(
+      const out = await withAbortableOpTimeout(
         "live_capture_execute",
         LIVE_CAPTURE_TIMEOUT_MS,
-        executeSkill(captureSkill, { ...params, url: context.url, intent }),
+        (signal) =>
+          executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
+            ...options,
+            intent,
+            contextUrl: context?.url,
+            signal,
+          }),
       );
       return {
         trace: out.trace,
         result: out.result,
         learned_skill: out.learned_skill,
+        parity_baseline: out.parity_baseline,
       };
     });
     captureInFlight.set(captureLockKey, capturePromise);
@@ -1783,11 +2096,14 @@ export async function resolveAndExecute(
       trace = out.trace;
       result = out.result;
       learned_skill = out.learned_skill;
+      parityBaseline = out.parity_baseline;
     } finally {
       captureInFlight.delete(captureLockKey);
     }
   }
   timing.execute_ms = Date.now() - te0;
+  const captureResult = result as Record<string, unknown> | null;
+  const authRecommended = captureResult?.auth_recommended === true;
 
   const directDomCaptureResult =
     trace.success &&
@@ -1799,6 +2115,43 @@ export async function resolveAndExecute(
   if (learned_skill && !learnedSkillUsable) {
     console.warn("[capture] dropping unusable learned skill with no replayable endpoints");
     if (!directDomCaptureResult) learned_skill = undefined;
+  }
+
+  if (learned_skill && learnedSkillUsable && !isCachedSkillRelevantForIntent(learned_skill, intent, context?.url)) {
+    const resolvedSkill = withContextReplayEndpoint(learned_skill, intent, context?.url);
+    const ranked = rankEndpoints(
+      resolvedSkill.endpoints,
+      intent,
+      resolvedSkill.domain,
+      context?.url,
+    );
+    const rejectedTrace: ExecutionTrace = {
+      ...trace,
+      success: false,
+      error: `No relevant endpoint discovered for "${intent}"`,
+    };
+    console.warn(`[capture] dropping learned skill with no relevant endpoints for "${intent}"`);
+    return {
+      result: {
+        error: `No relevant endpoint discovered for "${intent}"`,
+        discovered_endpoints: ranked.slice(0, 3).map((candidate) => ({
+          endpoint_id: candidate.endpoint.endpoint_id,
+          score: Math.round(candidate.score * 10) / 10,
+          description: candidate.endpoint.description,
+          url: candidate.endpoint.url_template,
+        })),
+        ...(authRecommended
+          ? {
+              auth_recommended: true,
+              auth_hint: captureResult?.auth_hint,
+            }
+          : {}),
+      },
+      trace: rejectedTrace,
+      source: "live-capture",
+      skill: captureSkill!,
+      timing: finalize("live-capture", result, undefined, undefined, rejectedTrace),
+    };
   }
 
   // Stamp learned skill with real discovery cost so future cache hits use real baselines.
@@ -1818,32 +2171,22 @@ export async function resolveAndExecute(
         ep.description = generateLocalDescription(ep);
       }
     }
+  }
 
-    // Await publish so backend-generated LLM descriptions come back before auto-exec
-    try {
-      const published = await publishSkill(learned_skill);
-      // Update local copy with backend descriptions
-      if (published.endpoints) {
-        for (const ep of learned_skill.endpoints) {
-          const backendEp = published.endpoints.find((e) => e.endpoint_id === ep.endpoint_id);
-          if (backendEp?.description) ep.description = backendEp.description;
-        }
-      }
-      // Cache at domain level for cross-intent reuse
-      const regDomain = getRegistrableDomain(learned_skill.domain);
-      if (regDomain) {
-        const bestEp = learned_skill.endpoints.find(e => e.dom_extraction) ?? learned_skill.endpoints[0];
-        domainSkillCache.set(regDomain, {
-          skillId: learned_skill.skill_id,
-          endpointId: bestEp?.endpoint_id,
-          ts: Date.now(),
-        });
-        persistDomainCache();
-        console.log(`[domain-cache] cached ${regDomain} → ${learned_skill.skill_id.slice(0, 15)}`);
-      }
-    } catch (err) {
-      console.error("[publish] discovery_cost update failed:", (err as Error).message);
-    }
+  function queuePassivePublishIfExecuted(
+    skill: SkillManifest,
+    orchestratorResult: OrchestratorResult,
+    browserBaseline?: unknown,
+  ): void {
+    if (!orchestratorResult.trace.success || !orchestratorResult.trace.endpoint_id) return;
+    const parity = browserBaseline === undefined
+      ? undefined
+      : (async () => {
+          const local = localParityVerdict(intent, browserBaseline, orchestratorResult.result);
+          if (local.verdict !== "skip") return local.verdict;
+          return await agentJudgeParity(intent, browserBaseline, orchestratorResult.result);
+        })();
+    void queuePassiveSkillPublish(skill, { parity });
   }
 
   // Auth-gated or no data: pass through error
@@ -1862,10 +2205,27 @@ export async function resolveAndExecute(
     (ep) => !ep.dom_extraction && ep.method !== "WS",
   );
   const isDirectDomResult = directDomCaptureResult;
-  if (isDirectDomResult && !hasNonDomApiEndpoints) {
+  const directExtractionSource =
+    isDirectDomResult && result && typeof result === "object"
+      ? ((result as Record<string, unknown>)._extraction as Record<string, unknown> | undefined)?.source
+      : undefined;
+  if (isDirectDomResult && (directExtractionSource === "html-embedded" || !hasNonDomApiEndpoints)) {
     if (learned_skill) {
-      const deferred = await buildDeferralWithAutoExec(learned_skill, "live-capture");
-      return deferred;
+      const direct: OrchestratorResult = {
+        result,
+        trace,
+        source: directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+        skill: learned_skill,
+        timing: finalize(
+          directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+          result,
+          learned_skill.skill_id,
+          learned_skill,
+          trace,
+        ),
+      };
+      queuePassivePublishIfExecuted(learned_skill, direct, parityBaseline);
+      return direct;
     }
     return {
       result,
@@ -1896,7 +2256,28 @@ export async function resolveAndExecute(
     });
     timing.execute_ms += Date.now() - te1;
     if (execOut.trace.success)
-      promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id);
+      promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id, context?.url);
+    if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
+      queuePassivePublishIfExecuted(
+        learned_skill,
+        {
+          result: execOut.result,
+          trace: execOut.trace,
+          source: "live-capture",
+          skill: learned_skill,
+          timing: finalize(
+            "live-capture",
+            execOut.result,
+            learned_skill.skill_id,
+            learned_skill,
+            execOut.trace,
+          ),
+          response_schema: execOut.response_schema,
+          extraction_hints: execOut.extraction_hints,
+        },
+        parityBaseline,
+      );
+    }
     if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
       promoteResultSnapshot(
         cacheKey,
@@ -1924,10 +2305,7 @@ export async function resolveAndExecute(
       extraction_hints: execOut.extraction_hints,
     };
   }
-
-  const captureResult = result as Record<string, unknown> | null;
-  const authRecommended = captureResult?.auth_recommended === true;
-  return await buildDeferralWithAutoExec(
+  const deferred = await buildDeferralWithAutoExec(
     learned_skill!,
     "live-capture",
     authRecommended
@@ -1937,6 +2315,8 @@ export async function resolveAndExecute(
         }
       : undefined,
   );
+  queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
+  return deferred;
 }
 
 async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {

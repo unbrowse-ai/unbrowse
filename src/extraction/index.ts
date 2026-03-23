@@ -65,6 +65,140 @@ function extractFlashNoticeSpecial(html: string, intent: string): ExtractedStruc
   }];
 }
 
+function extractSearchTermsSpecial(html: string, intent: string): ExtractedStructure[] {
+  if (!/\bsearch term/.test(intent.toLowerCase()) && !/class="search-terms"/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const rows: Record<string, string>[] = [];
+  $("ul.search-terms li.item a[href]").each((_, el) => {
+    const $a = $(el);
+    const term = cleanText($a.text());
+    const href = $a.attr("href")?.trim() ?? "";
+    if (!term || term.length > 200) return;
+    const row: Record<string, string> = { term };
+    if (href) row.url = href;
+    rows.push(row);
+  });
+  if (rows.length === 0) return [];
+  return [{
+    type: "repeated-elements",
+    data: rows,
+    element_count: rows.length,
+    selector: "ul.search-terms li.item",
+  }];
+}
+
+function extractMagentoReviewSpecial(html: string, intent: string): ExtractedStructure[] {
+  const lower = intent.toLowerCase();
+  if (!/\breview|reviewer/.test(lower) && !/class="review-item"/i.test(html)) return [];
+  if (!/class="review-item"/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const rows: Record<string, string>[] = [];
+  $("li.review-item").each((_, el) => {
+    const $item = $(el);
+    const title = cleanText($item.find(".review-title").first().text());
+    const body = cleanText($item.find(".review-content").first().text());
+    const author = cleanText($item.find("[itemprop='author'], .review-author .review-details-value").first().text());
+    const date = cleanText($item.find("[itemprop='datePublished'], .review-date .review-details-value").first().text());
+    const ratingText = cleanText($item.find("[itemprop='ratingValue']").first().text()).replace(/%/g, "");
+    const ratingPercent = Number(ratingText);
+    const row: Record<string, string> = {};
+    if (title) row.title = title;
+    if (body) row.body = body;
+    if (author) row.author = author;
+    if (date) row.date = date;
+    if (Number.isFinite(ratingPercent)) {
+      row.rating = String(Math.max(1, Math.min(5, Math.round(ratingPercent / 20))));
+      row.rating_percent = String(ratingPercent);
+    }
+    if (Object.keys(row).length >= 2) rows.push(row);
+  });
+  if (rows.length === 0) return [];
+  return [{
+    type: "repeated-elements",
+    data: rows,
+    element_count: rows.length,
+    selector: "li.review-item",
+  }];
+}
+
+function extractPostmillForumSpecial(html: string, intent: string): ExtractedStructure[] {
+  const lower = intent.toLowerCase();
+  if (!/\bforum\b/.test(lower) && !/class="submission__title"/i.test(html)) return [];
+  if (!/class="submission__title"/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const pageTitle = cleanText($("title").first().text());
+  const subreddit = pageTitle || cleanText($(".page-heading").first().text());
+  const rows: Record<string, string>[] = [];
+  $("article.submission").each((_, el) => {
+    const $item = $(el);
+    const title = cleanText($item.find(".submission__title a").first().text());
+    const author = cleanText($item.find(".submission__submitter strong, .submission__submitter").first().text());
+    const commentsUrl = $item.find(".submission__nav a[href*='/f/']").first().attr("href")?.trim() ?? "";
+    const score = cleanText($item.find(".vote__net-score").first().text()).replace(/[^\d-]/g, "");
+    const date = $item.find("time").first().attr("datetime")?.trim() ?? cleanText($item.find("time").first().text());
+    const commentsText = cleanText($item.find(".submission__nav a strong").first().text());
+    const row: Record<string, string> = {};
+    if (title) row.title = title;
+    if (author) row.author = author;
+    if (commentsUrl) {
+      row.url = commentsUrl;
+      row.permalink = commentsUrl;
+      row.comments_url = commentsUrl;
+    }
+    if (subreddit) row.subreddit = subreddit;
+    if (score) row.score = score;
+    if (date) row.date = date;
+    const commentsCount = commentsText.match(/([0-9,]+)/)?.[1]?.replace(/,/g, "");
+    if (commentsCount) row.num_comments = commentsCount;
+    if (Object.keys(row).length >= 4) rows.push(row);
+  });
+  if (rows.length === 0) return [];
+  return [{
+    type: "repeated-elements",
+    data: rows,
+    element_count: rows.length,
+    selector: "article.submission",
+  }];
+}
+
+function extractPostmillCommentSpecial(html: string, intent: string): ExtractedStructure[] {
+  const lower = intent.toLowerCase();
+  if (!/\bcomment/.test(lower) && !/class="comment__body"/i.test(html)) return [];
+  if (!/class="comment__body"/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const postTitle = cleanText($(".submission__title").first().text()) || cleanText($("title").first().text());
+  const postAuthor = cleanText($(".submission__submitter strong, .submission__submitter").first().text());
+  const rows: Record<string, string>[] = [];
+  $("article.comment").each((_, el) => {
+    const $item = $(el);
+    const author = cleanText($item.find(".comment__info a[href^='/user/'] strong, .comment__info a[href^='/user/']").first().text());
+    const body = cleanText($item.find(".comment__body").first().text());
+    const permalink = $item.find(".comment__permalink").first().attr("href")?.trim() ?? "";
+    const scoreText = cleanText($item.find(".vote__net-score").first().text())
+      .replace(/[−–—]/g, "-")
+      .replace(/&minus;/g, "-")
+      .replace(/[^\d-]/g, "");
+    const row: Record<string, string> = {};
+    if (author) row.author = author;
+    if (body) row.body = body;
+    if (permalink) {
+      row.url = permalink;
+      row.permalink = permalink;
+    }
+    if (scoreText) row.score = scoreText;
+    if (postTitle) row.post_title = postTitle;
+    if (postAuthor) row.post_author = postAuthor;
+    if (Object.keys(row).length >= 3) rows.push(row);
+  });
+  if (rows.length === 0) return [];
+  return [{
+    type: "repeated-elements",
+    data: rows,
+    element_count: rows.length,
+    selector: "article.comment",
+  }];
+}
+
 /**
  * Extract structured data embedded by SPA frameworks BEFORE cleanDOM strips scripts.
  * Must be called on raw HTML.
@@ -1278,19 +1412,44 @@ export function extractFromDOMWithHint(
  * the best match for the given intent.
  */
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
+  // Cap HTML size to prevent cheerio from hanging on massive pages
+  const MAX_HTML_SIZE = 300_000;
+  const rawHtml = html;
+  let workingHtml = html;
+  if (workingHtml.length > MAX_HTML_SIZE) {
+    // Strip attribute bloat first (class/style/data-* attributes inflate HTML 2-3x)
+    workingHtml = workingHtml
+      .replace(/\s+class="[^"]*"/g, "")
+      .replace(/\s+style="[^"]*"/g, "")
+      .replace(/\s+data-[a-z][-a-z]*="[^"]*"/g, "");
+    // If still too large, truncate keeping body content
+    if (workingHtml.length > MAX_HTML_SIZE) {
+      const bodyStart = workingHtml.indexOf("<body");
+      if (bodyStart > 0) {
+        workingHtml = workingHtml.substring(0, Math.max(MAX_HTML_SIZE, bodyStart + MAX_HTML_SIZE));
+      } else {
+        workingHtml = workingHtml.substring(0, MAX_HTML_SIZE);
+      }
+    }
+  }
+
   // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
-  const spaStructures = extractSPAData(html);
-  const flashStructures = extractFlashNoticeSpecial(html, intent);
-  const cleaned = cleanDOM(html);
-  const githubStructures = extractGitHubSpecial(html, intent);
-  const linkedInStructures = extractLinkedInSpecial(html, intent);
-  const packageSearchStructures = extractPackageSearchSpecial(html, intent);
-  const xProfileStructures = extractXProfileSpecial(html, intent);
-  const postStructures = extractPostSpecial(html, intent);
-  const trendStructures = extractTrendSpecial(html, intent);
-  const definitionStructures = extractDefinitionSpecial(html, intent);
-  const courseStructures = extractCourseSearchSpecial(html, intent);
-  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const spaStructures = extractSPAData(rawHtml);
+  const flashStructures = extractFlashNoticeSpecial(rawHtml, intent);
+  const cleaned = cleanDOM(workingHtml);
+  const searchTermStructures = extractSearchTermsSpecial(rawHtml, intent);
+  const magentoReviewStructures = extractMagentoReviewSpecial(rawHtml, intent);
+  const postmillForumStructures = extractPostmillForumSpecial(rawHtml, intent);
+  const postmillCommentStructures = extractPostmillCommentSpecial(rawHtml, intent);
+  const githubStructures = extractGitHubSpecial(rawHtml, intent);
+  const linkedInStructures = extractLinkedInSpecial(rawHtml, intent);
+  const packageSearchStructures = extractPackageSearchSpecial(rawHtml, intent);
+  const xProfileStructures = extractXProfileSpecial(rawHtml, intent);
+  const postStructures = extractPostSpecial(rawHtml, intent);
+  const trendStructures = extractTrendSpecial(rawHtml, intent);
+  const definitionStructures = extractDefinitionSpecial(rawHtml, intent);
+  const courseStructures = extractCourseSearchSpecial(rawHtml, intent);
+  const structures = [...flashStructures, ...searchTermStructures, ...magentoReviewStructures, ...postmillForumStructures, ...postmillCommentStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
@@ -1306,7 +1465,17 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
 
   scored.sort((a, b) => b.score - a.score);
 
-  const bestPassing = scored.find((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
+  const passing = scored.filter((candidate) => assessIntentResult(candidate.structure.data, intent).verdict === "pass");
+  const bestPassing = (() => {
+    if (passing.length === 0) return undefined;
+    const bestPassingOverall = passing[0];
+    const bestPassingSpa = passing.find((candidate) => candidate.structure.type.startsWith("spa-"));
+    // Prefer cleaner SPA payloads when they're effectively tied with DOM-derived candidates.
+    if (bestPassingSpa && bestPassingOverall && bestPassingSpa.score >= bestPassingOverall.score - 2) {
+      return bestPassingSpa;
+    }
+    return bestPassingOverall;
+  })();
   if (bestPassing) {
     return {
       data: bestPassing.structure.data,
@@ -1325,7 +1494,17 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
       selector: best.structure.selector,
     };
   }
-  const hasClearWinner = scored.length === 1 || best.score > scored[1].score * 1.5;
+
+  if (scored.length === 1) {
+    return {
+      data: best.structure.data,
+      extraction_method: best.structure.type,
+      confidence: computeConfidence(best.structure, best.score),
+      selector: best.structure.selector,
+    };
+  }
+
+  const hasClearWinner = best.score > scored[1].score * 1.5;
 
   if (hasClearWinner && best.score > 0) {
     return {

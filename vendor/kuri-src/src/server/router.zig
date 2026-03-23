@@ -12,6 +12,10 @@ const protocol = @import("../cdp/protocol.zig");
 const HarRecorder = @import("../cdp/har.zig").HarRecorder;
 const CdpClient = @import("../cdp/client.zig").CdpClient;
 
+fn traceTabsEnabled() bool {
+    return std.posix.getenv("KURI_TRACE_TABS") != null;
+}
+
 pub fn run(gpa: std.mem.Allocator, bridge: *Bridge, cfg: Config) !void {
     const address = try net.Address.parseIp4(cfg.host, cfg.port);
     var tcp_server = try address.listen(.{
@@ -248,6 +252,45 @@ fn getQueryParam(target: []const u8, key: []const u8) ?[]const u8 {
     return null;
 }
 
+fn getDecodedQueryParam(arena: std.mem.Allocator, target: []const u8, key: []const u8) ?[]const u8 {
+    const raw = getQueryParam(target, key) orelse return null;
+    return urlDecodeAlloc(arena, raw);
+}
+
+fn urlDecodeAlloc(arena: std.mem.Allocator, input: []const u8) ?[]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(arena);
+
+    var i: usize = 0;
+    while (i < input.len) : (i += 1) {
+        const ch = input[i];
+        if (ch == '%' and i + 2 < input.len) {
+            const hi = std.fmt.charToDigit(input[i + 1], 16) catch {
+                out.append(arena, ch) catch return null;
+                continue;
+            };
+            const lo = std.fmt.charToDigit(input[i + 2], 16) catch {
+                out.append(arena, ch) catch return null;
+                continue;
+            };
+            out.append(arena, hi * 16 + lo) catch return null;
+            i += 2;
+            continue;
+        }
+        out.append(arena, if (ch == '+') ' ' else ch) catch return null;
+    }
+
+    return out.toOwnedSlice(arena) catch null;
+}
+
+fn resolveDiscoverCdpBase(target: []const u8, arena: std.mem.Allocator, cfg: Config) ?[]const u8 {
+    if (cfg.cdp_url) |configured| return configured;
+    if (getQueryParam(target, "cdp_url")) |raw| {
+        return urlDecodeAlloc(arena, raw) orelse raw;
+    }
+    return null;
+}
+
 fn readRequestBody(request: *std.http.Server.Request, arena: std.mem.Allocator) ?[]const u8 {
     if (!request.head.method.requestHasBody()) return null;
     if (request.head.expect != null) return null;
@@ -293,18 +336,25 @@ fn handleTabs(request: *std.http.Server.Request, arena: std.mem.Allocator, bridg
 
 fn handleNavigate(request: *std.http.Server.Request, arena: std.mem.Allocator, bridge: *Bridge, cfg: Config) void {
     const target = request.head.target;
-    const url = getQueryParam(target, "url") orelse {
+    const raw_url = getQueryParam(target, "url") orelse {
         resp.sendError(request, 400, "Missing url parameter");
         return;
     };
+    const url = getDecodedQueryParam(arena, target, "url") orelse raw_url;
     const tab_id = getQueryParam(target, "tab_id");
 
     // If we have a tab, use its CDP client
     if (tab_id) |tid| {
         const client = bridge.getCdpClient(tid) orelse {
+            if (traceTabsEnabled()) {
+                std.log.info("trace.route navigate no-client tab_id={s} url={s}", .{ tid, url });
+            }
             resp.sendError(request, 404, "Tab not found");
             return;
         };
+        if (traceTabsEnabled()) {
+            std.log.info("trace.route navigate tab_id={s} url={s}", .{ tid, url });
+        }
         // Drain any pending events from the WebSocket after navigate
         // (Network events arrive after the navigate response)
         if (bridge.getHarRecorder(tid)) |rec| {
@@ -662,18 +712,32 @@ fn handleEvaluate(request: *std.http.Server.Request, arena: std.mem.Allocator, b
         resp.sendError(request, 400, "Missing tab_id parameter");
         return;
     };
-    const expr = getQueryParam(target, "expression") orelse {
-        resp.sendError(request, 400, "Missing expression parameter");
-        return;
+    const expr = blk: {
+        if (readRequestBody(request, arena)) |body| {
+            if (body.len > 0) break :blk body;
+        }
+        const raw_expr = getQueryParam(target, "expression") orelse {
+            resp.sendError(request, 400, "Missing expression parameter");
+            return;
+        };
+        break :blk getDecodedQueryParam(arena, target, "expression") orelse raw_expr;
     };
 
     const client = bridge.getCdpClient(tab_id) orelse {
+        if (traceTabsEnabled()) {
+            std.log.info("trace.route evaluate no-client tab_id={s} target={s}", .{ tab_id, target });
+        }
         resp.sendError(request, 404, "Tab not found");
         return;
     };
 
+    const escaped_expr = jsonEscapeAlloc(arena, expr) orelse {
+        resp.sendError(request, 500, "Internal Server Error");
+        return;
+    };
+
     const params = std.fmt.allocPrint(arena,
-        "{{\"expression\":\"{s}\",\"returnByValue\":true}}", .{expr}) catch {
+        "{{\"expression\":\"{s}\",\"returnByValue\":true}}", .{escaped_expr}) catch {
         resp.sendError(request, 500, "Internal Server Error");
         return;
     };
@@ -699,10 +763,13 @@ fn handleBrowdie(request: *std.http.Server.Request) void {
 }
 
 fn handleDiscover(request: *std.http.Server.Request, arena: std.mem.Allocator, bridge: *Bridge, cfg: Config) void {
-    const cdp_base = cfg.cdp_url orelse {
+    const cdp_base = resolveDiscoverCdpBase(request.head.target, arena, cfg) orelse {
         resp.sendError(request, 400, "No CDP_URL configured");
         return;
     };
+    if (traceTabsEnabled()) {
+        std.log.info("trace.route discover cdp_base={s}", .{cdp_base});
+    }
 
     // Parse host:port from CDP URL (strip ws:// prefix and path)
     const after_scheme = if (std.mem.startsWith(u8, cdp_base, "ws://"))
@@ -799,6 +866,9 @@ fn handleDiscover(request: *std.http.Server.Request, arena: std.mem.Allocator, b
                 .last_accessed = @intCast(std.time.timestamp()),
             };
             bridge.putTab(entry) catch {};
+            if (traceTabsEnabled()) {
+                std.log.info("trace.route discover-tab id={s} url={s} title={s}", .{ id_val, url_val, title_val });
+            }
             registered += 1;
         }
 
@@ -811,6 +881,9 @@ fn handleDiscover(request: *std.http.Server.Request, arena: std.mem.Allocator, b
         resp.sendError(request, 500, "Internal Server Error");
         return;
     };
+    if (traceTabsEnabled()) {
+        std.log.info("trace.route discover-done registered={d} total_tabs={d}", .{ registered, bridge.tabCount() });
+    }
     resp.sendJson(request, result);
 }
 
@@ -1186,12 +1259,87 @@ fn handleCookies(request: *std.http.Server.Request, arena: std.mem.Allocator, br
 
     if (name != null and value != null) {
         // Set cookie
-        const domain = getQueryParam(target, "domain") orelse "localhost";
-        const params = std.fmt.allocPrint(arena,
-            "{{\"name\":\"{s}\",\"value\":\"{s}\",\"domain\":\"{s}\",\"path\":\"/\"}}", .{ name.?, value.?, domain }) catch {
+        const decoded_name = getDecodedQueryParam(arena, target, "name") orelse name.?;
+        const decoded_value = getDecodedQueryParam(arena, target, "value") orelse value.?;
+        const decoded_url = getDecodedQueryParam(arena, target, "url");
+        const domain = getDecodedQueryParam(arena, target, "domain") orelse "localhost";
+        const path = getDecodedQueryParam(arena, target, "path") orelse "/";
+        const secure_raw = getQueryParam(target, "secure");
+        const http_only_raw = getQueryParam(target, "httpOnly");
+        const same_site = getDecodedQueryParam(arena, target, "sameSite");
+        const expires_raw = getQueryParam(target, "expires");
+        const secure = secure_raw != null and (std.mem.eql(u8, secure_raw.?, "true") or std.mem.eql(u8, secure_raw.?, "1"));
+        const http_only = http_only_raw != null and (std.mem.eql(u8, http_only_raw.?, "true") or std.mem.eql(u8, http_only_raw.?, "1"));
+        const expires = if (expires_raw) |raw| std.fmt.parseFloat(f64, raw) catch null else null;
+        const escaped_name = jsonEscapeAlloc(arena, decoded_name) orelse {
             resp.sendError(request, 500, "Internal Server Error");
             return;
         };
+        const escaped_value = jsonEscapeAlloc(arena, decoded_value) orelse {
+            resp.sendError(request, 500, "Internal Server Error");
+            return;
+        };
+        const escaped_domain = jsonEscapeAlloc(arena, domain) orelse {
+            resp.sendError(request, 500, "Internal Server Error");
+            return;
+        };
+        const escaped_path = jsonEscapeAlloc(arena, path) orelse {
+            resp.sendError(request, 500, "Internal Server Error");
+            return;
+        };
+        var params_buf: std.ArrayList(u8) = .empty;
+        defer params_buf.deinit(arena);
+        params_buf.writer(arena).print("{{\"name\":\"{s}\",\"value\":\"{s}\"", .{ escaped_name, escaped_value }) catch {
+            resp.sendError(request, 500, "Internal Server Error");
+            return;
+        };
+        if (decoded_url) |raw_url| {
+            const escaped_url = jsonEscapeAlloc(arena, raw_url) orelse {
+                resp.sendError(request, 500, "Internal Server Error");
+                return;
+            };
+            params_buf.writer(arena).print(",\"url\":\"{s}\"", .{escaped_url}) catch {
+                resp.sendError(request, 500, "Internal Server Error");
+                return;
+            };
+        }
+        params_buf.writer(arena).print(",\"domain\":\"{s}\",\"path\":\"{s}\"", .{ escaped_domain, escaped_path }) catch {
+            resp.sendError(request, 500, "Internal Server Error");
+            return;
+        };
+        if (secure) {
+            params_buf.writer(arena).writeAll(",\"secure\":true") catch {
+                resp.sendError(request, 500, "Internal Server Error");
+                return;
+            };
+        }
+        if (http_only) {
+            params_buf.writer(arena).writeAll(",\"httpOnly\":true") catch {
+                resp.sendError(request, 500, "Internal Server Error");
+                return;
+            };
+        }
+        if (same_site) |raw_same_site| {
+            const escaped_same_site = jsonEscapeAlloc(arena, raw_same_site) orelse {
+                resp.sendError(request, 500, "Internal Server Error");
+                return;
+            };
+            params_buf.writer(arena).print(",\"sameSite\":\"{s}\"", .{escaped_same_site}) catch {
+                resp.sendError(request, 500, "Internal Server Error");
+                return;
+            };
+        }
+        if (expires) |expiry| {
+            params_buf.writer(arena).print(",\"expires\":{d}", .{@as(i64, @intFromFloat(expiry))}) catch {
+                resp.sendError(request, 500, "Internal Server Error");
+                return;
+            };
+        }
+        params_buf.writer(arena).writeByte('}') catch {
+            resp.sendError(request, 500, "Internal Server Error");
+            return;
+        };
+        const params = params_buf.items;
         const response = client.send(arena, "Network.setCookie", params) catch {
             resp.sendError(request, 502, "CDP command failed");
             return;
@@ -2498,6 +2646,9 @@ fn handleTabNew(request: *std.http.Server.Request, arena: std.mem.Allocator, bri
         resp.sendError(request, 500, "No active tabs to create from");
         return;
     }
+    if (traceTabsEnabled()) {
+        std.log.info("trace.route tab-new request_url={s} base_tab={s} total_tabs={d}", .{ url, tabs[0].id, tabs.len });
+    }
     const client = bridge.getCdpClient(tabs[0].id) orelse {
         resp.sendError(request, 500, "No active CDP client");
         return;
@@ -2510,6 +2661,9 @@ fn handleTabNew(request: *std.http.Server.Request, arena: std.mem.Allocator, bri
 
     // Extract targetId from response
     const new_tab_id = extractSimpleJsonString(response, 0, "\"targetId\"") orelse "unknown";
+    if (traceTabsEnabled()) {
+        std.log.info("trace.route tab-new created tab_id={s} response={s}", .{ new_tab_id, response });
+    }
     const body = std.fmt.allocPrint(arena, "{{\"status\":\"created\",\"tab_id\":\"{s}\",\"url\":\"{s}\"}}", .{ new_tab_id, url }) catch {
         resp.sendError(request, 500, "Internal Server Error");
         return;
@@ -3573,6 +3727,42 @@ test "find route parameters" {
     try std.testing.expectEqualStrings("role", getQueryParam(target, "by").?);
     try std.testing.expectEqualStrings("button", getQueryParam(target, "value").?);
     try std.testing.expectEqualStrings("true", getQueryParam(target, "exact").?);
+}
+
+test "getDecodedQueryParam decodes encoded cookie payload" {
+    const decoded_name = getDecodedQueryParam(std.testing.allocator, "/cookies?tab_id=t1&name=li_at&value=AQEDAS%2Fwith%3Ddelims%26more&domain=.linkedin.com&path=%2F", "name").?;
+    defer std.testing.allocator.free(decoded_name);
+    const decoded_value = getDecodedQueryParam(std.testing.allocator, "/cookies?tab_id=t1&name=li_at&value=AQEDAS%2Fwith%3Ddelims%26more&domain=.linkedin.com&path=%2F", "value").?;
+    defer std.testing.allocator.free(decoded_value);
+    const decoded_path = getDecodedQueryParam(std.testing.allocator, "/cookies?tab_id=t1&name=li_at&value=AQEDAS%2Fwith%3Ddelims%26more&domain=.linkedin.com&path=%2F", "path").?;
+    defer std.testing.allocator.free(decoded_path);
+
+    try std.testing.expectEqualStrings("li_at", decoded_name);
+    try std.testing.expectEqualStrings("AQEDAS/with=delims&more", decoded_value);
+    try std.testing.expectEqualStrings("/", decoded_path);
+}
+
+test "getDecodedQueryParam decodes encoded navigate URL" {
+    const decoded = getDecodedQueryParam(std.testing.allocator, "/navigate?tab_id=t1&url=https%3A%2F%2Fwww.linkedin.com%2Fsearch%2Fresults%2Fpeople%2F%3Fkeywords%3Dopenai", "url").?;
+    defer std.testing.allocator.free(decoded);
+    try std.testing.expectEqualStrings("https://www.linkedin.com/search/results/people/?keywords=openai", decoded);
+}
+
+test "resolveDiscoverCdpBase prefers configured cdp_url over query override" {
+    const cfg = Config{
+        .host = "127.0.0.1",
+        .port = 8080,
+        .cdp_url = "ws://127.0.0.1:9222",
+        .auth_secret = null,
+        .state_dir = ".browdie",
+        .stale_tab_interval_s = 30,
+        .request_timeout_ms = 30_000,
+        .navigate_timeout_ms = 30_000,
+        .extensions = null,
+        .headless = true,
+    };
+    const resolved = resolveDiscoverCdpBase("/discover?cdp_url=ws%3A%2F%2F127.0.0.1%3A9333", std.testing.allocator, cfg).?;
+    try std.testing.expectEqualStrings("ws://127.0.0.1:9222", resolved);
 }
 
 test "set/viewport route parameters" {

@@ -8,10 +8,11 @@
  */
 
 import { config as loadEnv } from "dotenv";
-import { ensureRegistered, getApiKey } from "./client/index.js";
+import { ensureRegistered } from "./client/index.js";
+import { maybeAutoUpdate } from "./runtime/auto-update.js";
 import { ensureLocalServer } from "./runtime/local-server.js";
 import { isMainModule } from "./runtime/paths.js";
-import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
+import { startMcpServer } from "./mcp.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
@@ -93,13 +94,6 @@ async function withPendingNotice<T>(promise: Promise<T>, message: string, delayM
     done = true;
     clearTimeout(timer);
   }
-}
-
-function normalizeSetupScope(value: string | boolean | undefined): SetupScope {
-  if (value === true || value == null) return "auto";
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === "global" || normalized === "project" || normalized === "off") return normalized;
-  return "auto";
 }
 
 // ---------------------------------------------------------------------------
@@ -495,8 +489,14 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   if (flags.params) {
     body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
   }
-  if (flags.url) body.context_url = flags.url;
-  if (flags.intent) body.intent = flags.intent;
+  if (flags.url) {
+    body.context_url = flags.url;
+    (body.params as Record<string, unknown>).url = flags.url;
+  }
+  if (flags.intent) {
+    body.intent = flags.intent;
+    (body.params as Record<string, unknown>).intent = flags.intent;
+  }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
   // When explicit CLI transforms are present, get raw data for client-side extraction
@@ -575,56 +575,6 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
   output(await api("GET", `/v1/sessions/${domain}?limit=${limit}`), !!flags.pretty);
 }
 
-async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> {
-  info("Running setup checks");
-  const report = await runSetup({
-    cwd: process.cwd(),
-    opencode: normalizeSetupScope(flags.opencode),
-    installBrowser: !flags["skip-browser"],
-  }) as SetupReport & {
-    server?: {
-      started: boolean;
-      skipped?: boolean;
-      base_url?: string;
-      error?: string;
-    };
-  };
-
-  if (report.browser_engine.action === "failed") {
-    info("Browser engine install failed");
-  } else if (report.browser_engine.action === "installed") {
-    info("Browser engine installed");
-  }
-
-  if (report.opencode.action === "installed" || report.opencode.action === "updated") {
-    info(`Open Code command installed at ${report.opencode.command_file}`);
-  }
-
-  if (flags["no-start"]) {
-    report.server = { started: false, skipped: true, base_url: BASE_URL };
-    output(report, true);
-    if (report.browser_engine.action === "failed") process.exit(1);
-    return;
-  }
-
-  if (!getApiKey()) {
-    await ensureRegistered({ promptForEmail: true });
-  }
-
-  try {
-    await ensureLocalServer(BASE_URL, false, import.meta.url);
-    report.server = { started: true, base_url: BASE_URL };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    report.server = { started: false, error: message, base_url: BASE_URL };
-    output(report, true);
-    process.exit(1);
-  }
-
-  output(report, true);
-  if (report.browser_engine.action === "failed") process.exit(1);
-}
-
 // ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
@@ -632,7 +582,6 @@ async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> 
 export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
-    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
@@ -641,13 +590,12 @@ export const CLI_REFERENCE = {
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
+    { name: "mcp", usage: "", desc: "Start MCP server (stdio) for Claude Desktop, Cursor, etc." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
     { flag: "--no-auto-start", desc: "Don't auto-start server" },
     { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
-    { flag: "--skip-browser", desc: "setup: skip browser-engine install" },
-    { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
     { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
@@ -660,7 +608,7 @@ export const CLI_REFERENCE = {
     { flag: "--params '{...}'", desc: "Extra params as JSON" },
   ],
   examples: [
-    "unbrowse setup",
+    "unbrowse health",
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
     "unbrowse execute --skill abc --endpoint def --pretty",
     'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
@@ -705,6 +653,10 @@ function printHelp(): void {
   process.stderr.write(lines.join("\n"));
 }
 
+async function ensureCliBootstrap(): Promise<void> {
+  await ensureRegistered();
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -718,8 +670,17 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (command === "setup") {
-    await cmdSetup(flags);
+  const update = await maybeAutoUpdate(import.meta.url);
+  if (typeof update.exitCode === "number") {
+    process.exit(update.exitCode);
+  }
+
+  await ensureCliBootstrap();
+
+  // MCP server runs standalone — no local server needed
+  if (command === "mcp") {
+    const unbrowseBin = process.argv[1] || "unbrowse";
+    await startMcpServer(unbrowseBin);
     return;
   }
 
@@ -727,7 +688,6 @@ async function main(): Promise<void> {
 
   switch (command) {
     case "health": return cmdHealth(flags);
-    case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);

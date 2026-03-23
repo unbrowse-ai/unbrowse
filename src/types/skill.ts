@@ -242,6 +242,45 @@ export interface ExecutionTrace {
   tokens_saved_pct?: number;
   /** Code version hash + git SHA — tracks which code produced this trace */
   trace_version?: string;
+  /** HAR-like executed request/response events for offline eval/judging */
+  network_events?: TraceNetworkEvent[];
+}
+
+export interface TraceNetworkHeader {
+  name: string;
+  value: string;
+}
+
+export interface TraceNetworkCookie {
+  name: string;
+  value: string;
+}
+
+export interface TraceNetworkContent {
+  mimeType?: string;
+  text?: string;
+}
+
+export interface TraceNetworkPostData {
+  mimeType?: string;
+  text?: string;
+}
+
+export interface TraceNetworkEvent {
+  startedDateTime: string;
+  request: {
+    url: string;
+    method: string;
+    headers: TraceNetworkHeader[];
+    postData?: TraceNetworkPostData;
+  };
+  response: {
+    status: number;
+    headers: TraceNetworkHeader[];
+    content?: TraceNetworkContent;
+    redirectURL?: string;
+    cookies?: TraceNetworkCookie[];
+  };
 }
 
 export interface DiscoveryCandidate {
@@ -301,6 +340,8 @@ export interface ExecutionOptions {
   force_capture?: boolean;
   /** Request/client namespace for isolating local server state across concurrent CLI users */
   client_scope?: string;
+  /** Internal abort hook for timeout/cancellation of long-running live capture work */
+  signal?: AbortSignal;
 }
 
 export interface ValidationResult {
