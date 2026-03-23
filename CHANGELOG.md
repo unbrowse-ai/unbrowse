@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.16](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.15...v2.0.16) (2026-03-23)
+
+### Bug Fixes
+
+* disable release-it npm bump step ([#69](https://github.com/unbrowse-ai/unbrowse-dev/issues/69)) ([bff1753](https://github.com/unbrowse-ai/unbrowse-dev/commit/bff1753d4b8ad98256e70230ac0b2cca7bd5dab5))
+* pin deploys to maintained kuri fork ([3055bcf](https://github.com/unbrowse-ai/unbrowse-dev/commit/3055bcfc57151d032c55cd93e0a43d59a1a2c012))
+* restore retrieval gate coverage ([781e660](https://github.com/unbrowse-ai/unbrowse-dev/commit/781e660dc8f49949e6026b71581c0730911c175b))
+* stabilize webarena adapted evals ([8afd22d](https://github.com/unbrowse-ai/unbrowse-dev/commit/8afd22de3ffece143b2ae63d26f1a6a1f9263347))
+* stealth patches, origin pre-nav, discover after newTab, kuri evaluate double-escape ([cde0d93](https://github.com/unbrowse-ai/unbrowse-dev/commit/cde0d93db0a6c3e8d83613f0e83b9e031666754c))
+
 ## [2.0.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.14...v2.0.15) (2026-03-22)
 
 ### Bug Fixes
@@ -45,7 +55,10 @@
 - treat nested WebArena-Verified `retrieved_data` arrays as alias sets, so benchmark answers can match any accepted reviewer spelling instead of failing on literal-array equality
 - point the WebArena-Verified `shopping_admin` env at `/admin`, use the official `X-M2-Admin-Auto-Login` header flow for admin pages, and source review-term counts from the Magento review store so the hard-slice admin tasks line up with the benchmark ground truth
 - adapt `shopping_admin` best-seller benchmark intents to the Magento bestsellers report with concrete alias-materialized answers, so the official tasks `1,2,3` stop failing on low-quality DOM extraction and answer-shape mismatches
-- bump the bundled Kuri submodule to pick up owned tab-state keys, safer URL/body decoding in router handlers, managed-CDP wiring, and the compact snapshot leak fix needed for a clean Zig test gate
+- restore the marketplace retrieval fixture corpus to five fixtures / twelve cases with a `gamma-market` family, so the unit gate again covers rank, exact-domain filtering, and resolve fallback breadth instead of failing its own minimum-bar contract
+- bump the bundled Kuri submodule to the merged `lekt9/kuri` mainline fix for tab-state ownership, safer router decoding, managed-CDP wiring, and the compact snapshot leak cleanup
+- point the bundled Kuri submodule tracking branch at `main` now that the merged runtime fixes are on `lekt9/kuri` mainline, instead of leaving `.gitmodules` pinned to the old feature branch
+- disable the `release-it` npm plugin so bumper-owned version sync can tag cleanly without a duplicate `npm version` failure
 
 ## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.13...v2.0.14) (2026-03-22)
 
