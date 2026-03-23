@@ -59,4 +59,70 @@ describe("findExistingSkillForDomain intent compatibility", () => {
     else process.env.UNBROWSE_SKILL_CACHE_DIR = prev;
     rmSync(dir, { recursive: true, force: true });
   });
+
+  test("path-scoped lookup does not reuse a different entity page", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "unbrowse-skill-cache-"));
+    mkdirSync(dir, { recursive: true });
+    const prev = process.env.UNBROWSE_SKILL_CACHE_DIR;
+    process.env.UNBROWSE_SKILL_CACHE_DIR = dir;
+
+    writeFileSync(join(dir, "openclaw.json"), JSON.stringify({
+      skill_id: "openclaw-skill",
+      domain: "lu.ma",
+      execution_type: "http",
+      intent_signature: "register RSVP for this event",
+      intents: ["register RSVP for this event"],
+      endpoints: [{
+        endpoint_id: "event-page",
+        method: "GET",
+        url_template: "https://luma.com/sgszalnv",
+        trigger_url: "https://luma.com/sgszalnv",
+      }],
+    }));
+
+    const { findExistingSkillForDomain } = await import("../src/client/index.js");
+    const found = findExistingSkillForDomain(
+      "lu.ma",
+      "register RSVP for this event",
+      "https://lu.ma/sgaifoundersdinner",
+    );
+    expect(found).toBeNull();
+
+    if (prev == null) delete process.env.UNBROWSE_SKILL_CACHE_DIR;
+    else process.env.UNBROWSE_SKILL_CACHE_DIR = prev;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("path-scoped lookup reuses the matching entity page across canonical hosts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "unbrowse-skill-cache-"));
+    mkdirSync(dir, { recursive: true });
+    const prev = process.env.UNBROWSE_SKILL_CACHE_DIR;
+    process.env.UNBROWSE_SKILL_CACHE_DIR = dir;
+
+    writeFileSync(join(dir, "event.json"), JSON.stringify({
+      skill_id: "event-skill",
+      domain: "lu.ma",
+      execution_type: "http",
+      intent_signature: "register RSVP for this event",
+      intents: ["register RSVP for this event"],
+      endpoints: [{
+        endpoint_id: "event-page",
+        method: "GET",
+        url_template: "https://luma.com/sgaifoundersdinner",
+        trigger_url: "https://luma.com/sgaifoundersdinner",
+      }],
+    }));
+
+    const { findExistingSkillForDomain } = await import("../src/client/index.js");
+    const found = findExistingSkillForDomain(
+      "lu.ma",
+      "register RSVP for this event",
+      "https://lu.ma/sgaifoundersdinner",
+    );
+    expect(found?.skill_id).toBe("event-skill");
+
+    if (prev == null) delete process.env.UNBROWSE_SKILL_CACHE_DIR;
+    else process.env.UNBROWSE_SKILL_CACHE_DIR = prev;
+    rmSync(dir, { recursive: true, force: true });
+  });
 });

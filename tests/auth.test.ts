@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { homedir } from "node:os";
 import { isDomainMatch, getRegistrableDomain } from "../src/domain.js";
 import { storeCredential, getCredential, deleteCredential } from "../src/vault/index.js";
-import { findStoredAuthReference, getStoredAuth, getStoredAuthBundle, getAuthCookies, storedAuthNeedsBrowserRefresh } from "../src/auth/index.js";
+import { findStoredAuthReference, getStoredAuth, getStoredAuthBundle, getAuthCookies, resolveInteractiveLoginPlan, storedAuthNeedsBrowserRefresh } from "../src/auth/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -256,6 +257,42 @@ describe("stored auth bundle resolution", () => {
       userDataDir: "/tmp/dia-user-data",
       profile: "Profile 7",
     });
+  });
+});
+
+describe("interactive login browser resolution", () => {
+  it("targets an explicit supported browser", () => {
+    const plan = resolveInteractiveLoginPlan("https://lu.ma/signin", "chrome", { platform: "darwin" });
+    expect(plan.browser).toBe("chrome");
+    expect(plan.browserLabel).toBe("Chrome");
+    expect(plan.openCommand).toBe("osascript");
+    expect(plan.openArgs).toEqual([
+      "-e",
+      [
+        'tell application "Google Chrome"',
+        "activate",
+        "if (count of windows) = 0 then",
+        "make new window",
+        "end if",
+        'set URL of active tab of front window to "https://lu.ma/signin"',
+        "end tell",
+      ].join("\n"),
+    ]);
+    expect(plan.extractOptions).toEqual({
+      browser: "chromium",
+      chromium: {
+        userDataDir: `${homedir()}/Library/Application Support/Google/Chrome`,
+        browserName: "Chrome",
+        safeStorageService: "Chrome Safe Storage",
+      },
+    });
+  });
+
+  it("rejects unsupported macOS default browsers in auto mode", () => {
+    expect(() => resolveInteractiveLoginPlan("https://lu.ma/signin", undefined, {
+      platform: "darwin",
+      defaultBundleId: "com.apple.Safari",
+    })).toThrow(/Default browser Safari is not supported/);
   });
 });
 

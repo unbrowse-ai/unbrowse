@@ -44,7 +44,7 @@ export interface ExtractionResult {
   warnings: string[];
 }
 
-export type BrowserSource = "auto" | "firefox" | "chrome" | "chromium";
+export type BrowserSource = "auto" | "firefox" | "chrome" | "chromium" | "arc" | "dia" | "brave" | "edge" | "vivaldi";
 
 export interface ChromiumCookieSourceOptions {
   profile?: string;
@@ -61,7 +61,7 @@ export interface ExtractBrowserCookiesOptions {
   chromium?: ChromiumCookieSourceOptions;
 }
 
-type ChromiumBrowserCandidate = {
+export type ChromiumBrowserCandidate = {
   name: string;
   userDataDir: string;
   safeStorageService: string;
@@ -97,7 +97,7 @@ export function extractDefaultBrowserBundleIdFromLaunchServicesData(data: unknow
   return null;
 }
 
-function getMacDefaultBrowserBundleId(): string | null {
+export function getMacDefaultBrowserBundleId(): string | null {
   if (platform() !== "darwin") return null;
   const plist = join(homedir(), "Library", "Preferences", "com.apple.LaunchServices.com.apple.launchservices.secure.plist");
   const fallbackPlist = join(homedir(), "Library", "Preferences", "com.apple.LaunchServices", "com.apple.launchservices.secure.plist");
@@ -122,6 +122,44 @@ export function prioritizeChromiumCandidates(
   const preferred = sources.find((source) => source.bundleId === preferredBundleId);
   if (!preferred) return [...sources];
   return [preferred, ...sources.filter((source) => source !== preferred)];
+}
+
+function browserSourceSlug(name: string): BrowserSource {
+  return name.toLowerCase() as BrowserSource;
+}
+
+export function getSupportedChromiumBrowserCandidates(
+  platformOverride: NodeJS.Platform = platform(),
+  homeOverride: string = homedir(),
+): ChromiumBrowserCandidate[] {
+  return platformOverride === "darwin"
+    ? [
+        { name: "Chrome", userDataDir: join(homeOverride, "Library", "Application Support", "Google", "Chrome"), safeStorageService: "Chrome Safe Storage", bundleId: "com.google.chrome" },
+        { name: "Arc", userDataDir: join(homeOverride, "Library", "Application Support", "Arc", "User Data"), safeStorageService: "Arc Safe Storage", bundleId: "company.thebrowser.Browser" },
+        { name: "Dia", userDataDir: join(homeOverride, "Library", "Application Support", "Dia", "User Data"), safeStorageService: "Dia Safe Storage", bundleId: "company.thebrowser.dia" },
+        { name: "Brave", userDataDir: join(homeOverride, "Library", "Application Support", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage", bundleId: "com.brave.Browser" },
+        { name: "Edge", userDataDir: join(homeOverride, "Library", "Application Support", "Microsoft Edge"), safeStorageService: "Microsoft Edge Safe Storage", bundleId: "com.microsoft.edgemac" },
+        { name: "Vivaldi", userDataDir: join(homeOverride, "Library", "Application Support", "Vivaldi"), safeStorageService: "Vivaldi Safe Storage", bundleId: "com.vivaldi.Vivaldi" },
+        { name: "Chromium", userDataDir: join(homeOverride, "Library", "Application Support", "Chromium"), safeStorageService: "Chromium Safe Storage", bundleId: "org.chromium.Chromium" },
+      ]
+    : platformOverride === "linux"
+      ? [
+          { name: "Chrome", userDataDir: join(homeOverride, ".config", "google-chrome"), safeStorageService: "Chrome Safe Storage" },
+          { name: "Brave", userDataDir: join(homeOverride, ".config", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage" },
+          { name: "Edge", userDataDir: join(homeOverride, ".config", "microsoft-edge"), safeStorageService: "Microsoft Edge Safe Storage" },
+          { name: "Vivaldi", userDataDir: join(homeOverride, ".config", "vivaldi"), safeStorageService: "Vivaldi Safe Storage" },
+          { name: "Chromium", userDataDir: join(homeOverride, ".config", "chromium"), safeStorageService: "Chromium Safe Storage" },
+        ]
+      : [];
+}
+
+export function findChromiumBrowserCandidate(
+  browser: Exclude<BrowserSource, "auto" | "firefox">,
+  platformOverride: NodeJS.Platform = platform(),
+  homeOverride: string = homedir(),
+): ChromiumBrowserCandidate | null {
+  return getSupportedChromiumBrowserCandidates(platformOverride, homeOverride)
+    .find((candidate) => browserSourceSlug(candidate.name) === browser) ?? null;
 }
 
 export function resolveChromiumCookiesPath(opts?: ChromiumCookieSourceOptions): string | null {
@@ -495,12 +533,21 @@ export function extractBrowserCookies(
     return extractFromFirefox(domain, { profile: opts.firefoxProfile });
   }
 
-  if (opts?.browser === "chrome") {
-    return extractFromChrome(domain, { profile: opts.chromeProfile });
+  if (opts?.browser === "chromium" && (opts?.chromium?.cookieDbPath || opts?.chromium?.userDataDir)) {
+    return extractFromChromium(domain, opts.chromium);
   }
 
-  if (opts?.browser === "chromium") {
-    return extractFromChromium(domain, opts.chromium);
+  if (opts?.browser && opts.browser !== "auto" && opts.browser !== "firefox") {
+    const selected = findChromiumBrowserCandidate(opts.browser);
+    if (selected) {
+      return extractFromChromium(domain, {
+        ...opts.chromium,
+        profile: opts.chromium?.profile ?? opts.chromeProfile,
+        userDataDir: opts.chromium?.userDataDir ?? selected.userDataDir,
+        browserName: opts.chromium?.browserName ?? selected.name,
+        safeStorageService: opts.chromium?.safeStorageService ?? selected.safeStorageService,
+      });
+    }
   }
 
   // If caller provided an explicit Chromium-family source, try that first.
@@ -510,26 +557,7 @@ export function extractBrowserCookies(
   }
 
   const home = homedir();
-  const chromiumBrowsers: ChromiumBrowserCandidate[] =
-    platform() === "darwin"
-      ? [
-          { name: "Chrome", userDataDir: getChromeUserDataDir(), safeStorageService: "Chrome Safe Storage", bundleId: "com.google.chrome" },
-          { name: "Arc", userDataDir: join(home, "Library", "Application Support", "Arc", "User Data"), safeStorageService: "Arc Safe Storage", bundleId: "company.thebrowser.Browser" },
-          { name: "Dia", userDataDir: join(home, "Library", "Application Support", "Dia", "User Data"), safeStorageService: "Dia Safe Storage", bundleId: "company.thebrowser.dia" },
-          { name: "Brave", userDataDir: join(home, "Library", "Application Support", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage", bundleId: "com.brave.Browser" },
-          { name: "Edge", userDataDir: join(home, "Library", "Application Support", "Microsoft Edge"), safeStorageService: "Microsoft Edge Safe Storage", bundleId: "com.microsoft.edgemac" },
-          { name: "Vivaldi", userDataDir: join(home, "Library", "Application Support", "Vivaldi"), safeStorageService: "Vivaldi Safe Storage", bundleId: "com.vivaldi.Vivaldi" },
-          { name: "Chromium", userDataDir: join(home, "Library", "Application Support", "Chromium"), safeStorageService: "Chromium Safe Storage", bundleId: "org.chromium.Chromium" },
-        ]
-      : platform() === "linux"
-        ? [
-            { name: "Chrome", userDataDir: getChromeUserDataDir(), safeStorageService: "Chrome Safe Storage" },
-            { name: "Brave", userDataDir: join(home, ".config", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage" },
-            { name: "Edge", userDataDir: join(home, ".config", "microsoft-edge"), safeStorageService: "Microsoft Edge Safe Storage" },
-            { name: "Vivaldi", userDataDir: join(home, ".config", "vivaldi"), safeStorageService: "Vivaldi Safe Storage" },
-            { name: "Chromium", userDataDir: join(home, ".config", "chromium"), safeStorageService: "Chromium Safe Storage" },
-          ]
-        : [];
+  const chromiumBrowsers = getSupportedChromiumBrowserCandidates(platform(), home);
 
   const preferredBundleId = getMacDefaultBrowserBundleId();
   const orderedChromiumBrowsers = prioritizeChromiumCandidates(chromiumBrowsers, preferredBundleId);
