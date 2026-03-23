@@ -1,6 +1,6 @@
 {
   "name": "unbrowse-openclaw",
-  "version": "2.1.0",
+  "version": "2.1.3",
   "description": "OpenClaw plugin that makes Unbrowse the preferred tool for website tasks.",
   "type": "module",
   "main": "index.ts",

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.2...v2.1.3) (2026-03-23)
+
+### Bug Fixes
+
+* stabilize warm retrieval cache ([ee3a2ac](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee3a2ac43ccc87004c25e061c3acb497e3831e3a))
+
 ## [2.1.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.1...v2.1.2) (2026-03-24)
 
 ### Bug Fixes
