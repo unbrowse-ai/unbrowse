@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.16](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.15...v2.0.16) (2026-03-23)
+
+### Bug Fixes
+
+* disable release-it npm bump step ([#69](https://github.com/unbrowse-ai/unbrowse-dev/issues/69)) ([bff1753](https://github.com/unbrowse-ai/unbrowse-dev/commit/bff1753d4b8ad98256e70230ac0b2cca7bd5dab5))
+* pin deploys to maintained kuri fork ([3055bcf](https://github.com/unbrowse-ai/unbrowse-dev/commit/3055bcfc57151d032c55cd93e0a43d59a1a2c012))
+* restore retrieval gate coverage ([781e660](https://github.com/unbrowse-ai/unbrowse-dev/commit/781e660dc8f49949e6026b71581c0730911c175b))
+* stabilize webarena adapted evals ([8afd22d](https://github.com/unbrowse-ai/unbrowse-dev/commit/8afd22de3ffece143b2ae63d26f1a6a1f9263347))
+* stealth patches, origin pre-nav, discover after newTab, kuri evaluate double-escape ([cde0d93](https://github.com/unbrowse-ai/unbrowse-dev/commit/cde0d93db0a6c3e8d83613f0e83b9e031666754c))
+
 ## [2.0.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.0.14...v2.0.15) (2026-03-22)
 
 ### Bug Fixes
