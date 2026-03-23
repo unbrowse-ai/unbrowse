@@ -408,7 +408,11 @@ export function shouldIgnoreLearnedBrowserStrategy(
   endpoint: EndpointDescriptor,
   resolvedUrl: string,
 ): boolean {
-  return endpoint.method === "GET" && !endpoint.dom_extraction && !isDocumentLikeUrl(resolvedUrl);
+  if (endpoint.method !== "GET" || endpoint.dom_extraction || isDocumentLikeUrl(resolvedUrl)) return false;
+  if (endpoint.semantic?.auth_required === true && endpoint.trigger_url && isDocumentLikeUrl(endpoint.trigger_url)) {
+    return false;
+  }
+  return true;
 }
 
 function deriveStructuredDataReplay(url: string, mode: "concrete" | "template"): string {
@@ -770,7 +774,11 @@ function buildLinkedInEmbeddedFeedCapture(
   result?: { data: unknown; _extraction: Record<string, unknown> };
   quality_note?: string;
 } {
-  if (!/\blinkedin\b/i.test(url) || !/\b(feed|timeline|stream|home)\b/i.test(intent) || !/\b(post|posts|status|statuses|update|updates)\b/i.test(intent)) {
+  const normalizedIntent = intent.toLowerCase();
+  const looksLikeFeedIntent =
+    /\b(feed|timeline|stream|home)\b/.test(normalizedIntent) ||
+    /\/feed(?:\/|$)/i.test(url);
+  if (!/\blinkedin\b/i.test(url) || !looksLikeFeedIntent) {
     return {};
   }
 
@@ -816,6 +824,7 @@ function buildLinkedInEmbeddedFeedCapture(
       endpoint_id: nanoid(),
       method: (metadata.method ?? "GET").toUpperCase() as EndpointDescriptor["method"],
       url_template: requestUrl,
+      exec_strategy: "trigger-intercept",
       idempotency: "safe",
       verification_status: "verified",
       reliability_score: 0.95,
@@ -1962,6 +1971,28 @@ async function executeBrowserCapture(
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
   const learned = finalizePassiveLearnedSkill(localDraft, options?.client_scope);
+
+  const extractionSource =
+    domArtifactResult && typeof domArtifactResult === "object" && "_extraction" in domArtifactResult
+      ? (domArtifactResult._extraction as Record<string, unknown>)?.source
+      : undefined;
+  if (domArtifactEndpoint && domArtifactResult && extractionSource === "html-embedded") {
+    const trace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: learned.skill_id,
+      endpoint_id: domArtifactEndpoint.endpoint_id,
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: true,
+      result: domArtifactResult.data,
+    });
+    return {
+      trace,
+      result: domArtifactResult,
+      learned_skill: learned,
+      parity_baseline: domArtifactResult.data,
+    };
+  }
 
   const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,

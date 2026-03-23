@@ -2205,11 +2205,27 @@ export async function resolveAndExecute(
     (ep) => !ep.dom_extraction && ep.method !== "WS",
   );
   const isDirectDomResult = directDomCaptureResult;
-  if (isDirectDomResult && !hasNonDomApiEndpoints) {
+  const directExtractionSource =
+    isDirectDomResult && result && typeof result === "object"
+      ? ((result as Record<string, unknown>)._extraction as Record<string, unknown> | undefined)?.source
+      : undefined;
+  if (isDirectDomResult && (directExtractionSource === "html-embedded" || !hasNonDomApiEndpoints)) {
     if (learned_skill) {
-      const deferred = await buildDeferralWithAutoExec(learned_skill, "live-capture");
-      queuePassivePublishIfExecuted(learned_skill, deferred, parityBaseline);
-      return deferred;
+      const direct: OrchestratorResult = {
+        result,
+        trace,
+        source: directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+        skill: learned_skill,
+        timing: finalize(
+          directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+          result,
+          learned_skill.skill_id,
+          learned_skill,
+          trace,
+        ),
+      };
+      queuePassivePublishIfExecuted(learned_skill, direct, parityBaseline);
+      return direct;
     }
     return {
       result,

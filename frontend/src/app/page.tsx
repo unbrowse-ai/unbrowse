@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
-import { ApiKeyGenerator } from "@/components/api-key-generator";
 import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
@@ -384,10 +383,10 @@ export default function Home() {
                 After Install
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-text-primary">
-                Register and <span className="text-orange-500">start using it.</span>
+                Install once. <span className="text-orange-500">Then use the docs.</span>
               </h2>
                 <p className="text-text-secondary text-lg max-w-xl mx-auto leading-relaxed">
-                  Install it, grab your key, and jump into docs, registry, and community.
+                  Keep the finish clean: docs, registry, GitHub, community. No API-key box on the homepage.
                 </p>
             </div>
 
@@ -396,8 +395,6 @@ export default function Home() {
               The packaged CLI checks npm before each command and rolls forward automatically when a newer release exists. Disable with
               <code className="mx-2 text-orange-700 font-medium">UNBROWSE_DISABLE_AUTO_UPDATE=1</code>.
             </div>
-
-            <ApiKeyGenerator />
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-text-secondary font-mono pt-8">
               <a href="/skill.md" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> skill.md</a>
