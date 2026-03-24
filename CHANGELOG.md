@@ -20,6 +20,8 @@
 * strengthen strict Unbrowse-only host guidance across setup, MCP tool descriptions, and docs so explicit `/unbrowse` requests stay on the same origin and do not silently fall through to Fetch, public mirrors, alternate domains, or generic web tools
 * rebuild canonical skill enumeration from durable `domain-idx:*` keys instead of the lossy split `skill:*` manifest index, so prod publish/search hydration can still see newly published and existing canonical skills when graph search omits metadata
 * document the agent-side retrieval loop more explicitly so long narrative prompts across many domains are turned into compact iterative same-origin queries inside Unbrowse instead of being pasted wholesale into single site search fields
+* document the concrete retrieval playbook more explicitly so domain-only tasks first find the real workflow URL, marketplace search is not confused with on-site search, and agents inspect schema/raw before inventing endpoint params
+* document login-first behavior more explicitly so likely gated workflows stop looping on homepage/public artifacts and trigger auth on the inferred workflow URL sooner
 
 ## Unreleased
 
