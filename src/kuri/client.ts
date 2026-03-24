@@ -9,9 +9,7 @@
  */
 
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import net from "node:net";
-import os from "node:os";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { log } from "../logger.js";
 import { getPackageRoot } from "../runtime/paths.js";
@@ -102,26 +100,6 @@ function resolveBinaryOnPath(name: string): string | null {
   } catch {
     return null;
   }
-}
-
-function resolveIsolatedChromeBinary(): string | null {
-  const candidates: string[] = [];
-  if (process.platform === "darwin") {
-    addCandidate(candidates, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
-    addCandidate(candidates, "/Applications/Chromium.app/Contents/MacOS/Chromium");
-    addCandidate(candidates, "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge");
-    addCandidate(candidates, "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser");
-  } else if (process.platform === "linux") {
-    addCandidate(candidates, resolveBinaryOnPath("google-chrome"));
-    addCandidate(candidates, resolveBinaryOnPath("chromium"));
-    addCandidate(candidates, resolveBinaryOnPath("chromium-browser"));
-    addCandidate(candidates, resolveBinaryOnPath("microsoft-edge"));
-    addCandidate(candidates, resolveBinaryOnPath("brave-browser"));
-  } else if (process.platform === "win32") {
-    addCandidate(candidates, resolveBinaryOnPath("chrome"));
-    addCandidate(candidates, resolveBinaryOnPath("msedge"));
-  }
-  return candidates.find((candidate) => existsSync(candidate)) ?? candidates.find(Boolean) ?? null;
 }
 
 function addCandidate(candidates: string[], candidate?: string | null): void {
@@ -300,19 +278,7 @@ async function discoverManagedChromeCdpPort(): Promise<number | null> {
 
 export const __test = {
   discoverManagedChromeCdpPortForPid,
-  setCdpPortForTests(port: number | null) {
-    kuriCdpPort = port;
-    kuriCdpUrl = port ? `ws://127.0.0.1:${port}` : null;
-  },
-  shouldRestartHealthyKuri,
 };
-
-function shouldRestartHealthyKuri(options: {
-  attachExistingChrome: boolean;
-  explicitCdpUrl?: string | null;
-}): boolean {
-  return options.attachExistingChrome || !!options.explicitCdpUrl;
-}
 
 async function waitForKuriDown(port: number, timeoutMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -327,71 +293,19 @@ async function waitForKuriDown(port: number, timeoutMs = 5_000): Promise<void> {
   }
 }
 
-async function getFreePort(): Promise<number> {
-  return await new Promise<number>((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (!address || typeof address === "string") {
-        server.close();
-        reject(new Error("failed to allocate port"));
-        return;
-      }
-      const { port } = address;
-      server.close((err) => err ? reject(err) : resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-async function waitForChromeVersion(port: number, timeoutMs = 15_000): Promise<{ webSocketDebuggerUrl?: string }> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+/** Find a free port for CDP starting from 9222. */
+async function findFreeCdpPort(): Promise<number> {
+  for (let port = 9222; port < 9230; port++) {
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/json/version`, {
-        signal: AbortSignal.timeout(500),
+      await fetch(`http://127.0.0.1:${port}/json/version`, {
+        signal: AbortSignal.timeout(300),
       });
-      if (res.ok) return await res.json() as { webSocketDebuggerUrl?: string };
+      // Port is in use, try next
     } catch {
-      // retry
+      return port; // Not in use
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`isolated Chrome failed to expose CDP on ${port}`);
-}
-
-async function launchIsolatedChromeForKuri(): Promise<{ cdpUrl: string; child: ChildProcess; tempDir: string }> {
-  const binary = resolveIsolatedChromeBinary();
-  if (!binary) throw new Error("no Chromium-family browser binary found for isolated Kuri launch");
-  const port = await getFreePort();
-  const tempDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-"));
-  const child = spawn(binary, [
-    `--remote-debugging-port=${port}`,
-    `--user-data-dir=${tempDir}`,
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-default-apps",
-    "about:blank",
-  ], {
-    stdio: "ignore",
-    detached: false,
-  });
-
-  try {
-    const version = await waitForChromeVersion(port);
-    const cdpUrl = version.webSocketDebuggerUrl;
-    if (!cdpUrl) throw new Error("isolated Chrome missing webSocketDebuggerUrl");
-    return { cdpUrl, child, tempDir };
-  } catch (error) {
-    try { child.kill("SIGTERM"); } catch {}
-    await waitForChildExit(child);
-    try {
-      rmSync(tempDir, { recursive: true, force: true });
-    } catch {
-      // best-effort cleanup
-    }
-    throw error;
-  }
+  return 9222; // Fallback
 }
 
 function kuriUrl(path: string, params?: Record<string, string>): string {
@@ -453,41 +367,11 @@ export async function start(port?: number): Promise<void> {
   kuriPort = port ?? KURI_DEFAULT_PORT;
   managedChromePid = null;
   const attachExistingChrome = process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME === "1";
-  const explicitCdpUrl = process.env.CDP_URL || process.env.KURI_CDP_URL;
-  const restartHealthyKuri = shouldRestartHealthyKuri({ attachExistingChrome, explicitCdpUrl });
 
   // Check if kuri is already running on this port
   try {
     const health = await fetch(`http://127.0.0.1:${kuriPort}/health`, {
       signal: AbortSignal.timeout(1000),
-    });
-    if (health.ok) {
-      if (restartHealthyKuri) {
-        const existingPid = findListeningPid(kuriPort);
-        if (existingPid && isLikelyKuriProcess(existingPid)) {
-          log("kuri", `restarting existing Kuri on port ${kuriPort} to apply external Chrome target ${explicitCdpUrl ?? "(attach-existing)"}`);
-          try {
-            process.kill(existingPid, "SIGTERM");
-          } catch {
-            // ignore
-          }
-          await waitForKuriDown(kuriPort);
-        }
-      } else {
-        log("kuri", `already running on port ${kuriPort}`);
-        kuriReady = true;
-        await ensureTabsDiscovered();
-        return;
-      }
-    }
-  } catch {
-    // Not running — we'll start it
-  }
-
-  // Check one more time after any requested restart.
-  try {
-    const health = await fetch(`http://127.0.0.1:${kuriPort}/health`, {
-      signal: AbortSignal.timeout(500),
     });
     if (health.ok) {
       log("kuri", `already running on port ${kuriPort}`);
@@ -520,42 +404,20 @@ export async function start(port?: number): Promise<void> {
     PORT: String(kuriPort),
     HOST: "127.0.0.1",
   };
-  let usingFixedCdpUrl = false;
+  const explicitCdpUrl = process.env.CDP_URL || process.env.KURI_CDP_URL;
   kuriCdpPort = parsePortFromCdpUrl(explicitCdpUrl);
   kuriCdpUrl = explicitCdpUrl || (attachExistingChrome && kuriCdpPort ? `ws://127.0.0.1:${kuriCdpPort}` : null);
   if (explicitCdpUrl) {
     env.CDP_URL = explicitCdpUrl;
-    usingFixedCdpUrl = true;
     log("kuri", `connecting to explicit Chrome at ${explicitCdpUrl}`);
   } else if (attachExistingChrome && kuriCdpPort) {
     env.CDP_URL = kuriCdpUrl || `ws://127.0.0.1:${kuriCdpPort}`;
-    usingFixedCdpUrl = true;
     log("kuri", `connecting to existing Chrome on port ${kuriCdpPort}`);
   } else {
-    const isolatedChrome = await launchIsolatedChromeForKuri().catch((error) => {
-      log("kuri", `isolated Chrome bootstrap failed: ${error instanceof Error ? error.message : String(error)}`);
-      return null;
-    });
-    if (isolatedChrome) {
-      externalChromeOverride = {
-        cdpUrl: isolatedChrome.cdpUrl,
-        child: isolatedChrome.child,
-        tempDir: isolatedChrome.tempDir,
-        previousCdpUrl: process.env.CDP_URL,
-        previousAttach: process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME,
-      };
-      process.env.CDP_URL = isolatedChrome.cdpUrl;
-      delete process.env.UNBROWSE_KURI_ATTACH_EXISTING_CHROME;
-      env.CDP_URL = isolatedChrome.cdpUrl;
-      kuriCdpPort = parsePortFromCdpUrl(isolatedChrome.cdpUrl);
-      kuriCdpUrl = isolatedChrome.cdpUrl;
-      usingFixedCdpUrl = true;
-      log("kuri", `launching isolated external Chrome at ${isolatedChrome.cdpUrl}`);
-    } else {
-      kuriCdpPort = null;
-      kuriCdpUrl = null;
-      log("kuri", "launching isolated managed Chrome");
-    }
+    delete env.CDP_URL;
+    kuriCdpPort = null;
+    kuriCdpUrl = null;
+    log("kuri", "launching isolated managed Chrome");
   }
 
   kuriProcess = spawn(binary, [], {
@@ -578,7 +440,6 @@ export async function start(port?: number): Promise<void> {
       }
       const cdpMatch = line.match(/CDP port:\s*(\d+)/);
       if (cdpMatch) {
-        if (usingFixedCdpUrl) continue;
         kuriCdpPort = parseInt(cdpMatch[1], 10);
         if (!kuriCdpUrl) kuriCdpUrl = `ws://127.0.0.1:${kuriCdpPort}`;
         log("kuri", `discovered CDP port: ${kuriCdpPort}`);
@@ -802,16 +663,6 @@ export async function navigate(tabId: string, url: string): Promise<void> {
 /** Evaluate JavaScript in tab context. */
 /** Evaluate JavaScript in tab context. */
 /** Evaluate JavaScript in tab context. */
-function unwrapEvaluateResult(value: unknown): unknown {
-  if (!value || typeof value !== "object") return value;
-  const record = value as Record<string, unknown>;
-  if (record.type === "undefined") return undefined;
-  if (Object.prototype.hasOwnProperty.call(record, "value")) return record.value;
-  if (record.result !== undefined) return unwrapEvaluateResult(record.result);
-  if (record.description !== undefined) return record.description;
-  return value;
-}
-
 export async function evaluate(tabId: string, expression: string): Promise<unknown> {
   let raw: {
     id?: number;
@@ -844,181 +695,11 @@ export async function evaluate(tabId: string, expression: string): Promise<unkno
     try { raw = JSON.parse(text); } catch { raw = text as never; }
   }
   // CDP Runtime.evaluate response: { id, result: { result: { type, value } } }
-  const unwrapped = unwrapEvaluateResult(raw);
-  return unwrapped === undefined && raw ? undefined : unwrapped;
-}
-
-type CdpPendingHandler = {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
-};
-
-async function getTabWebSocketDebuggerUrl(tabId: string): Promise<string> {
-  let cdpPort = kuriCdpPort;
-  if (!cdpPort) {
-    await discoverCdpPort();
-    cdpPort = kuriCdpPort;
-  }
-  if (!cdpPort) throw new Error("Chrome CDP port unavailable");
-
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(`http://127.0.0.1:${cdpPort}/json/list`, {
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!res.ok) throw new Error(`failed to list Chrome targets (${res.status})`);
-    const targets = await res.json() as Array<{ id?: string; webSocketDebuggerUrl?: string }>;
-    const target = targets.find((entry) => entry.id === tabId && entry.webSocketDebuggerUrl);
-    if (target?.webSocketDebuggerUrl) return target.webSocketDebuggerUrl;
-    if (attempt === 0) {
-      await ensureTabsDiscovered();
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
-  }
-  throw new Error(`tab ${tabId} missing webSocketDebuggerUrl`);
-}
-
-async function cdpCommand(
-  socket: WebSocket,
-  pending: Map<number, CdpPendingHandler>,
-  state: { nextId: number },
-  method: string,
-  params?: Record<string, unknown>,
-): Promise<unknown> {
-  const id = ++state.nextId;
-  const payload = JSON.stringify({ id, method, ...(params ? { params } : {}) });
-  return await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error(`CDP ${method} timed out`));
-    }, 5_000);
-    pending.set(id, {
-      resolve: (value) => {
-        clearTimeout(timeout);
-        resolve(value);
-      },
-      reject: (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      },
-    });
-    try {
-      socket.send(payload);
-    } catch (error) {
-      clearTimeout(timeout);
-      pending.delete(id);
-      reject(error instanceof Error ? error : new Error(String(error)));
-    }
-  });
-}
-
-function rejectPendingCdpHandlers(pending: Map<number, CdpPendingHandler>, reason: Error): void {
-  for (const [id, handler] of pending.entries()) {
-    pending.delete(id);
-    handler.reject(reason);
-  }
-}
-
-function isRetryableCdpClickError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /CDP .* timed out|CDP command failed|target closed|session closed|websocket closed|No target with given id|missing webSocketDebuggerUrl/i.test(message);
-}
-
-export async function dispatchRealClick(tabId: string, x: number, y: number): Promise<void> {
-  const WebSocketCtor = globalThis.WebSocket;
-  if (!WebSocketCtor) throw new Error("WebSocket API unavailable for CDP click");
-
-  const clickX = Math.round(x);
-  const clickY = Math.round(y);
-  let lastError: unknown = null;
-
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const wsUrl = await getTabWebSocketDebuggerUrl(tabId);
-    const socket = new WebSocketCtor(wsUrl);
-    const pending = new Map<number, CdpPendingHandler>();
-    const state = { nextId: 0 };
-
-    const closed = new Promise<void>((resolve) => {
-      socket.addEventListener("close", () => {
-        rejectPendingCdpHandlers(pending, new Error("CDP websocket closed"));
-        resolve();
-      }, { once: true });
-    });
-
-    socket.addEventListener("error", () => {
-      rejectPendingCdpHandlers(pending, new Error("CDP websocket error"));
-    });
-
-    socket.addEventListener("message", (event) => {
-      try {
-        const msg = JSON.parse(typeof event.data === "string" ? event.data : String(event.data)) as {
-          id?: number;
-          error?: { message?: string };
-          result?: unknown;
-        };
-        if (!msg.id) return;
-        const handler = pending.get(msg.id);
-        if (!handler) return;
-        pending.delete(msg.id);
-        if (msg.error) {
-          handler.reject(new Error(msg.error.message || "CDP command failed"));
-          return;
-        }
-        handler.resolve(msg.result);
-      } catch {
-        // ignore parse noise
-      }
-    });
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("timed out opening CDP websocket")), 5_000);
-        socket.addEventListener("open", () => {
-          clearTimeout(timeout);
-          resolve();
-        }, { once: true });
-        socket.addEventListener("error", () => {
-          clearTimeout(timeout);
-          reject(new Error("failed opening CDP websocket"));
-        }, { once: true });
-      });
-
-      await cdpCommand(socket, pending, state, "Page.bringToFront");
-      await cdpCommand(socket, pending, state, "Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x: clickX,
-        y: clickY,
-        button: "none",
-      });
-      await cdpCommand(socket, pending, state, "Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x: clickX,
-        y: clickY,
-        button: "left",
-        clickCount: 1,
-      });
-      await cdpCommand(socket, pending, state, "Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x: clickX,
-        y: clickY,
-        button: "left",
-        clickCount: 1,
-      });
-      return;
-    } catch (error) {
-      lastError = error;
-      if (attempt === 0 && isRetryableCdpClickError(error)) {
-        await ensureTabsDiscovered();
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      } else {
-        throw error;
-      }
-    } finally {
-      try { socket.close(); } catch {}
-      await closed;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  const inner = raw?.result?.result;
+  if (!inner) return raw;
+  if (inner.type === "undefined") return undefined;
+  if ("value" in inner) return inner.value;
+  return inner.description ?? raw;
 }
 
 /** Get all cookies for a tab. */

@@ -1,17 +1,6 @@
 import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
-import {
-  buildCanonicalDocumentEndpoint,
-  deriveStructuredDataReplayTemplate,
-  deriveStructuredDataReplayUrl,
-  executeSkill,
-  isUnvalidatedBundleActionEndpoint,
-  rankEndpoints,
-} from "../execution/index.js";
-import {
-  isBundleInferredEndpoint,
-  isCapturedPageArtifactEndpoint,
-} from "../endpoint-provenance.js";
+import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
 import { getSkillChunk, knownBindingsFromInputs } from "../graph/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
@@ -209,7 +198,7 @@ function scoreSkillSnapshot(skill: SkillManifest): number {
     if (hasSearchBindings(endpoint)) score += 40;
     if (endpoint.method === "POST") score += 6;
     if (/\/result-page\b/i.test(endpoint.url_template)) score += 12;
-    if (isCapturedPageArtifactEndpoint(endpoint)) score -= 18;
+    if (/captured page artifact/i.test(endpoint.description ?? "")) score -= 18;
   }
   return score + skill.endpoints.length;
 }
@@ -258,7 +247,6 @@ function findBestLocalDomainSnapshot(
   requestedDomain: string,
   intent: string,
   contextUrl?: string,
-  excludeSkillIds?: ReadonlySet<string>,
 ): SkillManifest | undefined {
   if (!existsSync(SKILL_SNAPSHOT_DIR)) return undefined;
   const targetDomain = getRegistrableDomain(requestedDomain);
@@ -268,7 +256,6 @@ function findBestLocalDomainSnapshot(
     try {
       const candidate = JSON.parse(readFileSync(join(SKILL_SNAPSHOT_DIR, entry), "utf-8")) as SkillManifest;
       if (getRegistrableDomain(candidate.domain) !== targetDomain) continue;
-      if (excludeSkillIds?.has(candidate.skill_id)) continue;
       const existing = bestBySkill.get(candidate.skill_id);
       bestBySkill.set(
         candidate.skill_id,
@@ -538,16 +525,6 @@ function withContextReplayEndpoint(
   };
 }
 
-function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
-  if (/\b(search|find|lookup|browse|discover)\b/i.test(intent ?? "")) return true;
-  try {
-    const pathname = contextUrl ? new URL(contextUrl).pathname.toLowerCase() : "";
-    return /\/(?:search|basic-search|result-page|results?|discover|browse)\b/.test(pathname);
-  } catch {
-    return false;
-  }
-}
-
 export function isCachedSkillRelevantForIntent(
   skill: SkillManifest,
   intent?: string,
@@ -572,12 +549,12 @@ export function isCachedSkillRelevantForIntent(
     contextUrl,
   );
   const top = ranked[0];
-  const isSearchIntent = isSearchLikeIntent(intent, contextUrl);
+  const isSearchIntent = /\b(search|find|lookup|browse|discover)\b/i.test(intent);
   if (
     top &&
     isSearchIntent &&
     contextUrl &&
-    isCapturedPageArtifactEndpoint(top.endpoint) &&
+    /captured page artifact/i.test(top.endpoint.description ?? "") &&
     top.endpoint.response_schema?.type !== "array" &&
     top.endpoint.url_template === contextUrl &&
     !skillHasBetterStructuredSearchEndpoint(
@@ -593,7 +570,7 @@ export function isCachedSkillRelevantForIntent(
     top &&
     isEducationCatalogIntent(intent) &&
     isRootContextUrl(contextUrl) &&
-    isCapturedPageArtifactEndpoint(top.endpoint) &&
+    /captured page artifact/i.test(top.endpoint.description ?? "") &&
     top.endpoint.url_template === contextUrl
   ) {
     return false;
@@ -729,25 +706,12 @@ function skillHasBetterStructuredSearchEndpoint(
   intent: string,
   contextUrl?: string,
 ): boolean {
-  if (!isSearchLikeIntent(intent, contextUrl)) return false;
+  if (!/\b(search|find|lookup|browse|discover)\b/i.test(intent)) return false;
   return rankEndpoints(skill.endpoints, intent, skill.domain, contextUrl).some((candidate) =>
     candidate.endpoint.endpoint_id !== currentEndpointId &&
     endpointHasSearchBindings(candidate.endpoint) &&
     (!!candidate.endpoint.dom_extraction || !!candidate.endpoint.response_schema) &&
     candidate.score >= 0
-  );
-}
-
-export function skillHasContextStructuredSearchEndpoint(
-  skill: SkillManifest,
-  intent: string,
-  contextUrl?: string,
-): boolean {
-  if (!isSearchLikeIntent(intent, contextUrl)) return false;
-  return skill.endpoints.some((endpoint) =>
-    endpointHasSearchBindings(endpoint) &&
-    (!!endpoint.dom_extraction || !!endpoint.response_schema) &&
-    endpointMatchesContextOrigin(endpoint, contextUrl),
   );
 }
 
@@ -779,7 +743,7 @@ function scoreRouteCacheCandidate(
   if (endpointHasSearchBindings(cachedEndpoint)) score += 15;
   if (cachedEndpoint.dom_extraction || cachedEndpoint.response_schema) score += 8;
 
-  const isCapturedPageArtifact = isCapturedPageArtifactEndpoint(cachedEndpoint);
+  const isCapturedPageArtifact = /captured page artifact/i.test(cachedEndpoint.description ?? "");
   if (isCapturedPageArtifact) score -= 10;
   if (
     isCapturedPageArtifact &&
@@ -907,8 +871,8 @@ function computeCompositeScore(embeddingScore: number, skill: SkillManifest): nu
 type RankedCandidate = { endpoint: SkillManifest["endpoints"][number]; score: number };
 
 function prefersEndpoint(a: RankedCandidate, b: RankedCandidate): RankedCandidate {
-  const aBundle = isBundleInferredEndpoint(a.endpoint);
-  const bBundle = isBundleInferredEndpoint(b.endpoint);
+  const aBundle = /inferred from js bundle/i.test(a.endpoint.description ?? "");
+  const bBundle = /inferred from js bundle/i.test(b.endpoint.description ?? "");
   if (aBundle !== bBundle) return aBundle ? b : a;
   const aSchema = !!a.endpoint.response_schema;
   const bSchema = !!b.endpoint.response_schema;
@@ -1464,7 +1428,7 @@ function candidateMatchesPreferredEntity(
 ): boolean {
   if (preferredTokens.length === 0) return false;
   if (candidate.endpoint.dom_extraction || candidate.endpoint.method === "WS") return false;
-  if (isBundleInferredEndpoint(candidate.endpoint)) return false;
+  if (/inferred from js bundle/i.test(candidate.endpoint.description ?? "")) return false;
   const haystack = [
     candidate.endpoint.url_template,
     candidate.endpoint.description ?? "",
@@ -1476,7 +1440,7 @@ function candidateMatchesPreferredEntity(
 }
 
 function isDocumentLikeCandidate(candidate: RankedCandidate, contextUrl?: string): boolean {
-  if (isCapturedPageArtifactEndpoint(candidate.endpoint)) return true;
+  if (/captured page artifact/i.test(candidate.endpoint.description ?? "")) return true;
   if (candidate.endpoint.dom_extraction || candidate.endpoint.method === "WS") return false;
   try {
     const endpointUrl = new URL(candidate.endpoint.url_template);
@@ -1487,7 +1451,7 @@ function isDocumentLikeCandidate(candidate: RankedCandidate, contextUrl?: string
       endpointUrl.origin === contextPage.origin && endpointUrl.pathname === contextPage.pathname
     );
   } catch {
-    return isCapturedPageArtifactEndpoint(candidate.endpoint);
+    return /captured page artifact/i.test(candidate.endpoint.description ?? "");
   }
 }
 
@@ -1545,7 +1509,7 @@ export function marketplaceSkillMatchesContext(
 
     const apiLike =
       /\/api\/|graphql|\/rest\/|\/rpc\/|voyager/i.test(endpoint.url_template) ||
-      (!endpoint.dom_extraction && !!endpoint.response_schema && !isCapturedPageArtifactEndpoint(endpoint));
+      (!endpoint.dom_extraction && !!endpoint.response_schema && !/captured page artifact/i.test(endpoint.description ?? ""));
     if (apiLike) hasApiLikeEndpoint = true;
   }
 
@@ -1585,10 +1549,10 @@ async function agentSelectEndpoint(
   const preferred = inferPreferredEntityTokens(intent);
   const concreteEntityIntent = isConcreteEntityDetailIntent(intent, contextUrl);
   const hasObservedCandidate = topRanked.some(
-    (r) => !isBundleInferredEndpoint(r.endpoint),
+    (r) => !/inferred from js bundle/i.test(r.endpoint.description ?? ""),
   );
   const narrowedBase = hasObservedCandidate
-    ? topRanked.filter((r) => !isBundleInferredEndpoint(r.endpoint))
+    ? topRanked.filter((r) => !/inferred from js bundle/i.test(r.endpoint.description ?? ""))
     : topRanked;
   const hasPreferredObservedApi =
     concreteEntityIntent &&
@@ -1776,23 +1740,6 @@ async function agentJudgeParity(
   return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
 }
 
-function queuePassivePublishIfExecuted(
-  intent: string,
-  skill: SkillManifest,
-  orchestratorResult: OrchestratorResult,
-  browserBaseline?: unknown,
-): void {
-  if (!orchestratorResult.trace.success || !orchestratorResult.trace.endpoint_id) return;
-  const parity = browserBaseline === undefined
-    ? undefined
-    : (async () => {
-        const local = localParityVerdict(intent, browserBaseline, orchestratorResult.result);
-        if (local.verdict !== "skip") return local.verdict;
-        return await agentJudgeParity(intent, browserBaseline, orchestratorResult.result);
-      })();
-  void queuePassiveSkillPublish(skill, { parity });
-}
-
 export function resolveEndpointTemplateBindings(
   endpoint: SkillManifest["endpoints"][number],
   params: Record<string, unknown> = {},
@@ -1844,7 +1791,7 @@ export async function resolveAndExecute(
     search_candidates: [] as unknown[],
     autoexec_attempts: [] as unknown[],
   };
-  const queryIntent = selectSearchTermsForExecution(intent) ?? extractSearchTermsFromIntent(intent) ?? intent;
+  const queryIntent = extractSearchTermsFromIntent(intent) ?? intent;
   if (queryIntent !== intent) decisionTrace.query_intent = queryIntent;
 
   // Fallback baselines when a skill has no discovery_cost (old skills / first capture)
@@ -1935,14 +1882,7 @@ export async function resolveAndExecute(
         }
         return {
           orchestratorResult: buildDeferral(skill, source, extraFields),
-          autoexecFailedAll:
-            !skillHasContextStructuredSearchEndpoint(skill, queryIntent, context?.url) &&
-            !skillHasBetterStructuredSearchEndpoint(
-              skill,
-              undefined,
-              queryIntent,
-              context?.url,
-            ),
+          autoexecFailedAll: true,
         };
       } catch (err) {
         console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
@@ -2053,10 +1993,8 @@ export async function resolveAndExecute(
       // Safety: don't auto-execute if there are too many unresolved params (likely wrong endpoint)
       if (unresolvedBySync.length > 4) return false;
     }
-    if (isUnvalidatedBundleActionEndpoint(endpoint) && !options?.dry_run) return false;
     if (endpoint.dom_extraction) return true;
-    if (endpoint.method === "GET" || endpoint.idempotency === "safe") return true;
-    return !!options?.dry_run || !!options?.confirm_unsafe;
+    return endpoint.method === "GET" || endpoint.idempotency === "safe";
   }
 
   const resolvedParams: Record<string, unknown> = (() => {
@@ -2086,31 +2024,6 @@ export async function resolveAndExecute(
     source: "marketplace" | "live-capture",
   ): Promise<OrchestratorResult | null> {
     let epRanked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url);
-    const dryRunActionIntent =
-      options?.dry_run === true &&
-      /\b(register|registration|rsvp|join|apply|signup|sign up|book|reserve|checkout|purchase|order|submit|send)\b/i.test(queryIntent);
-    const allUnsafeActionRanked = epRanked.filter(({ endpoint }) =>
-      endpoint.method !== "GET" && endpoint.idempotency === "unsafe",
-    );
-    if (dryRunActionIntent) {
-      const unsafeActionRanked = epRanked.filter(({ endpoint }) =>
-        endpoint.method !== "GET" &&
-        endpoint.idempotency === "unsafe" &&
-        /\b(register|registration|rsvp|join|apply|signup|sign up|book|reserve|checkout|purchase|order|submit|send|waitlist)\b/i.test(
-          `${endpoint.url_template} ${endpoint.description ?? ""} ${JSON.stringify(endpoint.body ?? {})}`,
-        ),
-      );
-      const prioritizedUnsafeRanked =
-        unsafeActionRanked.length > 0 ? unsafeActionRanked : allUnsafeActionRanked;
-      if (prioritizedUnsafeRanked.length > 0) {
-        epRanked = [
-          ...prioritizedUnsafeRanked,
-          ...epRanked.filter(({ endpoint }) =>
-            !prioritizedUnsafeRanked.some((candidate) => candidate.endpoint.endpoint_id === endpoint.endpoint_id),
-          ),
-        ];
-      }
-    }
     const originalRanked = epRanked;
     const chunk = getSkillChunk(skill, {
       intent: queryIntent,
@@ -2120,9 +2033,6 @@ export async function resolveAndExecute(
     const preferredAutoexecIds = new Set(
       epRanked.slice(0, Math.min(5, epRanked.length)).map((ranked) => ranked.endpoint.endpoint_id),
     );
-    if (dryRunActionIntent) {
-      for (const ranked of allUnsafeActionRanked) preferredAutoexecIds.add(ranked.endpoint.endpoint_id);
-    }
     const graphEndpointIds = new Set(
       chunk.available_operation_ids.length > 0
         ? [...chunk.available_operation_ids, ...preferredAutoexecIds]
@@ -2131,10 +2041,10 @@ export async function resolveAndExecute(
     if (graphEndpointIds.size > 0) {
       epRanked = epRanked.filter((ranked) => graphEndpointIds.has(ranked.endpoint.endpoint_id));
       const hasObservedAfterFilter = epRanked.some(
-        (ranked) => !isBundleInferredEndpoint(ranked.endpoint),
+        (ranked) => !/inferred from js bundle/i.test(ranked.endpoint.description ?? ""),
       );
       const observedBeforeFilter = originalRanked.filter(
-        (ranked) => !isBundleInferredEndpoint(ranked.endpoint),
+        (ranked) => !/inferred from js bundle/i.test(ranked.endpoint.description ?? ""),
       );
       if (!hasObservedAfterFilter && observedBeforeFilter.length > 0) {
         epRanked = dedupeObservedOverBundle([...observedBeforeFilter, ...epRanked]);
@@ -2194,11 +2104,11 @@ export async function resolveAndExecute(
       (r) =>
         !r.endpoint.dom_extraction &&
         r.endpoint.method !== "WS" &&
-        !isBundleInferredEndpoint(r.endpoint),
+        !/inferred from js bundle/i.test(r.endpoint.description ?? ""),
     );
     epRanked = epRanked.map((r) => {
       let readinessBonus = 0;
-      const inferredFromBundle = isBundleInferredEndpoint(r.endpoint);
+      const inferredFromBundle = /inferred from js bundle/i.test(r.endpoint.description ?? "");
       let isDocumentRoute = false;
       if (!r.endpoint.dom_extraction && context?.url) {
         try {
@@ -2234,28 +2144,12 @@ export async function resolveAndExecute(
         }
       }
       if (r.endpoint.method === "GET" || r.endpoint.idempotency === "safe") readinessBonus += 15;
-      const actionIntent = /\b(register|rsvp|join|apply|sign\s*up|signup|book|reserve|checkout|purchase|order|submit|send)\b/i.test(queryIntent);
-      const actionKind = (r.endpoint.semantic?.action_kind ?? "").toLowerCase();
-      if (actionIntent) {
-        if (/(create|register|rsvp|join|apply|checkout|purchase|submit)/.test(actionKind)) readinessBonus += 45;
-        if (
-          r.endpoint.method !== "GET" &&
-          r.endpoint.idempotency === "unsafe" &&
-          (options?.dry_run || options?.confirm_unsafe)
-        ) readinessBonus += 30;
-      }
       if (r.endpoint.response_schema || r.endpoint.dom_extraction) readinessBonus += 10;
       if (!r.endpoint.dom_extraction && r.endpoint.method !== "WS") readinessBonus += 20;
       if (inferredFromBundle) readinessBonus -= 20;
       if (hasObservedApiCandidate && inferredFromBundle) readinessBonus -= 45;
       if (hasInternalApiCandidate && r.endpoint.dom_extraction) readinessBonus -= 35;
       if (hasInternalApiCandidate && isDocumentRoute) readinessBonus -= 80;
-      if (isSearchLikeIntent(queryIntent, context?.url)) {
-        const isCapturedPageArtifact = isCapturedPageArtifactEndpoint(r.endpoint);
-        if (endpointHasSearchBindings(r.endpoint)) readinessBonus += 70;
-        if (endpointHasSearchBindings(r.endpoint) && r.endpoint.trigger_url) readinessBonus += 20;
-        if (isCapturedPageArtifact) readinessBonus -= 55;
-      }
       if (r.endpoint.trigger_url && context?.url) {
         try {
           if (new URL(r.endpoint.trigger_url).pathname === new URL(context.url).pathname)
@@ -2268,39 +2162,13 @@ export async function resolveAndExecute(
     });
     epRanked.sort((a, b) => b.score - a.score);
     epRanked = prioritizeIntentMatchedApis(epRanked, queryIntent, context?.url);
-    const realActionIntent = /\b(register|registration|rsvp|join|apply|signup|sign up|book|reserve|checkout|purchase|order|submit|send)\b/i.test(
-      queryIntent,
-    );
-    const blockedUnsafeBundleRanked = epRanked.filter((r) =>
-      isUnvalidatedBundleActionEndpoint(r.endpoint),
-    );
-    const executableUnsafeActionRanked = allUnsafeActionRanked.filter(
-      (r) => !isUnvalidatedBundleActionEndpoint(r.endpoint),
-    );
-    if (
-      !options?.dry_run &&
-      realActionIntent &&
-      blockedUnsafeBundleRanked.length > 0 &&
-      executableUnsafeActionRanked.length === 0
-    ) {
-      return null;
-    }
-    if (!options?.dry_run) {
-      epRanked = epRanked.filter((r) => !isUnvalidatedBundleActionEndpoint(r.endpoint));
-    }
 
     // Try top candidates in order until one succeeds. If all fail, fall through to deferral.
     const ready = epRanked.filter((r) => canAutoExecuteEndpoint(r.endpoint));
-    let tryList =
+    const tryList =
       ready.length > 0
         ? [...ready, ...epRanked.filter((r) => !canAutoExecuteEndpoint(r.endpoint))]
         : epRanked;
-    if (dryRunActionIntent && allUnsafeActionRanked.length > 0) {
-      tryList = [
-        ...tryList.filter((r) => r.endpoint.method !== "GET" && r.endpoint.idempotency === "unsafe"),
-        ...tryList.filter((r) => !(r.endpoint.method !== "GET" && r.endpoint.idempotency === "unsafe")),
-      ];
-    }
     const MAX_TRIES = Math.min(tryList.length, 5);
     const deterministicStructuredSearchLeader =
       /\b(search|find|lookup|browse|discover)\b/i.test(queryIntent) &&
@@ -2308,10 +2176,7 @@ export async function resolveAndExecute(
       endpointHasSearchBindings(epRanked[0].endpoint) &&
       (!!epRanked[0].endpoint.dom_extraction || !!epRanked[0].endpoint.response_schema);
     const agentOrder =
-      !agentChoseEndpoint &&
-      tryList.length > 1 &&
-      !deterministicStructuredSearchLeader &&
-      !(dryRunActionIntent && allUnsafeActionRanked.length > 0)
+      !agentChoseEndpoint && tryList.length > 1 && !deterministicStructuredSearchLeader
         ? await agentSelectEndpoint(queryIntent, skill, tryList.slice(0, MAX_TRIES), context?.url)
         : null;
     const orderedTryList = agentOrder
@@ -2395,38 +2260,6 @@ export async function resolveAndExecute(
           { ...options, intent: queryIntent, contextUrl: context?.url },
         );
         timing.execute_ms = Date.now() - te0;
-        const isDryRunPreview =
-          options?.dry_run === true &&
-          execOut.trace.error === "dry_run" &&
-          !!execOut.result &&
-          typeof execOut.result === "object" &&
-          (execOut.result as Record<string, unknown>).dry_run === true;
-        if (isDryRunPreview) {
-          (decisionTrace.autoexec_attempts as unknown[]).push({
-            endpoint_id: candidate.endpoint.endpoint_id,
-            score: Math.round(candidate.score * 10) / 10,
-            trace_success: true,
-            judge: "dry_run",
-            status_code: execOut.trace.status_code ?? null,
-          });
-          cacheResolvedSkill(cacheKey, skill, candidate.endpoint.endpoint_id);
-          writeDebugTrace("resolve", {
-            ...decisionTrace,
-            outcome: "autoexec_dry_run",
-            source,
-            skill_id: skill.skill_id,
-            selected_endpoint_id: candidate.endpoint.endpoint_id,
-          });
-          return {
-            result: execOut.result,
-            trace: execOut.trace,
-            source,
-            skill,
-            timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
-            response_schema: execOut.response_schema,
-            extraction_hints: execOut.extraction_hints,
-          };
-        }
         if (execOut.trace.success) {
           const localAssessment = assessLocalExecutionResult(
             candidate.endpoint,
@@ -2448,7 +2281,9 @@ export async function resolveAndExecute(
             );
             continue;
           }
-          const isCapturedPageArtifact = isCapturedPageArtifactEndpoint(candidate.endpoint);
+          const isCapturedPageArtifact = /captured page artifact/i.test(
+            candidate.endpoint.description ?? "",
+          );
           if (candidate.endpoint.dom_extraction && isCapturedPageArtifact && localAssessment.verdict !== "pass") {
             (decisionTrace.autoexec_attempts as unknown[]).push({
               endpoint_id: candidate.endpoint.endpoint_id,
@@ -2748,27 +2583,8 @@ export async function resolveAndExecute(
     }
   }
 
-  if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
-    const localSnapshot = findBestLocalDomainSnapshot(requestedDomain, queryIntent, context?.url);
-    if (localSnapshot) {
-      console.log(`[local-snapshot:default] hit for ${requestedDomain} → skill ${localSnapshot.skill_id.slice(0, 15)}`);
-      const deferred = await buildDeferralWithAutoExec(localSnapshot, "marketplace");
-      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
-        console.log(`[local-snapshot:default] stale skill for ${requestedDomain}; retrying via live capture`);
-      } else {
-        timing.cache_hit = true;
-        deferred.orchestratorResult.timing.cache_hit = true;
-        promoteLearnedSkill(
-          clientScope,
-          cacheKey,
-          localSnapshot,
-          deferred.orchestratorResult.trace.endpoint_id,
-          context?.url,
-        );
-        return deferred.orchestratorResult;
-      }
-    }
-  }
+  // No disk-snapshot reads in the default resolve path.
+  // Remote/shared skills are the source of truth; local snapshots stay explicit debug/test only.
 
   if (!forceCapture) {
     // 1. Search marketplace — single remote call, shared embedding, conditional global fallback
@@ -2999,9 +2815,6 @@ export async function resolveAndExecute(
   // In-flight capture queue: wait for the same domain capture instead of failing.
   const bypassLiveCaptureQueue = shouldBypassLiveCaptureQueue(context?.url);
   const captureLockKey = scopedCacheKey(clientScope, captureDomain);
-  let learned_skill: SkillManifest | undefined;
-  let trace: import("../types/index.js").ExecutionTrace;
-  let result: unknown;
   if (!bypassLiveCaptureQueue) {
     const existingCapture = captureInFlight.get(captureLockKey);
     if (existingCapture) {
@@ -3037,7 +2850,7 @@ export async function resolveAndExecute(
             }
             : undefined,
         );
-        queuePassivePublishIfExecuted(intent, learned_skill, deferred.orchestratorResult, parityBaseline);
+        queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
         deferred.orchestratorResult.timing.cache_hit = true;
         return deferred.orchestratorResult;
       }
@@ -3051,6 +2864,9 @@ export async function resolveAndExecute(
     }
   }
 
+  let learned_skill: SkillManifest | undefined;
+  let trace: import("../types/index.js").ExecutionTrace;
+  let result: unknown;
   let parityBaseline: unknown;
   let captureSkill: SkillManifest;
   const te0 = Date.now();
@@ -3121,23 +2937,6 @@ export async function resolveAndExecute(
   }
 
   if (learned_skill && learnedSkillUsable && !isCachedSkillRelevantForIntent(learned_skill, queryIntent, context?.url)) {
-    const repairedSnapshot =
-      requestedDomain
-        ? findBestLocalDomainSnapshot(
-            requestedDomain,
-            queryIntent,
-            context?.url,
-            new Set([learned_skill.skill_id]),
-          )
-        : undefined;
-    if (repairedSnapshot) {
-      console.log(
-        `[capture] reviving local snapshot ${repairedSnapshot.skill_id.slice(0, 15)} after irrelevant learned skill`,
-      );
-      const repaired = await buildDeferralWithAutoExec(repairedSnapshot, "marketplace");
-      repaired.orchestratorResult.timing.cache_hit = true;
-      return repaired.orchestratorResult;
-    }
     const resolvedSkill = withContextReplayEndpoint(learned_skill, queryIntent, context?.url);
     const ranked = rankEndpoints(
       resolvedSkill.endpoints,
@@ -3193,6 +2992,22 @@ export async function resolveAndExecute(
     }
   }
 
+  function queuePassivePublishIfExecuted(
+    skill: SkillManifest,
+    orchestratorResult: OrchestratorResult,
+    browserBaseline?: unknown,
+  ): void {
+    if (!orchestratorResult.trace.success || !orchestratorResult.trace.endpoint_id) return;
+    const parity = browserBaseline === undefined
+      ? undefined
+      : (async () => {
+          const local = localParityVerdict(intent, browserBaseline, orchestratorResult.result);
+          if (local.verdict !== "skip") return local.verdict;
+          return await agentJudgeParity(intent, browserBaseline, orchestratorResult.result);
+        })();
+    void queuePassiveSkillPublish(skill, { parity });
+  }
+
   // Auth-gated or no data: pass through error
   if (!learned_skill && !trace.success) {
     return {
@@ -3237,7 +3052,7 @@ export async function resolveAndExecute(
           trace,
         ),
       };
-      queuePassivePublishIfExecuted(intent, learned_skill, direct, parityBaseline);
+      queuePassivePublishIfExecuted(learned_skill, direct, parityBaseline);
       return direct;
     }
     return {
@@ -3272,7 +3087,6 @@ export async function resolveAndExecute(
       promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id, context?.url);
     if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
       queuePassivePublishIfExecuted(
-        intent,
         learned_skill,
         {
           result: execOut.result,
@@ -3329,7 +3143,7 @@ export async function resolveAndExecute(
         }
       : undefined,
   );
-  queuePassivePublishIfExecuted(intent, learned_skill, deferred.orchestratorResult, parityBaseline);
+  queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
   return deferred.orchestratorResult;
 }
 
@@ -3377,17 +3191,7 @@ export function hasUsableEndpoints(skill: SkillManifest): boolean {
       const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`);
       if (!onDomain) return false;
       // Must have a response schema (JSON) or be an API-style path
-      return (
-        !!ep.response_schema ||
-        /\/api\//i.test(u.pathname) ||
-        !!ep.dom_extraction ||
-        (
-          ep.method !== "GET" &&
-          ep.idempotency === "unsafe" &&
-          !!ep.trigger_url &&
-          (!!ep.body || !!ep.body_params || !!ep.csrf_plan)
-        )
-      );
+      return !!ep.response_schema || /\/api\//i.test(u.pathname) || !!ep.dom_extraction;
     } catch {
       return false;
     }

@@ -1,6 +1,5 @@
 import { cachePublishedSkill, validateManifest } from "../client/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { canPublishLearnedEndpoint } from "../endpoint-provenance.js";
 import type { SkillManifest } from "../types/index.js";
 
 type PassivePublishDeps = {
@@ -62,7 +61,7 @@ export function queuePassiveSkillPublish(
       console.warn(`[publish] passive publish skipped for ${skill.skill_id}: parity_failed`);
       return;
     }
-    const publishableEndpoints = skill.endpoints.filter((endpoint) => canPublishLearnedEndpoint(endpoint));
+    const publishableEndpoints = skill.endpoints.filter((endpoint) => endpoint.method !== "WS");
     if (publishableEndpoints.length === 0) return;
 
     const { operation_graph: _graph, ...publishBase } = skill;
