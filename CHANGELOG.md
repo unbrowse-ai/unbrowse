@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.5...v2.1.6) (2026-03-24)
+
+### Bug Fixes
+
+* keep structured search skills on the resolve path ([1de509d](https://github.com/unbrowse-ai/unbrowse-dev/commit/1de509dda5746f8074fcec555e0e4a7c3f1e2f10))
+* rebuild canonical retrieval hydration from domain index ([#72](https://github.com/unbrowse-ai/unbrowse-dev/issues/72)) ([35e6de9](https://github.com/unbrowse-ai/unbrowse-dev/commit/35e6de9d732a84f553bdf0f2d574b97fab846485))
+* recover LawNet search form execution ([25a4e17](https://github.com/unbrowse-ai/unbrowse-dev/commit/25a4e172da849e57ad68cc6c41044c552785f7d8))
+
 ## Unreleased
 
 ## [2.1.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.4...v2.1.5) (2026-03-24)
