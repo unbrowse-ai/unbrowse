@@ -2,6 +2,17 @@ export type SkillLifecycle = "active" | "deprecated" | "disabled";
 export type OwnerType = "agent" | "marketplace" | "user";
 export type Idempotency = "safe" | "unsafe";
 export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
+export type EndpointProvenance =
+  | "observed_network"
+  | "observed_websocket"
+  | "dom_artifact"
+  | "html_embedded"
+  | "canonical_replay"
+  | "html_inferred"
+  | "html_form"
+  | "bundle_inferred"
+  | "bundle_inferred_action"
+  | "direct_json_seed";
 
 export interface AuthProfile {
   oauth_type?: string;
@@ -79,6 +90,8 @@ export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
   url_template: string;
+  /** Where this endpoint was learned from: observed traffic, DOM artifact, HTML form, bundle inference, etc. */
+  provenance?: EndpointProvenance;
   /** LLM-generated description of what this endpoint returns, for semantic matching */
   description?: string;
   ws_messages?: WsMessage[];

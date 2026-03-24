@@ -1,6 +1,7 @@
-import { captureSession, executeInBrowser, isBlockedAppShell, triggerAndIntercept } from "../capture/index.js";
+import { captureSession, executeInBrowser, isBlockedAppShell, recoverCaptureViaDocumentFetch, triggerAndIntercept, type CaptureResult } from "../capture/index.js";
+import { inferLikelyHtmlActionForm } from "../capture/form-submit.js";
 import { extractEndpoints, extractAuthHeaders, type ExtractionContext } from "../reverse-engineer/index.js";
-import { scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
+import { scanBundlesForMutationRoutes, scanBundlesForRoutes } from "../reverse-engineer/bundle-scanner.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
@@ -27,8 +28,18 @@ import { buildSkillOperationGraph, inferEndpointSemantic, resolveEndpointSemanti
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
+import {
+  isBundleInferredActionEndpoint,
+  isBundleInferredEndpoint,
+  isCapturedPageArtifactEndpoint,
+  isHtmlFormEndpoint,
+  isHtmlInferredEndpoint,
+  isObservedNetworkEndpoint,
+  isUnvalidatedBundleActionEndpoint,
+} from "../endpoint-provenance.js";
 import { buildQueryBindingMap, buildTemplatedQuery, extractTemplateQueryBindings, extractTemplateVariables, mergeContextTemplateParams, parseStructuredQueryTuple } from "../template-params.js";
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
+import { buildTemplateBodyFromSurface, inferEmbeddedActionSurface, scoreBundleMutationRoute } from "./action-surface.js";
 import * as cheerio from "cheerio";
 
 /** Stamp every trace with the code version hash for telemetry tracking */
@@ -38,7 +49,29 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
 }
 
 export function canUseTriggerIntercept(endpoint: EndpointDescriptor): boolean {
-  return !!endpoint.trigger_url && (endpoint.method === "GET" || endpoint.idempotency === "safe");
+  return !!endpoint.trigger_url;
+}
+
+const EXECUTION_FETCH_TIMEOUT_MS = Number(process.env.UNBROWSE_EXECUTION_FETCH_TIMEOUT_MS || 15000);
+const EXECUTION_TRIGGER_TIMEOUT_MS = Number(process.env.UNBROWSE_EXECUTION_TRIGGER_TIMEOUT_MS || 20000);
+
+function endpointHasSearchBindings(endpoint: EndpointDescriptor): boolean {
+  const haystack = JSON.stringify({
+    query: endpoint.query ?? {},
+    body: endpoint.body ?? {},
+    body_params: endpoint.body_params ?? {},
+    semantic: endpoint.semantic ?? {},
+  }).toLowerCase();
+  return /(basicsearchkey|basic_search_key|query|keyword|search|lookup|find|term)/.test(haystack);
+}
+
+export function shouldPreferTriggerInterceptStrategy(endpoint: EndpointDescriptor): boolean {
+  return (
+    canUseTriggerIntercept(endpoint) &&
+    endpoint.method !== "GET" &&
+    endpoint.idempotency === "safe" &&
+    endpointHasSearchBindings(endpoint)
+  );
 }
 
 export function resolveTriggerInterceptTargetUrl(
@@ -119,6 +152,15 @@ function toTraceNetworkEvent(input: {
   };
 }
 
+function sanitizeDebugHeaders(headers: Record<string, string>): Record<string, string> {
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (/^(cookie|authorization|x-csrf-token|x-xsrf-token|csrf-token)$/i.test(key)) continue;
+    cleaned[key] = value;
+  }
+  return cleaned;
+}
+
 function hasSessionLikeAuthMaterial(
   cookies: Array<{ name: string; value: string; domain: string }>,
   headers: Record<string, string>,
@@ -143,6 +185,7 @@ const AUTH_PROVIDER_HOSTS = /accounts\.google\.com|login\.microsoftonline\.com|a
 const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
 const PROTECTED_APP_PATHS = /\/(home|feed|timeline|bookmarks|notifications|messages|inbox|dashboard|settings|orders|checkout|search\/results|i\/bookmarks|i\/lists|i\/communities)(?:\/|$)/i;
 const AUTH_PAGE_COPY = /\b(sign in|log in|login|join now|join today|create account|forgot password|continue with google|continue with apple|continue with email)\b/i;
+const PROFILE_CONTEXT_RETRY_PATHS = /\/(app|workspace|settings|preferences|account|admin|console|portal|billing|members|team|teams|projects)(?:\/|$)/i;
 
 function finalizePassiveLearnedSkill(
   skill: SkillManifest,
@@ -163,6 +206,28 @@ function suggestedLoginUrl(pageUrl: string): string {
   } catch {
     return pageUrl;
   }
+}
+
+export function shouldForceProfileContextForAuthCapture(
+  url: string,
+  options: {
+    hasChromiumAuthSource: boolean;
+    hasReplayableAuth: boolean;
+    forceCapture?: boolean;
+  },
+): boolean {
+  if (!options.hasChromiumAuthSource) return false;
+
+  let pathname = "";
+  try {
+    pathname = new URL(url).pathname.toLowerCase();
+  } catch {
+    pathname = "";
+  }
+
+  const protectedPath = PROTECTED_APP_PATHS.test(pathname) || PROFILE_CONTEXT_RETRY_PATHS.test(pathname);
+  if (!options.hasReplayableAuth) return protectedPath || !!options.forceCapture;
+  return false;
 }
 
 export function detectAuthWallFromPage(
@@ -246,13 +311,15 @@ function intentWantsStructuredRecords(intent?: string): boolean {
   return /\b(search|list|find|get|fetch|timeline|feed|trending)\b/i.test(intent ?? "");
 }
 
-export function isBundleInferredEndpoint(endpoint: Pick<EndpointDescriptor, "description">): boolean {
-  return /inferred from js bundle/i.test(endpoint.description ?? "");
-}
-
-export function isHtmlInferredEndpoint(endpoint: Pick<EndpointDescriptor, "description">): boolean {
-  return /inferred from html (?:fetch )?(?:preload|prefetch|route)/i.test(endpoint.description ?? "");
-}
+export {
+  isBundleInferredActionEndpoint,
+  isBundleInferredEndpoint,
+  isCapturedPageArtifactEndpoint,
+  isHtmlFormEndpoint,
+  isHtmlInferredEndpoint,
+  isObservedNetworkEndpoint,
+  isUnvalidatedBundleActionEndpoint,
+} from "../endpoint-provenance.js";
 
 function isSupportEvidenceEndpoint(endpoint: EndpointDescriptor): boolean {
   if (isCanonicalReplayEndpoint(endpoint)) return true;
@@ -380,6 +447,7 @@ export function projectResultForIntent(data: unknown, intent?: string): unknown 
 function inferActionKindFromIntent(intent: string): string {
   const lower = intent.toLowerCase();
   if (/\b(search|find|lookup)\b/.test(lower)) return "search";
+  if (/\b(register|rsvp|join|apply|sign\s*up|signup|book|reserve|checkout|purchase|order)\b/.test(lower)) return "create";
   if (/\b(list|feed|timeline|trending)\b/.test(lower)) return "list";
   return "detail";
 }
@@ -909,6 +977,7 @@ function buildLinkedInEmbeddedFeedCapture(
     endpoint_id: nanoid(),
     method: (metadata.method ?? "GET").toUpperCase() as EndpointDescriptor["method"],
     url_template: urlTemplate,
+    provenance: "html_embedded",
     exec_strategy: "trigger-intercept",
     idempotency: "safe",
     verification_status: "verified",
@@ -979,6 +1048,7 @@ export function buildPageArtifactCapture(
     endpoint_id: nanoid(),
     method: "GET",
     url_template: templatizeQueryParams(url),
+    provenance: "dom_artifact",
     idempotency: "safe" as const,
     verification_status: quality.valid ? "verified" as const : "unverified" as const,
     reliability_score: extracted.confidence,
@@ -1027,6 +1097,7 @@ export function buildCanonicalDocumentEndpoint(
     endpoint_id: nanoid(),
     method: "GET",
     url_template: replayTemplate !== url ? replayTemplate : replayUrl,
+    provenance: "canonical_replay",
     idempotency: "safe",
     verification_status: "verified",
     reliability_score: 0.9,
@@ -1121,6 +1192,7 @@ export function scanHtmlForFetchRoutes(
       endpoint_id: nanoid(),
       method: "GET",
       url_template: normalized,
+      provenance: "html_inferred",
       idempotency: "safe",
       verification_status: "pending",
       reliability_score: as === "fetch" ? 0.45 : 0.35,
@@ -1162,6 +1234,7 @@ export function scanHtmlForFetchRoutes(
       endpoint_id: nanoid(),
       method: "GET",
       url_template: normalized,
+      provenance: "html_inferred",
       idempotency: "safe",
       verification_status: "pending",
       reliability_score: reliability,
@@ -1181,6 +1254,428 @@ export function scanHtmlForFetchRoutes(
   }
 
   return endpoints;
+}
+
+export function inferLikelyBundleActionEndpoint(options: {
+  html?: string;
+  bundles?: Map<string, string>;
+  pageUrl: string;
+  intent?: string;
+}): EndpointDescriptor | null {
+  const intentLower = (options.intent ?? "").toLowerCase();
+  if (!/\b(register|registration|rsvp|join|apply|signup|sign up|book|reserve|checkout|purchase|order|submit)\b/.test(intentLower)) {
+    return null;
+  }
+  if (!options.html || !options.bundles || options.bundles.size === 0) return null;
+
+  let pageOrigin = "";
+  try {
+    pageOrigin = new URL(options.pageUrl).origin;
+  } catch {
+    return null;
+  }
+
+  const actionSurface = inferEmbeddedActionSurface(options.html);
+  const mutationRoutes = scanBundlesForMutationRoutes(options.bundles, pageOrigin);
+  if (mutationRoutes.length === 0) return null;
+
+  const ranked = mutationRoutes
+    .map((route) => ({
+      route,
+      score: scoreBundleMutationRoute(route, actionSurface, options.intent),
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const best = ranked[0];
+  if (!best) return null;
+
+  const endpoint: EndpointDescriptor = {
+    endpoint_id: nanoid(),
+    method: best.route.method,
+    url_template: best.route.url,
+    provenance: "bundle_inferred_action",
+    headers_template: {
+      "content-type": "application/json",
+    },
+    body: buildTemplateBodyFromSurface(best.route, actionSurface),
+    idempotency: "unsafe",
+    verification_status: "pending",
+    reliability_score: Math.min(0.85, 0.45 + best.score / 100),
+    description: `Inferred action mutation from JS bundle for ${options.intent ?? "action flow"}`,
+    trigger_url: options.pageUrl,
+  };
+  endpoint.semantic = inferEndpointSemantic(endpoint, {
+    sampleRequest: endpoint.body,
+    observedAt: new Date().toISOString(),
+    sampleRequestUrl: options.pageUrl,
+  });
+  if (endpoint.semantic?.description_out) endpoint.description = endpoint.semantic.description_out;
+  return endpoint;
+}
+
+type BrowserCaptureAnalysis = {
+  cleanEndpoints: EndpointDescriptor[];
+  domArtifactEndpoint?: EndpointDescriptor;
+  domArtifactResult?: unknown;
+  domArtifactQualityNote?: string;
+  auth_profile_ref?: string;
+  authBackedCapture: boolean;
+  inferredOnlyCapture: boolean;
+  hasSupportEvidence: boolean;
+  authWall: ReturnType<typeof detectAuthWallFromPage>;
+};
+
+function buildCaptureExtractionContext(
+  url: string,
+  captured: CaptureResult,
+  intent: string,
+): ExtractionContext {
+  return {
+    pageUrl: url,
+    finalUrl: captured.final_url,
+    intent,
+  };
+}
+
+function filterCapturedExecutableEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
+  return endpoints.filter((endpoint) => {
+    try {
+      const parsed = new URL(endpoint.url_template);
+      return !AUTH_PROVIDER_HOSTS.test(parsed.hostname) && !LOGIN_PATHS.test(parsed.pathname);
+    } catch {
+      return true;
+    }
+  });
+}
+
+export function buildBrowserCaptureEndpoints(options: {
+  captured: CaptureResult;
+  url: string;
+  intent: string;
+}): EndpointDescriptor[] {
+  const endpoints = extractEndpoints(
+    options.captured.requests,
+    options.captured.ws_messages,
+    buildCaptureExtractionContext(options.url, options.captured, options.intent),
+  );
+
+  if (options.captured.js_bundles && options.captured.js_bundles.size > 0) {
+    const pageOrigin = new URL(options.url).origin;
+    const bundleRoutes = scanBundlesForRoutes(options.captured.js_bundles, pageOrigin);
+    const networkPaths = new Set<string>();
+    for (const endpoint of endpoints) {
+      try {
+        const normalized = new URL(endpoint.url_template).pathname
+          .replace(/\{[^}]+\}/g, "*")
+          .replace(/\/+$/, "");
+        networkPaths.add(normalized);
+      } catch {
+        /* skip */
+      }
+    }
+
+    let added = 0;
+    for (const route of bundleRoutes) {
+      const normalized = route.path.replace(/\/+$/, "");
+      if (networkPaths.has(normalized)) continue;
+
+      let isDup = false;
+      for (const existingPath of networkPaths) {
+        if (!existingPath.includes("*")) continue;
+        const re = new RegExp("^" + existingPath.replace(/\*/g, "[^/]+") + "$");
+        if (re.test(normalized)) {
+          isDup = true;
+          break;
+        }
+      }
+      if (isDup) continue;
+
+      let endpointUrl = route.url;
+      let endpointQuery: Record<string, unknown> | undefined;
+      let queryParamNames = route.query_params ? [...route.query_params] : [];
+      if (queryParamNames.length === 0) {
+        try {
+          const triggerUrl = new URL(options.url);
+          const triggerParams = [...triggerUrl.searchParams.keys()].filter((key) =>
+            /^(q|query|search|term|type|tag|sort|page)$/i.test(key),
+          );
+          if (triggerParams.length > 0 && /\/(search|lookup|find)\b/i.test(route.path)) {
+            queryParamNames = triggerParams;
+          }
+        } catch {
+          /* skip */
+        }
+      }
+      if (queryParamNames.length > 0) {
+        endpointQuery = {};
+        for (const paramName of queryParamNames) endpointQuery[paramName] = "";
+        const queryString = queryParamNames.map((key) => `${encodeURIComponent(key)}={${key}}`).join("&");
+        endpointUrl = `${route.url}?${queryString}`;
+      }
+
+      endpoints.push({
+        endpoint_id: nanoid(),
+        method: "GET",
+        url_template: endpointUrl,
+        provenance: "bundle_inferred",
+        query: endpointQuery,
+        idempotency: "safe",
+        verification_status: "pending",
+        reliability_score: 0.2,
+        description: `Inferred from JS bundle (${route.match_type}). Not observed in network traffic.`,
+        trigger_url: options.url,
+      });
+      added++;
+      networkPaths.add(normalized);
+    }
+
+    if (added > 0) {
+      log("execution", `added ${added} inferred endpoints from JS bundle scanning`);
+    }
+  }
+
+  if (options.captured.html) {
+    const htmlRoutes = scanHtmlForFetchRoutes(options.captured.html, options.captured.final_url || options.url);
+    let added = 0;
+    const existingTemplates = new Set(endpoints.map((endpoint) => endpoint.url_template));
+    for (const endpoint of htmlRoutes) {
+      if (existingTemplates.has(endpoint.url_template)) continue;
+      endpoints.push(endpoint);
+      existingTemplates.add(endpoint.url_template);
+      added++;
+    }
+    if (added > 0) {
+      log("execution", `added ${added} inferred endpoints from HTML fetch hints`);
+    }
+  }
+
+  if (options.captured.html && options.captured.js_bundles && options.captured.js_bundles.size > 0) {
+    const inferredBundleAction = inferLikelyBundleActionEndpoint({
+      html: options.captured.html,
+      bundles: options.captured.js_bundles,
+      pageUrl: options.captured.final_url || options.url,
+      intent: options.intent,
+    });
+    if (
+      inferredBundleAction &&
+      !endpoints.some((endpoint) =>
+        endpoint.method === inferredBundleAction.method &&
+        endpoint.url_template === inferredBundleAction.url_template,
+      )
+    ) {
+      endpoints.push(inferredBundleAction);
+      log("execution", `added inferred bundle action endpoint ${inferredBundleAction.url_template}`);
+    }
+  }
+
+  if (options.captured.html) {
+    const inferredActionForm = inferLikelyHtmlActionForm({
+      html: options.captured.html,
+      pageUrl: options.captured.final_url || options.url,
+      intent: options.intent,
+    });
+    if (
+      inferredActionForm &&
+      !endpoints.some((endpoint) =>
+        endpoint.method === inferredActionForm.method &&
+        endpoint.url_template === inferredActionForm.url,
+      )
+    ) {
+      const endpoint: EndpointDescriptor = {
+        endpoint_id: nanoid(),
+        method: inferredActionForm.method,
+        url_template: inferredActionForm.url,
+        provenance: "html_form",
+        headers_template: inferredActionForm.headers_template,
+        body: inferredActionForm.body,
+        idempotency: "unsafe",
+        verification_status: "pending",
+        reliability_score: 0.55,
+        description: `Inferred action form for ${options.intent}`,
+        trigger_url: options.url,
+      };
+      endpoint.semantic = inferEndpointSemantic(endpoint, {
+        sampleRequest: inferredActionForm.body,
+        observedAt: new Date().toISOString(),
+        sampleRequestUrl: options.url,
+      });
+      if (endpoint.semantic?.description_out) endpoint.description = endpoint.semantic.description_out;
+      endpoints.push(endpoint);
+      log("execution", `added inferred action form endpoint ${endpoint.url_template}`);
+    }
+  }
+
+  return filterCapturedExecutableEndpoints(endpoints);
+}
+
+async function persistCapturedAuthMaterial(
+  targetDomain: string,
+  captured: CaptureResult,
+): Promise<string | undefined> {
+  const capturedAuthHeaders = extractAuthHeaders(captured.requests);
+  if ((captured.cookies && captured.cookies.length > 0) || Object.keys(capturedAuthHeaders).length > 0) {
+    const authProfileRef = `${captured.domain}-session`;
+    await storeCredential(
+      authProfileRef,
+      JSON.stringify({
+        cookies: captured.cookies ?? [],
+        headers: Object.keys(capturedAuthHeaders).length > 0 ? capturedAuthHeaders : undefined,
+      }),
+    );
+    return authProfileRef;
+  }
+  return await findStoredAuthReference(targetDomain) ?? undefined;
+}
+
+async function analyzeBrowserCapture(options: {
+  captured: CaptureResult;
+  url: string;
+  intent: string;
+  targetDomain: string;
+  usedStoredAuth: boolean;
+}): Promise<BrowserCaptureAnalysis> {
+  const cleanEndpoints = buildBrowserCaptureEndpoints({
+    captured: options.captured,
+    url: options.url,
+    intent: options.intent,
+  });
+  const auth_profile_ref = await persistCapturedAuthMaterial(options.targetDomain, options.captured);
+  const authBackedCapture = options.usedStoredAuth || !!auth_profile_ref;
+
+  if (authBackedCapture) {
+    for (const endpoint of cleanEndpoints) {
+      endpoint.semantic = {
+        ...(endpoint.semantic ?? {}),
+        action_kind: endpoint.semantic?.action_kind ?? "fetch",
+        resource_kind: endpoint.semantic?.resource_kind ?? "resource",
+        auth_required: true,
+      };
+    }
+  }
+
+  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(
+    options.url,
+    options.intent,
+    authBackedCapture,
+  );
+  if (
+    canonicalDocumentEndpoint &&
+    !cleanEndpoints.some((endpoint) =>
+      endpoint.method === canonicalDocumentEndpoint.method &&
+      endpoint.url_template === canonicalDocumentEndpoint.url_template,
+    )
+  ) {
+    cleanEndpoints.push(canonicalDocumentEndpoint);
+  }
+
+  let pageArtifact = options.captured.html
+    ? buildPageArtifactCapture(options.url, options.intent, options.captured.html, authBackedCapture)
+    : {};
+
+  if (!pageArtifact.endpoint) {
+    const kuriHtmlLen = options.captured.html?.length ?? 0;
+    const ssrFallback = await tryHttpFetch(options.url, {}, []).catch(() => null);
+    if (ssrFallback && ssrFallback.html.length > kuriHtmlLen * 1.2) {
+      console.log(
+        `[ssr-fallback] Kuri HTML=${kuriHtmlLen}, fetch HTML=${ssrFallback.html.length} — retrying DOM extraction`,
+      );
+      const ssrArtifact = buildPageArtifactCapture(
+        ssrFallback.final_url || options.url,
+        options.intent,
+        ssrFallback.html,
+        authBackedCapture,
+      );
+      if (ssrArtifact.endpoint) {
+        console.log("[ssr-fallback] success — extracted structured data via plain HTTP fetch");
+        pageArtifact = ssrArtifact;
+      } else {
+        console.log(
+          `[ssr-fallback] fetch got larger HTML but extraction still failed${
+            ssrArtifact.quality_note ? `: ${ssrArtifact.quality_note}` : ""
+          }`,
+        );
+      }
+    }
+  }
+
+  const domArtifactEndpoint = pageArtifact.endpoint;
+  const domArtifactResult = pageArtifact.result;
+  const inferredOnlyCapture =
+    cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
+  const hasSupportEvidence =
+    cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
+  const authWall = !options.usedStoredAuth
+    ? detectAuthWallFromPage(options.url, options.captured.final_url, options.captured.html)
+    : null;
+
+  return {
+    cleanEndpoints,
+    domArtifactEndpoint,
+    domArtifactResult,
+    ...(pageArtifact.quality_note ? { domArtifactQualityNote: pageArtifact.quality_note } : {}),
+    auth_profile_ref,
+    authBackedCapture,
+    inferredOnlyCapture,
+    hasSupportEvidence,
+    authWall,
+  };
+}
+
+export function shouldAttemptSeedFallbackAfterBrowserCapture(
+  analysis: Pick<
+    BrowserCaptureAnalysis,
+    "cleanEndpoints" | "domArtifactEndpoint" | "inferredOnlyCapture" | "hasSupportEvidence"
+  >,
+): boolean {
+  return (
+    !analysis.domArtifactEndpoint &&
+    (analysis.cleanEndpoints.length === 0 || (analysis.inferredOnlyCapture && !analysis.hasSupportEvidence))
+  );
+}
+
+async function tryBrowserCaptureSeedFallback(options: {
+  skill: SkillManifest;
+  url: string;
+  intent: string;
+  params: Record<string, unknown>;
+  targetDomain: string;
+  authHeaders?: Record<string, string>;
+  cookies?: Array<{ name: string; value: string; domain: string }>;
+  usedStoredAuth: boolean;
+}): Promise<ExecutionResult | undefined> {
+  const structured = await trySeedStructuredDocumentSkill(
+    options.skill,
+    options.url,
+    options.intent,
+    options.params,
+    options.targetDomain,
+    options.authHeaders,
+    options.cookies,
+    options.usedStoredAuth,
+  );
+  if (structured) return structured;
+
+  const directJson = await trySeedDirectJsonFetchSkill(
+    options.skill,
+    options.url,
+    options.intent,
+    options.targetDomain,
+    options.authHeaders,
+    options.cookies,
+    options.usedStoredAuth,
+  );
+  if (directJson) return directJson;
+
+  return await trySeedPublicDocumentFetchSkill(
+    options.skill,
+    options.url,
+    options.intent,
+    options.targetDomain,
+    options.authHeaders,
+    options.cookies,
+    options.usedStoredAuth,
+  );
 }
 
 async function trySeedStructuredDocumentSkill(
@@ -1336,6 +1831,7 @@ async function trySeedDirectJsonFetchSkill(
     endpoint_id: nanoid(),
     method: "GET",
     url_template: res.url || url,
+    provenance: "direct_json_seed",
     idempotency: "safe",
     verification_status: "verified",
     reliability_score: 0.95,
@@ -1562,58 +2058,19 @@ async function executeBrowserCapture(
       usedStoredAuth = true;
     }
   }
-  const forceProfileContext = (() => {
-    if (authSourceMeta?.family !== "chromium") return false;
-    if (options?.force_capture) {
-      const hasReplayableAuth = (cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0;
-      return !hasReplayableAuth;
-    }
-    try {
-      const pathname = new URL(url).pathname.toLowerCase();
-      return /\/(home|feed|timeline|bookmarks|notifications|messages|inbox|dashboard|search\/results|i\/)/.test(pathname);
-    } catch {
-      return false;
-    }
-  })();
-  if (!options?.force_capture) {
-    const seeded = await trySeedStructuredDocumentSkill(
-      skill,
-      url,
-      intent,
-      params,
-      targetDomain,
-      authHeaders,
-      cookies,
-      usedStoredAuth,
-    );
-    if (seeded) return seeded;
-    const directJsonSeed = await trySeedDirectJsonFetchSkill(
-      skill,
-      url,
-      intent,
-      targetDomain,
-      authHeaders,
-      cookies,
-      usedStoredAuth,
-    );
-    if (directJsonSeed) return directJsonSeed;
-    const documentSeed = await trySeedPublicDocumentFetchSkill(
-      skill,
-      url,
-      intent,
-      targetDomain,
-      authHeaders,
-      cookies,
-      usedStoredAuth,
-    );
-    if (documentSeed) return documentSeed;
-  }
+  const hasReplayableAuth = (cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0;
+  const forceProfileContext = shouldForceProfileContextForAuthCapture(url, {
+    hasChromiumAuthSource: authSourceMeta?.family === "chromium",
+    hasReplayableAuth,
+    forceCapture: options?.force_capture,
+  });
   let captured;
   try {
     captured = await captureSession(url, authHeaders, cookies, intent, {
       signal: options?.signal,
       authSource: authSourceMeta,
       forceProfileContext,
+      previewUnsafeActions: options?.dry_run === true,
     });
   } catch (captureErr: unknown) {
     const err = captureErr as Error & { code?: string; login_url?: string };
@@ -1688,15 +2145,22 @@ async function executeBrowserCapture(
     const ssrFallback = await tryHttpFetch(url, authHeaders, cookies);
     if (!ssrFallback) throw captureErr;
     console.log(`[capture-fallback] browser capture failed (${err.message || "unknown error"}) — retrying with plain HTTP fetch`);
-    captured = {
-      requests: [],
-      har_lineage_id: nanoid(),
-      domain: targetDomain,
-      cookies,
-      final_url: ssrFallback.final_url,
-      html: ssrFallback.html,
-      js_bundles: new Map<string, string>(),
-    };
+    captured =
+      await recoverCaptureViaDocumentFetch({
+        url,
+        authHeaders,
+        cookies,
+        signal: options?.signal,
+        prefetched: ssrFallback,
+      }) ?? {
+        requests: [],
+        har_lineage_id: nanoid(),
+        domain: targetDomain,
+        cookies,
+        final_url: ssrFallback.final_url,
+        html: ssrFallback.html,
+        js_bundles: new Map<string, string>(),
+      };
   }
 
   const finalDomain = (() => {
@@ -1728,171 +2192,40 @@ async function executeBrowserCapture(
     };
   }
 
-  const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
-
-  // JS bundle scanning: discover API routes not seen in network traffic
-  if (captured.js_bundles && captured.js_bundles.size > 0) {
-    const pageOrigin = new URL(url).origin;
-    const bundleRoutes = scanBundlesForRoutes(captured.js_bundles, pageOrigin);
-
-    // Build set of already-discovered URL paths for deduplication
-    const networkPaths = new Set<string>();
-    for (const ep of endpoints) {
-      try {
-        const normalized = new URL(ep.url_template).pathname
-          .replace(/\{[^}]+\}/g, "*")
-          .replace(/\/+$/, "");
-        networkPaths.add(normalized);
-      } catch { /* skip */ }
-    }
-
-    let added = 0;
-    for (const route of bundleRoutes) {
-      const normalized = route.path.replace(/\/+$/, "");
-      if (networkPaths.has(normalized)) continue;
-
-      // Check if a network endpoint's wildcard pattern matches this route
-      let isDup = false;
-      for (const np of networkPaths) {
-        if (np.includes("*")) {
-          const re = new RegExp("^" + np.replace(/\*/g, "[^/]+") + "$");
-          if (re.test(normalized)) { isDup = true; break; }
-        }
-      }
-      if (isDup) continue;
-
-      // Build query template from bundle-inferred param names
-      let epUrl = route.url;
-      let epQuery: Record<string, unknown> | undefined;
-      let queryParamNames = route.query_params ? [...route.query_params] : [];
-      if (queryParamNames.length === 0) {
-        try {
-          const triggerUrl = new URL(url);
-          const triggerParams = [...triggerUrl.searchParams.keys()].filter((k) =>
-            /^(q|query|search|term|type|tag|sort|page)$/i.test(k)
-          );
-          if (triggerParams.length > 0 && /\/(search|lookup|find)\b/i.test(route.path)) {
-            queryParamNames = triggerParams;
-          }
-        } catch { /* skip */ }
-      }
-      if (queryParamNames.length > 0) {
-        epQuery = {};
-        for (const p of queryParamNames) epQuery[p] = "";
-        const qStr = queryParamNames.map((k) => `${encodeURIComponent(k)}={${k}}`).join("&");
-        epUrl = `${route.url}?${qStr}`;
-      }
-
-      endpoints.push({
-        endpoint_id: nanoid(),
-        method: "GET",
-        url_template: epUrl,
-        query: epQuery,
-        idempotency: "safe",
-        verification_status: "pending",
-        reliability_score: 0.2,
-        description: `Inferred from JS bundle (${route.match_type}). Not observed in network traffic.`,
-        trigger_url: url,
-      });
-      added++;
-      networkPaths.add(normalized);
-    }
-
-    if (added > 0) {
-      log("execution", `added ${added} inferred endpoints from JS bundle scanning`);
-    }
-  }
-
-  if (captured.html) {
-    const htmlRoutes = scanHtmlForFetchRoutes(captured.html, captured.final_url || url);
-    let added = 0;
-    const existingTemplates = new Set(endpoints.map((ep) => ep.url_template));
-    for (const endpoint of htmlRoutes) {
-      if (existingTemplates.has(endpoint.url_template)) continue;
-      endpoints.push(endpoint);
-      existingTemplates.add(endpoint.url_template);
-      added++;
-    }
-    if (added > 0) {
-      log("execution", `added ${added} inferred endpoints from HTML fetch hints`);
-    }
-  }
-
-  const cleanEndpoints = endpoints.filter((ep) => {
-    try {
-      const host = new URL(ep.url_template).hostname;
-      return !AUTH_PROVIDER_HOSTS.test(host) && !LOGIN_PATHS.test(new URL(ep.url_template).pathname);
-    } catch { return true; }
+  let domain = captured.domain;
+  let analysis = await analyzeBrowserCapture({
+    captured,
+    url,
+    intent,
+    targetDomain,
+    usedStoredAuth,
   });
 
-  const domain = captured.domain;
-
-  // Persist session cookies + auth headers so server-fetch works without browser.
-  // extractAuthHeaders collects everything sanitizeHeaders strips from skill manifests
-  // (authorization, x-csrf-token, api keys, etc.) — stored encrypted in vault.
-  let auth_profile_ref: string | undefined;
-  const capturedAuthHeaders = extractAuthHeaders(captured.requests);
-
-  if ((captured.cookies && captured.cookies.length > 0) || Object.keys(capturedAuthHeaders).length > 0) {
-    auth_profile_ref = `${domain}-session`;
-    await storeCredential(auth_profile_ref, JSON.stringify({
-      cookies: captured.cookies ?? [],
-      headers: Object.keys(capturedAuthHeaders).length > 0 ? capturedAuthHeaders : undefined,
-    }));
-  }
-
-  // BUG-004 fix: set auth_profile_ref when vault has stored auth for this domain
-  if (!auth_profile_ref) {
-    auth_profile_ref = await findStoredAuthReference(targetDomain) ?? undefined;
-  }
-  const authBackedCapture = usedStoredAuth || !!auth_profile_ref;
-  if (authBackedCapture) {
-    for (const endpoint of cleanEndpoints) {
-      endpoint.semantic = {
-        ...(endpoint.semantic ?? {}),
-        action_kind: endpoint.semantic?.action_kind ?? "fetch",
-        resource_kind: endpoint.semantic?.resource_kind ?? "resource",
-        auth_required: true,
-      };
-    }
-  }
-
-  const canonicalDocumentEndpoint = buildCanonicalDocumentEndpoint(url, intent, authBackedCapture);
   if (
-    canonicalDocumentEndpoint &&
-    !cleanEndpoints.some((endpoint) => endpoint.method === canonicalDocumentEndpoint.method && endpoint.url_template === canonicalDocumentEndpoint.url_template)
+    !analysis.hasSupportEvidence &&
+    !forceProfileContext &&
+    analysis.authBackedCapture &&
+    authSourceMeta?.family === "chromium" &&
+    !hasReplayableAuth
   ) {
-    cleanEndpoints.push(canonicalDocumentEndpoint);
+    log("execution", `auth-backed capture for ${url} yielded no usable endpoints or DOM evidence; retrying with attached ${authSourceMeta.browserName} profile clone`);
+    captured = await captureSession(url, authHeaders, cookies, intent, {
+      signal: options?.signal,
+      authSource: authSourceMeta,
+      forceProfileContext: true,
+      previewUnsafeActions: options?.dry_run === true,
+    });
+    analysis = await analyzeBrowserCapture({
+      captured,
+      url,
+      intent,
+      targetDomain,
+      usedStoredAuth,
+    });
+    domain = captured.domain;
   }
 
-  let pageArtifact = captured.html
-    ? buildPageArtifactCapture(url, intent, captured.html, authBackedCapture)
-    : {};
-
-  // SSR fallback: if Kuri's headless Chrome was bot-detected and served stripped
-  // HTML, the DOM extraction above will fail or return low quality. Try a plain
-  // HTTP fetch — many sites serve full SSR HTML to normal requests.
-  if (!pageArtifact.endpoint) {
-    const kuriHtmlLen = captured.html?.length ?? 0;
-    const ssrFallback = await tryHttpFetch(url, {}, []).catch(() => null);
-    if (ssrFallback && ssrFallback.html.length > kuriHtmlLen * 1.2) {
-      console.log(`[ssr-fallback] Kuri HTML=${kuriHtmlLen}, fetch HTML=${ssrFallback.html.length} — retrying DOM extraction`);
-      const ssrArtifact = buildPageArtifactCapture(ssrFallback.final_url || url, intent, ssrFallback.html, authBackedCapture);
-      if (ssrArtifact.endpoint) {
-        console.log(`[ssr-fallback] success — extracted structured data via plain HTTP fetch`);
-        pageArtifact = ssrArtifact;
-      } else {
-        console.log(`[ssr-fallback] fetch got larger HTML but extraction still failed${ssrArtifact.quality_note ? `: ${ssrArtifact.quality_note}` : ""}`);
-      }
-    }
-  }
-  const domArtifactEndpoint = pageArtifact.endpoint;
-  const domArtifactResult = pageArtifact.result;
-  const inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
-  const hasSupportEvidence = cleanEndpoints.some((endpoint) => isSupportEvidenceEndpoint(endpoint)) || !!domArtifactEndpoint;
-  const authWall = !usedStoredAuth ? detectAuthWallFromPage(url, captured.final_url, captured.html) : null;
-
-  if (authWall && !hasSupportEvidence) {
+  if (analysis.authWall && !analysis.hasSupportEvidence) {
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
       skill_id: skill.skill_id,
@@ -1906,14 +2239,31 @@ async function executeBrowserCapture(
       trace,
       result: {
         error: "auth_required",
-        provider: authWall.provider,
-        login_url: authWall.login_url,
-        message: `Site likely requires authentication for this page (${authWall.reason}). Run: unbrowse login --url "${authWall.login_url}" and retry.`,
+        provider: analysis.authWall.provider,
+        login_url: analysis.authWall.login_url,
+        message: `Site likely requires authentication for this page (${analysis.authWall.reason}). Run: unbrowse login --url "${analysis.authWall.login_url}" and retry.`,
       },
     };
   }
 
-  if (inferredOnlyCapture && !hasSupportEvidence) {
+  if (
+    !options?.force_capture &&
+    shouldAttemptSeedFallbackAfterBrowserCapture(analysis)
+  ) {
+    const seeded = await tryBrowserCaptureSeedFallback({
+      skill,
+      url,
+      intent,
+      params,
+      targetDomain,
+      authHeaders,
+      cookies,
+      usedStoredAuth,
+    });
+    if (seeded) return seeded;
+  }
+
+  if (analysis.inferredOnlyCapture && !analysis.hasSupportEvidence) {
     const trace: ExecutionTrace = stampTrace({
       trace_id: traceId,
       skill_id: skill.skill_id,
@@ -1931,6 +2281,12 @@ async function executeBrowserCapture(
       },
     };
   }
+
+  const cleanEndpoints = analysis.cleanEndpoints;
+  const domArtifactEndpoint = analysis.domArtifactEndpoint;
+  const domArtifactResult = analysis.domArtifactResult;
+  const domArtifactQualityNote = analysis.domArtifactQualityNote;
+  const auth_profile_ref = analysis.auth_profile_ref;
 
   if (cleanEndpoints.length === 0) {
     // DOM fallback: extract structured data from rendered page, learn a DOM skill
@@ -1982,7 +2338,7 @@ async function executeBrowserCapture(
         };
       }
 
-    if (pageArtifact.quality_note && !pageArtifact.endpoint) {
+    if (domArtifactQualityNote && !domArtifactEndpoint) {
       // Quality gate rejected AND no endpoint — nothing useful extracted
       const trace: ExecutionTrace = stampTrace({
         trace_id: traceId,
@@ -1991,13 +2347,13 @@ async function executeBrowserCapture(
         started_at: startedAt,
         completed_at: new Date().toISOString(),
         success: false,
-        error: pageArtifact.quality_note,
+        error: domArtifactQualityNote,
       });
       return {
         trace,
         result: {
           error: "low_quality_dom_extraction",
-          message: `Structured DOM extraction was rejected for ${url}: ${pageArtifact.quality_note}`,
+          message: `Structured DOM extraction was rejected for ${url}: ${domArtifactQualityNote}`,
         },
       };
     }
@@ -2105,7 +2461,7 @@ async function executeBrowserCapture(
   // JSON data was returned — the site likely gated its API behind authentication.
   // Only flag this when no auth was used (so a retry with auth has a chance of succeeding).
   const hasMeaningfulEndpoint = cleanEndpoints.some((ep) => isSupportEvidenceEndpoint(ep));
-  const authRecommended = !usedStoredAuth && !hasMeaningfulEndpoint && !inferredOnlyCapture;
+  const authRecommended = !usedStoredAuth && !hasMeaningfulEndpoint && !analysis.inferredOnlyCapture;
 
   return {
     trace,
@@ -2165,7 +2521,7 @@ async function executeDomExtractionEndpoint(
   cookies: Array<{ name: string; value: string; domain: string }>,
 ): Promise<{ data: unknown; status: number; trace_id: string; network_events?: TraceNetworkEvent[] }> {
   const extractionIntent = deriveDomExecutionIntent(endpoint, intent);
-  const isCapturedPageArtifact = /captured page artifact/i.test(endpoint.description ?? "");
+  const isCapturedPageArtifact = isCapturedPageArtifactEndpoint(endpoint);
 
   // SSR fast-path: try plain HTTP fetch before browser
   const ssrResult = await tryHttpFetch(url, authHeaders, cookies);
@@ -2421,6 +2777,24 @@ export async function executeEndpoint(
         result: {
           dry_run: true,
           would_execute: { method: endpoint.method, url, body },
+        },
+      };
+    }
+    if (isUnvalidatedBundleActionEndpoint(endpoint)) {
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "validation_required",
+        }),
+        result: {
+          error: "validation_required",
+          message:
+            "This unsafe endpoint was inferred from a JS bundle and has not been validated by observed browser traffic or structured form capture. Preview it with dry_run, or capture a real submit flow before executing it.",
         },
       };
     }
@@ -2683,6 +3057,29 @@ export async function executeEndpoint(
     }
   }
 
+  const unresolvedParams = new Set<string>([
+    ...extractTemplateVariables(url),
+    ...collectUnresolvedTemplateVars(body),
+  ]);
+  if (unresolvedParams.size > 0) {
+    return {
+      trace: stampTrace({
+        trace_id: nanoid(),
+        skill_id: skill.skill_id,
+        endpoint_id: endpoint.endpoint_id,
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        success: false,
+        error: "missing_params",
+      }),
+      result: {
+        error: "missing_params",
+        missing_params: [...unresolvedParams].sort(),
+        message: `Missing required params for ${endpoint.method} ${endpoint.url_template}: ${[...unresolvedParams].sort().join(", ")}`,
+      },
+    };
+  }
+
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
   const triggerInterceptTargetUrl = resolveTriggerInterceptTargetUrl(
@@ -2761,32 +3158,64 @@ export async function executeEndpoint(
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
       const serializedBody = serializeExecutionBody(body, replayHeaders);
-      const res = await fetch(replayUrl, {
-        method: endpoint.method,
-        headers: replayHeaders,
-        body: serializedBody,
-        redirect: "follow",
-      });
-      let data: unknown;
-      const text = await res.text();
-      try { data = JSON.parse(text); } catch { data = text; }
-      const responseHeaders: Record<string, string> = {};
-      res.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-      const event = toTraceNetworkEvent({
-        url: replayUrl,
-        method: endpoint.method,
-        requestHeaders: replayHeaders,
-        requestBody: serializedBody ?? body,
-        responseStatus: res.status,
-        responseHeaders,
-        responseBody: text,
-      });
-      networkEvents.push(event);
-      last = { data, status: res.status, event };
-      if (res.ok && !(typeof data === "string" && isHtml(data))) {
-        return { data, status: res.status, trace_id: nanoid(), network_events: networkEvents };
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(new Error(`execution_fetch_timeout:${EXECUTION_FETCH_TIMEOUT_MS}`)),
+        EXECUTION_FETCH_TIMEOUT_MS,
+      );
+      try {
+        const res = await fetch(replayUrl, {
+          method: endpoint.method,
+          headers: replayHeaders,
+          body: serializedBody,
+          redirect: "follow",
+          signal: controller.signal,
+        });
+        let data: unknown;
+        const text = await res.text();
+        try { data = JSON.parse(text); } catch { data = text; }
+        const responseHeaders: Record<string, string> = {};
+        res.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+        const event = toTraceNetworkEvent({
+          url: replayUrl,
+          method: endpoint.method,
+          requestHeaders: replayHeaders,
+          requestBody: serializedBody ?? body,
+          responseStatus: res.status,
+          responseHeaders,
+          responseBody: text,
+        });
+        networkEvents.push(event);
+        last = { data, status: res.status, event };
+        if (res.ok && !(typeof data === "string" && isHtml(data))) {
+          return { data, status: res.status, trace_id: nanoid(), network_events: networkEvents };
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const timeoutPayload = {
+          error: "execution_timeout",
+          message,
+          request_url: replayUrl,
+          request_method: endpoint.method,
+          request_body: serializedBody,
+          request_headers: sanitizeDebugHeaders(replayHeaders),
+        };
+        const event = toTraceNetworkEvent({
+          url: replayUrl,
+          method: endpoint.method,
+          requestHeaders: sanitizeDebugHeaders(replayHeaders),
+          requestBody: serializedBody ?? body,
+          responseStatus: 504,
+          responseHeaders: { "x-unbrowse-error": "execution_timeout" },
+          responseBody: JSON.stringify(timeoutPayload),
+        });
+        networkEvents.push(event);
+        last = { data: timeoutPayload, status: 504, event };
+        log("exec", `server fetch timeout for ${endpoint.endpoint_id} via ${replayUrl}: ${message}`);
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
@@ -2814,6 +3243,51 @@ export async function executeEndpoint(
     authHeaders,
     cookies
   );
+
+  const triggerInterceptCall = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const timeoutPromise = new Promise<{ status: number; data: unknown; trace_id: string; network_events?: TraceNetworkEvent[] }>((resolve) => {
+        timer = setTimeout(() => {
+          resolve({
+            status: 504,
+            data: {
+              error: "trigger_intercept_timeout",
+              message: `trigger_intercept_timeout:${EXECUTION_TRIGGER_TIMEOUT_MS}`,
+              request_url: endpoint.trigger_url,
+              target_url: triggerInterceptTargetUrl,
+              request_method: endpoint.method,
+              request_body: body,
+            },
+            trace_id: nanoid(),
+            network_events: [toTraceNetworkEvent({
+              url: triggerInterceptTargetUrl,
+              method: endpoint.method,
+              requestHeaders: sanitizeDebugHeaders(authHeaders),
+              requestBody: body,
+              responseStatus: 504,
+              responseHeaders: { "x-unbrowse-error": "trigger_intercept_timeout" },
+              responseBody: JSON.stringify({
+                error: "trigger_intercept_timeout",
+                request_url: endpoint.trigger_url,
+                target_url: triggerInterceptTargetUrl,
+              }),
+            })],
+          });
+        }, EXECUTION_TRIGGER_TIMEOUT_MS);
+      });
+      return await Promise.race([
+        triggerAndIntercept(endpoint.trigger_url!, triggerInterceptTargetUrl, cookies, authHeaders, {
+          authSource: authSourceMeta,
+          method: endpoint.method,
+          body,
+        }),
+        timeoutPromise,
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   let result: { data: unknown; status: number; trace_id: string; network_events?: TraceNetworkEvent[] };
   const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
@@ -2856,46 +3330,44 @@ export async function executeEndpoint(
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
       } else if (canUseTriggerIntercept(endpoint)) {
-        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-          authSource: authSourceMeta,
-        });
+        result = await triggerInterceptCall();
         strategy = "trigger-intercept";
       } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
       }
     } else if (endpointStrategy === "server") {
-      // Proven: server-fetch works for this endpoint
-      result = await serverFetchWithAuthRefresh();
-      if (result.status >= 200 && result.status < 400) {
-        if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-          if (canUseTriggerIntercept(endpoint)) {
-            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-              authSource: authSourceMeta,
-            });
-            strategy = "trigger-intercept";
-          } else {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-          }
-        } else {
-          strategy = "server";
-        }
-      } else if (canUseTriggerIntercept(endpoint)) {
-        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-          authSource: authSourceMeta,
-        });
+      if (shouldPreferTriggerInterceptStrategy(endpoint)) {
+        result = await triggerInterceptCall();
         strategy = "trigger-intercept";
-      } else {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
+      } else
+      // Proven: server-fetch works for this endpoint
+      {
+        result = await serverFetchWithAuthRefresh();
+        if (result.status >= 200 && result.status < 400) {
+          if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+            if (canUseTriggerIntercept(endpoint)) {
+              result = await triggerInterceptCall();
+              strategy = "trigger-intercept";
+            } else {
+              result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+              strategy = "browser";
+            }
+          } else {
+            strategy = "server";
+          }
+        } else if (canUseTriggerIntercept(endpoint)) {
+          result = await triggerInterceptCall();
+          strategy = "trigger-intercept";
+        } else {
+          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+          strategy = "browser";
+        }
       }
     } else if (endpointStrategy === "trigger-intercept" && canUseTriggerIntercept(endpoint)) {
       // Proven: this endpoint needs trigger-intercept
       log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
-      result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-        authSource: authSourceMeta,
-      });
+      result = await triggerInterceptCall();
       strategy = "trigger-intercept";
     } else if (endpointStrategy === "browser") {
       if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
@@ -2916,24 +3388,27 @@ export async function executeEndpoint(
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
       try {
-        result = await serverFetchWithAuthRefresh();
-        if (result.status >= 200 && result.status < 400) {
-          if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-          } else {
-            strategy = "server";
-          }
+        if (shouldPreferTriggerInterceptStrategy(endpoint)) {
+          result = await triggerInterceptCall();
+          strategy = "trigger-intercept";
         } else {
-          log("exec", `server fetch returned ${result.status}, falling back`);
-          if (canUseTriggerIntercept(endpoint)) {
-            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-              authSource: authSourceMeta,
-            });
-            strategy = "trigger-intercept";
+          result = await serverFetchWithAuthRefresh();
+          if (result.status >= 200 && result.status < 400) {
+            if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+              result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+              strategy = "browser";
+            } else {
+              strategy = "server";
+            }
           } else {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
+            log("exec", `server fetch returned ${result.status}, falling back`);
+            if (canUseTriggerIntercept(endpoint)) {
+              result = await triggerInterceptCall();
+              strategy = "trigger-intercept";
+            } else {
+              result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+              strategy = "browser";
+            }
           }
         }
       } catch {
@@ -3025,7 +3500,30 @@ export async function executeEndpoint(
     const intent = endpoint.dom_extraction
       ? deriveDomExecutionIntent(endpoint, options?.intent || skill.intent_signature)
       : (options?.intent || skill.intent_signature);
-    if (!endpoint.dom_extraction) {
+    const extracted = extractFromDOMWithHint(data, intent, endpoint.dom_extraction);
+    if (extracted.data) {
+      const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
+      const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
+      if (quality.valid && semanticAssessment.verdict !== "fail") {
+        data = {
+          data: extracted.data,
+          _extraction: {
+            method: extracted.extraction_method,
+            confidence: extracted.confidence,
+            source: endpoint.dom_extraction ? "html-postprocess" : "html-postprocess-generic",
+          },
+        };
+        trace.result = data;
+      } else {
+        trace.success = false;
+        trace.error = semanticAssessment.reason ?? quality.quality_note ?? "low_quality_dom_extraction";
+        data = {
+          error: "low_quality_dom_extraction",
+          message: `Structured DOM extraction was rejected: ${semanticAssessment.reason ?? quality.quality_note ?? "low quality extraction"}`,
+        };
+        trace.result = data;
+      }
+    } else {
       trace.success = false;
       trace.error = "unexpected_html_response";
       data = {
@@ -3033,31 +3531,6 @@ export async function executeEndpoint(
         message: `Endpoint returned HTML instead of API data for intent "${intent}"`,
       };
       trace.result = data;
-    } else {
-      const extracted = extractFromDOMWithHint(data, intent, endpoint.dom_extraction);
-      if (extracted.data) {
-        const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
-        const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
-        if (quality.valid && semanticAssessment.verdict !== "fail") {
-          data = {
-            data: extracted.data,
-            _extraction: {
-              method: extracted.extraction_method,
-              confidence: extracted.confidence,
-              source: "html-postprocess",
-            },
-          };
-          trace.result = data;
-        } else {
-          trace.success = false;
-          trace.error = semanticAssessment.reason ?? quality.quality_note ?? "low_quality_dom_extraction";
-          data = {
-            error: "low_quality_dom_extraction",
-            message: `Structured DOM extraction was rejected: ${semanticAssessment.reason ?? quality.quality_note ?? "low quality extraction"}`,
-          };
-          trace.result = data;
-        }
-      }
     }
   }
 
@@ -3236,6 +3709,23 @@ function interpolateObj(
       params[k] != null ? JSON.stringify(params[k]) : `"{${k}}"`
     )
   ) as Record<string, unknown>;
+}
+
+function collectUnresolvedTemplateVars(value: unknown, out = new Set<string>()): Set<string> {
+  if (typeof value === "string") {
+    for (const variable of extractTemplateVariables(value)) out.add(variable);
+    return out;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectUnresolvedTemplateVars(item, out);
+    return out;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      collectUnresolvedTemplateVars(item, out);
+    }
+  }
+  return out;
 }
 
 function serializeExecutionBody(
@@ -3439,6 +3929,9 @@ function intentActionKinds(intent?: string): string[] {
   const lower = (intent ?? "").toLowerCase();
   if (/\b(feed|timeline|stream|home)\b/.test(lower)) return ["list", "feed", "timeline"];
   if (/\b(search|find|lookup)\b/.test(lower)) return ["search", "list"];
+  if (/\b(register|rsvp|join|apply|sign\s*up|signup|book|reserve|checkout|purchase|order|submit|send)\b/.test(lower)) {
+    return ["create", "register", "rsvp", "join", "apply", "checkout", "purchase", "submit"];
+  }
   if (/\b(get|fetch|view)\b/.test(lower)) return ["detail", "get", "fetch"];
   if (/\b(list|browse|discover|trending|top|latest)\b/.test(lower)) return ["list", "search"];
   return [];
@@ -3495,6 +3988,7 @@ function semanticIntentAdjustment(endpoint: EndpointDescriptor, intent?: string)
  * Exported so routes.ts can surface the ranked list to the agent.
  */
 export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, skillDomain?: string, contextUrl?: string): RankedEndpoint[] {
+  const intentLower = (intent ?? "").toLowerCase();
   // --- Hard-filter: hosts that NEVER contain useful data ---
   const NOISE_HOSTS = /(id5-sync\.com|btloader\.com|presage\.io|onetrust\.com|adsrvr\.org|googlesyndication\.com|adtrafficquality\.google|amazon-adsystem\.com|crazyegg\.com|challenges\.cloudflare\.com|google-analytics\.com|doubleclick\.net|gstatic\.com|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com|cognito-idp\.|protechts\.net|demdex\.net|datadoghq\.com|fullstory\.com|launchdarkly\.com|intercom\.io|sentry\.io|segment\.io|amplitude\.com|mixpanel\.com|hotjar\.com|clarity\.ms|googletagmanager\.com|walletconnect\.com|cloudflareinsights\.com|fonts\.googleapis\.com|recaptcha|waa-pa\.|signaler-pa\.|ogads-pa\.|reddit\.com\/pixels?|pixel-config\.|dns-finder\.com|cookieconsentpub|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|apis\.google\.com|connect\.facebook\.net|bat\.bing\.com|static\.cloudflareinsights\.com|cdn\.mxpnl\.com|js\.hs-analytics\.net|snap\.licdn\.com|clc\.stackoverflow\.com|px\.ads|t\.co\/i|analytics\.|telemetry\.|stats\.)/i;
 
@@ -3514,6 +4008,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
   // Animation/UI asset paths
   const UI_ASSET_PATHS = /\/(rive|lottie|animations?|sprites?|assets\/static)\//i;
+  const actionIntent = /\b(register|rsvp|join|apply|sign\s*up|signup|book|reserve|checkout|purchase|order|submit|send)\b/.test(intentLower);
   const filtered = endpoints.filter((ep) => {
     if (ep.method === "HEAD" || ep.method === "OPTIONS") return false;
     if (ep.verification_status === "disabled") return false;
@@ -3524,7 +4019,13 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
       if (NOISE_HOSTS.test(host)) return false;
     } catch { /* skip */ }
     if (NOISE_PATHS.test(ep.url_template)) return false;
-    if (AUTH_CONFIG_PATHS.test(ep.url_template)) return false;
+    if (
+      AUTH_CONFIG_PATHS.test(ep.url_template) &&
+      !(
+        actionIntent &&
+        /\/(register|signup|join|apply|rsvp|checkout|purchase|book|reserve)\b/i.test(ep.url_template)
+      )
+    ) return false;
     if (SESSION_PLUMBING.test(ep.url_template)) return false;
     return true;
   });
@@ -3532,7 +4033,6 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const nonDisabled = endpoints.filter((ep) => ep.verification_status !== "disabled");
   const candidates = filtered.length > 0 ? filtered : nonDisabled;
   if (candidates.length === 0) return [];
-  const intentLower = (intent ?? "").toLowerCase();
 
   function endpointHaystack(ep: EndpointDescriptor): string {
     return `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(ep.response_schema ?? {})} ${JSON.stringify(resolveEndpointSemantic(ep) ?? {})}`.toLowerCase();
@@ -3580,7 +4080,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   };
   const searchInputSiblingTriggers = new Set(
     rankedCandidates
-      .filter((ep) => !!ep.trigger_url && !/captured page artifact/i.test(ep.description ?? "") && endpointHasSearchInputs(ep))
+      .filter((ep) => !!ep.trigger_url && !isCapturedPageArtifactEndpoint(ep) && endpointHasSearchInputs(ep))
       .map((ep) => ep.trigger_url)
       .filter((value): value is string => !!value),
   );
@@ -3632,6 +4132,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   // API subdomain pattern — "api.example.com" or "io.example.com" strongly suggests data endpoint
   const API_SUBDOMAIN = /^(api|io|data|feed|stream|ws)\./i;
   const LIST_INTENT = /\b(search|list|find|trending|top|latest|discover|browse)\b/i;
+  const SEARCH_INTENT = /\b(search|find|lookup|browse|discover)\b/i;
   const STATUS_INTENT = /\b(status|incident|outage|maintenance|uptime|degraded)\b/i;
   const COMMS_INTENT = /\b(guilds?|channels?|messages?|dms?|servers?|threads?|chat)\b/i;
   const COMMS_PATH = /\/(guilds?|channels?|messages?|threads?|conversations?|affinities)\b/i;
@@ -3642,6 +4143,15 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const EDUCATION_INTENT = /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i;
   const PRODUCT_DETAIL_INTENT = /\b(product|products|item|items|listing|listings)\b/i.test(intent ?? "");
   const ENTITY_DETAIL_INTENT = isEntityDetailIntent(intent);
+  const searchLikeContext = (() => {
+    try {
+      const pathname = contextUrl ? new URL(contextUrl).pathname.toLowerCase() : "";
+      return /\/(?:search|basic-search|result-page|results?|discover|browse)\b/.test(pathname);
+    } catch {
+      return false;
+    }
+  })();
+  const searchLikeIntent = SEARCH_INTENT.test(intent ?? "") || searchLikeContext;
 
   const scored = rankedCandidates.map((ep, i) => {
     let score = 0;
@@ -3651,6 +4161,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     let contextLeaf = "";
     let contextQueryKeys = new Set<string>();
     const semantic = resolveEndpointSemantic(ep);
+    const actionHaystack = `${ep.url_template} ${ep.description ?? ""} ${JSON.stringify(semantic ?? {})}`.toLowerCase();
+    const looksUnsafeAction = ep.idempotency === "unsafe" || (ep.method !== "GET" && ep.method !== "WS");
+    const actionLikeEndpoint = /\b(register|registration|rsvp|join|apply|signup|sign up|book|reserve|checkout|purchase|order|submit|send|waitlist)\b/.test(actionHaystack);
     try {
       const u = new URL(ep.url_template);
       pathname = u.pathname;
@@ -3696,9 +4209,9 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (ep.dom_extraction) score += 25;
     if (isCanonicalReplayEndpoint(ep)) score += 160;
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
-    if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
+    if (isBundleInferredEndpoint(ep) && !ep.response_schema && !(actionIntent && looksUnsafeAction)) score -= 180;
     score += semanticIntentAdjustment(ep, intent);
-    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+    if (searchLikeIntent) {
       if (endpointHasSearchInputs(ep)) score += 180;
       if (ep.method === "POST" && endpointHasSearchInputs(ep)) score += 40;
     }
@@ -3714,6 +4227,18 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     }
     score += ep.reliability_score * 5;
     if (ep.method === "WS" && ep.response_schema) score += 3;
+
+    if (actionIntent) {
+      if (looksUnsafeAction && actionLikeEndpoint) score += 340;
+      else if (looksUnsafeAction) score += 120;
+      if (isBundleInferredActionEndpoint(ep)) score += 260;
+      if (isHtmlFormEndpoint(ep)) score += 240;
+      if (isBundleInferredEndpoint(ep) && looksUnsafeAction) score += 140;
+      if (ep.body && looksUnsafeAction) score += 80;
+      if (ep.method === "GET" && !ep.dom_extraction && !ep.response_schema) score -= 160;
+      if (ep.method === "GET" && !actionLikeEndpoint) score -= 110;
+      if (isCapturedPageArtifactEndpoint(ep)) score -= 280;
+    }
 
     // === Domain affinity ===
     if (skillDomain) {
@@ -3792,7 +4317,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     const looksLikeApiEndpoint = looksLikeStructuredApiUrl(ep.url_template);
     const looksLikeDocumentRoute = !!contextPath && pathname === contextPath && !looksLikeApiEndpoint;
-    const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
+    const isCapturedPageArtifact = isCapturedPageArtifactEndpoint(ep);
     const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
     const hasSearchInputSibling = !!ep.trigger_url && searchInputSiblingTriggers.has(ep.trigger_url);
@@ -3898,7 +4423,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (META_PATHS.test(pathname)) score -= 15;
     if (DISCORD_META_PATHS.test(pathname)) score -= 35;
     if (SESSION_PLUMBING.test(pathname) || SESSION_PLUMBING.test(ep.url_template)) score -= 30;
-    if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 40;
+    if (isBundleInferredEndpoint(ep) && !ep.response_schema && !(actionIntent && looksUnsafeAction)) score -= 40;
 
     // Penalize root/short paths (homepage, config, init)
     if (pathname.length <= 2) score -= 10;
@@ -3911,7 +4436,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
       score = Math.min(score, -400);
     }
-    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+    if (searchLikeIntent) {
       if (endpointHasSearchInputs(ep) && (!!ep.dom_extraction || !!ep.response_schema)) {
         score += 240;
       }
