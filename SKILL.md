@@ -139,6 +139,7 @@ For any logged-in product or gated workflow:
 3. After login, retry `unbrowse resolve` against that same URL.
 4. Stay on that target surface. Do not drift to homepage, help, marketing, or alternate public sections unless the user asked for them.
 5. If retrieval is noisy, refine query or execute on the same URL. Do not switch tools unless the user explicitly approves fallback.
+6. If repeated `resolve` calls keep returning homepage, public, help, marketing, or obvious page artifacts for a workflow that is likely gated, stop retrying blind public routes and trigger `login` on the inferred workflow surface.
 
 If the user gives only a domain plus a task:
 
@@ -167,6 +168,7 @@ For long-form retrieval or research prompts, the agent should own query refineme
 4. Re-run inside Unbrowse on the same origin until one query yields real candidate rows.
 5. Follow those candidate rows with `execute`, raw endpoint output, result links, or document ids on that same origin.
 6. If you already know the right endpoint, force it. Do not bounce back to generic resolve flows unnecessarily.
+7. If the workflow is likely gated and the origin keeps returning public artifacts, switch to login-first on the inferred workflow URL instead of repeating public resolves.
 
 Good query shapes:
 

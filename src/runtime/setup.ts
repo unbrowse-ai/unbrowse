@@ -87,6 +87,7 @@ Rules:
 - \`unbrowse search\` is marketplace search, not on-site search. Do not use it as a substitute for the site's own search workflow.
 - If Unbrowse returns partial results, refine with more Unbrowse commands (\`resolve\`, \`search\`, \`execute\`, \`login\`) before considering fallback.
 - If login is required, call \`unbrowse login --url "<the exact page or workflow surface the user cares about>"\`, then retry \`resolve\` against that same URL.
+- If the task is likely gated and repeated \`resolve\` calls only return homepage, marketing, help, public, or artifact pages, stop retrying blind public routes and trigger \`login\` on the inferred workflow URL.
 - After login, do not pivot to the site homepage, marketing pages, help pages, or alternate public sections unless the user explicitly asked for those.
 - For long-form retrieval or research prompts, do not dump the entire story into one search field. Derive 2-4 compact search queries with quoted phrases, product names, titles, IDs, people, dates, or other discriminative terms, then retry inside Unbrowse.
 - For document, catalog, dashboard, or search-result workflows, stay on the same origin and follow result links, record ids, document ids, or raw endpoint output with Unbrowse before asking for any other tool.
