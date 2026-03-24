@@ -3739,6 +3739,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   // API subdomain pattern — "api.example.com" or "io.example.com" strongly suggests data endpoint
   const API_SUBDOMAIN = /^(api|io|data|feed|stream|ws)\./i;
   const LIST_INTENT = /\b(search|list|find|trending|top|latest|discover|browse)\b/i;
+  const SEARCH_INTENT = /\b(search|find|lookup|browse|discover)\b/i;
   const STATUS_INTENT = /\b(status|incident|outage|maintenance|uptime|degraded)\b/i;
   const COMMS_INTENT = /\b(guilds?|channels?|messages?|dms?|servers?|threads?|chat)\b/i;
   const COMMS_PATH = /\/(guilds?|channels?|messages?|threads?|conversations?|affinities)\b/i;
@@ -3749,6 +3750,15 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const EDUCATION_INTENT = /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i;
   const PRODUCT_DETAIL_INTENT = /\b(product|products|item|items|listing|listings)\b/i.test(intent ?? "");
   const ENTITY_DETAIL_INTENT = isEntityDetailIntent(intent);
+  const searchLikeContext = (() => {
+    try {
+      const pathname = contextUrl ? new URL(contextUrl).pathname.toLowerCase() : "";
+      return /\/(?:search|basic-search|result-page|results?|discover|browse)\b/.test(pathname);
+    } catch {
+      return false;
+    }
+  })();
+  const searchLikeIntent = SEARCH_INTENT.test(intent ?? "") || searchLikeContext;
 
   const scored = rankedCandidates.map((ep, i) => {
     let score = 0;
@@ -3805,7 +3815,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
     score += semanticIntentAdjustment(ep, intent);
-    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+    if (searchLikeIntent) {
       if (endpointHasSearchInputs(ep)) score += 180;
       if (ep.method === "POST" && endpointHasSearchInputs(ep)) score += 40;
     }
@@ -4018,7 +4028,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
       score = Math.min(score, -400);
     }
-    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+    if (searchLikeIntent) {
       if (endpointHasSearchInputs(ep) && (!!ep.dom_extraction || !!ep.response_schema)) {
         score += 240;
       }
