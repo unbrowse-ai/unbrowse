@@ -67,6 +67,8 @@ This suite:
 - checks domain-filter leakage for domain-scoped retrieval
 - checks that resolve still uses global fallback when the exact domain lane is sparse
 
+Canonical skill enumeration for local recovery paths should come from durable `domain-idx:*` keys, not the large split `skill:*` manifest index. The domain index stays small enough to remain complete even when the manifest index gets trimmed.
+
 It writes:
 - `evals/marketplace-retrieval-last-run.json`
 

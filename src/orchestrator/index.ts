@@ -990,6 +990,8 @@ const SEARCH_DIRECTIVE_PREFIX =
 const SEARCH_TRAILING_SITE_HINT = /\s+(on|at|from|in|via)\s+\S+$/i;
 const SEARCH_INSTRUCTION_NOISE =
   /\b(do not|don't|dont|tell me|let me know|extremely thoroughly|thoroughly|random cases|for the sake of it|if there is no such|if none exists|if no such)\b/i;
+const SEARCH_PRIORITY_PATTERN =
+  /\b(high|court|appeal|leave|adduce|evidence|assessment|damages?|tranche|tranches|started|late|stage|hearing|trial|mediation|case|cases|allow|allowed)\b/;
 
 function isLikelySearchParam(
   urlTemplate: string,
@@ -1109,12 +1111,103 @@ export function selectSearchTermsForExecution(intent: string): string | null {
   const tooLongForSingleField = literal.length > 180 || wordCount > 24;
   if (hasQuotedPhrase && !tooLongForSingleField) return literal;
   if (!hasSentencePunctuation && !tooLongForSingleField) return literal;
+  if (tooLongForSingleField) {
+    const compactPhraseQuery = buildCompactPhraseSearchQuery(intent);
+    if (compactPhraseQuery) return compactPhraseQuery;
+  }
   return condensed;
+}
+
+function buildCompactPhraseSearchQuery(intent: string): string | null {
+  const stripped = stripSearchIntentBoilerplate(intent);
+  if (!stripped) return null;
+  const sourceText = extractLiteralSearchTermsFromIntent(intent) ?? stripped;
+  const clauses = sourceText
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  const phraseScores = new Map<string, { score: number; clauseIndex: number }>();
+  const remember = (rawPhrase: string, score: number, clauseIndex: number) => {
+    const phrase = rawPhrase
+      .toLowerCase()
+      .replace(/[^a-z0-9\s/-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!phrase) return;
+    const words = phrase.split(/\s+/).filter(Boolean);
+    const contentWords = words.filter((word) => !SEARCH_INTENT_STOPWORDS.has(word));
+    if (contentWords.length < 2) return;
+    if (!contentWords.some((word) => SEARCH_PRIORITY_PATTERN.test(word))) return;
+    if (words.length > 8) return;
+    if (SEARCH_INSTRUCTION_NOISE.test(phrase)) return;
+    const priorityHits = contentWords.filter((word) => SEARCH_PRIORITY_PATTERN.test(word)).length;
+    const proceduralHits = contentWords.filter((word) => /^(started|tranche|tranches|allow|allowed)$/.test(word)).length;
+    const startsBadly = /^(eg|\d)$/.test(words[0] ?? "") || /^\d+$/.test(words[0] ?? "");
+    const endsBadly = /^(eg|\d)$/.test(words[words.length - 1] ?? "") || /^\d+$/.test(words[words.length - 1] ?? "");
+    const connectorHits = words.filter((word) => ["of", "to", "for", "at", "after"].includes(word)).length;
+    if (/\b(such|none|random)\b/.test(phrase)) return;
+    const boostedScore =
+      score
+      + Math.min(contentWords.length, 4)
+      + priorityHits * 3
+      + proceduralHits * 4
+      + connectorHits
+      + (words.length >= 3 && words.length <= 5 ? 2 : 0)
+      + (/\d/.test(phrase) ? 2 : 0)
+      - (startsBadly ? 4 : 0)
+      - (endsBadly ? 4 : 0)
+      - (/\beg\b/.test(phrase) ? 6 : 0);
+    const existing = phraseScores.get(phrase);
+    if (!existing || boostedScore > existing.score) phraseScores.set(phrase, { score: boostedScore, clauseIndex });
+  };
+
+  for (const [clauseIndex, clause] of clauses.entries()) {
+    for (const match of clause.matchAll(/["“”']([^"“”']{3,80})["“”']/g)) {
+      remember(match[1], 12, clauseIndex);
+    }
+  }
+
+  for (const [clauseIndex, clause] of clauses.entries()) {
+    for (const match of clause.matchAll(/\b[a-z0-9-]+(?:\s+(?:of|to|for|at|after)\s+[a-z0-9-]+){1,4}\b/gi)) {
+      remember(match[0], 14, clauseIndex);
+    }
+    const tokens = clause
+      .toLowerCase()
+      .replace(/[^a-z0-9\s/-]+/g, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+    for (let start = 0; start < tokens.length; start++) {
+      for (let size = 2; size <= 6 && start + size <= tokens.length; size++) {
+        const slice = tokens.slice(start, start + size);
+        if (SEARCH_INTENT_STOPWORDS.has(slice[0]) || SEARCH_INTENT_STOPWORDS.has(slice[slice.length - 1])) continue;
+        remember(slice.join(" "), 6 - Math.abs(size - 4), clauseIndex);
+      }
+    }
+  }
+
+  const selected: string[] = [];
+  const selectedRaw: string[] = [];
+  let currentLength = 0;
+  const clauseCounts = new Map<number, number>();
+  for (const [phrase, meta] of Array.from(phraseScores.entries())
+    .sort((a, b) => b[1].score - a[1].score || a[0].length - b[0].length)) {
+    if (selectedRaw.some((chosen) => chosen.includes(phrase) || phrase.includes(chosen))) continue;
+    if ((clauseCounts.get(meta.clauseIndex) ?? 0) >= 2) continue;
+    const rendered = `"${phrase}"`;
+    const nextLength = currentLength === 0 ? rendered.length : currentLength + 1 + rendered.length;
+    if (nextLength > 140) continue;
+    selected.push(rendered);
+    selectedRaw.push(phrase);
+    clauseCounts.set(meta.clauseIndex, (clauseCounts.get(meta.clauseIndex) ?? 0) + 1);
+    currentLength = nextLength;
+    if (selected.length >= 4) break;
+  }
+
+  return selected.length > 0 ? selected.join(" ") : null;
 }
 
 function condenseSearchIntent(intent: string): string | null {
   const wantsSearchAction = /\b(search|find|lookup|look\s+for|browse|discover)\b/i.test(intent);
-  const priorityPattern = /\b(high|court|appeal|leave|adduce|evidence|assessment|damages?|tranche|tranches|started|late|stage|hearing|trial|mediation|case|cases)\b/;
   const tokens = intent
     .toLowerCase()
     .replace(/[^a-z0-9\][\-/]+/g, " ")
@@ -1124,7 +1217,7 @@ function condenseSearchIntent(intent: string): string | null {
   const scored = new Map<string, { token: string; index: number; score: number }>();
   tokens.forEach((token, index) => {
     let score = 0;
-    if (priorityPattern.test(token)) score += 10;
+    if (SEARCH_PRIORITY_PATTERN.test(token)) score += 10;
     if (token.length >= 8) score += 2;
     if (index < 12) score += 1;
     const existing = scored.get(token);
