@@ -25,6 +25,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+* replace the lossy global qdkv marketplace index with prefix-sharded inline indexes, restore manifest-first canonical skill hydration, and add a Cloudflare-KV repair tool to rebuild prod qdkv/graph state from the historical source of truth
+
 ## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.2...v2.1.3) (2026-03-23)
 
 ### Bug Fixes

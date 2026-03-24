@@ -525,6 +525,16 @@ function withContextReplayEndpoint(
   };
 }
 
+function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
+  if (/\b(search|find|lookup|browse|discover)\b/i.test(intent ?? "")) return true;
+  try {
+    const pathname = contextUrl ? new URL(contextUrl).pathname.toLowerCase() : "";
+    return /\/(?:search|basic-search|result-page|results?|discover|browse)\b/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function isCachedSkillRelevantForIntent(
   skill: SkillManifest,
   intent?: string,
@@ -549,7 +559,7 @@ export function isCachedSkillRelevantForIntent(
     contextUrl,
   );
   const top = ranked[0];
-  const isSearchIntent = /\b(search|find|lookup|browse|discover)\b/i.test(intent);
+  const isSearchIntent = isSearchLikeIntent(intent, contextUrl);
   if (
     top &&
     isSearchIntent &&
@@ -706,7 +716,7 @@ function skillHasBetterStructuredSearchEndpoint(
   intent: string,
   contextUrl?: string,
 ): boolean {
-  if (!/\b(search|find|lookup|browse|discover)\b/i.test(intent)) return false;
+  if (!isSearchLikeIntent(intent, contextUrl)) return false;
   return rankEndpoints(skill.endpoints, intent, skill.domain, contextUrl).some((candidate) =>
     candidate.endpoint.endpoint_id !== currentEndpointId &&
     endpointHasSearchBindings(candidate.endpoint) &&
@@ -1791,7 +1801,7 @@ export async function resolveAndExecute(
     search_candidates: [] as unknown[],
     autoexec_attempts: [] as unknown[],
   };
-  const queryIntent = extractSearchTermsFromIntent(intent) ?? intent;
+  const queryIntent = selectSearchTermsForExecution(intent) ?? extractSearchTermsFromIntent(intent) ?? intent;
   if (queryIntent !== intent) decisionTrace.query_intent = queryIntent;
 
   // Fallback baselines when a skill has no discovery_cost (old skills / first capture)
@@ -1882,7 +1892,12 @@ export async function resolveAndExecute(
         }
         return {
           orchestratorResult: buildDeferral(skill, source, extraFields),
-          autoexecFailedAll: true,
+          autoexecFailedAll: !skillHasBetterStructuredSearchEndpoint(
+            skill,
+            undefined,
+            queryIntent,
+            context?.url,
+          ),
         };
       } catch (err) {
         console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
@@ -2150,6 +2165,12 @@ export async function resolveAndExecute(
       if (hasObservedApiCandidate && inferredFromBundle) readinessBonus -= 45;
       if (hasInternalApiCandidate && r.endpoint.dom_extraction) readinessBonus -= 35;
       if (hasInternalApiCandidate && isDocumentRoute) readinessBonus -= 80;
+      if (isSearchLikeIntent(queryIntent, context?.url)) {
+        const isCapturedPageArtifact = /captured page artifact/i.test(r.endpoint.description ?? "");
+        if (endpointHasSearchBindings(r.endpoint)) readinessBonus += 70;
+        if (endpointHasSearchBindings(r.endpoint) && r.endpoint.trigger_url) readinessBonus += 20;
+        if (isCapturedPageArtifact) readinessBonus -= 55;
+      }
       if (r.endpoint.trigger_url && context?.url) {
         try {
           if (new URL(r.endpoint.trigger_url).pathname === new URL(context.url).pathname)
@@ -2583,8 +2604,27 @@ export async function resolveAndExecute(
     }
   }
 
-  // No disk-snapshot reads in the default resolve path.
-  // Remote/shared skills are the source of truth; local snapshots stay explicit debug/test only.
+  if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
+    const localSnapshot = findBestLocalDomainSnapshot(requestedDomain, queryIntent, context?.url);
+    if (localSnapshot) {
+      console.log(`[local-snapshot:default] hit for ${requestedDomain} → skill ${localSnapshot.skill_id.slice(0, 15)}`);
+      const deferred = await buildDeferralWithAutoExec(localSnapshot, "marketplace");
+      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+        console.log(`[local-snapshot:default] stale skill for ${requestedDomain}; retrying via live capture`);
+      } else {
+        timing.cache_hit = true;
+        deferred.orchestratorResult.timing.cache_hit = true;
+        promoteLearnedSkill(
+          clientScope,
+          cacheKey,
+          localSnapshot,
+          deferred.orchestratorResult.trace.endpoint_id,
+          context?.url,
+        );
+        return deferred.orchestratorResult;
+      }
+    }
+  }
 
   if (!forceCapture) {
     // 1. Search marketplace — single remote call, shared embedding, conditional global fallback
@@ -2815,6 +2855,9 @@ export async function resolveAndExecute(
   // In-flight capture queue: wait for the same domain capture instead of failing.
   const bypassLiveCaptureQueue = shouldBypassLiveCaptureQueue(context?.url);
   const captureLockKey = scopedCacheKey(clientScope, captureDomain);
+  let learned_skill: SkillManifest | undefined;
+  let trace: import("../types/index.js").ExecutionTrace;
+  let result: unknown;
   if (!bypassLiveCaptureQueue) {
     const existingCapture = captureInFlight.get(captureLockKey);
     if (existingCapture) {
@@ -2864,9 +2907,6 @@ export async function resolveAndExecute(
     }
   }
 
-  let learned_skill: SkillManifest | undefined;
-  let trace: import("../types/index.js").ExecutionTrace;
-  let result: unknown;
   let parityBaseline: unknown;
   let captureSkill: SkillManifest;
   const te0 = Date.now();
