@@ -2,9 +2,28 @@
 
 ## Unreleased
 
+## [2.1.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.4...v2.1.5) (2026-03-24)
+
 ### Bug Fixes
 
+* preserve literal query semantics for single search-param endpoints during param inference, falling back to condensed keyword extraction only when needed
+* improve LawNet-style long-form search prompts by keeping salient clauses and quoted phrases intact instead of sending a lossy token bag
+* stop feeding long narrative LawNet-style factual backgrounds into single search fields, so auto-exec uses bounded keyword queries when literal clauses are too large for the target form field
+* repair LawNet retrieval from local reuse paths so resolve falls through to the richer structured search snapshot instead of stale artifact-only deferrals
+* treat LawNet-style case rows as valid search results and bias extraction away from shell-style heading wrappers
+* allow safe form-style POST endpoints with trigger pages to use trigger-intercept fallback, instead of limiting that recovery path to GET-only endpoints
+* document the gated-site workflow more explicitly so agents stay on the exact target surface after auth, retry the same URL, and avoid drifting to unrelated public or marketing pages
+* strengthen strict Unbrowse-only host guidance across setup, MCP tool descriptions, and docs so explicit `/unbrowse` requests stay on the same origin and do not silently fall through to Fetch, public mirrors, alternate domains, or generic web tools
 * rebuild canonical skill enumeration from durable `domain-idx:*` keys instead of the lossy split `skill:*` manifest index, so prod publish/search hydration can still see newly published and existing canonical skills when graph search omits metadata
+* document the agent-side retrieval loop more explicitly so long narrative prompts across many domains are turned into compact iterative same-origin queries inside Unbrowse instead of being pasted wholesale into single site search fields
+* document the concrete retrieval playbook more explicitly so domain-only tasks first find the real workflow URL, marketplace search is not confused with on-site search, and agents inspect schema/raw before inventing endpoint params
+* document login-first behavior more explicitly so likely gated workflows stop looping on homepage/public artifacts and trigger auth on the inferred workflow URL sooner
+
+## [2.1.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.3...v2.1.4) (2026-03-23)
+
+### Bug Fixes
+
+* harden LawNet search execution ([c42852c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c42852c7c08664d54d1eff342b060f30da04b711))
 
 ## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.2...v2.1.3) (2026-03-23)
 

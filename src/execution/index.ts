@@ -37,6 +37,18 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   return trace;
 }
 
+export function canUseTriggerIntercept(endpoint: EndpointDescriptor): boolean {
+  return !!endpoint.trigger_url && (endpoint.method === "GET" || endpoint.idempotency === "safe");
+}
+
+export function resolveTriggerInterceptTargetUrl(
+  url: string,
+  structuredReplayUrl: string,
+  hasStructuredReplay: boolean,
+): string {
+  return hasStructuredReplay ? structuredReplayUrl : url;
+}
+
 function mapHeaders(headers?: Record<string, string>): TraceNetworkHeader[] {
   return Object.entries(headers ?? {}).map(([name, value]) => ({ name, value: String(value) }));
 }
@@ -2519,6 +2531,38 @@ export async function executeEndpoint(
     }
   }
 
+  const reloadAuthMaterial = async () => {
+    cookies.length = 0;
+    for (const key of Object.keys(authHeaders)) delete authHeaders[key];
+    authSourceMeta = null;
+
+    try {
+      const epBundle = await getStoredAuthBundle(epDomain);
+      if (epBundle) {
+        cookies.push(...epBundle.cookies);
+        Object.assign(authHeaders, epBundle.headers);
+        authSourceMeta = epBundle.source_meta ?? authSourceMeta;
+      }
+    } catch {
+      /* ignore endpoint-domain reload failure */
+    }
+
+    if (registrableDomain && registrableDomain !== epDomain) {
+      try {
+        const regBundle = await getStoredAuthBundle(registrableDomain);
+        if (regBundle) {
+          cookies.push(...regBundle.cookies.filter((cookie) =>
+            !cookies.some((existing) => existing.name === cookie.name && existing.domain === cookie.domain),
+          ));
+          if (Object.keys(authHeaders).length === 0) Object.assign(authHeaders, regBundle.headers);
+          authSourceMeta = regBundle.source_meta ?? authSourceMeta;
+        }
+      } catch {
+        /* ignore registrable-domain reload failure */
+      }
+    }
+  };
+
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
 
   // BUG-006: Merge path_params defaults — user params override captured defaults
@@ -2641,6 +2685,11 @@ export async function executeEndpoint(
 
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
+  const triggerInterceptTargetUrl = resolveTriggerInterceptTargetUrl(
+    url,
+    structuredReplayUrl,
+    hasStructuredReplay,
+  );
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string; network_events: TraceNetworkEvent[] }> => {
     // Default accept to JSON, but never overwrite the endpoint's own accept header
@@ -2744,6 +2793,19 @@ export async function executeEndpoint(
     return { data: last.data, status: last.status, trace_id: nanoid(), network_events: networkEvents.length > 0 ? networkEvents : [last.event] };
   };
 
+  const serverFetchWithAuthRefresh = async () => {
+    let current = await serverFetch();
+    if (current.status !== 401 && current.status !== 403) return current;
+    const refreshedEndpoint = await refreshAuthFromBrowser(epDomain).catch(() => false);
+    const refreshedRegistrable =
+      !refreshedEndpoint && registrableDomain && registrableDomain !== epDomain
+        ? await refreshAuthFromBrowser(registrableDomain).catch(() => false)
+        : false;
+    if (!refreshedEndpoint && !refreshedRegistrable) return current;
+    await reloadAuthMaterial();
+    return serverFetch();
+  };
+
   const browserCall = () => executeInBrowser(
     url,
     endpoint.method,
@@ -2790,11 +2852,11 @@ export async function executeEndpoint(
     const endpointStrategy = endpoint.exec_strategy;
 
     if (hasStructuredReplay) {
-      result = await serverFetch();
+      result = await serverFetchWithAuthRefresh();
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
-      } else if (endpoint.trigger_url && isSafe) {
-        result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+      } else if (canUseTriggerIntercept(endpoint)) {
+        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
           authSource: authSourceMeta,
         });
         strategy = "trigger-intercept";
@@ -2804,17 +2866,34 @@ export async function executeEndpoint(
       }
     } else if (endpointStrategy === "server") {
       // Proven: server-fetch works for this endpoint
-      result = await serverFetch();
-      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+      result = await serverFetchWithAuthRefresh();
+      if (result.status >= 200 && result.status < 400) {
+        if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+          if (canUseTriggerIntercept(endpoint)) {
+            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
+              authSource: authSourceMeta,
+            });
+            strategy = "trigger-intercept";
+          } else {
+            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+            strategy = "browser";
+          }
+        } else {
+          strategy = "server";
+        }
+      } else if (canUseTriggerIntercept(endpoint)) {
+        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
+          authSource: authSourceMeta,
+        });
+        strategy = "trigger-intercept";
+      } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
-      } else {
-        strategy = "server";
       }
-    } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
+    } else if (endpointStrategy === "trigger-intercept" && canUseTriggerIntercept(endpoint)) {
       // Proven: this endpoint needs trigger-intercept
       log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
-      result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+      result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
         authSource: authSourceMeta,
       });
       strategy = "trigger-intercept";
@@ -2837,7 +2916,7 @@ export async function executeEndpoint(
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
       try {
-        result = await serverFetch();
+        result = await serverFetchWithAuthRefresh();
         if (result.status >= 200 && result.status < 400) {
           if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
@@ -2847,8 +2926,8 @@ export async function executeEndpoint(
           }
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
-          if (endpoint.trigger_url && isSafe) {
-            result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+          if (canUseTriggerIntercept(endpoint)) {
+            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
               authSource: authSourceMeta,
             });
             strategy = "trigger-intercept";
