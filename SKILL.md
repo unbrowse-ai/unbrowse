@@ -116,7 +116,7 @@ Generic MCP hosts like Claude Code, Claude Desktop, Cursor, Windsurf, and Codex 
 Add a short host-level rule if you want Unbrowse chosen first consistently:
 
 ```md
-Always use the Unbrowse MCP server for website tasks, browser automation, logged-in pages, scraping, and structured extraction unless I explicitly ask for generic web search or Unbrowse has already failed. Start with `unbrowse_resolve`. Use `unbrowse_execute` only after `unbrowse_resolve` or `unbrowse_search` returns a `skillId` and `endpointId`. Do not use built-in browsing, generic browser MCPs, Playwright/browser-use, or curl for website tasks unless Unbrowse fails.
+Always use the Unbrowse MCP server for website tasks, browser automation, logged-in pages, scraping, and structured extraction unless I explicitly ask for generic web search or Unbrowse has already failed. Start with `unbrowse_resolve`. If I give only a domain, first find the exact workflow URL on that origin instead of defaulting to the homepage. Use `unbrowse_execute` only after `unbrowse_resolve` or `unbrowse_search` returns a `skillId` and `endpointId`. Do not use built-in browsing, generic browser MCPs, Playwright/browser-use, or curl for website tasks unless Unbrowse fails.
 ```
 
 For auth-gated flows, strengthen that rule to:
@@ -140,6 +140,12 @@ For any logged-in product or gated workflow:
 4. Stay on that target surface. Do not drift to homepage, help, marketing, or alternate public sections unless the user asked for them.
 5. If retrieval is noisy, refine query or execute on the same URL. Do not switch tools unless the user explicitly approves fallback.
 
+If the user gives only a domain plus a task:
+
+1. Infer the likely workflow surface on that same origin.
+2. Use that concrete URL first.
+3. Only fall back to the homepage if the homepage is actually the workflow surface.
+
 ## Strict mode
 
 If the user explicitly invokes `/unbrowse` or directly says to use Unbrowse for a website task:
@@ -148,6 +154,8 @@ If the user explicitly invokes `/unbrowse` or directly says to use Unbrowse for 
 2. Treat public mirrors, alternate domains, cached copies, and free/public substitutes as fallback too.
 3. For search or document workflows, use Unbrowse to follow same-origin result links, document ids, and raw endpoint output before deciding the site is blocked.
 4. If Unbrowse still cannot finish, explain the exact failure and ask before using any other tool or site.
+5. Do not use `unbrowse search` as if it were on-site search. It only searches the Unbrowse marketplace.
+6. Do not invent `--params`. Inspect `--schema` or `--raw` first if the endpoint inputs are unclear.
 
 ## Agent Retrieval Loop
 
@@ -158,6 +166,7 @@ For long-form retrieval or research prompts, the agent should own query refineme
 3. Prefer quoted phrases, names, titles, IDs, dates, product names, citations, procedural phrases, and other tight discriminative clauses.
 4. Re-run inside Unbrowse on the same origin until one query yields real candidate rows.
 5. Follow those candidate rows with `execute`, raw endpoint output, result links, or document ids on that same origin.
+6. If you already know the right endpoint, force it. Do not bounce back to generic resolve flows unnecessarily.
 
 Good query shapes:
 
