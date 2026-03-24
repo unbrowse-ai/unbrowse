@@ -247,6 +247,7 @@ function findBestLocalDomainSnapshot(
   requestedDomain: string,
   intent: string,
   contextUrl?: string,
+  excludeSkillIds?: ReadonlySet<string>,
 ): SkillManifest | undefined {
   if (!existsSync(SKILL_SNAPSHOT_DIR)) return undefined;
   const targetDomain = getRegistrableDomain(requestedDomain);
@@ -256,6 +257,7 @@ function findBestLocalDomainSnapshot(
     try {
       const candidate = JSON.parse(readFileSync(join(SKILL_SNAPSHOT_DIR, entry), "utf-8")) as SkillManifest;
       if (getRegistrableDomain(candidate.domain) !== targetDomain) continue;
+      if (excludeSkillIds?.has(candidate.skill_id)) continue;
       const existing = bestBySkill.get(candidate.skill_id);
       bestBySkill.set(
         candidate.skill_id,
@@ -722,6 +724,19 @@ function skillHasBetterStructuredSearchEndpoint(
     endpointHasSearchBindings(candidate.endpoint) &&
     (!!candidate.endpoint.dom_extraction || !!candidate.endpoint.response_schema) &&
     candidate.score >= 0
+  );
+}
+
+export function skillHasContextStructuredSearchEndpoint(
+  skill: SkillManifest,
+  intent: string,
+  contextUrl?: string,
+): boolean {
+  if (!isSearchLikeIntent(intent, contextUrl)) return false;
+  return skill.endpoints.some((endpoint) =>
+    endpointHasSearchBindings(endpoint) &&
+    (!!endpoint.dom_extraction || !!endpoint.response_schema) &&
+    endpointMatchesContextOrigin(endpoint, contextUrl),
   );
 }
 
@@ -1892,12 +1907,14 @@ export async function resolveAndExecute(
         }
         return {
           orchestratorResult: buildDeferral(skill, source, extraFields),
-          autoexecFailedAll: !skillHasBetterStructuredSearchEndpoint(
-            skill,
-            undefined,
-            queryIntent,
-            context?.url,
-          ),
+          autoexecFailedAll:
+            !skillHasContextStructuredSearchEndpoint(skill, queryIntent, context?.url) &&
+            !skillHasBetterStructuredSearchEndpoint(
+              skill,
+              undefined,
+              queryIntent,
+              context?.url,
+            ),
         };
       } catch (err) {
         console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
@@ -2977,6 +2994,23 @@ export async function resolveAndExecute(
   }
 
   if (learned_skill && learnedSkillUsable && !isCachedSkillRelevantForIntent(learned_skill, queryIntent, context?.url)) {
+    const repairedSnapshot =
+      requestedDomain
+        ? findBestLocalDomainSnapshot(
+            requestedDomain,
+            queryIntent,
+            context?.url,
+            new Set([learned_skill.skill_id]),
+          )
+        : undefined;
+    if (repairedSnapshot) {
+      console.log(
+        `[capture] reviving local snapshot ${repairedSnapshot.skill_id.slice(0, 15)} after irrelevant learned skill`,
+      );
+      const repaired = await buildDeferralWithAutoExec(repairedSnapshot, "marketplace");
+      repaired.orchestratorResult.timing.cache_hit = true;
+      return repaired.orchestratorResult;
+    }
     const resolvedSkill = withContextReplayEndpoint(learned_skill, queryIntent, context?.url);
     const ranked = rankEndpoints(
       resolvedSkill.endpoints,

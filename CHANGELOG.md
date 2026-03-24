@@ -27,7 +27,9 @@
 
 ### Bug Fixes
 
+* treat compact quoted queries on search pages as true search intent and keep same-context structured search skills on the deferral path, so long LawNet-style prompts stop collapsing into browser-capture artifacts and instead surface the real structured endpoint when auto-exec misses
 * replace the lossy global qdkv marketplace index with prefix-sharded inline indexes, restore manifest-first canonical skill hydration, and add a Cloudflare-KV repair tool to rebuild prod qdkv/graph state from the historical source of truth
+* move semantic retrieval onto self-owned endpoint embedding docs in qdkv, keep publish-time embedding writes in sync, and add a rebuild script so search no longer depends on EmergentDB returning metadata from vector/graph search
 
 ## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.2...v2.1.3) (2026-03-23)
 
