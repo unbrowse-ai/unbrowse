@@ -462,6 +462,39 @@ export function hasUsefulCapturedResponses(
   });
 }
 
+export function hasUsefulCapturedResponsesBeyondPageShell(
+  responseUrls: Iterable<string>,
+  captureUrl?: string,
+  intent?: string,
+): boolean {
+  const usefulUrls = [...responseUrls].filter(isUsefulCapturedResponseUrl);
+  if (usefulUrls.length === 0) return false;
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  const isSearchLikeIntent = /\b(search|find|lookup|browse|discover)\b/.test(lowerIntent);
+  if (!isSearchLikeIntent || !captureUrl) {
+    return hasUsefulCapturedResponses(usefulUrls, captureUrl, intent);
+  }
+
+  let captureHref = "";
+  try {
+    const parsed = new URL(captureUrl);
+    captureHref = `${parsed.origin}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return hasUsefulCapturedResponses(usefulUrls, captureUrl, intent);
+  }
+
+  const offPageUrls = usefulUrls.filter((url) => {
+    try {
+      const parsed = new URL(url, captureUrl);
+      return `${parsed.origin}${parsed.pathname}${parsed.search}` !== captureHref;
+    } catch {
+      return true;
+    }
+  });
+  if (offPageUrls.length === 0) return false;
+  return true;
+}
+
 /**
  * Inject a fetch/XHR interceptor into the page to capture request/response data.
  * Returns captured entries via __unbrowse_intercepted global.
@@ -1305,7 +1338,7 @@ export async function captureSession(
     }
 
     if (
-      !hasUsefulCapturedResponses(responseBodies.keys(), final_url, intent) &&
+      !hasUsefulCapturedResponsesBeyondPageShell(responseBodies.keys(), final_url, intent) &&
       (((cookies?.length ?? 0) > 0) || Object.keys(authHeaders ?? {}).length > 0)
     ) {
       const fetchedDocument = await fetchHtmlDocument({
@@ -1363,7 +1396,7 @@ export async function captureSession(
 
     if (
       html &&
-      !hasUsefulCapturedResponses(responseBodies.keys(), final_url, intent)
+      !hasUsefulCapturedResponsesBeyondPageShell(responseBodies.keys(), final_url, intent)
     ) {
       const queryTerms = deriveInteractionQueryTerms(final_url, intent);
       const htmlFormSubmission = queryTerms[0]
@@ -1602,6 +1635,60 @@ export async function executeInBrowser(
   }
 }
 
+export function matchesTriggerTargetUrl(
+  currentUrl: string,
+  targetBase: string,
+  targetQueryId: string | null,
+): boolean {
+  const baseMatch = currentUrl.includes(targetBase);
+  const queryIdMatch = !targetQueryId || currentUrl.includes(targetQueryId);
+  return baseMatch && queryIdMatch;
+}
+
+async function waitForTriggerForm(tabId: string, targetBase: string, timeoutMs = 6000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const ready = await kuri.evaluate(
+        tabId,
+        `(()=>[...document.forms||[]].some((f)=>String(f.action||'').includes(${JSON.stringify(targetBase)})||String(f.action||'').includes('/result-page'))||document.readyState==='complete')()`,
+      );
+      if (ready === true) return;
+    } catch {
+      // page still settling
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
+function isUsableDocumentNavigationHtml(html: string): boolean {
+  return html.length > 1024 && /<body[\s>]/i.test(html) && /<\/body>/i.test(html);
+}
+
+async function waitForUsableDocumentNavigation(
+  tabId: string,
+  targetBase: string,
+  targetQueryId: string | null,
+  timeoutMs = 5000,
+): Promise<{ currentUrl: string; currentHtml: string } | null> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const currentUrl = await kuri.getCurrentUrl(tabId);
+      if (matchesTriggerTargetUrl(currentUrl, targetBase, targetQueryId)) {
+        const currentHtml = await kuri.getPageHtml(tabId);
+        if (isUsableDocumentNavigationHtml(currentHtml)) {
+          return { currentUrl, currentHtml };
+        }
+      }
+    } catch {
+      // keep waiting
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return null;
+}
+
 /**
  * Trigger-and-intercept execution: navigate to the page that originally
  * triggered an API call, let the site's own JS make the request (passing
@@ -1618,15 +1705,18 @@ export async function triggerAndIntercept(
     authSource?: BrowserAuthSourceMeta | null;
     usedProfileContext?: boolean;
     preferExistingTab?: boolean;
+    method?: string;
+    body?: Record<string, unknown> | undefined;
   },
 ): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
   startedDateTime: string;
   request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
   response: { status: number; headers: Array<{ name: string; value: string }>; content?: { mimeType?: string; text?: string } };
-}> }> {
+  }> }> {
   await acquireTabSlot();
   await kuri.start();
   await kuri.discoverTabs();
+  const isDocumentPostFlow = (options?.method ?? "GET").toUpperCase() === "POST" && !!options?.body && typeof options.body === "object";
 
   let tabId: string | undefined;
   let createdFreshTab = false;
@@ -1657,11 +1747,13 @@ export async function triggerAndIntercept(
 
   try {
     let harStarted = false;
-    try {
-      await kuri.harStart(tabId);
-      harStarted = true;
-    } catch {
-      // best-effort
+    if (!isDocumentPostFlow) {
+      try {
+        await kuri.harStart(tabId);
+        harStarted = true;
+      } catch {
+        // best-effort
+      }
     }
 
     // Set headers
@@ -1685,16 +1777,38 @@ export async function triggerAndIntercept(
       const origin = new URL(triggerUrl).origin;
       await kuri.navigate(tabId, origin);
       await new Promise((r) => setTimeout(r, 500));
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      if (!isDocumentPostFlow) await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
     } catch { /* best-effort */ }
 
     // Navigate to the trigger page — the site's JS will make the API call
     await kuri.navigate(tabId, triggerUrl);
     // Re-inject interceptor after navigation
     try {
-      await new Promise((r) => setTimeout(r, 300));
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      if (isDocumentPostFlow) {
+        await waitForReadyState(tabId, 8000);
+        await waitForTriggerForm(tabId, targetBase);
+      } else {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      if (!isDocumentPostFlow) await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
     } catch { /* page may not be ready */ }
+
+    if ((options?.method ?? "GET").toUpperCase() === "POST" && options?.body && typeof options.body === "object") {
+      log("capture", `trigger-and-intercept: submitting POST form to ${targetBase}`);
+      const submitState = {
+        action: targetUrlPattern,
+        payload: options.body,
+      };
+      await kuri.evaluate(tabId, `window.__unbrowseSubmitState=${JSON.stringify(submitState)};true`);
+      await kuri.evaluate(
+        tabId,
+        `(()=>{const s=window.__unbrowseSubmitState||{},p=s.payload||{},fs=[...document.forms||[]];let f=null,b=-1;for(const x of fs){const a=String(x.action||'');let n=a.includes(s.action)?10:(a.includes('/result-page')?4:0);for(const k of Object.keys(p))if(x.querySelector('[name="'+k+'"]'))n+=2;if(n>b){b=n;f=x}}if(!f){f=document.createElement('form');f.method='POST';f.action=s.action||'';f.style.display='none';document.body.appendChild(f)}f.method='POST';if(s.action)f.action=s.action;const add=(k,v)=>{if(v==null)return;if(Array.isArray(v))return v.forEach((vv)=>add(k,vv));const i=document.createElement('input');i.type='hidden';i.name=k;i.value=String(v);f.appendChild(i)};for(const [k,v] of Object.entries(p)){const els=[...f.querySelectorAll('[name="'+k+'"]')];if(!els.length){add(k,v);continue}for(const el of els){const t=String(el.type||'').toLowerCase(),g=String(el.tagName||'').toLowerCase();if(t==='checkbox'||t==='radio'){const vs=(Array.isArray(v)?v:[v]).map(String);el.checked=vs.includes(String(el.value??'on'));continue}if(g==='select'&&el.multiple&&Array.isArray(v)){const vs=v.map(String);for(const o of [...el.options||[]])o.selected=vs.includes(String(o.value));continue}el.value=Array.isArray(v)?String(v[0]??''):String(v??'')}}window.__unbrowseSubmitMeta={action:f.action,formId:f.id||null,mode:f===fs.find(Boolean)?'existing-form':'synthetic-form'};return true})()`,
+      );
+      await kuri.evaluate(
+        tabId,
+        `(()=>{const f=[...document.forms||[]].find((x)=>String(x.action||'')===String(window.__unbrowseSubmitState?.action||''))||document.forms[0];if(typeof window.basicformSubmit==='function'){window.basicformSubmit();return 'basicformSubmit'}if(f){f.submit();return 'submit'}return 'no-form'})()`,
+      );
+    }
 
     // Poll for the target response
     const POLL_INTERVAL = 1000;
@@ -1703,48 +1817,111 @@ export async function triggerAndIntercept(
 
     while (Date.now() - startTime < MAX_WAIT) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-      const intercepted = await collectInterceptedRequests(tabId);
-      for (const entry of intercepted) {
-        const respUrl = entry.url;
-        const baseMatch = respUrl.includes(targetBase);
-        const queryIdMatch = !targetQueryId || respUrl.includes(targetQueryId);
-        if (baseMatch && queryIdMatch) {
-          let data: unknown = entry.response_body;
-          try { data = JSON.parse(entry.response_body ?? ""); } catch { /* keep as string */ }
-          log("capture", `trigger-and-intercept: got status ${entry.response_status} for ${targetBase}`);
-          return {
-            status: entry.response_status,
-            data,
-            trace_id: nanoid(),
-            network_events: [{
-              startedDateTime: entry.timestamp,
-              request: {
-                url: entry.url,
-                method: entry.method,
-                headers: Object.entries(entry.request_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
-                ...(entry.request_body == null ? {} : {
-                  postData: {
-                    text: entry.request_body,
-                  },
-                }),
-              },
-              response: {
-                status: entry.response_status,
-                headers: Object.entries(entry.response_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
-                ...(entry.response_body == null ? {} : {
-                  content: {
-                    mimeType: entry.content_type,
-                    text: entry.response_body,
-                  },
-                }),
-              },
-            }],
-          };
+      if (!isDocumentPostFlow) {
+        const intercepted = await collectInterceptedRequests(tabId);
+        for (const entry of intercepted) {
+          const respUrl = entry.url;
+          if (matchesTriggerTargetUrl(respUrl, targetBase, targetQueryId)) {
+            let data: unknown = entry.response_body;
+            try { data = JSON.parse(entry.response_body ?? ""); } catch { /* keep as string */ }
+            log("capture", `trigger-and-intercept: got status ${entry.response_status} for ${targetBase}`);
+            return {
+              status: entry.response_status,
+              data,
+              trace_id: nanoid(),
+              network_events: [{
+                startedDateTime: entry.timestamp,
+                request: {
+                  url: entry.url,
+                  method: entry.method,
+                  headers: Object.entries(entry.request_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                  ...(entry.request_body == null ? {} : {
+                    postData: {
+                      text: entry.request_body,
+                    },
+                  }),
+                },
+                response: {
+                  status: entry.response_status,
+                  headers: Object.entries(entry.response_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                  ...(entry.response_body == null ? {} : {
+                    content: {
+                      mimeType: entry.content_type,
+                      text: entry.response_body,
+                    },
+                  }),
+                },
+              }],
+            };
+          }
         }
+      }
+      try {
+        const currentUrl = await kuri.getCurrentUrl(tabId);
+        if (matchesTriggerTargetUrl(currentUrl, targetBase, targetQueryId)) {
+          const settledNavigation = await waitForUsableDocumentNavigation(tabId, targetBase, targetQueryId, 5000);
+          if (settledNavigation) {
+            const { currentUrl: settledUrl, currentHtml } = settledNavigation;
+            log("capture", `trigger-and-intercept: detected document navigation ${currentUrl}`);
+            return {
+              status: 200,
+              data: currentHtml,
+              trace_id: nanoid(),
+              network_events: [{
+                startedDateTime: new Date().toISOString(),
+                request: {
+                  url: settledUrl,
+                  method: "GET",
+                  headers: [],
+                },
+                response: {
+                  status: 200,
+                  headers: [{ name: "content-type", value: "text/html" }],
+                  content: {
+                    mimeType: "text/html",
+                    text: currentHtml,
+                  },
+                },
+              }],
+            };
+          }
+        }
+      } catch {
+        // keep polling
       }
     }
 
     log("capture", `trigger-and-intercept: timeout waiting for ${targetBase}`);
+    try {
+      const settledNavigation = await waitForUsableDocumentNavigation(tabId, targetBase, targetQueryId, 5000);
+      if (settledNavigation) {
+        const { currentUrl, currentHtml } = settledNavigation;
+        log("capture", `trigger-and-intercept: recovered document navigation ${currentUrl}`);
+        return {
+          status: 200,
+          data: currentHtml,
+          trace_id: nanoid(),
+          network_events: [{
+            startedDateTime: new Date().toISOString(),
+            request: {
+              url: currentUrl,
+              method: "GET",
+              headers: [],
+            },
+            response: {
+              status: 200,
+              headers: [{ name: "content-type", value: "text/html" }],
+              content: {
+                mimeType: "text/html",
+                text: currentHtml,
+              },
+            },
+          }],
+        };
+      }
+    } catch {
+      // keep falling through
+    }
     if (harStarted) {
       try {
         const { entries } = await kuri.harStop(tabId);
