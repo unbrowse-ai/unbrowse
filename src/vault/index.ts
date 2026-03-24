@@ -126,22 +126,6 @@ function writeVaultFile(data: Record<string, string>): void {
   writeFileSync(VAULT_FILE, Buffer.concat([iv, enc]), { mode: 0o600 });
 }
 
-async function storeCredentialInFile(account: string, serialized: string): Promise<void> {
-  await withVaultLock(() => {
-    const data = readVaultFile();
-    data[account] = serialized;
-    writeVaultFile(data);
-  });
-}
-
-async function deleteCredentialFromFile(account: string): Promise<void> {
-  await withVaultLock(() => {
-    const data = readVaultFile();
-    delete data[account];
-    writeVaultFile(data);
-  });
-}
-
 export async function storeCredential(
   account: string,
   value: string,
@@ -155,8 +139,12 @@ export async function storeCredential(
   };
   const serialized = JSON.stringify(wrapped);
   const keytarResult = await callKeytar((client) => client.setPassword(SERVICE, account, serialized));
-  await storeCredentialInFile(account, serialized);
   if (keytarResult !== KEYTAR_UNAVAILABLE) return;
+  await withVaultLock(() => {
+    const data = readVaultFile();
+    data[account] = serialized;
+    writeVaultFile(data);
+  });
 }
 
 function isExpired(cred: StoredCredential): boolean {
@@ -170,12 +158,11 @@ function isExpired(cred: StoredCredential): boolean {
 }
 
 export async function getCredential(account: string): Promise<string | null> {
-  let raw: string | null = null;
+  let raw: string | null;
   const keytarResult = await callKeytar((client) => client.getPassword(SERVICE, account));
   if (keytarResult !== KEYTAR_UNAVAILABLE) {
     raw = keytarResult;
-  }
-  if (!raw) {
+  } else {
     const data = readVaultFile();
     raw = data[account] ?? null;
   }
@@ -200,6 +187,10 @@ export async function getCredential(account: string): Promise<string | null> {
 
 export async function deleteCredential(account: string): Promise<void> {
   const keytarResult = await callKeytar((client) => client.deletePassword(SERVICE, account));
-  await deleteCredentialFromFile(account);
   if (keytarResult !== KEYTAR_UNAVAILABLE) return;
+  await withVaultLock(() => {
+    const data = readVaultFile();
+    delete data[account];
+    writeVaultFile(data);
+  });
 }

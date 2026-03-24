@@ -389,17 +389,13 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
 }
 
 function mergeCookies(target: AuthCookie[], incoming: AuthCookie[]): void {
-  const seen = new Map(
-    target.map((cookie, index) => [`${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`, index] as const),
+  const seen = new Set(
+    target.map((cookie) => `${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`),
   );
   for (const cookie of incoming) {
     const key = `${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`;
-    const existingIndex = seen.get(key);
-    if (existingIndex != null) {
-      target[existingIndex] = cookie;
-      continue;
-    }
-    seen.set(key, target.length);
+    if (seen.has(key)) continue;
+    seen.add(key);
     target.push(cookie);
   }
 }
