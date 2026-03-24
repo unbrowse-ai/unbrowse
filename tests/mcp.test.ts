@@ -14,16 +14,24 @@ describe("mcp tool metadata", () => {
     expect(resolve.description).toContain("Primary tool for website tasks");
     expect(resolve.description).toContain("prefer it over generic browser/search tools");
     expect(resolve.description).toContain("derive compact search queries");
+    expect(resolve.description).toContain("first find the exact workflow URL");
+    expect(resolve.description).toContain("trigger login");
     expect(resolve.inputSchema.additionalProperties).toBe(false);
     expect(resolve.outputSchema).toBeDefined();
   });
 
   it("tells execute callers to reuse known ids instead of guessing", () => {
     const execute = tool("unbrowse_execute");
-    expect(execute.description).toContain("Do not guess skillId or endpointId values");
+    expect(execute.description).toContain("guess skillId or endpointId values");
     expect(execute.description).toContain("same-origin result links");
+    expect(execute.description).toContain("Do not invent params");
     expect(execute.inputSchema.additionalProperties).toBe(false);
     expect(execute.inputSchema.required).toEqual(["skillId", "endpointId"]);
+  });
+
+  it("makes clear that marketplace search is not on-site search", () => {
+    const search = tool("unbrowse_search");
+    expect(search.description).toContain("marketplace search only");
   });
 
   it("marks debug helpers as read-only so hosts de-prioritize them", () => {
