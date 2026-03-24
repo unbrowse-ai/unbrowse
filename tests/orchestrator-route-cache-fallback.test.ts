@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   chooseBestRouteCacheCandidate,
   isCachedSkillRelevantForIntent,
+  skillHasContextStructuredSearchEndpoint,
   shouldReuseRouteResultSnapshot,
   shouldFallbackToLiveCaptureAfterAutoexecFailure,
 } from "../src/orchestrator/index.js";
@@ -244,6 +245,19 @@ describe("isCachedSkillRelevantForIntent", () => {
         contextUrl,
       ),
     ).toBe(false);
+  });
+});
+
+describe("skillHasContextStructuredSearchEndpoint", () => {
+  test("keeps same-context structured search skills on the deferral path", () => {
+    const skill = makeSkill();
+    expect(
+      skillHasContextStructuredSearchEndpoint(
+        skill,
+        '"application for leave to adduce" "assessment of damages" "court allowed new evidence"',
+        "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search",
+      ),
+    ).toBe(true);
   });
 });
 

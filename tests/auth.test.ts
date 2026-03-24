@@ -258,6 +258,35 @@ describe("stored auth bundle resolution", () => {
       profile: "Profile 7",
     });
   });
+
+  it("prefers later auth cookies over stale earlier duplicates", async () => {
+    await storeTestCredential("www.example.com-session", JSON.stringify({
+      cookies: [
+        makeCookie({ name: "JSESSIONID", domain: "www.example.com", path: "/", value: "stale" }),
+      ],
+    }));
+    await storeTestCredential("auth:example.com", JSON.stringify({
+      cookies: [
+        makeCookie({ name: "JSESSIONID", domain: "www.example.com", path: "/", value: "fresh" }),
+        makeCookie({ name: "LOGIN", domain: ".example.com", path: "/", value: "present" }),
+      ],
+      source_meta: {
+        family: "chromium",
+        browserName: "Dia",
+        source: "Dia user data",
+        userDataDir: "/tmp/dia-user-data",
+        profile: "Default",
+      },
+    }));
+
+    const result = await getStoredAuthBundle("www.example.com");
+    expect(result).not.toBeNull();
+    const jsession = result!.cookies.find((cookie) =>
+      cookie.name === "JSESSIONID" && cookie.domain === "www.example.com" && (cookie.path ?? "/") === "/"
+    );
+    expect(jsession?.value).toBe("fresh");
+    expect(result!.cookies.some((cookie) => cookie.name === "LOGIN")).toBe(true);
+  });
 });
 
 describe("interactive login browser resolution", () => {

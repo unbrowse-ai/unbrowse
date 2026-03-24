@@ -85,9 +85,9 @@ describe("executeSkill form-urlencoded DOM endpoint", () => {
       execution_type: "http",
       created_at: now,
       updated_at: now,
-      name: "lawnet.sg",
+      name: "generic-html.test",
       intent_signature: "search for high court case assessment of damages new evidence adduced after tranches started",
-      domain: "127.0.0.1",
+      domain: "generic-html.test",
       description: "lawnet form skill",
       owner_type: "agent",
       endpoints: [
