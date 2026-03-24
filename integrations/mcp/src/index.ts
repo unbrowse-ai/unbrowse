@@ -9,7 +9,7 @@ const TIMEOUT_MS = Number(process.env.UNBROWSE_TIMEOUT_MS) || 120_000;
 
 const server = new McpServer({
   name: "unbrowse",
-  version: "2.1.4",
+  version: "2.1.6",
 });
 
 function improveErrorText(errorText: string, toolName: string): string {
