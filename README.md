@@ -122,10 +122,12 @@ Put that in:
 ```bash
 unbrowse health
 unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
-unbrowse login --url "https://calendar.google.com"
+unbrowse login --url "https://calendar.google.com" --browser chrome
 unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
+
+`unbrowse login` reuses cookies from a supported local browser profile. On macOS, pass `--browser chrome|arc|dia|brave|edge|vivaldi|chromium|firefox` if your default browser is Safari or another unsupported app.
 
 ## Demo notes
 

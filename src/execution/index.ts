@@ -37,6 +37,18 @@ function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   return trace;
 }
 
+export function canUseTriggerIntercept(endpoint: EndpointDescriptor): boolean {
+  return !!endpoint.trigger_url && (endpoint.method === "GET" || endpoint.idempotency === "safe");
+}
+
+export function resolveTriggerInterceptTargetUrl(
+  url: string,
+  structuredReplayUrl: string,
+  hasStructuredReplay: boolean,
+): string {
+  return hasStructuredReplay ? structuredReplayUrl : url;
+}
+
 function mapHeaders(headers?: Record<string, string>): TraceNetworkHeader[] {
   return Object.entries(headers ?? {}).map(([name, value]) => ({ name, value: String(value) }));
 }
@@ -105,6 +117,24 @@ function toTraceNetworkEvent(input: {
       ...(responseCookies ? { cookies: responseCookies } : {}),
     },
   };
+}
+
+function hasSessionLikeAuthMaterial(
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  headers: Record<string, string>,
+): boolean {
+  if (
+    Object.keys(headers).some((name) =>
+      /^(authorization|x-api-key|x-auth-token|cookie)$/i.test(name),
+    )
+  ) {
+    return true;
+  }
+  return cookies.some((cookie) => {
+    const name = cookie.name.toLowerCase();
+    if (/^(__utm|_ga|_gid|_gat|_gcl|_fbp|_hj|amp_)/i.test(name)) return false;
+    return /(jsessionid|session|sess|auth|token|sid|jwt|li_at|laravel_session)/i.test(name);
+  });
 }
 
 const DEFAULT_BROWSER_UA =
@@ -728,7 +758,7 @@ export function buildStructuredReplayHeaders(
   return headers;
 }
 
-function shouldFallbackToBrowserReplay(
+export function shouldFallbackToBrowserReplay(
   data: unknown,
   endpoint: EndpointDescriptor,
   intent?: string,
@@ -736,9 +766,36 @@ function shouldFallbackToBrowserReplay(
 ): boolean {
   const replayUrl = resolveExecutionUrlTemplate(endpoint, contextUrl);
   if (!isDocumentLikeUrl(replayUrl)) return false;
-  if (typeof data === "string") return isHtml(data) || isSpaShell(data);
+  if (endpoint.dom_extraction && typeof data === "string" && isHtml(data)) return false;
+  if (typeof data === "string") {
+    if (isHtml(data) && looksLikeSearchAuthOrHomepageBounceHtml(data)) return false;
+    return isHtml(data) || isSpaShell(data);
+  }
   const assessment = assessIntentResult(data, intent);
   return assessment.verdict === "fail";
+}
+
+export function looksLikeSearchAuthOrHomepageBounceHtml(
+  html: string,
+  finalUrl?: string,
+): boolean {
+  if (!isHtml(html)) return false;
+  const lower = html.toLowerCase();
+  const titleMatch = lower.match(/<title[^>]*>([^<]+)</i);
+  const title = titleMatch?.[1]?.trim() ?? "";
+  const final = finalUrl?.toLowerCase() ?? "";
+  const combined = `${title} ${lower}`;
+  const hasLawnetBounceMarkers =
+    /about lawnet legal research/.test(combined) ||
+    /what is lawnet/.test(combined) ||
+    /forgot password/.test(combined) ||
+    /lawnet legal research, a service of/.test(combined) ||
+    /\/lawnet\/web\/lawnet\/about-lawnet\b/.test(combined) ||
+    /\/lawnet\/web\/lawnet\/home\b/.test(final);
+  const hasGenericAuthMarkers =
+    /\b(login|log in|sign in|forgot password)\b/.test(combined) &&
+    /\b(search|legal research|lawnet)\b/.test(combined);
+  return hasLawnetBounceMarkers || hasGenericAuthMarkers;
 }
 
 function buildSampleRequestFromUrl(url: string): Record<string, unknown> {
@@ -1192,7 +1249,7 @@ async function trySeedStructuredDocumentSkill(
   };
 
   const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill
       ? mergeEndpoints(existingSkill.endpoints, [canonicalDocumentEndpoint])
@@ -1297,7 +1354,7 @@ async function trySeedDirectJsonFetchSkill(
   };
 
   const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill ? mergeEndpoints(existingSkill.endpoints, [endpoint]) : [endpoint],
     intent,
@@ -1381,7 +1438,7 @@ async function trySeedPublicDocumentFetchSkill(
   if (!built.endpoint) return undefined;
 
   const domain = getRegistrableDomain(targetDomain);
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   const localEndpoints = await prepareLearnedEndpoints(
     existingSkill
       ? mergeEndpoints(existingSkill.endpoints, [built.endpoint])
@@ -1507,6 +1564,10 @@ async function executeBrowserCapture(
   }
   const forceProfileContext = (() => {
     if (authSourceMeta?.family !== "chromium") return false;
+    if (options?.force_capture) {
+      const hasReplayableAuth = (cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0;
+      return !hasReplayableAuth;
+    }
     try {
       const pathname = new URL(url).pathname.toLowerCase();
       return /\/(home|feed|timeline|bookmarks|notifications|messages|inbox|dashboard|search\/results|i\/)/.test(pathname);
@@ -1514,37 +1575,39 @@ async function executeBrowserCapture(
       return false;
     }
   })();
-  const seeded = await trySeedStructuredDocumentSkill(
-    skill,
-    url,
-    intent,
-    params,
-    targetDomain,
-    authHeaders,
-    cookies,
-    usedStoredAuth,
-  );
-  if (seeded) return seeded;
-  const directJsonSeed = await trySeedDirectJsonFetchSkill(
-    skill,
-    url,
-    intent,
-    targetDomain,
-    authHeaders,
-    cookies,
-    usedStoredAuth,
-  );
-  if (directJsonSeed) return directJsonSeed;
-  const documentSeed = await trySeedPublicDocumentFetchSkill(
-    skill,
-    url,
-    intent,
-    targetDomain,
-    authHeaders,
-    cookies,
-    usedStoredAuth,
-  );
-  if (documentSeed) return documentSeed;
+  if (!options?.force_capture) {
+    const seeded = await trySeedStructuredDocumentSkill(
+      skill,
+      url,
+      intent,
+      params,
+      targetDomain,
+      authHeaders,
+      cookies,
+      usedStoredAuth,
+    );
+    if (seeded) return seeded;
+    const directJsonSeed = await trySeedDirectJsonFetchSkill(
+      skill,
+      url,
+      intent,
+      targetDomain,
+      authHeaders,
+      cookies,
+      usedStoredAuth,
+    );
+    if (directJsonSeed) return directJsonSeed;
+    const documentSeed = await trySeedPublicDocumentFetchSkill(
+      skill,
+      url,
+      intent,
+      targetDomain,
+      authHeaders,
+      cookies,
+      usedStoredAuth,
+    );
+    if (documentSeed) return documentSeed;
+  }
   let captured;
   try {
     captured = await captureSession(url, authHeaders, cookies, intent, {
@@ -1872,7 +1935,7 @@ async function executeBrowserCapture(
   if (cleanEndpoints.length === 0) {
     // DOM fallback: extract structured data from rendered page, learn a DOM skill
     if (domArtifactEndpoint && domArtifactResult) {
-        const existingDomSkill = findExistingSkillForDomain(domain, intent);
+        const existingDomSkill = findExistingSkillForDomain(domain, intent, url);
         const domEndpoints = await prepareLearnedEndpoints(
           existingDomSkill
             ? mergeEndpoints(existingDomSkill.endpoints, [domArtifactEndpoint])
@@ -1959,7 +2022,7 @@ async function executeBrowserCapture(
 
   // Reuse existing skill for this domain to preserve skill_id and learned exec_strategy.
   // This prevents duplicate skills accumulating in the marketplace on re-captures.
-  const existingSkill = findExistingSkillForDomain(domain, intent);
+  const existingSkill = findExistingSkillForDomain(domain, intent, url);
   if (existingSkill) {
     // Carry forward learned exec_strategy from old endpoints to matching new ones
     for (const ep of cleanEndpoints) {
@@ -2102,10 +2165,12 @@ async function executeDomExtractionEndpoint(
   cookies: Array<{ name: string; value: string; domain: string }>,
 ): Promise<{ data: unknown; status: number; trace_id: string; network_events?: TraceNetworkEvent[] }> {
   const extractionIntent = deriveDomExecutionIntent(endpoint, intent);
+  const isCapturedPageArtifact = /captured page artifact/i.test(endpoint.description ?? "");
 
   // SSR fast-path: try plain HTTP fetch before browser
   const ssrResult = await tryHttpFetch(url, authHeaders, cookies);
   if (ssrResult) {
+    const looksLikeBounce = looksLikeSearchAuthOrHomepageBounceHtml(ssrResult.html, ssrResult.final_url);
     const ssrExtracted = extractFromDOMWithHint(ssrResult.html, extractionIntent, endpoint.dom_extraction);
     if (ssrExtracted.data) {
       const ssrQuality = validateExtractionQuality(ssrExtracted.data, ssrExtracted.confidence, extractionIntent);
@@ -2137,6 +2202,41 @@ async function executeDomExtractionEndpoint(
           };
         }
       }
+      if (isCapturedPageArtifact) {
+        return {
+          data: {
+            error: "low_quality_dom_extraction",
+            message: `Structured DOM extraction was rejected: ${looksLikeBounce ? "search_auth_or_homepage_bounce" : "captured_page_artifact_miss"}`,
+          },
+          status: 422,
+          trace_id: nanoid(),
+          network_events: [toTraceNetworkEvent({
+            url: ssrResult.final_url,
+            method: "GET",
+            requestHeaders: authHeaders,
+            responseStatus: 200,
+            responseHeaders: { "content-type": "text/html" },
+            responseBody: ssrResult.html,
+          })],
+        };
+      }
+    } else if (isCapturedPageArtifact && looksLikeBounce) {
+      return {
+        data: {
+          error: "low_quality_dom_extraction",
+          message: "Structured DOM extraction was rejected: search_auth_or_homepage_bounce",
+        },
+        status: 422,
+        trace_id: nanoid(),
+        network_events: [toTraceNetworkEvent({
+          url: ssrResult.final_url,
+          method: "GET",
+          requestHeaders: authHeaders,
+          responseStatus: 200,
+          responseHeaders: { "content-type": "text/html" },
+          responseBody: ssrResult.html,
+        })],
+      };
     }
     console.log(`[ssr-fast] miss, falling back to browser`);
   } else {
@@ -2395,6 +2495,73 @@ export async function executeEndpoint(
       // URL parse failure — skip cookie resolution
     }
   }
+  const registrableDomain = getRegistrableDomain(epDomain);
+  if (
+    registrableDomain &&
+    registrableDomain !== epDomain &&
+    !hasSessionLikeAuthMaterial(cookies, authHeaders)
+  ) {
+    try {
+      let regBundle = await getStoredAuthBundle(registrableDomain);
+      if (storedAuthNeedsBrowserRefresh(regBundle)) {
+        await refreshAuthFromBrowser(registrableDomain);
+        regBundle = await getStoredAuthBundle(registrableDomain);
+      }
+      if (regBundle) {
+        const regCookies = regBundle.cookies.filter((cookie) =>
+          !cookies.some((existing) => existing.name === cookie.name && existing.domain === cookie.domain),
+        );
+        cookies.push(...regCookies);
+        if (Object.keys(authHeaders).length === 0 && Object.keys(regBundle.headers).length > 0) {
+          Object.assign(authHeaders, regBundle.headers);
+        }
+        authSourceMeta = regBundle.source_meta ?? authSourceMeta;
+      } else if (!hasSessionLikeAuthMaterial(cookies, authHeaders)) {
+        const resolved = await getAuthCookies(registrableDomain, {
+          autoExtract: !!skill.auth_profile_ref || endpoint.semantic?.auth_required === true,
+        });
+        if (resolved && resolved.length > 0) {
+          cookies.push(...resolved.filter((cookie) =>
+            !cookies.some((existing) => existing.name === cookie.name && existing.domain === cookie.domain),
+          ));
+        }
+      }
+    } catch {
+      /* ignore registrable-domain auth fallback failures */
+    }
+  }
+
+  const reloadAuthMaterial = async () => {
+    cookies.length = 0;
+    for (const key of Object.keys(authHeaders)) delete authHeaders[key];
+    authSourceMeta = null;
+
+    try {
+      const epBundle = await getStoredAuthBundle(epDomain);
+      if (epBundle) {
+        cookies.push(...epBundle.cookies);
+        Object.assign(authHeaders, epBundle.headers);
+        authSourceMeta = epBundle.source_meta ?? authSourceMeta;
+      }
+    } catch {
+      /* ignore endpoint-domain reload failure */
+    }
+
+    if (registrableDomain && registrableDomain !== epDomain) {
+      try {
+        const regBundle = await getStoredAuthBundle(registrableDomain);
+        if (regBundle) {
+          cookies.push(...regBundle.cookies.filter((cookie) =>
+            !cookies.some((existing) => existing.name === cookie.name && existing.domain === cookie.domain),
+          ));
+          if (Object.keys(authHeaders).length === 0) Object.assign(authHeaders, regBundle.headers);
+          authSourceMeta = regBundle.source_meta ?? authSourceMeta;
+        }
+      } catch {
+        /* ignore registrable-domain reload failure */
+      }
+    }
+  };
 
   log("exec", `endpoint ${endpoint.endpoint_id}: cookies=${cookies.length} authHeaders=${Object.keys(authHeaders).length} hasAuth=${cookies.length > 0 || Object.keys(authHeaders).length > 0}`);
 
@@ -2414,15 +2581,33 @@ export async function executeEndpoint(
       }
     }
   }
-  applyStructuredQueryDefaults(mergedParams, endpoint.url_template, endpoint.query);
+  const queryDefaults: Record<string, unknown> = (() => {
+    const derived: Record<string, unknown> = {};
+    const sampleRequestUrl = endpoint.semantic?.sample_request_url;
+    if (sampleRequestUrl) {
+      try {
+        const sampleUrl = new URL(sampleRequestUrl);
+        for (const [key, value] of sampleUrl.searchParams.entries()) {
+          derived[key] = value;
+        }
+      } catch {
+        /* ignore malformed sample request URL */
+      }
+    }
+    return {
+      ...derived,
+      ...(endpoint.query ?? {}),
+    };
+  })();
+  applyStructuredQueryDefaults(mergedParams, endpoint.url_template, queryDefaults);
 
   // Merge captured query params into URL — user params override endpoint defaults
   let urlTemplate = resolveExecutionUrlTemplate(endpoint, options?.contextUrl);
-  if (endpoint.query && typeof endpoint.query === "object" && Object.keys(endpoint.query).length > 0) {
+  if (Object.keys(queryDefaults).length > 0) {
     try {
       const u = new URL(urlTemplate);
       const queryBindings = extractTemplateQueryBindings(endpoint.url_template);
-      for (const [k, v] of Object.entries(endpoint.query)) {
+      for (const [k, v] of Object.entries(queryDefaults)) {
         const currentTemplateValue = u.searchParams.get(k) ?? "";
         const structuredOverride = typeof v === "string"
           ? mergeStructuredQueryValue(currentTemplateValue, v, mergedParams)
@@ -2500,6 +2685,11 @@ export async function executeEndpoint(
 
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
+  const triggerInterceptTargetUrl = resolveTriggerInterceptTargetUrl(
+    url,
+    structuredReplayUrl,
+    hasStructuredReplay,
+  );
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string; network_events: TraceNetworkEvent[] }> => {
     // Default accept to JSON, but never overwrite the endpoint's own accept header
@@ -2570,10 +2760,11 @@ export async function executeEndpoint(
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
+      const serializedBody = serializeExecutionBody(body, replayHeaders);
       const res = await fetch(replayUrl, {
         method: endpoint.method,
         headers: replayHeaders,
-        body: body ? JSON.stringify(body) : undefined,
+        body: serializedBody,
         redirect: "follow",
       });
       let data: unknown;
@@ -2587,7 +2778,7 @@ export async function executeEndpoint(
         url: replayUrl,
         method: endpoint.method,
         requestHeaders: replayHeaders,
-        requestBody: body,
+        requestBody: serializedBody ?? body,
         responseStatus: res.status,
         responseHeaders,
         responseBody: text,
@@ -2600,6 +2791,19 @@ export async function executeEndpoint(
     }
 
     return { data: last.data, status: last.status, trace_id: nanoid(), network_events: networkEvents.length > 0 ? networkEvents : [last.event] };
+  };
+
+  const serverFetchWithAuthRefresh = async () => {
+    let current = await serverFetch();
+    if (current.status !== 401 && current.status !== 403) return current;
+    const refreshedEndpoint = await refreshAuthFromBrowser(epDomain).catch(() => false);
+    const refreshedRegistrable =
+      !refreshedEndpoint && registrableDomain && registrableDomain !== epDomain
+        ? await refreshAuthFromBrowser(registrableDomain).catch(() => false)
+        : false;
+    if (!refreshedEndpoint && !refreshedRegistrable) return current;
+    await reloadAuthMaterial();
+    return serverFetch();
   };
 
   const browserCall = () => executeInBrowser(
@@ -2648,11 +2852,11 @@ export async function executeEndpoint(
     const endpointStrategy = endpoint.exec_strategy;
 
     if (hasStructuredReplay) {
-      result = await serverFetch();
+      result = await serverFetchWithAuthRefresh();
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
-      } else if (endpoint.trigger_url && isSafe) {
-        result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+      } else if (canUseTriggerIntercept(endpoint)) {
+        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
           authSource: authSourceMeta,
         });
         strategy = "trigger-intercept";
@@ -2662,17 +2866,34 @@ export async function executeEndpoint(
       }
     } else if (endpointStrategy === "server") {
       // Proven: server-fetch works for this endpoint
-      result = await serverFetch();
-      if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+      result = await serverFetchWithAuthRefresh();
+      if (result.status >= 200 && result.status < 400) {
+        if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+          if (canUseTriggerIntercept(endpoint)) {
+            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
+              authSource: authSourceMeta,
+            });
+            strategy = "trigger-intercept";
+          } else {
+            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+            strategy = "browser";
+          }
+        } else {
+          strategy = "server";
+        }
+      } else if (canUseTriggerIntercept(endpoint)) {
+        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
+          authSource: authSourceMeta,
+        });
+        strategy = "trigger-intercept";
+      } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
-      } else {
-        strategy = "server";
       }
-    } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
+    } else if (endpointStrategy === "trigger-intercept" && canUseTriggerIntercept(endpoint)) {
       // Proven: this endpoint needs trigger-intercept
       log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
-      result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+      result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
         authSource: authSourceMeta,
       });
       strategy = "trigger-intercept";
@@ -2695,7 +2916,7 @@ export async function executeEndpoint(
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
       try {
-        result = await serverFetch();
+        result = await serverFetchWithAuthRefresh();
         if (result.status >= 200 && result.status < 400) {
           if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
@@ -2705,8 +2926,8 @@ export async function executeEndpoint(
           }
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
-          if (endpoint.trigger_url && isSafe) {
-            result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders, {
+          if (canUseTriggerIntercept(endpoint)) {
+            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
               authSource: authSourceMeta,
             });
             strategy = "trigger-intercept";
@@ -2813,7 +3034,7 @@ export async function executeEndpoint(
       };
       trace.result = data;
     } else {
-      const extracted = extractFromDOM(data, intent);
+      const extracted = extractFromDOMWithHint(data, intent, endpoint.dom_extraction);
       if (extracted.data) {
         const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
         const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
@@ -3015,6 +3236,29 @@ function interpolateObj(
       params[k] != null ? JSON.stringify(params[k]) : `"{${k}}"`
     )
   ) as Record<string, unknown>;
+}
+
+function serializeExecutionBody(
+  body: Record<string, unknown> | undefined,
+  headers: Record<string, string>,
+): string | undefined {
+  if (!body) return undefined;
+  const contentType = Object.entries(headers).find(([key]) => key.toLowerCase() === "content-type")?.[1]?.toLowerCase() ?? "";
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body)) {
+      if (value == null) continue;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item != null) params.append(key, String(item));
+        }
+      } else {
+        params.append(key, String(value));
+      }
+    }
+    return params.toString();
+  }
+  return JSON.stringify(body);
 }
 
 /**
@@ -3325,6 +3569,21 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const plausibleCandidates = candidates.filter((ep) => isPlausibleForIntent(ep));
   if (plausibilityScopedIntent && plausibleCandidates.length === 0) return [];
   const rankedCandidates = plausibleCandidates.length > 0 ? plausibleCandidates : candidates;
+  const endpointHasSearchInputs = (ep: EndpointDescriptor): boolean => {
+    const haystack = JSON.stringify({
+      query: ep.query ?? {},
+      body_params: ep.body_params ?? {},
+      body: ep.body ?? {},
+      semantic: resolveEndpointSemantic(ep) ?? {},
+    }).toLowerCase();
+    return /(basicsearchkey|query|keyword|search|lookup|find|term)/.test(haystack);
+  };
+  const searchInputSiblingTriggers = new Set(
+    rankedCandidates
+      .filter((ep) => !!ep.trigger_url && !/captured page artifact/i.test(ep.description ?? "") && endpointHasSearchInputs(ep))
+      .map((ep) => ep.trigger_url)
+      .filter((value): value is string => !!value),
+  );
   const canonicalReplayTriggers = new Set(
     rankedCandidates
       .filter((ep) => isCanonicalReplayEndpoint(ep))
@@ -3337,6 +3596,12 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
         const looksLikeApiEndpoint = looksLikeStructuredApiUrl(ep.url_template);
         return !!ep.trigger_url && !ep.dom_extraction && (looksLikeApiEndpoint || !!ep.response_schema || ep.method === "WS");
       })
+      .map((ep) => ep.trigger_url)
+      .filter((value): value is string => !!value),
+  );
+  const structuredSearchTriggers = new Set(
+    rankedCandidates
+      .filter((ep) => !!ep.trigger_url && endpointHasSearchInputs(ep) && (!!ep.dom_extraction || !!ep.response_schema))
       .map((ep) => ep.trigger_url)
       .filter((value): value is string => !!value),
   );
@@ -3433,6 +3698,10 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
     score += semanticIntentAdjustment(ep, intent);
+    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+      if (endpointHasSearchInputs(ep)) score += 180;
+      if (ep.method === "POST" && endpointHasSearchInputs(ep)) score += 40;
+    }
 
     // Rich schema = likely structured data endpoint
     if (ep.response_schema) {
@@ -3526,6 +3795,8 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     const isCapturedPageArtifact = /captured page artifact/i.test(ep.description ?? "");
     const hasCanonicalReplaySibling = !!ep.trigger_url && canonicalReplayTriggers.has(ep.trigger_url);
     const hasStructuredApiSibling = !!ep.trigger_url && structuredApiTriggers.has(ep.trigger_url);
+    const hasSearchInputSibling = !!ep.trigger_url && searchInputSiblingTriggers.has(ep.trigger_url);
+    const hasStructuredSearchSibling = !!ep.trigger_url && structuredSearchTriggers.has(ep.trigger_url);
     const triggerPath = (() => {
       try {
         return ep.trigger_url ? new URL(ep.trigger_url).pathname : "";
@@ -3639,6 +3910,25 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
       score = Math.min(score, -400);
+    }
+    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+      if (endpointHasSearchInputs(ep) && (!!ep.dom_extraction || !!ep.response_schema)) {
+        score += 240;
+      }
+      if (hasStructuredSearchSibling && endpointHasSearchInputs(ep) && !ep.dom_extraction && !ep.response_schema) {
+        score -= 420;
+      }
+      if (hasStructuredSearchSibling && endpointHasSearchInputs(ep) && (!!ep.dom_extraction || !!ep.response_schema)) {
+        score += 220;
+      }
+      if (isCapturedPageArtifact && mismatchedContextDocument) {
+        score = Math.min(score, -400);
+      }
+      if (isCapturedPageArtifact && hasSearchInputSibling) {
+        score = Math.min(score, -300);
+      } else if (looksLikeDocumentRoute && hasSearchInputSibling) {
+        score = Math.min(score, -50);
+      }
     }
     if (hasCanonicalReplaySibling && ep.dom_extraction && !isCanonicalReplayEndpoint(ep)) {
       score -= 260;

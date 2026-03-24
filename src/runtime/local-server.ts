@@ -7,6 +7,7 @@ import { CODE_HASH } from "../version.js";
 
 type PidState = {
   pid: number;
+  child_pid?: number;
   base_url: string;
   started_at: string;
   entrypoint: string;
@@ -111,7 +112,7 @@ function readProcessCommand(pid: number): string {
 
 function isLikelyUnbrowseServerProcess(pid: number): boolean {
   const command = readProcessCommand(pid);
-  return /\bunbrowse\b|runtime-src\/index\.ts|src\/index\.ts|dist\/index\.js/i.test(command);
+  return /\bunbrowse\b|runtime-src\/(index|supervisor)\.ts|src\/(index|supervisor)\.ts|dist\/(index|supervisor)\.js/i.test(command);
 }
 
 async function stopManagedServer(pid: number, pidFile: string, baseUrl: string): Promise<void> {
@@ -151,6 +152,13 @@ function isStartupLockStale(lockFile: string): boolean {
   }
 }
 
+function shouldReclaimStartupLock(lockFile: string, pidFile: string): boolean {
+  if (!isStartupLockStale(lockFile)) return false;
+  const owner = readPidState(pidFile);
+  const ownerAlive = owner?.pid ? isPidAlive(owner.pid) : false;
+  return !ownerAlive;
+}
+
 function deriveListenEnv(baseUrl: string): Record<string, string> {
   const url = new URL(baseUrl);
   const host = !url.hostname || url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
@@ -158,9 +166,20 @@ function deriveListenEnv(baseUrl: string): Record<string, string> {
   return { HOST: host, PORT: port, UNBROWSE_URL: baseUrl };
 }
 
+function describeListenTarget(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  const host = !url.hostname || url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
+  const port = url.port || (url.protocol === "https:" ? "443" : "80");
+  return `${host}:${port}`;
+}
+
 export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
   const pidFile = getServerPidFile(baseUrl);
   const startupLockFile = `${pidFile}.lock`;
+  if (shouldReclaimStartupLock(startupLockFile, pidFile)) {
+    clearStalePidFile(pidFile);
+    clearStaleStartupLockFile(startupLockFile);
+  }
   let existing = readPidState(pidFile);
   const health = await getServerHealth(baseUrl);
   if (health.ok) {
@@ -201,6 +220,11 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
     startupLockFd = openSync(startupLockFile, "wx");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      if (shouldReclaimStartupLock(startupLockFile, pidFile)) {
+        clearStalePidFile(pidFile);
+        clearStaleStartupLockFile(startupLockFile);
+        return ensureLocalServer(baseUrl, noAutoStart, metaUrl);
+      }
       if (await waitForHealthy(baseUrl, 30_000)) return;
       const owner = readPidState(pidFile);
       const ownerAlive = owner?.pid ? isPidAlive(owner.pid) : false;
@@ -217,7 +241,20 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
   try {
     if (await isServerHealthy(baseUrl)) return;
 
-    const entrypoint = resolveSiblingEntrypoint(metaUrl, "index");
+    const discoveredPid = findListeningPid(baseUrl);
+    if (discoveredPid) {
+      if (isLikelyUnbrowseServerProcess(discoveredPid)) {
+        if (await waitForHealthy(baseUrl, 5_000)) return;
+        throw new Error(
+          `Port ${describeListenTarget(baseUrl)} already has an unbrowse server (pid ${discoveredPid}), but it did not become healthy.`,
+        );
+      }
+      throw new Error(
+        `Port ${describeListenTarget(baseUrl)} already in use by pid ${discoveredPid}.`,
+      );
+    }
+
+    const entrypoint = resolveSiblingEntrypoint(metaUrl, "supervisor");
     const packageRoot = getPackageRoot(metaUrl);
     const logFile = getServerAutostartLogFile();
     ensureDir(path.dirname(logFile));

@@ -16,9 +16,8 @@ pub const EventBuffer = struct {
     }
 
     pub fn push(self: *EventBuffer, event: []const u8) void {
-        const owned = self.allocator.dupe(u8, event) catch return;
         if (self.len < 32) {
-            self.items[self.len] = owned;
+            self.items[self.len] = event;
             self.len += 1;
         } else {
             // Ring buffer: overwrite oldest
@@ -27,7 +26,7 @@ pub const EventBuffer = struct {
             while (i < 31) : (i += 1) {
                 self.items[i] = self.items[i + 1];
             }
-            self.items[31] = owned;
+            self.items[31] = event;
         }
     }
 
@@ -229,7 +228,8 @@ test "EventBuffer push and hasEvent" {
     var buf = EventBuffer.init(std.testing.allocator);
     defer buf.deinit();
 
-    buf.push("{\"method\":\"Page.loadEventFired\",\"params\":{}}");
+    const event = try std.testing.allocator.dupe(u8, "{\"method\":\"Page.loadEventFired\",\"params\":{}}");
+    buf.push(event);
     try std.testing.expectEqual(@as(usize, 1), buf.len);
     try std.testing.expect(buf.hasEvent("Page.loadEventFired"));
     try std.testing.expect(!buf.hasEvent("Network.responseReceived"));
@@ -239,8 +239,10 @@ test "EventBuffer drain frees all" {
     var buf = EventBuffer.init(std.testing.allocator);
     defer buf.deinit();
 
-    buf.push("event1");
-    buf.push("event2");
+    const e1 = try std.testing.allocator.dupe(u8, "event1");
+    const e2 = try std.testing.allocator.dupe(u8, "event2");
+    buf.push(e1);
+    buf.push(e2);
     try std.testing.expectEqual(@as(usize, 2), buf.len);
     buf.drain();
     try std.testing.expectEqual(@as(usize, 0), buf.len);

@@ -436,6 +436,14 @@ function normalizeStructureForIntent(structure: ExtractedStructure, intent: stri
   if (structure.type !== "repeated-elements" || !Array.isArray(structure.data)) return structure;
   const objectRows = (structure.data as unknown[]).filter((row): row is Record<string, string> => !!row && typeof row === "object" && !Array.isArray(row));
   if (objectRows.length === 0) return structure;
+  const normalizedLawNet = normalizeLawNetSearchRows(objectRows);
+  if (normalizedLawNet.length >= 1) {
+    return {
+      ...structure,
+      data: normalizedLawNet,
+      element_count: normalizedLawNet.length,
+    };
+  }
   const pruned = pruneRowsForIntent(objectRows, intent);
   if (pruned.length >= 1 && pruned.length < objectRows.length) {
     return {
@@ -445,6 +453,92 @@ function normalizeStructureForIntent(structure: ExtractedStructure, intent: stri
     };
   }
   return structure;
+}
+
+function parseLawNetCitation(title: string): { case_name?: string; citation?: string } {
+  const match = title.match(/^(.*?)\s*-\s*(\[[^\]]+\].+)$/);
+  if (!match) return {};
+  const case_name = cleanText(match[1] ?? "");
+  const citation = cleanText(match[2] ?? "");
+  return {
+    ...(case_name ? { case_name } : {}),
+    ...(citation ? { citation } : {}),
+  };
+}
+
+function parseLawNetLabeledField(text: string, label: string): string | undefined {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(
+    new RegExp(`${escaped}\\s*:\\s*([\\s\\S]*?)(?=\\s+(?:Court|Corams?|Decision Date|Case Number|Catchword)\\s*:|$)`, "i"),
+  );
+  const value = cleanText(match?.[1] ?? "");
+  return value || undefined;
+}
+
+function isLikelyLawNetSearchShell(rows: Array<Record<string, string>>): boolean {
+  return rows.some((row) => {
+    if (row.title === "Search Results") return true;
+    const keys = Object.keys(row);
+    if (!keys.some((key) => /^heading_\d+$/.test(key))) return false;
+    return Object.values(row).some((value) =>
+      typeof value === "string" &&
+      (/Results returned:/i.test(value) || /\bCourt\s*:/.test(value) || /\[\d{4}\]/.test(value))
+    );
+  });
+}
+
+function parseLawNetCaseRow(text: string): Record<string, string> | null {
+  const cleaned = cleanText(text.replace(/\u00a0/g, " "));
+  if (!cleaned) return null;
+  if (
+    cleaned === "Search Results" ||
+    /^Results returned:/i.test(cleaned) ||
+    /^(Catchword|Category|Courts|Coram|Jurisdiction|Years|Title \[A to Z\]|Title \[Z to A\]|Date \[latest first\])$/i.test(cleaned) ||
+    /^Please enter the no\. of words before and after\./i.test(cleaned)
+  ) {
+    return null;
+  }
+  if (!/\[\d{4}\]/.test(cleaned)) return null;
+
+  const marker = cleaned.search(/\s+(?:Court|Corams?|Decision Date|Case Number|Catchword)\s*:/i);
+  const title = cleanText(marker >= 0 ? cleaned.slice(0, marker) : cleaned);
+  if (!title || !/\[\d{4}\]/.test(title) || title.length < 12) return null;
+
+  const row: Record<string, string> = {
+    title,
+    ...parseLawNetCitation(title),
+  };
+  const court = parseLawNetLabeledField(cleaned, "Court");
+  const coram = parseLawNetLabeledField(cleaned, "Corams") ?? parseLawNetLabeledField(cleaned, "Coram");
+  const decision_date = parseLawNetLabeledField(cleaned, "Decision Date");
+  const case_number = parseLawNetLabeledField(cleaned, "Case Number");
+  const catchword = parseLawNetLabeledField(cleaned, "Catchword");
+  if (court) row.court = court;
+  if (coram) row.coram = coram;
+  if (decision_date) row.decision_date = decision_date;
+  if (case_number) row.case_number = case_number;
+  if (catchword) row.catchword = catchword;
+  row.raw_text = cleaned;
+  return row;
+}
+
+export function normalizeLawNetSearchRows(rows: Array<Record<string, string>>): Array<Record<string, string>> {
+  if (rows.length === 0 || !isLikelyLawNetSearchShell(rows)) return [];
+
+  const bestByTitle = new Map<string, Record<string, string>>();
+  for (const row of rows) {
+    for (const value of Object.values(row)) {
+      if (typeof value !== "string") continue;
+      const parsed = parseLawNetCaseRow(value);
+      if (!parsed) continue;
+      const existing = bestByTitle.get(parsed.title);
+      if (!existing || Object.keys(parsed).length > Object.keys(existing).length) {
+        bestByTitle.set(parsed.title, parsed);
+      }
+    }
+  }
+
+  return [...bestByTitle.values()];
 }
 
 function normalizeGitHubPath(href: string | undefined): string | null {
@@ -1342,6 +1436,36 @@ function scoreFieldRichness(structure: ExtractedStructure): number {
   return 0;
 }
 
+function scoreCaseRowElements(structure: ExtractedStructure): number {
+  if (structure.type !== "repeated-elements" || !Array.isArray(structure.data)) return 0;
+  const items = structure.data as Array<Record<string, unknown>>;
+  if (items.length < 2) return 0;
+  const caseLike = items.filter((item) =>
+    typeof item.title === "string" &&
+    (
+      typeof item.case_name === "string" ||
+      typeof item.citation === "string" ||
+      typeof item.case_number === "string" ||
+      typeof item.court === "string"
+    ),
+  ).length;
+  if (caseLike >= Math.min(3, items.length)) return 220;
+  if (caseLike >= 2) return 140;
+  return 0;
+}
+
+function scoreSearchShellNoise(structure: ExtractedStructure): number {
+  if (structure.type !== "key-value" || !structure.data || typeof structure.data !== "object") return 0;
+  const record = structure.data as Record<string, unknown>;
+  const title = typeof record.title === "string" ? record.title : "";
+  const description = typeof record.description === "string" ? record.description : "";
+  const headingCount = Object.keys(record).filter((key) => /^heading_\d+$/.test(key)).length;
+  if (/^search results$/i.test(title) && /results returned:/i.test(description) && headingCount >= 6) {
+    return -260;
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------
 // extractFromDOM
 // ---------------------------------------------------------------------------
@@ -1460,7 +1584,13 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s),
+    score:
+      scoreRelevance(s, intentWords) +
+      scoreSemanticFit(s, intent) +
+      scoreSparseLinkList(s) +
+      scoreFieldRichness(s) +
+      scoreCaseRowElements(s) +
+      scoreSearchShellNoise(s),
   }));
 
   scored.sort((a, b) => b.score - a.score);

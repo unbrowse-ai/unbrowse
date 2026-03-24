@@ -5,12 +5,107 @@ import { isDomainMatch, getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
 import path from "node:path";
 import os from "node:os";
-import fs from "node:fs";
-import type { BrowserAuthSourceMeta } from "./browser-cookies.js";
+import {
+  findChromiumBrowserCandidate,
+  getSupportedChromiumBrowserCandidates,
+  getMacDefaultBrowserBundleId,
+} from "./browser-cookies.js";
+import type {
+  BrowserAuthSourceMeta,
+  BrowserSource,
+  ExtractBrowserCookiesOptions,
+} from "./browser-cookies.js";
 
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
 const MIN_WAIT_MS = 15_000;
+const FIREFOX_BUNDLE_ID = "org.mozilla.firefox";
+const SUPPORTED_INTERACTIVE_BROWSERS = ["auto", "chrome", "arc", "dia", "brave", "edge", "vivaldi", "chromium", "firefox"] as const;
+
+type InteractiveBrowser = typeof SUPPORTED_INTERACTIVE_BROWSERS[number];
+
+const MAC_BROWSER_NAME_BY_BUNDLE_ID: Record<string, string> = {
+  "com.apple.Safari": "Safari",
+  "org.mozilla.firefox": "Firefox",
+  "com.google.chrome": "Chrome",
+  "company.thebrowser.Browser": "Arc",
+  "company.thebrowser.dia": "Dia",
+  "com.brave.Browser": "Brave",
+  "com.microsoft.edgemac": "Edge",
+  "com.vivaldi.Vivaldi": "Vivaldi",
+  "org.chromium.Chromium": "Chromium",
+};
+
+const LINUX_BROWSER_COMMANDS: Partial<Record<Exclude<InteractiveBrowser, "auto">, string>> = {
+  firefox: "firefox",
+  chrome: "google-chrome",
+  arc: "arc",
+  dia: "dia",
+  brave: "brave-browser",
+  edge: "microsoft-edge",
+  vivaldi: "vivaldi",
+  chromium: "chromium",
+};
+
+export interface InteractiveLoginPlan {
+  browser: InteractiveBrowser;
+  browserLabel: string;
+  openCommand: string;
+  openArgs: string[];
+  extractOptions: ExtractBrowserCookiesOptions;
+}
+
+const DARWIN_APPLESCRIPT_NAMES: Partial<Record<Exclude<InteractiveBrowser, "auto" | "firefox">, string>> = {
+  chrome: "Google Chrome",
+  arc: "Arc",
+  dia: "Dia",
+  brave: "Brave Browser",
+  edge: "Microsoft Edge",
+  vivaldi: "Vivaldi",
+  chromium: "Chromium",
+};
+
+const DARWIN_BROWSER_BY_BUNDLE_ID: Partial<Record<string, Exclude<InteractiveBrowser, "auto">>> = {
+  "org.mozilla.firefox": "firefox",
+  "com.google.chrome": "chrome",
+  "company.thebrowser.Browser": "arc",
+  "company.thebrowser.dia": "dia",
+  "com.brave.Browser": "brave",
+  "com.microsoft.edgemac": "edge",
+  "com.vivaldi.Vivaldi": "vivaldi",
+  "org.chromium.Chromium": "chromium",
+};
+
+function buildDarwinChromiumOpenPlan(
+  browser: Exclude<InteractiveBrowser, "auto" | "firefox">,
+  url: string,
+  candidate: NonNullable<ReturnType<typeof findChromiumBrowserCandidate>>,
+): InteractiveLoginPlan {
+  const appName = DARWIN_APPLESCRIPT_NAMES[browser] ?? candidate.name;
+  const script = [
+    `tell application "${appName}"`,
+    "activate",
+    "if (count of windows) = 0 then",
+    "make new window",
+    "end if",
+    `set URL of active tab of front window to "${url.replaceAll("\"", "\\\"")}"`,
+    "end tell",
+  ].join("\n");
+  return {
+    browser,
+    browserLabel: candidate.name,
+    openCommand: "osascript",
+    openArgs: ["-e", script],
+    extractOptions: {
+      browser: "chromium",
+      chromium: {
+        userDataDir: candidate.userDataDir,
+        browserName: candidate.name,
+        safeStorageService: candidate.safeStorageService,
+      },
+    },
+  };
+}
 
 /**
  * Returns the persistent profile directory for a given domain.
@@ -24,6 +119,7 @@ export interface LoginResult {
   success: boolean;
   domain: string;
   cookies_stored: number;
+  browser_label?: string;
   error?: string;
 }
 
@@ -45,26 +141,150 @@ export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | 
   return false;
 }
 
+function normalizeInteractiveBrowser(browser?: string): InteractiveBrowser {
+  const normalized = (browser ?? "auto").trim().toLowerCase();
+  if ((SUPPORTED_INTERACTIVE_BROWSERS as readonly string[]).includes(normalized)) {
+    return normalized as InteractiveBrowser;
+  }
+  throw new Error(`Unsupported browser "${browser}". Use one of: ${SUPPORTED_INTERACTIVE_BROWSERS.join(", ")}`);
+}
+
+export function resolveInteractiveLoginPlan(
+  url: string,
+  browser?: string,
+  opts?: { platform?: NodeJS.Platform; defaultBundleId?: string | null },
+): InteractiveLoginPlan {
+  const requested = normalizeInteractiveBrowser(browser);
+  const runtimePlatform = opts?.platform ?? process.platform;
+
+  if (requested === "auto") {
+    if (runtimePlatform === "darwin") {
+      const defaultBundleId = opts?.defaultBundleId ?? getMacDefaultBrowserBundleId();
+      const supportedChromiumBundles = new Set(
+        getSupportedChromiumBrowserCandidates("darwin")
+          .map((candidate) => candidate.bundleId)
+          .filter((value): value is string => !!value),
+      );
+      const defaultBrowser = defaultBundleId ? DARWIN_BROWSER_BY_BUNDLE_ID[defaultBundleId] : undefined;
+      if (defaultBrowser === "firefox") {
+        return resolveInteractiveLoginPlan(url, "firefox", { platform: runtimePlatform, defaultBundleId });
+      }
+      if (defaultBrowser && defaultBrowser !== "firefox") {
+        return resolveInteractiveLoginPlan(url, defaultBrowser, { platform: runtimePlatform, defaultBundleId });
+      }
+      if (defaultBundleId && defaultBundleId !== FIREFOX_BUNDLE_ID && !supportedChromiumBundles.has(defaultBundleId)) {
+        const label = MAC_BROWSER_NAME_BY_BUNDLE_ID[defaultBundleId] ?? defaultBundleId;
+        throw new Error(`Default browser ${label} is not supported for cookie extraction. Re-run with --browser chrome, arc, dia, brave, edge, vivaldi, chromium, or firefox.`);
+      }
+    }
+
+    if (runtimePlatform === "darwin") {
+      return {
+        browser: requested,
+        browserLabel: "default browser",
+        openCommand: "open",
+        openArgs: [url],
+        extractOptions: { browser: "auto" },
+      };
+    }
+    if (runtimePlatform === "linux") {
+      return {
+        browser: requested,
+        browserLabel: "default browser",
+        openCommand: "xdg-open",
+        openArgs: [url],
+        extractOptions: { browser: "auto" },
+      };
+    }
+    return {
+      browser: requested,
+      browserLabel: "default browser",
+      openCommand: "cmd",
+      openArgs: ["/c", "start", "", url],
+      extractOptions: { browser: "auto" },
+    };
+  }
+
+  if (requested === "firefox") {
+    if (runtimePlatform === "darwin") {
+      return {
+        browser: requested,
+        browserLabel: "Firefox",
+        openCommand: "open",
+        openArgs: ["-b", FIREFOX_BUNDLE_ID, url],
+        extractOptions: { browser: "firefox" },
+      };
+    }
+    const command = runtimePlatform === "linux" ? LINUX_BROWSER_COMMANDS.firefox ?? "firefox" : "cmd";
+    return {
+      browser: requested,
+      browserLabel: "Firefox",
+      openCommand: command,
+      openArgs: runtimePlatform === "linux" ? [url] : ["/c", "start", "", "firefox", url],
+      extractOptions: { browser: "firefox" },
+    };
+  }
+
+  const candidate = findChromiumBrowserCandidate(requested, runtimePlatform);
+  if (!candidate) {
+    throw new Error(`Browser "${requested}" is not available on ${runtimePlatform}.`);
+  }
+
+  if (runtimePlatform === "darwin") {
+    return buildDarwinChromiumOpenPlan(requested, url, candidate);
+  }
+
+  const command = LINUX_BROWSER_COMMANDS[requested];
+  if (runtimePlatform === "linux" && command) {
+    return {
+      browser: requested,
+      browserLabel: candidate.name,
+      openCommand: command,
+      openArgs: [url],
+      extractOptions: {
+        browser: "chromium",
+        chromium: {
+          userDataDir: candidate.userDataDir,
+          browserName: candidate.name,
+          safeStorageService: candidate.safeStorageService,
+        },
+      },
+    };
+  }
+
+  throw new Error(`Explicit browser selection is not supported on ${runtimePlatform}.`);
+}
+
+async function launchInteractiveBrowser(plan: InteractiveLoginPlan): Promise<void> {
+  const { spawn } = await import("node:child_process");
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(plan.openCommand, plan.openArgs, {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
 /**
- * Open a visible browser for the user to complete login.
- * Uses Kuri to manage the browser tab, polls for login completion via cookies.
- *
- * Note: Kuri manages Chrome — for interactive login, the user's Chrome
- * needs to be visible. We navigate to the login URL and poll for cookie changes.
+ * Open a visible browser for the user to complete login, then poll the chosen
+ * local browser profile until fresh cookies are detected.
  */
 export async function interactiveLogin(
   url: string,
   domain?: string,
+  opts?: { browser?: string },
 ): Promise<LoginResult> {
   const targetDomain = domain ?? new URL(url).hostname;
+  const plan = resolveInteractiveLoginPlan(url, opts?.browser);
 
-  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}`);
-
-  // Open URL in the user's default browser (visible, not headless)
-  const { exec } = await import("node:child_process");
-  const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
-  exec(`${openCmd} ${JSON.stringify(url)}`);
-  log("auth", `opened ${url} in default browser via ${openCmd}`);
+  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}, browser: ${plan.browserLabel}`);
+  await launchInteractiveBrowser(plan);
+  log("auth", `opened ${url} in ${plan.browserLabel}`);
 
   // Poll extractBrowserAuth until cookies appear or timeout
   const startTime = Date.now();
@@ -72,10 +292,10 @@ export async function interactiveLogin(
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
     try {
-      const result = await extractBrowserAuth(targetDomain);
+      const result = await extractBrowserAuth(targetDomain, plan.extractOptions);
       if (result.success && result.cookies_stored > 0) {
         log("auth", `login detected — ${result.cookies_stored} cookies captured for ${targetDomain}`);
-        return result;
+        return { ...result, browser_label: plan.browserLabel };
       }
     } catch (err) {
       log("auth", `poll error: ${err instanceof Error ? err.message : err}`);
@@ -92,7 +312,8 @@ export async function interactiveLogin(
     success: false,
     domain: targetDomain,
     cookies_stored: 0,
-    error: `Login timed out after ${LOGIN_TIMEOUT_MS / 1000}s — no cookies detected in browser`,
+    browser_label: plan.browserLabel,
+    error: `Login timed out after ${LOGIN_TIMEOUT_MS / 1000}s — no cookies detected in ${plan.browserLabel}`,
   };
 }
 
@@ -102,7 +323,7 @@ export async function interactiveLogin(
  */
 export async function extractBrowserAuth(
   domain: string,
-  opts?: { chromeProfile?: string; firefoxProfile?: string }
+  opts?: ExtractBrowserCookiesOptions
 ): Promise<LoginResult> {
   const { extractBrowserCookies } = await import("./browser-cookies.js");
 

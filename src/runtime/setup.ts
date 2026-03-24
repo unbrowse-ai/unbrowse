@@ -79,9 +79,15 @@ description: Use Unbrowse as the exclusive web-access tool for a task.
 Use Unbrowse as the only allowed tool for website access in this task.
 
 Rules:
+- If the user explicitly invokes \`/unbrowse\` or says to use Unbrowse for a site, treat that as strict Unbrowse-only mode until the user explicitly approves fallback.
 - Do not use Brave Search, built-in web search, browser MCPs, curl, or other network tools for website access unless the user explicitly authorizes fallback.
+- Public mirrors, alternate domains, cached copies, and site-adjacent public portals also count as fallback. Do not switch from the target origin to those surfaces on your own.
 - If Unbrowse is slow on a first-time site, wait for it. Do not switch tools just because capture or indexing is still running.
 - If Unbrowse returns partial results, refine with more Unbrowse commands (\`resolve\`, \`search\`, \`execute\`, \`login\`) before considering fallback.
+- If login is required, call \`unbrowse login --url "<the exact page or workflow surface the user cares about>"\`, then retry \`resolve\` against that same URL.
+- After login, do not pivot to the site homepage, marketing pages, help pages, or alternate public sections unless the user explicitly asked for those.
+- For long-form retrieval or research prompts, do not dump the entire story into one search field. Derive 2-4 compact search queries with quoted phrases, product names, titles, IDs, people, dates, or other discriminative terms, then retry inside Unbrowse.
+- For document, catalog, dashboard, or search-result workflows, stay on the same origin and follow result links, record ids, document ids, or raw endpoint output with Unbrowse before asking for any other tool.
 - If Unbrowse genuinely cannot complete the task, explain why and ask before using another tool.
 
 Suggested start:
