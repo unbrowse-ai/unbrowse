@@ -85,13 +85,22 @@ export function isValidAgentEmail(value: string): boolean {
   return EMAIL_RE.test(normalizeAgentEmail(value));
 }
 
+export function resolveAgentEmail(preferredEmail: string | undefined): string | null {
+  const normalized = normalizeAgentEmail(preferredEmail ?? "");
+  return isValidAgentEmail(normalized) ? normalized : null;
+}
+
 export function buildDefaultAgentName(): string {
   return `${hostname()}-${randomBytes(3).toString("hex")}`;
 }
 
 export function resolveAgentName(preferredEmail: string | undefined, fallbackName: string): string {
-  const normalized = normalizeAgentEmail(preferredEmail ?? "");
-  return isValidAgentEmail(normalized) ? normalized : fallbackName;
+  return resolveAgentEmail(preferredEmail) ?? fallbackName;
+}
+
+function isEmailVerificationFlowError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /Email verification required|Email not verified yet/.test(message);
 }
 
 export function getApiKey(): string {
@@ -169,7 +178,12 @@ async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource }
   return null;
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean }): Promise<T> {
+async function api<T = unknown>(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { noAuth?: boolean; headers?: Record<string, string> },
+): Promise<T> {
   const key = opts?.noAuth ? "" : getApiKey();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
@@ -183,6 +197,7 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
         // Force identity encoding to avoid the issue.
         "Accept-Encoding": "gzip, deflate",
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...(opts?.headers ?? {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
@@ -247,28 +262,32 @@ async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boo
   });
 }
 
-async function promptAgentEmail(defaultName: string): Promise<string> {
+async function promptAgentEmail(existingEmail?: string): Promise<string> {
   const envEmail = process.env.UNBROWSE_AGENT_EMAIL;
   if (envEmail) {
-    const resolved = resolveAgentName(envEmail, defaultName);
-    if (resolved !== defaultName) return resolved;
+    const resolved = resolveAgentEmail(envEmail);
+    if (resolved) return resolved;
     console.warn(`[unbrowse] Ignoring invalid UNBROWSE_AGENT_EMAIL: ${envEmail}`);
   }
 
+  const savedEmail = resolveAgentEmail(existingEmail);
+  if (savedEmail) {
+    return savedEmail;
+  }
+
   if (process.env.UNBROWSE_NON_INTERACTIVE === "1" || !process.stdin.isTTY || !process.stdout.isTTY) {
-    return defaultName;
+    throw new Error("[unbrowse] Agent email required for CLI registration. Set UNBROWSE_AGENT_EMAIL to a valid email address.");
   }
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     for (;;) {
       const answer = await new Promise<string>((resolve) => {
-        rl.question("\nEmail for this agent (leave blank to use a local device id): ", resolve);
+        rl.question("\nEmail for this agent: ", resolve);
       });
       const trimmed = answer.trim();
-      if (!trimmed) return defaultName;
       if (isValidAgentEmail(trimmed)) return normalizeAgentEmail(trimmed);
-      console.log("Please enter a valid email address or press Enter to skip.");
+      console.log("Please enter a valid email address.");
     }
   } finally {
     rl.close();
@@ -320,15 +339,47 @@ async function registerAndPersist(
   name: string,
   tosVersion?: string | null,
 ): Promise<void> {
-  const result = await api<{
+  const requestRegistration = () => api<{
     agent_id: string;
     api_key: string;
     tos_accepted_version?: string;
     tos_accepted_at?: string;
+    verification_required?: false;
+  } | {
+    verification_required: true;
+    email: string;
+    expires_at: string;
+    verification_sent: boolean;
   }>("POST", "/v1/agents/register", {
     name,
     ...(tosVersion ? { tos_version: tosVersion } : {}),
+  }, {
+    headers: { "x-unbrowse-registration-source": "cli" },
   });
+
+  let result = await requestRegistration();
+  if ("verification_required" in result && result.verification_required) {
+    const sentMessage = result.verification_sent ? "We sent a verification link." : "A verification link is already pending.";
+    console.log(`[unbrowse] ${sentMessage} Check ${result.email} and verify it before continuing.`);
+
+    if (process.env.UNBROWSE_NON_INTERACTIVE === "1" || !process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error(`[unbrowse] Email verification required. Check ${result.email}, click the verification link, then rerun the command.`);
+    }
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      await new Promise<void>((resolve) => {
+        rl.question("\nPress Enter after verifying your email: ", () => resolve());
+      });
+    } finally {
+      rl.close();
+    }
+
+    result = await requestRegistration();
+    if ("verification_required" in result && result.verification_required) {
+      throw new Error(`[unbrowse] Email not verified yet for ${result.email}. Click the link in your inbox, then rerun the command.`);
+    }
+  }
 
   process.env.UNBROWSE_API_KEY = result.api_key;
   saveConfig({
@@ -342,7 +393,7 @@ async function registerAndPersist(
 }
 
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
-export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
+export async function ensureRegistered(): Promise<void> {
   if (LOCAL_ONLY) return;
   const usableKey = await findUsableApiKey();
   if (usableKey) {
@@ -355,10 +406,7 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
 
   const existingConfig = loadConfig();
   if (existingConfig?.tos_accepted_version && process.env.UNBROWSE_TOS_ACCEPTED !== "1") {
-    const fallbackName = buildDefaultAgentName();
-    const name = options?.promptForEmail
-      ? await promptAgentEmail(fallbackName)
-      : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
+    const name = await promptAgentEmail(existingConfig.agent_name);
     console.log(`Registering as "${name}"...`);
 
     try {
@@ -366,6 +414,9 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
       console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
       return;
     } catch (err) {
+      if (isEmailVerificationFlowError(err)) {
+        throw err;
+      }
       console.warn(`Registration failed: ${(err as Error).message}`);
       console.warn("Falling back to live ToS lookup.");
     }
@@ -389,14 +440,16 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   }
 
   // Step 3: Register with ToS version
-  const fallbackName = buildDefaultAgentName();
-  const name = options?.promptForEmail ? await promptAgentEmail(fallbackName) : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
+  const name = await promptAgentEmail(existingConfig?.agent_name);
   console.log(`Registering as "${name}"...`);
 
   try {
     await registerAndPersist(name, tosInfo.version);
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
   } catch (err) {
+    if (isEmailVerificationFlowError(err)) {
+      throw err;
+    }
     console.warn(`Registration failed: ${(err as Error).message}`);
     console.warn("Set UNBROWSE_API_KEY manually or try again.");
     process.exit(1);

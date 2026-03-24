@@ -118,6 +118,141 @@ function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw captureAbortError();
 }
 
+async function fetchBundleBodiesFromHtml(options: {
+  html: string;
+  pageUrl: string;
+  authHeaders?: Record<string, string>;
+  cookies?: Array<{ name: string; value: string; domain: string }>;
+  maxBundles: number;
+  signal?: AbortSignal;
+}): Promise<Map<string, string>> {
+  const bundles = new Map<string, string>();
+  let page: URL;
+  try {
+    page = new URL(options.pageUrl);
+  } catch {
+    return bundles;
+  }
+  const pageDomain = getRegistrableDomain(page.hostname);
+  if (!pageDomain) return bundles;
+
+  const cookieHeader = (options.cookies ?? [])
+    .filter((cookie) => isDomainMatch(page.hostname, cookie.domain))
+    .map((cookie) => {
+      const value = cookie.value.startsWith('"') && cookie.value.endsWith('"')
+        ? cookie.value.slice(1, -1)
+        : cookie.value;
+      return `${cookie.name}=${value}`;
+    })
+    .join("; ");
+
+  const urls = [...options.html.matchAll(/<script[^>]+src="([^"]+)"[^>]*>/gi)]
+    .map((match) => match[1] ?? "")
+    .filter(Boolean);
+
+  const prioritizedUrls = urls
+    .map((candidate) => ({
+      candidate,
+      score:
+        (/\/_next\/static\/chunks\//i.test(candidate) ? 40 : 0) +
+        (/[a-f0-9]{8,}\.js(?:[?#]|$)/i.test(candidate) ? 12 : 0) -
+        (/_buildManifest|_ssgManifest|turbopack|webpack|polyfills/i.test(candidate) ? 80 : 0),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.candidate);
+
+  for (const candidate of prioritizedUrls) {
+    if (bundles.size >= options.maxBundles) break;
+    throwIfAborted(options.signal);
+
+    let resolved: URL;
+    try {
+      resolved = new URL(candidate, page);
+    } catch {
+      continue;
+    }
+
+    const bundleDomain = getRegistrableDomain(resolved.hostname);
+    if (bundleDomain !== pageDomain) continue;
+    if (!/\.js(?:[?#]|$)/i.test(resolved.pathname + resolved.search)) continue;
+    if (bundles.has(resolved.toString())) continue;
+
+    try {
+      const response = await fetch(resolved.toString(), {
+        method: "GET",
+        headers: {
+          accept: "application/javascript,text/javascript,*/*;q=0.8",
+          ...CLIENT_HINT_HEADERS,
+          ...(options.authHeaders ?? {}),
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+          referer: page.toString(),
+        },
+        redirect: "follow",
+        signal: options.signal,
+      });
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!response.ok || (!/javascript|ecmascript|text\/plain/i.test(contentType) && !/\.js(?:[?#]|$)/i.test(resolved.pathname))) {
+        continue;
+      }
+      const text = await response.text();
+      if (text) bundles.set(resolved.toString(), text);
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  return bundles;
+}
+
+export async function recoverCaptureViaDocumentFetch(options: {
+  url: string;
+  authHeaders?: Record<string, string>;
+  cookies?: Array<{ name: string; value: string; domain: string; path?: string; httpOnly?: boolean; secure?: boolean }>;
+  signal?: AbortSignal;
+  prefetched?: { html: string; final_url: string };
+}): Promise<CaptureResult | null> {
+  let domain = "";
+  try {
+    domain = new URL(options.url).hostname;
+  } catch {
+    return null;
+  }
+
+  const fetchedDocument = options.prefetched
+    ? {
+        final_url: options.prefetched.final_url || options.url,
+        html: options.prefetched.html,
+      }
+    : await fetchHtmlDocument({
+        url: options.url,
+        authHeaders: options.authHeaders ?? {},
+        cookies: options.cookies ?? [],
+        referer: options.url,
+      }).catch(() => null);
+  if (!fetchedDocument?.html) return null;
+
+  const final_url = fetchedDocument.final_url || options.url;
+  const sessionCookies = filterFirstPartySessionCookies(options.cookies ?? [], options.url, final_url);
+  const jsBundles = await fetchBundleBodiesFromHtml({
+    html: fetchedDocument.html,
+    pageUrl: final_url,
+    authHeaders: options.authHeaders,
+    cookies: sessionCookies.length > 0 ? sessionCookies : options.cookies,
+    maxBundles: 60,
+    signal: options.signal,
+  }).catch(() => new Map<string, string>());
+
+  return {
+    requests: [],
+    har_lineage_id: nanoid(),
+    domain,
+    cookies: sessionCookies.length > 0 ? sessionCookies : undefined,
+    final_url,
+    html: fetchedDocument.html,
+    js_bundles: jsBundles.size > 0 ? jsBundles : undefined,
+  };
+}
+
 async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   throwIfAborted(signal);
   await new Promise<void>((resolve, reject) => {
@@ -462,11 +597,215 @@ export function hasUsefulCapturedResponses(
   });
 }
 
+export function hasUsefulCapturedResponsesBeyondPageShell(
+  responseUrls: Iterable<string>,
+  captureUrl?: string,
+  intent?: string,
+): boolean {
+  const usefulUrls = [...responseUrls].filter(isUsefulCapturedResponseUrl);
+  if (usefulUrls.length === 0) return false;
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  const isSearchLikeIntent = /\b(search|find|lookup|browse|discover)\b/.test(lowerIntent);
+  if (!isSearchLikeIntent || !captureUrl) {
+    return hasUsefulCapturedResponses(usefulUrls, captureUrl, intent);
+  }
+
+  let captureHref = "";
+  try {
+    const parsed = new URL(captureUrl);
+    captureHref = `${parsed.origin}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return hasUsefulCapturedResponses(usefulUrls, captureUrl, intent);
+  }
+
+  const offPageUrls = usefulUrls.filter((url) => {
+    try {
+      const parsed = new URL(url, captureUrl);
+      return `${parsed.origin}${parsed.pathname}${parsed.search}` !== captureHref;
+    } catch {
+      return true;
+    }
+  });
+  if (offPageUrls.length === 0) return false;
+  return true;
+}
+
 /**
  * Inject a fetch/XHR interceptor into the page to capture request/response data.
  * Returns captured entries via __unbrowse_intercepted global.
  */
-const INTERCEPTOR_SCRIPT = `(function(){if(window.__unbrowse_interceptor_installed)return;window.__unbrowse_interceptor_installed=true;window.__unbrowse_intercepted=[];var B=524288,J=2097152,M=500,F=window.fetch,R=/\\.js(\\?|$)/,A=/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/;function D(u,c){return c.indexOf('application/json')!==-1||c.indexOf('+json')!==-1||c.indexOf('application/x-protobuf')!==-1||c.indexOf('text/plain')!==-1||u.indexOf('batchexecute')!==-1||u.indexOf('/api/')!==-1}window.fetch=function(){var a=arguments,u=typeof a[0]==='string'?a[0]:(a[0]&&a[0].url?a[0].url:''),o=a[1]||{},m=(o.method||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,B):undefined,rh={};if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v;});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k];});}return F.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=M)return r;var c=r.headers.get('content-type')||'',j=c.indexOf('javascript')!==-1||R.test(u);if((!j&&!D(u,c))||A.test(u))return r;r.clone().text().then(function(b){if(b.length>(j?J:B))return;var h={};r.headers.forEach(function(v,k){h[k]=v;});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rb,response_status:r.status,response_headers:h,response_body:b,content_type:c,is_js:j,timestamp:new Date().toISOString()});}).catch(function(){});return r;}).catch(function(e){throw e;});};var O=XMLHttpRequest.prototype.open,S=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__unbrowse_method=m;this.__unbrowse_url=u;this.__unbrowse_reqHeaders={};var H=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__unbrowse_reqHeaders[k]=v;H(k,v);}.bind(this);return O.apply(this,arguments);};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=M)return;var c=x.getResponseHeader('content-type')||'',u=x.__unbrowse_url||'',j=c.indexOf('javascript')!==-1||R.test(u);if((!j&&!D(u,c))||A.test(u))return;var t=x.responseText||'';if(t.length>(j?J:B))return;window.__unbrowse_intercepted.push({url:u,method:(x.__unbrowse_method||'GET').toUpperCase(),request_headers:x.__unbrowse_reqHeaders||{},request_body:b?String(b).substring(0,B):undefined,response_status:x.status,response_headers:{},response_body:t,content_type:c,is_js:j,timestamp:new Date().toISOString()});});return S.apply(this,arguments);};})()`;
+function buildInterceptorScript(previewUnsafeActions = false): string {
+  return `
+(function() {
+  window.__unbrowse_preview_unsafe_actions = ${previewUnsafeActions ? "true" : "false"};
+  if (window.__unbrowse_interceptor_installed) return;
+  window.__unbrowse_interceptor_installed = true;
+  window.__unbrowse_intercepted = [];
+
+  var BODY_LIMIT = 524288;
+  var JS_LIMIT = 2097152;
+  var MAX_ENTRIES = 500;
+  var JS_RE = /\\.js(\\?|$)/;
+  var ASSET_RE = /\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/;
+  var PREVIEW_BODY = '{"dry_run":true,"preview_blocked":true}';
+
+  function isInteresting(url, contentType) {
+    return contentType.indexOf('application/json') !== -1 ||
+      contentType.indexOf('+json') !== -1 ||
+      contentType.indexOf('application/x-protobuf') !== -1 ||
+      contentType.indexOf('text/plain') !== -1 ||
+      url.indexOf('batchexecute') !== -1 ||
+      url.indexOf('/api/') !== -1;
+  }
+
+  function shouldPreviewBlock(method) {
+    return window.__unbrowse_preview_unsafe_actions && method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
+  }
+
+  function pushEntry(entry) {
+    if (window.__unbrowse_intercepted.length < MAX_ENTRIES) {
+      window.__unbrowse_intercepted.push(entry);
+    }
+  }
+
+  function captureHeaders(headers) {
+    var out = {};
+    if (!headers) return out;
+    if (typeof headers.forEach === 'function') {
+      headers.forEach(function(value, key) { out[key] = value; });
+      return out;
+    }
+    Object.keys(headers).forEach(function(key) { out[key] = headers[key]; });
+    return out;
+  }
+
+  function recordPreviewBlocked(url, method, requestHeaders, requestBody) {
+    pushEntry({
+      url: url,
+      method: method,
+      request_headers: requestHeaders,
+      request_body: requestBody,
+      response_status: 200,
+      response_headers: { 'content-type': 'application/json' },
+      response_body: PREVIEW_BODY,
+      content_type: 'application/json',
+      is_js: false,
+      preview_blocked: true,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  var originalFetch = window.fetch;
+  window.fetch = function() {
+    var args = arguments;
+    var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
+    var options = args[1] || {};
+    var method = (options.method || 'GET').toUpperCase();
+    var requestBody = options.body ? String(options.body).substring(0, BODY_LIMIT) : undefined;
+    var requestHeaders = captureHeaders(options.headers);
+
+    if (shouldPreviewBlock(method)) {
+      recordPreviewBlocked(url, method, requestHeaders, requestBody);
+      return Promise.resolve(new Response(PREVIEW_BODY, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    }
+
+    return originalFetch.apply(this, args).then(function(response) {
+      if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return response;
+      var contentType = response.headers.get('content-type') || '';
+      var isJs = contentType.indexOf('javascript') !== -1 || JS_RE.test(url);
+      if ((!isJs && !isInteresting(url, contentType)) || ASSET_RE.test(url)) return response;
+      response.clone().text().then(function(body) {
+        if (body.length > (isJs ? JS_LIMIT : BODY_LIMIT)) return;
+        pushEntry({
+          url: url,
+          method: method,
+          request_headers: requestHeaders,
+          request_body: requestBody,
+          response_status: response.status,
+          response_headers: captureHeaders(response.headers),
+          response_body: body,
+          content_type: contentType,
+          is_js: isJs,
+          timestamp: new Date().toISOString(),
+        });
+      }).catch(function() {});
+      return response;
+    }).catch(function(error) {
+      throw error;
+    });
+  };
+
+  var originalOpen = XMLHttpRequest.prototype.open;
+  var originalSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this.__unbrowse_method = method;
+    this.__unbrowse_url = url;
+    this.__unbrowse_reqHeaders = {};
+    var originalSetRequestHeader = this.setRequestHeader.bind(this);
+    this.setRequestHeader = function(key, value) {
+      this.__unbrowse_reqHeaders[key] = value;
+      originalSetRequestHeader(key, value);
+    }.bind(this);
+    return originalOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function(body) {
+    var xhr = this;
+    var method = (xhr.__unbrowse_method || 'GET').toUpperCase();
+    var url = xhr.__unbrowse_url || '';
+    var requestBody = body ? String(body).substring(0, BODY_LIMIT) : undefined;
+
+    if (shouldPreviewBlock(method)) {
+      recordPreviewBlocked(url, method, xhr.__unbrowse_reqHeaders || {}, requestBody);
+      try { Object.defineProperty(xhr, 'readyState', { configurable: true, value: 4 }); } catch {}
+      try { Object.defineProperty(xhr, 'status', { configurable: true, value: 200 }); } catch {}
+      try { Object.defineProperty(xhr, 'responseText', { configurable: true, value: PREVIEW_BODY }); } catch {}
+      try { Object.defineProperty(xhr, 'response', { configurable: true, value: PREVIEW_BODY }); } catch {}
+      try { Object.defineProperty(xhr, 'responseURL', { configurable: true, value: String(url) }); } catch {}
+      xhr.getResponseHeader = function(name) {
+        return /content-type/i.test(String(name || '')) ? 'application/json' : null;
+      };
+      xhr.getAllResponseHeaders = function() {
+        return 'content-type: application/json\\r\\n';
+      };
+      setTimeout(function() {
+        if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange(new Event('readystatechange'));
+        xhr.dispatchEvent(new Event('readystatechange'));
+        if (typeof xhr.onload === 'function') xhr.onload(new Event('load'));
+        xhr.dispatchEvent(new Event('load'));
+        if (typeof xhr.onloadend === 'function') xhr.onloadend(new Event('loadend'));
+        xhr.dispatchEvent(new Event('loadend'));
+      }, 0);
+      return;
+    }
+
+    xhr.addEventListener('load', function() {
+      if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return;
+      var contentType = xhr.getResponseHeader('content-type') || '';
+      var isJs = contentType.indexOf('javascript') !== -1 || JS_RE.test(url);
+      if ((!isJs && !isInteresting(url, contentType)) || ASSET_RE.test(url)) return;
+      var responseBody = xhr.responseText || '';
+      if (responseBody.length > (isJs ? JS_LIMIT : BODY_LIMIT)) return;
+      pushEntry({
+        url: url,
+        method: method,
+        request_headers: xhr.__unbrowse_reqHeaders || {},
+        request_body: requestBody,
+        response_status: xhr.status,
+        response_headers: {},
+        response_body: responseBody,
+        content_type: contentType,
+        is_js: isJs,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    return originalSend.apply(xhr, arguments);
+  };
+})()`;
+}
 
 /**
  * Collect intercepted requests from the page.
@@ -509,6 +848,7 @@ async function mergeInterceptedResponses(
 async function settleAfterInteractiveStimulus(
   tabId: string,
   responseBodies: Map<string, string>,
+  previewUnsafeActions = false,
   signal?: AbortSignal,
 ): Promise<number> {
   const baseline = responseBodies.size;
@@ -518,7 +858,7 @@ async function settleAfterInteractiveStimulus(
     await sleep(400, signal);
     try {
       await kuri.evaluate(tabId, STEALTH_SCRIPT);
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      await kuri.evaluate(tabId, buildInterceptorScript(previewUnsafeActions));
     } catch {
       // page may still be navigating
     }
@@ -526,6 +866,239 @@ async function settleAfterInteractiveStimulus(
     if (responseBodies.size > baseline) return responseBodies.size - baseline;
   }
   return lastAdded;
+}
+
+async function performRealClickForToken(
+  tabId: string,
+  token: string | undefined,
+): Promise<boolean> {
+  if (!token) return false;
+  const geometry = parseInteractiveStimulusResult(
+    await kuri.evaluate(
+      tabId,
+      `(function(token){
+        const selector = '[data-unbrowse-action-token="' + String(token).replace(/"/g, '\\"') + '"]';
+        const el = document.querySelector(selector);
+        if (!(el instanceof HTMLElement)) return JSON.stringify({ ok: false });
+        el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+        const rect = el.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return JSON.stringify({ ok: false });
+        return JSON.stringify({
+          ok: true,
+          x: rect.left + (rect.width / 2),
+          y: rect.top + Math.min(rect.height / 2, Math.max(8, rect.height - 8)),
+        });
+      })(${JSON.stringify(token)})`,
+    ),
+  );
+
+  const x = typeof geometry?.x === "number" ? geometry.x : Number.NaN;
+  const y = typeof geometry?.y === "number" ? geometry.y : Number.NaN;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  await kuri.dispatchRealClick(tabId, x, y);
+  return true;
+}
+
+async function maybePreviewSubmitActionFlow(
+  tabId: string,
+  captureUrl: string,
+  intent: string | undefined,
+  responseBodies: Map<string, string>,
+  previewUnsafeActions: boolean,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (!previewUnsafeActions) return false;
+  const lowerIntent = intent?.toLowerCase() ?? "";
+  if (!/\b(register|rsvp|join|apply|signup|sign up|book|reserve|checkout|purchase|order|submit)\b/.test(lowerIntent)) {
+    return false;
+  }
+
+  const actionTerms = deriveInteractionClickTerms(captureUrl, intent);
+  let lastSignature = "";
+
+  for (let step = 0; step < 3; step++) {
+    const previewResult = await kuri.evaluate(
+      tabId,
+      `(function(spec){
+        const visible = (el) => {
+          if (!el || !(el instanceof Element)) return false;
+          const style = window.getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        const textFor = (el) => [
+          el.textContent,
+          el.getAttribute('aria-label'),
+          el.getAttribute('title'),
+          el.getAttribute('placeholder'),
+          el.getAttribute('name'),
+          el.getAttribute('id'),
+          el.getAttribute('action'),
+          el.getAttribute('role'),
+        ].filter(Boolean).join(' ').toLowerCase();
+        const fieldValue = (el) => {
+          const text = textFor(el);
+          const type = (el.getAttribute('type') || '').toLowerCase();
+          if (type === 'email' || /email/.test(text)) return 'preview@example.com';
+          if (/telegram/.test(text)) return 'preview_telegram';
+          if (/twitter|x handle/.test(text)) return 'preview_user';
+          if (/linkedin/.test(text)) return 'preview-linkedin';
+          if (/github/.test(text)) return 'preview-github';
+          if (type === 'tel' || /phone|mobile|whatsapp/.test(text)) return '+14155550123';
+          if (/first/.test(text)) return 'Preview';
+          if (/last/.test(text)) return 'User';
+          if (/company|organization|organisation/.test(text)) return 'Preview Co';
+          if (/job title|title/.test(text)) return 'Builder';
+          if (/name/.test(text)) return 'Preview User';
+          if (type === 'url') return 'https://example.com';
+          return 'preview';
+        };
+        const setInputValue = (el, value) => {
+          const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+          const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          if (setter) setter.call(el, value);
+          else el.value = value;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        const fillWidget = (el, touched) => {
+          if (!(el instanceof HTMLElement) || !visible(el)) return false;
+          if (el instanceof HTMLInputElement) {
+            const type = (el.type || 'text').toLowerCase();
+            if (['hidden', 'submit', 'button', 'image', 'file'].includes(type)) return false;
+            if (['checkbox', 'radio'].includes(type)) {
+              if (!el.checked) el.click();
+              touched.push(el.name || el.id || type);
+              return true;
+            }
+            if (!el.value) setInputValue(el, fieldValue(el));
+            touched.push(el.name || el.id || type);
+            return true;
+          }
+          if (el instanceof HTMLTextAreaElement) {
+            if (!el.value) setInputValue(el, fieldValue(el));
+            touched.push(el.name || el.id || 'textarea');
+            return true;
+          }
+          if (el instanceof HTMLSelectElement) {
+            const options = [...el.options].filter((opt) => !opt.disabled && opt.value !== '');
+            if (options[0] && !el.value) {
+              el.value = options[0].value;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            touched.push(el.name || el.id || 'select');
+            return true;
+          }
+          if (el.getAttribute('contenteditable') === 'true' || el.getAttribute('role') === 'textbox') {
+            if (!el.textContent) el.textContent = fieldValue(el);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            touched.push(el.getAttribute('name') || el.id || 'textbox');
+            return true;
+          }
+          if (el.getAttribute('role') === 'combobox') {
+            el.click();
+            const option = [...document.querySelectorAll('[role="option"], [role="listbox"] [data-value], [role="listbox"] button')]
+              .find((candidate) => candidate instanceof HTMLElement && visible(candidate) && candidate.getAttribute('aria-selected') !== 'true');
+            if (option instanceof HTMLElement) option.click();
+            touched.push(el.getAttribute('name') || el.id || 'combobox');
+            return true;
+          }
+          return false;
+        };
+        const scoreButton = (el) => {
+          const text = textFor(el);
+          let score = 0;
+          for (const term of spec.actionTerms) {
+            if (text.includes(term.toLowerCase())) score += term.length >= 6 ? 8 : 4;
+          }
+          if (/register|rsvp|join|apply|ticket|checkout|purchase|submit|continue|next|confirm|finish|request to join/.test(text)) score += 10;
+          if (el instanceof HTMLButtonElement) score += 2;
+          return score;
+        };
+        const roots = [...document.querySelectorAll('dialog, [role="dialog"], [aria-modal="true"], form')]
+          .filter((root) => root instanceof HTMLElement && visible(root))
+          .map((root) => {
+            const text = textFor(root);
+            let score = 0;
+            for (const term of spec.actionTerms) if (text.includes(term.toLowerCase())) score += term.length >= 6 ? 8 : 4;
+            if (/register|rsvp|join|apply|ticket|checkout|purchase|approval/.test(text)) score += 10;
+            if (root.querySelector('input[required], textarea[required], select[required], [role="combobox"], [contenteditable="true"]')) score += 4;
+            return { root, score, signature: text.slice(0, 240) };
+          })
+          .sort((a, b) => b.score - a.score);
+        const chosen = roots[0];
+        if (!chosen || chosen.score <= 0) return JSON.stringify({ action: null });
+        const root = chosen.root;
+        const signature = chosen.signature + '|' + root.querySelectorAll('input,textarea,select,[role="combobox"],[contenteditable="true"]').length;
+        const touched = [];
+        for (const el of [...root.querySelectorAll('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"]')]) {
+          fillWidget(el, touched);
+        }
+        const submitCandidates = [...root.querySelectorAll('button[type="submit"], input[type="submit"], button:not([type]), [role="button"], [data-testid*="submit"], [data-testid*="continue"]')]
+          .filter((el) => el instanceof HTMLElement && visible(el) && !el.hasAttribute('data-unbrowse-preview-clicked'))
+          .map((el) => ({ el, score: scoreButton(el) }))
+          .filter((entry) => entry.score > 0)
+          .sort((a, b) => b.score - a.score);
+        const token = 'unbrowse-' + Math.random().toString(36).slice(2, 10);
+        const submit = submitCandidates[0]?.el;
+        if (submit instanceof HTMLElement) {
+          submit.setAttribute('data-unbrowse-action-token', token);
+          submit.setAttribute('data-unbrowse-preview-clicked', '1');
+          return JSON.stringify({
+            action: 'preview-submit',
+            touched: touched.slice(0, 20),
+            score: chosen.score,
+            token,
+            signature,
+            progressed: touched.length > 0 || submit != null,
+          });
+        }
+        if (root instanceof HTMLFormElement && typeof root.requestSubmit === 'function') {
+          root.requestSubmit();
+          return JSON.stringify({
+            action: 'preview-submit',
+            touched: touched.slice(0, 20),
+            score: chosen.score,
+            submit_mode: 'requestSubmit',
+            signature,
+            progressed: touched.length > 0,
+          });
+        }
+        if (root instanceof HTMLFormElement) {
+          root.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+          return JSON.stringify({
+            action: 'preview-submit',
+            touched: touched.slice(0, 20),
+            score: chosen.score,
+            submit_mode: 'dispatchEvent',
+            signature,
+            progressed: touched.length > 0,
+          });
+        }
+        return JSON.stringify({
+          action: null,
+          signature,
+          progressed: touched.length > 0,
+        });
+      })(${JSON.stringify({ actionTerms })})`,
+    );
+    const parsedPreviewResult = parseInteractiveStimulusResult(previewResult);
+    if (!parsedPreviewResult || parsedPreviewResult.action == null) return false;
+    if (typeof parsedPreviewResult.token === "string") {
+      await performRealClickForToken(tabId, parsedPreviewResult.token);
+    }
+    log("capture", `interactive preview submit: ${JSON.stringify(parsedPreviewResult)}`);
+    const added = await settleAfterInteractiveStimulus(tabId, responseBodies, previewUnsafeActions, signal);
+    if (added > 0 || hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent)) return true;
+    const signature = typeof parsedPreviewResult.signature === "string" ? parsedPreviewResult.signature : "";
+    const progressed = parsedPreviewResult.progressed === true;
+    if (!progressed || (signature && signature === lastSignature)) break;
+    lastSignature = signature;
+  }
+
+  return false;
 }
 
 function parseInteractiveStimulusResult(value: unknown): Record<string, unknown> | null {
@@ -569,6 +1142,7 @@ async function waitForContentReady(
   captureUrl?: string,
   intent?: string,
   responseBodies?: Map<string, string>,
+  previewUnsafeActions = false,
   signal?: AbortSignal,
 ): Promise<void> {
   // Phase 1: Initial settle — let the page start rendering
@@ -684,7 +1258,7 @@ async function waitForContentReady(
       if (queryTerms.length > 0) {
         const searchResult = await kuri.evaluate(
           tabId,
-          `(async function(spec) {
+          `(function(spec) {
             const visible = (el) => {
               if (!el || !(el instanceof Element)) return false;
               const style = window.getComputedStyle(el);
@@ -738,7 +1312,7 @@ async function waitForContentReady(
         if (parsedSearchResult) {
           log("capture", `interactive search stimulus: ${JSON.stringify(parsedSearchResult)}`);
         }
-        await settleAfterInteractiveStimulus(tabId, responseBodies, signal);
+        await settleAfterInteractiveStimulus(tabId, responseBodies, previewUnsafeActions, signal);
         if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent)) return;
       }
 
@@ -746,7 +1320,7 @@ async function waitForContentReady(
         const beforeCount = responseBodies.size;
         const clickResult = await kuri.evaluate(
           tabId,
-          `(async function(spec) {
+          `(function(spec) {
             const visible = (el) => {
               if (!el || !(el instanceof Element)) return false;
               const style = window.getComputedStyle(el);
@@ -780,18 +1354,23 @@ async function waitForContentReady(
             const chosen = candidates[0];
             if (!chosen) return JSON.stringify({ action: null });
             chosen.el.setAttribute('data-unbrowse-clicked', '1');
-            chosen.el.click();
-            return JSON.stringify({ action: 'click', label: chosen.label.slice(0, 120), score: chosen.score });
+            const token = 'unbrowse-' + Math.random().toString(36).slice(2, 10);
+            chosen.el.setAttribute('data-unbrowse-action-token', token);
+            return JSON.stringify({ action: 'click', label: chosen.label.slice(0, 120), score: chosen.score, token });
           })(${JSON.stringify({ clickTerms })})`,
         );
         const parsedClickResult = parseInteractiveStimulusResult(clickResult);
         if (!parsedClickResult || !("action" in parsedClickResult) || parsedClickResult.action == null) {
           break;
         }
+        if (typeof parsedClickResult.token === "string") {
+          await performRealClickForToken(tabId, parsedClickResult.token);
+        }
         log("capture", `interactive click stimulus: ${JSON.stringify(parsedClickResult)}`);
-        const added = await settleAfterInteractiveStimulus(tabId, responseBodies, signal);
+        const added = await settleAfterInteractiveStimulus(tabId, responseBodies, previewUnsafeActions, signal);
         if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent) || responseBodies.size > beforeCount || added > 0) return;
       }
+      if (await maybePreviewSubmitActionFlow(tabId, captureUrl, intent, responseBodies, previewUnsafeActions, signal)) return;
     } catch (err) {
       log("capture", `interactive stimulus failed: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -816,7 +1395,7 @@ async function injectCookies(
     expires?: number;
   }>,
   originUrl?: string,
-): Promise<void> {
+): Promise<{ attempted: number; injected: number }> {
   const applicable = filterCookiesForOriginHost(cookies, originUrl);
 
   const sanitized = applicable.map((c) => ({
@@ -833,9 +1412,14 @@ async function injectCookies(
     ...(c.expires != null && c.expires > 0 ? { expires: c.expires } : {}),
   }));
 
+  if (sanitized.length === 0) {
+    return { attempted: 0, injected: 0 };
+  }
+
   log("capture", `injecting ${sanitized.length} cookies for domains: ${[...new Set(sanitized.map((c) => c.domain))].join(", ")}`);
   try {
     await kuri.setCookies(tabId, sanitized);
+    return { attempted: sanitized.length, injected: sanitized.length };
   } catch (batchErr) {
     log("capture", `batch cookie injection failed: ${batchErr instanceof Error ? batchErr.message : batchErr} — falling back to per-cookie`);
     let injected = 0;
@@ -848,6 +1432,7 @@ async function injectCookies(
       }
     }
     log("capture", `per-cookie fallback: ${injected}/${sanitized.length} injected`);
+    return { attempted: sanitized.length, injected };
   }
 }
 
@@ -903,6 +1488,18 @@ export function buildHeaderAuthForOrigin(
   return headers;
 }
 
+export function shouldFallbackToHeaderReplayAfterCookieInjection(
+  strategy: CaptureAuthStrategy,
+  injection: { attempted: number; injected: number },
+  cookies: Array<{ name: string; value: string; domain: string }>,
+  originUrl?: string,
+): boolean {
+  if (strategy === "header-replay") return false;
+  if (injection.attempted === 0) return false;
+  if (injection.injected >= injection.attempted) return false;
+  return shouldUseHeaderAuthShim(cookies, originUrl);
+}
+
 function authStrategyDomain(url: string): string {
   try {
     return getRegistrableDomain(new URL(url).hostname);
@@ -911,16 +1508,17 @@ function authStrategyDomain(url: string): string {
   }
 }
 
-function chooseCaptureAuthStrategy(
+export function chooseCaptureAuthStrategy(
   url: string,
   cookies?: Array<{ name: string; value: string; domain: string }>,
   authHeaders?: Record<string, string>,
   explicit?: CaptureAuthStrategy,
 ): CaptureAuthStrategy {
   if (explicit) return explicit;
-  const hasAuth = (cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0;
-  if (!hasAuth) return "cookie-injection";
-  return "header-replay";
+  if (isCookieInjectionUnsafe(url)) return "header-replay";
+  if (Object.keys(authHeaders ?? {}).length > 0) return "header-replay";
+  if ((cookies?.length ?? 0) > 0) return "cookie-injection";
+  return "cookie-injection";
 }
 
 function rememberCaptureAuthStrategy(url: string, strategy: CaptureAuthStrategy): void {
@@ -1025,6 +1623,7 @@ export async function captureSession(
     usedProfileContext?: boolean;
     preferExistingTab?: boolean;
     forceProfileContext?: boolean;
+    previewUnsafeActions?: boolean;
   },
 ): Promise<CaptureResult> {
   const signal = options?.signal;
@@ -1118,8 +1717,8 @@ export async function captureSession(
   signal?.addEventListener("abort", abortListener, { once: true });
 
   const domain = new URL(url).hostname;
-  const authStrategy = chooseCaptureAuthStrategy(url, cookies, authHeaders, options?.authStrategy);
-  const useHeaderReplay = authStrategy === "header-replay";
+  let authStrategy = chooseCaptureAuthStrategy(url, cookies, authHeaders, options?.authStrategy);
+  const useHeaderReplay = () => authStrategy === "header-replay";
   let retryFreshTab = false;
   let restartKuri = false;
   let restartWithAuthStrategy: CaptureAuthStrategy | null = null;
@@ -1133,7 +1732,7 @@ export async function captureSession(
   try {
     throwIfAborted(signal);
     // Set headers: client hints + auth headers
-    const headerAuthShim = useHeaderReplay ? buildHeaderAuthForOrigin(cookies ?? [], url, authHeaders) : {};
+    const headerAuthShim = useHeaderReplay() ? buildHeaderAuthForOrigin(cookies ?? [], url, authHeaders) : {};
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}), ...headerAuthShim };
     await kuri.setHeaders(tabId, allHeaders);
 
@@ -1161,19 +1760,24 @@ export async function captureSession(
       // Inject cookies AFTER origin navigation — CDP setCookie requires an active
       // page in the cookie's domain context (fails on about:blank).
       if (cookies && cookies.length > 0) {
-        if (useHeaderReplay && shouldUseHeaderAuthShim(cookies, origin)) {
+        if (useHeaderReplay() && shouldUseHeaderAuthShim(cookies, origin)) {
           log("capture", `using header auth shim for ${origin} — skipping cookie injection`);
         } else {
           log("capture", `injecting ${cookies.length} cookies after origin nav`);
           throwIfAborted(signal);
-          try {
-            await injectCookies(tabId, cookies, origin);
-          } catch (injectErr) {
+          const injection = await injectCookies(tabId, cookies, origin);
+          if (shouldFallbackToHeaderReplayAfterCookieInjection(authStrategy, injection, cookies, origin)) {
             markCookieInjectionUnsafe(url);
-            restartKuri = true;
-            restartWithAuthStrategy = "header-replay";
-            throw Object.assign(new Error(injectErr instanceof Error ? injectErr.message : String(injectErr)), {
-              code: "cookie_injection_failed",
+            authStrategy = "header-replay";
+            const fallbackHeaders = buildHeaderAuthForOrigin(cookies, origin, authHeaders);
+            log(
+              "capture",
+              `cookie injection degraded for ${origin}; switching to header replay (${injection.injected}/${injection.attempted} injected)`,
+            );
+            await kuri.setHeaders(tabId, {
+              ...CLIENT_HINT_HEADERS,
+              ...(authHeaders ?? {}),
+              ...fallbackHeaders,
             });
           }
         }
@@ -1184,7 +1788,7 @@ export async function captureSession(
       throwIfAborted(signal);
       await kuri.evaluate(tabId, STEALTH_SCRIPT);
       throwIfAborted(signal);
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      await kuri.evaluate(tabId, buildInterceptorScript(!!options?.previewUnsafeActions));
     } catch (originErr) {
       log("capture", `origin pre-nav failed: ${originErr instanceof Error ? originErr.message : originErr}`);
     }
@@ -1199,7 +1803,7 @@ export async function captureSession(
       throwIfAborted(signal);
       await kuri.evaluate(tabId, STEALTH_SCRIPT);
       throwIfAborted(signal);
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      await kuri.evaluate(tabId, buildInterceptorScript(!!options?.previewUnsafeActions));
     } catch { /* page may not be ready */ }
 
     // For pages that embed the task payload directly in the HTML, return before
@@ -1239,10 +1843,10 @@ export async function captureSession(
     // Build response bodies map from intercepted requests
     const responseBodies = new Map<string, string>();
     const jsBundleBodies = new Map<string, string>();
-    const MAX_JS_BUNDLES = 20;
+    const MAX_JS_BUNDLES = 60;
 
     // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
-    await waitForContentReady(tabId, url, intent, responseBodies, signal);
+    await waitForContentReady(tabId, url, intent, responseBodies, !!options?.previewUnsafeActions, signal);
 
     // Collect all intercepted requests
     const intercepted = await collectInterceptedRequests(tabId);
@@ -1304,10 +1908,7 @@ export async function captureSession(
       log("capture", `page html snapshot failed for ${url}: ${snapshotErr instanceof Error ? snapshotErr.message : String(snapshotErr)}`);
     }
 
-    if (
-      !hasUsefulCapturedResponses(responseBodies.keys(), final_url, intent) &&
-      (((cookies?.length ?? 0) > 0) || Object.keys(authHeaders ?? {}).length > 0)
-    ) {
+    if (!hasUsefulCapturedResponsesBeyondPageShell(responseBodies.keys(), final_url, intent)) {
       const fetchedDocument = await fetchHtmlDocument({
         url,
         authHeaders: authHeaders ?? {},
@@ -1363,7 +1964,7 @@ export async function captureSession(
 
     if (
       html &&
-      !hasUsefulCapturedResponses(responseBodies.keys(), final_url, intent)
+      !hasUsefulCapturedResponsesBeyondPageShell(responseBodies.keys(), final_url, intent)
     ) {
       const queryTerms = deriveInteractionQueryTerms(final_url, intent);
       const htmlFormSubmission = queryTerms[0]
@@ -1408,6 +2009,24 @@ export async function captureSession(
     // Extract session cookies via document.cookie
     const rawCookies = await extractCookiesFromPage(tabId, url);
     const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
+
+    if (jsBundleBodies.size === 0 && html) {
+      const fetchedBundleBodies = await fetchBundleBodiesFromHtml({
+        html,
+        pageUrl: final_url,
+        authHeaders,
+        cookies: sessionCookies.length > 0 ? sessionCookies : cookies,
+        maxBundles: MAX_JS_BUNDLES,
+        signal,
+      });
+      for (const [bundleUrl, body] of fetchedBundleBodies) {
+        if (jsBundleBodies.size >= MAX_JS_BUNDLES) break;
+        jsBundleBodies.set(bundleUrl, body);
+      }
+      if (fetchedBundleBodies.size > 0) {
+        log("capture", `fetched ${fetchedBundleBodies.size} JS bundles from HTML script tags`);
+      }
+    }
 
     if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
     log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
@@ -1482,7 +2101,7 @@ export async function captureSession(
     retryFreshTab &&
     !options?.usedProfileContext &&
     options?.authSource?.family === "chromium" &&
-    ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0)
+    ((cookies?.length ?? 0) === 0 && Object.keys(authHeaders ?? {}).length === 0)
   ) {
     try {
       log("capture", `managed browser auth replay was insufficient for ${url}; retrying with attached ${options.authSource.browserName} profile clone`);
@@ -1519,6 +2138,18 @@ export async function captureSession(
       code,
       login_url: url,
     });
+  }
+  if (captureError && shouldRestartKuriForError(captureError)) {
+    const recovered = await recoverCaptureViaDocumentFetch({
+      url,
+      authHeaders,
+      cookies,
+      signal,
+    });
+    if (recovered) {
+      log("capture", `browser transport fallback recovered ${url} via direct document fetch`);
+      return recovered;
+    }
   }
   if (captureError) throw captureError;
   throw new Error(`captureSession failed without returning a result for ${url}`);
@@ -1602,6 +2233,60 @@ export async function executeInBrowser(
   }
 }
 
+export function matchesTriggerTargetUrl(
+  currentUrl: string,
+  targetBase: string,
+  targetQueryId: string | null,
+): boolean {
+  const baseMatch = currentUrl.includes(targetBase);
+  const queryIdMatch = !targetQueryId || currentUrl.includes(targetQueryId);
+  return baseMatch && queryIdMatch;
+}
+
+async function waitForTriggerForm(tabId: string, targetBase: string, timeoutMs = 6000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const ready = await kuri.evaluate(
+        tabId,
+        `(()=>[...document.forms||[]].some((f)=>String(f.action||'').includes(${JSON.stringify(targetBase)})||String(f.action||'').includes('/result-page'))||document.readyState==='complete')()`,
+      );
+      if (ready === true) return;
+    } catch {
+      // page still settling
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
+function isUsableDocumentNavigationHtml(html: string): boolean {
+  return html.length > 1024 && /<body[\s>]/i.test(html) && /<\/body>/i.test(html);
+}
+
+async function waitForUsableDocumentNavigation(
+  tabId: string,
+  targetBase: string,
+  targetQueryId: string | null,
+  timeoutMs = 5000,
+): Promise<{ currentUrl: string; currentHtml: string } | null> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const currentUrl = await kuri.getCurrentUrl(tabId);
+      if (matchesTriggerTargetUrl(currentUrl, targetBase, targetQueryId)) {
+        const currentHtml = await kuri.getPageHtml(tabId);
+        if (isUsableDocumentNavigationHtml(currentHtml)) {
+          return { currentUrl, currentHtml };
+        }
+      }
+    } catch {
+      // keep waiting
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return null;
+}
+
 /**
  * Trigger-and-intercept execution: navigate to the page that originally
  * triggered an API call, let the site's own JS make the request (passing
@@ -1618,15 +2303,18 @@ export async function triggerAndIntercept(
     authSource?: BrowserAuthSourceMeta | null;
     usedProfileContext?: boolean;
     preferExistingTab?: boolean;
+    method?: string;
+    body?: Record<string, unknown> | undefined;
   },
 ): Promise<{ status: number; data: unknown; trace_id: string; network_events?: Array<{
   startedDateTime: string;
   request: { url: string; method: string; headers: Array<{ name: string; value: string }>; postData?: { mimeType?: string; text?: string } };
   response: { status: number; headers: Array<{ name: string; value: string }>; content?: { mimeType?: string; text?: string } };
-}> }> {
+  }> }> {
   await acquireTabSlot();
   await kuri.start();
   await kuri.discoverTabs();
+  const isDocumentPostFlow = (options?.method ?? "GET").toUpperCase() === "POST" && !!options?.body && typeof options.body === "object";
 
   let tabId: string | undefined;
   let createdFreshTab = false;
@@ -1657,11 +2345,13 @@ export async function triggerAndIntercept(
 
   try {
     let harStarted = false;
-    try {
-      await kuri.harStart(tabId);
-      harStarted = true;
-    } catch {
-      // best-effort
+    if (!isDocumentPostFlow) {
+      try {
+        await kuri.harStart(tabId);
+        harStarted = true;
+      } catch {
+        // best-effort
+      }
     }
 
     // Set headers
@@ -1685,16 +2375,38 @@ export async function triggerAndIntercept(
       const origin = new URL(triggerUrl).origin;
       await kuri.navigate(tabId, origin);
       await new Promise((r) => setTimeout(r, 500));
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      if (!isDocumentPostFlow) await kuri.evaluate(tabId, buildInterceptorScript(false));
     } catch { /* best-effort */ }
 
     // Navigate to the trigger page — the site's JS will make the API call
     await kuri.navigate(tabId, triggerUrl);
     // Re-inject interceptor after navigation
     try {
-      await new Promise((r) => setTimeout(r, 300));
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      if (isDocumentPostFlow) {
+        await waitForReadyState(tabId, 8000);
+        await waitForTriggerForm(tabId, targetBase);
+      } else {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      if (!isDocumentPostFlow) await kuri.evaluate(tabId, buildInterceptorScript(false));
     } catch { /* page may not be ready */ }
+
+    if ((options?.method ?? "GET").toUpperCase() === "POST" && options?.body && typeof options.body === "object") {
+      log("capture", `trigger-and-intercept: submitting POST form to ${targetBase}`);
+      const submitState = {
+        action: targetUrlPattern,
+        payload: options.body,
+      };
+      await kuri.evaluate(tabId, `window.__unbrowseSubmitState=${JSON.stringify(submitState)};true`);
+      await kuri.evaluate(
+        tabId,
+        `(()=>{const s=window.__unbrowseSubmitState||{},p=s.payload||{},fs=[...document.forms||[]];let f=null,b=-1;for(const x of fs){const a=String(x.action||'');let n=a.includes(s.action)?10:(a.includes('/result-page')?4:0);for(const k of Object.keys(p))if(x.querySelector('[name="'+k+'"]'))n+=2;if(n>b){b=n;f=x}}if(!f){f=document.createElement('form');f.method='POST';f.action=s.action||'';f.style.display='none';document.body.appendChild(f)}f.method='POST';if(s.action)f.action=s.action;const add=(k,v)=>{if(v==null)return;if(Array.isArray(v))return v.forEach((vv)=>add(k,vv));const i=document.createElement('input');i.type='hidden';i.name=k;i.value=String(v);f.appendChild(i)};for(const [k,v] of Object.entries(p)){const els=[...f.querySelectorAll('[name="'+k+'"]')];if(!els.length){add(k,v);continue}for(const el of els){const t=String(el.type||'').toLowerCase(),g=String(el.tagName||'').toLowerCase();if(t==='checkbox'||t==='radio'){const vs=(Array.isArray(v)?v:[v]).map(String);el.checked=vs.includes(String(el.value??'on'));continue}if(g==='select'&&el.multiple&&Array.isArray(v)){const vs=v.map(String);for(const o of [...el.options||[]])o.selected=vs.includes(String(o.value));continue}el.value=Array.isArray(v)?String(v[0]??''):String(v??'')}}window.__unbrowseSubmitMeta={action:f.action,formId:f.id||null,mode:f===fs.find(Boolean)?'existing-form':'synthetic-form'};return true})()`,
+      );
+      await kuri.evaluate(
+        tabId,
+        `(()=>{const f=[...document.forms||[]].find((x)=>String(x.action||'')===String(window.__unbrowseSubmitState?.action||''))||document.forms[0];if(typeof window.basicformSubmit==='function'){window.basicformSubmit();return 'basicformSubmit'}if(f){f.submit();return 'submit'}return 'no-form'})()`,
+      );
+    }
 
     // Poll for the target response
     const POLL_INTERVAL = 1000;
@@ -1703,48 +2415,111 @@ export async function triggerAndIntercept(
 
     while (Date.now() - startTime < MAX_WAIT) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-      const intercepted = await collectInterceptedRequests(tabId);
-      for (const entry of intercepted) {
-        const respUrl = entry.url;
-        const baseMatch = respUrl.includes(targetBase);
-        const queryIdMatch = !targetQueryId || respUrl.includes(targetQueryId);
-        if (baseMatch && queryIdMatch) {
-          let data: unknown = entry.response_body;
-          try { data = JSON.parse(entry.response_body ?? ""); } catch { /* keep as string */ }
-          log("capture", `trigger-and-intercept: got status ${entry.response_status} for ${targetBase}`);
-          return {
-            status: entry.response_status,
-            data,
-            trace_id: nanoid(),
-            network_events: [{
-              startedDateTime: entry.timestamp,
-              request: {
-                url: entry.url,
-                method: entry.method,
-                headers: Object.entries(entry.request_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
-                ...(entry.request_body == null ? {} : {
-                  postData: {
-                    text: entry.request_body,
-                  },
-                }),
-              },
-              response: {
-                status: entry.response_status,
-                headers: Object.entries(entry.response_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
-                ...(entry.response_body == null ? {} : {
-                  content: {
-                    mimeType: entry.content_type,
-                    text: entry.response_body,
-                  },
-                }),
-              },
-            }],
-          };
+      if (!isDocumentPostFlow) {
+        const intercepted = await collectInterceptedRequests(tabId);
+        for (const entry of intercepted) {
+          const respUrl = entry.url;
+          if (matchesTriggerTargetUrl(respUrl, targetBase, targetQueryId)) {
+            let data: unknown = entry.response_body;
+            try { data = JSON.parse(entry.response_body ?? ""); } catch { /* keep as string */ }
+            log("capture", `trigger-and-intercept: got status ${entry.response_status} for ${targetBase}`);
+            return {
+              status: entry.response_status,
+              data,
+              trace_id: nanoid(),
+              network_events: [{
+                startedDateTime: entry.timestamp,
+                request: {
+                  url: entry.url,
+                  method: entry.method,
+                  headers: Object.entries(entry.request_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                  ...(entry.request_body == null ? {} : {
+                    postData: {
+                      text: entry.request_body,
+                    },
+                  }),
+                },
+                response: {
+                  status: entry.response_status,
+                  headers: Object.entries(entry.response_headers ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+                  ...(entry.response_body == null ? {} : {
+                    content: {
+                      mimeType: entry.content_type,
+                      text: entry.response_body,
+                    },
+                  }),
+                },
+              }],
+            };
+          }
         }
+      }
+      try {
+        const currentUrl = await kuri.getCurrentUrl(tabId);
+        if (matchesTriggerTargetUrl(currentUrl, targetBase, targetQueryId)) {
+          const settledNavigation = await waitForUsableDocumentNavigation(tabId, targetBase, targetQueryId, 5000);
+          if (settledNavigation) {
+            const { currentUrl: settledUrl, currentHtml } = settledNavigation;
+            log("capture", `trigger-and-intercept: detected document navigation ${currentUrl}`);
+            return {
+              status: 200,
+              data: currentHtml,
+              trace_id: nanoid(),
+              network_events: [{
+                startedDateTime: new Date().toISOString(),
+                request: {
+                  url: settledUrl,
+                  method: "GET",
+                  headers: [],
+                },
+                response: {
+                  status: 200,
+                  headers: [{ name: "content-type", value: "text/html" }],
+                  content: {
+                    mimeType: "text/html",
+                    text: currentHtml,
+                  },
+                },
+              }],
+            };
+          }
+        }
+      } catch {
+        // keep polling
       }
     }
 
     log("capture", `trigger-and-intercept: timeout waiting for ${targetBase}`);
+    try {
+      const settledNavigation = await waitForUsableDocumentNavigation(tabId, targetBase, targetQueryId, 5000);
+      if (settledNavigation) {
+        const { currentUrl, currentHtml } = settledNavigation;
+        log("capture", `trigger-and-intercept: recovered document navigation ${currentUrl}`);
+        return {
+          status: 200,
+          data: currentHtml,
+          trace_id: nanoid(),
+          network_events: [{
+            startedDateTime: new Date().toISOString(),
+            request: {
+              url: currentUrl,
+              method: "GET",
+              headers: [],
+            },
+            response: {
+              status: 200,
+              headers: [{ name: "content-type", value: "text/html" }],
+              content: {
+                mimeType: "text/html",
+                text: currentHtml,
+              },
+            },
+          }],
+        };
+      }
+    } catch {
+      // keep falling through
+    }
     if (harStarted) {
       try {
         const { entries } = await kuri.harStop(tabId);

@@ -28,6 +28,13 @@ export type FetchedHtmlDocument = {
   headers: Record<string, string>;
 };
 
+export type InferredHtmlActionForm = {
+  url: string;
+  method: "POST";
+  headers_template: Record<string, string>;
+  body: Record<string, unknown>;
+};
+
 function hostMatchesCookieDomain(host: string, cookieDomain: string): boolean {
   const normalized = cookieDomain.replace(/^\./, "").toLowerCase();
   const target = host.toLowerCase();
@@ -91,6 +98,186 @@ function encodeFormBody(body: Record<string, unknown>): string {
     appendField(params, key, String(value));
   }
   return params.toString();
+}
+
+function normalizeBindingKey(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[.[\]]+/g, "_")
+    .replace(/[^a-zA-Z0-9_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+function actionIntentTerms(intent: string | undefined): string[] {
+  const lower = intent?.toLowerCase() ?? "";
+  const terms: string[] = [];
+  if (/\brsvp\b/.test(lower)) terms.push("rsvp");
+  if (/\bregister\b/.test(lower)) terms.push("register");
+  if (/\bjoin\b/.test(lower)) terms.push("join");
+  if (/\bapply\b/.test(lower)) terms.push("apply");
+  if (/\bsign\s*up\b|\bsignup\b/.test(lower)) terms.push("sign up", "signup");
+  if (/\bbook\b/.test(lower)) terms.push("book");
+  if (/\breserve\b/.test(lower)) terms.push("reserve");
+  if (/\bcheckout\b/.test(lower)) terms.push("checkout");
+  if (/\bpurchase\b/.test(lower)) terms.push("purchase");
+  if (/\border\b/.test(lower)) terms.push("order");
+  return [...new Set(terms)];
+}
+
+function isActionPlaceholderField(attrs: {
+  name?: string;
+  id?: string;
+  placeholder?: string;
+  ariaLabel?: string;
+  type?: string;
+  required?: boolean;
+}): boolean {
+  const haystack = [
+    attrs.name,
+    attrs.id,
+    attrs.placeholder,
+    attrs.ariaLabel,
+    attrs.type,
+  ].filter(Boolean).join(" ").toLowerCase();
+  if (attrs.required) return true;
+  return /(email|name|first|last|company|phone|message|note|comment|quantity|qty|size|ticket|code|answer)/.test(haystack);
+}
+
+export function inferLikelyHtmlActionForm(options: {
+  html: string;
+  pageUrl: string;
+  intent?: string;
+}): InferredHtmlActionForm | null {
+  const actionTerms = actionIntentTerms(options.intent);
+  if (!options.html || actionTerms.length === 0) return null;
+
+  const $ = load(options.html);
+  let best:
+    | {
+      url: string;
+      method: "POST";
+      headers_template: Record<string, string>;
+      body: Record<string, unknown>;
+      score: number;
+    }
+    | null = null;
+
+  $("form").each((_, formEl) => {
+    const form = $(formEl);
+    const action = form.attr("action") || options.pageUrl;
+    let actionUrl = options.pageUrl;
+    try {
+      actionUrl = new URL(action, options.pageUrl).toString();
+    } catch {
+      return;
+    }
+    const method = (form.attr("method") || "GET").toUpperCase();
+    if (method !== "POST") return;
+    const enctype = (form.attr("enctype") || "application/x-www-form-urlencoded").toLowerCase();
+    if (/multipart\/form-data/.test(enctype)) return;
+
+    const body: Record<string, unknown> = {};
+    let score = 0;
+    let hasPasswordField = false;
+    let fieldCount = 0;
+    let placeholderCount = 0;
+    let submitSignal = "";
+
+    form.find("button, input, textarea, select").each((__, fieldEl) => {
+      const field = $(fieldEl);
+      const tagName = fieldEl.tagName?.toLowerCase() ?? "";
+      const name = field.attr("name");
+      const id = field.attr("id");
+      const placeholder = field.attr("placeholder");
+      const ariaLabel = field.attr("aria-label");
+
+      if (tagName === "button") {
+        submitSignal += ` ${field.text()} ${name ?? ""} ${field.attr("value") ?? ""}`;
+        if (name) {
+          const value = field.attr("value");
+          if (value) body[name] = value;
+        }
+        return;
+      }
+
+      if (!name) return;
+      const type = (field.attr("type") || (tagName === "textarea" ? "textarea" : "text")).toLowerCase();
+      const required = field.attr("required") != null;
+      if (type === "password") {
+        hasPasswordField = true;
+        return;
+      }
+      if (type === "submit" || type === "button" || type === "image" || type === "reset" || type === "file") {
+        submitSignal += ` ${name} ${field.attr("value") ?? ""}`;
+        const value = field.attr("value");
+        if (value && !body[name]) body[name] = value;
+        return;
+      }
+
+      fieldCount += 1;
+
+      if (tagName === "select") {
+        const selected = field.find("option[selected]").first();
+        const fallback = selected.length > 0 ? selected : field.find("option").first();
+        const value = fallback.attr("value") ?? fallback.text().trim();
+        if (value) body[name] = value;
+        return;
+      }
+
+      if ((type === "checkbox" || type === "radio") && field.attr("checked") == null) return;
+
+      const value = tagName === "textarea" ? field.text().trim() : (field.attr("value") ?? "");
+      if (value) {
+        const existing = body[name];
+        if (existing == null) body[name] = value;
+        else if (Array.isArray(existing)) existing.push(value);
+        else body[name] = [existing, value];
+        return;
+      }
+
+      if (isActionPlaceholderField({ name, id, placeholder, ariaLabel, type, required })) {
+        const binding = normalizeBindingKey(name || id || placeholder || ariaLabel || "value");
+        body[name] = `{${binding || "value"}}`;
+        placeholderCount += 1;
+      }
+    });
+
+    const text = `${form.text()} ${submitSignal} ${actionUrl}`.toLowerCase();
+    if (hasPasswordField || /\blogin\b|\bsign in\b|\bsignin\b|\bpassword\b|\blog out\b|\blogout\b/.test(text)) return;
+
+    for (const term of actionTerms) {
+      if (text.includes(term)) score += 12;
+    }
+    if (/\/(api|graphql|rpc)\//.test(actionUrl.toLowerCase())) score += 10;
+    if (/(register|rsvp|join|apply|signup|book|reserve|checkout|purchase|order)/.test(actionUrl.toLowerCase())) score += 14;
+    if (placeholderCount > 0) score += 6;
+    if (/\bemail\b/.test(text)) score += 4;
+    if (fieldCount === 0) score -= 8;
+    if (Object.keys(body).length === 0) return;
+    if (score <= 0) return;
+
+    const candidate = {
+      url: actionUrl,
+      method: "POST" as const,
+      headers_template: {
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body,
+      score,
+    };
+    if (!best || candidate.score > best.score) best = candidate;
+  });
+
+  return best
+    ? {
+        url: best.url,
+        method: best.method,
+        headers_template: best.headers_template,
+        body: best.body,
+      }
+    : null;
 }
 
 export async function fetchHtmlDocument(options: {
