@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { canUseTriggerIntercept, resolveTriggerInterceptTargetUrl } from "../src/execution/index.js";
+import {
+  canUseTriggerIntercept,
+  resolveTriggerInterceptTargetUrl,
+  shouldPreferTriggerInterceptStrategy,
+} from "../src/execution/index.js";
 import type { EndpointDescriptor } from "../src/types/index.js";
 
 function makeEndpoint(overrides: Partial<EndpointDescriptor>): EndpointDescriptor {
@@ -57,5 +61,30 @@ describe("trigger-intercept strategy", () => {
         true,
       ),
     ).toBe("https://www.example.com/api/search?q=test");
+  });
+
+  it("prefers trigger-intercept for safe POST search endpoints", () => {
+    expect(
+      shouldPreferTriggerInterceptStrategy(
+        makeEndpoint({
+          method: "POST",
+          trigger_url: "https://www.example.com/search",
+          url_template: "https://www.example.com/result-page",
+          idempotency: "safe",
+          body_params: {
+            basic_search_key: "assessment of damages",
+          },
+          dom_extraction: {
+            extraction_method: "repeated-elements",
+            confidence: 0.9,
+            selector: "#results",
+          },
+          semantic: {
+            action_kind: "search",
+            resource_kind: "document",
+          },
+        }),
+      ),
+    ).toBe(true);
   });
 });

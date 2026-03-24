@@ -247,4 +247,91 @@ describe("rankEndpoints search selection", () => {
       ranked.findIndex((item) => item.endpoint.endpoint_id === "structured-search"),
     );
   });
+
+  it("treats compact quoted queries on a search page as search intent", () => {
+    const artifact: EndpointDescriptor = {
+      endpoint_id: "artifact",
+      method: "GET",
+      url_template: "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search",
+      idempotency: "safe",
+      verification_status: "verified",
+      reliability_score: 0.8,
+      description: "Captured page artifact for searching cases",
+      trigger_url: "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search",
+      dom_extraction: {
+        extraction_method: "repeated-elements",
+        confidence: 0.8,
+        selector: "div#results",
+      },
+      semantic: {
+        action_kind: "search",
+        resource_kind: "resource",
+        description_in: "No additional inputs required",
+        description_out: "Captured page artifact for searching cases",
+        response_summary: "[].title",
+        example_request: {},
+        example_response_compact: [{ title: "Search Results" }],
+        example_fields: ["[].title"],
+        requires: [],
+        provides: [],
+        negative_tags: [],
+        confidence: 0.8,
+        observed_at: new Date().toISOString(),
+        auth_required: true,
+      },
+    };
+
+    const structuredSearch: EndpointDescriptor = {
+      endpoint_id: "structured-search",
+      method: "POST",
+      url_template: "https://www.lawnet.sg/lawnet/group/lawnet/result-page",
+      idempotency: "safe",
+      verification_status: "unverified",
+      reliability_score: 0.5,
+      description: "Searches documents with title, citation, court",
+      trigger_url: "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search",
+      body_params: {
+        basic_search_key: "late evidence",
+      },
+      body: {
+        basicSearchKey: "{basic_search_key}",
+        grouping: "1",
+      },
+      response_schema: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            citation: { type: "string" },
+          },
+        },
+      } as any,
+      semantic: {
+        action_kind: "search",
+        resource_kind: "document",
+        description_in: "Requires basic_search_key",
+        description_out: "Searches documents with title, citation, court",
+        response_summary: "[].title, [].citation",
+        example_request: { basicSearchKey: "{basic_search_key}" },
+        example_response_compact: [{ title: "Foo v Bar", citation: "[2024] SGHC 1" }],
+        example_fields: ["[].title", "[].citation"],
+        requires: [],
+        provides: [],
+        negative_tags: [],
+        confidence: 0.8,
+        observed_at: new Date().toISOString(),
+        auth_required: true,
+      },
+    };
+
+    const ranked = rankEndpoints(
+      [artifact, structuredSearch],
+      '"application for leave to adduce" "assessment of damages" "court allowed new evidence"',
+      "www.lawnet.sg",
+      "https://www.lawnet.sg/lawnet/group/lawnet/legal-research/basic-search",
+    );
+
+    expect(ranked[0]?.endpoint.endpoint_id).toBe("structured-search");
+  });
 });
