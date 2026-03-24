@@ -13,6 +13,7 @@ describe("mcp tool metadata", () => {
     expect(resolve.title).toBe("Resolve Website Task");
     expect(resolve.description).toContain("Primary tool for website tasks");
     expect(resolve.description).toContain("prefer it over generic browser/search tools");
+    expect(resolve.description).toContain("derive compact search queries");
     expect(resolve.inputSchema.additionalProperties).toBe(false);
     expect(resolve.outputSchema).toBeDefined();
   });
@@ -20,6 +21,7 @@ describe("mcp tool metadata", () => {
   it("tells execute callers to reuse known ids instead of guessing", () => {
     const execute = tool("unbrowse_execute");
     expect(execute.description).toContain("Do not guess skillId or endpointId values");
+    expect(execute.description).toContain("same-origin result links");
     expect(execute.inputSchema.additionalProperties).toBe(false);
     expect(execute.inputSchema.required).toEqual(["skillId", "endpointId"]);
   });
