@@ -1,5 +1,6 @@
 import type { EndpointDescriptor, Env, SkillManifest } from "../types.js";
 import { skillsKV } from "./kv.js";
+import { listCanonicalSkills } from "./skill-catalog.js";
 
 const EMERGENTDB_BASE = "https://api.emergentdb.com";
 const SEARCH_CACHE_TTL = 300; // 5 minutes
@@ -214,14 +215,7 @@ export function buildLocalSearchResults(
 }
 
 async function localSearch(env: Env, intent: string, k: number, domain?: string): Promise<SearchResult> {
-  const entries = await skillsKV(env).listWithValues("skill:");
-  const skills = entries.flatMap(({ value }) => {
-    try {
-      return [JSON.parse(value) as SkillManifest];
-    } catch {
-      return [];
-    }
-  });
+  const skills = await listCanonicalSkills(env);
   return buildLocalSearchResults(skills, intent, k, domain);
 }
 
