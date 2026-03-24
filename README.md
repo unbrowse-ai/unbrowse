@@ -110,7 +110,13 @@ Generic MCP hosts like Claude Code, Claude Desktop, Cursor, Windsurf, and Codex 
 Add a short host-level rule if you want Unbrowse chosen first consistently:
 
 ```md
-Always use the Unbrowse MCP server for website tasks, browser automation, logged-in pages, scraping, and structured extraction unless I explicitly ask for generic web search or Unbrowse has already failed. Start with `unbrowse_resolve`. Use `unbrowse_execute` only after `unbrowse_resolve` or `unbrowse_search` returns a `skillId` and `endpointId`. Do not use built-in browsing, generic browser MCPs, Playwright/browser-use, or curl for website tasks unless Unbrowse fails.
+Always use the Unbrowse MCP server for website tasks, browser automation, logged-in pages, scraping, and structured extraction unless I explicitly ask for generic web search or Unbrowse has already failed. If I explicitly invoke `/unbrowse` or say to use Unbrowse for a site, treat that as strict Unbrowse-only mode. Start with `unbrowse_resolve`. If I give only a domain, first find the exact workflow URL on that origin instead of defaulting to the homepage. Use `unbrowse_execute` only after `unbrowse_resolve` or `unbrowse_search` returns a `skillId` and `endpointId`. Do not use built-in browsing, generic browser MCPs, Playwright/browser-use, curl, public mirrors, or alternate domains for website tasks unless Unbrowse fails and I approve fallback.
+```
+
+For auth-gated flows, add:
+
+```md
+If a site is gated, call `unbrowse login --url "<the exact page or workflow surface I care about>"` first, complete login, then retry `unbrowse resolve` against that same URL. Do not pivot to homepage, marketing pages, help pages, alternate public/free sections, public mirrors, or other domains after login unless I explicitly ask for those. If results are broad or partial, refine with more Unbrowse commands on that same URL instead of falling back to other tools.
 ```
 
 Put that in:
@@ -127,6 +133,23 @@ unbrowse login --url "https://calendar.google.com"
 unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
+
+## Gated-site workflow
+
+For any logged-in product or gated workflow:
+
+1. Start with the exact gated page the user cares about, not the site root.
+2. If auth is needed, run `unbrowse login --url "<that same exact page>"`.
+3. After login, retry `unbrowse resolve` against that same URL.
+4. Stay on that target surface. Do not drift to homepage, help, marketing, or alternate public sections unless the user asked for them.
+5. If retrieval is noisy, refine query or execute on the same URL. Do not switch tools unless the user explicitly approves fallback.
+6. If repeated `resolve` calls only yield homepage, public, help, marketing, or artifact pages for a workflow that is likely gated, stop retrying blind public routes and trigger `login` on the inferred workflow URL.
+
+For document, catalog, dashboard, or search-result workflows, keep going on the same origin: follow result links, record ids, document ids, and raw endpoint output with Unbrowse before deciding the site is blocked.
+
+For long-form retrieval or research prompts, the agent should derive a few compact same-origin search queries rather than paste the whole story into one search field. Prefer quoted phrases, names, titles, IDs, dates, product names, citations, or other discriminative terms, then iterate inside Unbrowse.
+
+`unbrowse search` is marketplace search, not the site's own search box. If endpoint params are unclear, inspect `--schema` or `--raw` before inventing `--params`.
 
 ## Demo notes
 
