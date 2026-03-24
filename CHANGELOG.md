@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* rebuild canonical skill enumeration from durable `domain-idx:*` keys instead of the lossy split `skill:*` manifest index, so prod publish/search hydration can still see newly published and existing canonical skills when graph search omits metadata
+
 ## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.1.2...v2.1.3) (2026-03-23)
 
 ### Bug Fixes
@@ -72,6 +78,8 @@
 
 ### Bug Fixes
 
+- repair LawNet retrieval from local reuse paths: preserve search verbs/late keywords when condensing long legal prompts, prefer the richest local snapshot for a cached skill, and fall back to same-domain local snapshots before live capture when marketplace/domain cache misses
+- treat LawNet-style case rows as valid search results and bias DOM extraction away from `Search Results` shell wrappers toward normalized repeated case rows, so `resolve` can auto-execute the structured `result-page` search endpoint instead of returning artifact junk
 - fix warm retrieval for exact cached results: when `resolve` already has a valid route-result snapshot for the same intent + URL, reuse that snapshot directly instead of re-running full endpoint replay and deleting the cache on a stricter second-pass semantic check
 - fix unstable local cache scoping: default CLI requests now share a stable client id and API requests without an explicit client id fall back to `global`, so route-result/route-skill retrieval caches survive across repeated local commands instead of fragmenting per request
 - include `dist/supervisor.js` in the published CLI package so installed builds can autostart the new self-healing local supervisor instead of crashing on missing module

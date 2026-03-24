@@ -4,6 +4,7 @@ import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex } from "
 import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
 import { skillsKV } from "./kv.js";
+import { listCanonicalSkills } from "./skill-catalog.js";
 
 function kvKey(skillId: string): string {
   return `skill:${skillId}`;
@@ -26,14 +27,7 @@ function hashIntent(s: string): string {
 }
 
 export async function listSkills(env: Env): Promise<SkillManifest[]> {
-  const entries = await skillsKV(env).listWithValues("skill:");
-  return entries.flatMap(({ value }) => {
-    try {
-      const skill = JSON.parse(value) as SkillManifest;
-      if (!skill.execution_type) skill.execution_type = "http";
-      return [skill];
-    } catch { return []; }
-  });
+  return listCanonicalSkills(env);
 }
 
 export async function getSkill(env: Env, skillId: string): Promise<SkillManifest | null> {
