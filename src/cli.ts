@@ -18,7 +18,7 @@ loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
-const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
+const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || "cli-local";
 
 // ---------------------------------------------------------------------------
 // Arg parser
@@ -146,6 +146,17 @@ function detectEntityIndex(data: unknown): Map<string, unknown> | null {
   return best ? buildEntityIndex(best) : null;
 }
 
+function unwrapCarrier(data: unknown): unknown {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) return data;
+  const rec = data as Record<string, unknown>;
+  const keys = Object.keys(rec);
+  const isCarrierOnly = keys.every((key) => key === "data" || key === "_extraction");
+  if (isCarrierOnly && "data" in rec && ("_extraction" in rec || Array.isArray(rec.data) || (rec.data != null && typeof rec.data === "object"))) {
+    return unwrapCarrier(rec.data);
+  }
+  return data;
+}
+
 /** Resolve a dot-path like "data.items[].name" against an object.
  *  When entityIndex is provided, transparently follows *-prefixed URN references. */
 function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unknown> | null): unknown {
@@ -267,10 +278,10 @@ function looksStructuredForDirectOutput(value: unknown): boolean {
 
 /** Apply --path, --extract, --limit to a result object. */
 function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
-  let data = result;
+  let data = unwrapCarrier(result);
 
   // Build entity index from the full response before drilling into it
-  const entityIndex = detectEntityIndex(result);
+  const entityIndex = detectEntityIndex(data);
 
   // --path: drill into nested structure
   const pathFlag = flags.path as string | undefined;
@@ -440,9 +451,11 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction
+  // When explicit CLI transforms are present, get raw data for client-side extraction.
+  // --schema also needs the raw payload shape; projected results can legitimately drop
+  // response_schema/extraction_hints because they no longer describe the transformed data.
   const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || hasTransforms) body.projection = { raw: true };
+  if (flags.raw || flags.schema || hasTransforms) body.projection = { raw: true };
 
   const startedAt = Date.now();
   let result = await withPendingNotice(
@@ -499,9 +512,11 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction
+  // When explicit CLI transforms are present, get raw data for client-side extraction.
+  // --schema also needs the raw payload shape; projected results can legitimately drop
+  // response_schema/extraction_hints because they no longer describe the transformed data.
   const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || hasTransforms) body.projection = { raw: true };
+  if (flags.raw || flags.schema || hasTransforms) body.projection = { raw: true };
 
   let result = await withPendingNotice(
     api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
@@ -545,7 +560,16 @@ async function cmdFeedback(flags: Record<string, string | boolean>): Promise<voi
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
   const url = flags.url as string;
   if (!url) die("--url is required");
-  output(await api("POST", "/v1/auth/login", { url }), !!flags.pretty);
+  const browserLabel = typeof flags.browser === "string" ? flags.browser : "default browser";
+  const result = await withPendingNotice(
+    api("POST", "/v1/auth/login", {
+      url,
+      ...(typeof flags.browser === "string" ? { browser: flags.browser } : {}),
+    }),
+    `Opened ${url} in ${browserLabel}. Finish sign-in there; waiting for fresh cookies...`,
+    1_000,
+  );
+  output(result, !!flags.pretty);
 }
 
 async function cmdSkills(flags: Record<string, string | boolean>): Promise<void> {
@@ -585,7 +609,7 @@ export const CLI_REFERENCE = {
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
-    { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
+    { name: "login", usage: '--url "..." [--browser chrome|arc|dia|brave|edge|vivaldi|chromium|firefox]', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
@@ -610,6 +634,7 @@ export const CLI_REFERENCE = {
   examples: [
     "unbrowse health",
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
+    'unbrowse login --url "https://lu.ma/signin" --browser chrome',
     "unbrowse execute --skill abc --endpoint def --pretty",
     'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
     'unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20',

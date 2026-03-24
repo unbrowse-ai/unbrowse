@@ -32,6 +32,12 @@ execFileSync(
   { cwd: packageRoot, stdio: "inherit" },
 );
 
+execFileSync(
+  "bun",
+  [...sharedArgs, path.join(sourceDir, "supervisor.ts"), "--outfile", path.join(distDir, "supervisor.js")],
+  { cwd: packageRoot, stdio: "inherit" },
+);
+
 cpSync(sourceDir, runtimeSourceDir, { recursive: true, dereference: true });
 
 const cliFile = path.join(distDir, "cli.js");
@@ -42,5 +48,10 @@ const indexFile = path.join(distDir, "index.js");
 const indexContents = readFileSync(indexFile, "utf8").replace(/^#!.*\n/, "");
 writeFileSync(indexFile, `#!/usr/bin/env node\n${indexContents}`);
 
+const supervisorFile = path.join(distDir, "supervisor.js");
+const supervisorContents = readFileSync(supervisorFile, "utf8").replace(/^#!.*\n/, "");
+writeFileSync(supervisorFile, `#!/usr/bin/env node\n${supervisorContents}`);
+
 chmodSync(cliFile, 0o755);
 chmodSync(indexFile, 0o755);
+chmodSync(supervisorFile, 0o755);

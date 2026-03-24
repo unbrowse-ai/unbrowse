@@ -291,7 +291,7 @@ function inferRequires(endpoint: EndpointDescriptor): OperationBinding[] {
       semantic_type: key.endsWith("_id") || key === "id" ? "identifier" : "input",
     });
   };
-  for (const key of Object.keys(endpoint.path_params ?? {})) add(key, "path_params");
+  for (const key of Object.keys(endpoint.path_params ?? {})) add(key, "path_params", false);
   for (const key of Object.keys(endpoint.query ?? {})) add(normalizeQueryBindingKey(key), "query", false);
   for (const match of endpoint.url_template.matchAll(/\{([^}]+)\}/g)) add(match[1], "url_template");
   return requires;
@@ -562,6 +562,26 @@ export function resolveEndpointSemantic(
 
 function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
   const semantic = resolveEndpointSemantic(endpoint);
+  const normalizedRequires = (() => {
+    const byBinding = new Map<string, OperationBinding>();
+    for (const binding of semantic.requires ?? []) {
+      const defaultedPathParam =
+        binding.source === "path_params" &&
+        Object.prototype.hasOwnProperty.call(endpoint.path_params ?? {}, binding.key);
+      const normalized = defaultedPathParam ? { ...binding, required: false } : binding;
+      const id = [normalized.key, normalized.source ?? "", normalized.semantic_type ?? ""].join("|");
+      const existing = byBinding.get(id);
+      if (!existing) {
+        byBinding.set(id, normalized);
+        continue;
+      }
+      byBinding.set(id, {
+        ...existing,
+        required: existing.required && normalized.required,
+      });
+    }
+    return [...byBinding.values()];
+  })();
   return {
     operation_id: endpoint.endpoint_id,
     endpoint_id: endpoint.endpoint_id,
@@ -573,7 +593,7 @@ function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
     description_in: semantic.description_in,
     description_out: semantic.description_out,
     response_summary: semantic.response_summary,
-    requires: semantic.requires ?? [],
+    requires: normalizedRequires,
     provides: semantic.provides ?? [],
     negative_tags: semantic.negative_tags ?? [],
     example_request: semantic.example_request,
@@ -686,7 +706,13 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
     }
   }
   const entryOperationIds = operations
-    .filter((operation) => operation.requires.length === 0 || operation.requires.every((binding) => binding.source === "query"))
+    .filter(
+      (operation) =>
+        operation.requires.length === 0 ||
+        operation.requires.every(
+          (binding) => binding.source === "query" || binding.source === "path_params",
+        ),
+    )
     .map((operation) => operation.operation_id);
 
   return {

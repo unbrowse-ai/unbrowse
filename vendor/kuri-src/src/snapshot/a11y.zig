@@ -164,7 +164,6 @@ pub fn buildSnapshot(
     if (opts.compact) {
         // Collect all non-StaticText names
         var name_set: std.StringHashMap(void) = .init(allocator);
-        defer name_set.deinit();
         for (result.items) |node| {
             if (!std.mem.eql(u8, node.role, "StaticText") and node.name.len > 2) {
                 try name_set.put(node.name, {});
@@ -172,12 +171,6 @@ pub fn buildSnapshot(
         }
         // Filter: keep StaticText only if its name is NOT in the set
         var filtered: std.ArrayList(A11yNode) = .empty;
-        errdefer {
-            for (filtered.items) |node| {
-                allocator.free(node.ref);
-            }
-            filtered.deinit(allocator);
-        }
         var ref_idx: usize = 0;
         for (result.items) |node| {
             if (std.mem.eql(u8, node.role, "StaticText")) {
@@ -205,12 +198,6 @@ pub fn buildSnapshot(
                 .backend_node_id = node.backend_node_id,
                 .depth = node.depth,
             });
-        }
-        defer {
-            for (result.items) |node| {
-                allocator.free(node.ref);
-            }
-            result.deinit(allocator);
         }
         return filtered.toOwnedSlice(allocator);
     }

@@ -3,10 +3,6 @@ const CdpClient = @import("../cdp/client.zig").CdpClient;
 const HarRecorder = @import("../cdp/har.zig").HarRecorder;
 const A11yNode = @import("../snapshot/a11y.zig").A11yNode;
 
-fn traceTabsEnabled() bool {
-    return std.posix.getenv("KURI_TRACE_TABS") != null;
-}
-
 pub const TabEntry = struct {
     id: []const u8,
     url: []const u8,
@@ -54,32 +50,25 @@ pub const Bridge = struct {
     }
 
     pub fn deinit(self: *Bridge) void {
-        var har_it = self.har_recorders.iterator();
-        while (har_it.next()) |entry| {
-            self.allocator.free(entry.key_ptr.*);
-            entry.value_ptr.*.deinit();
-            self.allocator.destroy(entry.value_ptr.*);
+        var har_it = self.har_recorders.valueIterator();
+        while (har_it.next()) |rec| {
+            rec.*.deinit();
+            self.allocator.destroy(rec.*);
         }
         self.har_recorders.deinit();
 
-        var cdp_it = self.cdp_clients.iterator();
-        while (cdp_it.next()) |entry| {
-            self.allocator.free(entry.key_ptr.*);
-            entry.value_ptr.*.deinit();
-            self.allocator.destroy(entry.value_ptr.*);
+        var cdp_it = self.cdp_clients.valueIterator();
+        while (cdp_it.next()) |client| {
+            client.*.deinit();
+            self.allocator.destroy(client.*);
         }
         self.cdp_clients.deinit();
 
-        var prev_it = self.prev_snapshots.iterator();
-        while (prev_it.next()) |entry| {
-            self.allocator.free(entry.key_ptr.*);
-        }
         self.prev_snapshots.deinit();
 
-        var snap_it = self.snapshots.iterator();
-        while (snap_it.next()) |entry| {
-            self.allocator.free(entry.key_ptr.*);
-            entry.value_ptr.*.deinit();
+        var snap_it = self.snapshots.valueIterator();
+        while (snap_it.next()) |cache| {
+            cache.deinit();
         }
         self.snapshots.deinit();
 
@@ -135,15 +124,6 @@ pub const Bridge = struct {
         }
 
         try self.tabs.put(owned.id, owned);
-        if (traceTabsEnabled()) {
-            std.log.info("trace.tabs put id={s} url={s} title={s} ws={s} count={d}", .{
-                owned.id,
-                owned.url,
-                owned.title,
-                if (owned.ws_url.len > 0) "yes" else "no",
-                self.tabs.count(),
-            });
-        }
     }
 
     pub fn removeTab(self: *Bridge, tab_id: []const u8) void {
@@ -152,46 +132,19 @@ pub const Bridge = struct {
 
         // Grab owned strings before removing from map
         const tab = self.tabs.get(tab_id) orelse {
-            if (traceTabsEnabled()) {
-                std.log.info("trace.tabs remove-miss id={s} snapshots={s} prev={s} client={s} har={s} count={d}", .{
-                    tab_id,
-                    if (self.snapshots.contains(tab_id)) "yes" else "no",
-                    if (self.prev_snapshots.contains(tab_id)) "yes" else "no",
-                    if (self.cdp_clients.contains(tab_id)) "yes" else "no",
-                    if (self.har_recorders.contains(tab_id)) "yes" else "no",
-                    self.tabs.count(),
-                });
-            }
-            if (self.snapshots.fetchRemove(tab_id)) |kv| {
-                self.allocator.free(kv.key);
-                var cache = kv.value;
-                cache.deinit();
-            }
-            if (self.prev_snapshots.fetchRemove(tab_id)) |kv| {
-                self.allocator.free(kv.key);
-            }
+            if (self.snapshots.getPtr(tab_id)) |cache| cache.deinit();
+            _ = self.snapshots.remove(tab_id);
+            _ = self.prev_snapshots.remove(tab_id);
             if (self.cdp_clients.fetchRemove(tab_id)) |kv| {
-                self.allocator.free(kv.key);
                 kv.value.deinit();
                 self.allocator.destroy(kv.value);
             }
             if (self.har_recorders.fetchRemove(tab_id)) |kv| {
-                self.allocator.free(kv.key);
                 kv.value.deinit();
                 self.allocator.destroy(kv.value);
             }
             return;
         };
-
-        if (traceTabsEnabled()) {
-            std.log.info("trace.tabs remove id={s} url={s} client={s} har={s} count_before={d}", .{
-                tab_id,
-                tab.url,
-                if (self.cdp_clients.contains(tab_id)) "yes" else "no",
-                if (self.har_recorders.contains(tab_id)) "yes" else "no",
-                self.tabs.count(),
-            });
-        }
 
         _ = self.tabs.remove(tab_id);
 
@@ -200,26 +153,16 @@ pub const Bridge = struct {
         self.allocator.free(tab.title);
         self.allocator.free(tab.ws_url);
 
-        if (self.snapshots.fetchRemove(tab_id)) |kv| {
-            self.allocator.free(kv.key);
-            var cache = kv.value;
-            cache.deinit();
-        }
-        if (self.prev_snapshots.fetchRemove(tab_id)) |kv| {
-            self.allocator.free(kv.key);
-        }
+        if (self.snapshots.getPtr(tab_id)) |cache| cache.deinit();
+        _ = self.snapshots.remove(tab_id);
+        _ = self.prev_snapshots.remove(tab_id);
         if (self.cdp_clients.fetchRemove(tab_id)) |kv| {
-            self.allocator.free(kv.key);
             kv.value.deinit();
             self.allocator.destroy(kv.value);
         }
         if (self.har_recorders.fetchRemove(tab_id)) |kv| {
-            self.allocator.free(kv.key);
             kv.value.deinit();
             self.allocator.destroy(kv.value);
-        }
-        if (traceTabsEnabled()) {
-            std.log.info("trace.tabs remove-done id={s} count_after={d}", .{ tab_id, self.tabs.count() });
         }
     }
 
@@ -242,39 +185,18 @@ pub const Bridge = struct {
         defer self.mu.unlock();
 
         if (self.cdp_clients.get(tab_id)) |client| {
-            if (traceTabsEnabled()) {
-                std.log.info("trace.tabs cdp-hit id={s}", .{tab_id});
-            }
             return client;
         }
 
-        const tab = self.tabs.get(tab_id) orelse {
-            if (traceTabsEnabled()) {
-                std.log.info("trace.tabs cdp-miss id={s} reason=no-tab count={d}", .{ tab_id, self.tabs.count() });
-            }
-            return null;
-        };
-        if (tab.ws_url.len == 0) {
-            if (traceTabsEnabled()) {
-                std.log.info("trace.tabs cdp-miss id={s} reason=no-ws url={s}", .{ tab_id, tab.url });
-            }
-            return null;
-        }
+        const tab = self.tabs.get(tab_id) orelse return null;
+        if (tab.ws_url.len == 0) return null;
 
         const client = self.allocator.create(CdpClient) catch return null;
         client.* = CdpClient.init(self.allocator, tab.ws_url);
-        const owned_key = self.allocator.dupe(u8, tab.id) catch {
+        self.cdp_clients.put(tab_id, client) catch {
             self.allocator.destroy(client);
             return null;
         };
-        errdefer self.allocator.free(owned_key);
-        self.cdp_clients.put(owned_key, client) catch {
-            self.allocator.destroy(client);
-            return null;
-        };
-        if (traceTabsEnabled()) {
-            std.log.info("trace.tabs cdp-create id={s} ws={s}", .{ tab_id, tab.ws_url });
-        }
         return client;
     }
 
@@ -349,15 +271,9 @@ pub const Bridge = struct {
             return rec;
         }
 
-        const tab = self.tabs.get(tab_id) orelse return null;
         const rec = self.allocator.create(HarRecorder) catch return null;
         rec.* = HarRecorder.init(self.allocator);
-        const owned_key = self.allocator.dupe(u8, tab.id) catch {
-            self.allocator.destroy(rec);
-            return null;
-        };
-        errdefer self.allocator.free(owned_key);
-        self.har_recorders.put(owned_key, rec) catch {
+        self.har_recorders.put(tab_id, rec) catch {
             self.allocator.destroy(rec);
             return null;
         };
@@ -429,32 +345,4 @@ test "bridge tab CRUD" {
 
     bridge.removeTab("tab-1");
     try std.testing.expectEqual(@as(usize, 0), bridge.tabCount());
-}
-
-test "bridge owns cdp and har map keys" {
-    var bridge = Bridge.init(std.testing.allocator);
-    defer bridge.deinit();
-
-    try bridge.putTab(.{
-        .id = "tab-1",
-        .url = "https://example.com",
-        .title = "Example",
-        .ws_url = "ws://localhost:9222/devtools/page/tab-1",
-        .created_at = 1000,
-        .last_accessed = 1000,
-    });
-
-    const transient = try std.testing.allocator.dupe(u8, "tab-1");
-    defer std.testing.allocator.free(transient);
-
-    const first_client = bridge.getCdpClient(transient) orelse return error.TestUnexpectedResult;
-    const first_recorder = bridge.getHarRecorder(transient) orelse return error.TestUnexpectedResult;
-
-    @memset(transient, 'x');
-
-    const second_client = bridge.getCdpClient("tab-1") orelse return error.TestUnexpectedResult;
-    const second_recorder = bridge.getHarRecorder("tab-1") orelse return error.TestUnexpectedResult;
-
-    try std.testing.expectEqual(first_client, second_client);
-    try std.testing.expectEqual(first_recorder, second_recorder);
 }

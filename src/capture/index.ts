@@ -7,6 +7,12 @@ import os from "node:os";
 import { join } from "node:path";
 import type { BrowserAuthSourceMeta } from "../auth/browser-cookies.js";
 import { browserCdpBaseUrl, launchChromiumProfileContext, primeChromiumProfileContext } from "../auth/profile-context.js";
+import {
+  deriveInteractionClickTerms,
+  deriveInteractionQueryTerms,
+  shouldAttemptInteractiveExploration,
+} from "./interaction.js";
+import { fetchHtmlDocument, submitLikelyHtmlSearchForm } from "./form-submit.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -126,6 +132,28 @@ async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     };
     signal?.addEventListener("abort", onAbort, { once: true });
   });
+}
+
+async function withCaptureStepTimeout<T>(
+  label: string,
+  ms: number,
+  signal: AbortSignal | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return await Promise.race([
+    fn(),
+    (async () => {
+      await sleep(ms, signal);
+      throw new Error(`${label}_timeout`);
+    })(),
+  ]);
+}
+
+function looksLikeSearchDocument(html?: string): boolean {
+  if (!html) return false;
+  return /name=["'](?:basicSearchKey|q|query|search|keyword|searchTerm|searchText)["']/i.test(html)
+    || /placeholder=["'][^"']*(?:search|keyword|query|citation|case)/i.test(html)
+    || /action=[^>]*(?:search|result|lookup|find)/i.test(html);
 }
 
 async function resetTab(tabId: string): Promise<void> {
@@ -287,9 +315,9 @@ function shouldRetryEphemeralProfileError(error: unknown): boolean {
   return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
 }
 
-function shouldRestartKuriForError(error: unknown): boolean {
+export function shouldRestartKuriForError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /CDP command failed|target closed|session closed|No target with given id/i.test(message);
+  return /CDP command failed|target closed|session closed|No target with given id|No tabs available and failed to create one/i.test(message);
 }
 
 /**
@@ -438,107 +466,7 @@ export function hasUsefulCapturedResponses(
  * Inject a fetch/XHR interceptor into the page to capture request/response data.
  * Returns captured entries via __unbrowse_intercepted global.
  */
-const INTERCEPTOR_SCRIPT = `(function() {
-  if (window.__unbrowse_interceptor_installed) return;
-  window.__unbrowse_interceptor_installed = true;
-  window.__unbrowse_intercepted = [];
-  var MAX_BODY = 512 * 1024;
-  var MAX_JS_BODY = 2 * 1024 * 1024;
-  var MAX_ENTRIES = 500;
-
-  // Intercept fetch
-  var origFetch = window.fetch;
-  window.fetch = function() {
-    var args = arguments;
-    var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
-    var opts = args[1] || {};
-    var method = (opts.method || 'GET').toUpperCase();
-    var reqBody = opts.body ? String(opts.body).substring(0, MAX_BODY) : undefined;
-    var reqHeaders = {};
-    if (opts.headers) {
-      if (typeof opts.headers.forEach === 'function') {
-        opts.headers.forEach(function(v, k) { reqHeaders[k] = v; });
-      } else {
-        Object.keys(opts.headers).forEach(function(k) { reqHeaders[k] = opts.headers[k]; });
-      }
-    }
-    return origFetch.apply(this, args).then(function(response) {
-      if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return response;
-      var ct = response.headers.get('content-type') || '';
-      var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
-                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
-                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
-      if (!isJs && !isData) return response;
-      if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return response;
-      var clone = response.clone();
-      clone.text().then(function(body) {
-        var limit = isJs ? MAX_JS_BODY : MAX_BODY;
-        if (body.length > limit) return;
-        var respHeaders = {};
-        response.headers.forEach(function(v, k) { respHeaders[k] = v; });
-        window.__unbrowse_intercepted.push({
-          url: url,
-          method: method,
-          request_headers: reqHeaders,
-          request_body: reqBody,
-          response_status: response.status,
-          response_headers: respHeaders,
-          response_body: body,
-          content_type: ct,
-          is_js: isJs,
-          timestamp: new Date().toISOString()
-        });
-      }).catch(function() {});
-      return response;
-    }).catch(function(err) { throw err; });
-  };
-
-  // Intercept XMLHttpRequest
-  var origOpen = XMLHttpRequest.prototype.open;
-  var origSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open = function(method, url) {
-    this.__unbrowse_method = method;
-    this.__unbrowse_url = url;
-    this.__unbrowse_reqHeaders = {};
-    var origSetHeader = this.setRequestHeader.bind(this);
-    this.setRequestHeader = function(k, v) {
-      this.__unbrowse_reqHeaders[k] = v;
-      origSetHeader(k, v);
-    }.bind(this);
-    return origOpen.apply(this, arguments);
-  };
-  XMLHttpRequest.prototype.send = function(body) {
-    var xhr = this;
-    xhr.addEventListener('load', function() {
-      if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return;
-      var ct = xhr.getResponseHeader('content-type') || '';
-      var url = xhr.__unbrowse_url || '';
-      var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
-                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
-                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
-      if (!isJs && !isData) return;
-      if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return;
-      var respBody = xhr.responseText || '';
-      var limit = isJs ? MAX_JS_BODY : MAX_BODY;
-      if (respBody.length > limit) return;
-      window.__unbrowse_intercepted.push({
-        url: url,
-        method: (xhr.__unbrowse_method || 'GET').toUpperCase(),
-        request_headers: xhr.__unbrowse_reqHeaders || {},
-        request_body: body ? String(body).substring(0, MAX_BODY) : undefined,
-        response_status: xhr.status,
-        response_headers: {},
-        response_body: respBody,
-        content_type: ct,
-        is_js: isJs,
-        timestamp: new Date().toISOString()
-      });
-    });
-    return origSend.apply(this, arguments);
-  };
-})()`;
+const INTERCEPTOR_SCRIPT = `(function(){if(window.__unbrowse_interceptor_installed)return;window.__unbrowse_interceptor_installed=true;window.__unbrowse_intercepted=[];var B=524288,J=2097152,M=500,F=window.fetch,R=/\\.js(\\?|$)/,A=/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/;function D(u,c){return c.indexOf('application/json')!==-1||c.indexOf('+json')!==-1||c.indexOf('application/x-protobuf')!==-1||c.indexOf('text/plain')!==-1||u.indexOf('batchexecute')!==-1||u.indexOf('/api/')!==-1}window.fetch=function(){var a=arguments,u=typeof a[0]==='string'?a[0]:(a[0]&&a[0].url?a[0].url:''),o=a[1]||{},m=(o.method||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,B):undefined,rh={};if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v;});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k];});}return F.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=M)return r;var c=r.headers.get('content-type')||'',j=c.indexOf('javascript')!==-1||R.test(u);if((!j&&!D(u,c))||A.test(u))return r;r.clone().text().then(function(b){if(b.length>(j?J:B))return;var h={};r.headers.forEach(function(v,k){h[k]=v;});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rb,response_status:r.status,response_headers:h,response_body:b,content_type:c,is_js:j,timestamp:new Date().toISOString()});}).catch(function(){});return r;}).catch(function(e){throw e;});};var O=XMLHttpRequest.prototype.open,S=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__unbrowse_method=m;this.__unbrowse_url=u;this.__unbrowse_reqHeaders={};var H=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__unbrowse_reqHeaders[k]=v;H(k,v);}.bind(this);return O.apply(this,arguments);};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=M)return;var c=x.getResponseHeader('content-type')||'',u=x.__unbrowse_url||'',j=c.indexOf('javascript')!==-1||R.test(u);if((!j&&!D(u,c))||A.test(u))return;var t=x.responseText||'';if(t.length>(j?J:B))return;window.__unbrowse_intercepted.push({url:u,method:(x.__unbrowse_method||'GET').toUpperCase(),request_headers:x.__unbrowse_reqHeaders||{},request_body:b?String(b).substring(0,B):undefined,response_status:x.status,response_headers:{},response_body:t,content_type:c,is_js:j,timestamp:new Date().toISOString()});});return S.apply(this,arguments);};})()`;
 
 /**
  * Collect intercepted requests from the page.
@@ -562,6 +490,54 @@ async function collectInterceptedRequests(tabId: string): Promise<Array<{
     }
   } catch { /* non-fatal */ }
   return [];
+}
+
+async function mergeInterceptedResponses(
+  tabId: string,
+  responseBodies: Map<string, string>,
+): Promise<number> {
+  const before = responseBodies.size;
+  const intercepted = await collectInterceptedRequests(tabId);
+  for (const entry of intercepted) {
+    if (entry.response_body && !entry.is_js) {
+      responseBodies.set(entry.url, entry.response_body);
+    }
+  }
+  return responseBodies.size - before;
+}
+
+async function settleAfterInteractiveStimulus(
+  tabId: string,
+  responseBodies: Map<string, string>,
+  signal?: AbortSignal,
+): Promise<number> {
+  const baseline = responseBodies.size;
+  const deadline = Date.now() + 4_000;
+  let lastAdded = 0;
+  while (Date.now() < deadline) {
+    await sleep(400, signal);
+    try {
+      await kuri.evaluate(tabId, STEALTH_SCRIPT);
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+    } catch {
+      // page may still be navigating
+    }
+    lastAdded = await mergeInterceptedResponses(tabId, responseBodies);
+    if (responseBodies.size > baseline) return responseBodies.size - baseline;
+  }
+  return lastAdded;
+}
+
+function parseInteractiveStimulusResult(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null;
+    } catch {
+      return null;
+    }
+  }
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
 }
 
 /**
@@ -694,6 +670,130 @@ async function waitForContentReady(
       }
     } catch {
       // non-fatal
+    }
+  }
+
+  if (
+    captureUrl &&
+    responseBodies &&
+    shouldAttemptInteractiveExploration(captureUrl, intent)
+  ) {
+    const queryTerms = deriveInteractionQueryTerms(captureUrl, intent);
+    const clickTerms = deriveInteractionClickTerms(captureUrl, intent);
+    try {
+      if (queryTerms.length > 0) {
+        const searchResult = await kuri.evaluate(
+          tabId,
+          `(async function(spec) {
+            const visible = (el) => {
+              if (!el || !(el instanceof Element)) return false;
+              const style = window.getComputedStyle(el);
+              const rect = el.getBoundingClientRect();
+              return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+            };
+            const scoreInput = (el) => {
+              const text = [el.getAttribute('name'), el.getAttribute('id'), el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.type].filter(Boolean).join(' ').toLowerCase();
+              let score = 0;
+              if (/search|query|keyword|find/.test(text)) score += 8;
+              if (/city|location|place/.test(text)) score += 4;
+              if (el.type === 'search') score += 5;
+              return score;
+            };
+            const setValue = (el, value) => {
+              if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                if (setter) setter.call(el, value);
+                else el.value = value;
+              } else {
+                el.textContent = value;
+              }
+            };
+            const inputs = [...document.querySelectorAll('input, textarea, [role="searchbox"], [contenteditable="true"]')]
+              .filter(visible)
+              .sort((a, b) => scoreInput(b) - scoreInput(a));
+            if (inputs.length === 0) return JSON.stringify({ action: null });
+            const target = inputs[0];
+            const term = spec.queryTerms[0];
+            target.focus();
+            setValue(target, term);
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.dispatchEvent(new Event('change', { bubbles: true }));
+            target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+            target.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+            const form = target.closest('form');
+            if (form && typeof form.requestSubmit === 'function') {
+              form.requestSubmit();
+              return JSON.stringify({ action: 'requestSubmit', term });
+            }
+            const submit = (form ?? document).querySelector('button[type="submit"], input[type="submit"], button[aria-label*="search" i], button[title*="search" i]');
+            if (submit instanceof HTMLElement) {
+              submit.click();
+              return JSON.stringify({ action: 'submit-click', term });
+            }
+            return JSON.stringify({ action: 'enter-only', term });
+          })(${JSON.stringify({ queryTerms })})`,
+        );
+        const parsedSearchResult = parseInteractiveStimulusResult(searchResult);
+        if (parsedSearchResult) {
+          log("capture", `interactive search stimulus: ${JSON.stringify(parsedSearchResult)}`);
+        }
+        await settleAfterInteractiveStimulus(tabId, responseBodies, signal);
+        if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent)) return;
+      }
+
+      for (let i = 0; i < 2 && clickTerms.length > 0; i++) {
+        const beforeCount = responseBodies.size;
+        const clickResult = await kuri.evaluate(
+          tabId,
+          `(async function(spec) {
+            const visible = (el) => {
+              if (!el || !(el instanceof Element)) return false;
+              const style = window.getComputedStyle(el);
+              const rect = el.getBoundingClientRect();
+              return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+            };
+            const textFor = (el) => [
+              el.textContent,
+              el.getAttribute('aria-label'),
+              el.getAttribute('title'),
+              el.getAttribute('value'),
+              el.getAttribute('href'),
+            ].filter(Boolean).join(' ').toLowerCase();
+            const score = (el) => {
+              const text = textFor(el);
+              let s = 0;
+              for (const term of spec.clickTerms) {
+                if (text.includes(term.toLowerCase())) s += term.length >= 6 ? 8 : 4;
+              }
+              if (/(button|tab)/.test((el.getAttribute('role') || '').toLowerCase())) s += 1;
+              if (el.tagName === 'BUTTON') s += 2;
+              if (/load more|show more|register|rsvp|join|search|discover|next/.test(text)) s += 4;
+              return s;
+            };
+            const candidates = [...document.querySelectorAll('button, a, [role="button"], [role="tab"], input[type="button"], input[type="submit"]')]
+              .filter(visible)
+              .filter((el) => !el.hasAttribute('data-unbrowse-clicked'))
+              .map((el) => ({ el, label: textFor(el), score: score(el) }))
+              .filter((entry) => entry.score > 0)
+              .sort((a, b) => b.score - a.score);
+            const chosen = candidates[0];
+            if (!chosen) return JSON.stringify({ action: null });
+            chosen.el.setAttribute('data-unbrowse-clicked', '1');
+            chosen.el.click();
+            return JSON.stringify({ action: 'click', label: chosen.label.slice(0, 120), score: chosen.score });
+          })(${JSON.stringify({ clickTerms })})`,
+        );
+        const parsedClickResult = parseInteractiveStimulusResult(clickResult);
+        if (!parsedClickResult || !("action" in parsedClickResult) || parsedClickResult.action == null) {
+          break;
+        }
+        log("capture", `interactive click stimulus: ${JSON.stringify(parsedClickResult)}`);
+        const added = await settleAfterInteractiveStimulus(tabId, responseBodies, signal);
+        if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent) || responseBodies.size > beforeCount || added > 0) return;
+      }
+    } catch (err) {
+      log("capture", `interactive stimulus failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -1191,13 +1291,39 @@ export async function captureSession(
     let final_url = url;
     let html: string | undefined;
     try {
-      const rawUrl = await kuri.getCurrentUrl(tabId);
+      const rawUrl = await withCaptureStepTimeout("get_current_url", 5_000, signal, () => kuri.getCurrentUrl(tabId));
       final_url = typeof rawUrl === "string" ? rawUrl : String(rawUrl ?? url);
-      // Validate it's actually a URL, fall back to original if not
       try { new URL(final_url); } catch { final_url = url; }
-      html = await kuri.getPageHtml(tabId);
+    } catch (snapshotErr) {
+      log("capture", `current url snapshot failed for ${url}: ${snapshotErr instanceof Error ? snapshotErr.message : String(snapshotErr)}`);
+    }
+    try {
+      html = await withCaptureStepTimeout("get_page_html", 5_000, signal, () => kuri.getPageHtml(tabId));
       lastHtml = html;
-    } catch {}
+    } catch (snapshotErr) {
+      log("capture", `page html snapshot failed for ${url}: ${snapshotErr instanceof Error ? snapshotErr.message : String(snapshotErr)}`);
+    }
+
+    if (
+      !hasUsefulCapturedResponses(responseBodies.keys(), final_url, intent) &&
+      (((cookies?.length ?? 0) > 0) || Object.keys(authHeaders ?? {}).length > 0)
+    ) {
+      const fetchedDocument = await fetchHtmlDocument({
+        url,
+        authHeaders: authHeaders ?? {},
+        cookies: cookies ?? [],
+        referer: url,
+      }).catch(() => null);
+      if (
+        fetchedDocument?.html &&
+        (!html || looksLikeSearchDocument(fetchedDocument.html) || !looksLikeSearchDocument(html))
+      ) {
+        html = fetchedDocument.html;
+        final_url = fetchedDocument.final_url || final_url;
+        lastHtml = html;
+        log("capture", `direct html fallback fetched: GET ${final_url}`);
+      }
+    }
 
     // Build requests from HAR entries
     const requests: RawRequest[] = harEntries.map((entry) => {
@@ -1235,8 +1361,36 @@ export async function captureSession(
       }
     }
 
+    if (
+      html &&
+      !hasUsefulCapturedResponses(responseBodies.keys(), final_url, intent)
+    ) {
+      const queryTerms = deriveInteractionQueryTerms(final_url, intent);
+      const htmlFormSubmission = queryTerms[0]
+        ? await submitLikelyHtmlSearchForm({
+            html,
+            pageUrl: final_url,
+            query: queryTerms[0],
+            authHeaders: authHeaders ?? {},
+            cookies: cookies ?? [],
+          }).catch(() => null)
+        : null;
+      if (htmlFormSubmission) {
+        requests.push(htmlFormSubmission.request);
+        if (htmlFormSubmission.request.response_body) {
+          responseBodies.set(htmlFormSubmission.request.url, htmlFormSubmission.request.response_body);
+        }
+        if (htmlFormSubmission.html) {
+          html = htmlFormSubmission.html;
+          final_url = htmlFormSubmission.final_url || final_url;
+          lastHtml = html;
+        }
+        log("capture", `html form fallback submitted: ${htmlFormSubmission.request.method} ${htmlFormSubmission.request.url}`);
+      }
+    }
+
     // Synthesize RawRequests for response bodies captured during intent-aware wait
-    const allTrackedUrls = new Set([...harUrls, ...intercepted.map((e) => e.url)]);
+    const allTrackedUrls = new Set(requests.map((request) => request.url));
     for (const [bodyUrl, body] of responseBodies) {
       if (!allTrackedUrls.has(bodyUrl)) {
         requests.push({
