@@ -1,6 +1,6 @@
 # Unbrowse
 
-> Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+> Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
 
 ## Install
 
@@ -27,7 +27,7 @@ npx skills add unbrowse-ai/unbrowse
 
 1. Your agent calls `unbrowse resolve --intent "search stays" --url "https://airbnb.com"`.
 2. Unbrowse checks the shared skill registry for a matching API skill.
-3. If no skill exists, it opens a local browser, captures network traffic, and reverse-engineers the site's internal APIs.
+3. If no skill exists, it opens a local browser, captures network traffic, and reverse-engineers the site's shadow APIs.
 4. The discovered API endpoints are published to the registry so all agents benefit.
 5. Your agent gets clean JSON data via direct API call — no DOM, no rendering, no HTML parsing.
 

@@ -34,6 +34,10 @@ export const metadata: Metadata = {
         height: 630,
         alt: "Unbrowse — The API layer for AI agents",
       },
+      {
+        url: "https://www.unbrowse.ai/nvidia-inception.png",
+        alt: "Unbrowse in NVIDIA Inception",
+      },
     ],
   },
   twitter: {

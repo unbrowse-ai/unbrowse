@@ -9,6 +9,11 @@ import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { ArrowRight, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
+const WHITEPAPER_URL = "/shadow-apis-are-all-you-need";
+const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
+  ? "For skill-compatible hosts, start with npx skills add unbrowse-ai/unbrowse. If you want the local runtime wired automatically, use the one-shot installer script. If you do not want auto-detect, the manual fallback is npm install -g unbrowse. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths. OpenClaw, Hermes, and ElizaOS use native browser-replacement integrations rather than simple package installs, so their full setup lives in the docs."
+  : "Start with the shared skill: npx skills add unbrowse-ai/unbrowse. The landing page is intentionally pinned to that path for now. Full host-specific wiring and runtime setup still live in skill.md when you need them.";
+
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -18,7 +23,7 @@ const faqJsonLd = {
       name: "How does Unbrowse work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.",
+        text: "Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the shadow API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.",
       },
     },
     {
@@ -42,7 +47,7 @@ const faqJsonLd = {
       name: "What websites does Unbrowse support?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse works with any website that uses internal APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.",
+        text: "Unbrowse works with any website that uses shadow APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.",
       },
     },
     {
@@ -83,7 +88,7 @@ export default function Home() {
       <section id="agent-instructions" aria-label="Instructions for AI agents" className="sr-only" data-agent="true">
           <h2>Unbrowse — The API layer for AI agents</h2>
           <p>
-            Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+            Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
           <p>Setup: npx unbrowse setup</p>
           <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
@@ -183,6 +188,17 @@ export default function Home() {
               >
                 Join Discord
               </a>
+              <a
+                href={WHITEPAPER_URL}
+                target="_blank"
+                rel="noopener"
+                className="flex items-center justify-center gap-2 px-6 py-3
+                           bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
+                           hover:border-orange-500/40 hover:bg-orange-50/50
+                           active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Read Paper
+              </a>
             </div>
 
               {/* Supported Agents */}
@@ -204,7 +220,7 @@ export default function Home() {
          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6 text-text-primary">What is Unbrowse?</h2>
            <p className="text-text-secondary text-base sm:text-lg leading-relaxed">
-             Unbrowse is an open-source drop-in replacement for browser automation when you want API-native access to the web. It reverse-engineers the internal APIs behind any website so AI agents can make direct API calls instead of driving headless browsers. It reduces page interaction time from 5–30 seconds to 50–200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+             Unbrowse is an open-source drop-in replacement for browser automation when you want API-native access to the web. It reverse-engineers the shadow APIs behind any website so AI agents can make direct API calls instead of driving headless browsers. It reduces page interaction time from 5–30 seconds to 50–200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
            </p>
          </div>
        </section>
@@ -238,7 +254,7 @@ export default function Home() {
                   </div>
                   <h3 className="text-xl sm:text-2xl font-semibold mb-3 tracking-tight">Skip the rendering engine</h3>
                   <p className="text-text-secondary text-base leading-relaxed max-w-md">
-                    Headless browsers are slow and flaky. Unbrowse taps directly into the hidden internal APIs that power the frontend, returning data instantly.
+                    Headless browsers are slow and flaky. Unbrowse taps directly into the hidden shadow APIs that power the frontend, returning data instantly.
                   </p>
                 </div>
                 <div className="relative z-10 w-full md:w-auto md:flex-1 bg-surface border border-border rounded-xl p-6 sm:p-8 flex flex-col items-center justify-center shadow-sm">
@@ -412,7 +428,7 @@ export default function Home() {
            <div className="space-y-8">
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How does Unbrowse work?</h3>
-               <p className="text-text-secondary leading-relaxed">Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.</p>
+               <p className="text-text-secondary leading-relaxed">Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the shadow API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How much faster is Unbrowse than headless browser automation?</h3>
@@ -424,7 +440,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What websites does Unbrowse support?</h3>
-               <p className="text-text-secondary leading-relaxed">Unbrowse works with any website that uses internal APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.</p>
+               <p className="text-text-secondary leading-relaxed">Unbrowse works with any website that uses shadow APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">Is Unbrowse secure? Do my credentials leave my machine?</h3>
