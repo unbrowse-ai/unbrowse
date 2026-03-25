@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Reverse-engineer any website into reusable API skills. npm CLI + local engine.",
   "type": "module",
   "bin": {
