@@ -8,7 +8,7 @@ import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { ArrowRight, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
-const WHITEPAPER_URL = "/whitepaper";
+const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
