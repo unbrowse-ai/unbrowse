@@ -200,9 +200,6 @@ export default function Home() {
                   <span className="text-base sm:text-lg font-medium tracking-tight">Claude Code</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">Cursor</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">OpenClaw</span>
-                  <span className="text-base sm:text-lg font-medium tracking-tight">Hermes</span>
-                  <span className="text-base sm:text-lg font-medium tracking-tight">ElizaOS</span>
-                  <span className="text-base sm:text-lg font-medium tracking-tight">MCP</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight flex items-center gap-1.5">Any Skill <Zap className="w-4 h-4" /></span>
                 </div>
               </div>

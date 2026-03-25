@@ -12,32 +12,37 @@ type InstallOption = {
   note?: string;
 };
 
-const installOptions: InstallOption[] = [
-  {
-    id: "one-shot",
-    label: "One-shot",
-    badge: "Recommended",
-    summary: "Installs the local runtime and wires detected hosts automatically.",
-    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash`,
-  },
+const SHOW_ALL_INSTALL_OPTIONS = false;
+
+const mainOptions: InstallOption[] = [
   {
     id: "skill",
     label: "Skill",
-    summary: "Best for skill-compatible agents. Add the shared skill first.",
+    badge: "Recommended",
+    summary: "Add the shared skill to any skill-compatible agent.",
     code: `npx skills add unbrowse-ai/unbrowse`,
   },
   {
-    id: "openclaw",
-    label: "OpenClaw",
-    summary: "Full OpenClaw wiring via the hosted installer. Native plugin replaces browser-first routing inside OpenClaw.",
-    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --openclaw --no-cli`,
-    note: "Native browser replacement. Installer wires the plugin and OpenClaw-side routing for you.",
+    id: "one-shot",
+    label: "One-shot",
+    summary: "Installs the local runtime and wires detected hosts automatically.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash`,
   },
   {
     id: "manual",
     label: "Manual",
     summary: "CLI-only fallback when you do not want auto-detect.",
     code: `npm install -g unbrowse`,
+  },
+];
+
+const extraOptions: InstallOption[] = [
+  {
+    id: "openclaw",
+    label: "OpenClaw",
+    summary: "Full OpenClaw wiring via the hosted installer. Native plugin replaces browser-first routing inside OpenClaw.",
+    code: `curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --openclaw --no-cli`,
+    note: "Native browser replacement. Installer wires the plugin and OpenClaw-side routing for you.",
   },
   {
     id: "claude-code",
@@ -106,8 +111,10 @@ pip install unbrowse-langchain`,
   },
 ];
 
+const installOptions = SHOW_ALL_INSTALL_OPTIONS ? [...mainOptions, ...extraOptions] : mainOptions;
+
 export function InstallInstructions() {
-  const [active, setActive] = useState<string>("one-shot");
+  const [active, setActive] = useState<string>("skill");
   const [copied, setCopied] = useState(false);
   const selected = installOptions.find((option) => option.id === active) ?? installOptions[0];
 
@@ -189,23 +196,18 @@ export function InstallInstructions() {
 
         <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-border-strong bg-surface-sunken px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-base font-semibold text-text-primary">Already installed?</p>
+            <p className="text-base font-semibold text-text-primary">Need host-specific setup?</p>
             <p className="mt-1 text-sm leading-relaxed text-text-primary">
-              Upgrade in place. Full MCP, Hermes, ElizaOS, and LangChain examples still live in the docs.
+              Claude Code, Cursor, Windsurf, OpenClaw, Hermes, ElizaOS, and more are covered in the docs.
             </p>
           </div>
 
-          <div className="flex flex-col items-stretch gap-3 sm:items-end">
-            <code className="rounded-xl border border-border-strong bg-[#0b0907] px-3 py-2 font-mono text-sm leading-relaxed text-white">
-              curl -fsSL https://www.unbrowse.ai/install.sh | bash -s -- --upgrade-cli
-            </code>
-            <a
-              href="/skill.md"
-              className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:border-orange-500/40 hover:text-white"
-            >
-              Open setup docs
-            </a>
-          </div>
+          <a
+            href="/skill.md"
+            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:border-orange-500/40 hover:text-white"
+          >
+            Open setup docs
+          </a>
         </div>
       </div>
     </div>
