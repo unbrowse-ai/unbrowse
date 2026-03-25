@@ -41,6 +41,28 @@ export function canUseTriggerIntercept(endpoint: EndpointDescriptor): boolean {
   return !!endpoint.trigger_url && (endpoint.method === "GET" || endpoint.idempotency === "safe");
 }
 
+const EXECUTION_FETCH_TIMEOUT_MS = Number(process.env.UNBROWSE_EXECUTION_FETCH_TIMEOUT_MS || 15000);
+const EXECUTION_TRIGGER_TIMEOUT_MS = Number(process.env.UNBROWSE_EXECUTION_TRIGGER_TIMEOUT_MS || 20000);
+
+function endpointHasSearchBindings(endpoint: EndpointDescriptor): boolean {
+  const haystack = JSON.stringify({
+    query: endpoint.query ?? {},
+    body: endpoint.body ?? {},
+    body_params: endpoint.body_params ?? {},
+    semantic: endpoint.semantic ?? {},
+  }).toLowerCase();
+  return /(basicsearchkey|basic_search_key|query|keyword|search|lookup|find|term)/.test(haystack);
+}
+
+export function shouldPreferTriggerInterceptStrategy(endpoint: EndpointDescriptor): boolean {
+  return (
+    canUseTriggerIntercept(endpoint) &&
+    endpoint.method !== "GET" &&
+    endpoint.idempotency === "safe" &&
+    endpointHasSearchBindings(endpoint)
+  );
+}
+
 export function resolveTriggerInterceptTargetUrl(
   url: string,
   structuredReplayUrl: string,
@@ -117,6 +139,15 @@ function toTraceNetworkEvent(input: {
       ...(responseCookies ? { cookies: responseCookies } : {}),
     },
   };
+}
+
+function sanitizeDebugHeaders(headers: Record<string, string>): Record<string, string> {
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (/^(cookie|authorization|x-csrf-token|x-xsrf-token|csrf-token)$/i.test(key)) continue;
+    cleaned[key] = value;
+  }
+  return cleaned;
 }
 
 function hasSessionLikeAuthMaterial(
@@ -2761,32 +2792,64 @@ export async function executeEndpoint(
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
       const serializedBody = serializeExecutionBody(body, replayHeaders);
-      const res = await fetch(replayUrl, {
-        method: endpoint.method,
-        headers: replayHeaders,
-        body: serializedBody,
-        redirect: "follow",
-      });
-      let data: unknown;
-      const text = await res.text();
-      try { data = JSON.parse(text); } catch { data = text; }
-      const responseHeaders: Record<string, string> = {};
-      res.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-      const event = toTraceNetworkEvent({
-        url: replayUrl,
-        method: endpoint.method,
-        requestHeaders: replayHeaders,
-        requestBody: serializedBody ?? body,
-        responseStatus: res.status,
-        responseHeaders,
-        responseBody: text,
-      });
-      networkEvents.push(event);
-      last = { data, status: res.status, event };
-      if (res.ok && !(typeof data === "string" && isHtml(data))) {
-        return { data, status: res.status, trace_id: nanoid(), network_events: networkEvents };
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(new Error(`execution_fetch_timeout:${EXECUTION_FETCH_TIMEOUT_MS}`)),
+        EXECUTION_FETCH_TIMEOUT_MS,
+      );
+      try {
+        const res = await fetch(replayUrl, {
+          method: endpoint.method,
+          headers: replayHeaders,
+          body: serializedBody,
+          redirect: "follow",
+          signal: controller.signal,
+        });
+        let data: unknown;
+        const text = await res.text();
+        try { data = JSON.parse(text); } catch { data = text; }
+        const responseHeaders: Record<string, string> = {};
+        res.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+        const event = toTraceNetworkEvent({
+          url: replayUrl,
+          method: endpoint.method,
+          requestHeaders: replayHeaders,
+          requestBody: serializedBody ?? body,
+          responseStatus: res.status,
+          responseHeaders,
+          responseBody: text,
+        });
+        networkEvents.push(event);
+        last = { data, status: res.status, event };
+        if (res.ok && !(typeof data === "string" && isHtml(data))) {
+          return { data, status: res.status, trace_id: nanoid(), network_events: networkEvents };
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const timeoutPayload = {
+          error: "execution_timeout",
+          message,
+          request_url: replayUrl,
+          request_method: endpoint.method,
+          request_body: serializedBody,
+          request_headers: sanitizeDebugHeaders(replayHeaders),
+        };
+        const event = toTraceNetworkEvent({
+          url: replayUrl,
+          method: endpoint.method,
+          requestHeaders: sanitizeDebugHeaders(replayHeaders),
+          requestBody: serializedBody ?? body,
+          responseStatus: 504,
+          responseHeaders: { "x-unbrowse-error": "execution_timeout" },
+          responseBody: JSON.stringify(timeoutPayload),
+        });
+        networkEvents.push(event);
+        last = { data: timeoutPayload, status: 504, event };
+        log("exec", `server fetch timeout for ${endpoint.endpoint_id} via ${replayUrl}: ${message}`);
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
@@ -2814,6 +2877,51 @@ export async function executeEndpoint(
     authHeaders,
     cookies
   );
+
+  const triggerInterceptCall = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const timeoutPromise = new Promise<{ status: number; data: unknown; trace_id: string; network_events?: TraceNetworkEvent[] }>((resolve) => {
+        timer = setTimeout(() => {
+          resolve({
+            status: 504,
+            data: {
+              error: "trigger_intercept_timeout",
+              message: `trigger_intercept_timeout:${EXECUTION_TRIGGER_TIMEOUT_MS}`,
+              request_url: endpoint.trigger_url,
+              target_url: triggerInterceptTargetUrl,
+              request_method: endpoint.method,
+              request_body: body,
+            },
+            trace_id: nanoid(),
+            network_events: [toTraceNetworkEvent({
+              url: triggerInterceptTargetUrl,
+              method: endpoint.method,
+              requestHeaders: sanitizeDebugHeaders(authHeaders),
+              requestBody: body,
+              responseStatus: 504,
+              responseHeaders: { "x-unbrowse-error": "trigger_intercept_timeout" },
+              responseBody: JSON.stringify({
+                error: "trigger_intercept_timeout",
+                request_url: endpoint.trigger_url,
+                target_url: triggerInterceptTargetUrl,
+              }),
+            })],
+          });
+        }, EXECUTION_TRIGGER_TIMEOUT_MS);
+      });
+      return await Promise.race([
+        triggerAndIntercept(endpoint.trigger_url!, triggerInterceptTargetUrl, cookies, authHeaders, {
+          authSource: authSourceMeta,
+          method: endpoint.method,
+          body,
+        }),
+        timeoutPromise,
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   let result: { data: unknown; status: number; trace_id: string; network_events?: TraceNetworkEvent[] };
   const hasAuth = cookies.length > 0 || Object.keys(authHeaders).length > 0;
@@ -2856,46 +2964,44 @@ export async function executeEndpoint(
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
       } else if (canUseTriggerIntercept(endpoint)) {
-        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-          authSource: authSourceMeta,
-        });
+        result = await triggerInterceptCall();
         strategy = "trigger-intercept";
       } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
         strategy = "browser";
       }
     } else if (endpointStrategy === "server") {
-      // Proven: server-fetch works for this endpoint
-      result = await serverFetchWithAuthRefresh();
-      if (result.status >= 200 && result.status < 400) {
-        if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-          if (canUseTriggerIntercept(endpoint)) {
-            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-              authSource: authSourceMeta,
-            });
-            strategy = "trigger-intercept";
-          } else {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-          }
-        } else {
-          strategy = "server";
-        }
-      } else if (canUseTriggerIntercept(endpoint)) {
-        result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-          authSource: authSourceMeta,
-        });
+      if (shouldPreferTriggerInterceptStrategy(endpoint)) {
+        result = await triggerInterceptCall();
         strategy = "trigger-intercept";
-      } else {
-        result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-        strategy = "browser";
+      } else
+      // Proven: server-fetch works for this endpoint
+      {
+        result = await serverFetchWithAuthRefresh();
+        if (result.status >= 200 && result.status < 400) {
+          if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+            if (canUseTriggerIntercept(endpoint)) {
+              result = await triggerInterceptCall();
+              strategy = "trigger-intercept";
+            } else {
+              result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+              strategy = "browser";
+            }
+          } else {
+            strategy = "server";
+          }
+        } else if (canUseTriggerIntercept(endpoint)) {
+          result = await triggerInterceptCall();
+          strategy = "trigger-intercept";
+        } else {
+          result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+          strategy = "browser";
+        }
       }
     } else if (endpointStrategy === "trigger-intercept" && canUseTriggerIntercept(endpoint)) {
       // Proven: this endpoint needs trigger-intercept
       log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
-      result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-        authSource: authSourceMeta,
-      });
+      result = await triggerInterceptCall();
       strategy = "trigger-intercept";
     } else if (endpointStrategy === "browser") {
       if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
@@ -2916,24 +3022,27 @@ export async function executeEndpoint(
       // No endpoint-level strategy — always try server-fetch first (fastest path).
       // Fall back to trigger-intercept or browser if server returns 4xx.
       try {
-        result = await serverFetchWithAuthRefresh();
-        if (result.status >= 200 && result.status < 400) {
-          if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
-          } else {
-            strategy = "server";
-          }
+        if (shouldPreferTriggerInterceptStrategy(endpoint)) {
+          result = await triggerInterceptCall();
+          strategy = "trigger-intercept";
         } else {
-          log("exec", `server fetch returned ${result.status}, falling back`);
-          if (canUseTriggerIntercept(endpoint)) {
-            result = await triggerAndIntercept(endpoint.trigger_url, triggerInterceptTargetUrl, cookies, authHeaders, {
-              authSource: authSourceMeta,
-            });
-            strategy = "trigger-intercept";
+          result = await serverFetchWithAuthRefresh();
+          if (result.status >= 200 && result.status < 400) {
+            if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+              result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+              strategy = "browser";
+            } else {
+              strategy = "server";
+            }
           } else {
-            result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
-            strategy = "browser";
+            log("exec", `server fetch returned ${result.status}, falling back`);
+            if (canUseTriggerIntercept(endpoint)) {
+              result = await triggerInterceptCall();
+              strategy = "trigger-intercept";
+            } else {
+              result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
+              strategy = "browser";
+            }
           }
         }
       } catch {
@@ -3025,7 +3134,30 @@ export async function executeEndpoint(
     const intent = endpoint.dom_extraction
       ? deriveDomExecutionIntent(endpoint, options?.intent || skill.intent_signature)
       : (options?.intent || skill.intent_signature);
-    if (!endpoint.dom_extraction) {
+    const extracted = extractFromDOMWithHint(data, intent, endpoint.dom_extraction);
+    if (extracted.data) {
+      const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
+      const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
+      if (quality.valid && semanticAssessment.verdict !== "fail") {
+        data = {
+          data: extracted.data,
+          _extraction: {
+            method: extracted.extraction_method,
+            confidence: extracted.confidence,
+            source: endpoint.dom_extraction ? "html-postprocess" : "html-postprocess-generic",
+          },
+        };
+        trace.result = data;
+      } else {
+        trace.success = false;
+        trace.error = semanticAssessment.reason ?? quality.quality_note ?? "low_quality_dom_extraction";
+        data = {
+          error: "low_quality_dom_extraction",
+          message: `Structured DOM extraction was rejected: ${semanticAssessment.reason ?? quality.quality_note ?? "low quality extraction"}`,
+        };
+        trace.result = data;
+      }
+    } else {
       trace.success = false;
       trace.error = "unexpected_html_response";
       data = {
@@ -3033,31 +3165,6 @@ export async function executeEndpoint(
         message: `Endpoint returned HTML instead of API data for intent "${intent}"`,
       };
       trace.result = data;
-    } else {
-      const extracted = extractFromDOMWithHint(data, intent, endpoint.dom_extraction);
-      if (extracted.data) {
-        const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);
-        const semanticAssessment = quality.valid ? assessIntentResult(extracted.data, intent) : { verdict: "fail" as const, reason: quality.quality_note ?? "low_quality_dom_extraction" };
-        if (quality.valid && semanticAssessment.verdict !== "fail") {
-          data = {
-            data: extracted.data,
-            _extraction: {
-              method: extracted.extraction_method,
-              confidence: extracted.confidence,
-              source: "html-postprocess",
-            },
-          };
-          trace.result = data;
-        } else {
-          trace.success = false;
-          trace.error = semanticAssessment.reason ?? quality.quality_note ?? "low_quality_dom_extraction";
-          data = {
-            error: "low_quality_dom_extraction",
-            message: `Structured DOM extraction was rejected: ${semanticAssessment.reason ?? quality.quality_note ?? "low quality extraction"}`,
-          };
-          trace.result = data;
-        }
-      }
     }
   }
 
@@ -3632,6 +3739,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   // API subdomain pattern — "api.example.com" or "io.example.com" strongly suggests data endpoint
   const API_SUBDOMAIN = /^(api|io|data|feed|stream|ws)\./i;
   const LIST_INTENT = /\b(search|list|find|trending|top|latest|discover|browse)\b/i;
+  const SEARCH_INTENT = /\b(search|find|lookup|browse|discover)\b/i;
   const STATUS_INTENT = /\b(status|incident|outage|maintenance|uptime|degraded)\b/i;
   const COMMS_INTENT = /\b(guilds?|channels?|messages?|dms?|servers?|threads?|chat)\b/i;
   const COMMS_PATH = /\/(guilds?|channels?|messages?|threads?|conversations?|affinities)\b/i;
@@ -3642,6 +3750,15 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
   const EDUCATION_INTENT = /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i;
   const PRODUCT_DETAIL_INTENT = /\b(product|products|item|items|listing|listings)\b/i.test(intent ?? "");
   const ENTITY_DETAIL_INTENT = isEntityDetailIntent(intent);
+  const searchLikeContext = (() => {
+    try {
+      const pathname = contextUrl ? new URL(contextUrl).pathname.toLowerCase() : "";
+      return /\/(?:search|basic-search|result-page|results?|discover|browse)\b/.test(pathname);
+    } catch {
+      return false;
+    }
+  })();
+  const searchLikeIntent = SEARCH_INTENT.test(intent ?? "") || searchLikeContext;
 
   const scored = rankedCandidates.map((ep, i) => {
     let score = 0;
@@ -3698,7 +3815,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (ep.idempotency === "safe" || ep.method === "GET") score += 5;
     if (isBundleInferredEndpoint(ep) && !ep.response_schema) score -= 180;
     score += semanticIntentAdjustment(ep, intent);
-    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+    if (searchLikeIntent) {
       if (endpointHasSearchInputs(ep)) score += 180;
       if (ep.method === "POST" && endpointHasSearchInputs(ep)) score += 40;
     }
@@ -3911,7 +4028,7 @@ export function rankEndpoints(endpoints: EndpointDescriptor[], intent?: string, 
     if (intent && COMMS_INTENT.test(intent) && isCapturedPageArtifact) {
       score = Math.min(score, -400);
     }
-    if (intent && /\b(search|find|lookup|browse|discover)\b/i.test(intent)) {
+    if (searchLikeIntent) {
       if (endpointHasSearchInputs(ep) && (!!ep.dom_extraction || !!ep.response_schema)) {
         score += 240;
       }
