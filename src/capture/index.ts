@@ -977,3 +977,256 @@ export async function triggerAndIntercept(
     releaseTabSlot(tabId);
   }
 }
+
+// ---------------------------------------------------------------------------
+// First-pass browser action execution (Lane 1: browser action floor)
+//
+// When no reusable second-pass route exists, the browser completes the task
+// directly using action primitives. Passive reverse-engineering (HAR capture,
+// interceptor, bundle scanning) runs in the background simultaneously.
+// ---------------------------------------------------------------------------
+
+/** A single step in a browser action sequence. */
+export interface BrowserActionStep {
+  /** Action to perform. "snapshot" takes an a11y snapshot to discover refs. */
+  action: kuri.KuriActionType | "snapshot" | "navigate" | "wait" | "type" | "evaluate";
+  /** Element ref from the a11y snapshot (e.g. "e5"). Required for click/fill/select/etc. */
+  ref?: string;
+  /** Value for fill/select/type/press/evaluate, URL for navigate, selector for wait. */
+  value?: string;
+  /** Timeout in ms for wait actions. */
+  timeoutMs?: number;
+}
+
+/** Result of a first-pass browser action execution. */
+export interface BrowserActionResult {
+  /** Whether the action sequence completed without errors. */
+  ok: boolean;
+  /** Per-step results. */
+  steps: Array<{ action: string; ok: boolean; result?: unknown; error?: string }>;
+  /** Final page URL after all actions. */
+  final_url: string;
+  /** Final page HTML (for downstream extraction). */
+  html?: string;
+  /** Last a11y snapshot (compact text-tree). */
+  snapshot?: string;
+  /** Passive capture result gathered during action execution. */
+  capture?: CaptureResult;
+  trace_id: string;
+}
+
+/**
+ * Execute a sequence of browser actions on a page while running passive
+ * capture in the background. This is the "first pass" — the browser does
+ * the task now, and the captured network traffic feeds reverse-engineering
+ * for a cheaper second pass next time.
+ */
+export async function executeActionSequence(
+  url: string,
+  steps: BrowserActionStep[],
+  options?: {
+    authHeaders?: Record<string, string>;
+    cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>;
+    intent?: string;
+    /** Skip passive capture (useful for quick action-only flows). */
+    skipCapture?: boolean;
+  },
+): Promise<BrowserActionResult> {
+  await acquireTabSlot();
+  await kuri.start();
+  await kuri.discoverTabs();
+
+  let tabId: string;
+  try {
+    tabId = await kuri.newTab("about:blank");
+    if (!tabId) tabId = await kuri.getDefaultTab();
+  } catch {
+    tabId = await kuri.getDefaultTab();
+  }
+  activeTabRegistry.add(tabId);
+
+  const traceId = nanoid();
+  const stepResults: BrowserActionResult["steps"] = [];
+
+  try {
+    // Setup: headers + cookies
+    const allHeaders = { ...CLIENT_HINT_HEADERS, ...(options?.authHeaders ?? {}) };
+    await kuri.setHeaders(tabId, allHeaders);
+    if (options?.cookies?.length) {
+      await injectCookies(tabId, options.cookies);
+    }
+
+    // Start background passive capture (HAR + interceptor)
+    if (!options?.skipCapture) {
+      await kuri.harStart(tabId);
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    }
+
+    // Navigate to the starting URL
+    await kuri.navigate(tabId, url);
+    await kuri.waitForLoad(tabId, CAPTURE_NAV_TIMEOUT_MS);
+
+    // Re-inject interceptor after navigation
+    if (!options?.skipCapture) {
+      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    }
+
+    // Execute each action step
+    for (const step of steps) {
+      try {
+        let result: unknown;
+
+        switch (step.action) {
+          case "snapshot":
+            result = await kuri.snapshot(tabId, step.value);
+            break;
+
+          case "navigate":
+            if (!step.value) throw new Error("navigate requires a value (URL)");
+            await kuri.navigate(tabId, step.value);
+            await kuri.waitForLoad(tabId, step.timeoutMs ?? CAPTURE_NAV_TIMEOUT_MS);
+            // Re-inject interceptor after navigation
+            if (!options?.skipCapture) {
+              await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+            }
+            result = await kuri.getCurrentUrl(tabId);
+            break;
+
+          case "wait":
+            result = await kuri.waitForSelector(tabId, step.value, step.timeoutMs ?? 5000);
+            break;
+
+          case "type":
+            if (!step.value) throw new Error("type requires a value (text)");
+            result = await kuri.keyboardType(tabId, step.value);
+            break;
+
+          case "evaluate":
+            if (!step.value) throw new Error("evaluate requires a value (expression)");
+            result = await kuri.evaluate(tabId, step.value);
+            break;
+
+          case "click":
+          case "dblclick":
+          case "hover":
+          case "focus":
+          case "blur":
+          case "check":
+          case "uncheck":
+            if (!step.ref) throw new Error(`${step.action} requires a ref`);
+            result = await kuri.action(tabId, step.action, step.ref);
+            break;
+
+          case "fill":
+          case "select":
+            if (!step.ref) throw new Error(`${step.action} requires a ref`);
+            if (!step.value) throw new Error(`${step.action} requires a value`);
+            result = await kuri.action(tabId, step.action, step.ref, step.value);
+            break;
+
+          case "scroll":
+            result = await kuri.scroll(tabId);
+            break;
+
+          case "press":
+            if (!step.value) throw new Error("press requires a value (key)");
+            result = await kuri.press(tabId, step.value);
+            break;
+        }
+
+        stepResults.push({ action: step.action, ok: true, result });
+      } catch (err) {
+        stepResults.push({
+          action: step.action,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // Collect final state
+    const finalUrl = String(await kuri.getCurrentUrl(tabId).catch(() => url));
+    const html = await kuri.getPageHtml(tabId).catch(() => undefined);
+    const lastSnapshot = await kuri.snapshot(tabId).catch(() => undefined);
+
+    // Collect passive capture in the background
+    let capture: CaptureResult | undefined;
+    if (!options?.skipCapture) {
+      try {
+        const domain = new URL(url).hostname;
+        const harResult = await kuri.harStop(tabId);
+        const intercepted = await collectInterceptedRequests(tabId);
+        const responseBodies = new Map<string, string>();
+        for (const entry of intercepted) {
+          if (entry.response_body && !entry.is_js) {
+            responseBodies.set(entry.url, entry.response_body);
+          }
+        }
+
+        const requests: RawRequest[] = harResult.entries.map((entry) => {
+          const reqHeaders: Record<string, string> = {};
+          for (const h of entry.request.headers) reqHeaders[h.name] = h.value;
+          const respHeaders: Record<string, string> = {};
+          for (const h of entry.response.headers) respHeaders[h.name] = h.value;
+          return {
+            url: entry.request.url,
+            method: entry.request.method,
+            request_headers: reqHeaders,
+            request_body: entry.request.postData?.text,
+            response_status: entry.response.status,
+            response_headers: respHeaders,
+            response_body: responseBodies.get(entry.request.url) ?? entry.response.content?.text,
+            timestamp: entry.startedDateTime,
+          };
+        });
+
+        // Add intercepted requests not in HAR
+        const harUrls = new Set(harResult.entries.map((e) => e.request.url));
+        for (const entry of intercepted) {
+          if (entry.is_js || harUrls.has(entry.url)) continue;
+          requests.push({
+            url: entry.url,
+            method: entry.method,
+            request_headers: entry.request_headers,
+            request_body: entry.request_body,
+            response_status: entry.response_status,
+            response_headers: entry.response_headers,
+            response_body: entry.response_body,
+            timestamp: entry.timestamp,
+          });
+        }
+
+        const sessionCookies = filterFirstPartySessionCookies(
+          await extractCookiesFromPage(tabId, url),
+          url,
+          finalUrl,
+        );
+
+        capture = {
+          requests,
+          har_lineage_id: nanoid(),
+          domain,
+          cookies: sessionCookies.length > 0 ? sessionCookies : undefined,
+          final_url: finalUrl,
+          ws_messages: undefined,
+          html,
+        };
+      } catch (err) {
+        log("capture", `background capture collection failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return {
+      ok: stepResults.every((s) => s.ok),
+      steps: stepResults,
+      final_url: finalUrl,
+      html,
+      snapshot: lastSnapshot,
+      capture,
+      trace_id: traceId,
+    };
+  } finally {
+    await resetTab(tabId);
+    releaseTabSlot(tabId);
+  }
+}

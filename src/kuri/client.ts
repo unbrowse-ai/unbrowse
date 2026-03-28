@@ -35,6 +35,25 @@ export interface KuriCookie {
   expires?: number;
 }
 
+
+/** Action types supported by Kuri's /action endpoint. */
+export type KuriActionType =
+  | "click" | "dblclick" | "fill" | "type" | "select"
+  | "check" | "uncheck" | "hover" | "focus" | "blur"
+  | "scroll" | "press";
+
+export interface KuriWaitResult {
+  status: "found" | "ready" | "timeout";
+  selector?: string;
+  readyState?: string;
+  polls?: number;
+  timeout_ms?: number;
+}
+
+export interface KuriDomQueryResult {
+  nodeId?: number;
+  nodeIds?: number[];
+}
 export interface KuriHarEntry {
   request: {
     method: string;
@@ -146,8 +165,9 @@ function kuriUrl(path: string, params?: Record<string, string>): string {
   const base = `http://127.0.0.1:${kuriPort}${path}`;
   if (!params || Object.keys(params).length === 0) return base;
   // Build query string manually — URLSearchParams encodes values which breaks
-  // URL parameters (Kuri's getQueryParam doesn't decode percent-encoding)
-  const parts = Object.entries(params).map(([k, v]) => `${k}=${v}`);
+  // URL parameters (Kuri's getQueryParam doesn't decode percent-encoding).
+  // We must still encode # and & in values to avoid breaking URL structure.
+  const parts = Object.entries(params).map(([k, v]) => `${k}=${v.replace(/#/g, "%23").replace(/&/g, "%26")}`);
   return `${base}?${parts.join("&")}`;
 }
 
@@ -583,4 +603,250 @@ export function getPort(): number {
 /** Check if kuri is ready. */
 export function isReady(): boolean {
   return kuriReady;
+}
+
+// ---------------------------------------------------------------------------
+// Action primitives (new in Kuri v0.3+)
+// ---------------------------------------------------------------------------
+
+/**
+ * Perform a browser action on an element by ref (from /snapshot a11y tree).
+ * Requires a prior /snapshot call to populate refs.
+ */
+export async function action(
+  tabId: string,
+  actionType: KuriActionType,
+  ref: string,
+  value?: string,
+): Promise<unknown> {
+  const params: Record<string, string> = { tab_id: tabId, action: actionType, ref };
+  if (value !== undefined) params.value = value;
+  return kuriGet("/action", params);
+}
+
+/** Click an element by ref. */
+export async function click(tabId: string, ref: string): Promise<unknown> {
+  return action(tabId, "click", ref);
+}
+
+/** Fill an input element by ref. */
+export async function fill(tabId: string, ref: string, value: string): Promise<unknown> {
+  return action(tabId, "fill", ref, value);
+}
+
+/** Select a value in a dropdown by ref. */
+export async function select(tabId: string, ref: string, value: string): Promise<unknown> {
+  return action(tabId, "select", ref, value);
+}
+
+/** Scroll the page (no ref needed, pass any ref value). */
+export async function scroll(tabId: string): Promise<unknown> {
+  return kuriGet("/action", { tab_id: tabId, action: "scroll", ref: "_" });
+}
+
+/** Press a key (no element ref needed). */
+export async function press(tabId: string, key: string): Promise<unknown> {
+  return kuriGet("/action", { tab_id: tabId, action: "press", ref: "_", value: key });
+}
+
+// ---------------------------------------------------------------------------
+// Wait primitives
+// ---------------------------------------------------------------------------
+
+/** Wait for a CSS selector to appear, or for page load if no selector given. */
+export async function waitForSelector(
+  tabId: string,
+  selector?: string,
+  timeoutMs?: number,
+): Promise<KuriWaitResult> {
+  const params: Record<string, string> = { tab_id: tabId };
+  if (selector) params.selector = selector;
+  if (timeoutMs !== undefined) params.timeout = String(timeoutMs);
+  return (await kuriGet("/wait", params)) as KuriWaitResult;
+}
+
+/** Wait for page load (document.readyState === "complete"). */
+export async function waitForLoad(tabId: string, timeoutMs?: number): Promise<KuriWaitResult> {
+  return waitForSelector(tabId, undefined, timeoutMs);
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard input
+// ---------------------------------------------------------------------------
+
+/** Type text character by character via CDP Input.dispatchKeyEvent. */
+export async function keyboardType(tabId: string, text: string): Promise<unknown> {
+  return kuriGet("/keyboard/type", { tab_id: tabId, text });
+}
+
+/** Insert text at cursor (single CDP call, faster than keyboardType). */
+export async function keyboardInsertText(tabId: string, text: string): Promise<unknown> {
+  return kuriGet("/keyboard/inserttext", { tab_id: tabId, text });
+}
+
+/** Dispatch a keydown event. */
+export async function keyDown(tabId: string, key: string): Promise<unknown> {
+  return kuriGet("/keydown", { tab_id: tabId, key });
+}
+
+/** Dispatch a keyup event. */
+export async function keyUp(tabId: string, key: string): Promise<unknown> {
+  return kuriGet("/keyup", { tab_id: tabId, key });
+}
+
+// ---------------------------------------------------------------------------
+// Scroll / drag
+// ---------------------------------------------------------------------------
+
+/** Scroll an element into view by ref. */
+export async function scrollIntoView(tabId: string, ref: string): Promise<unknown> {
+  return kuriGet("/scrollintoview", { tab_id: tabId, ref });
+}
+
+/** Drag from one element to another by ref. */
+export async function drag(
+  tabId: string,
+  sourceRef: string,
+  targetRef: string,
+): Promise<unknown> {
+  return kuriGet("/drag", { tab_id: tabId, source: sourceRef, target: targetRef });
+}
+
+// ---------------------------------------------------------------------------
+// DOM inspection
+// ---------------------------------------------------------------------------
+
+/** Query DOM by CSS selector. Set all=true to match all elements. */
+export async function domQuery(
+  tabId: string,
+  selector: string,
+  all = false,
+): Promise<KuriDomQueryResult> {
+  const params: Record<string, string> = { tab_id: tabId, selector };
+  if (all) params.all = "true";
+  return (await kuriGet("/dom/query", params)) as KuriDomQueryResult;
+}
+
+/** Get outer HTML of a DOM node by nodeId. */
+export async function domHtml(tabId: string, nodeId: number): Promise<unknown> {
+  return kuriGet("/dom/html", { tab_id: tabId, node_id: String(nodeId) });
+}
+
+/** Get attributes of an element by ref or selector. */
+export async function domAttributes(
+  tabId: string,
+  opts: { ref?: string; selector?: string },
+): Promise<unknown> {
+  const params: Record<string, string> = { tab_id: tabId };
+  if (opts.ref) params.ref = opts.ref;
+  if (opts.selector) params.selector = opts.selector;
+  return kuriGet("/dom/attributes", params);
+}
+
+// ---------------------------------------------------------------------------
+// Script injection
+// ---------------------------------------------------------------------------
+
+/** Inject a JavaScript source that runs on every page load (Page.addScriptToEvaluateOnNewDocument). */
+export async function scriptInject(tabId: string, source: string): Promise<unknown> {
+  return kuriPost("/script/inject", { tab_id: tabId }, { source });
+}
+
+// ---------------------------------------------------------------------------
+// Auth / credentials
+// ---------------------------------------------------------------------------
+
+/** Set HTTP Basic auth credentials for a tab (auto-responds to auth challenges). */
+export async function setCredentials(
+  tabId: string,
+  username: string,
+  password: string,
+): Promise<unknown> {
+  return kuriGet("/set/credentials", { tab_id: tabId, username, password });
+}
+
+/** Set browser viewport size. */
+export async function setViewport(
+  tabId: string,
+  width: number,
+  height: number,
+): Promise<unknown> {
+  return kuriGet("/set/viewport", { tab_id: tabId, width: String(width), height: String(height) });
+}
+
+/** Set user agent string. */
+export async function setUserAgent(tabId: string, ua: string): Promise<unknown> {
+  return kuriGet("/set/useragent", { tab_id: tabId, ua });
+}
+
+// ---------------------------------------------------------------------------
+// Session persistence
+// ---------------------------------------------------------------------------
+
+/** Export Kuri's current state (tabs, cookies, snapshot cache) as JSON. */
+export async function sessionSave(): Promise<unknown> {
+  return kuriGet("/session/save");
+}
+
+/** Import a previously saved session state. */
+export async function sessionLoad(state: unknown): Promise<{ imported: number }> {
+  return kuriPost("/session/load", {}, state) as Promise<{ imported: number }>;
+}
+
+/** List saved sessions. */
+export async function sessionList(): Promise<unknown> {
+  return kuriGet("/session/list");
+}
+
+// ---------------------------------------------------------------------------
+// Navigation helpers
+// ---------------------------------------------------------------------------
+
+/** Go back in browser history. */
+export async function goBack(tabId: string): Promise<unknown> {
+  return kuriGet("/back", { tab_id: tabId });
+}
+
+/** Go forward in browser history. */
+export async function goForward(tabId: string): Promise<unknown> {
+  return kuriGet("/forward", { tab_id: tabId });
+}
+
+/** Reload the current page. */
+export async function reload(tabId: string): Promise<unknown> {
+  return kuriGet("/reload", { tab_id: tabId });
+}
+
+// ---------------------------------------------------------------------------
+// Observability
+// ---------------------------------------------------------------------------
+
+/** Get network events for a tab (requires prior /network?mode=enable). */
+export async function getNetworkEvents(tabId: string): Promise<unknown> {
+  return kuriGet("/network", { tab_id: tabId });
+}
+
+/** Get Largest Contentful Paint metrics. */
+export async function getPerfLcp(tabId: string): Promise<unknown> {
+  return kuriGet("/perf/lcp", { tab_id: tabId });
+}
+
+/** Find text on the page (like Ctrl+F). */
+export async function findText(tabId: string, query: string): Promise<unknown> {
+  return kuriGet("/find", { tab_id: tabId, query });
+}
+
+/** Get page links. */
+export async function getLinks(tabId: string): Promise<unknown> {
+  return kuriGet("/links", { tab_id: tabId });
+}
+
+/** Get console log messages. */
+export async function getConsole(tabId: string): Promise<unknown> {
+  return kuriGet("/console", { tab_id: tabId });
+}
+
+/** Get JavaScript errors from the page. */
+export async function getErrors(tabId: string): Promise<unknown> {
+  return kuriGet("/errors", { tab_id: tabId });
 }
