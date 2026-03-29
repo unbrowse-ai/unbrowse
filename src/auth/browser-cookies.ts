@@ -44,7 +44,7 @@ export interface ExtractionResult {
   warnings: string[];
 }
 
-export type BrowserSource = "auto" | "firefox" | "chrome" | "chromium" | "arc" | "dia" | "brave" | "edge" | "vivaldi";
+export type BrowserSource = "auto" | "firefox" | "chrome" | "chromium" | "arc" | "dia" | "brave" | "edge" | "vivaldi" | "comet";
 
 export interface ChromiumCookieSourceOptions {
   profile?: string;
@@ -141,6 +141,7 @@ export function getSupportedChromiumBrowserCandidates(
         { name: "Edge", userDataDir: join(homeOverride, "Library", "Application Support", "Microsoft Edge"), safeStorageService: "Microsoft Edge Safe Storage", bundleId: "com.microsoft.edgemac" },
         { name: "Vivaldi", userDataDir: join(homeOverride, "Library", "Application Support", "Vivaldi"), safeStorageService: "Vivaldi Safe Storage", bundleId: "com.vivaldi.Vivaldi" },
         { name: "Chromium", userDataDir: join(homeOverride, "Library", "Application Support", "Chromium"), safeStorageService: "Chromium Safe Storage", bundleId: "org.chromium.Chromium" },
+        { name: "Comet", userDataDir: join(homeOverride, "Library", "Application Support", "Comet"), safeStorageService: "Comet Safe Storage", bundleId: "ai.perplexity.comet" },
       ]
     : platformOverride === "linux"
       ? [

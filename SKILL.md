@@ -257,7 +257,7 @@ unbrowse feedback \
 | `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
-| `login` | `--url "..." [--browser chrome|arc|dia|brave|edge|vivaldi|chromium|firefox]` | Interactive browser login |
+| `login` | `--url "..." [--browser chrome|arc|dia|brave|edge|vivaldi|chromium|comet|firefox]` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
