@@ -609,7 +609,7 @@ export const CLI_REFERENCE = {
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
-    { name: "login", usage: '--url "..." [--browser chrome|arc|dia|brave|edge|vivaldi|chromium|firefox]', desc: "Interactive browser login" },
+    { name: "login", usage: '--url "..." [--browser chrome|arc|dia|brave|edge|vivaldi|chromium|comet|firefox]', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },

@@ -20,7 +20,7 @@ const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
 const MIN_WAIT_MS = 15_000;
 const FIREFOX_BUNDLE_ID = "org.mozilla.firefox";
-const SUPPORTED_INTERACTIVE_BROWSERS = ["auto", "chrome", "arc", "dia", "brave", "edge", "vivaldi", "chromium", "firefox"] as const;
+const SUPPORTED_INTERACTIVE_BROWSERS = ["auto", "chrome", "arc", "dia", "brave", "edge", "vivaldi", "chromium", "comet", "firefox"] as const;
 
 type InteractiveBrowser = typeof SUPPORTED_INTERACTIVE_BROWSERS[number];
 
@@ -34,6 +34,7 @@ const MAC_BROWSER_NAME_BY_BUNDLE_ID: Record<string, string> = {
   "com.microsoft.edgemac": "Edge",
   "com.vivaldi.Vivaldi": "Vivaldi",
   "org.chromium.Chromium": "Chromium",
+  "ai.perplexity.comet": "Comet",
 };
 
 const LINUX_BROWSER_COMMANDS: Partial<Record<Exclude<InteractiveBrowser, "auto">, string>> = {
@@ -74,6 +75,7 @@ const DARWIN_BROWSER_BY_BUNDLE_ID: Partial<Record<string, Exclude<InteractiveBro
   "com.microsoft.edgemac": "edge",
   "com.vivaldi.Vivaldi": "vivaldi",
   "org.chromium.Chromium": "chromium",
+  "ai.perplexity.comet": "comet",
 };
 
 function buildDarwinChromiumOpenPlan(
@@ -174,7 +176,7 @@ export function resolveInteractiveLoginPlan(
       }
       if (defaultBundleId && defaultBundleId !== FIREFOX_BUNDLE_ID && !supportedChromiumBundles.has(defaultBundleId)) {
         const label = MAC_BROWSER_NAME_BY_BUNDLE_ID[defaultBundleId] ?? defaultBundleId;
-        throw new Error(`Default browser ${label} is not supported for cookie extraction. Re-run with --browser chrome, arc, dia, brave, edge, vivaldi, chromium, or firefox.`);
+        throw new Error(`Default browser ${label} is not supported for cookie extraction. Re-run with --browser chrome, arc, dia, brave, edge, vivaldi, chromium, comet, or firefox.`);
       }
     }
 
