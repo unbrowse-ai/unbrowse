@@ -793,11 +793,82 @@ export async function screenshot(tabId: string): Promise<string> {
 }
 
 /** Get accessibility tree snapshot. */
-export async function snapshot(tabId: string, filter?: string): Promise<string> {
+export interface SnapshotElement {
+  ref: string;
+  role: string;
+  name: string;
+  value?: string;
+}
+
+/** Get accessibility tree snapshot with element refs for action targeting. */
+export async function snapshot(tabId: string, filter?: string): Promise<SnapshotElement[]> {
   const params: Record<string, string> = { tab_id: tabId };
   if (filter) params.filter = filter;
-  const result = (await kuriGet("/snapshot", params)) as { snapshot?: string };
-  return result?.snapshot ?? "";
+  const result = await kuriGet("/snapshot", params);
+  if (Array.isArray(result)) return result;
+  // Legacy format: { snapshot: "..." }
+  if (typeof result === "object" && result !== null && "snapshot" in result) {
+    const snap = (result as { snapshot: unknown }).snapshot;
+    if (typeof snap === "string") {
+      try { return JSON.parse(snap); } catch { return []; }
+    }
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
+// Browser action primitives — wrappers over Kuri's /action endpoint.
+// Actions use snapshot element refs (e0, e1, ...) from a prior snapshot() call.
+// ---------------------------------------------------------------------------
+
+export type ActionType = "click" | "fill" | "type" | "press" | "focus" | "hover" | "select" | "scroll" | "dblclick" | "check" | "uncheck" | "blur";
+
+/** Perform a browser action on an element identified by snapshot ref. */
+export async function action(tabId: string, actionType: ActionType, ref?: string, value?: string): Promise<unknown> {
+  const params: Record<string, string> = { tab_id: tabId, action: actionType };
+  if (ref) params.ref = ref;
+  if (value !== undefined) params.value = value;
+  return kuriGet("/action", params);
+}
+
+/** Click an element by snapshot ref. */
+export async function click(tabId: string, ref: string): Promise<void> {
+  await action(tabId, "click", ref);
+}
+
+/** Fill an input element with text (clears existing value). */
+export async function fill(tabId: string, ref: string, value: string): Promise<void> {
+  await action(tabId, "fill", ref, value);
+}
+
+/** Type text into an element (appends to existing value). */
+export async function type(tabId: string, ref: string, value: string): Promise<void> {
+  await action(tabId, "type", ref, value);
+}
+
+/** Press a key (e.g. "Enter", "Tab", "Escape"). No ref needed. */
+export async function press(tabId: string, key: string): Promise<void> {
+  await action(tabId, "press", undefined, key);
+}
+
+/** Select an option in a dropdown by value. */
+export async function select(tabId: string, ref: string, value: string): Promise<void> {
+  await action(tabId, "select", ref, value);
+}
+
+/** Scroll the page. No ref needed. */
+export async function scroll(tabId: string): Promise<void> {
+  await action(tabId, "scroll");
+}
+
+/** Check a checkbox (no-op if already checked). */
+export async function check(tabId: string, ref: string): Promise<void> {
+  await action(tabId, "check", ref);
+}
+
+/** Uncheck a checkbox (no-op if already unchecked). */
+export async function uncheck(tabId: string, ref: string): Promise<void> {
+  await action(tabId, "uncheck", ref);
 }
 
 /** Close a tab. */
