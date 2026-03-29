@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Terms of Service — unbrowse",
-  description: "Terms of Service for unbrowse, operated by Unreel AI Pte Ltd.",
+  description: "Terms of Service for unbrowse, operated by Unbrowse AI Pte. Ltd..",
 };
 
 export default function TermsPage() {
@@ -30,12 +30,12 @@ export default function TermsPage() {
         <Section title="1. Who you&apos;re agreeing with">
           <p>
             These Terms of Service (&quot;Terms&quot;) are a legally binding agreement between
-            you (&quot;you&quot; or &quot;User&quot;) and <strong>Unreel AI Pte Ltd</strong>, a
+            you (&quot;you&quot; or &quot;User&quot;) and <strong>Unbrowse AI Pte. Ltd.</strong>, a
             company incorporated in Singapore (UEN 202425961N)
             (&quot;Company&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).
           </p>
           <p>
-            Unbrowse is a product owned and operated by Unreel AI Pte Ltd. By
+            Unbrowse is a product owned and operated by Unbrowse AI Pte. Ltd.. By
             accessing or using unbrowse — including the website at unbrowse.ai, the
             CLI tool, the API, and the collective skill registry (collectively, the
             &quot;Service&quot;) — you agree to be bound by these Terms. If you do not agree,
@@ -113,7 +113,7 @@ export default function TermsPage() {
         <Section title="6. Intellectual property">
           <p>
             The Service, including all software, designs, trademarks, and
-            documentation, is owned by Unreel AI Pte Ltd and protected by
+            documentation, is owned by Unbrowse AI Pte. Ltd. and protected by
             intellectual property laws. Nothing in these Terms grants you ownership
             of any part of the Service.
           </p>
@@ -157,7 +157,7 @@ export default function TermsPage() {
 
         <Section title="9. Indemnification">
           <p>
-            You agree to indemnify and hold harmless Unreel AI Pte Ltd, its officers,
+            You agree to indemnify and hold harmless Unbrowse AI Pte. Ltd., its officers,
             directors, employees, and agents from any claims, damages, losses, or
             expenses (including reasonable legal fees) arising out of your use of the
             Service, violation of these Terms, or infringement of any third-party
@@ -217,7 +217,7 @@ export default function TermsPage() {
             </a>.
           </p>
           <p className="text-sm text-text-muted mt-4">
-            Unreel AI Pte Ltd
+            Unbrowse AI Pte. Ltd.
             <br />
             Singapore
           </p>

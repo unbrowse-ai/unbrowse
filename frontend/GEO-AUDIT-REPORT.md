@@ -193,7 +193,7 @@ Missing schemas (priority order):
   "@context": "https://schema.org",
   "@type": "Organization",
   "name": "Unbrowse",
-  "legalName": "Unreel AI Pte Ltd",
+  "legalName": "Unbrowse AI Pte. Ltd.",
   "url": "https://www.unbrowse.ai",
   "logo": "https://www.unbrowse.ai/logo.png",
   "description": "Unbrowse reverse-engineers any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",

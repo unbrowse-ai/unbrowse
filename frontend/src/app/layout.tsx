@@ -92,7 +92,7 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "Organization",
               name: "Unbrowse",
-              legalName: "Unreel AI Pte Ltd",
+              legalName: "Unbrowse AI Pte. Ltd.",
               url: "https://www.unbrowse.ai",
               logo: "https://www.unbrowse.ai/logo.png",
               description:

@@ -467,7 +467,7 @@ export default function Home() {
                <span className="font-semibold text-text-primary text-base tracking-tight">unbrowse</span>
              </div>
              <div className="hidden sm:block w-px h-6 bg-border" />
-             <span className="text-sm">&copy; {new Date().getFullYear()} Unreel AI Pte Ltd</span>
+             <span className="text-sm">&copy; {new Date().getFullYear()} Unbrowse AI Pte. Ltd.</span>
              <div className="hidden sm:block w-px h-6 bg-border" />
              <a href="https://www.nvidia.com/en-us/startups/" target="_blank" rel="noopener"
                 className="inline-block rounded-lg bg-surface border border-border p-1.5 hover:bg-surface-raised transition-colors">
