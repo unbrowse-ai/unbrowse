@@ -951,9 +951,12 @@ function chooseCaptureAuthStrategy(
   explicit?: CaptureAuthStrategy,
 ): CaptureAuthStrategy {
   if (explicit) return explicit;
-  const hasAuth = (cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0;
-  if (!hasAuth) return "cookie-injection";
-  return "header-replay";
+  // Default to cookie-injection: SPA sites need cookies in the browser's jar
+  // so JS-initiated fetch calls include auth. Header-replay only sets cookies
+  // on the initial navigation request, not on in-page API calls.
+  // Fall back to header-replay only if cookie injection previously failed.
+  if (isCookieInjectionUnsafe(url)) return "header-replay";
+  return "cookie-injection";
 }
 
 function rememberCaptureAuthStrategy(url: string, strategy: CaptureAuthStrategy): void {
@@ -1165,9 +1168,14 @@ export async function captureSession(
 
   try {
     throwIfAborted(signal);
-    // Set headers: client hints + auth headers
+    // Set headers: client hints only for cookie-injection mode (browser handles auth via cookies).
+    // In header-replay mode, also add auth headers + cookie shim for server-side replay.
+    // Auth headers like csrf-token must NOT be set as persistent browser headers in
+    // cookie-injection mode — they cause HTTP 400 on page navigations.
     const headerAuthShim = useHeaderReplay ? buildHeaderAuthForOrigin(cookies ?? [], url, authHeaders) : {};
-    const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}), ...headerAuthShim };
+    const allHeaders = useHeaderReplay
+      ? { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}), ...headerAuthShim }
+      : { ...CLIENT_HINT_HEADERS };
     await kuri.setHeaders(tabId, allHeaders);
 
     // Inject stealth patches — hide headless Chrome indicators from bot detection
@@ -1226,14 +1234,23 @@ export async function captureSession(
     throwIfAborted(signal);
     await kuri.navigate(tabId, url);
 
-    // Re-inject stealth + interceptor after navigation (page context resets on navigate)
-    try {
-      await sleep(300, signal);
-      throwIfAborted(signal);
-      await kuri.evaluate(tabId, STEALTH_SCRIPT);
-      throwIfAborted(signal);
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
-    } catch { /* page may not be ready */ }
+    // Re-inject stealth + interceptor after navigation (page context resets on navigate).
+    // Poll aggressively instead of a fixed 300ms sleep — fast SPAs fire their initial
+    // API calls within ~50ms of page load, so every millisecond counts.
+    {
+      const injectDeadline = Date.now() + 3000;
+      let injected = false;
+      while (Date.now() < injectDeadline && !injected) {
+        throwIfAborted(signal);
+        try {
+          await kuri.evaluate(tabId, STEALTH_SCRIPT);
+          await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+          injected = true;
+        } catch {
+          await sleep(50, signal);
+        }
+      }
+    }
 
     // For pages that embed the task payload directly in the HTML, return before
     // the longer network/intercept wait. This avoids losing useful captures to
@@ -1294,15 +1311,45 @@ export async function captureSession(
       }
     }
 
-    // Also collect via Performance API for requests the interceptor might have missed
-    // (requests that started before the interceptor was injected)
+    // Performance API replay: the interceptor may have missed initial page-load requests
+    // that fired before it was injected. The Performance API sees ALL fetch/xhr URLs.
+    // Re-fetch the missed ones from within the page so the (now-installed) interceptor
+    // captures their response bodies.
     try {
       const perfResult = await kuri.evaluate(tabId, `JSON.stringify(
         performance.getEntriesByType('resource')
           .filter(function(e) { return e.initiatorType === 'fetch' || e.initiatorType === 'xmlhttprequest'; })
-          .map(function(e) { return { url: e.name, duration: e.duration }; })
+          .map(function(e) { return e.name; })
       )`);
-      // Performance API only gives us URLs, not bodies — but useful for request tracking
+      if (typeof perfResult === "string" && perfResult.startsWith("[")) {
+        const perfUrls: string[] = JSON.parse(perfResult);
+        const interceptedUrls = new Set(intercepted.map((e) => e.url));
+        const missedUrls = perfUrls.filter((u) => !interceptedUrls.has(u) && !u.includes("/collect") && !u.includes("analytics"));
+        if (missedUrls.length > 0) {
+          log("capture", `perf API found ${missedUrls.length} fetch/xhr URLs missed by interceptor — replaying`);
+          const replayScript = missedUrls.slice(0, 20).map((u) =>
+            `fetch(${JSON.stringify(u)}).catch(function(){})`
+          ).join(";");
+          await kuri.evaluate(tabId, replayScript).catch(() => {});
+          await sleep(2000, signal);
+          const replayed = await collectInterceptedRequests(tabId);
+          for (const entry of replayed) {
+            if (!interceptedUrls.has(entry.url)) {
+              intercepted.push(entry);
+              if (entry.response_body && !entry.is_js) {
+                responseBodies.set(entry.url, entry.response_body);
+              } else if (entry.is_js && jsBundleBodies.size < MAX_JS_BUNDLES && pageDomain) {
+                try {
+                  const jsDomain = getRegistrableDomain(new URL(entry.url).hostname);
+                  if (jsDomain === pageDomain && entry.response_body) {
+                    jsBundleBodies.set(entry.url, entry.response_body);
+                  }
+                } catch { /* bad url */ }
+              }
+            }
+          }
+        }
+      }
     } catch { /* non-fatal */ }
 
     // Stop HAR recording and merge with intercepted data
