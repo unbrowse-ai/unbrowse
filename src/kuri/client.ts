@@ -846,9 +846,9 @@ export async function type(tabId: string, ref: string, value: string): Promise<v
   await action(tabId, "type", ref, value);
 }
 
-/** Press a key (e.g. "Enter", "Tab", "Escape"). No ref needed. */
-export async function press(tabId: string, key: string): Promise<void> {
-  await action(tabId, "press", undefined, key);
+/** Press a key on an element (e.g. "Enter", "Tab", "Escape"). Ref required by Kuri. */
+export async function press(tabId: string, ref: string, key: string): Promise<void> {
+  await action(tabId, "press", ref, key);
 }
 
 /** Select an option in a dropdown by value. */
@@ -856,9 +856,9 @@ export async function select(tabId: string, ref: string, value: string): Promise
   await action(tabId, "select", ref, value);
 }
 
-/** Scroll the page. No ref needed. */
-export async function scroll(tabId: string): Promise<void> {
-  await action(tabId, "scroll");
+/** Scroll the page. Ref required by Kuri (use any visible element). */
+export async function scroll(tabId: string, ref: string): Promise<void> {
+  await action(tabId, "scroll", ref);
 }
 
 /** Check a checkbox (no-op if already checked). */
