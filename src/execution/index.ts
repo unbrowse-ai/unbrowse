@@ -1917,6 +1917,43 @@ async function executeBrowserCapture(
       }
     }
   }
+
+  // Live DOM extraction fallback: when both Cheerio-based extraction and SSR fallback
+  // failed, use data extracted directly from the live rendered page via kuri.evaluate().
+  // This catches SSR/SPA content where data is in the DOM but not parseable from static HTML.
+  if (!pageArtifact.endpoint && captured.live_dom_extraction) {
+    const live = captured.live_dom_extraction;
+    log("exec", `using live DOM extraction: ${live.element_count} items via ${live.extraction_method} (confidence: ${live.confidence.toFixed(2)})`);
+    const response_schema = inferSchema([live.data]);
+    const endpoint: EndpointDescriptor = {
+      endpoint_id: nanoid(),
+      method: "GET",
+      url_template: templatizeQueryParams(url),
+      idempotency: "safe",
+      verification_status: live.confidence >= 0.7 ? "verified" : "unverified",
+      reliability_score: live.confidence,
+      description: `Live DOM extraction for ${intent}`,
+      trigger_url: url,
+      response_schema,
+      dom_extraction: {
+        extraction_method: live.extraction_method,
+        confidence: live.confidence,
+      },
+    };
+    pageArtifact = {
+      endpoint,
+      result: {
+        data: live.data,
+        _extraction: {
+          method: live.extraction_method,
+          confidence: live.confidence,
+          source: "live-dom",
+          element_count: live.element_count,
+        },
+      },
+    };
+  }
+
   const domArtifactEndpoint = pageArtifact.endpoint;
   const domArtifactResult = pageArtifact.result;
   const inferredOnlyCapture = cleanEndpoints.length > 0 && cleanEndpoints.every((endpoint) => isBundleInferredEndpoint(endpoint));
@@ -2122,6 +2159,51 @@ async function executeBrowserCapture(
     };
   }
 
+  // If the learned endpoints are all metadata/config (no response_schema, no support evidence)
+  // but we have live DOM extraction with actual page content, prefer the live DOM data.
+  const hasMeaningfulEndpoint = cleanEndpoints.some((ep) => isSupportEvidenceEndpoint(ep));
+  if (!hasMeaningfulEndpoint && captured.live_dom_extraction) {
+    const live = captured.live_dom_extraction;
+    log("exec", `learned endpoints lack data — using live DOM extraction: ${live.element_count} items (confidence: ${live.confidence.toFixed(2)})`);
+    const liveDomEndpoint: EndpointDescriptor = {
+      endpoint_id: nanoid(),
+      method: "GET",
+      url_template: templatizeQueryParams(url),
+      idempotency: "safe",
+      verification_status: live.confidence >= 0.7 ? "verified" : "unverified",
+      reliability_score: live.confidence,
+      description: `Live DOM extraction for ${intent}`,
+      trigger_url: url,
+      response_schema: inferSchema([live.data]),
+      dom_extraction: {
+        extraction_method: live.extraction_method,
+        confidence: live.confidence,
+      },
+    };
+    const liveTrace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: learned.skill_id,
+      endpoint_id: liveDomEndpoint.endpoint_id,
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: true,
+      result: live.data,
+    });
+    return {
+      trace: liveTrace,
+      result: {
+        data: live.data,
+        _extraction: {
+          method: live.extraction_method,
+          confidence: live.confidence,
+          source: "live-dom",
+          element_count: live.element_count,
+        },
+      },
+      learned_skill: learned,
+    };
+  }
+
   const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,
     skill_id: learned.skill_id,
@@ -2135,7 +2217,6 @@ async function executeBrowserCapture(
   // Detect tracking-only capture: all endpoints lack a response_schema, meaning no real
   // JSON data was returned — the site likely gated its API behind authentication.
   // Only flag this when no auth was used (so a retry with auth has a chance of succeeding).
-  const hasMeaningfulEndpoint = cleanEndpoints.some((ep) => isSupportEvidenceEndpoint(ep));
   const authRecommended = !usedStoredAuth && !hasMeaningfulEndpoint && !inferredOnlyCapture;
 
   return {
