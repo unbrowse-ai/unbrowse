@@ -16,6 +16,8 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 - All notable changes must be written into `CHANGELOG.md`
 - Use conventional commit prefixes: `feat:`, `fix:`, `perf:`, `refactor:`, `chore:`
 - Use `bash scripts/sync-skill.sh` to publish skill changes to `unbrowse-ai/unbrowse`
+- Kuri must work as a bundled runtime from the package/monorepo vendor path. Do not require end users to install Zig or a separate `kuri` binary.
+- When touching Kuri discovery, packaging, runtime paths, or `packages/skill`, run `bash scripts/check-packaged-kuri.sh`.
 
 ## Codex Eval Harness
 
