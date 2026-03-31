@@ -5,6 +5,7 @@ import { getSkillChunk, knownBindingsFromInputs } from "../graph/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { mergeContextTemplateParams } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
+import { executeActionSequence } from "../capture/index.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -283,7 +284,7 @@ async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): P
 export interface OrchestratorResult {
   result: unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture" | "dom-fallback";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "browser-action";
   skill: SkillManifest;
   timing: OrchestrationTiming;
   response_schema?: ResponseSchema;
@@ -815,8 +816,6 @@ export function resolveEndpointTemplateBindings(
 }
 
 export async function resolveAndExecute(
-  intent: string,
-  params: Record<string, unknown> = {},
   context?: { url?: string; domain?: string },
   projection?: ProjectionOptions,
   options?: ExecutionOptions,
@@ -1846,8 +1845,46 @@ export async function resolveAndExecute(
     }
   }
 
-  // Auth-gated or no data: pass through error
+  // Auth-gated or no data: attempt first-pass browser action execution before giving up.
+  // This handles interaction-required pages where passive capture alone is insufficient.
   if (!learned_skill && !trace.success) {
+    try {
+      console.log("[browser-action] passive capture failed — attempting first-pass browser action fallback");
+      const actionResult = await executeActionSequence(
+        context!.url!,
+        [{ action: "snapshot" }],
+        { intent },
+      );
+      const now = new Date().toISOString();
+      const browserTrace: ExecutionTrace = {
+        trace_id: actionResult.trace_id,
+        skill_id: captureSkill!.skill_id,
+        endpoint_id: "browser-action",
+        started_at: now,
+        completed_at: now,
+        success: actionResult.ok,
+        status_code: actionResult.ok ? 200 : 0,
+      };
+      timing.source = "browser-action" as OrchestrationTiming["source"];
+      return {
+        result: {
+          browser_action_ok: actionResult.ok,
+          steps: actionResult.steps,
+          final_url: actionResult.final_url,
+          html: actionResult.html,
+          snapshot: actionResult.snapshot,
+          capture: actionResult.capture,
+          trace_id: actionResult.trace_id,
+        },
+        trace: browserTrace,
+        source: "browser-action",
+        skill: captureSkill!,
+        timing: finalize("browser-action", result, undefined, undefined, browserTrace),
+      };
+    } catch (actionErr) {
+      console.warn("[browser-action] fallback also failed:", (actionErr as Error).message);
+    }
+    // Both passive capture and browser action failed — return original error
     return {
       result,
       trace,
