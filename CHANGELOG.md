@@ -10,6 +10,7 @@
 * **cli**: preserve `url` in execute requests so browser-capture endpoints still replay correctly through the API route
 * **runtime**: resolve the real package root for nested modules and discover vendored Kuri binaries from the monorepo package path so users do not need Zig or a separate `kuri` install
 * **tooling**: add a packaged-Kuri verification script and run it from sync/commit paths so vendored runtime regressions fail earlier
+* **docs**: add a PR validation matrix mapping merged work to concrete automated and manual test cases
 
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
