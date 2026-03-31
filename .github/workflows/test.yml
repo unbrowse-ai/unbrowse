@@ -2,9 +2,9 @@ name: Test
 
 on:
   pull_request:
-    branches: [main]
+    branches: [rach/restart-base, main]
   push:
-    branches: [main]
+    branches: [rach/restart-base, main]
 
 jobs:
   unit-tests:
@@ -81,3 +81,22 @@ jobs:
       - run: npm pack --dry-run
         name: Validate npm package
         working-directory: packages/skill
+
+  cli-e2e:
+    name: CLI E2E
+    runs-on: ubuntu-latest
+    env:
+      UNBROWSE_DISABLE_AUTO_UPDATE: "1"
+      UNBROWSE_NON_INTERACTIVE: "1"
+      UNBROWSE_TOS_ACCEPTED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - run: git submodule update --init submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bun run cli -- setup --no-start
+        name: Build Kuri for CLI tests
+      - run: bun test tests/cli-e2e.test.ts
+        name: Run CLI end-to-end tests

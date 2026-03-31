@@ -817,6 +817,8 @@ export function resolveEndpointTemplateBindings(
 }
 
 export async function resolveAndExecute(
+  intent: string,
+  params: Record<string, unknown> = {},
   context?: { url?: string; domain?: string },
   projection?: ProjectionOptions,
   options?: ExecutionOptions,

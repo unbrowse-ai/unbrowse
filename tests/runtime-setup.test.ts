@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { findKuriBinary } from "../src/kuri/client.js";
 import { runSetup } from "../src/runtime/setup.js";
 
 const tmpDirs: string[] = [];
@@ -56,6 +57,39 @@ describe("runtime setup", () => {
     mkdirSync(path.dirname(binaryPath), { recursive: true });
     writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
     chmodSync(binaryPath, 0o755);
+
+    const report = await runSetup({
+      cwd,
+      opencode: "off",
+    });
+
+    expect(report.browser_engine.action).toBe("already-installed");
+    expect(report.browser_engine.installed).toBe(true);
+  });
+
+  it("finds the vendored package binary from a monorepo checkout", async () => {
+    const cwd = mkdtempSync(path.join(os.tmpdir(), "unbrowse-setup-monorepo-bin-"));
+    tmpDirs.push(cwd);
+    process.env.UNBROWSE_PACKAGE_ROOT = cwd;
+
+    const target = process.platform === "darwin" && process.arch === "arm64"
+      ? "darwin-arm64"
+      : process.platform === "darwin" && process.arch === "x64"
+        ? "darwin-x64"
+        : process.platform === "linux" && process.arch === "arm64"
+          ? "linux-arm64"
+          : process.platform === "linux" && process.arch === "x64"
+            ? "linux-x64"
+            : null;
+
+    if (!target) return;
+
+    const binaryPath = path.join(cwd, "packages", "skill", "vendor", "kuri", target, process.platform === "win32" ? "kuri.exe" : "kuri");
+    mkdirSync(path.dirname(binaryPath), { recursive: true });
+    writeFileSync(binaryPath, "#!/bin/sh\nexit 0\n");
+    chmodSync(binaryPath, 0o755);
+
+    expect(findKuriBinary()).toBe(binaryPath);
 
     const report = await runSetup({
       cwd,
