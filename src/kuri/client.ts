@@ -655,13 +655,15 @@ export async function action(
   return kuriGet("/action", params);
 }
 
-/** Click an element by ref. */
+/** Click an element by ref (scrolls into view first). */
 export async function click(tabId: string, ref: string): Promise<unknown> {
+  await scrollIntoView(tabId, ref);
   return action(tabId, "click", ref);
 }
 
-/** Fill an input element by ref. */
+/** Fill an input element by ref (focuses first). */
 export async function fill(tabId: string, ref: string, value: string): Promise<unknown> {
+  await click(tabId, ref);
   return action(tabId, "fill", ref, value);
 }
 
@@ -675,9 +677,12 @@ export async function scroll(tabId: string): Promise<unknown> {
   return kuriGet("/action", { tab_id: tabId, action: "scroll", ref: "_" });
 }
 
-/** Press a key (no element ref needed). */
-export async function press(tabId: string, key: string): Promise<unknown> {
-  return kuriGet("/action", { tab_id: tabId, action: "press", ref: "_", value: key });
+/** Press a key on a target element (focuses first if ref provided). */
+export async function press(tabId: string, key: string, ref?: string): Promise<unknown> {
+  if (ref && ref !== "_") {
+    await click(tabId, ref);
+  }
+  return kuriGet("/action", { tab_id: tabId, action: "press", ref: ref ?? "_", value: key });
 }
 
 // ---------------------------------------------------------------------------
