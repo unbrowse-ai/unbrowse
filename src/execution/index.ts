@@ -2159,10 +2159,21 @@ async function executeBrowserCapture(
     };
   }
 
-  // If the learned endpoints are all metadata/config (no response_schema, no support evidence)
+  // If the learned endpoints don't have array/list response schemas (just config/metadata),
   // but we have live DOM extraction with actual page content, prefer the live DOM data.
-  const hasMeaningfulEndpoint = cleanEndpoints.some((ep) => isSupportEvidenceEndpoint(ep));
-  if (!hasMeaningfulEndpoint && captured.live_dom_extraction) {
+  // isSupportEvidenceEndpoint returns true for ANY endpoint with a response_schema, even
+  // config endpoints like site_metadata. We need a stricter check: does any endpoint have
+  // a schema that looks like search results (array type or multiple data fields)?
+  const hasSearchableEndpoint = cleanEndpoints.some((ep) => {
+    if (!ep.response_schema || ep.dom_extraction) return false;
+    const schema = ep.response_schema as { type?: string; items?: unknown; properties?: Record<string, unknown> };
+    // Array response = likely search/list results
+    if (schema.type === "array") return true;
+    // Object with many properties = likely detail page (also useful)
+    const propCount = schema.properties ? Object.keys(schema.properties).length : 0;
+    return propCount >= 5;
+  });
+  if (!hasSearchableEndpoint && captured.live_dom_extraction) {
     const live = captured.live_dom_extraction;
     log("exec", `learned endpoints lack data — using live DOM extraction: ${live.element_count} items (confidence: ${live.confidence.toFixed(2)})`);
     const liveDomEndpoint: EndpointDescriptor = {
@@ -2204,6 +2215,36 @@ async function executeBrowserCapture(
     };
   }
 
+  // Last chance: if we have live DOM data but reached the default return path
+  // (all other checks passed or were skipped), return the DOM data directly.
+  // This prevents the orchestrator from wrapping it in a deferral.
+  if (captured.live_dom_extraction) {
+    const live = captured.live_dom_extraction;
+    log("exec", `returning live DOM data directly (default path): ${live.element_count} items (confidence: ${live.confidence.toFixed(2)})`);
+    const liveTrace: ExecutionTrace = stampTrace({
+      trace_id: traceId,
+      skill_id: learned.skill_id,
+      endpoint_id: nanoid(),
+      started_at: startedAt,
+      completed_at: new Date().toISOString(),
+      success: true,
+      result: live.data,
+    });
+    return {
+      trace: liveTrace,
+      result: {
+        data: live.data,
+        _extraction: {
+          method: live.extraction_method,
+          confidence: live.confidence,
+          source: "live-dom",
+          element_count: live.element_count,
+        },
+      },
+      learned_skill: learned,
+    };
+  }
+
   const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,
     skill_id: learned.skill_id,
@@ -2217,7 +2258,7 @@ async function executeBrowserCapture(
   // Detect tracking-only capture: all endpoints lack a response_schema, meaning no real
   // JSON data was returned — the site likely gated its API behind authentication.
   // Only flag this when no auth was used (so a retry with auth has a chance of succeeding).
-  const authRecommended = !usedStoredAuth && !hasMeaningfulEndpoint && !inferredOnlyCapture;
+  const authRecommended = !usedStoredAuth && !hasSearchableEndpoint && !inferredOnlyCapture;
 
   return {
     trace,

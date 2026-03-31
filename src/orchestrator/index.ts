@@ -722,7 +722,10 @@ function skillHasBetterStructuredSearchEndpoint(
   return rankEndpoints(skill.endpoints, intent, skill.domain, contextUrl).some((candidate) =>
     candidate.endpoint.endpoint_id !== currentEndpointId &&
     endpointHasSearchBindings(candidate.endpoint) &&
-    (!!candidate.endpoint.dom_extraction || !!candidate.endpoint.response_schema) &&
+    // Only count non-DOM API endpoints as "better" — DOM extraction endpoints
+    // with search bindings aren't reliably better than live DOM data.
+    !candidate.endpoint.dom_extraction &&
+    !!candidate.endpoint.response_schema &&
     candidate.score >= 0
   );
 }
@@ -3108,7 +3111,7 @@ export async function resolveAndExecute(
   if (
     isDirectDomResult &&
     (
-      (directExtractionSource === "html-embedded" && !hasBetterStructuredSearchEndpoint) ||
+      ((directExtractionSource === "html-embedded" || directExtractionSource === "live-dom") && !hasBetterStructuredSearchEndpoint) ||
       !hasNonDomApiEndpoints
     )
   ) {
@@ -3116,7 +3119,7 @@ export async function resolveAndExecute(
       const direct: OrchestratorResult = {
         result,
         trace,
-        source: directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+        source: (directExtractionSource === "html-embedded" || directExtractionSource === "live-dom") ? "live-capture" : "dom-fallback",
         skill: learned_skill,
         timing: finalize(
           directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
