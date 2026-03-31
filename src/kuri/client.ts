@@ -121,6 +121,7 @@ export function getKuriBinaryCandidates(): string[] {
   const candidates: string[] = [];
 
   if (target) addCandidate(candidates, path.join(packageRoot, "vendor", "kuri", target, binaryName));
+  if (target) addCandidate(candidates, path.join(packageRoot, "packages", "skill", "vendor", "kuri", target, binaryName));
   for (const sourceDir of getKuriSourceCandidates()) {
     addCandidate(candidates, path.join(sourceDir, "zig-out", "bin", binaryName));
   }

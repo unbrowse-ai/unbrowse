@@ -495,7 +495,10 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   if (flags.params) {
     body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
   }
-  if (flags.url) body.context_url = flags.url;
+  if (flags.url) {
+    body.context_url = flags.url;
+    (body.params as Record<string, unknown>).url = flags.url;
+  }
   if (flags.intent) body.intent = flags.intent;
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;

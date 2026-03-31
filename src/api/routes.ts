@@ -235,8 +235,12 @@ export async function registerRoutes(app: FastifyInstance) {
     };
     const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
+    const execParams = {
+      ...(params ?? {}),
+      ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
+    };
     try {
-      const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
       if (execResult.trace.endpoint_id) {
         recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace).catch(() => {});
@@ -245,7 +249,7 @@ export async function registerRoutes(app: FastifyInstance) {
         promoteExplicitExecution(
           clientScope,
           intent || skill.intent_signature,
-          context_url || (typeof params?.url === "string" ? params.url : undefined),
+          context_url || (typeof execParams.url === "string" ? execParams.url : undefined),
           skill,
           execResult.trace.endpoint_id,
           execResult.result,
@@ -262,12 +266,12 @@ export async function registerRoutes(app: FastifyInstance) {
         try {
           const recoveryUrl =
             context_url ||
-            (typeof params?.url === "string" && params.url) ||
+            (typeof execParams.url === "string" && execParams.url) ||
             skill.endpoints.find((endpoint) => typeof endpoint.trigger_url === "string" && endpoint.trigger_url)?.trigger_url ||
             `https://${skill.domain}`;
           const freshResult = await resolveAndExecute(
             intent || skill.intent_signature,
-            { ...(params ?? {}), url: recoveryUrl },
+            { ...execParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
             { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
