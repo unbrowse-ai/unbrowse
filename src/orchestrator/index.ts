@@ -1036,15 +1036,14 @@ export async function resolveAndExecute(
       // Safety: don't auto-execute if there are too many unresolved params (likely wrong endpoint)
       if (unresolvedBySync.length > 4) return false;
     }
-    if (endpoint.dom_extraction) return true;
+      if (unresolvedBySync.length > 4) return false;
+    }
+    if (endpoint.dom_extraction) {
+      // Block mutable DOM endpoints from hidden auto-exec (#89)
+      if (endpoint.method !== "GET" && endpoint.idempotency !== "safe") return false;
+      return true;
+    }
     return endpoint.method === "GET" || endpoint.idempotency === "safe";
-  }
-
-  const resolvedParams: Record<string, unknown> = (() => {
-    const merged: Record<string, unknown> = { ...params };
-    if (context?.url) {
-      try {
-        const u = new URL(context.url);
         for (const [k, v] of u.searchParams.entries()) {
           if (merged[k] == null || merged[k] === "") merged[k] = v;
         }
