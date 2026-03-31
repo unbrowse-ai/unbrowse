@@ -18,6 +18,27 @@ const activeTabRegistry = new Set<string>();
 const CAPTURE_TIMEOUT_MS = 90_000;
 const CAPTURE_NAV_TIMEOUT_MS = 20_000;
 
+/**
+ * Races `fn()` against an AbortSignal so that each CDP phase exits immediately
+ * when the overall capture timeout fires — instead of waiting for kuri's own
+ * 30s per-request timeout to expire (which caused 120s+ hangs, bug #113).
+ */
+export function withBrowserPhaseTimeout<T>(
+  signal: AbortSignal,
+  label: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (signal.aborted) return Promise.reject(new Error(`capture phase '${label}' timed out`));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new Error(`capture phase '${label}' timed out`));
+    signal.addEventListener("abort", onAbort, { once: true });
+    fn().then(
+      (val) => { signal.removeEventListener("abort", onAbort); resolve(val); },
+      (err) => { signal.removeEventListener("abort", onAbort); reject(err); },
+    );
+  });
+}
+
 // Client hint headers to avoid headless detection
 const CLIENT_HINT_HEADERS: Record<string, string> = {
   "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
@@ -639,23 +660,29 @@ export async function captureSession(
   let captureTimedOut = false;
   let retryFreshTab = false;
   let captureError: unknown;
-  const timeoutHandle = setTimeout(async () => {
+  const abortController = new AbortController();
+  const { signal } = abortController;
+  // phase() races each CDP call against the overall capture timeout (bug #113 fix)
+  const phase = <T>(label: string, fn: () => Promise<T>) =>
+    withBrowserPhaseTimeout(signal, label, fn);
+  const timeoutHandle = setTimeout(() => {
     captureTimedOut = true;
-    await resetTab(tabId);
+    abortController.abort();
+    resetTab(tabId).catch(() => {});
   }, CAPTURE_TIMEOUT_MS);
 
   try {
     // Set headers: client hints + auth headers
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
-    await kuri.setHeaders(tabId, allHeaders);
+    await phase("setHeaders", () => kuri.setHeaders(tabId, allHeaders));
 
     // Inject cookies
     if (cookies && cookies.length > 0) {
-      await injectCookies(tabId, cookies);
+      await phase("injectCookies", () => injectCookies(tabId, cookies!));
     }
 
     // Start HAR recording
-    await kuri.harStart(tabId);
+    await phase("harStart", () => kuri.harStart(tabId));
 
     // Determine page domain for JS bundle filtering
     let pageDomain: string | undefined;
@@ -664,15 +691,15 @@ export async function captureSession(
     // Inject fetch/XHR interceptor BEFORE navigation to capture all response bodies
     // Navigate directly to target URL — skip origin pre-navigation to save 1-2s on heavy SPAs.
     // The interceptor is re-injected after navigation anyway (page context resets on navigate).
-    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    await phase("evaluate:interceptor", () => kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {}));
 
     // Navigate to target URL
-    await kuri.navigate(tabId, url);
+    await phase("navigate", () => kuri.navigate(tabId, url));
 
     // Re-inject interceptor after navigation (page context resets on navigate)
     try {
       await new Promise((r) => setTimeout(r, 300));
-      await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
+      await phase("evaluate:interceptor-reinject", () => kuri.evaluate(tabId, INTERCEPTOR_SCRIPT));
     } catch { /* page may not be ready */ }
 
     // Build response bodies map from intercepted requests
@@ -681,10 +708,10 @@ export async function captureSession(
     const MAX_JS_BUNDLES = 20;
 
     // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
-    await waitForContentReady(tabId, url, intent, responseBodies);
+    await phase("waitForContentReady", () => waitForContentReady(tabId, url, intent, responseBodies));
 
     // Collect all intercepted requests
-    const intercepted = await collectInterceptedRequests(tabId);
+    const intercepted = await phase("collectIntercepted", () => collectInterceptedRequests(tabId));
 
     // Separate JS bundles from data responses
     for (const entry of intercepted) {
@@ -703,18 +730,18 @@ export async function captureSession(
     // Also collect via Performance API for requests the interceptor might have missed
     // (requests that started before the interceptor was injected)
     try {
-      const perfResult = await kuri.evaluate(tabId, `JSON.stringify(
+      await phase("evaluate:perf", () => kuri.evaluate(tabId, `JSON.stringify(
         performance.getEntriesByType('resource')
           .filter(function(e) { return e.initiatorType === 'fetch' || e.initiatorType === 'xmlhttprequest'; })
           .map(function(e) { return { url: e.name, duration: e.duration }; })
-      )`);
+      )`));
       // Performance API only gives us URLs, not bodies — but useful for request tracking
     } catch { /* non-fatal */ }
 
     // Stop HAR recording and merge with intercepted data
     let harEntries: kuri.KuriHarEntry[] = [];
     try {
-      const harResult = await kuri.harStop(tabId);
+      const harResult = await phase("harStop", () => kuri.harStop(tabId));
       harEntries = harResult.entries;
     } catch { /* HAR may not be available */ }
 
@@ -730,11 +757,11 @@ export async function captureSession(
     let final_url = url;
     let html: string | undefined;
     try {
-      const rawUrl = await kuri.getCurrentUrl(tabId);
+      const rawUrl = await phase("getCurrentUrl", () => kuri.getCurrentUrl(tabId));
       final_url = typeof rawUrl === "string" ? rawUrl : String(rawUrl ?? url);
       // Validate it's actually a URL, fall back to original if not
       try { new URL(final_url); } catch { final_url = url; }
-      html = await kuri.getPageHtml(tabId);
+      html = await phase("getPageHtml", () => kuri.getPageHtml(tabId));
     } catch {}
 
     // Build requests from HAR entries
@@ -790,7 +817,7 @@ export async function captureSession(
     }
 
     // Extract session cookies via document.cookie
-    const rawCookies = await extractCookiesFromPage(tabId, url);
+    const rawCookies = await phase("extractCookies", () => extractCookiesFromPage(tabId, url));
     const sessionCookies = filterFirstPartySessionCookies(rawCookies, url, final_url);
 
     if (captureTimedOut) throw new Error(`captureSession timed out after ${CAPTURE_TIMEOUT_MS}ms for ${url}`);
@@ -835,6 +862,7 @@ export async function captureSession(
     }
   } finally {
     clearTimeout(timeoutHandle);
+    abortController.abort(); // no-op if already aborted; prevents stale phase rejections
     await resetTab(tabId);
     releaseTabSlot(tabId);
   }
