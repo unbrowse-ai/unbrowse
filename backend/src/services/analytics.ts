@@ -312,3 +312,53 @@ export async function backfillFromProfiles(env: Env): Promise<BackfillResult> {
     active_days_seeded: activeDaysSeeded,
   };
 }
+
+// ─── Bottleneck metrics for break-even planning ───
+
+export interface BottleneckMetrics {
+  capture_latency_p50_ms: number;
+  capture_latency_p95_ms: number;
+  resolve_latency_p50_ms: number;
+  resolve_latency_p95_ms: number;
+  execute_latency_p50_ms: number;
+  execute_latency_p95_ms: number;
+  cache_hit_rate: number;
+  marketplace_hit_rate: number;
+  live_capture_rate: number;
+  failure_rate: number;
+  skills_per_domain: number;
+}
+
+export function computePercentile(values: number[], p: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, idx)];
+}
+
+export function computeBottleneckMetrics(
+  captures: number[],
+  resolves: number[],
+  executes: number[],
+  cacheHits: number,
+  marketplaceHits: number,
+  liveCaptures: number,
+  failures: number,
+  totalRequests: number,
+  uniqueDomains: number,
+  totalSkills: number,
+): BottleneckMetrics {
+  return {
+    capture_latency_p50_ms: computePercentile(captures, 50),
+    capture_latency_p95_ms: computePercentile(captures, 95),
+    resolve_latency_p50_ms: computePercentile(resolves, 50),
+    resolve_latency_p95_ms: computePercentile(resolves, 95),
+    execute_latency_p50_ms: computePercentile(executes, 50),
+    execute_latency_p95_ms: computePercentile(executes, 95),
+    cache_hit_rate: totalRequests > 0 ? cacheHits / totalRequests : 0,
+    marketplace_hit_rate: totalRequests > 0 ? marketplaceHits / totalRequests : 0,
+    live_capture_rate: totalRequests > 0 ? liveCaptures / totalRequests : 0,
+    failure_rate: totalRequests > 0 ? failures / totalRequests : 0,
+    skills_per_domain: uniqueDomains > 0 ? totalSkills / uniqueDomains : 0,
+  };
+}

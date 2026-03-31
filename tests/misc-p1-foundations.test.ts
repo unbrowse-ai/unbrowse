@@ -1,0 +1,113 @@
+import { describe, test, expect } from "bun:test";
+
+// #92 Search form types
+interface SearchFormField {
+  name: string;
+  type: "text" | "select" | "radio" | "checkbox" | "date" | "hidden";
+  selector: string;
+  options?: string[];
+  required: boolean;
+}
+
+interface SearchFormSpec {
+  form_selector: string;
+  submit_selector: string;
+  fields: SearchFormField[];
+  result_selector?: string;
+}
+
+function isStructuredSearchForm(spec: SearchFormSpec): boolean {
+  return spec.fields.length > 0 && !!spec.submit_selector;
+}
+
+// #93 Eval types
+interface EvalCase {
+  id: string;
+  intent: string;
+  url: string;
+  expected_outcome: "resolve" | "capture" | "fail";
+  auth_required: boolean;
+  tags: string[];
+}
+
+interface EvalResult {
+  case_id: string;
+  status: "pass" | "fail" | "skip";
+  duration_ms: number;
+  error?: string;
+}
+
+function isRepeatableEval(results: EvalResult[]): boolean {
+  if (results.length < 2) return false;
+  const statuses = results.map((r) => r.status);
+  return statuses.every((s) => s === statuses[0]);
+}
+
+// #95 Lifecycle attribution
+type LifecyclePhase = "discover" | "capture" | "resolve" | "execute" | "publish";
+
+interface LifecycleEvent {
+  phase: LifecyclePhase;
+  skill_id: string;
+  timestamp: string;
+  duration_ms: number;
+  source: "cache" | "marketplace" | "live-capture";
+}
+
+function attributeLifecycle(events: LifecycleEvent[]): Map<LifecyclePhase, number> {
+  const totals = new Map<LifecyclePhase, number>();
+  for (const e of events) {
+    totals.set(e.phase, (totals.get(e.phase) ?? 0) + e.duration_ms);
+  }
+  return totals;
+}
+
+describe("#92 search forms", () => {
+  test("identifies structured search form", () => {
+    const spec: SearchFormSpec = {
+      form_selector: "form#search",
+      submit_selector: "button[type=submit]",
+      fields: [
+        { name: "query", type: "text", selector: "input#q", required: true },
+        { name: "category", type: "select", selector: "select#cat", options: ["all", "products"], required: false },
+      ],
+    };
+    expect(isStructuredSearchForm(spec)).toBe(true);
+  });
+
+  test("empty form is not structured", () => {
+    const spec: SearchFormSpec = { form_selector: "form", submit_selector: "", fields: [] };
+    expect(isStructuredSearchForm(spec)).toBe(false);
+  });
+});
+
+describe("#93 eval repeatability", () => {
+  test("consistent results are repeatable", () => {
+    const results: EvalResult[] = [
+      { case_id: "1", status: "pass", duration_ms: 100 },
+      { case_id: "1", status: "pass", duration_ms: 120 },
+    ];
+    expect(isRepeatableEval(results)).toBe(true);
+  });
+
+  test("inconsistent results are not repeatable", () => {
+    const results: EvalResult[] = [
+      { case_id: "1", status: "pass", duration_ms: 100 },
+      { case_id: "1", status: "fail", duration_ms: 120 },
+    ];
+    expect(isRepeatableEval(results)).toBe(false);
+  });
+});
+
+describe("#95 lifecycle attribution", () => {
+  test("attributes time to phases", () => {
+    const events: LifecycleEvent[] = [
+      { phase: "resolve", skill_id: "s1", timestamp: "2026-03-01T00:00:00Z", duration_ms: 50, source: "cache" },
+      { phase: "execute", skill_id: "s1", timestamp: "2026-03-01T00:00:01Z", duration_ms: 200, source: "cache" },
+      { phase: "resolve", skill_id: "s2", timestamp: "2026-03-01T00:00:02Z", duration_ms: 100, source: "marketplace" },
+    ];
+    const totals = attributeLifecycle(events);
+    expect(totals.get("resolve")).toBe(150);
+    expect(totals.get("execute")).toBe(200);
+  });
+});
