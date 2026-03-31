@@ -155,6 +155,10 @@ export async function indexEndpoints(
     };
   });
 
+  // Store BM25 docs in KV for lexical search (fire-and-forget)
+  const bm25Docs = items.map((item) => ({ id: item.id, text: item.text, metadata: item.metadata }));
+  env.STATS_KV.put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs)).catch(() => {});
+
   // Insert into both domain and global namespaces
   await Promise.all([
     edbRequest(env, "POST", "/graph/batch_insert", { domain, items }),
@@ -163,6 +167,85 @@ export async function indexEndpoints(
       items,
     }),
   ]);
+}
+
+
+const RRF_K = 60;
+
+type Bm25Doc = { id: string; text: string; metadata: Record<string, unknown> };
+
+function tokenize(text: string): string[] {
+  return text.toLowerCase().match(/\w+/g) ?? [];
+}
+
+/** In-process BM25 search over docs loaded from KV. k1=1.5, b=0.75. */
+function bm25Score(docs: Bm25Doc[], query: string, k: number): SearchResult {
+  if (docs.length === 0) return [];
+  const qTerms = tokenize(query);
+  if (qTerms.length === 0) return [];
+
+  const k1 = 1.5, b = 0.75;
+  const N = docs.length;
+
+  // Tokenize all docs once
+  const tokenized = docs.map((d) => tokenize(d.text));
+  const avgdl = tokenized.reduce((s, t) => s + t.length, 0) / N;
+
+  // IDF per query term
+  const idf = new Map<string, number>();
+  for (const term of qTerms) {
+    if (idf.has(term)) continue;
+    const df = tokenized.filter((t) => t.includes(term)).length;
+    idf.set(term, Math.log((N - df + 0.5) / (df + 0.5) + 1));
+  }
+
+  const scored = docs.map((doc, i) => {
+    const terms = tokenized[i];
+    const dl = terms.length;
+    let score = 0;
+    for (const term of qTerms) {
+      const tf = terms.filter((t) => t === term).length;
+      const idfVal = idf.get(term) ?? 0;
+      score += idfVal * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / avgdl));
+    }
+    return { id: doc.id as unknown as number, score, metadata: doc.metadata };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k);
+}
+
+/** Load BM25 index from KV and score against query. Returns [] if no index. */
+async function bm25Search(env: Env, domain: string, query: string, k: number): Promise<SearchResult> {
+  try {
+    const raw = await env.STATS_KV.get(`bm25-idx:${domain}`);
+    if (!raw) return [];
+    const docs = JSON.parse(raw) as Bm25Doc[];
+    return bm25Score(docs, query, k);
+  } catch {
+    return [];
+  }
+}
+
+/** Reciprocal Rank Fusion over two result lists. */
+function rrfFuse(listA: SearchResult, listB: SearchResult, k: number): SearchResult {
+  const scores = new Map<string, { score: number; metadata: Record<string, unknown> }>();
+  const addList = (list: SearchResult) => {
+    list.forEach((item, rank) => {
+      const key = String(item.id);
+      const prev = scores.get(key);
+      const add = 1 / (RRF_K + rank + 1);
+      scores.set(key, { score: (prev?.score ?? 0) + add, metadata: item.metadata });
+    });
+  };
+  addList(listA);
+  addList(listB);
+  return Array.from(scores.entries())
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, k)
+    .map(([id, { score, metadata }]) => ({ id: id as unknown as number, score, metadata }));
 }
 
 export async function searchIntentInDomain(
@@ -179,16 +262,27 @@ export async function searchIntentInDomain(
   console.log(`[perf:search-domain] cache-check: ${t1 - t0}ms hit=${!!hit}`);
   if (hit) try { return JSON.parse(hit); } catch { /* fall through */ }
 
+  const normDomain = normalizeDomain(env, domain);
   let results: SearchResult;
   try {
-    results = await graphSearch(env, domain, intent, k);
+    const [graphResults, bm25Results] = await Promise.all([
+      graphSearch(env, domain, intent, k),
+      bm25Search(env, normDomain, intent, k),
+    ]);
+    const t2 = Date.now();
+    console.log(`[perf:search-domain] graph-search: ${t2 - t1}ms graph=${graphResults.length} bm25=${bm25Results.length}`);
+
+    if (bm25Results.length > 0) {
+      results = rrfFuse(graphResults, bm25Results, k);
+      console.log(`[perf:search-domain] rrf-fused: ${results.length} results`);
+    } else {
+      results = graphResults;
+    }
+    console.log(`[perf:search-domain] TOTAL: ${t2 - t0}ms`);
   } catch (err) {
     console.error(`[search] domain=${domain} error:`, (err as Error).message);
     return [];
   }
-  const t2 = Date.now();
-  console.log(`[perf:search-domain] graph-search: ${t2 - t1}ms results=${results.length}`);
-  console.log(`[perf:search-domain] TOTAL: ${t2 - t0}ms`);
 
   if (results.length > 0) {
     cachePut(env, ckey, JSON.stringify(results));
