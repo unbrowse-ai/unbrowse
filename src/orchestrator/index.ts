@@ -4,6 +4,7 @@ import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, der
 import { getSkillChunk, knownBindingsFromInputs } from "../graph/index.js";
 import { getRegistrableDomain } from "../domain.js";
 import { mergeContextTemplateParams } from "../template-params.js";
+import { computeUnsafeActionScore, UNSAFE_ACTION_BLOCK_THRESHOLD } from "../router.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { executeActionSequence } from "../capture/index.js";
 import type {
@@ -1023,17 +1024,15 @@ export async function resolveAndExecute(
   }
 
   function canAutoExecuteEndpoint(endpoint: SkillManifest["endpoints"][number]): boolean {
+    // Block endpoints with high unsafe action score (#87)
+    const unsafeScore = computeUnsafeActionScore(endpoint);
+    if (unsafeScore >= UNSAFE_ACTION_BLOCK_THRESHOLD) return false;
+
     const endpointParams = resolveEndpointTemplateBindings(endpoint, resolvedParams, context?.url);
     const missing = missingTemplateParams(endpoint, endpointParams);
-    // For params that inferDefaultParam can't resolve synchronously, check if LLM
-    // inference is plausible (i.e. we have an intent string and unbound params).
-    // The actual LLM call happens at execution time, not here.
     const unresolvedBySync = missing.filter((name) => inferDefaultParam(name, intent) === undefined);
     if (unresolvedBySync.length > 0) {
-      // If we have an intent, assume the LLM can likely resolve remaining params
-      // (search terms, locations, dates, etc.) — don't block execution.
       if (!intent || intent.trim().length === 0) return false;
-      // Safety: don't auto-execute if there are too many unresolved params (likely wrong endpoint)
       if (unresolvedBySync.length > 4) return false;
     }
       if (unresolvedBySync.length > 4) return false;
