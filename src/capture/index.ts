@@ -688,8 +688,12 @@ export async function captureSession(
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(authHeaders ?? {}) };
     await phase("setHeaders", () => kuri.setHeaders(tabId, allHeaders));
 
-    // Inject cookies
+    // Navigate to origin first so cookies are set in the correct domain context
+    // (CDP setCookie on about:blank doesn't bind to the target domain properly)
     if (cookies && cookies.length > 0) {
+      const origin = new URL(url).origin;
+      await phase("navigate:origin", () => kuri.navigate(tabId, origin));
+      await phase("waitForLoad:origin", () => kuri.waitForLoad(tabId, 10_000).catch(() => {}));
       await phase("injectCookies", () => injectCookies(tabId, cookies!));
     }
 
@@ -701,8 +705,6 @@ export async function captureSession(
     try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
 
     // Inject fetch/XHR interceptor BEFORE navigation to capture all response bodies
-    // Navigate directly to target URL — skip origin pre-navigation to save 1-2s on heavy SPAs.
-    // The interceptor is re-injected after navigation anyway (page context resets on navigate).
     await phase("evaluate:interceptor", () => kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {}));
 
     // Navigate to target URL
@@ -779,9 +781,9 @@ export async function captureSession(
     // Build requests from HAR entries
     const requests: RawRequest[] = harEntries.map((entry) => {
       const reqHeaders: Record<string, string> = {};
-      for (const h of entry.request.headers) reqHeaders[h.name] = h.value;
+      for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
       const respHeaders: Record<string, string> = {};
-      for (const h of entry.response.headers) respHeaders[h.name] = h.value;
+      for (const h of entry.response.headers ?? []) respHeaders[h.name] = h.value;
       return {
         url: entry.request.url,
         method: entry.request.method,
@@ -1185,8 +1187,10 @@ export async function executeActionSequence(
     }
 
     // Collect final state
-    const finalUrl = String(await kuri.getCurrentUrl(tabId).catch(() => url));
-    const html = await kuri.getPageHtml(tabId).catch(() => undefined);
+    const rawFinalUrl = await kuri.getCurrentUrl(tabId).catch(() => url);
+    const finalUrl = typeof rawFinalUrl === "string" && rawFinalUrl.startsWith("http") ? rawFinalUrl : url;
+    const rawHtml = await kuri.getPageHtml(tabId).catch(() => undefined);
+    const html = typeof rawHtml === "string" && rawHtml.trimStart().startsWith("<") ? rawHtml : undefined;
     const lastSnapshot = await kuri.snapshot(tabId).catch(() => undefined);
 
     // Collect passive capture in the background
@@ -1205,9 +1209,9 @@ export async function executeActionSequence(
 
         const requests: RawRequest[] = harResult.entries.map((entry) => {
           const reqHeaders: Record<string, string> = {};
-          for (const h of entry.request.headers) reqHeaders[h.name] = h.value;
+          for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
           const respHeaders: Record<string, string> = {};
-          for (const h of entry.response.headers) respHeaders[h.name] = h.value;
+          for (const h of entry.response.headers ?? []) respHeaders[h.name] = h.value;
           return {
             url: entry.request.url,
             method: entry.request.method,

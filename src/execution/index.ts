@@ -952,9 +952,9 @@ async function executeBrowserCapture(
   let cookies = params.cookies as Array<{ name: string; value: string; domain: string }> | undefined;
   let usedStoredAuth = !!(cookies && cookies.length > 0) || !!(authHeaders && Object.keys(authHeaders).length > 0);
 
-  // Bird-style: auto-resolve cookies from vault → browser fallback
+  // Auto-resolve cookies from vault, falling back to browser extraction
   if (!cookies || cookies.length === 0) {
-    const resolved = await getAuthCookies(targetDomain, { autoExtract: false });
+    const resolved = await getAuthCookies(targetDomain, { autoExtract: true });
     if (resolved && resolved.length > 0) {
       cookies = resolved;
       usedStoredAuth = true;
