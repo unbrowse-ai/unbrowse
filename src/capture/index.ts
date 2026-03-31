@@ -1505,6 +1505,15 @@ export async function captureSession(
       log("capture", `page html snapshot failed for ${url}: ${snapshotErr instanceof Error ? snapshotErr.message : String(snapshotErr)}`);
     }
 
+    // Live DOM extraction: run IMMEDIATELY after HTML snapshot, before fallback
+    // paths (fetchHtmlDocument, submitHtmlSearchForm) that add latency.
+    // The tab is still alive here — waiting longer risks timeout/cleanup.
+    let live_dom_extraction: LiveDomExtraction | undefined;
+    const liveResult = await extractFromLiveDOM(tabId);
+    if (liveResult) {
+      live_dom_extraction = liveResult;
+    }
+
     if (
       !hasUsefulCapturedResponsesBeyondPageShell(responseBodies.keys(), final_url, intent) &&
       (((cookies?.length ?? 0) > 0) || Object.keys(authHeaders ?? {}).length > 0)
@@ -1632,16 +1641,6 @@ export async function captureSession(
     } else {
       if ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0) {
         rememberCaptureAuthStrategy(url, authStrategy);
-      }
-
-      // Live DOM extraction: always attempt before tab cleanup. Even when the
-      // interceptor captured some responses, they may be metadata/config (not the
-      // actual data the user asked for). Execution decides whether to use this
-      // based on whether auto-execute produced useful results.
-      let live_dom_extraction: LiveDomExtraction | undefined;
-      const liveResult = await extractFromLiveDOM(tabId);
-      if (liveResult) {
-        live_dom_extraction = liveResult;
       }
 
       return {
