@@ -155,8 +155,48 @@ function summarizeOutput(stdout: string): string {
   try {
     const parsed = JSON.parse(trimmed) as Record<string, unknown>;
     if (typeof parsed.error === "string" && parsed.error.trim()) return `Unbrowse error: ${parsed.error}`;
+
+    // Handle deferred "pick an endpoint" responses — surface the endpoints
+    // so the agent can choose one and call execute on the next turn.
+    const result = parsed.result as Record<string, unknown> | undefined;
+    if (result?.available_operations && Array.isArray(result.available_operations)) {
+      const ops = result.available_operations as Array<{
+        endpoint_id?: string;
+        action_kind?: string;
+        resource_kind?: string;
+        description_out?: string;
+        requires?: string[];
+        runnable?: boolean;
+      }>;
+      const skillId = result.skill_id as string | undefined;
+      const lines = [
+        `Found ${ops.length} endpoint(s) for this site.`,
+        "",
+        ...ops.map((op, i) => {
+          const reqs = op.requires?.length ? ` (requires: ${op.requires.join(", ")})` : "";
+          return `${i + 1}. [${op.action_kind || "unknown"}] ${op.description_out || "unnamed"}${reqs}${op.runnable ? "" : " (not runnable)"}`;
+        }),
+        "",
+        "To get data, call unbrowse again with:",
+        `  action: "execute"`,
+        ...(skillId ? [`  skill: "${skillId}"`] : []),
+        `  endpoint: "<endpoint_id from above>"`,
+        "",
+        "Endpoint IDs: " + ops.map((op) => op.endpoint_id).join(", "),
+      ];
+      return lines.join("\n");
+    }
+
     if (typeof parsed.message === "string" && parsed.message.trim()) return parsed.message;
     if (parsed.data && typeof parsed.data === "object") return "Unbrowse returned structured data.";
+    if (result && typeof result === "object" && !Array.isArray(result)) {
+      // Direct result — summarize the shape
+      const keys = Object.keys(result).slice(0, 10);
+      return `Unbrowse returned data with keys: ${keys.join(", ")}`;
+    }
+    if (Array.isArray(parsed.result)) {
+      return `Unbrowse returned ${parsed.result.length} result(s).`;
+    }
     return "Unbrowse returned JSON output.";
   } catch {
     return trimmed.split("\n").slice(0, 4).join("\n");
