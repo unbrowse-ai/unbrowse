@@ -17,6 +17,8 @@ import { getPackageRoot } from "../runtime/paths.js";
 const KURI_DEFAULT_PORT = 7700;
 const KURI_STARTUP_TIMEOUT_MS = 10_000;
 const KURI_REQUEST_TIMEOUT_MS = 30_000;
+const KURI_SPAWN_RETRIES = 3;
+const KURI_SPAWN_RETRY_DELAY_MS = 1_000;
 
 export interface KuriTab {
   id: string;
@@ -209,6 +211,16 @@ export function findKuriBinary(): string {
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0] ?? kuriBinaryName();
 }
 
+async function waitForChildExit(child: ChildProcess | null | undefined, timeoutMs = 2_000): Promise<void> {
+  if (!child) return;
+  if (child.exitCode !== null || child.killed) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    child.once("exit", () => { clearTimeout(timer); resolve(); });
+  });
+}
+
+
 /**
  * Start Kuri server + managed Chrome.
  * Idempotent — returns immediately if already running.
@@ -255,50 +267,69 @@ export async function start(port?: number): Promise<void> {
     log("kuri", "no existing Chrome found — Kuri will launch managed Chrome");
   }
 
-  kuriProcess = spawn(binary, [], {
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  // Parse CDP port from stderr output
-  kuriProcess.stderr?.on("data", (chunk: Buffer) => {
-    const line = chunk.toString().trim();
-    if (line) log("kuri", `[stderr] ${line}`);
-    const cdpMatch = line.match(/CDP port:\s*(\d+)/);
-    if (cdpMatch) {
-      kuriCdpPort = parseInt(cdpMatch[1], 10);
-      log("kuri", `discovered CDP port: ${kuriCdpPort}`);
+  const maxAttempts = KURI_SPAWN_RETRIES + 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt > 1) {
+      log("kuri", `spawn retry ${attempt}/${maxAttempts} after ${KURI_SPAWN_RETRY_DELAY_MS}ms`);
+      await new Promise((r) => setTimeout(r, KURI_SPAWN_RETRY_DELAY_MS));
     }
-  });
 
-  kuriProcess.on("exit", (code) => {
-    log("kuri", `process exited with code ${code}`);
-    kuriReady = false;
-    kuriProcess = null;
-  });
+    let exitedBeforeReady = false;
+    kuriProcess = spawn(binary, [], {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
-  // Wait for health endpoint
-  const deadline = Date.now() + KURI_STARTUP_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${kuriPort}/health`, {
-        signal: AbortSignal.timeout(500),
-      });
-      if (res.ok) {
-        kuriReady = true;
-        log("kuri", `ready on port ${kuriPort}`);
-        await new Promise((r) => setTimeout(r, 300));
-        if (!kuriCdpPort) await discoverCdpPort();
-        // Auto-discover tabs so they're registered for immediate use
-        await ensureTabsDiscovered();
-        return;
+    // Parse CDP port from stderr output
+    kuriProcess.stderr?.on("data", (chunk: Buffer) => {
+      const line = chunk.toString().trim();
+      if (line) log("kuri", `[stderr] ${line}`);
+      const cdpMatch = line.match(/CDP port:\s*(\d+)/);
+      if (cdpMatch) {
+        kuriCdpPort = parseInt(cdpMatch[1], 10);
+        log("kuri", `discovered CDP port: ${kuriCdpPort}`);
       }
-    } catch {
-      // Not ready yet
+    });
+
+    kuriProcess.on("exit", (code) => {
+      if (!kuriReady) exitedBeforeReady = true;
+      log("kuri", `process exited with code ${code}`);
+      kuriReady = false;
+      kuriProcess = null;
+    });
+
+    // Wait for health endpoint; break early if process died
+    const deadline = Date.now() + KURI_STARTUP_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if (exitedBeforeReady) break;
+      try {
+        const res = await fetch(`http://127.0.0.1:${kuriPort}/health`, {
+          signal: AbortSignal.timeout(500),
+        });
+        if (res.ok) {
+          kuriReady = true;
+          log("kuri", `ready on port ${kuriPort}`);
+          await new Promise((r) => setTimeout(r, 300));
+          if (!kuriCdpPort) await discoverCdpPort();
+          // Auto-discover tabs so they're registered for immediate use
+          await ensureTabsDiscovered();
+          return;
+        }
+      } catch {
+        // Not ready yet
+      }
+      await new Promise((r) => setTimeout(r, 200));
     }
-    await new Promise((r) => setTimeout(r, 200));
+
+    if (kuriReady) return;
+
+    // Kill any lingering process before next attempt
+    if (kuriProcess) {
+      kuriProcess.kill();
+      await waitForChildExit(kuriProcess);
+    }
   }
-  throw new Error(`Kuri failed to start within ${KURI_STARTUP_TIMEOUT_MS}ms`);
+  throw new Error(`Kuri failed to start after ${maxAttempts} attempts`);
 }
 
 /** Stop Kuri and managed Chrome. */

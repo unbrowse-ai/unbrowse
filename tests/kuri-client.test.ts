@@ -50,5 +50,19 @@ describe("kuri client", () => {
     chmodSync(binaryPath, 0o755);
 
     expect(kuri.findKuriBinary()).toBe(binaryPath);
+    expect(kuri.findKuriBinary()).toBe(binaryPath);
   });
+
+  it("retries spawn when kuri exits immediately and fails after max attempts", async () => {
+    // A binary that exits with code 1 immediately simulates the LinkedIn spawn failure
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-retry-"));
+    tmpDirs.push(tmpDir);
+    const fakeBin = path.join(tmpDir, "kuri");
+    writeFileSync(fakeBin, "#!/bin/sh\nexit 1\n");
+    chmodSync(fakeBin, 0o755);
+    process.env.KURI_BIN = fakeBin;
+
+    // Should retry 3 times (4 attempts total) and throw a descriptive error
+    await expect(kuri.start(7798)).rejects.toThrow(/failed to start after 4 attempts/i);
+  }, 30_000);
 });
