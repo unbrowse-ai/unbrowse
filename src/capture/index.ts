@@ -213,6 +213,13 @@ export interface CapturedWsMessage {
   timestamp: string;
 }
 
+export interface LiveDomExtraction {
+  data: unknown[];
+  extraction_method: string;
+  confidence: number;
+  element_count: number;
+}
+
 export interface CaptureResult {
   requests: RawRequest[];
   har_lineage_id: string;
@@ -222,6 +229,7 @@ export interface CaptureResult {
   ws_messages?: CapturedWsMessage[];
   html?: string;
   js_bundles?: Map<string, string>;
+  live_dom_extraction?: LiveDomExtraction;
 }
 
 export interface RawRequest {
@@ -525,6 +533,94 @@ async function collectInterceptedRequests(tabId: string): Promise<Array<{
   return [];
 }
 
+/**
+ * Extract structured data from the live rendered DOM via kuri.evaluate().
+ * Catches SSR/SPA content that never appears in fetch/XHR traffic.
+ * Finds the largest group of repeated sibling elements and extracts fields.
+ */
+const LIVE_DOM_EXTRACTION_SCRIPT = `(function() {
+  var root = document.querySelector('main,[role="main"],article,.content,[id="content"]') || document.body;
+  if (!root || root.innerText.length < 100) return JSON.stringify(null);
+  function sig(el) {
+    var t = [];
+    for (var i = 0; i < Math.min(el.children.length, 8); i++) t.push(el.children[i].tagName);
+    return el.tagName + ':' + t.join(',');
+  }
+  var groups = {};
+  var containers = root.querySelectorAll('ul,ol,div,section,table>tbody,main,[role="list"]');
+  for (var c = 0; c < containers.length; c++) {
+    var ct = containers[c];
+    if (ct.children.length < 3) continue;
+    var sigs = {};
+    for (var i = 0; i < ct.children.length; i++) {
+      var ch = ct.children[i];
+      if (ch.innerText && ch.innerText.trim().length > 20) {
+        var s = sig(ch);
+        if (!sigs[s]) sigs[s] = [];
+        sigs[s].push(ch);
+      }
+    }
+    for (var s in sigs) {
+      if (sigs[s].length >= 3 && (!groups[s] || sigs[s].length > groups[s].length)) {
+        groups[s] = sigs[s];
+      }
+    }
+  }
+  var best = null, bestN = 0;
+  for (var k in groups) { if (groups[k].length > bestN) { bestN = groups[k].length; best = groups[k]; } }
+  if (!best || best.length < 3) return JSON.stringify(null);
+  var items = [];
+  for (var i = 0; i < Math.min(best.length, 50); i++) {
+    var el = best[i], item = {};
+    var h = el.querySelector('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"]');
+    if (h) item.title = h.innerText.trim().substring(0, 300);
+    var author = el.querySelector('[class*="author"],[class*="actor"],[class*="owner"]');
+    if (author && author.innerText.trim().length < 100) item.author = author.innerText.trim();
+    var links = el.querySelectorAll('a[href]');
+    for (var j = 0; j < Math.min(links.length, 3); j++) {
+      var href = links[j].getAttribute('href');
+      if (href && href.length > 1 && href !== '#') {
+        if (!item.url) item.url = href;
+        if (!item.title) { var lt = links[j].innerText.trim(); if (lt.length > 3 && lt.length < 200) item.title = lt; }
+      }
+    }
+    var img = el.querySelector('img[src]:not([src*="data:"]):not([width="1"])');
+    if (img) item.image = img.getAttribute('src');
+    var time = el.querySelector('time,[datetime],[class*="time"],[class*="date"]');
+    if (time) item.time = time.getAttribute('datetime') || time.innerText.trim().substring(0, 50);
+    var full = el.innerText.trim();
+    if (full.length > 20) {
+      var desc = full;
+      if (item.title) desc = desc.replace(item.title, '').trim();
+      if (item.author) desc = desc.replace(item.author, '').trim();
+      desc = desc.replace(/\\n{2,}/g, '\\n').trim();
+      if (desc.length > 20 && desc.length < 2000) item.description = desc.substring(0, 500);
+    }
+    if (Object.keys(item).length >= 2) items.push(item);
+  }
+  if (items.length < 2) return JSON.stringify(null);
+  return JSON.stringify({ items: items, count: items.length });
+})()`;
+
+async function extractFromLiveDOM(tabId: string): Promise<LiveDomExtraction | null> {
+  try {
+    const result = await kuri.evaluate(tabId, LIVE_DOM_EXTRACTION_SCRIPT);
+    if (typeof result !== "string" || result === "null") return null;
+    const parsed = JSON.parse(result) as { items: unknown[]; count: number } | null;
+    if (!parsed || !parsed.items || parsed.items.length < 2) return null;
+    log("capture", `live DOM extraction: ${parsed.count} items extracted from rendered page`);
+    return {
+      data: parsed.items,
+      extraction_method: "live-dom-repeated-elements",
+      confidence: Math.min(0.85, 0.5 + parsed.count * 0.05),
+      element_count: parsed.count,
+    };
+  } catch (err) {
+    log("capture", `live DOM extraction failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
 async function mergeInterceptedResponses(
   tabId: string,
   responseBodies: Map<string, string>,
@@ -741,6 +837,11 @@ async function waitForContentReady(
               } else {
                 el.textContent = value;
               }
+              // Dispatch both Event and InputEvent for framework compatibility.
+              // React 16+ needs InputEvent with nativeEvent; Vue/Angular listen on Event.
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              try { el.dispatchEvent(new InputEvent('input', { bubbles: true, data: value, inputType: 'insertText' })); } catch {}
             };
             const inputs = [...document.querySelectorAll('input, textarea, [role="searchbox"], [contenteditable="true"]')]
               .filter(visible)
@@ -749,11 +850,12 @@ async function waitForContentReady(
             const target = inputs[0];
             const term = spec.queryTerms[0];
             target.focus();
+            await new Promise(r => setTimeout(r, 100));
             setValue(target, term);
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-            target.dispatchEvent(new Event('change', { bubbles: true }));
-            target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
-            target.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+            await new Promise(r => setTimeout(r, 100));
+            target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+            target.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+            target.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
             const form = target.closest('form');
             if (form && typeof form.requestSubmit === 'function') {
               form.requestSubmit();
@@ -826,7 +928,26 @@ async function waitForContentReady(
         if (hasUsefulCapturedResponses(responseBodies.keys(), captureUrl, intent) || responseBodies.size > beforeCount || added > 0) return;
       }
     } catch (err) {
-      log("capture", `interactive stimulus failed: ${err instanceof Error ? err.message : String(err)}`);
+      // CDP transport errors often mean the tab is still loading. Retry once after a short wait.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/CDP|transport|command failed/i.test(msg)) {
+        log("capture", `interactive stimulus CDP error, retrying once: ${msg}`);
+        try {
+          await sleep(1000, signal);
+          // Re-attempt just the search stimulus (most common case)
+          if (queryTerms.length > 0) {
+            const retryResult = await kuri.evaluate(
+              tabId,
+              `JSON.stringify({ retried: true, readyState: document.readyState, url: window.location.href })`,
+            );
+            log("capture", `interactive stimulus retry probe: ${typeof retryResult === "string" ? retryResult : JSON.stringify(retryResult)}`);
+          }
+        } catch {
+          // give up on retry
+        }
+      } else {
+        log("capture", `interactive stimulus failed: ${msg}`);
+      }
     }
   }
 
@@ -1512,6 +1633,17 @@ export async function captureSession(
       if ((cookies?.length ?? 0) > 0 || Object.keys(authHeaders ?? {}).length > 0) {
         rememberCaptureAuthStrategy(url, authStrategy);
       }
+
+      // Live DOM extraction: always attempt before tab cleanup. Even when the
+      // interceptor captured some responses, they may be metadata/config (not the
+      // actual data the user asked for). Execution decides whether to use this
+      // based on whether auto-execute produced useful results.
+      let live_dom_extraction: LiveDomExtraction | undefined;
+      const liveResult = await extractFromLiveDOM(tabId);
+      if (liveResult) {
+        live_dom_extraction = liveResult;
+      }
+
       return {
         requests,
         har_lineage_id,
@@ -1522,6 +1654,7 @@ export async function captureSession(
         ws_messages: undefined,
         html,
         js_bundles: jsBundleBodies.size > 0 ? jsBundleBodies : undefined,
+        live_dom_extraction,
       };
     }
   } catch (error) {
