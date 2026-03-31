@@ -275,14 +275,42 @@ export function mergeEndpoints(
 ): EndpointDescriptor[] {
   const merged = [...existing];
   for (const ep of incoming) {
-    const dupe = merged.find(
+    const dupeIdx = merged.findIndex(
       (e) =>
         e.method === ep.method &&
         normalizeTemplate(e.url_template) === normalizeTemplate(ep.url_template)
     );
-    if (!dupe) merged.push(ep);
+    if (dupeIdx === -1) {
+      merged.push(ep);
+    } else if (isRicher(ep, merged[dupeIdx])) {
+      merged[dupeIdx] = ep;
+    }
   }
   return merged;
+}
+
+/** Count richness signals on an endpoint; higher = more metadata captured. */
+function endpointRichness(ep: EndpointDescriptor): number {
+  let score = 0;
+  if (ep.response_schema) score++;
+  if (ep.csrf_plan) score++;
+  if (ep.oauth_plan) score++;
+  if (ep.description) score++;
+  if (ep.body && Object.keys(ep.body).length > 0) score++;
+  if (ep.query && Object.keys(ep.query).length > 0) score++;
+  if (ep.signature) score++;
+  return score;
+}
+
+/** Returns true if `a` is strictly richer than `b`. Tie-breaks by response_schema JSON length. */
+function isRicher(a: EndpointDescriptor, b: EndpointDescriptor): boolean {
+  const sa = endpointRichness(a);
+  const sb = endpointRichness(b);
+  if (sa !== sb) return sa > sb;
+  // Tie-break: prefer larger response_schema
+  const lenA = a.response_schema ? JSON.stringify(a.response_schema).length : 0;
+  const lenB = b.response_schema ? JSON.stringify(b.response_schema).length : 0;
+  return lenA > lenB;
 }
 
 export function normalizeTemplate(t: string): string {
