@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export function getModuleDir(metaUrl: string): string {
   return path.dirname(fileURLToPath(metaUrl));
@@ -28,7 +28,7 @@ export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): s
     const req = createRequire(metaUrl);
     const tsxPkg = req.resolve("tsx/package.json");
     const tsxLoader = path.join(path.dirname(tsxPkg), "dist", "loader.mjs");
-    if (existsSync(tsxLoader)) return ["--import", tsxLoader, entrypoint];
+    if (existsSync(tsxLoader)) return ["--import", pathToFileURL(tsxLoader).href, entrypoint];
   } catch {
     // fall through to bare specifier
   }
