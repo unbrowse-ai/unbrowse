@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { isMainModule, runtimeArgsForEntrypoint } from "../src/runtime/paths.js";
+import { getPackageRoot, isMainModule, runtimeArgsForEntrypoint } from "../src/runtime/paths.js";
 
 const tmpDirs: string[] = [];
 
@@ -64,5 +64,17 @@ describe("runtime paths", () => {
     const importIdx = args.indexOf("--import");
     expect(importIdx).toBeGreaterThanOrEqual(0);
     expect(args[importIdx + 1]).toMatch(/^file:\/\//);
+  });
+
+  it("finds the package root for nested source modules", () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-runtime-root-"));
+    tmpDirs.push(tmpDir);
+
+    writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({ name: "unbrowse-test" }));
+    const nestedModule = path.join(tmpDir, "src", "kuri", "client.ts");
+    mkdirSync(path.dirname(nestedModule), { recursive: true });
+    writeFileSync(nestedModule, "// nested module\n");
+
+    expect(getPackageRoot(pathToFileURL(nestedModule).href)).toBe(tmpDir);
   });
 });

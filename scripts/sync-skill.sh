@@ -62,6 +62,10 @@ echo "=== Syncing CLI_REFERENCE into SKILL.md ==="
 bun "$SCRIPT_DIR/sync-skill-md.ts"
 echo ""
 
+echo "=== Verifying packaged Kuri runtime ==="
+bash "$SCRIPT_DIR/check-packaged-kuri.sh"
+echo ""
+
 # --------------------------------------------------------------------------
 # 2. Sync to external skill repo (for publishing)
 # --------------------------------------------------------------------------

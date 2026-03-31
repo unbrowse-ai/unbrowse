@@ -10,9 +10,13 @@ export function getModuleDir(metaUrl: string): string {
 
 export function getPackageRoot(metaUrl: string): string {
   if (process.env.UNBROWSE_PACKAGE_ROOT) return process.env.UNBROWSE_PACKAGE_ROOT;
-  const dir = getModuleDir(metaUrl);
-  const base = path.basename(dir);
-  return base === "src" || base === "dist" ? path.dirname(dir) : dir;
+  let dir = getModuleDir(metaUrl);
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    if (existsSync(path.join(dir, "package.json"))) return dir;
+    dir = path.dirname(dir);
+  }
+  return getModuleDir(metaUrl);
 }
 
 export function resolveSiblingEntrypoint(metaUrl: string, basename: string): string {
