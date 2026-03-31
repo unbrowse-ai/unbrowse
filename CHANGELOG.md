@@ -4,6 +4,7 @@
 
 ### Features
 
+* **#144**: batch path template mining for captures without context URLs — `minePathTemplates` builds a prefix trie over all captured paths and wildcards positions where ≥ `maxChildren` distinct values look like entity IDs; `extractEndpoints` annotates `_minedTemplate` on endpoints from passive captures (no `pageUrl` context)
 * **#155**: add BM25 lexical channel with RRF fusion — `indexEndpoints` stores docs in KV; `searchIntentInDomain` runs BM25 + graph in parallel and fuses with RRF (k=60), falling back to graph-only when no index exists
 
 ### Bug Fixes
