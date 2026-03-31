@@ -111,6 +111,18 @@ export interface RawRequest {
   response_headers: Record<string, string>;
   response_body?: string;
   timestamp: string;
+  /** Query hook bridge: which action step triggered this request (#114) */
+  triggered_by_step?: number;
+  triggered_by_action?: string;
+  triggered_by_ref?: string;
+}
+
+export interface QueryHookEvent {
+  step_index: number;
+  action_type: string;
+  selector: string;
+  requests_triggered: Array<{ url: string; method: string }>;
+  timestamp: number;
 }
 
 export type CapturedCookie = {
