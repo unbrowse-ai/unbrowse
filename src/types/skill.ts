@@ -303,7 +303,10 @@ export interface ExecutionOptions {
   /** Skip marketplace search and caches — go straight to browser capture */
   force_capture?: boolean;
   /** Request/client namespace for isolating local server state across concurrent CLI users */
+  /** Request/client namespace for isolating local server state across concurrent CLI users */
   client_scope?: string;
+  /** Skip robots.txt compliance check (e.g. for testing or trusted internal domains) */
+  skip_robots_check?: boolean;
 }
 
 export interface ValidationResult {
