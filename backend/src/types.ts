@@ -144,6 +144,7 @@ export interface EndpointStats {
   drift_count: number;
   last_execution_at?: string;
   last_success_at?: string;
+  auto_deprecated_at?: string;
 }
 
 export interface ExecutionTrace {
