@@ -2,6 +2,11 @@ import type { Env, EndpointStats, ExecutionTrace, VerificationStatus } from "../
 import { updateEndpointScore } from "./marketplace.js";
 import { statsKV } from "./kv.js";
 
+export const DEPRECATION_THRESHOLD = {
+  consecutive_failures: 5,
+  min_score: 0.2,
+} as const;
+
 function statsKey(skillId: string, endpointId: string): string {
   return `stats:${skillId}--${endpointId}`;
 }
@@ -83,7 +88,11 @@ export async function recordExecution(
   await saveStats(env, skillId, endpointId, stats);
 
   const score = computeReliabilityScore(stats);
-  const shouldDisable = stats.consecutive_failures >= 5 && score < 0.2;
+  const shouldDisable = stats.consecutive_failures >= DEPRECATION_THRESHOLD.consecutive_failures && score < DEPRECATION_THRESHOLD.min_score;
+  if (shouldDisable && !stats.auto_deprecated_at) {
+    stats.auto_deprecated_at = new Date().toISOString();
+    await saveStats(env, skillId, endpointId, stats);
+  }
   await updateEndpointScore(env, skillId, endpointId, score, shouldDisable ? "disabled" : undefined);
 }
 
