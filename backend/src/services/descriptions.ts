@@ -44,11 +44,16 @@ function schemaKeys(ep: EndpointDescriptor): string {
 }
 
 /** Build a compact summary line for one endpoint (used in the LLM prompt) */
+/** Build a compact summary line for one endpoint (used in the LLM prompt) */
 function endpointSummary(ep: EndpointDescriptor, idx: number): string {
   const id = extractEndpointIdentifier(ep.url_template);
   const keys = schemaKeys(ep);
   const trigger = ep.trigger_url ? ` (page: ${new URL(ep.trigger_url).pathname})` : "";
-  return `${idx + 1}. ${ep.method} ${id}${keys ? ` — fields: ${keys}` : ""}${trigger}`;
+  const params = collectParamNames(ep);
+  const action = actionKind(ep.method);
+  const paramStr = params.length > 0 ? ` | params: ${params.join(", ")}` : "";
+  const actionStr = action !== "read" ? ` [${action}]` : "";
+  return `${idx + 1}. ${ep.method} ${id}${keys ? ` — fields: ${keys}` : ""}${paramStr}${actionStr}${trigger}`;
 }
 
 /**
