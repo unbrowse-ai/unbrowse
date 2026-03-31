@@ -6,7 +6,7 @@ import { executeSkill } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, recordDiagnostics, getApiKey, getRecentLocalSkill } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
@@ -238,6 +238,9 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const execResult = await executeSkill(skill, params ?? {}, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
+      if (execResult.trace.endpoint_id) {
+        recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace).catch(() => {});
+      }
       if (execResult.trace.success) {
         promoteExplicitExecution(
           clientScope,
@@ -270,6 +273,9 @@ export async function registerRoutes(app: FastifyInstance) {
             { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
+          if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
+            recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace).catch(() => {});
+          }
           return reply.send({
             ...freshResult,
             _recovery: {
