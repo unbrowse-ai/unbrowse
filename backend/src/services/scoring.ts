@@ -115,3 +115,16 @@ export async function recordFeedback(
 
   return avgRating;
 }
+
+/** Composite search score combining vector similarity, reliability, freshness, and verification */
+export function computeCompositeSearchScore(
+  vectorSimilarity: number,
+  reliability: number,
+  updatedAt: string | Date,
+  verifiedRatio: number,
+): number {
+  const daysSince = (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+  const freshness = 1 / (1 + daysSince / 30);
+  const raw = 0.4 * vectorSimilarity + 0.3 * reliability + 0.15 * freshness + 0.15 * verifiedRatio;
+  return Math.max(0, Math.min(1, raw));
+}
