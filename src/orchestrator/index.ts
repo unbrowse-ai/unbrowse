@@ -14,6 +14,8 @@ import { checkWalletConfigured } from "../payments/wallet.js";
 import type { PaymentGateResult } from "../payments/index.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
+import { authRuntime } from "../auth/runtime.js";
+import type { AuthDependency } from "../auth/runtime.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -48,6 +50,39 @@ function summarizeSchema(schema: ResponseSchema): Record<string, string> | null 
   }
   return null;
 }
+
+/**
+ * Consult authRuntime to check whether a valid session already exists for the
+ * given domain.  Returns a structured `auth_dependency` record that callers can
+ * include in deferral/error responses so agents know exactly what to do next.
+ *
+ * Strategy selection:
+ *  - If auth_profile_ref is set on the skill → prefer "refresh_session" (we
+ *    have cookies, they may just be stale).
+ *  - Otherwise → "login_if_needed" (no session yet; prompt the user to log in).
+ */
+async function resolveAuthDependencyInfo(
+  domain: string,
+  hasExistingProfile: boolean,
+): Promise<Record<string, unknown>> {
+  const strategy = hasExistingProfile ? "refresh_session" : "login_if_needed";
+  const dep: AuthDependency = { domain, strategy };
+  try {
+    const result = await authRuntime.resolveAuth(dep);
+    return {
+      auth_dependency: {
+        domain,
+        strategy,
+        authenticated: result.authenticated,
+        ...(result.session_token ? { session_token: result.session_token } : {}),
+      },
+    };
+  } catch {
+    // authRuntime failures must never block the main orchestration path
+    return { auth_dependency: { domain, strategy, authenticated: false } };
+  }
+}
+
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 
 // Per-domain skill cache: after a live capture succeeds, cache the skill for 60s so
@@ -3188,14 +3223,18 @@ export async function resolveAndExecute(
       if (learned_skill) {
         const captureResult = result as Record<string, unknown> | null;
         const authRecommended = captureResult?.auth_recommended === true;
+        const authDependencyInfo = authRecommended
+          ? await resolveAuthDependencyInfo(learned_skill.domain, !!learned_skill.auth_profile_ref)
+          : undefined;
         const deferred = await buildDeferralWithAutoExec(
           learned_skill,
           "live-capture",
           authRecommended
             ? {
                 auth_recommended: true,
-              auth_hint: captureResult!.auth_hint,
-            }
+                auth_hint: captureResult!.auth_hint,
+                ...authDependencyInfo,
+              }
             : undefined,
         );
         queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
@@ -3268,7 +3307,11 @@ export async function resolveAndExecute(
   timing.execute_ms = Date.now() - te0;
   const captureResult = result as Record<string, unknown> | null;
   const authRecommended = captureResult?.auth_recommended === true;
-
+  // Wire authRuntime: when capture signals auth is required, consult the runtime
+  // for the current session status so callers get actionable auth_dependency info.
+  const authDependencyInfo = authRecommended && learned_skill
+    ? await resolveAuthDependencyInfo(learned_skill.domain, !!learned_skill.auth_profile_ref)
+    : undefined;
   const directDomCaptureResult =
     trace.success &&
     trace.endpoint_id !== "browser-capture" &&
@@ -3325,6 +3368,7 @@ export async function resolveAndExecute(
           ? {
               auth_recommended: true,
               auth_hint: captureResult?.auth_hint,
+              ...authDependencyInfo,
             }
           : {}),
       },
@@ -3502,6 +3546,7 @@ export async function resolveAndExecute(
       ? {
           auth_recommended: true,
           auth_hint: captureResult!.auth_hint,
+          ...authDependencyInfo,
         }
       : undefined,
   );
