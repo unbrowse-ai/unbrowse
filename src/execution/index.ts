@@ -10,7 +10,7 @@ import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { generateExtractionHints } from "../transform/schema-hints.js";
-import { recordExecution, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -2216,6 +2216,24 @@ export async function executeEndpoint(
   // Record execution for reliability scoring (fire-and-forget — don't block response)
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace, skill).catch(() => {});
 
+  // Record transaction if this was a paid execution (fire-and-forget)
+  if (trace.success && skill.indexer_id && skill.base_price_usd && skill.base_price_usd > 0) {
+    const consumerConfig = (() => {
+      try { return JSON.parse(require("fs").readFileSync(require("os").homedir() + "/.unbrowse/config.json", "utf-8")); }
+      catch { return {}; }
+    })();
+    if (consumerConfig.agent_id) {
+      recordTransaction({
+        transaction_id: trace.trace_id,
+        consumer_id: consumerConfig.agent_id,
+        creator_id: skill.indexer_id,
+        skill_id: skill.skill_id,
+        endpoint_id: endpoint.endpoint_id,
+        price_usd: skill.base_price_usd,
+        payment_proof: process.env.LOBSTER_WALLET_ADDRESS ? `wallet:${process.env.LOBSTER_WALLET_ADDRESS}` : undefined,
+      }).catch(() => {});
+    }
+  }
   // Apply field projection
   let resultData = data;
   if (projection?.raw) {
