@@ -111,3 +111,11 @@ Omit empty sections. No emojis. No file paths or function names.
 - **Packaged CLI spawns a separate server process**. `bun src/cli.ts` runs inline (same process), but `unbrowse` (global install) spawns a detached node+tsx server. Stale servers are the #1 cause of "works from source, broken from package".
 - **Never mock in tests**. Tests must hit real endpoints, real files, real functions. Mocked tests pass when prod is broken — they prove nothing. Use live backend URLs (gated behind env vars for CI), real filesystem temp dirs, and actual function calls. If a test can't run without mocking, the code is too coupled — fix the code, not the test.
 - **Backend URL is `beta-api.unbrowse.ai`**, not `api.unbrowse.ai`. The `UNBROWSE_API_URL` env var overrides this.
+
+## Testing
+
+- **Always use `/codex` to run tests**. Do not write test assertions by hand — use the `/codex` plugin to generate and execute all unit tests, e2e tests, and regression tests. This prevents fabricated/hallucinated test results.
+- **Never fake a passing test**. If a test can't be run, say so. Do not write a test that asserts hardcoded expected values you haven't verified by actually running the code.
+- **Run tests after every code change**. Use `bun test <file>` for targeted runs. All graph/DAG tests: `bun test tests/graph-*.test.ts tests/dag-*.test.ts`. Sanitization: `bun test tests/sanitize-for-publish.test.ts`.
+- **Tests must hit real code paths** — no mocks, no stubs, no fake HTTP responses. If a test needs a network call, gate it behind an env var for CI, don't mock it.
+- **Bug fix protocol**: when a bug is reported, write a failing test FIRST that reproduces it, then fix the code and verify the test passes.
