@@ -341,3 +341,31 @@ export function pickFreeformFollowUpUrl(
 
   return ranked[0]?.trigger_url ?? null;
 }
+
+// --- Eval repeatability (#93) ---
+
+export interface EvalCase {
+  id: string;
+  intent: string;
+  url: string;
+  expected_outcome: "resolve" | "capture" | "fail";
+  auth_required: boolean;
+  tags: string[];
+}
+
+export interface EvalResult {
+  case_id: string;
+  status: "pass" | "fail" | "skip";
+  duration_ms: number;
+  error?: string;
+}
+
+/**
+ * Returns true if all results for the same case produced a consistent status
+ * across two or more runs — used to gate flaky eval cases from the CI suite.
+ */
+export function isRepeatableEval(results: EvalResult[]): boolean {
+  if (results.length < 2) return false;
+  const statuses = results.map((r) => r.status);
+  return statuses.every((s) => s === statuses[0]);
+}

@@ -2,6 +2,9 @@ import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js
 import { emitRouteTrace } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
+import { isStructuredSearchForm } from "../execution/search-forms.js";
+import { attributeLifecycle } from "../runtime/lifecycle.js";
+import type { LifecycleEvent } from "../runtime/lifecycle.js";
 import { getSkillChunk, knownBindingsFromInputs, computeReachableEndpoints, ensureSkillOperationGraph } from "../graph/index.js";
 import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
 import { getRegistrableDomain } from "../domain.js";
@@ -711,6 +714,8 @@ function endpointMatchesFeedTimelineContext(
 function endpointHasSearchBindings(
   endpoint: SkillManifest["endpoints"][number],
 ): boolean {
+  // Explicit search form spec is the strongest signal
+  if (endpoint.search_form && isStructuredSearchForm(endpoint.search_form)) return true;
   const haystack = JSON.stringify({
     query: endpoint.query ?? {},
     body: endpoint.body ?? {},
@@ -1839,6 +1844,8 @@ export async function resolveAndExecute(
     tokens_saved_pct: 0,
     trace_version: TRACE_VERSION,
   };
+  // Collect lifecycle events so attributeLifecycle can build a per-phase breakdown
+  const lifecycleEvents: LifecycleEvent[] = [];
   const decisionTrace: Record<string, unknown> = {
     intent,
     params,
@@ -1910,6 +1917,17 @@ export async function resolveAndExecute(
       trace.tokens_used = responseTokens;
       trace.tokens_saved = timing.tokens_saved;
       trace.tokens_saved_pct = timing.tokens_saved_pct;
+    }
+
+    // Build per-phase timing breakdown via attributeLifecycle.
+    // Push execute and publish phases here where timing.execute_ms is guaranteed finalised.
+    const lcSource = source === "live-capture" ? "live-capture" as const : "marketplace" as const;
+    if (timing.execute_ms > 0) {
+      lifecycleEvents.push({ phase: "execute", skill_id: skillId ?? "", timestamp: new Date().toISOString(), duration_ms: timing.execute_ms, source: lcSource });
+    }
+    if (lifecycleEvents.length > 0) {
+      const phaseMap = attributeLifecycle(lifecycleEvents);
+      timing.phase_attribution = Object.fromEntries(phaseMap);
     }
 
     console.log(
@@ -2907,6 +2925,7 @@ export async function resolveAndExecute(
       skipped_global: false,
     }));
     timing.search_ms = Date.now() - ts0;
+    lifecycleEvents.push({ phase: "discover", skill_id: "", timestamp: new Date().toISOString(), duration_ms: timing.search_ms, source: "marketplace" });
     console.log(`[marketplace] search: ${domainResults.length} domain + ${globalResults.length} global results (${timing.search_ms}ms)`);
 
     // Merge: domain results first (higher precision), then global (broader recall)
@@ -2940,6 +2959,7 @@ export async function resolveAndExecute(
       }),
     );
     timing.get_skill_ms = Date.now() - tg0;
+    lifecycleEvents.push({ phase: "resolve", skill_id: "", timestamp: new Date().toISOString(), duration_ms: timing.get_skill_ms, source: "marketplace" });
     timing.candidates_found = skillMap.size;
 
     const ranked: RankedCandidate[] = [];
