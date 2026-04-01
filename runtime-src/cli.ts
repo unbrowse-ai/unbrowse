@@ -690,11 +690,10 @@ export const CLI_REFERENCE = {
     { name: "text", usage: "", desc: "Get page text content" },
     { name: "markdown", usage: "", desc: "Get page as Markdown" },
     { name: "cookies", usage: "", desc: "Get page cookies" },
-    { name: "eval", usage: '<expression>'", desc: "Evaluate JavaScript" },
+    { name: "eval", usage: "<expression>", desc: "Evaluate JavaScript" },
     { name: "back", usage: "", desc: "Navigate back" },
     { name: "forward", usage: "", desc: "Navigate forward" },
     { name: "close", usage: "", desc: "Close browse session, flush + index traffic" },
-  ],
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
