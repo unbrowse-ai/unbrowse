@@ -161,3 +161,93 @@ export function emitRouteTrace(params: EmitTraceParams): string | null {
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Error accumulator — auto-file GitHub issues on repeated failures
+// ---------------------------------------------------------------------------
+
+interface AccumulatedError {
+  count: number;
+  firstSeen: string;
+  lastSeen: string;
+  error: string;
+  intent: string;
+  url?: string;
+  domain: string;
+  skillId?: string;
+  endpointId?: string;
+}
+
+const errorAccumulator = new Map<string, AccumulatedError>();
+const AUTO_FILE_THRESHOLD = 3;
+const autoFiledKeys = new Set<string>();
+
+export interface FailureContext {
+  skillId?: string;
+  endpointId?: string;
+  domain: string;
+  intent: string;
+  url?: string;
+  error: string;
+}
+
+/**
+ * Record a failure. After AUTO_FILE_THRESHOLD consecutive failures for the
+ * same skill+endpoint, auto-file a GitHub issue via the backend.
+ */
+export function recordFailure(ctx: FailureContext): void {
+  const key = `${ctx.skillId ?? "unknown"}:${ctx.endpointId ?? "unknown"}`;
+  const existing = errorAccumulator.get(key);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    existing.count++;
+    existing.lastSeen = now;
+    existing.error = ctx.error;
+  } else {
+    errorAccumulator.set(key, {
+      count: 1,
+      firstSeen: now,
+      lastSeen: now,
+      error: ctx.error,
+      intent: ctx.intent,
+      url: ctx.url,
+      domain: ctx.domain,
+      skillId: ctx.skillId,
+      endpointId: ctx.endpointId,
+    });
+  }
+
+  const entry = errorAccumulator.get(key)!;
+  if (entry.count >= AUTO_FILE_THRESHOLD && !autoFiledKeys.has(key)) {
+    autoFiledKeys.add(key);
+    // Fire-and-forget auto-file
+    import("./client/index.js")
+      .then((client) =>
+        client.autoFileIssue({
+          skill_id: ctx.skillId ?? "unknown",
+          endpoint_id: ctx.endpointId ?? "unknown",
+          domain: ctx.domain,
+          intent: ctx.intent,
+          url: ctx.url,
+          error: ctx.error,
+          failure_count: entry.count,
+          first_seen: entry.firstSeen,
+          last_seen: entry.lastSeen,
+          kuri_version: process.env.KURI_VERSION ?? "unknown",
+        }),
+      )
+      .catch((err) =>
+        console.warn(`[telemetry] auto-file failed: ${(err as Error).message}`),
+      );
+  }
+}
+
+export function getAccumulatedErrors(): Map<string, AccumulatedError> {
+  return new Map(errorAccumulator);
+}
+
+export function resetErrorAccumulatorForTests(): void {
+  errorAccumulator.clear();
+  autoFiledKeys.clear();
+}

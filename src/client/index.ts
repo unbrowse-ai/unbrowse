@@ -781,6 +781,40 @@ export async function publishGraphEdges(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Auto-file GitHub issues from accumulated agent errors
+// ---------------------------------------------------------------------------
+
+export interface AutoFilePayload {
+  skill_id: string;
+  endpoint_id: string;
+  domain: string;
+  intent: string;
+  url?: string;
+  error: string;
+  failure_count: number;
+  first_seen: string;
+  last_seen: string;
+  kuri_version: string;
+}
+
+/**
+ * Auto-file a GitHub issue via the backend. Fire-and-forget — failures
+ * are logged but never thrown.
+ */
+export async function autoFileIssue(payload: AutoFilePayload): Promise<void> {
+  if (isLocalOnlyMode()) {
+    console.log(`[auto-file] skipped (local-only mode): ${payload.skill_id}:${payload.endpoint_id}`);
+    return;
+  }
+  try {
+    await api("POST", "/v1/issues/auto-file", payload);
+    console.log(`[auto-file] issue filed for ${payload.skill_id}:${payload.endpoint_id} (${payload.failure_count} failures)`);
+  } catch (err) {
+    console.warn(`[auto-file] failed: ${(err as Error).message}`);
+  }
+}
+
 // --- Cross-Agent Discovery Diagnostics ---
 
 /**
