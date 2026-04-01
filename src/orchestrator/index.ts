@@ -2631,19 +2631,29 @@ const dagPlan = await fetchDagAdvisoryPlan(
                 },
               );
               if (paymentResult.status !== "free" && paymentResult.status !== "paid") {
-                return {
-                  result: {
-                    error: "payment_required",
-                    price_usd: skill.base_price_usd,
-                    payment_status: paymentResult.status,
-                    message: paymentResult.message,
-                    next_step: paymentResult.next_step,
-                  },
-                  trace: execOut.trace,
-                  source,
-                  skill,
-                  timing: finalize(source, null, skill.skill_id, skill, execOut.trace),
-                };
+                // Apply indexing fallback for unpaid users — they can still capture and contribute
+                const { resolveUnpaidAccess } = await import("../payments/index.js");
+                const fallback = resolveUnpaidAccess(paymentResult);
+                if (fallback.status === "indexing_fallback") {
+                  console.log(`[payment] ${skill.skill_id}: unpaid, falling back to indexing mode`);
+                  // Allow execution but tag result as indexing-mode
+                } else {
+                  return {
+                    result: {
+                      error: "payment_required",
+                      price_usd: skill.base_price_usd,
+                      payment_status: paymentResult.status,
+                      message: paymentResult.message,
+                      next_step: paymentResult.next_step,
+                      wallet_provider: "lobster.cash",
+                      indexing_fallback_available: true,
+                    },
+                    trace: execOut.trace,
+                    source,
+                    skill,
+                    timing: finalize(source, null, skill.skill_id, skill, execOut.trace),
+                  };
+                }
               }
             } catch (payErr) {
               console.warn(`[payment] check failed, proceeding without payment gate: ${(payErr as Error).message}`);
