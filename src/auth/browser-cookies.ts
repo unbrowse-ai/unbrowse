@@ -27,24 +27,13 @@ export interface BrowserCookie {
   expires: number;
 }
 
-export interface BrowserAuthSourceMeta {
-  family: "chromium" | "firefox";
-  browserName: string;
-  source: string;
-  userDataDir?: string;
-  profile?: string;
-  cookieDbPath?: string;
-  safeStorageService?: string;
-}
-
 export interface ExtractionResult {
   cookies: BrowserCookie[];
   source: string | null;
-  sourceMeta?: BrowserAuthSourceMeta | null;
   warnings: string[];
 }
 
-export type BrowserSource = "auto" | "firefox" | "chrome" | "chromium" | "arc" | "dia" | "brave" | "edge" | "vivaldi";
+export type BrowserSource = "auto" | "firefox" | "chrome" | "chromium";
 
 export interface ChromiumCookieSourceOptions {
   profile?: string;
@@ -60,13 +49,6 @@ export interface ExtractBrowserCookiesOptions {
   firefoxProfile?: string;
   chromium?: ChromiumCookieSourceOptions;
 }
-
-export type ChromiumBrowserCandidate = {
-  name: string;
-  userDataDir: string;
-  safeStorageService: string;
-  bundleId?: string;
-};
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -84,84 +66,6 @@ function getChromeUserDataDir(): string {
   return join(home, ".config", "google-chrome");
 }
 
-export function extractDefaultBrowserBundleIdFromLaunchServicesData(data: unknown): string | null {
-  const handlers = data && typeof data === "object" && Array.isArray((data as { LSHandlers?: unknown[] }).LSHandlers)
-    ? (data as { LSHandlers: Array<Record<string, unknown>> }).LSHandlers
-    : [];
-  for (const scheme of ["https", "http"]) {
-    const match = handlers.find((entry) => entry.LSHandlerURLScheme === scheme && typeof entry.LSHandlerRoleAll === "string");
-    if (typeof match?.LSHandlerRoleAll === "string" && match.LSHandlerRoleAll.length > 0) {
-      return match.LSHandlerRoleAll;
-    }
-  }
-  return null;
-}
-
-export function getMacDefaultBrowserBundleId(): string | null {
-  if (platform() !== "darwin") return null;
-  const plist = join(homedir(), "Library", "Preferences", "com.apple.LaunchServices.com.apple.launchservices.secure.plist");
-  const fallbackPlist = join(homedir(), "Library", "Preferences", "com.apple.LaunchServices", "com.apple.launchservices.secure.plist");
-  const target = existsSync(plist) ? plist : fallbackPlist;
-  if (!existsSync(target)) return null;
-  try {
-    const json = execFileSync("plutil", ["-convert", "json", "-o", "-", target], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return extractDefaultBrowserBundleIdFromLaunchServicesData(JSON.parse(json));
-  } catch {
-    return null;
-  }
-}
-
-export function prioritizeChromiumCandidates(
-  sources: ChromiumBrowserCandidate[],
-  preferredBundleId?: string | null,
-): ChromiumBrowserCandidate[] {
-  if (!preferredBundleId) return [...sources];
-  const preferred = sources.find((source) => source.bundleId === preferredBundleId);
-  if (!preferred) return [...sources];
-  return [preferred, ...sources.filter((source) => source !== preferred)];
-}
-
-function browserSourceSlug(name: string): BrowserSource {
-  return name.toLowerCase() as BrowserSource;
-}
-
-export function getSupportedChromiumBrowserCandidates(
-  platformOverride: NodeJS.Platform = platform(),
-  homeOverride: string = homedir(),
-): ChromiumBrowserCandidate[] {
-  return platformOverride === "darwin"
-    ? [
-        { name: "Chrome", userDataDir: join(homeOverride, "Library", "Application Support", "Google", "Chrome"), safeStorageService: "Chrome Safe Storage", bundleId: "com.google.chrome" },
-        { name: "Arc", userDataDir: join(homeOverride, "Library", "Application Support", "Arc", "User Data"), safeStorageService: "Arc Safe Storage", bundleId: "company.thebrowser.Browser" },
-        { name: "Dia", userDataDir: join(homeOverride, "Library", "Application Support", "Dia", "User Data"), safeStorageService: "Dia Safe Storage", bundleId: "company.thebrowser.dia" },
-        { name: "Brave", userDataDir: join(homeOverride, "Library", "Application Support", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage", bundleId: "com.brave.Browser" },
-        { name: "Edge", userDataDir: join(homeOverride, "Library", "Application Support", "Microsoft Edge"), safeStorageService: "Microsoft Edge Safe Storage", bundleId: "com.microsoft.edgemac" },
-        { name: "Vivaldi", userDataDir: join(homeOverride, "Library", "Application Support", "Vivaldi"), safeStorageService: "Vivaldi Safe Storage", bundleId: "com.vivaldi.Vivaldi" },
-        { name: "Chromium", userDataDir: join(homeOverride, "Library", "Application Support", "Chromium"), safeStorageService: "Chromium Safe Storage", bundleId: "org.chromium.Chromium" },
-      ]
-    : platformOverride === "linux"
-      ? [
-          { name: "Chrome", userDataDir: join(homeOverride, ".config", "google-chrome"), safeStorageService: "Chrome Safe Storage" },
-          { name: "Brave", userDataDir: join(homeOverride, ".config", "BraveSoftware", "Brave-Browser"), safeStorageService: "Brave Safe Storage" },
-          { name: "Edge", userDataDir: join(homeOverride, ".config", "microsoft-edge"), safeStorageService: "Microsoft Edge Safe Storage" },
-          { name: "Vivaldi", userDataDir: join(homeOverride, ".config", "vivaldi"), safeStorageService: "Vivaldi Safe Storage" },
-          { name: "Chromium", userDataDir: join(homeOverride, ".config", "chromium"), safeStorageService: "Chromium Safe Storage" },
-        ]
-      : [];
-}
-
-export function findChromiumBrowserCandidate(
-  browser: Exclude<BrowserSource, "auto" | "firefox">,
-  platformOverride: NodeJS.Platform = platform(),
-  homeOverride: string = homedir(),
-): ChromiumBrowserCandidate | null {
-  return getSupportedChromiumBrowserCandidates(platformOverride, homeOverride)
-    .find((candidate) => browserSourceSlug(candidate.name) === browser) ?? null;
-}
-
 export function resolveChromiumCookiesPath(opts?: ChromiumCookieSourceOptions): string | null {
   if (opts?.cookieDbPath) {
     return opts.cookieDbPath.replace(/^~\//, homedir() + "/");
@@ -177,23 +81,6 @@ export function resolveChromiumCookiesPath(opts?: ChromiumCookieSourceOptions): 
   ];
 
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0] ?? null;
-}
-
-function inferChromiumProfileFromPath(
-  dbPath: string,
-  userDataDir?: string,
-): string | undefined {
-  if (!userDataDir) return undefined;
-  const normalizedRoot = userDataDir.replace(/^~\//, homedir() + "/").replace(/\/+$/, "");
-  const normalizedDbPath = dbPath.replace(/\/+$/, "");
-  if (!normalizedDbPath.startsWith(`${normalizedRoot}/`)) return undefined;
-  const rel = normalizedDbPath.slice(normalizedRoot.length + 1);
-  const parts = rel.split("/");
-  if (parts.length < 2) return undefined;
-  if (parts[1] === "Cookies" || (parts[1] === "Network" && parts[2] === "Cookies")) {
-    return parts[0];
-  }
-  return undefined;
 }
 
 function getFirefoxProfilesRoot(): string | null {
@@ -225,10 +112,10 @@ function pickFirefoxProfile(profilesRoot: string, profile?: string): string | nu
   return existsSync(candidate) ? candidate : null;
 }
 
-function getFirefoxCookiesPath(profile?: string, profilesRoot?: string): string | null {
-  const root = profilesRoot ?? getFirefoxProfilesRoot();
-  if (!root || !existsSync(root)) return null;
-  return pickFirefoxProfile(root, profile);
+function getFirefoxCookiesPath(profile?: string): string | null {
+  const profilesRoot = getFirefoxProfilesRoot();
+  if (!profilesRoot || !existsSync(profilesRoot)) return null;
+  return pickFirefoxProfile(profilesRoot, profile);
 }
 
 // ---------------------------------------------------------------------------
@@ -375,9 +262,7 @@ export function extractFromChrome(
 ): ExtractionResult {
   return extractFromChromium(domain, {
     profile: opts?.profile,
-    userDataDir: getChromeUserDataDir(),
     browserName: "Chrome",
-    safeStorageService: "Chrome Safe Storage",
   });
 }
 
@@ -391,11 +276,10 @@ export function extractFromChromium(
 
   if (!dbPath || !existsSync(dbPath)) {
     warnings.push(`${sourceLabel} cookies DB not found${dbPath ? ` at ${dbPath}` : ""}`);
-    return { cookies: [], source: null, sourceMeta: null, warnings };
+    return { cookies: [], source: null, warnings };
   }
 
   try {
-    const resolvedProfile = opts?.profile || inferChromiumProfileFromPath(dbPath, opts?.userDataDir);
     const cookies = withTempCopy(dbPath, (tempDb) => {
       const where = buildDomainWhereClause(domain, "host_key");
       const sql = `SELECT name, value, hex(encrypted_value) as ev, host_key, path, is_secure, is_httponly, samesite, expires_utc FROM cookies WHERE ${where};`;
@@ -438,21 +322,10 @@ export function extractFromChromium(
       warnings.push(`No cookies for ${domain} found in ${source}`);
     }
     log("auth", `extracted ${cookies.length} cookies for ${domain} from ${source}`);
-    const sourceMeta: BrowserAuthSourceMeta | null = cookies.length > 0
-      ? {
-          family: "chromium",
-          browserName: sourceLabel,
-          source,
-          ...(opts?.userDataDir ? { userDataDir: opts.userDataDir } : {}),
-          ...(resolvedProfile ? { profile: resolvedProfile } : {}),
-          ...(opts?.cookieDbPath ? { cookieDbPath: dbPath } : {}),
-          ...(opts?.safeStorageService ? { safeStorageService: opts.safeStorageService } : {}),
-        }
-      : null;
-    return { cookies, source: cookies.length > 0 ? source : null, sourceMeta, warnings };
+    return { cookies, source: cookies.length > 0 ? source : null, warnings };
   } catch (err) {
     warnings.push(`${sourceLabel} extraction failed: ${err instanceof Error ? err.message : err}`);
-    return { cookies: [], source: null, sourceMeta: null, warnings };
+    return { cookies: [], source: null, warnings };
   }
 }
 
@@ -462,15 +335,14 @@ export function extractFromChromium(
 
 export function extractFromFirefox(
   domain: string,
-  opts?: { profile?: string; profilesRoot?: string },
+  opts?: { profile?: string },
 ): ExtractionResult {
   const warnings: string[] = [];
-  const dbPath = getFirefoxCookiesPath(opts?.profile, opts?.profilesRoot);
-  const browserLabel = opts?.profilesRoot ? "Zen" : "Firefox";
+  const dbPath = getFirefoxCookiesPath(opts?.profile);
 
   if (!dbPath) {
-    warnings.push(`${browserLabel} cookies DB not found`);
-    return { cookies: [], source: null, sourceMeta: null, warnings };
+    warnings.push("Firefox cookies DB not found");
+    return { cookies: [], source: null, warnings };
   }
 
   try {
@@ -501,23 +373,15 @@ export function extractFromFirefox(
       return results;
     });
 
-    const source = opts?.profile ? `${browserLabel} profile "${opts.profile}"` : `${browserLabel} default profile`;
+    const source = opts?.profile ? `Firefox profile "${opts.profile}"` : "Firefox default profile";
     if (cookies.length === 0) {
       warnings.push(`No cookies for ${domain} found in ${source}`);
     }
     log("auth", `extracted ${cookies.length} cookies for ${domain} from ${source}`);
-    const sourceMeta: BrowserAuthSourceMeta | null = cookies.length > 0
-      ? {
-          family: "firefox",
-          browserName: browserLabel,
-          source,
-          ...(opts?.profile ? { profile: opts.profile } : {}),
-        }
-      : null;
-    return { cookies, source: cookies.length > 0 ? source : null, sourceMeta, warnings };
+    return { cookies, source: cookies.length > 0 ? source : null, warnings };
   } catch (err) {
-    warnings.push(`${browserLabel} extraction failed: ${err instanceof Error ? err.message : err}`);
-    return { cookies: [], source: null, sourceMeta: null, warnings };
+    warnings.push(`Firefox extraction failed: ${err instanceof Error ? err.message : err}`);
+    return { cookies: [], source: null, warnings };
   }
 }
 
@@ -533,85 +397,27 @@ export function extractBrowserCookies(
     return extractFromFirefox(domain, { profile: opts.firefoxProfile });
   }
 
-  if (opts?.browser === "chromium" && (opts?.chromium?.cookieDbPath || opts?.chromium?.userDataDir)) {
+  if (opts?.browser === "chrome") {
+    return extractFromChrome(domain, { profile: opts.chromeProfile });
+  }
+
+  if (opts?.browser === "chromium") {
     return extractFromChromium(domain, opts.chromium);
   }
 
-  if (opts?.browser && opts.browser !== "auto" && opts.browser !== "firefox") {
-    const selected = findChromiumBrowserCandidate(opts.browser);
-    if (selected) {
-      return extractFromChromium(domain, {
-        ...opts.chromium,
-        profile: opts.chromium?.profile ?? opts.chromeProfile,
-        userDataDir: opts.chromium?.userDataDir ?? selected.userDataDir,
-        browserName: opts.chromium?.browserName ?? selected.name,
-        safeStorageService: opts.chromium?.safeStorageService ?? selected.safeStorageService,
-      });
-    }
-  }
+  // Try Firefox first (no decryption needed, more reliable)
+  const ff = extractFromFirefox(domain, { profile: opts?.firefoxProfile });
+  if (ff.cookies.length > 0) return ff;
 
-  // If caller provided an explicit Chromium-family source, try that first.
+  // If caller provided an explicit Chromium-family source, try that next.
   if (opts?.chromium?.cookieDbPath || opts?.chromium?.userDataDir) {
     const chromium = extractFromChromium(domain, opts.chromium);
+    chromium.warnings.push(...ff.warnings);
     return chromium;
   }
 
-  const home = homedir();
-  const chromiumBrowsers = getSupportedChromiumBrowserCandidates(platform(), home);
-
-  const preferredBundleId = getMacDefaultBrowserBundleId();
-  const orderedChromiumBrowsers = prioritizeChromiumCandidates(chromiumBrowsers, preferredBundleId);
-
-  const preferredChromium = preferredBundleId ? orderedChromiumBrowsers[0] : null;
-  const accumulatedWarnings: string[] = [];
-  if (preferredChromium?.bundleId === preferredBundleId && existsSync(preferredChromium.userDataDir)) {
-    const preferredResult = extractFromChromium(domain, {
-      userDataDir: preferredChromium.userDataDir,
-      browserName: preferredChromium.name,
-      safeStorageService: preferredChromium.safeStorageService,
-    });
-    if (preferredResult.cookies.length > 0) {
-      return preferredResult;
-    }
-    accumulatedWarnings.push(...preferredResult.warnings);
-  }
-
-  // Try Firefox next (no decryption needed, more reliable when it actually has the session)
-  const ff = extractFromFirefox(domain, { profile: opts?.firefoxProfile });
-  if (ff.cookies.length > 0) {
-    ff.warnings.push(...accumulatedWarnings);
-    return ff;
-  }
-
-  const allWarnings = [...accumulatedWarnings, ...ff.warnings];
-  for (const browser of orderedChromiumBrowsers) {
-    if (browser.bundleId && browser.bundleId === preferredBundleId) continue;
-    if (!existsSync(browser.userDataDir)) continue;
-    const result = extractFromChromium(domain, {
-      userDataDir: browser.userDataDir,
-      browserName: browser.name,
-      safeStorageService: browser.safeStorageService,
-    });
-    if (result.cookies.length > 0) {
-      result.warnings.push(...allWarnings);
-      return result;
-    }
-    allWarnings.push(...result.warnings);
-  }
-
-  // Also try Firefox-based alternatives (Zen)
-  const zenPaths = platform() === "darwin"
-    ? [join(home, "Library", "Application Support", "zen")]
-    : [join(home, ".zen")];
-  for (const zenRoot of zenPaths) {
-    if (!existsSync(zenRoot)) continue;
-    const zenResult = extractFromFirefox(domain, { profilesRoot: zenRoot });
-    if (zenResult.cookies.length > 0) {
-      zenResult.warnings.push(...allWarnings);
-      return zenResult;
-    }
-    allWarnings.push(...zenResult.warnings);
-  }
-
-  return { cookies: [], source: null, sourceMeta: null, warnings: allWarnings };
+  // Fall back to Chrome
+  const chrome = extractFromChrome(domain, { profile: opts?.chromeProfile });
+  chrome.warnings.push(...ff.warnings);
+  return chrome;
 }

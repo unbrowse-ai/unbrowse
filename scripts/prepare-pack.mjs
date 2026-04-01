@@ -12,6 +12,7 @@ const runtimeSourceDir = path.join(packageRoot, "runtime-src");
 
 rmSync(distDir, { recursive: true, force: true });
 rmSync(runtimeSourceDir, { recursive: true, force: true });
+rmSync(path.join(packageRoot, "vendor", "kuri"), { recursive: true, force: true });
 
 execFileSync(process.execPath, [path.join(packageRoot, "scripts", "build-kuri-binaries.mjs")], {
   cwd: packageRoot,
@@ -26,32 +27,42 @@ execFileSync(
   { cwd: packageRoot, stdio: "inherit" },
 );
 
-execFileSync(
-  "bun",
-  [...sharedArgs, path.join(sourceDir, "index.ts"), "--outfile", path.join(distDir, "index.js")],
-  { cwd: packageRoot, stdio: "inherit" },
-);
-
-execFileSync(
-  "bun",
-  [...sharedArgs, path.join(sourceDir, "supervisor.ts"), "--outfile", path.join(distDir, "supervisor.js")],
-  { cwd: packageRoot, stdio: "inherit" },
-);
-
 cpSync(sourceDir, runtimeSourceDir, { recursive: true, dereference: true });
+
+const indexWrapper = `#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const serverEntrypoint = path.join(packageRoot, "runtime-src", "index.ts");
+const req = createRequire(import.meta.url);
+const tsxPkg = req.resolve("tsx/package.json");
+const tsxLoader = path.join(path.dirname(tsxPkg), "dist", "loader.mjs");
+
+const child = spawn(process.execPath, ["--import", tsxLoader, serverEntrypoint, ...process.argv.slice(2)], {
+  stdio: "inherit",
+  cwd: process.cwd(),
+  env: {
+    ...process.env,
+    UNBROWSE_PACKAGE_ROOT: packageRoot,
+  },
+});
+
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+    return;
+  }
+  process.exit(code ?? 1);
+});
+`;
+writeFileSync(path.join(distDir, "index.js"), indexWrapper);
 
 const cliFile = path.join(distDir, "cli.js");
 const cliContents = readFileSync(cliFile, "utf8").replace(/^#!.*\n/, "");
 writeFileSync(cliFile, `#!/usr/bin/env node\n${cliContents}`);
 
-const indexFile = path.join(distDir, "index.js");
-const indexContents = readFileSync(indexFile, "utf8").replace(/^#!.*\n/, "");
-writeFileSync(indexFile, `#!/usr/bin/env node\n${indexContents}`);
-
-const supervisorFile = path.join(distDir, "supervisor.js");
-const supervisorContents = readFileSync(supervisorFile, "utf8").replace(/^#!.*\n/, "");
-writeFileSync(supervisorFile, `#!/usr/bin/env node\n${supervisorContents}`);
-
 chmodSync(cliFile, 0o755);
-chmodSync(indexFile, 0o755);
-chmodSync(supervisorFile, 0o755);
+chmodSync(path.join(distDir, "index.js"), 0o755);

@@ -8,17 +8,19 @@
  */
 
 import { config as loadEnv } from "dotenv";
-import { ensureRegistered } from "./client/index.js";
-import { maybeAutoUpdate } from "./runtime/auto-update.js";
-import { ensureLocalServer } from "./runtime/local-server.js";
+import { ensureRegistered, getApiKey } from "./client/index.js";
+import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
+import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
 import { isMainModule } from "./runtime/paths.js";
-import { startMcpServer } from "./mcp.js";
+import { drainPendingIndexJobs } from "./indexer/index.js";
+import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
+import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
 
 loadEnv({ quiet: true });
 loadEnv({ path: ".env.runtime", quiet: true });
 
 const BASE_URL = process.env.UNBROWSE_URL || "http://localhost:6969";
-const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || "cli-local";
+const CLI_CLIENT_ID = process.env.UNBROWSE_CLIENT_ID || `cli-${process.ppid || process.pid}`;
 
 // ---------------------------------------------------------------------------
 // Arg parser
@@ -96,6 +98,13 @@ async function withPendingNotice<T>(promise: Promise<T>, message: string, delayM
   }
 }
 
+function normalizeSetupScope(value: string | boolean | undefined): SetupScope {
+  if (value === true || value == null) return "auto";
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "global" || normalized === "project" || normalized === "off") return normalized;
+  return "auto";
+}
+
 // ---------------------------------------------------------------------------
 // Path resolution — drill into nested structures with [] array expansion
 // ---------------------------------------------------------------------------
@@ -144,17 +153,6 @@ function detectEntityIndex(data: unknown): Map<string, unknown> | null {
   }
 
   return best ? buildEntityIndex(best) : null;
-}
-
-function unwrapCarrier(data: unknown): unknown {
-  if (data == null || typeof data !== "object" || Array.isArray(data)) return data;
-  const rec = data as Record<string, unknown>;
-  const keys = Object.keys(rec);
-  const isCarrierOnly = keys.every((key) => key === "data" || key === "_extraction");
-  if (isCarrierOnly && "data" in rec && ("_extraction" in rec || Array.isArray(rec.data) || (rec.data != null && typeof rec.data === "object"))) {
-    return unwrapCarrier(rec.data);
-  }
-  return data;
 }
 
 /** Resolve a dot-path like "data.items[].name" against an object.
@@ -278,10 +276,10 @@ function looksStructuredForDirectOutput(value: unknown): boolean {
 
 /** Apply --path, --extract, --limit to a result object. */
 function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
-  let data = unwrapCarrier(result);
+  let data = result;
 
   // Build entity index from the full response before drilling into it
-  const entityIndex = detectEntityIndex(data);
+  const entityIndex = detectEntityIndex(result);
 
   // --path: drill into nested structure
   const pathFlag = flags.path as string | undefined;
@@ -451,11 +449,9 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction.
-  // --schema also needs the raw payload shape; projected results can legitimately drop
-  // response_schema/extraction_hints because they no longer describe the transformed data.
+  // When explicit CLI transforms are present, get raw data for client-side extraction
   const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || flags.schema || hasTransforms) body.projection = { raw: true };
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
 
   const startedAt = Date.now();
   let result = await withPendingNotice(
@@ -506,17 +502,12 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     body.context_url = flags.url;
     (body.params as Record<string, unknown>).url = flags.url;
   }
-  if (flags.intent) {
-    body.intent = flags.intent;
-    (body.params as Record<string, unknown>).intent = flags.intent;
-  }
+  if (flags.intent) body.intent = flags.intent;
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction.
-  // --schema also needs the raw payload shape; projected results can legitimately drop
-  // response_schema/extraction_hints because they no longer describe the transformed data.
+  // When explicit CLI transforms are present, get raw data for client-side extraction
   const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || flags.schema || hasTransforms) body.projection = { raw: true };
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
 
   let result = await withPendingNotice(
     api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
@@ -560,16 +551,7 @@ async function cmdFeedback(flags: Record<string, string | boolean>): Promise<voi
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
   const url = flags.url as string;
   if (!url) die("--url is required");
-  const browserLabel = typeof flags.browser === "string" ? flags.browser : "default browser";
-  const result = await withPendingNotice(
-    api("POST", "/v1/auth/login", {
-      url,
-      ...(typeof flags.browser === "string" ? { browser: flags.browser } : {}),
-    }),
-    `Opened ${url} in ${browserLabel}. Finish sign-in there; waiting for fresh cookies...`,
-    1_000,
-  );
-  output(result, !!flags.pretty);
+  output(await api("POST", "/v1/auth/login", { url }), !!flags.pretty);
 }
 
 async function cmdSkills(flags: Record<string, string | boolean>): Promise<void> {
@@ -599,6 +581,56 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
   output(await api("GET", `/v1/sessions/${domain}?limit=${limit}`), !!flags.pretty);
 }
 
+async function cmdSetup(flags: Record<string, string | boolean>): Promise<void> {
+  info("Running setup checks");
+  const report = await runSetup({
+    cwd: process.cwd(),
+    opencode: normalizeSetupScope(flags.opencode),
+    installBrowser: !flags["skip-browser"],
+  }) as SetupReport & {
+    server?: {
+      started: boolean;
+      skipped?: boolean;
+      base_url?: string;
+      error?: string;
+    };
+  };
+
+  if (report.browser_engine.action === "failed") {
+    info("Browser engine install failed");
+  } else if (report.browser_engine.action === "installed") {
+    info("Browser engine installed");
+  }
+
+  if (report.opencode.action === "installed" || report.opencode.action === "updated") {
+    info(`Open Code command installed at ${report.opencode.command_file}`);
+  }
+
+  if (flags["no-start"]) {
+    report.server = { started: false, skipped: true, base_url: BASE_URL };
+    output(report, true);
+    if (report.browser_engine.action === "failed") process.exit(1);
+    return;
+  }
+
+  if (!getApiKey()) {
+    await ensureRegistered({ promptForEmail: true });
+  }
+
+  try {
+    await ensureLocalServer(BASE_URL, false, import.meta.url);
+    report.server = { started: true, base_url: BASE_URL };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    report.server = { started: false, error: message, base_url: BASE_URL };
+    output(report, true);
+    process.exit(1);
+  }
+
+  output(report, true);
+  if (report.browser_engine.action === "failed") process.exit(1);
+}
+
 // ---------------------------------------------------------------------------
 // CLI Reference — single source of truth for help text AND SKILL.md
 // ---------------------------------------------------------------------------
@@ -606,20 +638,22 @@ async function cmdSessions(flags: Record<string, string | boolean>): Promise<voi
 export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
+    { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
     { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
-    { name: "login", usage: '--url "..." [--browser chrome|arc|dia|brave|edge|vivaldi|chromium|firefox]', desc: "Interactive browser login" },
+    { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
-    { name: "mcp", usage: "", desc: "Start MCP server (stdio) for Claude Desktop, Cursor, etc." },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
     { flag: "--no-auto-start", desc: "Don't auto-start server" },
     { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
+    { flag: "--skip-browser", desc: "setup: skip browser-engine install" },
+    { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
     { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
@@ -632,9 +666,8 @@ export const CLI_REFERENCE = {
     { flag: "--params '{...}'", desc: "Extra params as JSON" },
   ],
   examples: [
-    "unbrowse health",
+    "unbrowse setup",
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
-    'unbrowse login --url "https://lu.ma/signin" --browser chrome',
     "unbrowse execute --skill abc --endpoint def --pretty",
     'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
     'unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20',
@@ -678,14 +711,207 @@ function printHelp(): void {
   process.stderr.write(lines.join("\n"));
 }
 
-async function ensureCliBootstrap(): Promise<void> {
-  await ensureRegistered();
+// ---------------------------------------------------------------------------
+// Server lifecycle commands
+// ---------------------------------------------------------------------------
+
+async function cmdStatus(flags: Record<string, string | boolean>): Promise<void> {
+  const healthy = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(2_000) })
+    .then((r) => r.ok).catch(() => false);
+  const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
+  output({
+    server: healthy ? "running" : "stopped",
+    url: BASE_URL,
+    ...(versionInfo ?? {}),
+  }, !!flags.pretty);
+}
+
+async function cmdRestart(flags: Record<string, string | boolean>): Promise<void> {
+  info("Restarting server...");
+  await restartServer(BASE_URL, import.meta.url);
+  info("Server restarted.");
+  await cmdStatus(flags);
+}
+
+function cmdStop(flags: Record<string, string | boolean>): void {
+  const stopped = stopServer(BASE_URL);
+  if (stopped) info("Server stopped.");
+  else info("No server running.");
+}
+
+async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void> {
+  info("Checking for updates...");
+  const { execSync } = await import("node:child_process");
+  try {
+    const result = execSync("npm view unbrowse version", { encoding: "utf-8", timeout: 10_000 }).trim();
+    const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
+    const installed = versionInfo?.installed ?? "unknown";
+    if (result === installed) {
+      info(`Already at latest version: ${installed}`);
+      return;
+    }
+    info(`Update available: ${installed} -> ${result}`);
+    info("Run: npm install -g unbrowse@latest");
+    info("Then: unbrowse restart");
+  } catch (err) {
+    info(`Could not check for updates: ${(err as Error).message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Site/task shortcut commands
+// ---------------------------------------------------------------------------
+
+async function cmdSiteHelp(pack: SitePack, flags: Record<string, string | boolean>): Promise<void> {
+  // --deps: return dependency graph as JSON
+  if (flags.deps) {
+    const graph = buildDepsGraph(pack);
+    output({ site: pack.site, tasks: graph }, !!flags.pretty);
+    return;
+  }
+  // --plan: return execution plan for a set of tasks
+  if (flags.plan) {
+    const taskNames = (flags.plan as string).split(",").map((s) => s.trim());
+    const waves = planExecution(pack, taskNames);
+    output({ site: pack.site, waves }, !!flags.pretty);
+    return;
+  }
+  // Default: human-readable help
+  const lines: string[] = [
+    `unbrowse ${pack.site} — ${pack.description}`,
+    "",
+    "Tasks:",
+  ];
+  for (const t of pack.tasks) {
+    const aliases = t.match.length > 1 ? ` (${t.match.slice(1).join(", ")})` : "";
+    const auth = t.needs_auth ? " [auth]" : "";
+    lines.push(`  ${t.match[0]}${aliases}${auth}  ${t.description}`);
+  }
+  lines.push(
+    "",
+    "Examples:",
+    `  unbrowse ${pack.site} login`,
+    `  unbrowse ${pack.site} ${pack.tasks.find((t) => t.match[0] !== "login")?.match[0] || "help"} --pretty`,
+    `  unbrowse ${pack.site} --batch ${pack.tasks.filter((t) => t.parallel_safe).map((t) => t.match[0]).join(",")}`,
+    `  unbrowse ${pack.site} help --deps`,
+    `  unbrowse ${pack.site} help --plan feed,notifications`,
+    "",
+    "Flags: --pretty --raw --path --extract --limit --force-capture --dry-run --batch --deps --plan",
+  );
+  process.stderr.write(lines.join("\n") + "\n");
+}
+
+async function cmdSiteLogin(pack: SitePack, flags: Record<string, string | boolean>): Promise<void> {
+  const result = await api("POST", "/v1/auth/login", { url: pack.login_url });
+  const deps = buildDepsMetadata(pack, "login");
+  output({ ...result as Record<string, unknown>, _deps: deps, _shortcut: `${pack.site} login` }, !!flags.pretty);
+}
+
+async function cmdSiteTask(pack: SitePack, taskName: string, flags: Record<string, string | boolean>): Promise<void> {
+  const task = findTask(pack, taskName);
+  if (!task) {
+    info(`Unknown task "${taskName}" for ${pack.site}. Run: unbrowse ${pack.site} help`);
+    process.exit(1);
+  }
+
+  // Compile to resolve call
+  const body: Record<string, unknown> = {
+    intent: task.intent,
+    params: { url: task.url },
+    context: { url: task.url },
+  };
+  if (flags.params) {
+    body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
+  }
+  if (flags["dry-run"]) body.dry_run = true;
+  if (flags["force-capture"]) body.force_capture = true;
+  const hasTransforms = !!(flags.path || flags.extract);
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
+
+  const startedAt = Date.now();
+  let result = await withPendingNotice(
+    api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+    "Still working. First-time capture/indexing for a site can take 20-80s.",
+  );
+
+  // Check for auth-required response
+  if (result && typeof result === "object" && (result as Record<string, unknown>).error === "auth_required") {
+    info(`Authentication required. Run: unbrowse ${pack.site} login`);
+    const deps = buildDepsMetadata(pack, taskName);
+    output({ ...(result as Record<string, unknown>), _deps: { ...deps, requires: ["login"] }, _next: [`unbrowse ${pack.site} login`] }, !!flags.pretty);
+    process.exit(2);
+  }
+
+  if (flags.schema) {
+    output(schemaOnly(result), !!flags.pretty);
+    return;
+  }
+
+  if (hasTransforms && result.result != null) {
+    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
+  } else if (!flags.raw && result.result != null) {
+    result = autoExtractOrWrap(result);
+  }
+
+  const deps = buildDepsMetadata(pack, taskName);
+  (result as Record<string, unknown>)._deps = deps;
+  (result as Record<string, unknown>)._shortcut = `${pack.site} ${taskName}`;
+
+  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
+    info("Live capture finished. Future runs should be much faster.");
+  }
+
+  output(result, !!flags.pretty);
+}
+
+async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<string, string | boolean>): Promise<void> {
+  const taskNames = batchArg.split(",").map((s) => s.trim());
+  const waves = planExecution(pack, taskNames);
+  const results: Record<string, unknown> = { site: pack.site, waves: [], _deps: { parallel_safe: true } };
+  const waveResults: unknown[] = [];
+
+  for (const wave of waves) {
+    const waveStart = Date.now();
+    const promises = wave.commands.map(async (cmd) => {
+      const parts = cmd.split(" ");
+      const task = parts[parts.length - 1];
+      const taskDef = findTask(pack, task);
+      if (!taskDef) return { task, error: "unknown task" };
+
+      if (task === "login") {
+        return { task, result: await api("POST", "/v1/auth/login", { url: pack.login_url }) };
+      }
+      const body: Record<string, unknown> = {
+        intent: taskDef.intent,
+        params: { url: taskDef.url },
+        context: { url: taskDef.url },
+      };
+      if (flags["force-capture"]) body.force_capture = true;
+      const hasTransforms = !!(flags.path || flags.extract);
+      if (flags.raw || hasTransforms) body.projection = { raw: true };
+      let res = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
+      if (!flags.raw && res.result != null) {
+        res = autoExtractOrWrap(res);
+      }
+      return { task, result: res };
+    });
+
+    const waveResult = await Promise.all(promises);
+    waveResults.push({
+      wave: wave.wave,
+      reason: wave.reason,
+      elapsed_ms: Date.now() - waveStart,
+      tasks: waveResult,
+    });
+  }
+
+  (results as Record<string, unknown>).waves = waveResults;
+  output(results, !!flags.pretty);
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
-
 async function main(): Promise<void> {
   const { command, args, flags } = parseArgs(process.argv);
   const noAutoStart = !!flags["no-auto-start"];
@@ -695,24 +921,48 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const update = await maybeAutoUpdate(import.meta.url);
-  if (typeof update.exitCode === "number") {
-    process.exit(update.exitCode);
+  if (command === "setup") {
+    await cmdSetup(flags);
+    return;
   }
 
-  await ensureCliBootstrap();
+  // Server lifecycle commands (don't need ensureLocalServer)
+  if (command === "status") return cmdStatus(flags);
+  if (command === "stop") { cmdStop(flags); return; }
+  if (command === "restart") return cmdRestart(flags);
+  if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
 
-  // MCP server runs standalone — no local server needed
-  if (command === "mcp") {
-    const unbrowseBin = process.argv[1] || "unbrowse";
-    await startMcpServer(unbrowseBin);
-    return;
+  // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
+  const KNOWN_COMMANDS = new Set([
+    "health", "setup", "resolve", "execute", "exec",
+    "feedback", "fb", "login", "skills", "skill", "search", "sessions",
+    "status", "stop", "restart", "upgrade", "update",
+  ]);
+
+  if (!KNOWN_COMMANDS.has(command)) {
+    const pack = findSitePack(command);
+    if (pack) {
+      await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+      const taskName = args[0];
+      if (!taskName || taskName === "help") {
+        return cmdSiteHelp(pack, flags);
+      }
+      if (taskName === "login") {
+        return cmdSiteLogin(pack, flags);
+      }
+      const batchArg = flags.batch as string | undefined;
+      if (batchArg) {
+        return cmdSiteBatch(pack, batchArg, flags);
+      }
+      return cmdSiteTask(pack, taskName, flags);
+    }
   }
 
   await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
 
   switch (command) {
     case "health": return cmdHealth(flags);
+    case "setup": return cmdSetup(flags);
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
@@ -725,9 +975,10 @@ async function main(): Promise<void> {
   }
 }
 
-// Only run when this file is the entry point (not when imported by sync script etc.)
 if (isMainModule(import.meta.url)) {
-  main().catch((err) => {
-    die((err as Error).message);
-  });
+  main()
+    .then(() => Promise.all([drainPendingIndexJobs(), drainPendingPassivePublishes()]))
+    .catch((err) => {
+      die((err as Error).message);
+    });
 }

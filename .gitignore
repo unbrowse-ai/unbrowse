@@ -3,7 +3,4 @@ dist/
 packed-src/
 runtime-src/
 vendor/kuri/
-!vendor/kuri/
-!vendor/kuri/**/
-!vendor/kuri/**/*.exe
 .env

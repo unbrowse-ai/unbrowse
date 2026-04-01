@@ -36,7 +36,9 @@ pub const WebSocketClient = struct {
 
         // Set read timeout so we don't block forever
         const timeout = std.posix.timeval{ .sec = 10, .usec = 0 };
-        std.posix.setsockopt(stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch {};
+        std.posix.setsockopt(stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch |err| {
+            std.log.warn("websocket: failed to set read timeout: {s}", .{@errorName(err)});
+        };
 
         var ws = WebSocketClient{
             .allocator = allocator,
@@ -136,7 +138,7 @@ pub const WebSocketClient = struct {
         if (n == 0) return Error.HandshakeFailed;
 
         const response = self.read_buf[0..n];
-        if (std.mem.indexOf(u8, response, "101") == null) {
+        if (!std.mem.startsWith(u8, response, "HTTP/1.1 101")) {
             return Error.HandshakeFailed;
         }
     }
@@ -298,6 +300,7 @@ pub const WebSocketClient = struct {
         }
 
         if (payload_len > max_size) return Error.MessageTooLarge;
+        if (payload_len > std.math.maxInt(usize)) return Error.MessageTooLarge;
         const len: usize = @intCast(payload_len);
 
         var mask_key: [4]u8 = undefined;

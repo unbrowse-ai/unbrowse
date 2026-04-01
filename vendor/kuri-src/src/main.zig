@@ -10,6 +10,7 @@ pub fn main() !void {
     const gpa = gpa_impl.allocator();
 
     const cfg = config.load();
+    var runtime_cfg = cfg;
 
     std.log.info("kuri v0.1.0", .{});
     std.log.info("listening on {s}:{d}", .{ cfg.host, cfg.port });
@@ -24,18 +25,23 @@ pub fn main() !void {
         std.log.info("launching managed Chrome instance", .{});
     }
 
-    const cdp_port = chrome.start(cfg) catch |err| blk: {
-        std.log.warn("Chrome launch failed: {s}, continuing without Chrome", .{@errorName(err)});
-        break :blk @as(u16, 9222);
-    };
-    std.log.info("CDP port: {d}", .{cdp_port});
+    const start_result = try chrome.start(cfg);
+    runtime_cfg.cdp_url = start_result.cdp_url;
+    std.log.info("CDP endpoint: {s}", .{start_result.cdp_url});
+    std.log.info("CDP port: {d}", .{start_result.cdp_port});
 
     // Initialize bridge (central state)
     var bridge = Bridge.init(gpa);
     defer bridge.deinit();
 
+    // Hydrate the bridge before serving so first-run /tabs works immediately.
+    var startup_arena_impl = std.heap.ArenaAllocator.init(gpa);
+    defer startup_arena_impl.deinit();
+    const startup_discovered = try server.discoverTabs(startup_arena_impl.allocator(), &bridge, runtime_cfg, start_result.cdp_port);
+    std.log.info("startup discovery registered {d} tabs", .{startup_discovered});
+
     // Start HTTP server
-    try server.run(gpa, &bridge, cfg);
+    try server.run(gpa, &bridge, runtime_cfg, start_result.cdp_port);
 }
 
 test {
@@ -61,7 +67,9 @@ test {
     _ = @import("util/json.zig");
     _ = @import("test/harness.zig");
     _ = @import("chrome/launcher.zig");
+    _ = @import("chrome/extensions.zig");
     _ = @import("test/integration.zig");
     _ = @import("storage/local.zig");
+    _ = @import("storage/auth_profiles.zig");
     _ = @import("util/tls.zig");
 }

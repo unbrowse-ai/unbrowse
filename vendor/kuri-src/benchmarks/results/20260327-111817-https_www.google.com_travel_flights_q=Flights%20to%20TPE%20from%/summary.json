@@ -1,0 +1,100 @@
+{
+  "date": "2026-03-27",
+  "url": "https://www.google.com/travel/flights?q=Flights%20to%20TPE%20from%20SIN%20on%202026-03-23&curr=SGD",
+  "kuri_branch": "feature/debug-mode-freeze-hud",
+  "kuri_commit": "9d05461",
+  "agent_browser_version": "agent-browser 0.9.1",
+  "lightpanda_version": "1.0.0-nightly",
+  "baseline_tokens": 1502,
+  "snapshots": {
+    "kuri snap (compact)": {
+      "bytes": 5687,
+      "tokens": 1502,
+      "vs_kuri": 1.0
+    },
+    "kuri snap --interactive": {
+      "bytes": 2595,
+      "tokens": 760,
+      "vs_kuri": 0.506
+    },
+    "kuri snap --json": {
+      "bytes": 37647,
+      "tokens": 10479,
+      "vs_kuri": 6.977
+    },
+    "agent-browser snapshot": {
+      "bytes": 9619,
+      "tokens": 2617,
+      "vs_kuri": 1.742
+    },
+    "agent-browser snapshot -i": {
+      "bytes": 3351,
+      "tokens": 951,
+      "vs_kuri": 0.633
+    },
+    "lightpanda semantic_tree": {
+      "bytes": 25720,
+      "tokens": 9367,
+      "vs_kuri": 6.236
+    },
+    "lightpanda semantic_tree_text": {
+      "bytes": 19248,
+      "tokens": 12279,
+      "vs_kuri": 8.175
+    }
+  },
+  "actions": {
+    "kuri go": {
+      "bytes": 2898,
+      "tokens": 872
+    },
+    "kuri click": {
+      "bytes": 2911,
+      "tokens": 856
+    },
+    "kuri back": {
+      "bytes": 12,
+      "tokens": 5
+    },
+    "kuri scroll": {
+      "bytes": 2791,
+      "tokens": 827
+    },
+    "kuri eval": {
+      "bytes": 65,
+      "tokens": 14
+    },
+    "agent-browser go": {
+      "bytes": 170,
+      "tokens": 60
+    },
+    "agent-browser click": {
+      "bytes": 9,
+      "tokens": 4
+    },
+    "agent-browser back": {
+      "bytes": 154,
+      "tokens": 49
+    },
+    "agent-browser scroll": {
+      "bytes": 9,
+      "tokens": 4
+    },
+    "agent-browser eval": {
+      "bytes": 67,
+      "tokens": 15
+    }
+  },
+  "workflow": {
+    "raw": {
+      "kuri_agent_tokens": 3262,
+      "agent_browser_tokens": 1981,
+      "kuri_savings_pct": -64.7
+    },
+    "normalized_page_state": {
+      "kuri_agent_tokens": 1534,
+      "agent_browser_tokens": 1917,
+      "kuri_savings_pct": 20.0
+    }
+  }
+}
