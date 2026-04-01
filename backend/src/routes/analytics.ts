@@ -1,12 +1,16 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { getEngagement, getRetention, getActivation, getAgentHealth } from "../services/analytics.js";
+import { getAcquisitionSummary } from "../services/acquisition.js";
+import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
+import { getFunnelSummary } from "../services/funnel.js";
 import { bearerAuth } from "../middleware/auth.js";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
-// All analytics routes require authentication
-analyticsRoutes.use("*", bearerAuth);
+// All analytics routes require authentication — use specific path prefix
+// instead of "*" to avoid intercepting unrelated /v1/* routes.
+analyticsRoutes.use("/analytics/*", bearerAuth);
 
 // GET /v1/analytics/engagement — DAU/WAU/MAU and stickiness ratios
 analyticsRoutes.get("/analytics/engagement", async (c) => {
@@ -51,4 +55,31 @@ analyticsRoutes.get("/analytics/dashboard", async (c) => {
   c.header("Cache-Control", "public, max-age=300");
   c.header("Access-Control-Allow-Origin", "*");
   return c.json({ engagement, activation, agent_health: agentHealth });
+});
+
+// GET /v1/analytics/acquisition — landing-to-install conversion funnel
+analyticsRoutes.get("/analytics/acquisition", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 90);
+  const summary = await getAcquisitionSummary(c.env, days);
+  c.header("Cache-Control", "public, max-age=300");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(summary);
+});
+
+// GET /v1/analytics/install — install-to-CLI-invocation tracking
+analyticsRoutes.get("/analytics/install", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
+  const summary = await getInstallTelemetrySummary(c.env, days);
+  c.header("Cache-Control", "public, max-age=300");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(summary);
+});
+
+// GET /v1/analytics/funnel — first-run funnel transitions and failures
+analyticsRoutes.get("/analytics/funnel", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
+  const summary = await getFunnelSummary(c.env, days);
+  c.header("Cache-Control", "public, max-age=300");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(summary);
 });
