@@ -14,7 +14,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 - [x] **Phase 1: Passive Capture Foundation** — Wire kuri's builtin extension into the capture pipeline; intercept real browser traffic with response bodies
 - [x] **Phase 2: Background Indexing and Cache-First Resolution** — Reverse-engineer passively observed traffic in the background; skip re-capture on second visit
 - [x] **Phase 3: Browser Replacement API** — Drop-in interface so agents use unbrowse instead of Playwright/Puppeteer; UI action support when kuri hook lands
-- [ ] **Phase 4: Endpoint Graph** — Track endpoint relationships; prefetch related endpoints so agents get complete context in one round-trip
+- [x] **Phase 4: Endpoint Graph** — Track endpoint relationships; prefetch related endpoints so agents get complete context in one round-trip
 - [ ] **Phase 5: Marketplace Wiring and Telemetry** — Connect graph DB to marketplace for cross-agent skill sharing; auto-file GitHub issues from agent telemetry
 - [ ] **Phase 6: Marketplace Payments** — Wallet-based payments so skills can be monetized and consumed by other agents
 
@@ -94,7 +94,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. The dependency graph is persisted with the skill manifest and survives server restarts
   4. Agent-visible `available_endpoints` in the resolve response reflects the graph's reachability analysis given known bindings, not just a flat list
 
-**Plans**: 2 plans (04-01: dependency graph construction -- complete, 04-02: prefetch integration)
+**Plans**: 2/2 complete (04-01: dependency graph construction, 04-02: prefetch integration + graph-aware resolve)
 
 ---
 
@@ -141,7 +141,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | 1. Passive Capture Foundation | 2/2 | Complete | 2026-04-01 |
 | 2. Background Indexing and Cache-First | 2/2 | Complete | 2026-04-01 |
 | 3. Browser Replacement API | 2/2 | Complete | 2026-04-01 |
-| 4. Endpoint Graph | 1/2 | In Progress | - |
+| 4. Endpoint Graph | 2/2 | Complete | 2026-04-01 |
 | 5. Marketplace Wiring and Telemetry | 0/? | Not started | - |
 | 6. Marketplace Payments | 0/? | Not started | - |
 
