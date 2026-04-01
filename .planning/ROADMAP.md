@@ -56,7 +56,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. Cache-first resolution falls through to marketplace lookup on local miss, and only launches live capture as a last resort
   4. Skills built from passively captured traffic are functionally equivalent to skills built from the existing active capture flow (endpoints execute and return structured data)
 
-**Plans**: TBD
+**Plans**: 1/2 complete (02-01: background indexing queue DONE, 02-02: wire indexer + cache-first resolution TODO)
 
 ---
 
@@ -139,7 +139,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Passive Capture Foundation | 2/2 | Complete | 2026-04-01 |
-| 2. Background Indexing and Cache-First | 0/? | Not started | - |
+| 2. Background Indexing and Cache-First | 2/2 | Planned | - |
 | 3. Browser Replacement API | 0/? | Not started | - |
 | 4. Endpoint Graph | 0/? | Not started | - |
 | 5. Marketplace Wiring and Telemetry | 0/? | Not started | - |
