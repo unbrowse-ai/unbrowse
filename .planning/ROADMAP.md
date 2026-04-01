@@ -12,8 +12,8 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 ## Phases
 
 - [x] **Phase 1: Passive Capture Foundation** — Wire kuri's builtin extension into the capture pipeline; intercept real browser traffic with response bodies
-- [ ] **Phase 2: Background Indexing and Cache-First Resolution** — Reverse-engineer passively observed traffic in the background; skip re-capture on second visit
-- [ ] **Phase 3: Browser Replacement API** — Drop-in interface so agents use unbrowse instead of Playwright/Puppeteer; UI action support when kuri hook lands
+- [x] **Phase 2: Background Indexing and Cache-First Resolution** — Reverse-engineer passively observed traffic in the background; skip re-capture on second visit
+- [x] **Phase 3: Browser Replacement API** — Drop-in interface so agents use unbrowse instead of Playwright/Puppeteer; UI action support when kuri hook lands
 - [ ] **Phase 4: Endpoint Graph** — Track endpoint relationships; prefetch related endpoints so agents get complete context in one round-trip
 - [ ] **Phase 5: Marketplace Wiring and Telemetry** — Connect graph DB to marketplace for cross-agent skill sharing; auto-file GitHub issues from agent telemetry
 - [ ] **Phase 6: Marketplace Payments** — Wallet-based payments so skills can be monetized and consumed by other agents
@@ -74,7 +74,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. A navigation call to an uncached site opens a kuri tab, passively captures traffic, and returns the page result — the agent is unaware capture happened
   4. UI actions (click, fill form, trigger POST) execute correctly when the kuri UI action hook is available (BROWSER-02 delivery from Rach); unbrowse degrades gracefully to skill execution when the hook is not yet available
 
-**Plans**: 1/2 complete (03-01: Browser/Page API + skill-first navigation complete, 03-02: live capture fallback + conditional UI actions)
+**Plans**: 2/2 complete (03-01: Browser/Page API + skill-first navigation, 03-02: live capture fallback + conditional UI actions)
 
 **Notes**: BROWSER-02 is externally blocked on Rach delivering the kuri-side UI action hook. Phase 3 ships BROWSER-01 fully and BROWSER-02 conditionally. Design the API surface for BROWSER-02 now so integration is mechanical once the hook arrives.
 
@@ -140,7 +140,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 |-------|----------------|--------|-----------|
 | 1. Passive Capture Foundation | 2/2 | Complete | 2026-04-01 |
 | 2. Background Indexing and Cache-First | 2/2 | Complete | 2026-04-01 |
-| 3. Browser Replacement API | 0/2 | Planned | - |
+| 3. Browser Replacement API | 2/2 | Complete | 2026-04-01 |
 | 4. Endpoint Graph | 1/2 | In Progress | - |
 | 5. Marketplace Wiring and Telemetry | 0/? | Not started | - |
 | 6. Marketplace Payments | 0/? | Not started | - |

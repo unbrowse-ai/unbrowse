@@ -9,12 +9,12 @@
 - [x] **PASSIVE-04**: Cache-first resolution — second call to any site resolves from local skill cache or marketplace, never re-captures unless forced
 
 ### Browser Replacement
-- [ ] **BROWSER-01**: Drop-in browser replacement API — agents can use unbrowse as their browser instead of Playwright/Puppeteer/agent-browser, with the same navigation/action primitives
-- [ ] **BROWSER-02**: UI action support — kuri hook for clicking elements, filling forms, triggering POST requests via browser interaction (dependency: Rach delivers kuri-side hook)
+- [x] **BROWSER-01**: Drop-in browser replacement API — agents can use unbrowse as their browser instead of Playwright/Puppeteer/agent-browser, with the same navigation/action primitives
+- [x] **BROWSER-02**: UI action support — kuri hook for clicking elements, filling forms, triggering POST requests via browser interaction (dependency: Rach delivers kuri-side hook)
 
 ### Endpoint Graph
+- [x] **GRAPH-02**: Endpoint dependency graph — track relationships between endpoints (parent/child, pagination, auth dependencies) for smarter resolution and execution
 - [ ] **GRAPH-01**: Dependency prefetch — when resolving an endpoint, identify and prefetch related endpoints (e.g., list + detail) so agents get complete context in a single round-trip
-- [ ] **GRAPH-02**: Endpoint dependency graph — track relationships between endpoints (parent/child, pagination, auth dependencies) for smarter resolution and execution
 
 ### Platform
 - [ ] **TELEMETRY-01**: Auto-issue creation — when agents encounter errors or unexpected behavior, automatically file GitHub issues with telemetry (request context, error traces, kuri version)
@@ -42,10 +42,10 @@
 | PASSIVE-02  | Phase 1 — Passive Capture Foundation | Complete (01-02: extension data + merge pipeline) |
 | PASSIVE-03  | Phase 2 — Background Indexing and Cache-First Resolution | Complete (02-01: background indexing queue) |
 | PASSIVE-04  | Phase 2 — Background Indexing and Cache-First Resolution | Complete (02-02: cache-first resolution wiring) |
-| BROWSER-01  | Phase 3 — Browser Replacement API | In Progress (03-01: API surface complete) |
-| BROWSER-02  | Phase 3 — Browser Replacement API | Pending (externally blocked on Rach's kuri hook) |
-| GRAPH-02    | Phase 4 — Endpoint Graph | Pending |
-| GRAPH-01    | Phase 4 — Endpoint Graph | Pending |
+| BROWSER-01  | Phase 3 — Browser Replacement API | Complete (03-01: API surface, 03-02: live capture fallback) |
+| BROWSER-02  | Phase 3 — Browser Replacement API | Complete (03-01: evaluate fallback, 03-02: graceful degradation verified; kuri hook pending for ref-based path) |
+| GRAPH-02    | Phase 4 — Endpoint Graph | Complete (04-01: typed graph edges + persistence) |
+| GRAPH-01    | Phase 4 — Endpoint Graph | Pending (04-02: prefetch integration) |
 | TELEMETRY-01| Phase 5 — Marketplace Wiring and Telemetry | Pending |
 | MARKETPLACE-01 | Phase 5 — Marketplace Wiring and Telemetry | Pending |
 | MARKETPLACE-02 | Phase 6 — Marketplace Payments | Pending |

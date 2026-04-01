@@ -17,13 +17,13 @@
 | Phase | 4 — Endpoint Graph |
 | Plan | 04-01 complete |
 | Status | In Progress |
-| Last updated | 2026-04-01T11:54:08Z |
+| Last updated | 2026-04-01T12:00:47Z |
 
 **Progress**:
 ```
 [==========] Phase 1 — 2/2 plans complete
 [==========] Phase 2 — 2/2 plans complete
-[=====     ] Phase 3 — 1/2 plans complete
+[==========] Phase 3 — 2/2 plans complete
 [=====     ] Phase 4 — 1/2 plans complete
 [          ] Phase 5
 [          ] Phase 6
@@ -36,7 +36,7 @@
 | Phase | Goal | Status | Plans |
 | 1 — Passive Capture Foundation | Passive network interception with response bodies | Complete | 2/2 |
 | 2 — Background Indexing and Cache-First | Non-blocking indexing + cache-first resolution | Complete | 2/2 |
-| 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | In Progress | 1/2 |
+| 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | Complete | 2/2 |
 | 4 — Endpoint Graph | Dependency graph + prefetch | In Progress | 1/2 |
 | 5 — Marketplace Wiring and Telemetry | Cross-agent skill sharing + auto-issue filing | Not started | 0/? |
 | 6 — Marketplace Payments | Wallet-based skill monetization | Not started | 0/? |
@@ -71,6 +71,8 @@
 | screenshot returns base64 string (03-01) | Matches kuri.screenshot() actual return type — string not Buffer |
 | click/fill use evaluate fallback (03-01) | BROWSER-02 kuri action hook not yet available; evaluate-based DOM manipulation works now |
 | Skill-resolved pages throw on evaluate/screenshot (03-01) | No browser tab exists when resolved from cache; agents should use $unbrowse |
+| resolveAndExecute handles full capture pipeline (03-02) | Orchestrator already runs captureSession + indexing + marketplace publish as last resort; kuri fallback stays lightweight |
+| Eager HTML fetch after kuri navigation (03-02) | content() immediately works after goto() without separate call; guards kuri return values |
 | Typed graph edges (04-01) | parent_child, pagination, auth edge kinds classified by action_kind semantics; persisted graph wins over rebuild |
 | ensureSkillOperationGraph priority fix (04-01) | Persisted graph is checked first; avoids discarding learned edge confidences |
 
@@ -102,6 +104,6 @@
 
 **To resume**: Read `.planning/ROADMAP.md` for current phase goals and success criteria. Read `.planning/STATE.md` (this file) for current position and blockers. Check git log on `rach/restart-base` for recent progress.
 
-**Last session**: 2026-04-01T11:54:08Z — Completed 04-01-PLAN.md (typed graph edges + persistence)
+**Last session**: 2026-04-01T12:00:47Z — Completed 03-02-PLAN.md (live capture fallback + UI action verification)
 
 **Next action**: Execute 04-02-PLAN.md (prefetch integration)
