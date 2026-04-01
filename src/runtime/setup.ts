@@ -193,14 +193,42 @@ export async function runSetup(options?: {
     ? { installed: false, action: "skipped" as const }
     : await ensureBrowserEngineInstalled();
   const walletCheck = checkWalletConfigured();
+  const lobsterInstalled = hasBinary("lobstercash") ||
+    existsSync(path.join(os.homedir(), ".agents", "skills", "lobstercash", "SKILL.md"));
+
+  // Auto-setup lobster.cash wallet if skill is installed but wallet not configured
+  if (!walletCheck.configured && lobsterInstalled) {
+    console.log("[unbrowse] lobster.cash skill detected but wallet not configured — running wallet setup...");
+    try {
+      execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
+        stdio: "inherit",
+        timeout: 60_000,
+      });
+      // Re-check after setup
+      const recheck = checkWalletConfigured();
+      if (recheck.configured) {
+        console.log(`[unbrowse] wallet configured (${recheck.provider})`);
+      }
+    } catch {
+      console.warn("[unbrowse] lobster.cash wallet setup failed or was skipped — continuing without wallet");
+    }
+  }
+
+  // Re-check wallet state after potential setup
+  const finalWalletCheck = checkWalletConfigured();
   const wallet = {
-    ...walletCheck,
-    message: walletCheck.configured
-      ? `Wallet configured (${walletCheck.provider})`
-      : "No wallet configured. Install lobster.cash for paid marketplace skills, or use indexing mode for free.",
-    install_hint: walletCheck.configured
+    ...finalWalletCheck,
+    lobster_installed: lobsterInstalled,
+    message: finalWalletCheck.configured
+      ? `Wallet configured (${finalWalletCheck.provider})`
+      : lobsterInstalled
+        ? "lobster.cash installed but wallet not paired. Run: lobstercash setup"
+        : "No wallet configured. Install lobster.cash for paid marketplace skills, or use indexing mode for free.",
+    install_hint: finalWalletCheck.configured
       ? undefined
-      : "npx skills add https://github.com/Crossmint/lobstercash-cli-skills --global --yes",
+      : lobsterInstalled
+        ? "lobstercash setup"
+        : "npx skills add https://github.com/Crossmint/lobstercash-cli-skills --global --yes",
   };
 
   return {
