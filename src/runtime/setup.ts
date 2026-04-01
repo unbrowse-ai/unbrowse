@@ -197,7 +197,10 @@ export async function runSetup(options?: {
     ...walletCheck,
     message: walletCheck.configured
       ? `Wallet configured (${walletCheck.provider})`
-      : "No wallet configured. Set up lobster.cash to use paid marketplace skills, or use indexing mode for free.",
+      : "No wallet configured. Install lobster.cash for paid marketplace skills, or use indexing mode for free.",
+    install_hint: walletCheck.configured
+      ? undefined
+      : "npx skills add https://github.com/Crossmint/lobstercash-cli-skills --global --yes",
   };
 
   return {
