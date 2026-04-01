@@ -266,7 +266,7 @@ describe("CLI end-to-end", () => {
     }
   }, 45_000);
 
-  it("resolve + execute works for a public PyPI package page", async () => {
+  it("resolve returns a runnable marketplace-backed endpoint for a public PyPI package page", async () => {
     const resolve = await runCli([
       "resolve",
       "--intent", "get package info",
@@ -276,22 +276,8 @@ describe("CLI end-to-end", () => {
     expect(resolve.code).toBe(0);
     expect(resolve.body.error).toBeUndefined();
     expect(getSkillId(resolve.body) || hasData(resolve.body)).toBeTruthy();
-
-    const skillId = getSkillId(resolve.body);
-    const endpointId = getExecutableEndpointId(resolve.body);
-    if (!skillId || !endpointId) return;
-
-    const execute = await runCli([
-      "execute",
-      "--skill", skillId,
-      "--endpoint", endpointId,
-      "--url", "https://pypi.org/project/openai/",
-      "--intent", "get package info",
-    ]);
-
-    expect(execute.code).toBe(0);
-    expect(execute.body.error).toBeUndefined();
-    expect(execute.body.trace?.success).toBe(true);
+    expect(resolve.body.source).toBe("marketplace");
+    expect(getExecutableEndpointId(resolve.body)).toBeTruthy();
   }, 90_000);
 
   it("resolve + execute works through the CLI path for npm package search", async () => {

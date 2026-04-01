@@ -181,6 +181,7 @@ statsRoutes.post("/stats/execution", async (c) => {
           return updateContributorDelta(c.env, skill_id, indexerId!, event.delta_score);
         }),
       );
+    }
   }
   return c.json({ ok: true });
 });

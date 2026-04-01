@@ -9,7 +9,6 @@ import { getStats } from "../services/scoring.js";
 import { x402Response, verifyX402Proof, buildSkillPaymentTerms } from "../middleware/x402-gate.js";
 import { skillsKV } from "../services/kv.js";
 import { mergeContributor } from "../services/splits.js";
-import { skillsKV } from "../services/kv.js";
 
 // Public read routes -- no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -49,8 +48,6 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
         skill.skill_id,
         recipient,
         resource,
-        { testnet: c.env.ENVIRONMENT !== "production" },
-      );
         { testnet: c.env.ENVIRONMENT !== "production" },
       );
       return x402Response(c, terms);
@@ -107,6 +104,9 @@ skillRoutes.post("/skills", async (c) => {
     skill = await publishSkill(c.env, body);
   } catch (err) {
     console.error("[publish] error:", (err as Error).message, (err as Error).stack);
+    return c.json({ error: "Failed to publish skill" }, 500);
+  }
+
   // Track agent contribution and merge into contributors list
   const agentId = c.get("agent_id");
   if (agentId) {
@@ -127,8 +127,7 @@ skillRoutes.post("/skills", async (c) => {
     await kv.put(`skill:${skill.skill_id}`, JSON.stringify(updated));
     skill = updated;
   }
-    c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));
-  }
+
   // Return the full manifest so clients don't need a read-after-write round-trip
   return c.json({
     ...skill,

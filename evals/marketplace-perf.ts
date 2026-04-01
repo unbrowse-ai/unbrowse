@@ -8,7 +8,7 @@ import { describe, it, expect } from "bun:test";
 
 const API_URL = "https://beta-api.unbrowse.ai";
 const LOCAL_API_URL = process.env.UNBROWSE_URL ?? "http://localhost:6969";
-const PERF_IT = process.env.UNBROWSE_RUN_MARKETPLACE_PERF === "1" ? it : it.skip;
+const PERF_IT = it;
 
 // Load API key from config
 function getApiKey(): string {
