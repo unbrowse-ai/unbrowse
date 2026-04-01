@@ -7,6 +7,7 @@ import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
 import { buildDescriptionPrompt, groundedDescription, extractResponseKeys } from "./description-prompt.js";
+import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
@@ -561,6 +562,8 @@ function scoreRequest(req: RawRequest): number {
   // Penalise Next.js RSC navigation requests — framework wire format, not data
   if (req.url.includes("_rsc=")) score -= 3;
   if (ct.includes("text/x-component")) score -= 10; // RSC wire format
+  // #227: Structural RSC body detection — catches payloads without URL/content-type hints
+  if (isRscPayload(req.response_body ?? "")) score -= 15;
   // Penalise on-domain noise (framework plumbing, recaptcha, consent, ad bids)
   try { if (ON_DOMAIN_NOISE.test(new URL(req.url).pathname)) score -= 15; } catch {}
   // Reward rich JSON responses (data endpoints have deep objects, noise has shallow)
@@ -614,6 +617,14 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     }
     if (!hasAdmissibleParsedBody(req.response_body)) {
       traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
+      continue;
+    }
+    // #227: Reject React Server Components wire format payloads — they are framework
+    // rendering wire format, not data APIs. Use the proper RSC parser instead of
+    // relying solely on URL heuristics (_rsc=) or content-type (text/x-component).
+    if (isRscPayload(req.response_body ?? "")) {
+      const rscUrls = extractRscDataEndpoints(req.response_body ?? "");
+      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "rsc_payload", rsc_embedded_urls: rscUrls.length > 0 ? rscUrls : undefined });
       continue;
     }
     if (affinityDomains.size > 0) {

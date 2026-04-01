@@ -8,6 +8,7 @@ import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 import { getAgentFeeLedger, getFeesSummary } from "../services/fees.js";
 import { recordAttribution, getIndexerLedger, getAttributionSummary } from "../services/attribution.js";
+import { getSkill } from "../services/marketplace.js";
 
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
@@ -153,22 +154,31 @@ statsRoutes.post("/stats/execution", async (c) => {
   if (agentId) {
     c.executionCtx.waitUntil(recordAgentExecution(c.env, agentId));
   }
-  // Tier 1 attribution: credit the indexer if execution succeeded and indexer is known.
-  if (trace.success && body.indexer_id) {
-    const { getStats } = await import("../services/scoring.js");
-    const stats = await getStats(c.env, skill_id, endpoint_id);
-    c.executionCtx.waitUntil(
-      recordAttribution(c.env, {
-        execution_id: trace.trace_id,
-        skill_id,
-        endpoint_id,
-        indexer_id: body.indexer_id,
-        reliability_score: stats.total_executions > 0
-          ? stats.successful_executions / stats.total_executions
-          : 0.5,
-        next_best_score: body.next_best_score ?? 0,
-      }),
-    );
+  // Tier 1 attribution: credit the indexer if execution succeeded.
+  // Derive indexer_id from: client payload > stored skill manifest > skip (#232).
+  if (trace.success) {
+    let indexerId = body.indexer_id;
+    if (!indexerId) {
+      // Server-side fallback: look up the skill's stored indexer_id
+      const storedSkill = await getSkill(c.env, skill_id);
+      indexerId = storedSkill?.indexer_id;
+    }
+    if (indexerId) {
+      const { getStats } = await import("../services/scoring.js");
+      const stats = await getStats(c.env, skill_id, endpoint_id);
+      c.executionCtx.waitUntil(
+        recordAttribution(c.env, {
+          execution_id: trace.trace_id,
+          skill_id,
+          endpoint_id,
+          indexer_id: indexerId,
+          reliability_score: stats.total_executions > 0
+            ? stats.successful_executions / stats.total_executions
+            : 0.5,
+          next_best_score: body.next_best_score ?? 0,
+        }),
+      );
+    }
   }
   return c.json({ ok: true });
 });

@@ -243,7 +243,7 @@ export async function registerRoutes(app: FastifyInstance) {
       const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
       if (execResult.trace.endpoint_id) {
-        recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace).catch(() => {});
+        recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
       }
       if (execResult.trace.success) {
         promoteExplicitExecution(
@@ -278,7 +278,7 @@ export async function registerRoutes(app: FastifyInstance) {
           );
           saveTrace(freshResult.trace);
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
-            recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace).catch(() => {});
+            recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
           }
           return reply.send({
             ...freshResult,

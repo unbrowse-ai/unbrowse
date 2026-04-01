@@ -95,6 +95,11 @@ skillRoutes.post("/skills", async (c) => {
   if (!validation.valid) {
     return c.json({ error: "Validation failed", details: validation.hardErrors }, 422);
   }
+  // Stamp the publishing agent as indexer for Tier 1 attribution (#232)
+  const agentId = c.get("agent_id");
+  if (agentId && !body.indexer_id) {
+    body.indexer_id = agentId;
+  }
   let skill;
   try {
     skill = await publishSkill(c.env, body);
@@ -103,7 +108,6 @@ skillRoutes.post("/skills", async (c) => {
     return c.json({ error: "Publish failed", detail: (err as Error).message }, 500);
   }
   // Track agent contribution (non-blocking)
-  const agentId = c.get("agent_id");
   if (agentId) {
     c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));
   }

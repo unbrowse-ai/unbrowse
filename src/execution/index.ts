@@ -2153,7 +2153,7 @@ export async function executeEndpoint(
   }
 
   // Record execution for reliability scoring (fire-and-forget — don't block response)
-  recordExecution(skill.skill_id, endpoint.endpoint_id, trace).catch(() => {});
+  recordExecution(skill.skill_id, endpoint.endpoint_id, trace, skill).catch(() => {});
 
   // Apply field projection
   let resultData = data;
