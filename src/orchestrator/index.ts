@@ -909,25 +909,18 @@ function computeCompositeScore(embeddingScore: number, skill: SkillManifest): nu
       ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
       : 0.5;
 
-  // Freshness: 1 / (1 + daysSinceUpdate / 30)
+  // Freshness: 1 / (1 + daysSinceUpdate / 30) — matches backend computeCompositeSearchScore
   const daysSinceUpdate =
     (Date.now() - new Date(skill.updated_at).getTime()) / (1000 * 60 * 60 * 24);
   const freshnessScore = 1 / (1 + daysSinceUpdate / 30);
 
-  // Verification bonus: 1.0 if all verified, 0.5 if some, 0.0 if none
+  // Verified ratio: continuous [0, 1] — matches backend computeCompositeSearchScore
   const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
-  const verificationBonus =
-    skill.endpoints.length > 0
-      ? verifiedCount === skill.endpoints.length
-        ? 1.0
-        : verifiedCount > 0
-          ? 0.5
-          : 0.0
-      : 0.0;
+  const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
 
-  return (
-    0.4 * embeddingScore + 0.3 * avgReliability + 0.15 * freshnessScore + 0.15 * verificationBonus
-  );
+  // Section 3.3: 40% embedding, 30% reliability, 15% freshness, 15% verification
+  const raw = 0.4 * embeddingScore + 0.3 * avgReliability + 0.15 * freshnessScore + 0.15 * verifiedRatio;
+  return Math.max(0, Math.min(1, raw));
 }
 
 type RankedCandidate = { endpoint: SkillManifest["endpoints"][number]; score: number };
