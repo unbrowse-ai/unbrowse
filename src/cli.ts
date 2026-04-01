@@ -9,7 +9,8 @@
 
 import { config as loadEnv } from "dotenv";
 import { ensureRegistered, getApiKey } from "./client/index.js";
-import { ensureLocalServer } from "./runtime/local-server.js";
+import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
+import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
 import { isMainModule } from "./runtime/paths.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
 
@@ -709,9 +710,206 @@ function printHelp(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Main
+// Server lifecycle commands
 // ---------------------------------------------------------------------------
 
+async function cmdStatus(flags: Record<string, string | boolean>): Promise<void> {
+  const healthy = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(2_000) })
+    .then((r) => r.ok).catch(() => false);
+  const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
+  output({
+    server: healthy ? "running" : "stopped",
+    url: BASE_URL,
+    ...(versionInfo ?? {}),
+  }, !!flags.pretty);
+}
+
+async function cmdRestart(flags: Record<string, string | boolean>): Promise<void> {
+  info("Restarting server...");
+  await restartServer(BASE_URL, import.meta.url);
+  info("Server restarted.");
+  await cmdStatus(flags);
+}
+
+function cmdStop(flags: Record<string, string | boolean>): void {
+  const stopped = stopServer(BASE_URL);
+  if (stopped) info("Server stopped.");
+  else info("No server running.");
+}
+
+async function cmdUpgrade(flags: Record<string, string | boolean>): Promise<void> {
+  info("Checking for updates...");
+  const { execSync } = await import("node:child_process");
+  try {
+    const result = execSync("npm view unbrowse version", { encoding: "utf-8", timeout: 10_000 }).trim();
+    const versionInfo = checkServerVersion(BASE_URL, import.meta.url);
+    const installed = versionInfo?.installed ?? "unknown";
+    if (result === installed) {
+      info(`Already at latest version: ${installed}`);
+      return;
+    }
+    info(`Update available: ${installed} -> ${result}`);
+    info("Run: npm install -g unbrowse@latest");
+    info("Then: unbrowse restart");
+  } catch (err) {
+    info(`Could not check for updates: ${(err as Error).message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Site/task shortcut commands
+// ---------------------------------------------------------------------------
+
+async function cmdSiteHelp(pack: SitePack, flags: Record<string, string | boolean>): Promise<void> {
+  // --deps: return dependency graph as JSON
+  if (flags.deps) {
+    const graph = buildDepsGraph(pack);
+    output({ site: pack.site, tasks: graph }, !!flags.pretty);
+    return;
+  }
+  // --plan: return execution plan for a set of tasks
+  if (flags.plan) {
+    const taskNames = (flags.plan as string).split(",").map((s) => s.trim());
+    const waves = planExecution(pack, taskNames);
+    output({ site: pack.site, waves }, !!flags.pretty);
+    return;
+  }
+  // Default: human-readable help
+  const lines: string[] = [
+    `unbrowse ${pack.site} — ${pack.description}`,
+    "",
+    "Tasks:",
+  ];
+  for (const t of pack.tasks) {
+    const aliases = t.match.length > 1 ? ` (${t.match.slice(1).join(", ")})` : "";
+    const auth = t.needs_auth ? " [auth]" : "";
+    lines.push(`  ${t.match[0]}${aliases}${auth}  ${t.description}`);
+  }
+  lines.push(
+    "",
+    "Examples:",
+    `  unbrowse ${pack.site} login`,
+    `  unbrowse ${pack.site} ${pack.tasks.find((t) => t.match[0] !== "login")?.match[0] || "help"} --pretty`,
+    `  unbrowse ${pack.site} --batch ${pack.tasks.filter((t) => t.parallel_safe).map((t) => t.match[0]).join(",")}`,
+    `  unbrowse ${pack.site} help --deps`,
+    `  unbrowse ${pack.site} help --plan feed,notifications`,
+    "",
+    "Flags: --pretty --raw --path --extract --limit --force-capture --dry-run --batch --deps --plan",
+  );
+  process.stderr.write(lines.join("\n") + "\n");
+}
+
+async function cmdSiteLogin(pack: SitePack, flags: Record<string, string | boolean>): Promise<void> {
+  const result = await api("POST", "/v1/auth/login", { url: pack.login_url });
+  const deps = buildDepsMetadata(pack, "login");
+  output({ ...result as Record<string, unknown>, _deps: deps, _shortcut: `${pack.site} login` }, !!flags.pretty);
+}
+
+async function cmdSiteTask(pack: SitePack, taskName: string, flags: Record<string, string | boolean>): Promise<void> {
+  const task = findTask(pack, taskName);
+  if (!task) {
+    info(`Unknown task "${taskName}" for ${pack.site}. Run: unbrowse ${pack.site} help`);
+    process.exit(1);
+  }
+
+  // Compile to resolve call
+  const body: Record<string, unknown> = {
+    intent: task.intent,
+    params: { url: task.url },
+    context: { url: task.url },
+  };
+  if (flags.params) {
+    body.params = { ...(body.params as Record<string, unknown>), ...JSON.parse(flags.params as string) };
+  }
+  if (flags["dry-run"]) body.dry_run = true;
+  if (flags["force-capture"]) body.force_capture = true;
+  const hasTransforms = !!(flags.path || flags.extract);
+  if (flags.raw || hasTransforms) body.projection = { raw: true };
+
+  const startedAt = Date.now();
+  let result = await withPendingNotice(
+    api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+    "Still working. First-time capture/indexing for a site can take 20-80s.",
+  );
+
+  // Check for auth-required response
+  if (result && typeof result === "object" && (result as Record<string, unknown>).error === "auth_required") {
+    info(`Authentication required. Run: unbrowse ${pack.site} login`);
+    const deps = buildDepsMetadata(pack, taskName);
+    output({ ...(result as Record<string, unknown>), _deps: { ...deps, requires: ["login"] }, _next: [`unbrowse ${pack.site} login`] }, !!flags.pretty);
+    process.exit(2);
+  }
+
+  if (flags.schema) {
+    output(schemaOnly(result), !!flags.pretty);
+    return;
+  }
+
+  if (hasTransforms && result.result != null) {
+    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
+  } else if (!flags.raw && result.result != null) {
+    result = autoExtractOrWrap(result);
+  }
+
+  const deps = buildDepsMetadata(pack, taskName);
+  (result as Record<string, unknown>)._deps = deps;
+  (result as Record<string, unknown>)._shortcut = `${pack.site} ${taskName}`;
+
+  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
+    info("Live capture finished. Future runs should be much faster.");
+  }
+
+  output(result, !!flags.pretty);
+}
+
+async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<string, string | boolean>): Promise<void> {
+  const taskNames = batchArg.split(",").map((s) => s.trim());
+  const waves = planExecution(pack, taskNames);
+  const results: Record<string, unknown> = { site: pack.site, waves: [], _deps: { parallel_safe: true } };
+  const waveResults: unknown[] = [];
+
+  for (const wave of waves) {
+    const waveStart = Date.now();
+    const promises = wave.commands.map(async (cmd) => {
+      const parts = cmd.split(" ");
+      const task = parts[parts.length - 1];
+      const taskDef = findTask(pack, task);
+      if (!taskDef) return { task, error: "unknown task" };
+
+      if (task === "login") {
+        return { task, result: await api("POST", "/v1/auth/login", { url: pack.login_url }) };
+      }
+      const body: Record<string, unknown> = {
+        intent: taskDef.intent,
+        params: { url: taskDef.url },
+        context: { url: taskDef.url },
+      };
+      if (flags["force-capture"]) body.force_capture = true;
+      const hasTransforms = !!(flags.path || flags.extract);
+      if (flags.raw || hasTransforms) body.projection = { raw: true };
+      let res = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
+      if (!flags.raw && res.result != null) {
+        res = autoExtractOrWrap(res);
+      }
+      return { task, result: res };
+    });
+
+    const waveResult = await Promise.all(promises);
+    waveResults.push({
+      wave: wave.wave,
+      reason: wave.reason,
+      elapsed_ms: Date.now() - waveStart,
+      tasks: waveResult,
+    });
+  }
+
+  (results as Record<string, unknown>).waves = waveResults;
+  output(results, !!flags.pretty);
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 async function main(): Promise<void> {
   const { command, args, flags } = parseArgs(process.argv);
   const noAutoStart = !!flags["no-auto-start"];
@@ -724,6 +922,38 @@ async function main(): Promise<void> {
   if (command === "setup") {
     await cmdSetup(flags);
     return;
+  }
+
+  // Server lifecycle commands (don't need ensureLocalServer)
+  if (command === "status") return cmdStatus(flags);
+  if (command === "stop") { cmdStop(flags); return; }
+  if (command === "restart") return cmdRestart(flags);
+  if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
+
+  // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
+  const KNOWN_COMMANDS = new Set([
+    "health", "setup", "resolve", "execute", "exec",
+    "feedback", "fb", "login", "skills", "skill", "search", "sessions",
+    "status", "stop", "restart", "upgrade", "update",
+  ]);
+
+  if (!KNOWN_COMMANDS.has(command)) {
+    const pack = findSitePack(command);
+    if (pack) {
+      await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
+      const taskName = args[0];
+      if (!taskName || taskName === "help") {
+        return cmdSiteHelp(pack, flags);
+      }
+      if (taskName === "login") {
+        return cmdSiteLogin(pack, flags);
+      }
+      const batchArg = flags.batch as string | undefined;
+      if (batchArg) {
+        return cmdSiteBatch(pack, batchArg, flags);
+      }
+      return cmdSiteTask(pack, taskName, flags);
+    }
   }
 
   await ensureLocalServer(BASE_URL, noAutoStart, import.meta.url);
