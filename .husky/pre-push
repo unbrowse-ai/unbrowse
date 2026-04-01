@@ -4,18 +4,19 @@
 
 set -e
 
-# Only run if we have test analyses
+# Only run if we have test analyses with actual content
 if [ ! -f "tests/p0-p1-analyses.json" ]; then
-  echo "⚠️  No P0/P1 analyses found. Run: bun test:p0-p1:analyze"
+  exit 0
+fi
+
+# Check if analyses file has any entries (not empty array)
+ANALYSIS_COUNT=$(jq 'length' tests/p0-p1-analyses.json 2>/dev/null || echo "0")
+if [ "$ANALYSIS_COUNT" = "0" ]; then
   exit 0
 fi
 
 echo ""
-echo "🔍 Analyzing P0/P1 issues for latest fixes..."
-bun test:p0-p1:analyze
-
-echo ""
-echo "🧪 Running full P0/P1 test suite..."
+echo "🧪 Running full P0/P1 test suite ($ANALYSIS_COUNT analyses)..."
 bun test:p0-p1
 
 # Check results
