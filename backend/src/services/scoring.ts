@@ -128,3 +128,36 @@ export function computeCompositeSearchScore(
   const raw = 0.4 * vectorSimilarity + 0.3 * reliability + 0.15 * freshness + 0.15 * verifiedRatio;
   return Math.max(0, Math.min(1, raw));
 }
+
+/**
+ * Boost applied to a skill's composite search score when its domain exactly
+ * matches the request's domain context.
+ */
+export const DOMAIN_AFFINITY_BOOST = 0.08;
+
+/**
+ * Returns a domain-affinity score bonus in [0, DOMAIN_AFFINITY_BOOST] for use
+ * in composite search scoring.  A non-zero bonus is returned only when
+ * `skillDomain` and `requestDomain` share the same registrable domain
+ * (e.g. "shop.example.com" and "example.com" both yield "example.com").
+ */
+export function computeDomainAffinityBoost(
+  skillDomain: string,
+  requestDomain?: string | null,
+): number {
+  if (!requestDomain) return 0;
+  const registrable = (d: string): string => {
+    const host = d.replace(/^[a-z]+:\/\//, "").split("/")[0]?.split("?")[0] ?? "";
+    const parts = host.replace(/^www\./, "").toLowerCase().split(".").filter(Boolean);
+    if (parts.length >= 3) {
+      const last2 = parts.slice(-2).join(".");
+      if (new Set([
+        "co.uk", "co.nz", "co.jp", "co.kr", "co.in",
+        "com.br", "com.au", "com.cn", "com.mx", "com.ar", "com.tw",
+        "org.uk", "gov.uk", "ac.uk", "net.au", "org.au",
+      ]).has(last2)) return parts.slice(-3).join(".");
+    }
+    return parts.slice(-2).join(".");
+  };
+  return registrable(skillDomain) === registrable(requestDomain) ? DOMAIN_AFFINITY_BOOST : 0;
+}
