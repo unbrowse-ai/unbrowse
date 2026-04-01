@@ -503,9 +503,11 @@ function mergePassiveCaptureData(
   }
 
   // Priority 2: HAR entries (supplement with responseBodies map)
+  // Skip OPTIONS (CORS preflight) — they pollute method attribution
   for (const entry of harEntries) {
     const url = entry.request?.url;
     if (!url || seen.has(url)) continue;
+    if (entry.request.method === "OPTIONS") continue;
     const reqHeaders: Record<string, string> = {};
     for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
     const respHeaders: Record<string, string> = {};
@@ -540,7 +542,7 @@ function mergePassiveCaptureData(
     });
   }
 
-  // Priority 4: responseBodies-only entries (from Performance API replay / intent-aware wait)
+  // Priority 4: responseBodies-only entries (from Performance API replay / HAR replay)
   // These URLs have bodies but weren't in HAR, interceptor, or extension data
   for (const [bodyUrl, body] of responseBodies) {
     if (seen.has(bodyUrl)) continue;
@@ -841,7 +843,24 @@ export async function captureSession(
       const origin = new URL(url).origin;
       await phase("navigate:origin", () => kuri.navigate(tabId, origin));
       await phase("waitForLoad:origin", () => kuri.waitForLoad(tabId, 10_000).catch(() => {}));
-      await phase("injectCookies", () => injectCookies(tabId, cookies!));
+
+      // Check if browser already has a valid session (not redirected to login).
+      // If so, skip vault cookie injection — browser cookies are fresher and
+      // injecting stale vault cookies (e.g. JSESSIONID) causes HTTP 400.
+      const postOriginUrl = await phase("checkOriginUrl", () => kuri.getCurrentUrl(tabId));
+      const LOGIN_PATHS_RE = /\/(login|signin|sign-in|sso|auth|uas\/login|checkpoint|oauth)/i;
+      const originHost = new URL(origin).hostname;
+      let browserAlreadyAuthed = false;
+      try {
+        const postHost = new URL(postOriginUrl).hostname;
+        browserAlreadyAuthed = postHost === originHost && !LOGIN_PATHS_RE.test(new URL(postOriginUrl).pathname);
+      } catch { /* bad URL — inject cookies as fallback */ }
+
+      if (browserAlreadyAuthed) {
+        log("capture", `browser already authenticated at ${postOriginUrl} — skipping vault cookie injection`);
+      } else {
+        await phase("injectCookies", () => injectCookies(tabId, cookies!));
+      }
     }
 
     // Inject interceptor persistently — survives navigations via Page.addScriptToEvaluateOnNewDocument
@@ -877,14 +896,37 @@ export async function captureSession(
     const jsBundleBodies = new Map<string, string>();
     const MAX_JS_BUNDLES = 20;
 
+    // Helper: drain intercepted data into responseBodies/jsBundleBodies
+    const drainIntercepted = async () => {
+      try {
+        const entries = await collectInterceptedRequests(tabId);
+        for (const entry of entries) {
+          if (entry.is_js && jsBundleBodies.size < MAX_JS_BUNDLES && pageDomain) {
+            try {
+              const jsDomain = getRegistrableDomain(new URL(entry.url).hostname);
+              if (jsDomain === pageDomain && entry.response_body) {
+                jsBundleBodies.set(entry.url, entry.response_body);
+              }
+            } catch { /* bad url */ }
+          } else if (entry.response_body && !entry.is_js) {
+            responseBodies.set(entry.url, entry.response_body);
+          }
+        }
+        return entries;
+      } catch { return []; }
+    };
+
     // Adaptive wait: handle Cloudflare challenges + SPA content loading + intent-aware API wait
     await phase("waitForContentReady", () => waitForContentReady(tabId, url, intent, responseBodies));
 
-    // Collect all intercepted requests
+    // Incremental collection: drain intercepted data after content ready
+    await drainIntercepted();
+
+    // Collect all intercepted requests (final sweep)
     const intercepted = await phase("collectIntercepted", () => collectInterceptedRequests(tabId));
     const extensionEntries = await phase("collectExtension", () => collectExtensionRequests(tabId));
 
-    // Separate JS bundles from data responses
+    // Separate JS bundles from data responses (from final sweep)
     for (const entry of intercepted) {
       if (entry.is_js && jsBundleBodies.size < MAX_JS_BUNDLES && pageDomain) {
         try {
@@ -941,6 +983,39 @@ export async function captureSession(
       const harResult = await phase("harStop", () => kuri.harStop(tabId));
       harEntries = harResult.entries;
     } catch { /* HAR may not be available */ }
+
+    // --- HAR-based replay ---
+    // CDP HAR sees ALL network requests (even ones the JS interceptor missed).
+    // For any API-like HAR entry without a body in responseBodies, replay-fetch it.
+    const HAR_REPLAY_CT = /application\/json|text\/plain|\+json/i;
+    let harReplayCount = 0;
+    for (const entry of harEntries) {
+      const harUrl = entry.request?.url;
+      if (!harUrl || responseBodies.has(harUrl)) continue;
+      if (REPLAY_SKIP.test(harUrl)) continue;
+      const method = entry.request?.method?.toUpperCase();
+      if (method === "OPTIONS" || method === "HEAD") continue;
+      const status = entry.response?.status ?? 0;
+      if (status < 200 || status >= 400) continue;
+      const ct = (entry.response?.headers ?? []).find((h: { name: string }) => h.name.toLowerCase() === "content-type")?.value ?? "";
+      if (!HAR_REPLAY_CT.test(ct) && !harUrl.includes("/api/") && !harUrl.includes("_search") && !harUrl.includes("graphql")) continue;
+      if (harReplayCount >= 20) break;
+      try {
+        const postData = method !== "GET" ? entry.request?.postData?.text : undefined;
+        const replayScript = method === "GET" || !postData
+          ? `(function(){var x=new XMLHttpRequest();x.open('GET','${harUrl.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`
+          : `(function(){var x=new XMLHttpRequest();x.open('${method}','${harUrl.replace(/'/g, "\\'")}',false);x.setRequestHeader('Content-Type','application/json');x.send(${JSON.stringify(postData)});return x.status>=200&&x.status<400?x.responseText:''})()`;
+        const body = await phase("har-replay", () => kuri.evaluate(tabId, replayScript));
+        if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
+          responseBodies.set(harUrl, body);
+          harReplayCount++;
+          log("capture", `har-replay-fetched ${harUrl.substring(0, 80)} (${body.length}B)`);
+        }
+      } catch { /* non-fatal */ }
+    }
+    if (harReplayCount > 0) {
+      log("capture", `har-replay-fetched ${harReplayCount} API response bodies from HAR entries`);
+    }
 
     const har_lineage_id = nanoid();
 

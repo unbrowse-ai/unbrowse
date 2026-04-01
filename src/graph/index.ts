@@ -579,9 +579,10 @@ function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
   const normalizedRequires = (() => {
     const byBinding = new Map<string, OperationBinding>();
     for (const binding of semantic.requires ?? []) {
+      const pathParamValue = (endpoint.path_params as Record<string, string> | undefined)?.[binding.key];
       const defaultedPathParam =
         binding.source === "path_params" &&
-        Object.prototype.hasOwnProperty.call(endpoint.path_params ?? {}, binding.key);
+        typeof pathParamValue === "string" && pathParamValue !== "";
       const normalized = defaultedPathParam ? { ...binding, required: false } : binding;
       const id = [normalized.key, normalized.source ?? "", normalized.semantic_type ?? ""].join("|");
       const existing = byBinding.get(id);
@@ -723,13 +724,19 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
       }
     }
   }
+
+  // Operations that are targets of dependency edges are not entry points
+  const dependencyTargets = new Set(
+    edges.filter((e) => e.kind === "dependency").map((e) => e.to_operation_id),
+  );
   const entryOperationIds = operations
     .filter(
       (operation) =>
-        operation.requires.length === 0 ||
-        operation.requires.every(
-          (binding) => binding.source === "query" || binding.source === "path_params",
-        ),
+        !dependencyTargets.has(operation.operation_id) &&
+        (operation.requires.length === 0 ||
+          operation.requires.every(
+            (binding) => binding.source === "query" || binding.source === "path_params",
+          )),
     )
     .map((operation) => operation.operation_id);
 
@@ -742,7 +749,12 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
 }
 
 export function ensureSkillOperationGraph(skill: SkillManifest): SkillOperationGraph {
-  if (skill.operation_graph?.operations?.length) return skill.operation_graph;
+  if (skill.operation_graph?.operations?.length) {
+    // Rebuild if stored graph is stale (doesn't cover all endpoints)
+    const graphOpIds = new Set(skill.operation_graph.operations.map((op) => op.operation_id));
+    const allCovered = skill.endpoints.every((ep) => graphOpIds.has(ep.endpoint_id));
+    if (allCovered) return skill.operation_graph;
+  }
   return buildSkillOperationGraph(skill.endpoints);
 }
 
