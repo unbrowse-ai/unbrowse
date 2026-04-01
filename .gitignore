@@ -76,3 +76,4 @@ tmp/
 .release-announcement.md
 .release-announcement.json
 .gstack/
+codedb.snapshot
