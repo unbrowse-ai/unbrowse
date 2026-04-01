@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect } from "bun:test";
 
 /**
  * Regression test: browser-capture must auto-extract cookies from the user's

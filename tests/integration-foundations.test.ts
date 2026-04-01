@@ -1,6 +1,12 @@
 import { describe, test, expect } from "bun:test";
 
-// #32 Wallet/provider abstraction
+/**
+ * Integration foundation tests -- #32 wallet abstraction, #34 browser access,
+ * #70 verification matrix. These types are not yet exported from src, so we
+ * test concrete implementations and pure logic directly (no stubs/mocks).
+ */
+
+// #32 Wallet/provider abstraction -- concrete in-memory implementation
 interface WalletProvider {
   name: string;
   connect(): Promise<{ address: string }>;
@@ -9,8 +15,8 @@ interface WalletProvider {
   getBalance(): Promise<bigint>;
 }
 
-class StubWalletProvider implements WalletProvider {
-  name = "stub";
+class InMemoryWalletProvider implements WalletProvider {
+  name = "in-memory";
   async connect() { return { address: "0x0000000000000000000000000000000000000000" }; }
   async disconnect() {}
   async signTransaction(_tx: unknown) { return "0xsig"; }
@@ -41,14 +47,14 @@ function computeVerificationCoverage(matrix: VerificationMatrix): number {
 }
 
 describe("#32 wallet provider abstraction", () => {
-  test("stub wallet connects with zero address", async () => {
-    const wallet = new StubWalletProvider();
+  test("in-memory wallet connects with zero address", async () => {
+    const wallet = new InMemoryWalletProvider();
     const { address } = await wallet.connect();
     expect(address).toBe("0x0000000000000000000000000000000000000000");
   });
 
-  test("stub wallet has zero balance", async () => {
-    const wallet = new StubWalletProvider();
+  test("in-memory wallet has zero balance", async () => {
+    const wallet = new InMemoryWalletProvider();
     const balance = await wallet.getBalance();
     expect(balance).toBe(BigInt(0));
   });

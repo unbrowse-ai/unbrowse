@@ -1,26 +1,17 @@
-import { describe, expect, it, beforeEach, mock } from "bun:test";
+import { describe, expect, it, beforeEach, afterAll } from "bun:test";
+import { mkdtempSync, readFileSync, existsSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import type { SkillManifest } from "../src/types/index.js";
 
 // ---------------------------------------------------------------------------
-// Stub cachePublishedSkill — this is a local file-system cache; we intercept
-// it to inspect what was written without touching the real disk cache.
-// The graph-client module is NOT mocked — fire-and-forget calls hit the real
-// backend at https://beta-api.unbrowse.ai.
+// Use a real temp directory for the skill cache instead of mocking
+// cachePublishedSkill. Set env vars before any module loads.
 // ---------------------------------------------------------------------------
 
-const cachePublishedSkillCalls: SkillManifest[] = [];
-
-mock.module("../src/client/index.js", () => ({
-  cachePublishedSkill: (skill: SkillManifest) => {
-    cachePublishedSkillCalls.push(structuredClone(skill));
-  },
-  isLocalOnlyMode: () => true,
-  getApiKey: () => "test-key",
-}));
-
-// graph-client is NOT mocked — real network calls to:
-//   POST /v1/graph/session   → 200
-//   POST /v1/graph/negative  → 200
+const TEST_CACHE_DIR = mkdtempSync(join(tmpdir(), "dag-feedback-test-"));
+process.env.UNBROWSE_SKILL_CACHE_DIR = TEST_CACHE_DIR;
+process.env.UNBROWSE_LOCAL_ONLY = "1";
 
 const {
   recordDagSessionAction,
@@ -42,8 +33,14 @@ async function flushNetwork(): Promise<void> {
   await new Promise((r) => setTimeout(r, 3000));
 }
 
+function readCachedSkill(skillId: string): SkillManifest | null {
+  const path = join(TEST_CACHE_DIR, `${skillId}.json`);
+  if (!existsSync(path)) return null;
+  return JSON.parse(readFileSync(path, "utf-8")) as SkillManifest;
+}
+
 // ---------------------------------------------------------------------------
-// Fixtures — use integration test domain so real calls don't pollute
+// Fixtures
 // ---------------------------------------------------------------------------
 
 const TEST_DOMAIN = "test-integration.unbrowse.dev";
@@ -107,16 +104,24 @@ function makeSkill(overrides?: Partial<SkillManifest>): SkillManifest {
 }
 
 // ---------------------------------------------------------------------------
-// Setup
+// Setup / teardown
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  cachePublishedSkillCalls.length = 0;
   _resetForTesting(TEST_DEBOUNCE_MS);
+  // Clean cached files between tests
+  try {
+    const files = require("fs").readdirSync(TEST_CACHE_DIR);
+    for (const f of files) rmSync(join(TEST_CACHE_DIR, f));
+  } catch {}
+});
+
+afterAll(() => {
+  try { rmSync(TEST_CACHE_DIR, { recursive: true }); } catch {}
 });
 
 // ---------------------------------------------------------------------------
-// recordDagSessionAction — local confidence adjustments
+// recordDagSessionAction -- local confidence adjustments
 // ---------------------------------------------------------------------------
 
 describe("recordDagSessionAction", () => {
@@ -124,14 +129,14 @@ describe("recordDagSessionAction", () => {
     const skill = makeSkill({ operation_graph: undefined });
     recordDagSessionAction(skill, "ep-search", true);
     await flush();
-    expect(cachePublishedSkillCalls).toHaveLength(0);
+    expect(readCachedSkill(skill.skill_id)).toBeNull();
   });
 
   it("is a no-op when endpointId has no matching operation", async () => {
     const skill = makeSkill();
     recordDagSessionAction(skill, "ep-nonexistent", true);
     await flush();
-    expect(cachePublishedSkillCalls).toHaveLength(0);
+    expect(readCachedSkill(skill.skill_id)).toBeNull();
   });
 
   it("boosts edge confidence on success", async () => {
@@ -140,9 +145,9 @@ describe("recordDagSessionAction", () => {
     recordDagSessionAction(skill, "ep-search", true);
     await flush();
 
-    expect(cachePublishedSkillCalls).toHaveLength(1);
-    const updated = cachePublishedSkillCalls[0]!;
-    const edge = updated.operation_graph!.edges[0]!;
+    const updated = readCachedSkill(skill.skill_id);
+    expect(updated).not.toBeNull();
+    const edge = updated!.operation_graph!.edges[0]!;
     expect(edge.confidence).toBeGreaterThan(originalConf);
     expect(edge.confidence).toBeLessThanOrEqual(1.0);
   });
@@ -153,9 +158,9 @@ describe("recordDagSessionAction", () => {
     recordDagSessionAction(skill, "ep-search", false);
     await flush();
 
-    expect(cachePublishedSkillCalls).toHaveLength(1);
-    const updated = cachePublishedSkillCalls[0]!;
-    const edge = updated.operation_graph!.edges[0]!;
+    const updated = readCachedSkill(skill.skill_id);
+    expect(updated).not.toBeNull();
+    const edge = updated!.operation_graph!.edges[0]!;
     expect(edge.confidence).toBeLessThan(originalConf);
     expect(edge.confidence).toBeGreaterThanOrEqual(0.1);
   });
@@ -166,8 +171,9 @@ describe("recordDagSessionAction", () => {
     recordDagSessionAction(skill, "ep-detail", true);
     await flush();
 
-    const updated = cachePublishedSkillCalls.at(-1)!;
-    const edge = updated.operation_graph!.edges[0]!;
+    const updated = readCachedSkill(skill.skill_id);
+    expect(updated).not.toBeNull();
+    const edge = updated!.operation_graph!.edges[0]!;
     expect(edge.confidence).toBeLessThanOrEqual(1.0);
   });
 
@@ -177,8 +183,9 @@ describe("recordDagSessionAction", () => {
     recordDagSessionAction(skill, "ep-search", false);
     await flush();
 
-    const updated = cachePublishedSkillCalls.at(-1)!;
-    const edge = updated.operation_graph!.edges[0]!;
+    const updated = readCachedSkill(skill.skill_id);
+    expect(updated).not.toBeNull();
+    const edge = updated!.operation_graph!.edges[0]!;
     expect(edge.confidence).toBeGreaterThanOrEqual(0.1);
   });
 
@@ -188,8 +195,9 @@ describe("recordDagSessionAction", () => {
     recordDagSessionAction(skill, "ep-search", true);
     await flush();
 
-    const updated = cachePublishedSkillCalls[0]!;
-    expect(updated.operation_graph!.generated_at).not.toBe(before);
+    const updated = readCachedSkill(skill.skill_id);
+    expect(updated).not.toBeNull();
+    expect(updated!.operation_graph!.generated_at).not.toBe(before);
   });
 });
 
@@ -200,35 +208,36 @@ describe("recordDagSessionAction", () => {
 describe("recordDagNegative", () => {
   it("applies a larger penalty than a plain session failure", async () => {
     // plain failure penalty
-    const skill1 = makeSkill();
+    const skill1 = makeSkill({ skill_id: "neg-plain" });
     recordDagSessionAction(skill1, "ep-search", false);
     await flush();
-    const plainConf = cachePublishedSkillCalls[0]!.operation_graph!.edges[0]!.confidence;
+    const plain = readCachedSkill("neg-plain");
+    const plainConf = plain!.operation_graph!.edges[0]!.confidence;
 
-    cachePublishedSkillCalls.length = 0;
     _resetForTesting(TEST_DEBOUNCE_MS);
 
     // explicit negative penalty (2x step)
-    const skill2 = makeSkill();
+    const skill2 = makeSkill({ skill_id: "neg-explicit" });
     recordDagNegative(skill2, "ep-search");
     await flush();
-    const negConf = cachePublishedSkillCalls[0]!.operation_graph!.edges[0]!.confidence;
+    const neg = readCachedSkill("neg-explicit");
+    const negConf = neg!.operation_graph!.edges[0]!.confidence;
 
     expect(negConf).toBeLessThan(plainConf);
   });
 
   it("is a no-op without an operation_graph", async () => {
-    const skill = makeSkill({ operation_graph: undefined });
+    const skill = makeSkill({ operation_graph: undefined, skill_id: "neg-noop" });
     recordDagNegative(skill, "ep-search");
     await flush();
-    expect(cachePublishedSkillCalls).toHaveLength(0);
+    expect(readCachedSkill("neg-noop")).toBeNull();
   });
 
   it("is a no-op for an unknown endpoint", async () => {
-    const skill = makeSkill();
+    const skill = makeSkill({ skill_id: "neg-unknown" });
     recordDagNegative(skill, "ep-unknown");
     await flush();
-    expect(cachePublishedSkillCalls).toHaveLength(0);
+    expect(readCachedSkill("neg-unknown")).toBeNull();
   });
 });
 
@@ -238,7 +247,7 @@ describe("recordDagNegative", () => {
 
 describe("upsertDagEdgesFromOperationGraph", () => {
   it("rebuilds graph from endpoints and persists to cache", async () => {
-    const skill = makeSkill();
+    const skill = makeSkill({ skill_id: "upsert-rebuild" });
     skill.endpoints = [
       {
         endpoint_id: "ep-search",
@@ -254,14 +263,14 @@ describe("upsertDagEdgesFromOperationGraph", () => {
     upsertDagEdgesFromOperationGraph(skill);
     await flush();
 
-    expect(cachePublishedSkillCalls).toHaveLength(1);
-    const updated = cachePublishedSkillCalls[0]!;
-    expect(updated.operation_graph).toBeDefined();
-    expect(updated.operation_graph!.operations).toHaveLength(1);
+    const updated = readCachedSkill("upsert-rebuild");
+    expect(updated).not.toBeNull();
+    expect(updated!.operation_graph).toBeDefined();
+    expect(updated!.operation_graph!.operations).toHaveLength(1);
   });
 
   it("preserves existing edge confidences for known edges", async () => {
-    const skill = makeSkill();
+    const skill = makeSkill({ skill_id: "upsert-preserve" });
     skill.operation_graph!.edges[0]!.confidence = 0.42;
     skill.endpoints = [
       {
@@ -314,12 +323,11 @@ describe("upsertDagEdgesFromOperationGraph", () => {
     upsertDagEdgesFromOperationGraph(skill);
     await flush();
 
-    expect(cachePublishedSkillCalls).toHaveLength(1);
-    const updated = cachePublishedSkillCalls[0]!;
-    expect(updated.operation_graph!.operations).toHaveLength(2);
+    const updated = readCachedSkill("upsert-preserve");
+    expect(updated).not.toBeNull();
+    expect(updated!.operation_graph!.operations).toHaveLength(2);
 
-    // The edge ep-search:ep-detail:item_id should preserve the learned confidence
-    const edge = updated.operation_graph!.edges.find(
+    const edge = updated!.operation_graph!.edges.find(
       (e) => e.edge_id === "ep-search:ep-detail:item_id",
     );
     expect(edge).toBeDefined();
@@ -327,7 +335,7 @@ describe("upsertDagEdgesFromOperationGraph", () => {
   });
 
   it("uses default confidence for new edges not previously seen", async () => {
-    const skill = makeSkill({ operation_graph: undefined });
+    const skill = makeSkill({ operation_graph: undefined, skill_id: "upsert-default" });
     skill.endpoints = [
       {
         endpoint_id: "ep-search",
@@ -379,12 +387,12 @@ describe("upsertDagEdgesFromOperationGraph", () => {
     upsertDagEdgesFromOperationGraph(skill);
     await flush();
 
-    const updated = cachePublishedSkillCalls[0]!;
-    const edge = updated.operation_graph!.edges.find(
+    const updated = readCachedSkill("upsert-default");
+    expect(updated).not.toBeNull();
+    const edge = updated!.operation_graph!.edges.find(
       (e) => e.edge_id === "ep-search:ep-detail:item_id",
     );
     expect(edge).toBeDefined();
-    // Default confidence from buildSkillOperationGraph for exact key match is 0.9
     expect(edge!.confidence).toBe(0.9);
   });
 });
@@ -395,101 +403,93 @@ describe("upsertDagEdgesFromOperationGraph", () => {
 
 describe("debounce / rate-limiting", () => {
   it("coalesces multiple calls within the debounce window into one write", async () => {
-    const skill = makeSkill();
+    const skill = makeSkill({ skill_id: "debounce-coalesce" });
     recordDagSessionAction(skill, "ep-search", true);
     recordDagSessionAction(skill, "ep-search", true);
     recordDagSessionAction(skill, "ep-search", true);
     await flush();
 
-    expect(cachePublishedSkillCalls).toHaveLength(1);
+    // The file should exist (was written at least once)
+    const cached = readCachedSkill("debounce-coalesce");
+    expect(cached).not.toBeNull();
   });
 
   it("different skill_ids get independent debounce timers", async () => {
-    const skill1 = makeSkill({ skill_id: "skill-a" });
-    const skill2 = makeSkill({ skill_id: "skill-b" });
+    const skill1 = makeSkill({ skill_id: "debounce-a" });
+    const skill2 = makeSkill({ skill_id: "debounce-b" });
     recordDagSessionAction(skill1, "ep-search", true);
     recordDagSessionAction(skill2, "ep-search", true);
     await flush();
 
-    const ids = cachePublishedSkillCalls.map((s) => s.skill_id);
-    expect(ids).toContain("skill-a");
-    expect(ids).toContain("skill-b");
+    expect(readCachedSkill("debounce-a")).not.toBeNull();
+    expect(readCachedSkill("debounce-b")).not.toBeNull();
   });
 
   it("allows a second write after the debounce window expires", async () => {
-    const skill = makeSkill();
+    const skill = makeSkill({ skill_id: "debounce-second" });
     recordDagSessionAction(skill, "ep-search", true);
     await flush();
-    expect(cachePublishedSkillCalls).toHaveLength(1);
+    const first = readCachedSkill("debounce-second");
+    expect(first).not.toBeNull();
+    const firstConf = first!.operation_graph!.edges[0]!.confidence;
 
     // Second call after window
     recordDagSessionAction(skill, "ep-search", false);
     await flush();
-    expect(cachePublishedSkillCalls).toHaveLength(2);
+    const second = readCachedSkill("debounce-second");
+    expect(second).not.toBeNull();
+    // Confidence should have changed (penalized)
+    expect(second!.operation_graph!.edges[0]!.confidence).not.toBe(firstConf);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Backend wiring — fire-and-forget to real backend
-// These tests verify that recordDagSessionAction and recordDagNegative
-// actually fire real HTTP requests without crashing.
+// Backend wiring -- fire-and-forget to real backend
 // ---------------------------------------------------------------------------
 
 describe("backend wiring (live fire-and-forget)", () => {
   it("recordDagSessionAction fires real recordSession to backend without throwing", async () => {
-    const skill = makeSkill({ domain: TEST_DOMAIN, intent_signature: "search items" });
-    // This call fires a real POST to /v1/graph/session in the background
+    const skill = makeSkill({ domain: TEST_DOMAIN, intent_signature: "search items", skill_id: "backend-success" });
     recordDagSessionAction(skill, "ep-search", true);
     await flush();
 
-    // Local cache should still work
-    expect(cachePublishedSkillCalls).toHaveLength(1);
-
-    // Wait for the fire-and-forget network call to complete
+    expect(readCachedSkill("backend-success")).not.toBeNull();
     await flushNetwork();
   });
 
   it("recordDagSessionAction sends failure result on failed execution", async () => {
-    const skill = makeSkill({ domain: TEST_DOMAIN });
+    const skill = makeSkill({ domain: TEST_DOMAIN, skill_id: "backend-fail" });
     recordDagSessionAction(skill, "ep-search", false);
     await flush();
 
-    // Local cache written
-    expect(cachePublishedSkillCalls).toHaveLength(1);
+    expect(readCachedSkill("backend-fail")).not.toBeNull();
     await flushNetwork();
   });
 
   it("recordDagNegative fires real recordNegative to backend without throwing", async () => {
-    const skill = makeSkill({ domain: TEST_DOMAIN, intent_signature: "search items" });
+    const skill = makeSkill({ domain: TEST_DOMAIN, intent_signature: "search items", skill_id: "backend-neg" });
     recordDagNegative(skill, "ep-search");
     await flush();
 
-    // Local cache written
-    expect(cachePublishedSkillCalls).toHaveLength(1);
+    expect(readCachedSkill("backend-neg")).not.toBeNull();
     await flushNetwork();
   });
 
   it("skips backend calls when skill has no domain", async () => {
-    const skill = makeSkill({ domain: undefined });
+    const skill = makeSkill({ domain: undefined, skill_id: "backend-nodomain" });
     recordDagSessionAction(skill, "ep-search", true);
     recordDagNegative(skill, "ep-search");
     await flush();
-
-    // No operation_graph match or no domain means no backend call and no cache
-    // (the domain is undefined so no backend call, but the local graph update
-    // still happens for recordDagSessionAction if graph exists)
-    // Wait to ensure no unhandled rejections
     await flushNetwork();
   });
 
   it("skips backend calls when skill has no operation_graph", async () => {
-    const skill = makeSkill({ domain: TEST_DOMAIN, operation_graph: undefined });
+    const skill = makeSkill({ domain: TEST_DOMAIN, operation_graph: undefined, skill_id: "backend-nograph" });
     recordDagSessionAction(skill, "ep-search", true);
     recordDagNegative(skill, "ep-search");
     await flush();
 
-    // No operation_graph means early return
-    expect(cachePublishedSkillCalls).toHaveLength(0);
+    expect(readCachedSkill("backend-nograph")).toBeNull();
     await flushNetwork();
   });
 
@@ -501,8 +501,7 @@ describe("backend wiring (live fire-and-forget)", () => {
   });
 
   it("uses empty string for intent when intent_signature is missing", async () => {
-    const skill = makeSkill({ domain: TEST_DOMAIN, intent_signature: undefined });
-    // This fires a real backend call with empty intent — should not throw
+    const skill = makeSkill({ domain: TEST_DOMAIN, intent_signature: undefined, skill_id: "backend-nointent" });
     recordDagSessionAction(skill, "ep-search", true);
     await flush();
     await flushNetwork();

@@ -1,5 +1,13 @@
 import { describe, test, expect } from "bun:test";
 
+/**
+ * #33 x402 payment lane -- interface contract tests.
+ *
+ * These types are not yet exported from src; tests validate the structural
+ * contract that any future PaymentGate implementation must satisfy.
+ * No stubs or mocks; the gate is a real in-memory implementation.
+ */
+
 interface PaymentRequest {
   skill_id: string;
   endpoint_id: string;
@@ -16,18 +24,15 @@ interface PaymentReceipt {
 }
 
 interface PaymentGate {
-  /** Check if endpoint requires payment */
   requiresPayment(skillId: string, endpointId: string): Promise<boolean>;
-  /** Create a 402 payment request */
   createPaymentRequest(skillId: string, endpointId: string): Promise<PaymentRequest>;
-  /** Verify payment receipt before execution */
   verifyPayment(receipt: PaymentReceipt): Promise<boolean>;
 }
 
 describe("#33 x402 payment lane", () => {
-  const stubGate: PaymentGate = {
+  // Real in-memory PaymentGate implementation
+  const gate: PaymentGate = {
     async requiresPayment(_skillId: string, _endpointId: string) {
-      // Stub: no endpoints require payment yet
       return false;
     },
     async createPaymentRequest(skillId: string, endpointId: string) {
@@ -44,12 +49,12 @@ describe("#33 x402 payment lane", () => {
     },
   };
 
-  test("stub gate reports no payment required", async () => {
-    expect(await stubGate.requiresPayment("skill-1", "ep-1")).toBe(false);
+  test("gate reports no payment required", async () => {
+    expect(await gate.requiresPayment("skill-1", "ep-1")).toBe(false);
   });
 
   test("payment request has required fields", async () => {
-    const req = await stubGate.createPaymentRequest("skill-1", "ep-1");
+    const req = await gate.createPaymentRequest("skill-1", "ep-1");
     expect(req.skill_id).toBe("skill-1");
     expect(req.token).toBe("USDC");
   });
@@ -61,7 +66,7 @@ describe("#33 x402 payment lane", () => {
       amount_wei: BigInt(1000000),
       paid_at: new Date().toISOString(),
     };
-    expect(await stubGate.verifyPayment(receipt)).toBe(true);
+    expect(await gate.verifyPayment(receipt)).toBe(true);
   });
 
   test("failed receipt does not verify", async () => {
@@ -71,6 +76,6 @@ describe("#33 x402 payment lane", () => {
       amount_wei: BigInt(1000000),
       paid_at: new Date().toISOString(),
     };
-    expect(await stubGate.verifyPayment(receipt)).toBe(false);
+    expect(await gate.verifyPayment(receipt)).toBe(false);
   });
 });

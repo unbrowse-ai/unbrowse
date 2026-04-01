@@ -1,5 +1,5 @@
 /**
- * Edge publishing tests — issue #218
+ * Edge publishing tests -- issue #218
  *
  * Tests publishEdgesToBackend with real network calls (fire-and-forget)
  * and pure format-conversion logic (no mocking).
@@ -7,24 +7,19 @@
  * Run:
  *   bun test tests/graph-edge-upsert.test.ts
  */
-import { describe, expect, it, beforeEach, mock, afterEach } from "bun:test";
+import { describe, expect, it, beforeEach, afterAll } from "bun:test";
+import { mkdtempSync, readFileSync, existsSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import type { SkillManifest } from "../src/types/index.js";
 
 // ---------------------------------------------------------------------------
-// Stub cachePublishedSkill (local cache) — this is a purely local concern,
-// not network.  We still need to intercept it so upsertDagEdgesFromOperationGraph
-// can complete without writing to disk.
+// Use a real temp directory for the skill cache.
 // ---------------------------------------------------------------------------
 
-const cachePublishedSkillCalls: SkillManifest[] = [];
-
-mock.module("../src/client/index.js", () => ({
-  cachePublishedSkill: (skill: SkillManifest) => {
-    cachePublishedSkillCalls.push(structuredClone(skill));
-  },
-  isLocalOnlyMode: () => true,
-  getApiKey: () => "test-key",
-}));
+const TEST_CACHE_DIR = mkdtempSync(join(tmpdir(), "graph-edge-upsert-test-"));
+process.env.UNBROWSE_SKILL_CACHE_DIR = TEST_CACHE_DIR;
+process.env.UNBROWSE_LOCAL_ONLY = "1";
 
 const {
   publishEdgesToBackend,
@@ -37,6 +32,12 @@ const TEST_DEBOUNCE_MS = 30;
 
 async function flush(): Promise<void> {
   await new Promise((r) => setTimeout(r, TEST_DEBOUNCE_MS + 20));
+}
+
+function readCachedSkill(skillId: string): SkillManifest | null {
+  const path = join(TEST_CACHE_DIR, `${skillId}.json`);
+  if (!existsSync(path)) return null;
+  return JSON.parse(readFileSync(path, "utf-8")) as SkillManifest;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,23 +111,27 @@ function makeSkillWithEndpoints(): SkillManifest {
 }
 
 // ---------------------------------------------------------------------------
-// Setup
+// Setup / teardown
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  cachePublishedSkillCalls.length = 0;
   _resetForTesting(TEST_DEBOUNCE_MS);
+  try {
+    const files = require("fs").readdirSync(TEST_CACHE_DIR);
+    for (const f of files) rmSync(join(TEST_CACHE_DIR, f));
+  } catch {}
+});
+
+afterAll(() => {
+  try { rmSync(TEST_CACHE_DIR, { recursive: true }); } catch {}
 });
 
 // ---------------------------------------------------------------------------
-// publishEdgesToBackend — format conversion (pure logic, no mock needed)
+// publishEdgesToBackend -- format conversion (pure logic, no mock needed)
 // ---------------------------------------------------------------------------
 
-describe("publishEdgesToBackend — format conversion", () => {
+describe("publishEdgesToBackend -- format conversion", () => {
   it("converts operation graph nodes and edges to the expected shape", () => {
-    // We test the conversion by inspecting what publishEdgesToBackend sends.
-    // Since the endpoint returns 404 (not deployed), the fire-and-forget
-    // fetch will silently fail — but we can verify it doesn't throw.
     const graph = {
       operations: [
         {
@@ -164,8 +169,7 @@ describe("publishEdgesToBackend — format conversion", () => {
       ],
     };
 
-    // publishEdgesToBackend is fire-and-forget — it should never throw,
-    // even though /v1/graph/edges returns 404 (not yet deployed).
+    // publishEdgesToBackend is fire-and-forget -- it should never throw
     expect(() => publishEdgesToBackend("test-integration.unbrowse.dev", graph)).not.toThrow();
   });
 
@@ -180,13 +184,11 @@ describe("publishEdgesToBackend — format conversion", () => {
 });
 
 // ---------------------------------------------------------------------------
-// publishEdgesToBackend — fire-and-forget resilience (hits real 404 endpoint)
+// publishEdgesToBackend -- fire-and-forget resilience (hits real 404 endpoint)
 // ---------------------------------------------------------------------------
 
-describe("publishEdgesToBackend — fire-and-forget against live backend", () => {
+describe("publishEdgesToBackend -- fire-and-forget against live backend", () => {
   it("does not throw even though /v1/graph/edges returns 404", async () => {
-    // The endpoint is not yet deployed — this exercises the .catch(() => {})
-    // path in publishEdgesToBackend with a real HTTP 404 from the backend.
     publishEdgesToBackend("test-integration.unbrowse.dev", {
       operations: [
         {
@@ -206,42 +208,38 @@ describe("publishEdgesToBackend — fire-and-forget against live backend", () =>
 
     // Wait for the fire-and-forget fetch to complete
     await new Promise((r) => setTimeout(r, 3000));
-    // If we got here, no unhandled rejection occurred — test passes
   });
 });
 
 // ---------------------------------------------------------------------------
-// upsertDagEdgesFromOperationGraph — end-to-end with real backend publish
+// upsertDagEdgesFromOperationGraph -- end-to-end with real backend publish
 // ---------------------------------------------------------------------------
 
-describe("upsertDagEdgesFromOperationGraph — end-to-end", () => {
+describe("upsertDagEdgesFromOperationGraph -- end-to-end", () => {
   it("publishes edges to backend and caches locally", async () => {
     const skill = makeSkillWithEndpoints();
     upsertDagEdgesFromOperationGraph(skill);
     await flush();
 
-    // Should have cached the skill locally
-    expect(cachePublishedSkillCalls).toHaveLength(1);
+    const cached = readCachedSkill(skill.skill_id);
+    expect(cached).not.toBeNull();
+    expect(cached!.operation_graph).toBeDefined();
+    expect(cached!.operation_graph!.operations.length).toBeGreaterThanOrEqual(1);
 
-    // The operation_graph should be rebuilt
-    const updated = cachePublishedSkillCalls[0]!;
-    expect(updated.operation_graph).toBeDefined();
-    expect(updated.operation_graph!.operations.length).toBeGreaterThanOrEqual(1);
-
-    // Wait for fire-and-forget fetches to settle (they 404 but shouldn't crash)
+    // Wait for fire-and-forget fetches to settle
     await new Promise((r) => setTimeout(r, 2000));
   });
 
   it("still caches locally even when backend returns 404 for edges", async () => {
     const skill = makeSkillWithEndpoints();
+    skill.skill_id = "test-edge-publish-404";
     upsertDagEdgesFromOperationGraph(skill);
     await flush();
 
-    // Local cache should still work regardless of backend edge publish failure
-    expect(cachePublishedSkillCalls).toHaveLength(1);
-    expect(cachePublishedSkillCalls[0]!.operation_graph).toBeDefined();
+    const cached = readCachedSkill("test-edge-publish-404");
+    expect(cached).not.toBeNull();
+    expect(cached!.operation_graph).toBeDefined();
 
-    // Let fire-and-forget fetches settle
     await new Promise((r) => setTimeout(r, 2000));
   });
 });
