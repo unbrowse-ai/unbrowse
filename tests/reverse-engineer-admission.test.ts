@@ -213,6 +213,7 @@ describe("reverse engineer parsed-body admission", () => {
       intent: "create note",
     });
 
+
     expect(endpoints.length).toBe(1);
     expect(endpoints[0]?.csrf_plan).toEqual({
       source: "cookie",
@@ -221,5 +222,55 @@ describe("reverse engineer parsed-body admission", () => {
       extractor_sequence: ["csrftoken"],
     });
     expect(endpoints[0]?.semantic?.auth_required).toBe(true);
+  });
+
+  it("drops RSC wire format payloads from capture pipeline (#227)", () => {
+    const rscBody =
+      '0:["$","div",null,{"children":"Hello"}]\n1:["$","$L2",null,{}]\n2:["$","span",null,{"children":"World"}]';
+    const endpoints = extractEndpoints(
+      [
+        makeRequest({
+          url: "https://example.com/some-page",
+          response_body: rscBody,
+          response_headers: {},
+        }),
+      ],
+      undefined,
+      { pageUrl: "https://example.com/some-page" },
+    );
+    expect(endpoints.length).toBe(0);
+  });
+
+  it("drops RSC wire format even without text/x-component content-type (#227)", () => {
+    // Next.js sometimes serves RSC payloads with text/plain or no content-type
+    const rscBody =
+      '0:["$","section",null,{"className":"container"}]\n1:["$","ul",null,{"children":[]}]\n2:["$","li",null,{"children":"item"}]';
+    const endpoints = extractEndpoints(
+      [
+        makeRequest({
+          url: "https://example.com/products?_rsc=abc123",
+          response_body: rscBody,
+          response_headers: { "content-type": "text/plain" },
+        }),
+      ],
+      undefined,
+      { pageUrl: "https://example.com/products" },
+    );
+    expect(endpoints.length).toBe(0);
+  });
+
+  it("does not drop regular JSON endpoints when RSC filter is active (#227)", () => {
+    const endpoints = extractEndpoints(
+      [
+        makeRequest({
+          url: "https://example.com/api/products",
+          response_body: JSON.stringify([{ id: "1", name: "Widget", price: 9.99 }]),
+          response_headers: { "content-type": "application/json" },
+        }),
+      ],
+      undefined,
+      { pageUrl: "https://example.com/products" },
+    );
+    expect(endpoints.length).toBe(1);
   });
 });
