@@ -116,6 +116,10 @@ export interface EndpointDescriptor {
   /** Path template inferred by batch mining (passive captures without a context page URL).
    *  Internal annotation — not persisted to the skill manifest. */
   _minedTemplate?: string;
+  /** Structured search form spec — when present, indicates this endpoint can be driven
+   *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
+   *  to gate search-form execution paths. */
+  search_form?: import("../execution/search-forms.js").SearchFormSpec;
 }
 
 export type ExecutionType = "http" | "browser-capture";

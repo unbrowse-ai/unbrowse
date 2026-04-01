@@ -1063,6 +1063,22 @@ async function executeBrowserCapture(
 
   const endpoints = extractEndpoints(captured.requests, captured.ws_messages, { pageUrl: url, finalUrl: captured.final_url, intent });
 
+  // Detect structured search forms from captured HTML and attach to search-like endpoints
+  if (captured.html) {
+    const detectedForms = detectSearchForms(captured.html);
+    if (detectedForms.length > 0) {
+      for (const ep of endpoints) {
+        if (!ep.search_form && ep.method === "GET") {
+          const matchingForm = detectedForms.find((f) => isStructuredSearchForm(f));
+          if (matchingForm) {
+            ep.search_form = matchingForm;
+            break; // attach the best form to the first search-like GET endpoint
+          }
+        }
+      }
+    }
+  }
+
   // JS bundle scanning: discover API routes not seen in network traffic
   if (captured.js_bundles && captured.js_bundles.size > 0) {
     const pageOrigin = new URL(url).origin;

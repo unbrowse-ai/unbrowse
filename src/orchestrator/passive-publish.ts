@@ -1,4 +1,5 @@
 import { cachePublishedSkill, validateManifest } from "../client/index.js";
+import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { publishSkill } from "../marketplace/index.js";
 import type { SkillManifest } from "../types/index.js";
 
@@ -80,7 +81,9 @@ export function queuePassiveSkillPublish(
       return;
     }
 
+    const publishStart = Date.now();
     const published = await deps.publishSkill(publishDraft);
+    const publishMs = Date.now() - publishStart;
     deps.cachePublishedSkill({
       ...skill,
       ...published,
@@ -89,6 +92,15 @@ export function queuePassiveSkillPublish(
       ...(skill.auth_profile_ref ? { auth_profile_ref: skill.auth_profile_ref } : {}),
     });
 
+    const publishEvent: LifecycleEvent = {
+      phase: "publish",
+      skill_id: skill.skill_id,
+      timestamp: new Date().toISOString(),
+      duration_ms: publishMs,
+      source: "marketplace",
+    };
+    const totals = attributeLifecycle([publishEvent]);
+    console.log(`[lifecycle] publish=${totals.get("publish")}ms for ${skill.skill_id}`);
     console.log(`[publish] passive publish succeeded for ${skill.skill_id}`);
   })()
     .catch((err) => {

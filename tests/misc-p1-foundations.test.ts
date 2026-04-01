@@ -1,66 +1,14 @@
 import { describe, test, expect } from "bun:test";
+import { isStructuredSearchForm, detectSearchForms, type SearchFormSpec, type SearchFormField } from "../src/execution/search-forms.js";
+import { type EvalCase, type EvalResult, isRepeatableEval } from "../evals/eval-types.js";
+import { attributeLifecycle, type LifecycleEvent, type LifecyclePhase } from "../src/runtime/lifecycle.js";
 
-// #92 Search form types
-interface SearchFormField {
-  name: string;
-  type: "text" | "select" | "radio" | "checkbox" | "date" | "hidden";
-  selector: string;
-  options?: string[];
-  required: boolean;
-}
-
-interface SearchFormSpec {
-  form_selector: string;
-  submit_selector: string;
-  fields: SearchFormField[];
-  result_selector?: string;
-}
-
-function isStructuredSearchForm(spec: SearchFormSpec): boolean {
-  return spec.fields.length > 0 && !!spec.submit_selector;
-}
-
-// #93 Eval types
-interface EvalCase {
-  id: string;
-  intent: string;
-  url: string;
-  expected_outcome: "resolve" | "capture" | "fail";
-  auth_required: boolean;
-  tags: string[];
-}
-
-interface EvalResult {
-  case_id: string;
-  status: "pass" | "fail" | "skip";
-  duration_ms: number;
-  error?: string;
-}
-
-function isRepeatableEval(results: EvalResult[]): boolean {
-  if (results.length < 2) return false;
-  const statuses = results.map((r) => r.status);
-  return statuses.every((s) => s === statuses[0]);
-}
-
-// #95 Lifecycle attribution
-type LifecyclePhase = "discover" | "capture" | "resolve" | "execute" | "publish";
-
-interface LifecycleEvent {
-  phase: LifecyclePhase;
-  skill_id: string;
-  timestamp: string;
-  duration_ms: number;
-  source: "cache" | "marketplace" | "live-capture";
-}
-
-function attributeLifecycle(events: LifecycleEvent[]): Map<LifecyclePhase, number> {
-  const totals = new Map<LifecyclePhase, number>();
-  for (const e of events) {
-    totals.set(e.phase, (totals.get(e.phase) ?? 0) + e.duration_ms);
-  }
-  return totals;
-}
+// ensure EvalCase import is used (type-only reference)
+void (0 as unknown as EvalCase);
+// ensure LifecyclePhase import is used (type-only reference)
+void ("" as unknown as LifecyclePhase);
+// ensure SearchFormField import is used (type-only reference)
+void (0 as unknown as SearchFormField);
 
 describe("#92 search forms", () => {
   test("identifies structured search form", () => {

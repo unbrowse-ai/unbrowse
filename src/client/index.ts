@@ -4,6 +4,8 @@ import { homedir, hostname } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
 import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
+import { attributeLifecycle } from "../runtime/lifecycle.js";
+import type { LifecycleEvent } from "../runtime/lifecycle.js";
 
 const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
@@ -697,7 +699,23 @@ export async function recordDiagnostics(
 
 export async function recordOrchestrationPerf(timing: OrchestrationTiming): Promise<void> {
   if (LOCAL_ONLY) return;
-  await api("POST", "/v1/stats/perf", timing);
+  const lifecycleSource: LifecycleEvent["source"] =
+    timing.source === "marketplace" ? "marketplace"
+    : timing.source === "live-capture" ? "live-capture"
+    : "cache";
+  const now = new Date().toISOString();
+  const events: LifecycleEvent[] = [];
+  if (timing.search_ms > 0) {
+    events.push({ phase: "discover", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.search_ms, source: lifecycleSource });
+  }
+  if (timing.get_skill_ms > 0) {
+    events.push({ phase: "resolve", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.get_skill_ms, source: lifecycleSource });
+  }
+  if (timing.execute_ms > 0) {
+    events.push({ phase: "execute", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.execute_ms, source: lifecycleSource });
+  }
+  const phaseTotals = Object.fromEntries(attributeLifecycle(events));
+  await api("POST", "/v1/stats/perf", { ...timing, phase_totals_ms: phaseTotals });
 }
 
 // --- Validation ---
