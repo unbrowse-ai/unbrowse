@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navbar";
+import { DocsEmbed } from "@/components/docs-embed";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -172,6 +173,7 @@ export default function RootLayout({
             <main className="min-h-screen">
               {children}
             </main>
+            <DocsEmbed />
           </AuthProvider>
         </ThemeProvider>
       </body>
