@@ -27,7 +27,7 @@ npm install -g unbrowse@latest 2>/dev/null || bun install -g unbrowse@latest
 info "Registering skill..."
 npx -y skills add unbrowse-ai/unbrowse --yes
 
-# ─── Start server (auto-registers with marketplace) ──────────
-info "Starting server..."
-unbrowse health --pretty
+# ─── Setup (Kuri, Open Code, marketplace, server) ────────────
+info "Running setup..."
+unbrowse setup "$@" 2>/dev/null || unbrowse health --pretty
 ok "Done! Try: unbrowse resolve --intent \"get trending\" --url \"https://google.com\" --pretty"
