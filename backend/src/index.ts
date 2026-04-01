@@ -46,7 +46,7 @@ app.route("/v1", attributionRoutes);
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
 
-// Protected routes (writes only) — bearerAuth is applied to the specific
+// Protected routes (writes only) -- bearerAuth is applied to the specific
 // paths used by write routes, not via use("*") which would intercept all /v1/*
 // requests including public ones like /agents/register.
 skillRoutes.use("/skills", bearerAuth);

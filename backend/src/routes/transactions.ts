@@ -6,7 +6,6 @@ import { rateLimit } from "../middleware/rate-limit.js";
 export const transactionRoutes = new Hono<{ Bindings: Env }>();
 
 transactionRoutes.use("/transactions/*", rateLimit({ limit: 30, window: 60, prefix: "transactions" }));
-
 // POST /v1/transactions -- record a new transaction
 transactionRoutes.post("/transactions", async (c) => {
   try {
@@ -34,7 +33,6 @@ transactionRoutes.post("/transactions", async (c) => {
     return c.json({ error: (err as Error).message }, 500);
   }
 });
-
 // GET /v1/transactions/consumer/:agentId -- consumer payment history
 transactionRoutes.get("/transactions/consumer/:agentId", async (c) => {
   const agentId = c.req.param("agentId");

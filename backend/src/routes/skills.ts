@@ -9,19 +9,18 @@ import { getStats } from "../services/scoring.js";
 import { x402Response, verifyX402Proof, buildSkillPaymentTerms } from "../middleware/x402-gate.js";
 import { skillsKV } from "../services/kv.js";
 
-// Public read routes — no auth required
+// Public read routes -- no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
 
 // Rate limit: 10 list requests per 60s, 30 individual skill reads per 60s
 publicSkillRoutes.use("/skills", rateLimit({ limit: 60, window: 60, prefix: "skills-list" }));
 
-// GET /v1/skills — list all
+// GET /v1/skills -- list all
 publicSkillRoutes.get("/skills", async (c) => {
   const skills = await listSkills(c.env);
   return c.json({ skills });
 });
-
-// GET /v1/skills/:id — get by ID (x402-gated for paid skills)
+// GET /v1/skills/:id -- get by ID (x402-gated for paid skills)
 publicSkillRoutes.get("/skills/:id", async (c) => {
   const skill = await getSkill(c.env, c.req.param("id"));
   if (!skill) return c.json({ error: "Skill not found" }, 404);
@@ -37,7 +36,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
     const proofHeader = c.req.header("X-Payment-Proof");
 
     if (!proofHeader) {
-      // No proof provided — return 402 with payment terms
+      // No proof provided -- return 402 with payment terms
       const recipient = c.env.PAYMENT_RECIPIENT ?? "0x0000000000000000000000000000000000000000";
       const resource = new URL(c.req.url).pathname;
       const terms = buildSkillPaymentTerms(
@@ -49,27 +48,27 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
       return x402Response(c, terms);
     }
 
-    // Proof provided — verify via Corbits facilitator
+    // Proof provided -- verify via Corbits facilitator
     const { valid, degraded } = await verifyX402Proof(proofHeader);
     if (!valid) {
       return c.json({ error: "Payment proof invalid or rejected" }, 403);
     }
     if (degraded) {
-      console.warn(`[x402] facilitator down — allowed degraded access for skill ${skill.skill_id}`);
+      console.warn(`[x402] facilitator down -- allowed degraded access for skill ${skill.skill_id}`);
     }
   }
 
   return c.json(skill);
 });
 
-// GET /v1/skills/:id/endpoints/:eid/schema — get response schema
+// GET /v1/skills/:id/endpoints/:eid/schema -- get response schema
 publicSkillRoutes.get("/skills/:id/endpoints/:eid/schema", async (c) => {
   const schema = await getEndpointSchema(c.env, c.req.param("id"), c.req.param("eid"));
   if (!schema) return c.json({ error: "No schema available" }, 404);
   return c.json(schema);
 });
 
-// GET /v1/skills/:id/price — dynamic route price + site-owner compensation info
+// GET /v1/skills/:id/price -- dynamic route price + site-owner compensation info
 publicSkillRoutes.get("/skills/:id/price", async (c) => {
   const skill = await getSkill(c.env, c.req.param("id"));
   if (!skill) return c.json({ error: "Skill not found" }, 404);
@@ -80,8 +79,7 @@ publicSkillRoutes.get("/skills/:id/price", async (c) => {
   const price = computeRoutePrice(skill, statsArr);
   return c.json(price);
 });
-
-// Protected write routes — auth required
+// Protected write routes -- auth required
 export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
 // Rate limit: 30 publishes per 60s per agent
@@ -89,17 +87,12 @@ skillRoutes.use("/skills", agentRateLimit({ limit: 30, window: 60, prefix: "publ
 // Rate limit: 60 endpoint updates per 60s per agent
 skillRoutes.use("/skills/:id/endpoints/:eid", agentRateLimit({ limit: 60, window: 60, prefix: "ep-update" }));
 
-// POST /v1/skills — publish/update
+// POST /v1/skills -- publish/update
 skillRoutes.post("/skills", async (c) => {
   const body = await c.req.json();
   const validation = validateSkillManifest(body);
   if (!validation.valid) {
     return c.json({ error: "Validation failed", details: validation.hardErrors }, 422);
-  }
-  // Stamp the publishing agent as indexer for Tier 1 attribution (#232)
-  const agentId = c.get("agent_id");
-  if (agentId && !body.indexer_id) {
-    body.indexer_id = agentId;
   }
   let skill;
   try {
@@ -109,6 +102,7 @@ skillRoutes.post("/skills", async (c) => {
     return c.json({ error: "Publish failed", detail: (err as Error).message }, 500);
   }
   // Track agent contribution (non-blocking)
+  const agentId = c.get("agent_id");
   if (agentId) {
     c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));
   }
@@ -127,6 +121,7 @@ skillRoutes.patch("/skills/:id", async (c) => {
   const skill = await getSkill(c.env, skillId);
   if (!skill) return c.json({ error: "Skill not found" }, 404);
 
+  // Validate base_price_usd if provided
   if (body.base_price_usd !== undefined) {
     if (typeof body.base_price_usd !== "number" || body.base_price_usd < 0) {
       return c.json({ error: "base_price_usd must be a non-negative number" }, 400);
@@ -140,7 +135,7 @@ skillRoutes.patch("/skills/:id", async (c) => {
   return c.json(skill);
 });
 
-// PATCH /v1/skills/:id/endpoints/:eid — update endpoint score/status/schema
+// PATCH /v1/skills/:id/endpoints/:eid -- update endpoint score/status/schema
 skillRoutes.patch("/skills/:id/endpoints/:eid", async (c) => {
   const { score, status, response_schema } = await c.req.json<{ score?: number; status?: string; response_schema?: import("../types.js").ResponseSchema }>();
   if (score != null || status) {
