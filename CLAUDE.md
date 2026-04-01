@@ -109,3 +109,5 @@ Omit empty sections. No emojis. No file paths or function names.
 - **`rach/restart-base` is the working branch**, not `main`. Main is broken. Do not merge from or rebase onto main.
 - **`autoExtract` must be `true`** in `executeBrowserCapture`'s cookie resolution. Setting it to `false` silently skips browser cookie extraction and breaks all gated sites.
 - **Packaged CLI spawns a separate server process**. `bun src/cli.ts` runs inline (same process), but `unbrowse` (global install) spawns a detached node+tsx server. Stale servers are the #1 cause of "works from source, broken from package".
+- **Never mock in tests**. Tests must hit real endpoints, real files, real functions. Mocked tests pass when prod is broken — they prove nothing. Use live backend URLs (gated behind env vars for CI), real filesystem temp dirs, and actual function calls. If a test can't run without mocking, the code is too coupled — fix the code, not the test.
+- **Backend URL is `beta-api.unbrowse.ai`**, not `api.unbrowse.ai`. The `UNBROWSE_API_URL` env var overrides this.
