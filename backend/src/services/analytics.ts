@@ -8,6 +8,8 @@
 
 import type { Env, AgentProfile } from "../types.js";
 import { statsKV } from "./kv.js";
+import { getPerf, getRecentTimings } from "./perf.js";
+import { listSkills } from "./marketplace.js";
 
 // ─── Helpers ───
 
@@ -361,4 +363,27 @@ export function computeBottleneckMetrics(
     failure_rate: totalRequests > 0 ? failures / totalRequests : 0,
     skills_per_domain: uniqueDomains > 0 ? totalSkills / uniqueDomains : 0,
   };
+}
+
+export async function getBottleneckMetrics(env: Env): Promise<BottleneckMetrics> {
+  const [perf, resolves, skills] = await Promise.all([
+    getPerf(env),
+    getRecentTimings(env),
+    listSkills(env),
+  ]);
+
+  const domains = new Set(skills.map((s) => s.domain));
+
+  return computeBottleneckMetrics(
+    [], // capture latencies not yet tracked per-request
+    resolves,
+    [], // execute latencies not yet tracked per-request
+    perf.cache_hits,
+    perf.marketplace_hits,
+    perf.live_captures,
+    perf.dom_fallbacks,
+    perf.total_resolves,
+    domains.size,
+    skills.length,
+  );
 }

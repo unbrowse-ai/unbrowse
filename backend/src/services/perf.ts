@@ -31,7 +31,7 @@ export async function getPerf(env: Env): Promise<PerfStats> {
   };
 }
 
-async function getRecentTimings(env: Env): Promise<number[]> {
+export async function getRecentTimings(env: Env): Promise<number[]> {
   const raw = await statsKV(env).get(PERF_WINDOW_KEY) as string | null;
   if (raw) {
     try { return JSON.parse(raw) as number[]; } catch { /* fall through */ }
