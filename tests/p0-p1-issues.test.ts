@@ -33,8 +33,6 @@ interface TestResult {
 }
 
 let testResults: TestResult[] = [];
-const runP0P1Integration = process.env.UNBROWSE_RUN_P0_P1 === "1";
-const suite = runP0P1Integration ? describe : describe.skip;
 const UNBROWSE_CLI = path.join(
   process.cwd(),
   "src/cli.ts"
@@ -141,7 +139,7 @@ async function runUnbrowseTest(
   });
 }
 
-suite("P0/P1 Issue Validation Tests (integration)", () => {
+describe("P0/P1 Issue Validation Tests (integration)", () => {
   const testCases = loadTestCases();
 
   if (testCases.length === 0) {

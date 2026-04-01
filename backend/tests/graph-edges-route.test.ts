@@ -87,33 +87,53 @@ describe("POST /v1/graph/edges — validation", () => {
 // Integration tests (opt-in)
 // ---------------------------------------------------------------------------
 
-const GRAPH_TEST_RUN = process.env.GRAPH_TEST_RUN === "1";
 const API_URL = process.env.GRAPH_TEST_API_URL ?? "https://beta-api.unbrowse.ai";
 const API_KEY = process.env.GRAPH_TEST_API_KEY ?? "";
 const TIMEOUT = 30_000;
-const integrationDescribe = GRAPH_TEST_RUN ? describe : describe.skip;
+const RETRY_DELAY_MS = 5_000;
 
-integrationDescribe("POST /v1/graph/edges — integration", () => {
-  it("upserts edges for a test node", async () => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
+async function postLiveGraphEdges(body: unknown) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
+
+  let lastStatus = 0;
+  let lastText = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(`${API_URL}/v1/graph/edges`, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        domain: "test-integration.example.com",
-        node: {
-          endpoint_id: "ep-search",
-          requires: [],
-          provides: ["item_id"],
-          action_kind: "search",
-          resource_kind: "item",
-        },
-        edges: [{ to: "ep-detail", binding: "item_id" }],
-      }),
+      body: JSON.stringify(body),
+    });
+    lastStatus = res.status;
+    lastText = await res.text();
+    if (res.ok) {
+      return { status: res.status, text: lastText };
+    }
+    if (!lastText.includes("Rate limit exceeded") || attempt === 2) {
+      return { status: res.status, text: lastText };
+    }
+    await Bun.sleep(RETRY_DELAY_MS);
+  }
+
+  return { status: lastStatus, text: lastText };
+}
+
+describe("POST /v1/graph/edges — integration", () => {
+  it("upserts edges for a test node", async () => {
+    const testDomain = `test-integration-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.example.com`;
+    const res = await postLiveGraphEdges({
+      domain: testDomain,
+      node: {
+        endpoint_id: "ep-search",
+        requires: [],
+        provides: ["item_id"],
+        action_kind: "search",
+        resource_kind: "item",
+      },
+      edges: [{ to: "ep-detail", binding: "item_id" }],
     });
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { ok: boolean };
+    const data = JSON.parse(res.text) as { ok: boolean };
     expect(data.ok).toBe(true);
   }, TIMEOUT);
 });

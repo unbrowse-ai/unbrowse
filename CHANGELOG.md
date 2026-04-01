@@ -14,6 +14,7 @@
 * **publish-pipeline**: `wrong_entity_type` verdict downgraded from `fail` to `skip` — captures with non-standard field names (e.g. `body` instead of `text`, `entityUrn` instead of `id`) no longer block marketplace publishing; post classifier expanded to accept real-world API field names (`message`, `_id`, `entityUrn`, `from.name`, `created_time`, etc.)
 * **tests**: rewrote stale release-flow, CLI, and payments coverage so reruns match the current product contract; unit runs no longer depend on repo version drift or live pricing/backend state, CLI JSON stdout stays machine-safe, and slow integration suites use hermetic/sequential setup instead of host-coupled timeouts
 * **tests**: removed mock-only incomplete backend spec fossils and promoted the local CLI payload contract suite into always-on coverage, so the remaining incomplete tests are opt-in live/integration paths instead of stub-server TODOs
+* **kuri/tests**: fixed live-browser tab registration and text snapshots in the Kuri client, replaced placeholder wrapper/action TODOs with real end-to-end browser coverage, promoted the P0/P1 and graph-edge live suites into always-on tests, and moved marketplace latency diagnostics out of the `*.test.ts` suite
 * **#223**: wire `isStructuredSearchForm`, `attributeLifecycle`, and `isRepeatableEval` into production code — search forms are detected from captured HTML and attached to endpoints, lifecycle phases are attributed for observability in the orchestrator and publish flows, and eval repeatability checking flags flaky cases in the harness
 * **#229**: implement `tryFirstPassBrowserAction` — navigates to the URL, records HAR, performs intent-driven actions (search/click/navigate), collects intercepted JSON API responses, and synthesizes a mini-skill for passive indexing ([#229](https://github.com/justrach/unbrowse34/issues/229))
 * **capture**: thread AbortSignal through CDP phases so 90s timeout aborts hanging kuri calls immediately instead of waiting for each call's own 30s timeout to stack ([#113](https://github.com/justrach/unbrowse34/issues/113))
@@ -1159,6 +1160,8 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- fix: replace placeholder Kuri/capture TODO suites with real live-browser end-to-end coverage and promote deterministic CLI/P0-P1 regression checks into the default test lane
+- fix: repair backend live route/test wiring and add bounded rate-limit retries so `bun run test:all` completes green against the current live graph backend
 - fix: planner now treats captured query/path/example defaults as satisfiable bindings, so replayable APIs stop losing readiness to page artifacts on warm resolve
 - fix: semantic ranking now demotes linkedin sharebox/mailbox ui payloads for people/company intents and boosts real search/detail surfaces
 - fix: semantic intent scoring now distrusts mislabeled ui-scaffold endpoints, so generated sharebox/mailbox/notification skills stop stealing people/company search intents

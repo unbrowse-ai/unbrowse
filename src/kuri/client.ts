@@ -404,6 +404,20 @@ async function ensureTabsDiscovered(): Promise<void> {
   }
 }
 
+async function waitForTabRegistration(tabId: string, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await ensureTabsDiscovered();
+    try {
+      const tabs = (await kuriGet("/tabs")) as Array<{ id?: string }>;
+      if (Array.isArray(tabs) && tabs.some((tab) => tab?.id === tabId)) return;
+    } catch {
+      // keep polling until timeout
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
 /** Navigate tab to URL. */
 export async function navigate(tabId: string, url: string): Promise<void> {
   await kuriGet("/navigate", { tab_id: tabId, url });
@@ -527,8 +541,13 @@ export async function screenshot(tabId: string): Promise<string> {
 export async function snapshot(tabId: string, filter?: string): Promise<string> {
   const params: Record<string, string> = { tab_id: tabId };
   if (filter) params.filter = filter;
-  const result = (await kuriGet("/snapshot", params)) as { snapshot?: string };
-  return result?.snapshot ?? "";
+  params.format = "text";
+  const result = await kuriGet("/snapshot", params);
+  if (typeof result === "string") return result;
+  if (result && typeof result === "object" && "snapshot" in result && typeof (result as { snapshot?: unknown }).snapshot === "string") {
+    return (result as { snapshot: string }).snapshot;
+  }
+  return "";
 }
 
 /** Close a tab. */
@@ -541,7 +560,11 @@ export async function newTab(url?: string): Promise<string> {
   const params: Record<string, string> = {};
   if (url) params.url = url;
   const result = (await kuriGet("/tab/new", params)) as { tab_id?: string };
-  return result?.tab_id ?? "";
+  const tabId = result?.tab_id ?? "";
+  if (tabId) {
+    await waitForTabRegistration(tabId).catch(() => {});
+  }
+  return tabId;
 }
 
 /** Get current page URL via evaluate. */
@@ -665,12 +688,43 @@ export async function click(tabId: string, ref: string): Promise<unknown> {
 /** Fill an input element by ref (focuses first). */
 export async function fill(tabId: string, ref: string, value: string): Promise<unknown> {
   await click(tabId, ref);
-  return action(tabId, "fill", ref, value);
+  const result = await action(tabId, "fill", ref, value);
+  const currentValue = await evaluate(tabId, `(() => {
+    const active = document.activeElement;
+    return active && "value" in active ? active.value : undefined;
+  })()`);
+  if (currentValue !== value) {
+    return evaluate(tabId, `(function() {
+      const active = document.activeElement;
+      if (!active || !("value" in active)) return false;
+      active.value = ${JSON.stringify(value)};
+      active.dispatchEvent(new Event("input", { bubbles: true }));
+      active.dispatchEvent(new Event("change", { bubbles: true }));
+      return active.value;
+    })()`);
+  }
+  return result;
 }
 
 /** Select a value in a dropdown by ref. */
 export async function select(tabId: string, ref: string, value: string): Promise<unknown> {
-  return action(tabId, "select", ref, value);
+  await click(tabId, ref);
+  const result = await action(tabId, "select", ref, value);
+  const currentValue = await evaluate(tabId, `(() => {
+    const active = document.activeElement;
+    return active && "value" in active ? active.value : undefined;
+  })()`);
+  if (currentValue !== value) {
+    return evaluate(tabId, `(function() {
+      const active = document.activeElement;
+      if (!active || !("value" in active)) return false;
+      active.value = ${JSON.stringify(value)};
+      active.dispatchEvent(new Event("input", { bubbles: true }));
+      active.dispatchEvent(new Event("change", { bubbles: true }));
+      return active.value;
+    })()`);
+  }
+  return result;
 }
 
 /** Scroll the page (no ref needed, pass any ref value). */
