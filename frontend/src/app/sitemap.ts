@@ -11,7 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1.0,
     },
     {
-      url: `${baseUrl}/shadow-apis-are-all-you-need`,
+      url: `${baseUrl}/internal-apis-are-all-you-need`,
       lastModified: new Date("2026-03-25"),
       changeFrequency: "weekly",
       priority: 0.95,
