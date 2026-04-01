@@ -36,7 +36,7 @@ import {
   snapshotPathForCacheKey,
   generateLocalDescription,
 } from "../orchestrator/index.js";
-
+import { checkPaymentRequirement } from "../payments/index.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
@@ -1630,6 +1630,37 @@ export async function executeEndpoint(
         error: String(err),
       });
       return { trace, result: { error: String(err) } };
+    }
+  }
+
+  // Payment gate — check if marketplace skill requires payment before executing
+  if (!skill.skill_id.startsWith("local:") && skill.execution_type === "http" && skill.owner_type !== "agent") {
+    const walletAddr = process.env.LOBSTER_WALLET_ADDRESS;
+    const gate = await checkPaymentRequirement(skill.skill_id, endpoint.endpoint_id, {
+      wallet_configured: !!walletAddr,
+    });
+    if (gate.status === "payment_required" || gate.status === "wallet_not_configured" || gate.status === "insufficient_balance") {
+      const trace: ExecutionTrace = stampTrace({
+        trace_id: nanoid(),
+        skill_id: skill.skill_id,
+        endpoint_id: endpoint.endpoint_id,
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        success: false,
+        status_code: 402,
+        error: "payment_required",
+      });
+      return {
+        trace,
+        result: {
+          error: "payment_required",
+          price_usd: gate.requirement?.amount,
+          payment_status: gate.status,
+          message: gate.message,
+          wallet_provider: "lobster.cash",
+          indexing_fallback_available: true,
+        },
+      };
     }
   }
 
