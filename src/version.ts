@@ -24,14 +24,19 @@ function collectTsFiles(dir: string): string[] {
 }
 
 function computeCodeHash(): string {
-  const srcDir = join(MODULE_DIR, ".");
-  const files = collectTsFiles(srcDir).sort();
-  const hash = createHash("sha256");
-  for (const file of files) {
-    hash.update(file.slice(srcDir.length)); // relative path for determinism
-    hash.update(readFileSync(file, "utf-8"));
+  try {
+    const srcDir = join(MODULE_DIR, ".");
+    const files = collectTsFiles(srcDir).sort();
+    const hash = createHash("sha256");
+    for (const file of files) {
+      hash.update(file.slice(srcDir.length));
+      hash.update(readFileSync(file, "utf-8"));
+    }
+    return hash.digest("hex").slice(0, 12);
+  } catch {
+    // Compiled binary: filesystem not available, use a static hash
+    return "compiled";
   }
-  return hash.digest("hex").slice(0, 12);
 }
 
 function getGitSha(): string {

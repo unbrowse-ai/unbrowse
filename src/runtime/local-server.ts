@@ -74,6 +74,10 @@ function getVersion(metaUrl: string): string {
   }
 }
 
+function isCompiledBinary(): boolean {
+  return !!(process.versions.bun && !process.argv[1]?.match(/\.(ts|js|mjs)$/));
+}
+
 const MAX_RESTART_ATTEMPTS = 3;
 const RESTART_BACKOFF_MS = 2_000;
 
@@ -150,6 +154,16 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
 
   if (noAutoStart) {
     throw new Error("Server not running and auto-start disabled (--no-auto-start).");
+  }
+
+  // Single-binary mode: start server inline instead of spawning a child
+  if (isCompiledBinary()) {
+    const { startUnbrowseServer, installServerExitCleanup } = await import("../server.js");
+    installServerExitCleanup(pidFile);
+    const server = await startUnbrowseServer({ pidFile, scheduleVerification: true });
+    console.log(`[unbrowse] server started inline on http://${server.host}:${server.port}`);
+    await supervisor.start();
+    return;
   }
 
   // Spawn with supervisor retry
