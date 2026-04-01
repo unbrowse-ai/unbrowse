@@ -2366,8 +2366,7 @@ export async function resolveAndExecute(
     // intelligence, falls back to local planner if backend is unavailable.
     if (epRanked.length > 1 && skill.domain) {
       const bindings = Object.keys(knownBindingsFromInputs(resolvedParams, context?.url));
-const dagPlan = fetchDagAdvisoryPlan(
-const dagPlan = await fetchDagAdvisoryPlan(
+      const dagPlan = await fetchDagAdvisoryPlan(
         skill,
         epRanked[0].endpoint.endpoint_id,
         bindings,
