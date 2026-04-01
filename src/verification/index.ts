@@ -3,6 +3,7 @@ import { updateEndpointScore } from "../marketplace/index.js";
 import { listSkills, getSkill } from "../marketplace/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
+import { computeVerificationCoverage, type VerificationMatrix } from "./matrix.js";
 
 /**
  * Verify a single endpoint by test-executing safe (GET) endpoints.
@@ -82,6 +83,7 @@ export function schedulePeriodicVerification(): ReturnType<typeof setInterval> {
   return setInterval(async () => {
     const skills = await listSkills();
     const now = Date.now();
+    const matrix: VerificationMatrix = [];
     for (const skill of skills) {
       if (skill.lifecycle !== "active") continue;
       for (const endpoint of skill.endpoints) {
@@ -91,9 +93,19 @@ export function schedulePeriodicVerification(): ReturnType<typeof setInterval> {
           ? new Date(endpoint.last_verified_at).getTime()
           : 0;
         if (isDisabled || now - lastVerified > STALE_THRESHOLD_MS) {
-          await verifyEndpoint(skill, endpoint).catch(() => {});
+          const newStatus = await verifyEndpoint(skill, endpoint).catch(() => "failed" as const);
+          matrix.push({
+            host: "cli",
+            capability: endpoint.endpoint_id,
+            status: newStatus === "verified" ? "pass" : newStatus === "failed" ? "fail" : "skip",
+            last_verified: new Date().toISOString(),
+          });
         }
       }
+    }
+    if (matrix.length > 0) {
+      const coverage = computeVerificationCoverage(matrix);
+      console.log(`[verification] coverage: ${(coverage * 100).toFixed(1)}% (${matrix.length} endpoints checked)`);
     }
   }, VERIFICATION_INTERVAL_MS);
 }

@@ -1,43 +1,15 @@
 import { describe, test, expect } from "bun:test";
+import { type WalletProvider } from "../src/payments/wallet.js";
+import { type BrowserAccessConfig } from "../src/runtime/browser-access.js";
+import { computeVerificationCoverage, type VerificationMatrix } from "../src/verification/matrix.js";
 
-// #32 Wallet/provider abstraction
-interface WalletProvider {
-  name: string;
-  connect(): Promise<{ address: string }>;
-  disconnect(): Promise<void>;
-  signTransaction(tx: unknown): Promise<string>;
-  getBalance(): Promise<bigint>;
-}
-
+// #32 Wallet/provider abstraction — stub implementation of the real WalletProvider interface
 class StubWalletProvider implements WalletProvider {
   name = "stub";
   async connect() { return { address: "0x0000000000000000000000000000000000000000" }; }
   async disconnect() {}
   async signTransaction(_tx: unknown) { return "0xsig"; }
   async getBalance() { return BigInt(0); }
-}
-
-// #34 Default browser-access path
-interface BrowserAccessConfig {
-  default_path: "unbrowse" | "direct" | "proxy";
-  fallback_path: "direct" | "proxy";
-  supported_frameworks: string[];
-}
-
-// #70 Integration verification matrix
-interface IntegrationCheck {
-  host: string;
-  capability: string;
-  status: "pass" | "fail" | "skip" | "untested";
-  last_verified?: string;
-}
-
-type VerificationMatrix = IntegrationCheck[];
-
-function computeVerificationCoverage(matrix: VerificationMatrix): number {
-  if (matrix.length === 0) return 0;
-  const tested = matrix.filter((c) => c.status !== "untested").length;
-  return tested / matrix.length;
 }
 
 describe("#32 wallet provider abstraction", () => {

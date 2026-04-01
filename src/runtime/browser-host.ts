@@ -1,3 +1,5 @@
+import { type BrowserAccessConfig, DEFAULT_BROWSER_ACCESS } from "./browser-access.js";
+
 export type HostEnvironment = "openclaw" | "openai" | "native" | "mcp" | "unknown";
 
 export interface BrowserPathConfig {
@@ -5,6 +7,7 @@ export interface BrowserPathConfig {
   cdp_port?: number;
   headless: boolean;
   user_data_dir?: string;
+  access_config: BrowserAccessConfig;
 }
 
 /** Detect the host environment from environment variables */
@@ -17,32 +20,37 @@ export function detectHostEnvironment(): HostEnvironment {
 }
 
 /** Get browser configuration appropriate for the detected host */
-export function getBrowserConfig(env?: HostEnvironment): BrowserPathConfig {
+export function getBrowserConfig(env?: HostEnvironment, access?: BrowserAccessConfig): BrowserPathConfig {
   const detected = env ?? detectHostEnvironment();
+  const access_config = access ?? DEFAULT_BROWSER_ACCESS;
   switch (detected) {
     case "openclaw":
       return {
         binary_path: process.env.OPENCLAW_BROWSER_PATH ?? "/usr/bin/chromium",
         headless: true,
         user_data_dir: process.env.OPENCLAW_USER_DATA ?? "/tmp/openclaw-chrome",
+        access_config,
       };
     case "openai":
       return {
         binary_path: process.env.OPENAI_BROWSER_PATH,
         headless: true,
         cdp_port: parseInt(process.env.OPENAI_CDP_PORT ?? "9222"),
+        access_config,
       };
     case "mcp":
       return {
         headless: true,
         cdp_port: parseInt(process.env.CDP_PORT ?? "0"),
+        access_config,
       };
     case "native":
       return {
         headless: false,
         user_data_dir: process.env.UNBROWSE_USER_DATA,
+        access_config,
       };
     default:
-      return { headless: false };
+      return { headless: false, access_config };
   }
 }
