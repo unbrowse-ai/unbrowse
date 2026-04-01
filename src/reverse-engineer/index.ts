@@ -6,8 +6,7 @@ import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
-import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
-
+import { buildDescriptionPrompt, groundedDescription, extractResponseKeys } from "./description-prompt.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
@@ -165,23 +164,36 @@ function buildEndpointDescription(
   sampleResponse: unknown,
 ): string {
   const url = new URL(req.url);
-  const pathTail = url.pathname.split("/").filter(Boolean).slice(-2).join(" ");
-  const requestKeys = Object.keys(sampleRequest).slice(0, 4);
-  const response = summarizeResponseExample(sampleResponse);
-  const action = requestKeys.some((key) => /^(q|query|search|term)$/i.test(key)) || /search|find|lookup/.test(url.pathname)
-    ? "Searches"
-    : /status|health|incident|maintenance/.test(url.pathname)
-      ? "Returns status for"
-      : url.pathname.match(/\{[^}]+\}|\/[0-9A-Za-z_-]{4,}(\/|$)/)
-        ? "Returns details for"
-        : "Returns";
-  const subjectSource = new Set(["response", "data", "result", "results", "item", "items"]).has(response.subject.toLowerCase())
-    ? inferPathSubject(url.pathname)
-    : response.subject;
-  const subject = titleCase(subjectSource === "response" ? (pathTail || url.hostname) : subjectSource);
-  const fieldText = response.fields.length > 0 ? ` with ${response.fields.join(", ")}` : "";
-  const inputText = requestKeys.length > 0 ? ` using ${requestKeys.join(", ")}` : "";
-  return `${action} ${subject}${fieldText}${inputText}`;
+
+  // Build param descriptors from the flattened sample request so the
+  // description is grounded in the actual parameters observed at capture time.
+  const params: Array<{ name: string; in: string; example?: string }> = [];
+  for (const [key, value] of Object.entries(sampleRequest)) {
+    // Determine whether the param came from the query string or the body.
+    const inKind = url.searchParams.has(key) ? "query"
+      : url.pathname.includes(`{${key}}`) ? "path"
+      : "body";
+    const example = value != null && typeof value !== "object" ? String(value) : undefined;
+    params.push({ name: key, in: inKind, ...(example ? { example } : {}) });
+  }
+
+  const responseKeys = extractResponseKeys(sampleResponse);
+
+  const ctx = {
+    url_template: req.url,
+    method: req.method,
+    params,
+    sample_response_keys: responseKeys.length > 0 ? responseKeys : undefined,
+    domain: url.hostname,
+  };
+
+  // Build the grounding prompt (available for optional LLM polish in
+  // backend/services/descriptions.ts) and the deterministic description.
+  const _prompt = buildDescriptionPrompt(ctx);
+
+  // Use the grounded description builder from description-prompt.ts so
+  // every description references real params and response fields.
+  return groundedDescription(ctx);
 }
 
 function looksLikeAdResponse(body: string | undefined): boolean {
@@ -549,8 +561,6 @@ function scoreRequest(req: RawRequest): number {
   // Penalise Next.js RSC navigation requests — framework wire format, not data
   if (req.url.includes("_rsc=")) score -= 3;
   if (ct.includes("text/x-component")) score -= 10; // RSC wire format
-  // #227: Structural RSC body detection — catches payloads without URL/content-type hints
-  if (isRscPayload(req.response_body ?? "")) score -= 15;
   // Penalise on-domain noise (framework plumbing, recaptcha, consent, ad bids)
   try { if (ON_DOMAIN_NOISE.test(new URL(req.url).pathname)) score -= 15; } catch {}
   // Reward rich JSON responses (data endpoints have deep objects, noise has shallow)
@@ -604,14 +614,6 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     }
     if (!hasAdmissibleParsedBody(req.response_body)) {
       traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
-      continue;
-    }
-    // #227: Reject React Server Components wire format payloads — they are framework
-    // rendering wire format, not data APIs. Use the proper RSC parser instead of
-    // relying solely on URL heuristics (_rsc=) or content-type (text/x-component).
-    if (isRscPayload(req.response_body ?? "")) {
-      const rscUrls = extractRscDataEndpoints(req.response_body ?? "");
-      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "rsc_payload", rsc_embedded_urls: rscUrls.length > 0 ? rscUrls : undefined });
       continue;
     }
     if (affinityDomains.size > 0) {
