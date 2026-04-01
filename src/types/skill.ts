@@ -113,6 +113,9 @@ export interface EndpointDescriptor {
   exec_strategy?: "server" | "trigger-intercept" | "browser";
   /** Semantic v2 metadata for endpoint-level retrieval and DAG planning */
   semantic?: EndpointSemanticDescriptor;
+  /** Path template inferred by batch mining (passive captures without a context page URL).
+   *  Internal annotation — not persisted to the skill manifest. */
+  _minedTemplate?: string;
 }
 
 export type ExecutionType = "http" | "browser-capture";
