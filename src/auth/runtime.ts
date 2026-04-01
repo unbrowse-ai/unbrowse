@@ -74,3 +74,43 @@ export class LocalAuthRuntime implements AuthRuntime {
 }
 
 export const authRuntime: AuthRuntime = new LocalAuthRuntime();
+
+
+/**
+ * Resolve a batch of auth dependencies using the singleton runtime.
+ * Used by the orchestrator auth prerequisite detection before endpoint execution.
+ * Returns one AuthResult per dependency, in the same order.
+ */
+export async function resolveAuthPrerequisites(
+  deps: AuthDependency[],
+): Promise<AuthResult[]> {
+  return Promise.all(deps.map((dep) => authRuntime.resolveAuth(dep)));
+}
+
+/**
+ * Derive auth dependencies from a skill manifest endpoints.
+ * Inspects semantic.auth_required and auth_profile_ref to surface
+ * which domains need authentication and what strategy to use.
+ */
+export function deriveAuthDependencies(
+  skill: { domain: string; auth_profile_ref?: string; endpoints: Array<{ endpoint_id: string; semantic?: { auth_required?: boolean } }> },
+  targetEndpointId?: string,
+): AuthDependency[] {
+  const endpoints = targetEndpointId
+    ? skill.endpoints.filter((ep) => ep.endpoint_id === targetEndpointId)
+    : skill.endpoints;
+
+  const needsAuth = endpoints.some(
+    (ep) => ep.semantic?.auth_required === true,
+  );
+
+  if (!needsAuth && !skill.auth_profile_ref) return [];
+
+  return [
+    {
+      domain: skill.domain,
+      strategy: "login_if_needed" as AuthStrategy,
+      login_url: `https://${skill.domain}/login`,
+    },
+  ];
+}
