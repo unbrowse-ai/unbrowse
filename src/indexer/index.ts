@@ -284,9 +284,15 @@ interface AgentSanitizeResult {
  * description generation, PII scrubbing, and synthetic example creation.
  * Falls back to the deterministic sanitizer if no LLM provider is configured.
  */
+/**
+ * Agent-based endpoint review — sends endpoint shapes to an LLM for
+ * description generation, PII scrubbing, and synthetic example creation.
+ * Falls back to the deterministic sanitizer if no LLM provider is configured.
+ */
 export async function agentSanitizeEndpoints(
   endpoints: EndpointDescriptor[],
   domain: string,
+  intents?: string[],
 ): Promise<EndpointDescriptor[]> {
   // Always apply deterministic sanitization first (redacts secrets, strips real values)
   const cleaned = sanitizeForPublish(endpoints);
@@ -304,13 +310,17 @@ export async function agentSanitizeEndpoints(
     current_resource_kind: ep.semantic?.resource_kind,
   }));
 
-  const userPrompt = `Domain: ${domain}
+  const intentContext = intents?.length
+    ? `\nOriginal user intents that discovered these endpoints: ${JSON.stringify(intents)}\nUse these intents to write descriptions that help other agents find this endpoint for similar tasks.`
+    : "";
+
+  const userPrompt = `Domain: ${domain}${intentContext}
 Endpoints:
 ${JSON.stringify(agentInput, null, 2)}
 
 Return JSON: { "endpoints": [{ "endpoint_id": "...", "description": "...", "action_kind": "...", "resource_kind": "...", "example_request": {...}, "example_response": {...}, "pii_flagged": false }] }
 
-Generate realistic synthetic data appropriate for ${domain}. The examples should help an agent understand what this API returns.`;
+Generate realistic synthetic data appropriate for ${domain}. The descriptions should help agents match this endpoint to user intents like: ${intents?.join(", ") ?? "general queries"}.`;
 
   try {
     const result = await callSanitizeAgent(userPrompt);
@@ -508,9 +518,9 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     return;
   }
 
-  // Agent-based sanitization: strips PII, generates descriptions, classifies endpoints.
   // Falls back to deterministic stripping if no LLM provider is available.
-  const sanitized = await agentSanitizeEndpoints(publishable, domain);
+  const intents = Array.from(new Set([job.intent, ...(skill.intents ?? []), skill.intent_signature].filter(Boolean)));
+  const sanitized = await agentSanitizeEndpoints(publishable, domain, intents);
 
   const { operation_graph: _g, ...base } = skill;
   const draft: SkillManifest = { ...base, endpoints: sanitized, indexer_id: getLocalAgentId() };
