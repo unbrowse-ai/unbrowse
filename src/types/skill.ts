@@ -159,7 +159,7 @@ export interface SkillOperationEdge {
   from_operation_id: string;
   to_operation_id: string;
   binding_key: string;
-  kind: "dependency" | "hint";
+  kind: "dependency" | "hint" | "parent_child" | "pagination" | "auth";
   confidence: number;
 }
 

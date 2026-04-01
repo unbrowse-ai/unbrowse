@@ -86,7 +86,7 @@ export function buildExecutionPlan(
     predecessors.set(op.operation_id, new Set());
   }
   for (const edge of graph.edges) {
-    if (edge.kind !== "dependency") continue;
+    if (edge.kind !== "dependency" && edge.kind !== "parent_child" && edge.kind !== "auth") continue;
     const deps = predecessors.get(edge.to_operation_id);
     if (deps) deps.add(edge.from_operation_id);
   }
@@ -116,7 +116,7 @@ export function buildExecutionPlan(
     inDegree.set(id, 0);
   }
   for (const edge of graph.edges) {
-    if (edge.kind !== "dependency") continue;
+    if (edge.kind !== "dependency" && edge.kind !== "parent_child" && edge.kind !== "auth") continue;
     if (!needed.has(edge.from_operation_id) || !needed.has(edge.to_operation_id)) continue;
     inDegree.set(edge.to_operation_id, (inDegree.get(edge.to_operation_id) ?? 0) + 1);
   }
@@ -155,7 +155,7 @@ export function buildExecutionPlan(
 
     // Decrement in-degree for successors.
     for (const edge of graph.edges) {
-      if (edge.kind !== "dependency") continue;
+      if (edge.kind !== "dependency" && edge.kind !== "parent_child" && edge.kind !== "auth") continue;
       if (edge.from_operation_id !== current) continue;
       if (!needed.has(edge.to_operation_id)) continue;
       const deg = (inDegree.get(edge.to_operation_id) ?? 1) - 1;
@@ -387,25 +387,25 @@ export function getDagSessionTrace(
 }
 
 // ---------------------------------------------------------------------------
-// 6. upsertDagEdgesFromOperationGraph — delegates to dag-feedback
+// 6. upsertDagEdgesFromOperationGraph
 // ---------------------------------------------------------------------------
 
 /**
- * Rebuild and persist the operation graph from the skill's current endpoints.
- * Delegates to the dag-feedback module which handles debounced local caching
- * and fire-and-forget backend publishing.
- *
- * Callers that import from planner.ts get the real implementation via lazy
- * dynamic import to avoid circular dependency with dag-feedback.ts.
+ * Merge new edges from a freshly-built graph into the skill manifest's
+ * persisted operation_graph. If the skill has no graph yet, assign the
+ * provided one directly. Existing edges are preserved (dedup by edge_id),
+ * and the generated_at timestamp is updated.
  */
 export function upsertDagEdgesFromOperationGraph(
   skill: SkillManifest,
-  _graph?: SkillOperationGraph,
+  graph: SkillOperationGraph,
 ): void {
-  // Lazy import to avoid circular dependency (dag-feedback imports from graph/)
-  import("../orchestrator/dag-feedback.js").then((mod) => {
-    mod.upsertDagEdgesFromOperationGraph(skill);
-  }).catch(() => {
-    // Graceful degradation — edge persistence is best-effort
-  });
+  if (!skill.operation_graph) { skill.operation_graph = graph; return; }
+  const existingEdgeIds = new Set(skill.operation_graph.edges.map(e => e.edge_id));
+  for (const edge of graph.edges) {
+    if (!existingEdgeIds.has(edge.edge_id)) {
+      skill.operation_graph.edges.push(edge);
+    }
+  }
+  skill.operation_graph.generated_at = graph.generated_at;
 }

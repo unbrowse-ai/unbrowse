@@ -411,6 +411,20 @@ function isGenericBindingKey(key: string | undefined): boolean {
   return /^(id|ids|url|urls|page|cursor|offset|limit|slug(?:_\d+)?|pathname|domain|query|q|type|name)$/.test(key);
 }
 
+const PAGINATION_KEYS = new Set(["cursor", "page", "offset", "page_token", "next_cursor", "after", "before", "start", "next_page", "continuation_token", "skip", "from", "scroll_id"]);
+function isPaginationBindingKey(key: string): boolean {
+  return PAGINATION_KEYS.has(key) || /^(next_|prev_|previous_)/.test(key) || /_cursor$/.test(key);
+}
+
+function classifyEdgeKind(source: SkillOperationNode, target: SkillOperationNode, bindingKey: string): SkillOperationEdge["kind"] {
+  if (source.operation_id === target.operation_id && isPaginationBindingKey(bindingKey)) return "pagination";
+  const LIST_ACTIONS = new Set(["list", "search", "timeline", "trending", "feed"]);
+  const DETAIL_ACTIONS = new Set(["detail", "fetch"]);
+  if (LIST_ACTIONS.has(source.action_kind) && DETAIL_ACTIONS.has(target.action_kind) && source.resource_kind === target.resource_kind && source.resource_kind !== "resource") return "parent_child";
+  if (target.auth_required && /^(auth|login|token|session|oauth)$/.test(source.action_kind)) return "auth";
+  return "dependency";
+}
+
 function isGenericSemanticType(type: string | undefined): boolean {
   if (!type) return true;
   return /^(identifier|input|resource|value|string|number|flag)$/.test(type);
@@ -679,7 +693,7 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
   for (const target of operations) {
     for (const required of target.requires) {
       for (const source of operations) {
-        if (source.operation_id === target.operation_id) continue;
+        if (source.operation_id === target.operation_id && !isPaginationBindingKey(required.key)) continue;
         const match = source.provides.find((provided) => {
           const exactKeyMatch = provided.key === required.key && !isGenericBindingKey(required.key);
           const semanticMatch =
@@ -699,7 +713,7 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
           from_operation_id: source.operation_id,
           to_operation_id: target.operation_id,
           binding_key: required.key,
-          kind: match.key === required.key ? "dependency" : "hint",
+          kind: match.key === required.key ? classifyEdgeKind(source, target, required.key) : "hint",
           confidence: match.key === required.key ? 0.9 : 0.6,
         });
       }
@@ -724,7 +738,6 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
 }
 
 export function ensureSkillOperationGraph(skill: SkillManifest): SkillOperationGraph {
-  if (skill.endpoints.length > 0) return buildSkillOperationGraph(skill.endpoints);
   if (skill.operation_graph?.operations?.length) return skill.operation_graph;
   return buildSkillOperationGraph(skill.endpoints);
 }
