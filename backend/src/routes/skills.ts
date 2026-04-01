@@ -44,6 +44,7 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
         skill.skill_id,
         recipient,
         resource,
+        { testnet: c.env.ENVIRONMENT !== "production" },
       );
       return x402Response(c, terms);
     }
