@@ -1,19 +1,22 @@
 {
   "name": "unbrowse",
   "version": "2.0.2",
-  "description": "Reverse-engineer any website into reusable API skills. npm CLI + local engine.",
+  "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
   "type": "module",
   "bin": {
-    "unbrowse": "dist/cli.js"
+    "unbrowse": "bin/unbrowse-wrapper.mjs"
   },
   "files": [
+    "bin",
     "dist",
     "runtime-src",
     "vendor/kuri",
+    "scripts/postinstall.mjs",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
     "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs",
     "prepublishOnly": "node scripts/assert-release-flow.mjs",
     "start": "bun src/index.ts",
