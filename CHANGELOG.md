@@ -9,7 +9,9 @@
 
 ### Bug Fixes
 
+* **#229**: implement `tryFirstPassBrowserAction` — navigates to the URL, records HAR, performs intent-driven actions (search/click/navigate), collects intercepted JSON API responses, and synthesizes a mini-skill for passive indexing ([#229](https://github.com/justrach/unbrowse34/issues/229))
 * **capture**: thread AbortSignal through CDP phases so 90s timeout aborts hanging kuri calls immediately instead of waiting for each call's own 30s timeout to stack ([#113](https://github.com/justrach/unbrowse34/issues/113))
+* **#152**: `mergeEndpoints` now promotes richer endpoint rediscoveries instead of silently dropping them
 * **#152**: `mergeEndpoints` now promotes richer endpoint rediscoveries instead of silently dropping them
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
