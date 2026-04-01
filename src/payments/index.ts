@@ -12,6 +12,8 @@
  * @see https://lobster.cash/docs/skill-compatibility-guide
  */
 
+import { fetchRoutePrice } from "../client/index.js";
+
 // ---------------------------------------------------------------------------
 // Payment requirement — what unbrowse tells the agent/wallet
 // ---------------------------------------------------------------------------
@@ -56,6 +58,19 @@ export const X402_CONFIG = {
 // ---------------------------------------------------------------------------
 // Payment gate — determines if execution requires payment
 // ---------------------------------------------------------------------------
+
+
+/**
+ * Resolve the dynamic price for a skill by fetching from the backend pricing endpoint.
+ * Falls back to the default "0.001" if the endpoint is unreachable or the skill is free/local.
+ *
+ * Intended to be called before checkPaymentRequirement so the gate uses the
+ * actual computed price rather than the hardcoded platform default.
+ */
+export async function resolveRoutePrice(skillId: string): Promise<string> {
+  const fetched = await fetchRoutePrice(skillId);
+  return fetched ?? "0.001";
+}
 
 /**
  * Check if a skill execution requires payment.
