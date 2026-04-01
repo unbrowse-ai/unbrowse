@@ -24,7 +24,6 @@ app.use("*", cors({
   exposeHeaders: ["X-Payment-Required"],
   maxAge: 86400,
 }));
-}));
 
 // Public routes (reads, search, validation, agent registration, issues list)
 app.route("/", healthRoutes);
