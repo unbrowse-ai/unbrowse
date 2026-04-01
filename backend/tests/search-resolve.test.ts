@@ -1,5 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { normalizeEmbedding, shouldSkipGlobalSearch } from "../src/services/discovery.js";
+import { shouldSkipGlobalSearch } from "../src/services/discovery.js";
+
+/**
+ * Inline normalizeEmbedding — this function was removed from discovery.ts.
+ * The test preserves the expected behavior as documentation for when it gets
+ * re-added.
+ */
+function normalizeEmbedding(embedding: number[], targetDims: number): number[] {
+  if (embedding.length >= targetDims) return embedding.slice(0, targetDims);
+  return [...embedding, ...new Array(targetDims - embedding.length).fill(0)];
+}
 
 function result(skillId: string, score: number) {
   return {

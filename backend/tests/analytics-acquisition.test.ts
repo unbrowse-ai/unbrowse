@@ -121,7 +121,9 @@ describe("acquisition analytics", () => {
       expect(res.status).toBe(200);
     }
 
-    const res = await app.fetch(new Request("http://local.test/v1/analytics/acquisition?days=30"), env);
+    const res = await app.fetch(new Request("http://local.test/v1/analytics/acquisition?days=30", {
+      headers: { Authorization: "Bearer admin" },
+    }), env);
     expect(res.status).toBe(200);
     const body = await res.json() as {
       totals: {
