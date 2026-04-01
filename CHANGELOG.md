@@ -5,6 +5,9 @@
 ### Features
 
 * **#155**: add BM25 lexical channel with RRF fusion — `indexEndpoints` stores docs in KV; `searchIntentInDomain` runs BM25 + graph in parallel and fuses with RRF (k=60), falling back to graph-only when no index exists
+* **#33**: x402 payment gating on skill access — `GET /v1/skills/:id` returns HTTP 402 with Corbits facilitator payment terms for paid skills; agents retry with `X-Payment-Proof` after paying
+* **#33**: Tier 3 per-query search fee recording — all `/v1/search` routes now record micro-cent fees to the agent ledger via `recordGraphFee`
+* **#33**: fee summary endpoint — `GET /v1/fees/summary` exposes aggregate fee ledger; `GET /v1/fees/agent/:id` exposes per-agent ledger
 
 ### Bug Fixes
 
