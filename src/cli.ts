@@ -458,6 +458,27 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back.",
   );
 
+  // Auto-handle auth: if site requires login, trigger interactive login and retry
+  const resultError = (result.result as Record<string, unknown>)?.error
+    ?? (result as Record<string, unknown>).error;
+  if (resultError === "auth_required") {
+    const loginUrl = (result.result as Record<string, unknown>)?.login_url as string
+      ?? url ?? "";
+    if (loginUrl) {
+      info("Site requires authentication. Opening browser for login...");
+      try {
+        await api("POST", "/v1/auth/login", { url: loginUrl });
+        info("Login complete. Retrying...");
+        result = await withPendingNotice(
+          api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+          "Retrying after login...",
+        );
+      } catch (err) {
+        die(`Login failed: ${(err as Error).message}. Run: unbrowse login --url "${loginUrl}"`);
+      }
+    }
+  }
+
   // When agent explicitly picked an endpoint but resolve deferred, execute it directly
   if (explicitEndpointId && result.available_endpoints) {
     const skillId = (result.skill as Record<string, unknown>)?.skill_id as string
