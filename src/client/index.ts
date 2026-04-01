@@ -115,9 +115,13 @@ export function getApiKey(): string {
 export function hashApiKey(key: string): string {
   if (!key || key === "local-only") return "";
   return createHash("sha256").update(key).digest("hex");
-* Return the locally registered agent_id, or null if not registered.
+}
+
+/**
+ * Return the locally registered agent_id, or null if not registered.
  * Used as the default indexer_id for Tier 1 attribution when the skill
  * manifest doesn't already carry one.
+ */
 export function getAgentId(): string | null {
   const config = loadConfig();
   return config?.agent_id ?? null;
@@ -679,16 +683,11 @@ export function buildExecutionPayload(
   opts?: { indexer_id?: string },
 ): ExecutionPayload {
   const { result: _result, ...metadata } = trace;
-// Derive a privacy-safe indexer_id from the API key for Tier 1 attribution (#232)
-  const indexerId = hashApiKey(getApiKey());
-  await api("POST", "/v1/stats/execution", {
+  const indexer_id = opts?.indexer_id ?? skill?.indexer_id ?? (hashApiKey(getApiKey()) || undefined);
+  const payload: ExecutionPayload = {
     skill_id: skillId,
     endpoint_id: endpointId,
     trace: metadata,
-    ...(indexerId ? { indexer_id: indexerId } : {}),
-  });
-const indexer_id = opts?.indexer_id ?? skill?.indexer_id ?? undefined;
-  const payload: ExecutionPayload = {
   };
   if (indexer_id) payload.indexer_id = indexer_id;
   return payload;
