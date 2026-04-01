@@ -875,3 +875,60 @@ export async function getAgent(agentId: string): Promise<{ agent_id: string; nam
 export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
   return api("GET", "/v1/agents/me", undefined);
 }
+
+
+// --- Transaction Visibility ---
+
+/** Get consumer payment history for an agent. */
+export async function getTransactionHistory(agentId: string): Promise<{
+  ledger: {
+    agent_id: string;
+    total_spent_uc: number;
+    total_spent_usd: number;
+    transaction_count: number;
+    first_transaction_at: string;
+    last_transaction_at: string;
+  } | null;
+  transactions: Array<{
+    transaction_id: string;
+    consumer_id: string;
+    creator_id: string;
+    skill_id: string;
+    price_usd: number;
+    price_uc: number;
+    status: string;
+    created_at: string;
+  }>;
+}> {
+  return api("GET", `/v1/transactions/consumer/${agentId}`);
+}
+
+/** Get creator earnings history for an agent/indexer. */
+export async function getCreatorEarnings(agentId: string): Promise<{
+  ledger: {
+    agent_id: string;
+    total_earned_uc: number;
+    total_earned_usd: number;
+    total_fees_uc: number;
+    transaction_count: number;
+    first_transaction_at: string;
+    last_transaction_at: string;
+  } | null;
+  transactions: Array<{
+    transaction_id: string;
+    consumer_id: string;
+    creator_id: string;
+    skill_id: string;
+    price_usd: number;
+    creator_payout_uc: number;
+    status: string;
+    created_at: string;
+  }>;
+}> {
+  return api("GET", `/v1/transactions/creator/${agentId}`);
+}
+
+/** Set the base price for a skill (requires auth as skill owner). */
+export async function setSkillPrice(skillId: string, priceUsd: number): Promise<unknown> {
+  return api("PATCH", `/v1/skills/${skillId}`, { base_price_usd: priceUsd });
+}
