@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
+import { buildDescriptionPrompt, extractResponseKeys } from "./description-prompt.js";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -164,23 +165,29 @@ function buildEndpointDescription(
   sampleResponse: unknown,
 ): string {
   const url = new URL(req.url);
-  const pathTail = url.pathname.split("/").filter(Boolean).slice(-2).join(" ");
-  const requestKeys = Object.keys(sampleRequest).slice(0, 4);
-  const response = summarizeResponseExample(sampleResponse);
-  const action = requestKeys.some((key) => /^(q|query|search|term)$/i.test(key)) || /search|find|lookup/.test(url.pathname)
-    ? "Searches"
-    : /status|health|incident|maintenance/.test(url.pathname)
-      ? "Returns status for"
-      : url.pathname.match(/\{[^}]+\}|\/[0-9A-Za-z_-]{4,}(\/|$)/)
-        ? "Returns details for"
-        : "Returns";
-  const subjectSource = new Set(["response", "data", "result", "results", "item", "items"]).has(response.subject.toLowerCase())
-    ? inferPathSubject(url.pathname)
-    : response.subject;
-  const subject = titleCase(subjectSource === "response" ? (pathTail || url.hostname) : subjectSource);
-  const fieldText = response.fields.length > 0 ? ` with ${response.fields.join(", ")}` : "";
-  const inputText = requestKeys.length > 0 ? ` using ${requestKeys.join(", ")}` : "";
-  return `${action} ${subject}${fieldText}${inputText}`;
+  const domain = url.hostname;
+  // Build param descriptors from the flattened sample request
+  const params = Object.entries(sampleRequest).slice(0, 8).map(([name, val]) => ({
+    name,
+    in: url.searchParams.has(name) ? "query" : "body",
+    example: typeof val === "string" || typeof val === "number" ? String(val) : undefined,
+  }));
+  // Use extractResponseKeys (from description-prompt.ts) to get grounded response fields
+  const sample_response_keys = extractResponseKeys(sampleResponse);
+  const prompt = buildDescriptionPrompt({
+    url_template: req.url,
+    method: req.method,
+    params,
+    sample_response_keys: sample_response_keys.length > 0 ? sample_response_keys : undefined,
+    domain,
+  });
+  // Strip the final instruction line ("Write a one-sentence description…") to produce
+  // a compact grounded context string suitable for BM25 indexing and as a description
+  // seed that inferEndpointSemantic can refine via description_out.
+  const contextLines = prompt
+    .split("\n")
+    .filter((line) => !line.startsWith("Write a one-sentence"));
+  return contextLines.join(" | ").replace(/\s{2,}/g, " ").trim();
 }
 
 function looksLikeAdResponse(body: string | undefined): boolean {

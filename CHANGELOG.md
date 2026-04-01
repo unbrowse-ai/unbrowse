@@ -7,8 +7,10 @@
 * **#155**: add BM25 lexical channel with RRF fusion — `indexEndpoints` stores docs in KV; `searchIntentInDomain` runs BM25 + graph in parallel and fuses with RRF (k=60), falling back to graph-only when no index exists
 * **#221**: wire `computeCompositeSearchScore` into search/resolve path — search results are now rescored with the Section 3.3 composite formula (40% embedding, 30% reliability, 15% freshness, 15% verification) instead of pure vector similarity; orchestrator scoring aligned to use continuous verified ratio
 
+
 ### Bug Fixes
 
+* **#226**: wire `buildDescriptionPrompt` into reverse-engineer pipeline — `buildEndpointDescription` now uses `extractResponseKeys` and `buildDescriptionPrompt` from `description-prompt.ts` to build grounded initial descriptions seeded with endpoint params and response fields, replacing the pure heuristic stub
 * **#229**: implement `tryFirstPassBrowserAction` — navigates to the URL, records HAR, performs intent-driven actions (search/click/navigate), collects intercepted JSON API responses, and synthesizes a mini-skill for passive indexing ([#229](https://github.com/justrach/unbrowse34/issues/229))
 * **capture**: thread AbortSignal through CDP phases so 90s timeout aborts hanging kuri calls immediately instead of waiting for each call's own 30s timeout to stack ([#113](https://github.com/justrach/unbrowse34/issues/113))
 * **#152**: `mergeEndpoints` now promotes richer endpoint rediscoveries instead of silently dropping them
