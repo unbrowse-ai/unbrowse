@@ -754,15 +754,41 @@ export async function captureSession(
       }
     }
 
-    // Also collect via Performance API for requests the interceptor might have missed
-    // (requests that started before the interceptor was injected)
+    // --- Performance API discovery + sync XHR replay ---
+    // The JS interceptor can miss early requests (SPA API calls fire before injection).
+    // HAR captures URLs but not response bodies.
+    // Use Performance API to discover all fetch/XHR URLs, then replay-fetch via sync
+    // XHR to get response bodies. This runs in-page so cookies/CORS are preserved.
+    const REPLAY_SKIP = /\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp|avif|map|ttf)(\?|$)/i;
     try {
-      await phase("evaluate:perf", () => kuri.evaluate(tabId, `JSON.stringify(
+      const perfRaw = await phase("evaluate:perf", () => kuri.evaluate(tabId, `JSON.stringify(
         performance.getEntriesByType('resource')
           .filter(function(e) { return e.initiatorType === 'fetch' || e.initiatorType === 'xmlhttprequest'; })
-          .map(function(e) { return { url: e.name, duration: e.duration }; })
+          .map(function(e) { return e.name; })
       )`));
-      // Performance API only gives us URLs, not bodies — but useful for request tracking
+      if (typeof perfRaw === "string" && perfRaw.startsWith("[")) {
+        const perfUrls: string[] = JSON.parse(perfRaw);
+        log("capture", `Performance API found ${perfUrls.length} fetch/XHR URLs`);
+        let replayCount = 0;
+        for (const perfUrl of perfUrls) {
+          if (responseBodies.has(perfUrl)) continue;
+          if (REPLAY_SKIP.test(perfUrl)) continue;
+          if (replayCount >= 30) break;
+          try {
+            const body = await phase("replay-fetch", () =>
+              kuri.evaluate(tabId, `(function(){var x=new XMLHttpRequest();x.open('GET','${perfUrl.replace(/'/g, "\\'")}',false);x.send();return x.status>=200&&x.status<400?x.responseText:''})()`)
+            );
+            if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
+              responseBodies.set(perfUrl, body);
+              replayCount++;
+              log("capture", `replay-fetched ${perfUrl.substring(0, 80)} (${body.length}B)`);
+            }
+          } catch { /* non-fatal */ }
+        }
+        if (replayCount > 0) {
+          log("capture", `replay-fetched ${replayCount} API response bodies via Performance API`);
+        }
+      }
     } catch { /* non-fatal */ }
 
     // Stop HAR recording and merge with intercepted data
@@ -780,46 +806,7 @@ export async function captureSession(
       log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
     }
 
-    // --- Replay-fetch for HAR entries with missing bodies ---
-    // HAR gives us URLs but Kuri doesn't capture response bodies in HAR.
-    // The interceptor may have missed early requests due to the injection race.
-    // For API-like requests (JSON, not static assets), re-fetch from the page
-    // context so cookies/auth are preserved and we get the actual response body.
-    const REPLAY_SKIP = /\.(js|css|woff2?|png|jpe?g|gif|svg|ico|webp|avif|map|ttf)(\?|$)/i;
-    const REPLAY_MAX = 30;
-    let replayCount = 0;
-    for (const entry of harEntries) {
-      const entryUrl = entry.request.url;
-      // Skip if we already have a body from interceptor
-      if (responseBodies.has(entryUrl)) continue;
-      // Skip if HAR already has body content
-      if (entry.response.content?.text) continue;
-      // Skip static assets
-      if (REPLAY_SKIP.test(entryUrl)) continue;
-      // Skip non-success or redirect responses
-      if (entry.response.status < 200 || entry.response.status >= 400) continue;
-      // Only replay same-origin or API requests
-      try {
-        const entryHost = new URL(entryUrl).hostname;
-        const pageHost = new URL(url).hostname;
-        if (!entryHost.endsWith(pageHost.replace(/^www\./, "")) && !entryUrl.includes("/api/")) continue;
-      } catch { continue; }
-      if (replayCount >= REPLAY_MAX) break;
-
-      try {
-        const body = await phase("replay-fetch", () =>
-          kuri.executeInPageFetch(tabId, entryUrl, { method: entry.request.method })
-        );
-        if (typeof body === "string" && body.length > 0 && body.length < 512 * 1024) {
-          responseBodies.set(entryUrl, body);
-          replayCount++;
-          log("capture", `replay-fetched body for ${entryUrl.substring(0, 100)} (${body.length}B)`);
-        }
-      } catch { /* non-fatal — request may have expired or requires specific headers */ }
-    }
-    if (replayCount > 0) {
-      log("capture", `replay-fetched ${replayCount} missing response bodies`);
-    }
+    // (HAR-based replay removed — Performance API replay above is more reliable)
 
     let final_url = url;
     let html: string | undefined;
