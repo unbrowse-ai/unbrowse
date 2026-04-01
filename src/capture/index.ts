@@ -2,9 +2,25 @@ import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
+import { getBrowserConfig, type BrowserPathConfig } from "../runtime/browser-host.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+// Host-aware browser configuration — viewport, user agent
+const hostBrowserConfig: BrowserPathConfig = getBrowserConfig();
+
+/**
+ * Apply host-specific browser config (viewport, user agent) to a tab.
+ * Called after tab acquisition, before capture navigation.
+ */
+async function applyBrowserConfig(tabId: string): Promise<void> {
+  // Always set UA: host config doesn't carry a UA field, so use standard CHROME_UA
+  await kuri.setUserAgent(tabId, CHROME_UA);
+  // Set viewport to standard desktop size for consistent capture
+  await kuri.setViewport(tabId, 1280, 800);
+  log("capture", `applied browser config (headless=${hostBrowserConfig.headless})`);
+}
 
 // Tab semaphore: max 3 concurrent capture tabs
 const MAX_CONCURRENT_TABS = 3;
@@ -672,6 +688,7 @@ export async function captureSession(
     }
   }
   activeTabRegistry.add(tabId);
+  await applyBrowserConfig(tabId);
 
   const domain = new URL(url).hostname;
   let captureTimedOut = false;
@@ -946,6 +963,7 @@ export async function executeInBrowser(
     tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
+  await applyBrowserConfig(tabId);
 
   try {
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...authHeaders, ...requestHeaders };
@@ -993,6 +1011,7 @@ export async function triggerAndIntercept(
     tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
+  await applyBrowserConfig(tabId);
 
   try {
     // Set headers
@@ -1175,6 +1194,7 @@ export async function executeActionSequence(
     tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
+  await applyBrowserConfig(tabId);
 
   const traceId = nanoid();
   const stepResults: BrowserActionResult["steps"] = [];

@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { ensureDir } from "./paths.js";
 import { findKuriBinary, getKuriSourceCandidates } from "../kuri/client.js";
+import { detectHostEnvironment, type HostEnvironment } from "./browser-host.js";
+import { log } from "../logger.js";
 
 export type SetupScope = "auto" | "global" | "project" | "off";
 
@@ -13,6 +15,7 @@ export type SetupReport = {
     release: string;
     arch: string;
   };
+  host_environment: HostEnvironment;
   package_managers: {
     npm: boolean;
     npx: boolean;
@@ -179,6 +182,10 @@ export async function runSetup(options?: {
   installBrowser?: boolean;
 }): Promise<SetupReport> {
   const cwd = options?.cwd || process.cwd();
+
+  const hostEnv = detectHostEnvironment();
+  log("setup", `detected host environment: ${hostEnv}`);
+
   const browser = options?.installBrowser === false
     ? { installed: false, action: "skipped" as const }
     : await ensureBrowserEngineInstalled();
@@ -189,6 +196,7 @@ export async function runSetup(options?: {
       release: os.release(),
       arch: process.arch,
     },
+    host_environment: hostEnv,
     package_managers: detectPackageManagers(),
     browser_engine: browser,
     opencode: writeOpenCodeCommand(options?.opencode ?? "auto", cwd),
