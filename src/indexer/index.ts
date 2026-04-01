@@ -1,5 +1,5 @@
 import { buildSkillOperationGraph } from "../graph/index.js";
-import { validateManifest, publishSkill, cachePublishedSkill } from "../client/index.js";
+import { validateManifest, publishSkill, cachePublishedSkill, publishGraphEdges } from "../client/index.js";
 import {
   writeSkillSnapshot,
   domainSkillCache,
@@ -79,7 +79,11 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     return;
   }
 
+  const publishStart = Date.now();
   const published = await publishSkill(draft);
+  const publishMs = Date.now() - publishStart;
+  console.log(`[background-index] publish latency: ${publishMs}ms for ${domain}`);
+
   const merged: SkillManifest = {
     ...published,
     endpoints: skill.endpoints,
@@ -91,7 +95,29 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   cachePublishedSkill(merged, clientScope);
   writeSkillSnapshot(scopedKey, merged);
 
-  // 6. Update domain cache so cross-intent reuse works
+  // 6. Publish graph edges via dedicated endpoint (fire-and-forget)
+  if (skill.operation_graph?.operations) {
+    for (const op of skill.operation_graph.operations) {
+      const opEdges = (skill.operation_graph.edges ?? [])
+        .filter(e => e.from_operation_id === op.operation_id)
+        .map(e => ({
+          target_endpoint_id: skill.operation_graph!.operations.find(
+            t => t.operation_id === e.to_operation_id
+          )?.endpoint_id ?? e.to_operation_id,
+          kind: e.kind,
+          confidence: e.confidence,
+        }));
+      if (opEdges.length > 0) {
+        publishGraphEdges(domain, {
+          endpoint_id: op.endpoint_id,
+          method: op.method,
+          url_template: op.url_template,
+        }, opEdges).catch(() => {});
+      }
+    }
+  }
+
+  // 7. Update domain cache so cross-intent reuse works
   const domainKey = getDomainReuseKey(job.contextUrl ?? domain);
   if (domainKey) {
     domainSkillCache.set(domainKey, {
@@ -102,7 +128,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     persistDomainCache();
   }
 
-  console.log(`[background-index] completed for ${domain} → ${published.skill_id}`);
+  console.log(`[background-index] completed for ${domain} -> ${published.skill_id}`);
 }
 
 /** Check if a domain has an indexing job running. */
