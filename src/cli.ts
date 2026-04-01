@@ -327,8 +327,6 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   };
   // Carry over result (even if empty array — don't silently drop it)
   if ("result" in obj) out.result = obj.result;
-  // Keep extraction_hints — agents need them for --path/--extract guidance
-  if (obj.extraction_hints) out.extraction_hints = obj.extraction_hints;
   return out;
 }
 
