@@ -137,8 +137,18 @@ export interface SkillManifest {
   needs_reindex?: boolean;
   /** Agent ID of the indexer who published this skill — used for Tier 1 attribution */
   indexer_id?: string;
+  /**
+   * Site-owner opt-in for revenue sharing.
+   * When true, the domain operator will receive a compensation share for
+   * traffic routed through their endpoints (Tier 2 site-owner compensation).
+   */
+  owner_compensation_opt_in?: boolean;
+  /**
+   * Optional base price override in USD per execution.
+   * If unset, the platform default base price applies.
+   */
+  base_price_usd?: number;
 }
-
 export interface EndpointStats {
   total_executions: number;
   successful_executions: number;
