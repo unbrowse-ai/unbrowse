@@ -93,6 +93,70 @@ export function redactSecrets(obj: unknown, parentKey = ""): unknown {
  * Layer 1: Redact secrets (tokens, keys, JWTs) from ALL string values
  * Layer 2: Strip example responses, query defaults, sample URLs
  */
+/**
+ * Synthesize a plausible placeholder value for a given real value.
+ * Preserves type and rough shape so agents can understand the endpoint.
+ */
+function synthesizePlaceholder(key: string, value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "number") return Number.isInteger(value) ? 12345 : 99.99;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (looksLikeSecret(key, value)) return "[REDACTED]";
+    // Email-like
+    if (/@/.test(value)) return "user@example.com";
+    // URL-like
+    if (/^https?:\/\//.test(value)) return "https://example.com/item/123";
+    // UUID-like
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}/.test(value)) return "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    // Numeric string
+    if (/^\d+$/.test(value)) return "12345";
+    // Date-like
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return "2026-01-15T00:00:00Z";
+    // Short identifier
+    if (value.length <= 8) return "abc123";
+    // General text — return a generic of similar length
+    if (value.length > 100) return "Example description text for this item.";
+    return "example-value";
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0 ? [synthesizeExample(value[0], 0)] : [];
+  }
+  if (typeof value === "object") {
+    return synthesizeExample(value, 0);
+  }
+  return value;
+}
+
+/**
+ * Recursively synthesize a structurally similar example with placeholder values.
+ * Keeps keys and types, replaces actual data with generic equivalents.
+ */
+export function synthesizeExample(obj: unknown, depth = 0): unknown {
+  if (depth > 5) return null; // prevent infinite recursion
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== "object") return synthesizePlaceholder("", obj);
+  if (Array.isArray(obj)) {
+    // Keep at most 2 items to show the shape
+    return obj.slice(0, 2).map((item) => synthesizeExample(item, depth + 1));
+  }
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    result[k] = typeof v === "object" && v !== null
+      ? synthesizeExample(v, depth + 1)
+      : synthesizePlaceholder(k, v);
+  }
+  return result;
+}
+
+/**
+ * Strip PII and user-specific data from endpoints before publishing to marketplace.
+ * Replaces real data with structurally similar synthetic examples so agents
+ * can still understand the endpoint shape.
+ *
+ * Layer 1: Redact secrets (tokens, keys, JWTs) from ALL string values
+ * Layer 2: Synthesize placeholder examples, sanitize query defaults
+ */
 export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
   return endpoints.map((ep) => {
     const clean = { ...ep };
@@ -108,25 +172,25 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
       clean.body = redactSecrets(clean.body) as Record<string, unknown>;
     }
 
-    // Layer 2: Strip query default values — keep keys for template, blank values
+    // Layer 2: Replace query defaults with generic placeholders
     if (clean.query) {
       clean.query = Object.fromEntries(
-        Object.keys(clean.query).map((k) => [k, ""]),
+        Object.entries(clean.query).map(([k, v]) => [k, typeof v === "string" ? "example" : v]),
       );
     }
 
-    // Strip path_params default values
+    // Replace path_params with generic placeholders
     if (clean.path_params) {
       clean.path_params = Object.fromEntries(
-        Object.keys(clean.path_params).map((k) => [k, ""]),
+        Object.keys(clean.path_params).map((k) => [k, "example"]),
       );
     }
 
-    // Strip body defaults
-    if (clean.body) clean.body = {};
-    if (clean.body_params) clean.body_params = {};
+    // Synthesize body example (keep structure, replace values)
+    if (clean.body) clean.body = synthesizeExample(clean.body) as Record<string, unknown>;
+    if (clean.body_params) clean.body_params = synthesizeExample(clean.body_params) as Record<string, unknown>;
 
-    // Strip header values — keep keys only
+    // Strip header values — keep keys only (headers are not useful as examples)
     if (clean.headers_template) {
       clean.headers_template = Object.fromEntries(
         Object.keys(clean.headers_template).map((k) => [k, ""]),
@@ -141,13 +205,30 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
       } catch { /* keep as-is if unparseable */ }
     }
 
-    // Sanitize semantic descriptor
+    // Sanitize semantic descriptor — synthesize examples instead of deleting
     if (clean.semantic) {
       const sem = { ...clean.semantic };
-      delete sem.example_response_compact;
-      delete sem.example_request;
-      delete sem.sample_request_url;
 
+      // Synthesize structurally similar examples
+      if (sem.example_response_compact) {
+        sem.example_response_compact = synthesizeExample(sem.example_response_compact);
+      }
+      if (sem.example_request) {
+        sem.example_request = synthesizeExample(sem.example_request);
+      }
+
+      // Replace sample URL query params with placeholders
+      if (sem.sample_request_url) {
+        try {
+          const u = new URL(sem.sample_request_url);
+          for (const key of u.searchParams.keys()) {
+            u.searchParams.set(key, "example");
+          }
+          sem.sample_request_url = u.toString();
+        } catch { delete sem.sample_request_url; }
+      }
+
+      // Strip example_value from bindings (these are real captured values)
       if (sem.requires) {
         sem.requires = sem.requires.map((b) => {
           const { example_value: _, ...rest } = b;
