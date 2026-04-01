@@ -2,16 +2,14 @@
 
 ## [Unreleased]
 
+### Features
+
+* **#155**: add BM25 lexical channel with RRF fusion — `indexEndpoints` stores docs in KV; `searchIntentInDomain` runs BM25 + graph in parallel and fuses with RRF (k=60), falling back to graph-only when no index exists
+
 ### Bug Fixes
 
 * **capture**: thread AbortSignal through CDP phases so 90s timeout aborts hanging kuri calls immediately instead of waiting for each call's own 30s timeout to stack ([#113](https://github.com/justrach/unbrowse34/issues/113))
-* **router**: restore the unsafe-action scoring module so orchestrator startup and CLI routing work again on `rach/restart-base`
-* **ci**: run lint and test workflows on `rach/restart-base`, add CLI end-to-end coverage, and document required merge checks for the default branch
-* **cli**: preserve `url` in execute requests so browser-capture endpoints still replay correctly through the API route
-* **runtime**: resolve the real package root for nested modules and discover vendored Kuri binaries from the monorepo package path so users do not need Zig or a separate `kuri` install
-* **tooling**: add a packaged-Kuri verification script and run it from sync/commit paths so vendored runtime regressions fail earlier
-* **docs**: add a PR validation matrix mapping merged work to concrete automated and manual test cases
-
+* **#152**: `mergeEndpoints` now promotes richer endpoint rediscoveries instead of silently dropping them
 ## [2.0.1](https://github.com/justrach/unbrowse34/compare/v2.0.0...v2.0.1) (2026-03-15)
 
 ### Features
