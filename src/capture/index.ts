@@ -1040,6 +1040,55 @@ export interface BrowserActionStep {
   timeoutMs?: number;
 }
 
+/** Internal record of when each action step started, used for request provenance tagging. */
+interface StepTimingEntry {
+  stepIndex: number;
+  action: string;
+  ref?: string;
+  startedAt: string; // ISO timestamp
+}
+
+/**
+ * Tag captured requests with the action step that triggered them.
+ * Uses timestamp comparison: a request is attributed to the latest step
+ * whose startedAt is <= the request's timestamp. Requests that arrived
+ * before any step (e.g. during initial navigation) are left untagged.
+ *
+ * Exported for testability.
+ */
+export function tagRequestProvenance(
+  requests: RawRequest[],
+  stepTimings: StepTimingEntry[],
+): void {
+  if (stepTimings.length === 0) return;
+
+  // Sort step timings by startedAt ascending (should already be, but be safe)
+  const sorted = [...stepTimings].sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+  );
+
+  for (const req of requests) {
+    if (!req.timestamp) continue;
+    const reqTime = new Date(req.timestamp).getTime();
+
+    // Find the latest step that started at or before this request's timestamp
+    let matchedStep: StepTimingEntry | undefined;
+    for (const step of sorted) {
+      if (new Date(step.startedAt).getTime() <= reqTime) {
+        matchedStep = step;
+      } else {
+        break;
+      }
+    }
+
+    if (matchedStep) {
+      req.triggered_by_step = matchedStep.stepIndex;
+      req.triggered_by_action = matchedStep.action;
+      req.triggered_by_ref = matchedStep.ref;
+    }
+  }
+}
+
 /** Result of a first-pass browser action execution. */
 export interface BrowserActionResult {
   /** Whether the action sequence completed without errors. */
@@ -1089,7 +1138,7 @@ export async function executeActionSequence(
 
   const traceId = nanoid();
   const stepResults: BrowserActionResult["steps"] = [];
-
+  const stepTimings: StepTimingEntry[] = [];
   try {
     // Setup: headers + cookies
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...(options?.authHeaders ?? {}) };
@@ -1114,10 +1163,17 @@ export async function executeActionSequence(
     }
 
     // Execute each action step
-    for (const step of steps) {
+    for (let stepIdx = 0; stepIdx < steps.length; stepIdx++) {
+      const step = steps[stepIdx];
+      // Record step start time for request provenance tagging (#214)
+      stepTimings.push({
+        stepIndex: stepIdx,
+        action: step.action,
+        ref: step.ref,
+        startedAt: new Date().toISOString(),
+      });
       try {
         let result: unknown;
-
         switch (step.action) {
           case "snapshot":
             result = await kuri.snapshot(tabId, step.value);
@@ -1239,6 +1295,9 @@ export async function executeActionSequence(
             timestamp: entry.timestamp,
           });
         }
+
+        // Tag each request with the action step that triggered it (#214)
+        tagRequestProvenance(requests, stepTimings);
 
         const sessionCookies = filterFirstPartySessionCookies(
           await extractCookiesFromPage(tabId, url),
