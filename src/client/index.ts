@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
 import { homedir, hostname } from "os";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
 import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
 
@@ -104,6 +104,15 @@ export function getApiKey(): string {
     return config.api_key;
   }
   return "";
+}
+
+/**
+ * Derive a stable, privacy-safe indexer identifier from the raw API key.
+ * Returns a hex SHA-256 hash, or "" for empty / local-only keys.
+ */
+export function hashApiKey(key: string): string {
+  if (!key || key === "local-only") return "";
+  return createHash("sha256").update(key).digest("hex");
 }
 
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
@@ -645,10 +654,13 @@ export async function recordExecution(
   if (LOCAL_ONLY) return;
   // Strip actual API response data — only send metadata for scoring
   const { result: _result, ...metadata } = trace;
+  // Derive a privacy-safe indexer_id from the API key for Tier 1 attribution (#232)
+  const indexerId = hashApiKey(getApiKey());
   await api("POST", "/v1/stats/execution", {
     skill_id: skillId,
     endpoint_id: endpointId,
     trace: metadata,
+    ...(indexerId ? { indexer_id: indexerId } : {}),
   });
 }
 
