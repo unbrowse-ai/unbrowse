@@ -131,7 +131,12 @@ export interface SkillManifest {
   prev_version?: string;
   discovery_cost?: DiscoveryCost;
   /** Intent strings that contributed endpoints to this domain-level skill */
+  /** Intent strings that contributed endpoints to this domain-level skill */
   intents?: string[];
+  /** Set when vector indexing failed at publish time — eligible for reindex */
+  needs_reindex?: boolean;
+  /** Agent ID of the indexer who published this skill — used for Tier 1 attribution */
+  indexer_id?: string;
 }
 
 export interface EndpointStats {
