@@ -13,8 +13,6 @@ type CapturedRequest = {
 const TESTS_DIR = dirname(new URL(import.meta.url).pathname);
 const ROOT = join(TESTS_DIR, "..");
 const servers = new Set<ReturnType<typeof createServer>>();
-const runCliPayloadIntegration = process.env.UNBROWSE_RUN_CLI_PAYLOAD === "1";
-const suite = runCliPayloadIntegration ? describe : describe.skip;
 
 async function startJsonEchoServer(responseBody: unknown = { ok: true }): Promise<{
   baseUrl: string;
@@ -76,7 +74,7 @@ async function runCli(baseUrl: string, args: string[]): Promise<{ code: number; 
   return { code, stdout, stderr };
 }
 
-suite("CLI input payload ingestion (integration)", () => {
+describe("CLI input payload ingestion (integration)", () => {
   it("resolve merges --url and --params into the request payload", async () => {
     const server = await startJsonEchoServer({ result: { ok: true } });
 
