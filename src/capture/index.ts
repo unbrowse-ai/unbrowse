@@ -27,6 +27,9 @@ const waitQueue: Array<() => void> = [];
 // Active tab registry — tracked for graceful shutdown
 const activeTabRegistry = new Set<string>();
 
+// Tracks tabs where scriptInject has been registered (persistent across navigations)
+const interceptorInjectedTabs = new Set<string>();
+
 // Hard timeout per capture: 90s prevents stuck tabs from holding slots forever
 const CAPTURE_TIMEOUT_MS = 90_000;
 const CAPTURE_NAV_TIMEOUT_MS = 20_000;
@@ -84,7 +87,7 @@ async function acquireTabSlot(): Promise<void> {
 }
 
 function releaseTabSlot(tabId?: string): void {
-  if (tabId) activeTabRegistry.delete(tabId);
+  if (tabId) { activeTabRegistry.delete(tabId); interceptorInjectedTabs.delete(tabId); }
   activeTabs--;
   const next = waitQueue.shift();
   if (next) next();
@@ -721,6 +724,18 @@ export async function captureSession(
       await phase("injectCookies", () => injectCookies(tabId, cookies!));
     }
 
+    // Inject interceptor persistently — survives navigations via Page.addScriptToEvaluateOnNewDocument
+    if (!interceptorInjectedTabs.has(tabId)) {
+      try {
+        await phase("scriptInject", () => kuri.scriptInject(tabId, INTERCEPTOR_SCRIPT));
+        interceptorInjectedTabs.add(tabId);
+        log("capture", "interceptor installed via scriptInject (persistent)");
+      } catch {
+        // Fallback for older kuri versions without scriptInject
+        log("capture", "scriptInject unavailable — falling back to evaluate injection");
+      }
+    }
+
     // Start HAR recording
     await phase("harStart", () => kuri.harStart(tabId));
 
@@ -728,24 +743,13 @@ export async function captureSession(
     let pageDomain: string | undefined;
     try { pageDomain = getRegistrableDomain(new URL(url).hostname); } catch { /* bad url */ }
 
-    // Inject fetch/XHR interceptor BEFORE navigation to capture all response bodies
-    await phase("evaluate:interceptor", () => kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {}));
-
     // Navigate to target URL
     await phase("navigate", () => kuri.navigate(tabId, url));
 
-    // Re-inject interceptor ASAP after navigation (page context resets).
-    // Poll at 50ms intervals for up to 3s — SPAs fire initial API calls within 50-100ms.
-    const injectDeadline = Date.now() + 3000;
-    let injected = false;
-    while (Date.now() < injectDeadline && !injected) {
-      try {
-        await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT);
-        injected = true;
-        log("capture", `interceptor re-injected after ${Date.now() - injectDeadline + 3000}ms`);
-      } catch {
-        await new Promise((r) => setTimeout(r, 50));
-      }
+    // If scriptInject wasn't available, fall back to single evaluate injection after navigation
+    if (!interceptorInjectedTabs.has(tabId)) {
+      await phase("evaluate:interceptor", () => kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {}));
+      log("capture", "interceptor re-injected via evaluate fallback");
     }
 
     // Build response bodies map from intercepted requests
