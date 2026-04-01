@@ -9,12 +9,12 @@ One agent learns a site once. Every later agent gets the fast path.
 ## Quick start
 
 ```bash
-# 30-second setup — clone, register skill, start server
-git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.claude/skills/unbrowse \
-  && cd ~/.claude/skills/unbrowse && ./setup
+curl -fsSL https://unbrowse.ai/install.sh | bash
 ```
 
-The setup script installs dependencies, auto-detects your agent host (Claude Code, Codex), registers the `/unbrowse` skill, then delegates to the CLI for Kuri verification, marketplace registration, and server startup.
+Clones the repo to `~/.claude/skills/unbrowse`, installs dependencies, auto-detects your agent host (Claude Code, Codex), registers the `/unbrowse` skill, and starts the server.
+
+### Alternative: npm install
 
 ### Alternative: npm install
 

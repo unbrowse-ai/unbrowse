@@ -6,27 +6,16 @@ import { Terminal, Copy, Check } from "lucide-react";
 const tabs = [
     {
       id: "claude",
-      label: "Claude Code / OpenClaw",
-      code: `# Full setup in one command
-npx unbrowse setup
-
-# Install globally for repeat use
-npm install -g unbrowse
-unbrowse setup
-
-# Already installed? Upgrade to latest after releases
-npm install -g unbrowse@latest
-unbrowse setup
-
-# Add the skill for agent workflows
-npx skills add unbrowse-ai/unbrowse
+      label: "Claude Code / Codex",
+      code: `# One-line install
+curl -fsSL https://unbrowse.ai/install.sh | bash
 
 # Use it
 unbrowse resolve --intent "get events" --url "https://lu.ma"`,
     },
     {
-      id: "cursor",
-      label: "Cursor",
+      id: "npm",
+      label: "npm (standalone)",
       code: `# Full setup in one command
 npx unbrowse setup
 
@@ -34,11 +23,13 @@ npx unbrowse setup
 npm install -g unbrowse
 unbrowse setup
 
-# Already installed? Upgrade to latest after releases
-npm install -g unbrowse@latest
-unbrowse setup
-
-# Add the skill in Cursor
+# Check the install
+unbrowse health`,
+    },
+    {
+      id: "skill",
+      label: "Skill Protocol",
+      code: `# For OpenClaw, Cursor, and other skill hosts
 npx skills add unbrowse-ai/unbrowse
 
 # Check the install
