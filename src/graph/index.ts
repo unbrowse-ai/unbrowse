@@ -701,10 +701,14 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
             !!required.semantic_type &&
             provided.semantic_type === required.semantic_type &&
             !isGenericSemanticType(required.semantic_type);
-          return exactKeyMatch || semanticMatch;
+          const paginationSelfMatch =
+            source.operation_id === target.operation_id &&
+            provided.key === required.key &&
+            isPaginationBindingKey(required.key);
+          return exactKeyMatch || semanticMatch || paginationSelfMatch;
         });
         if (!match) continue;
-        if (!isBefore(source.observed_at, target.observed_at)) continue;
+        if (source.operation_id !== target.operation_id && !isBefore(source.observed_at, target.observed_at)) continue;
         const edgeId = `${source.operation_id}:${target.operation_id}:${required.key}`;
         if (seenEdges.has(edgeId)) continue;
         seenEdges.add(edgeId);
