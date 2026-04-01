@@ -6,6 +6,7 @@ import { addSkillDiscovered } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { computeRoutePrice } from "../services/pricing.js";
 import { getStats } from "../services/scoring.js";
+import { x402Response, verifyX402Proof, buildSkillPaymentTerms } from "../middleware/x402-gate.js";
 
 // Public read routes — no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -19,10 +20,44 @@ publicSkillRoutes.get("/skills", async (c) => {
   return c.json({ skills });
 });
 
-// GET /v1/skills/:id — get by ID
+// GET /v1/skills/:id — get by ID (x402-gated for paid skills)
 publicSkillRoutes.get("/skills/:id", async (c) => {
   const skill = await getSkill(c.env, c.req.param("id"));
   if (!skill) return c.json({ error: "Skill not found" }, 404);
+
+  // Compute dynamic price for this skill
+  const statsArr = await Promise.all(
+    skill.endpoints.map((ep) => getStats(c.env, skill.skill_id, ep.endpoint_id)),
+  );
+  const priceResult = computeRoutePrice(skill, statsArr);
+
+  // Free skills (price=0 or below floor) skip the gate
+  if (priceResult.price_usd > 0) {
+    const proofHeader = c.req.header("X-Payment-Proof");
+
+    if (!proofHeader) {
+      // No proof provided — return 402 with payment terms
+      const recipient = c.env.PAYMENT_RECIPIENT ?? "0x0000000000000000000000000000000000000000";
+      const resource = new URL(c.req.url).pathname;
+      const terms = buildSkillPaymentTerms(
+        priceResult.price_usd,
+        skill.skill_id,
+        recipient,
+        resource,
+      );
+      return x402Response(c, terms);
+    }
+
+    // Proof provided — verify via Corbits facilitator
+    const { valid, degraded } = await verifyX402Proof(proofHeader);
+    if (!valid) {
+      return c.json({ error: "Payment proof invalid or rejected" }, 403);
+    }
+    if (degraded) {
+      console.warn(`[x402] facilitator down — allowed degraded access for skill ${skill.skill_id}`);
+    }
+  }
+
   return c.json(skill);
 });
 
@@ -45,7 +80,6 @@ publicSkillRoutes.get("/skills/:id/price", async (c) => {
   return c.json(price);
 });
 
-// Protected write routes — auth required
 // Protected write routes — auth required
 export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 

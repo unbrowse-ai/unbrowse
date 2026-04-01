@@ -6,6 +6,8 @@ export interface Env {
   NEBIUS_API_KEY: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
+  /** Wallet address that receives x402 skill-access payments. */
+  PAYMENT_RECIPIENT?: string;
 }
 
 // --- Agent identity ---
