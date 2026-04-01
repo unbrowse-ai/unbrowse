@@ -6,7 +6,7 @@
 
 **Working branch**: `rach/restart-base`
 
-**Current focus**: Phase 1 — Passive Capture Foundation
+**Current focus**: Phase 2 — Background Indexing and Cache-First
 
 ---
 
@@ -14,20 +14,19 @@
 
 | Field | Value |
 |-------|-------|
-| Phase | 1 — Passive Capture Foundation |
-| Plan | Phase 1 complete (01-01, 01-02 done) |
-| Status | Complete |
+| Phase | 2 — Background Indexing and Cache-First |
+| Plan | 02-01 complete, 02-02 next |
+| Status | In Progress |
 | Last updated | 2026-04-01 |
 
 **Progress**:
 ```
 [==========] Phase 1 — 2/2 plans complete
-[          ] Phase 2
+[=====     ] Phase 2 — 1/2 plans complete
 [          ] Phase 3
 [          ] Phase 4
 [          ] Phase 5
 [          ] Phase 6
-```
 ```
 
 ---
@@ -36,8 +35,7 @@
 
 | Phase | Goal | Status | Plans |
 | 1 — Passive Capture Foundation | Passive network interception with response bodies | Complete | 2/2 |
-| 1 — Passive Capture Foundation | Passive network interception with response bodies | Not started | 0/? |
-| 2 — Background Indexing and Cache-First | Non-blocking indexing + cache-first resolution | Not started | 0/? |
+| 2 — Background Indexing and Cache-First | Non-blocking indexing + cache-first resolution | In Progress | 1/2 |
 | 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | Not started | 0/? |
 | 4 — Endpoint Graph | Dependency graph + prefetch | Not started | 0/? |
 | 5 — Marketplace Wiring and Telemetry | Cross-agent skill sharing + auto-issue filing | Not started | 0/? |
@@ -68,6 +66,7 @@
 | Four-priority merge pipeline (01-02) | JS interceptor > HAR > extension observer > responseBodies-only; URL dedup keeps highest priority source |
 | scriptInject before navigation (01-01) | Persistent interceptor via Page.addScriptToEvaluateOnNewDocument eliminates polling race; fallback to evaluate for older kuri |
 | Login-as-dependency deferred to v2 | Cookie extraction from existing sessions covers most use cases for launch |
+| Per-domain dedup for background indexing (02-01) | In-memory Map ensures one job per domain at a time; fire-and-forget with logged failures |
 
 ### Critical Footguns (from CLAUDE.md + CONCERNS.md)
 
@@ -97,6 +96,6 @@
 
 **To resume**: Read `.planning/ROADMAP.md` for current phase goals and success criteria. Read `.planning/STATE.md` (this file) for current position and blockers. Check git log on `rach/restart-base` for recent progress.
 
-**Last session**: 2026-04-01T10:36:52Z — Completed 01-02-PLAN.md (extension data collection + merge pipeline)
+**Last session**: 2026-04-01T11:19:52Z — Completed 02-01-PLAN.md (background indexing queue)
 
-**Next action**: Phase 1 complete. Begin Phase 2 planning.
+**Next action**: Execute 02-02-PLAN.md (cache-first resolution).
