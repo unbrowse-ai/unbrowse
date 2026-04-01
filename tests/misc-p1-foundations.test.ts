@@ -1,66 +1,10 @@
 import { describe, test, expect } from "bun:test";
-
-// #92 Search form types
-interface SearchFormField {
-  name: string;
-  type: "text" | "select" | "radio" | "checkbox" | "date" | "hidden";
-  selector: string;
-  options?: string[];
-  required: boolean;
-}
-
-interface SearchFormSpec {
-  form_selector: string;
-  submit_selector: string;
-  fields: SearchFormField[];
-  result_selector?: string;
-}
-
-function isStructuredSearchForm(spec: SearchFormSpec): boolean {
-  return spec.fields.length > 0 && !!spec.submit_selector;
-}
-
-// #93 Eval types
-interface EvalCase {
-  id: string;
-  intent: string;
-  url: string;
-  expected_outcome: "resolve" | "capture" | "fail";
-  auth_required: boolean;
-  tags: string[];
-}
-
-interface EvalResult {
-  case_id: string;
-  status: "pass" | "fail" | "skip";
-  duration_ms: number;
-  error?: string;
-}
-
-function isRepeatableEval(results: EvalResult[]): boolean {
-  if (results.length < 2) return false;
-  const statuses = results.map((r) => r.status);
-  return statuses.every((s) => s === statuses[0]);
-}
-
-// #95 Lifecycle attribution
-type LifecyclePhase = "discover" | "capture" | "resolve" | "execute" | "publish";
-
-interface LifecycleEvent {
-  phase: LifecyclePhase;
-  skill_id: string;
-  timestamp: string;
-  duration_ms: number;
-  source: "cache" | "marketplace" | "live-capture";
-}
-
-function attributeLifecycle(events: LifecycleEvent[]): Map<LifecyclePhase, number> {
-  const totals = new Map<LifecyclePhase, number>();
-  for (const e of events) {
-    totals.set(e.phase, (totals.get(e.phase) ?? 0) + e.duration_ms);
-  }
-  return totals;
-}
+import { isStructuredSearchForm } from "../src/execution/search-forms.js";
+import type { SearchFormSpec } from "../src/execution/search-forms.js";
+import { attributeLifecycle } from "../src/runtime/lifecycle.js";
+import type { LifecycleEvent } from "../src/runtime/lifecycle.js";
+import { isRepeatableEval } from "../evals/codex-harness-lib.js";
+import type { EvalResult } from "../evals/codex-harness-lib.js";
 
 describe("#92 search forms", () => {
   test("identifies structured search form", () => {

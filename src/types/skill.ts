@@ -104,6 +104,8 @@ export interface EndpointDescriptor {
     confidence: number;
     selector?: string;
   };
+  /** When set, endpoint is driven via an HTML search form rather than a direct API call */
+  search_form?: import("../execution/search-forms.js").SearchFormSpec;
   /** The page URL that triggered this API call during capture.
    *  Used for trigger-and-intercept execution: navigate to this page,
    *  let the site's own JS make the API call, and intercept the response. */
@@ -313,6 +315,7 @@ export interface ValidationResult {
 }
 
 /** Orchestrator-level timing breakdown for a single resolve call */
+/** Orchestrator-level timing breakdown for a single resolve call */
 export interface OrchestrationTiming {
   search_ms: number;
   get_skill_ms: number;
@@ -333,4 +336,6 @@ export interface OrchestrationTiming {
   tokens_saved_pct: number;
   /** Code version hash + git SHA — tracks which code produced this timing */
   trace_version?: string;
+  /** Per-phase time attribution produced by attributeLifecycle */
+  phase_attribution?: Record<string, number>;
 }
