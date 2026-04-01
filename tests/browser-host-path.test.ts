@@ -1,52 +1,7 @@
 import { describe, test, expect } from "bun:test";
+import { detectHostEnvironment, getBrowserConfig } from "../src/runtime/browser-host.js";
 
-type HostEnvironment = "openclaw" | "openai" | "native" | "mcp" | "unknown";
-
-interface BrowserPathConfig {
-  binary_path?: string;
-  cdp_port?: number;
-  headless: boolean;
-  user_data_dir?: string;
-}
-
-function detectHostEnvironment(): HostEnvironment {
-  if (process.env.OPENCLAW_RUNTIME) return "openclaw";
-  if (process.env.OPENAI_TOOL_RUNTIME) return "openai";
-  if (process.env.MCP_SERVER_MODE) return "mcp";
-  if (process.env.UNBROWSE_NATIVE) return "native";
-  return "unknown";
-}
-
-function getBrowserConfig(env: HostEnvironment): BrowserPathConfig {
-  switch (env) {
-    case "openclaw":
-      return {
-        binary_path: process.env.OPENCLAW_BROWSER_PATH ?? "/usr/bin/chromium",
-        headless: true,
-        user_data_dir: process.env.OPENCLAW_USER_DATA ?? "/tmp/openclaw-chrome",
-      };
-    case "openai":
-      return {
-        binary_path: process.env.OPENAI_BROWSER_PATH,
-        headless: true,
-        cdp_port: parseInt(process.env.OPENAI_CDP_PORT ?? "9222"),
-      };
-    case "mcp":
-      return {
-        headless: true,
-        cdp_port: parseInt(process.env.CDP_PORT ?? "0"),
-      };
-    case "native":
-      return {
-        headless: false,
-        user_data_dir: process.env.UNBROWSE_USER_DATA,
-      };
-    default:
-      return { headless: false };
-  }
-}
-
-describe("#121 browser replacement host path", () => {
+describe("#225 browser host detection wired into kuri launch", () => {
   test("detects unknown environment by default", () => {
     const env = detectHostEnvironment();
     expect(["unknown", "openclaw", "openai", "native", "mcp"]).toContain(env);
@@ -71,5 +26,19 @@ describe("#121 browser replacement host path", () => {
   test("mcp config uses headless", () => {
     const config = getBrowserConfig("mcp");
     expect(config.headless).toBe(true);
+  });
+
+  test("unknown config defaults to headed mode", () => {
+    const config = getBrowserConfig("unknown");
+    expect(config.headless).toBe(false);
+  });
+});
+
+describe("applyBrowserConfigToEnv wires config into process.env", () => {
+  test("sets HEADLESS env var from detected config", async () => {
+    const { applyBrowserConfigToEnv } = await import("../src/runtime/kuri-config.js");
+    applyBrowserConfigToEnv();
+    // HEADLESS must be set as a string ("true" or "false")
+    expect(["true", "false"]).toContain(process.env.HEADLESS);
   });
 });
