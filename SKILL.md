@@ -327,6 +327,34 @@ await browser.close();
 
 UI actions (`click`, `fill`, `waitForSelector`) use kuri's evaluate-based fallback. When Rach's kuri UI action hook lands, they'll upgrade to ref-based actions automatically via feature detection.
 
+## Payments
+
+Marketplace skills are dynamically priced based on demand and reliability. Paid skills return HTTP 402 with x402 payment requirements. This skill delegates wallet operations to lobster.cash.
+
+**How it works:**
+
+1. Agent resolves a marketplace skill
+2. If the skill has a price, the response includes payment requirements (amount, currency, chain)
+3. If a wallet step is required and lobster.cash wallet context is missing, complete lobster.cash setup first
+4. Transaction execution and final status are handled by lobster.cash
+5. Agents without a wallet fall back to indexing mode -- they can capture and contribute routes instead of paying
+
+**Supported chains:** Solana (USDC) and Base (USDC) via the Corbits facilitator.
+
+**Payment response example:**
+```json
+{
+  "error": "payment_required",
+  "price_usd": 0.001,
+  "payment_status": "payment_required",
+  "message": "This execution requires 0.001 USDC.",
+  "wallet_provider": "lobster.cash",
+  "indexing_fallback_available": true
+}
+```
+
+**Wallet setup:** Set `LOBSTER_WALLET_ADDRESS` env var when pairing with lobster.cash. The skill detects the wallet automatically and includes payment proof in subsequent requests.
+
 ## REST API Reference
 
 For cases where the CLI doesn't cover your needs, the raw REST API is at `http://localhost:6969`:
