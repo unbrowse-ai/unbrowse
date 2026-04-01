@@ -15,9 +15,9 @@
 | Field | Value |
 |-------|-------|
 | Phase | 6 -- Marketplace Payments |
-| Plan | 06-01 complete |
+| Plan | 06-02 complete |
 | Status | In Progress |
-| Last updated | 2026-04-01T12:45:00Z |
+| Last updated | 2026-04-01T13:05:00Z |
 
 **Progress**:
 ```
@@ -26,7 +26,7 @@
 [==========] Phase 3 — 2/2 plans complete
 [==========] Phase 4 — 2/2 plans complete
 [=====     ] Phase 5 -- 1/? plans complete
-[=====     ] Phase 6 -- 1/? plans complete
+[==========] Phase 6 -- 2/2 plans complete
 ```
 
 ---
@@ -39,7 +39,7 @@
 | 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | Complete | 2/2 |
 | 4 — Endpoint Graph | Dependency graph + prefetch | Complete | 2/2 |
 | 5 -- Marketplace Wiring and Telemetry | Cross-agent skill sharing + auto-issue filing | In Progress | 1/? |
-| 6 — Marketplace Payments | Wallet-based skill monetization | Not started | 0/? |
+| 6 — Marketplace Payments | Wallet-based skill monetization | Complete | 2/2 |
 
 ---
 
@@ -109,6 +109,6 @@
 
 **To resume**: Read `.planning/ROADMAP.md` for current phase goals and success criteria. Read `.planning/STATE.md` (this file) for current position and blockers. Check git log on `rach/restart-base` for recent progress.
 
-**Last session**: 2026-04-01T12:45:00Z -- Completed 06-01-PLAN.md (wire payment gate into execution pipeline)
+**Last session**: 2026-04-01T13:05:00Z -- Completed 06-02-PLAN.md (transaction ledger and creator/consumer visibility)
 
-**Next action**: Continue Phase 6 execution (06-02 if exists)
+**Next action**: Phase 6 complete. Begin Phase 7 planning if applicable.
