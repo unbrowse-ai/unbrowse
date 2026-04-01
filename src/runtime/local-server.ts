@@ -8,6 +8,8 @@ type PidState = {
   base_url: string;
   started_at: string;
   entrypoint: string;
+  version?: string;
+  restart_count?: number;
 };
 
 async function isServerHealthy(baseUrl: string, timeoutMs = 2_000): Promise<boolean> {
@@ -60,21 +62,30 @@ function deriveListenEnv(baseUrl: string): Record<string, string> {
   return { HOST: host, PORT: port, UNBROWSE_URL: baseUrl };
 }
 
-export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
-  if (await isServerHealthy(baseUrl)) return;
-
-  const pidFile = getServerPidFile(baseUrl);
-  const existing = readPidState(pidFile);
-  if (existing?.pid && isPidAlive(existing.pid)) {
-    if (await waitForHealthy(baseUrl, 15_000)) return;
-  } else if (existing) {
-    clearStalePidFile(pidFile);
+/** Read package version from the nearest package.json. */
+function getVersion(metaUrl: string): string {
+  try {
+    const root = getPackageRoot(metaUrl);
+    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf-8"));
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
   }
+}
 
-  if (noAutoStart) {
-    throw new Error("Server not running and auto-start disabled (--no-auto-start).");
-  }
+const MAX_RESTART_ATTEMPTS = 3;
+const RESTART_BACKOFF_MS = 2_000;
 
+/**
+ * Spawn the local server as a detached child process.
+ * Returns the PidState written to the pid file.
+ */
+function spawnServer(
+  baseUrl: string,
+  metaUrl: string,
+  pidFile: string,
+  restartCount = 0,
+): PidState {
   const entrypoint = resolveSiblingEntrypoint(metaUrl, "index");
   const packageRoot = getPackageRoot(metaUrl);
   const logFile = getServerAutostartLogFile();
@@ -94,13 +105,102 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
   });
   child.unref();
 
-  writeFileSync(pidFile, JSON.stringify({
+  const state: PidState = {
     pid: child.pid!,
     base_url: baseUrl,
     started_at: new Date().toISOString(),
     entrypoint,
-  }, null, 2));
+    version: getVersion(metaUrl),
+    restart_count: restartCount,
+  };
+  writeFileSync(pidFile, JSON.stringify(state, null, 2));
+  return state;
+}
 
-  if (await waitForHealthy(baseUrl, 30_000)) return;
-  throw new Error(`Server failed to start. Check ${logFile}`);
+export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
+  if (await isServerHealthy(baseUrl)) return;
+
+  const pidFile = getServerPidFile(baseUrl);
+  const existing = readPidState(pidFile);
+
+  if (existing?.pid && isPidAlive(existing.pid)) {
+    // Process alive but not healthy — wait then try supervisor restart
+    if (await waitForHealthy(baseUrl, 15_000)) return;
+    // Still unhealthy after wait — kill stale process and restart
+    try { process.kill(existing.pid, "SIGTERM"); } catch { /* ignore */ }
+    await new Promise((r) => setTimeout(r, 1_000));
+    clearStalePidFile(pidFile);
+  } else if (existing) {
+    clearStalePidFile(pidFile);
+  }
+
+  if (noAutoStart) {
+    throw new Error("Server not running and auto-start disabled (--no-auto-start).");
+  }
+
+  // Spawn with supervisor retry
+  for (let attempt = 0; attempt <= MAX_RESTART_ATTEMPTS; attempt++) {
+    spawnServer(baseUrl, metaUrl, pidFile, attempt);
+
+    if (await waitForHealthy(baseUrl, 30_000)) return;
+
+    // Failed to start — clear and retry with backoff
+    const state = readPidState(pidFile);
+    if (state?.pid) {
+      try { process.kill(state.pid, "SIGTERM"); } catch { /* ignore */ }
+    }
+    clearStalePidFile(pidFile);
+
+    if (attempt < MAX_RESTART_ATTEMPTS) {
+      const backoff = RESTART_BACKOFF_MS * (attempt + 1);
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+
+  const logFile = getServerAutostartLogFile();
+  throw new Error(`Server failed to start after ${MAX_RESTART_ATTEMPTS + 1} attempts. Check ${logFile}`);
+}
+
+/**
+ * Check if the running server version matches the installed CLI version.
+ * Returns null if no server is running, or { running, installed, needs_restart }.
+ */
+export function checkServerVersion(baseUrl: string, metaUrl: string): { running: string; installed: string; needs_restart: boolean } | null {
+  const pidFile = getServerPidFile(baseUrl);
+  const state = readPidState(pidFile);
+  if (!state) return null;
+  const installed = getVersion(metaUrl);
+  return {
+    running: state.version ?? "unknown",
+    installed,
+    needs_restart: state.version !== installed,
+  };
+}
+
+/**
+ * Stop the running server gracefully.
+ * Returns true if a server was stopped, false if none was running.
+ */
+export function stopServer(baseUrl: string): boolean {
+  const pidFile = getServerPidFile(baseUrl);
+  const state = readPidState(pidFile);
+  if (!state?.pid) return false;
+  try {
+    process.kill(state.pid, "SIGTERM");
+    clearStalePidFile(pidFile);
+    return true;
+  } catch {
+    clearStalePidFile(pidFile);
+    return false;
+  }
+}
+
+/**
+ * Restart the local server (stop + start).
+ * Used after CLI upgrades to pick up new code.
+ */
+export async function restartServer(baseUrl: string, metaUrl: string): Promise<void> {
+  stopServer(baseUrl);
+  await new Promise((r) => setTimeout(r, 1_000));
+  await ensureLocalServer(baseUrl, false, metaUrl);
 }
