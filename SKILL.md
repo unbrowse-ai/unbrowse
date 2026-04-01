@@ -15,11 +15,20 @@ Browse once, cache the APIs, reuse them instantly. First call discovers and lear
 
 ## Installation
 
+Recommended (30 seconds):
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.claude/skills/unbrowse \
+  && cd ~/.claude/skills/unbrowse && ./setup
+```
+
+This auto-detects your agent host, registers the skill, and starts the server. Use `--host codex` or `--host opencode` to target a specific host.
+
+Alternative (npm):
+
 ```bash
 npx unbrowse setup
 ```
-
-`unbrowse setup` now prompts for an email-style agent identity before first registration. For headless runs, preseed it with `UNBROWSE_AGENT_EMAIL=you@example.com`.
 
 For repeat use, install globally:
 

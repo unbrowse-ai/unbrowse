@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+# unbrowse setup — verify runtime, register skills with agent hosts, start server
+# Usage: ./setup [--host claude|codex|opencode|cursor|auto] [--no-start] [--no-prefix]
+set -e
+
+UNBROWSE_DIR="$(cd "$(dirname "$0")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+PORT="${PORT:-6969}"
+HOST_ADDR="${HOST:-127.0.0.1}"
+UNBROWSE_URL="http://${HOST_ADDR}:${PORT}"
+
+# ─── Colors (skip if not a terminal) ──────────────────────────
+if [ -t 1 ]; then
+  BOLD="\033[1m" DIM="\033[2m" GREEN="\033[32m" YELLOW="\033[33m" RED="\033[31m" CYAN="\033[36m" RESET="\033[0m"
+else
+  BOLD="" DIM="" GREEN="" YELLOW="" RED="" CYAN="" RESET=""
+fi
+
+info()  { printf "${CYAN}[unbrowse]${RESET} %s\n" "$*"; }
+warn()  { printf "${YELLOW}[unbrowse]${RESET} %s\n" "$*" >&2; }
+fail()  { printf "${RED}[unbrowse]${RESET} %s\n" "$*" >&2; exit 1; }
+ok()    { printf "${GREEN}[unbrowse]${RESET} %s\n" "$*"; }
+
+# ─── Parse flags ──────────────────────────────────────────────
+AGENT_HOST="auto"
+NO_START=0
+SKILL_PREFIX=0
+SKILL_PREFIX_FLAG=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --host)      [ -z "$2" ] && fail "Missing value for --host"; AGENT_HOST="$2"; shift 2 ;;
+    --host=*)    AGENT_HOST="${1#--host=}"; shift ;;
+    --no-start)  NO_START=1; shift ;;
+    --prefix)    SKILL_PREFIX=1; SKILL_PREFIX_FLAG=1; shift ;;
+    --no-prefix) SKILL_PREFIX=0; SKILL_PREFIX_FLAG=1; shift ;;
+    *)           shift ;;
+  esac
+done
+
+case "$AGENT_HOST" in
+  claude|codex|opencode|cursor|windsurf|auto) ;;
+  *) fail "Unknown --host value: $AGENT_HOST (expected claude, codex, opencode, cursor, windsurf, or auto)" ;;
+esac
+
+# ─── 1. Check prerequisites ──────────────────────────────────
+info "Checking prerequisites..."
+
+NODE_OK=0
+BUN_OK=0
+NPM_OK=0
+
+command -v node >/dev/null 2>&1 && NODE_OK=1
+command -v bun  >/dev/null 2>&1 && BUN_OK=1
+command -v npm  >/dev/null 2>&1 && NPM_OK=1
+
+if [ "$NODE_OK" -eq 0 ] && [ "$BUN_OK" -eq 0 ]; then
+  fail "Node.js or Bun is required but neither is installed.
+  Install Node.js: https://nodejs.org/ (v18+)
+  Install Bun:     https://bun.sh/"
+fi
+
+if [ "$NODE_OK" -eq 1 ]; then
+  NODE_VERSION=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
+  if [ "$NODE_VERSION" -lt 18 ] 2>/dev/null; then
+    fail "Node.js v18+ required (found v${NODE_VERSION}). Update: https://nodejs.org/"
+  fi
+fi
+
+ok "Prerequisites OK (node=$([ "$NODE_OK" -eq 1 ] && node -v || echo 'n/a'), bun=$([ "$BUN_OK" -eq 1 ] && bun --version 2>/dev/null || echo 'n/a'))"
+
+# ─── 2. Install dependencies ─────────────────────────────────
+if [ ! -d "$SOURCE_DIR/node_modules" ]; then
+  info "Installing dependencies..."
+  (
+    cd "$SOURCE_DIR"
+    if [ "$BUN_OK" -eq 1 ]; then
+      bun install --frozen-lockfile 2>/dev/null || bun install
+    elif [ "$NPM_OK" -eq 1 ]; then
+      npm install
+    fi
+  )
+  ok "Dependencies installed"
+else
+  ok "Dependencies already installed"
+fi
+
+# ─── 3. Verify Kuri browser engine ───────────────────────────
+info "Checking browser engine (Kuri)..."
+
+KURI_BIN=""
+# Check bundled binary first (platform-specific)
+PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64)  ARCH_ID="x64" ;;
+  aarch64|arm64) ARCH_ID="arm64" ;;
+  *) ARCH_ID="$ARCH" ;;
+esac
+TARGET_ID="${PLATFORM}-${ARCH_ID}"
+
+VENDOR_BIN="$SOURCE_DIR/vendor/kuri/${TARGET_ID}/kuri"
+SUBMOD_BIN="$SOURCE_DIR/submodules/kuri/zig-out/bin/kuri"
+
+if [ -x "$VENDOR_BIN" ]; then
+  KURI_BIN="$VENDOR_BIN"
+elif [ -x "$SUBMOD_BIN" ]; then
+  KURI_BIN="$SUBMOD_BIN"
+elif [ -f "$SOURCE_DIR/submodules/kuri/build.zig" ]; then
+  # Source exists, try to build
+  if command -v zig >/dev/null 2>&1; then
+    info "Building Kuri from source (this may take a minute)..."
+    (
+      cd "$SOURCE_DIR/submodules/kuri"
+      zig build -Doptimize=ReleaseFast
+    ) && KURI_BIN="$SUBMOD_BIN"
+  else
+    warn "Kuri source found but Zig is not installed. Install Zig: https://ziglang.org/download/"
+  fi
+fi
+
+if [ -n "$KURI_BIN" ] && [ -x "$KURI_BIN" ]; then
+  ok "Browser engine ready at $KURI_BIN"
+else
+  warn "Browser engine not found. Kuri will be downloaded on first capture."
+  warn "For immediate setup: install Zig and run ./setup again, or use 'npm install -g unbrowse' (bundles Kuri)"
+fi
+
+# ─── 4. Initialize submodules if needed ──────────────────────
+if [ -f "$SOURCE_DIR/.gitmodules" ] && [ ! -f "$SOURCE_DIR/submodules/kuri/build.zig" ]; then
+  info "Initializing git submodules..."
+  (cd "$SOURCE_DIR" && git submodule update --init --recursive 2>/dev/null) || true
+fi
+
+# ─── 5. Detect and register with agent hosts ─────────────────
+info "Registering skill with agent hosts..."
+
+INSTALL_CLAUDE=0
+INSTALL_CODEX=0
+INSTALL_OPENCODE=0
+
+if [ "$AGENT_HOST" = "auto" ]; then
+  command -v claude    >/dev/null 2>&1 && INSTALL_CLAUDE=1
+  command -v codex     >/dev/null 2>&1 && INSTALL_CODEX=1
+  command -v opencode  >/dev/null 2>&1 && INSTALL_OPENCODE=1
+  # Also check for config directories
+  [ -d "$HOME/.claude" ]    && INSTALL_CLAUDE=1
+  [ -d "$HOME/.codex" ]     && INSTALL_CODEX=1
+  [ -d "$HOME/.config/opencode" ] && INSTALL_OPENCODE=1
+  # Default to Claude Code if nothing detected
+  if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ] && [ "$INSTALL_OPENCODE" -eq 0 ]; then
+    INSTALL_CLAUDE=1
+  fi
+elif [ "$AGENT_HOST" = "claude" ]; then
+  INSTALL_CLAUDE=1
+elif [ "$AGENT_HOST" = "codex" ]; then
+  INSTALL_CODEX=1
+elif [ "$AGENT_HOST" = "opencode" ]; then
+  INSTALL_OPENCODE=1
+fi
+
+# ─── Helper: create skill symlink ────────────────────────────
+link_skill() {
+  local skills_dir="$1"
+  local link_name="$2"
+  local target="$3"
+  mkdir -p "$skills_dir"
+  local dest="$skills_dir/$link_name"
+  if [ -L "$dest" ] || [ ! -e "$dest" ]; then
+    ln -snf "$target" "$dest"
+    return 0
+  fi
+  return 1
+}
+
+REGISTERED_HOSTS=""
+
+# Claude Code: ~/.claude/skills/unbrowse -> this directory
+if [ "$INSTALL_CLAUDE" -eq 1 ]; then
+  CLAUDE_SKILLS="$HOME/.claude/skills"
+  if link_skill "$CLAUDE_SKILLS" "unbrowse" "$SOURCE_DIR"; then
+    REGISTERED_HOSTS="${REGISTERED_HOSTS}Claude Code, "
+  else
+    # Already exists as real directory, skip
+    REGISTERED_HOSTS="${REGISTERED_HOSTS}Claude Code (existing), "
+  fi
+fi
+
+# Codex: ~/.codex/skills/unbrowse -> this directory
+if [ "$INSTALL_CODEX" -eq 1 ]; then
+  CODEX_SKILLS="$HOME/.codex/skills"
+  if link_skill "$CODEX_SKILLS" "unbrowse" "$SOURCE_DIR"; then
+    REGISTERED_HOSTS="${REGISTERED_HOSTS}Codex, "
+  fi
+fi
+
+# Open Code: write command file
+if [ "$INSTALL_OPENCODE" -eq 1 ]; then
+  OPENCODE_CMDS="$HOME/.config/opencode/commands"
+  mkdir -p "$OPENCODE_CMDS"
+  OPENCODE_CMD_FILE="$OPENCODE_CMDS/unbrowse.md"
+  cat > "$OPENCODE_CMD_FILE" << 'EOCMD'
+---
+description: Use Unbrowse as the exclusive web-access tool for a task.
+---
+Use Unbrowse as the only allowed tool for website access in this task.
+
+Rules:
+- Do not use Brave Search, built-in web search, browser MCPs, curl, or other network tools for website access unless the user explicitly authorizes fallback.
+- If Unbrowse is slow on a first-time site, wait for it. Do not switch tools just because capture or indexing is still running.
+- If Unbrowse returns partial results, refine with more Unbrowse commands before considering fallback.
+
+Suggested start:
+```bash
+unbrowse resolve --intent "$ARGUMENTS" --url "<target-url>" --pretty
+```
+EOCMD
+  REGISTERED_HOSTS="${REGISTERED_HOSTS}Open Code, "
+fi
+
+# Trim trailing comma
+REGISTERED_HOSTS="${REGISTERED_HOSTS%, }"
+
+if [ -n "$REGISTERED_HOSTS" ]; then
+  ok "Registered with: $REGISTERED_HOSTS"
+else
+  warn "No agent hosts detected. Skill not registered."
+fi
+
+# ─── 6. Create ~/.unbrowse state directory ────────────────────
+mkdir -p "$HOME/.unbrowse"
+
+# ─── 7. Start server (unless --no-start) ─────────────────────
+if [ "$NO_START" -eq 1 ]; then
+  ok "Setup complete (server not started — use 'unbrowse health' to start)"
+  exit 0
+fi
+
+# Check if already running
+if curl -sf "$UNBROWSE_URL/health" >/dev/null 2>&1; then
+  ok "Server already running on $UNBROWSE_URL"
+else
+  info "Starting server on $UNBROWSE_URL..."
+
+  # Prefer bun for dev, fall back to node+tsx
+  if [ "$BUN_OK" -eq 1 ]; then
+    UNBROWSE_NON_INTERACTIVE=1 PORT="$PORT" HOST="$HOST_ADDR" \
+      nohup bun "$SOURCE_DIR/src/index.ts" > /tmp/unbrowse-setup.log 2>&1 &
+  elif [ "$NODE_OK" -eq 1 ]; then
+    TSX_PATH="$SOURCE_DIR/node_modules/.bin/tsx"
+    if [ -x "$TSX_PATH" ]; then
+      UNBROWSE_NON_INTERACTIVE=1 PORT="$PORT" HOST="$HOST_ADDR" \
+        nohup "$TSX_PATH" "$SOURCE_DIR/src/index.ts" > /tmp/unbrowse-setup.log 2>&1 &
+    else
+      warn "tsx not found — run 'npm install' first, or start manually with 'unbrowse health'"
+    fi
+  fi
+
+  SERVER_PID=$!
+
+  # Wait for ready (up to 15s)
+  for i in $(seq 1 15); do
+    if curl -sf "$UNBROWSE_URL/health" >/dev/null 2>&1; then
+      ok "Server ready (PID $SERVER_PID)"
+      break
+    fi
+    sleep 1
+    if [ "$i" -eq 15 ]; then
+      warn "Server did not respond in 15s. Check /tmp/unbrowse-setup.log"
+    fi
+  done
+fi
+
+# ─── Done ─────────────────────────────────────────────────────
+echo ""
+printf "${BOLD}${GREEN}Unbrowse is ready.${RESET}\n"
+echo ""
+echo "  Quick start:"
+echo "    unbrowse resolve --intent \"get trending\" --url \"https://google.com\" --pretty"
+echo ""
+echo "  Commands:"
+echo "    unbrowse health     — check server status"
+echo "    unbrowse resolve    — discover APIs on any site"
+echo "    unbrowse execute    — run a learned skill"
+echo "    unbrowse login      — authenticate for gated sites"
+echo "    unbrowse skills     — list cached skills"
+echo ""
+echo "  Need help? https://discord.gg/VWugEeFNsG"
+echo ""
