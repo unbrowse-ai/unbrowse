@@ -249,16 +249,22 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
   });
 }
 
-const SANITIZE_SYSTEM = `You are an API reverse-engineering agent. You receive raw captured API endpoints
-and must produce clean, publishable metadata for a shared API registry.
+const SANITIZE_SYSTEM = `You are an API reverse-engineering agent. You receive captured API endpoint metadata
+and must produce clean, publishable data for a shared API registry.
 
 Your job:
 1. Write a clear, one-line description for each endpoint (what it does, not implementation details)
-2. Identify and flag any PII or user-specific data that leaked through
-3. Classify each endpoint: action_kind (search/detail/create/update/delete/list) and resource_kind (what entity)
-4. Return ONLY the JSON structure requested — no explanation.
+2. Classify each endpoint: action_kind (search/detail/create/update/delete/list) and resource_kind (what entity)
+3. Generate a realistic synthetic example_response that matches the endpoint's schema — use plausible but fake data that helps agents understand the response shape. For example:
+   - A music search endpoint should have fake song names, artist names, durations
+   - A product search should have fake product names, prices, categories
+   - A user profile should have fake usernames, bios, join dates
+   The examples should look real enough to be useful documentation, but contain zero actual user data.
+4. Generate a synthetic example_request with plausible parameter values for the domain.
+5. Flag any PII or user-specific data you spot in the input.
+6. Return ONLY the JSON structure requested — no explanation.
 
-NEVER include actual user data, emails, names, session tokens, or query values in your output.`;
+NEVER copy actual data from the input. Generate fresh plausible values appropriate to the domain.`;
 
 interface AgentSanitizeResult {
   endpoints: Array<{
@@ -266,24 +272,26 @@ interface AgentSanitizeResult {
     description: string;
     action_kind: string;
     resource_kind: string;
+    example_request?: Record<string, unknown>;
+    example_response?: unknown;
     pii_flagged: boolean;
     pii_fields?: string[];
   }>;
 }
 
 /**
- * Agent-based endpoint review — sends raw endpoint shapes to an LLM for
- * description generation, PII detection, and semantic classification.
+ * Agent-based endpoint review — sends endpoint shapes to an LLM for
+ * description generation, PII scrubbing, and synthetic example creation.
  * Falls back to the deterministic sanitizer if no LLM provider is configured.
  */
 export async function agentSanitizeEndpoints(
   endpoints: EndpointDescriptor[],
   domain: string,
 ): Promise<EndpointDescriptor[]> {
-  // Always apply deterministic sanitization first
+  // Always apply deterministic sanitization first (redacts secrets, strips real values)
   const cleaned = sanitizeForPublish(endpoints);
 
-  // Build a compact view for the agent — no actual response data (already stripped)
+  // Build a compact view for the agent — includes field paths and schema, no real data
   const agentInput = cleaned.map((ep) => ({
     endpoint_id: ep.endpoint_id,
     method: ep.method,
@@ -300,13 +308,15 @@ export async function agentSanitizeEndpoints(
 Endpoints:
 ${JSON.stringify(agentInput, null, 2)}
 
-Return JSON: { "endpoints": [{ "endpoint_id": "...", "description": "...", "action_kind": "...", "resource_kind": "...", "pii_flagged": false }] }`;
+Return JSON: { "endpoints": [{ "endpoint_id": "...", "description": "...", "action_kind": "...", "resource_kind": "...", "example_request": {...}, "example_response": {...}, "pii_flagged": false }] }
+
+Generate realistic synthetic data appropriate for ${domain}. The examples should help an agent understand what this API returns.`;
 
   try {
     const result = await callSanitizeAgent(userPrompt);
     if (!result?.endpoints?.length) return cleaned;
 
-    // Merge agent descriptions back into sanitized endpoints
+    // Merge agent output back into sanitized endpoints
     const agentMap = new Map(result.endpoints.map((e) => [e.endpoint_id, e]));
     return cleaned.map((ep) => {
       const reviewed = agentMap.get(ep.endpoint_id);
@@ -324,6 +334,9 @@ Return JSON: { "endpoints": [{ "endpoint_id": "...", "description": "...", "acti
           action_kind: reviewed.action_kind || ep.semantic.action_kind,
           resource_kind: reviewed.resource_kind || ep.semantic.resource_kind,
           description_out: reviewed.description || ep.semantic.description_out,
+          // Agent-generated synthetic examples replace deterministic placeholders
+          ...(reviewed.example_response ? { example_response_compact: reviewed.example_response } : {}),
+          ...(reviewed.example_request ? { example_request: reviewed.example_request } : {}),
         } : ep.semantic,
       };
     });
@@ -359,7 +372,7 @@ async function callSanitizeAgent(userPrompt: string): Promise<AgentSanitizeResul
         body: JSON.stringify({
           model: provider.model,
           temperature: 0,
-          max_tokens: 800,
+          max_tokens: 2000,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: SANITIZE_SYSTEM },
