@@ -54,6 +54,54 @@ export const X402_CONFIG = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Dynamic pricing — fetch real route price from the backend
+// ---------------------------------------------------------------------------
+
+/** Backend API base URL for pricing queries. */
+const PRICING_API_URL = process.env.UNBROWSE_BACKEND_URL ?? "https://beta-api.unbrowse.ai";
+
+/** Maximum time (ms) to wait for dynamic price before falling back. */
+const PRICING_TIMEOUT_MS = 2_000;
+
+/** Default fallback price when backend is unreachable or slow (USD). */
+const DEFAULT_PRICE_USD = "0.001";
+
+/**
+ * Fetch the dynamic route price for a skill from the backend.
+ *
+ * Calls GET /v1/skills/:id/price with a 2 s timeout.
+ * Returns the price as a USD string, or null if the backend is
+ * unavailable, slow, or returns an unexpected shape.
+ *
+ * Non-blocking: callers should fall back to DEFAULT_PRICE_USD on null.
+ */
+export async function fetchDynamicPrice(skillId: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PRICING_TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `${PRICING_API_URL}/v1/skills/${encodeURIComponent(skillId)}/price`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      },
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as Record<string, unknown>;
+    const price = body?.price_usd;
+    if (typeof price === "number" && price > 0) return String(price);
+    if (typeof price === "string" && parseFloat(price) > 0) return price;
+    return null;
+  } catch {
+    // Network error, timeout, or JSON parse failure — non-fatal.
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Payment gate — determines if execution requires payment
 // ---------------------------------------------------------------------------
 
@@ -61,10 +109,14 @@ export const X402_CONFIG = {
  * Check if a skill execution requires payment.
  * Returns a PaymentGateResult describing what the agent needs to do.
  *
+ * Attempts to fetch the real dynamic price from the backend via
+ * GET /v1/skills/:id/price. Falls back to DEFAULT_PRICE_USD ("0.001")
+ * when the backend is unreachable, slow (>2 s), or returns an error.
+ *
  * This function does NOT execute payments — it describes requirements.
  * The agent's wallet plugin (lobster.cash) handles actual payment.
  */
-export function checkPaymentRequirement(
+export async function checkPaymentRequirement(
   skillId: string,
   endpointId: string,
   options?: {
@@ -72,7 +124,7 @@ export function checkPaymentRequirement(
     skip_payment?: boolean;
     wallet_configured?: boolean;
   },
-): PaymentGateResult {
+): Promise<PaymentGateResult> {
   if (options?.skip_payment || process.env.UNBROWSE_SKIP_PAYMENT === "1") {
     return { status: "free", message: "Payment skipped." };
   }
@@ -81,7 +133,13 @@ export function checkPaymentRequirement(
     return { status: "free", message: "No payment required for local skills." };
   }
 
-  const amount = options?.price_usd ?? "0.001";
+  // Resolve price: explicit override > dynamic backend price > hardcoded default
+  let amount = options?.price_usd ?? null;
+  if (amount === null) {
+    const dynamic = await fetchDynamicPrice(skillId).catch(() => null);
+    amount = dynamic ?? DEFAULT_PRICE_USD;
+  }
+
   if (parseFloat(amount) <= 0) {
     return { status: "free", message: "No payment required." };
   }
