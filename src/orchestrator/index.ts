@@ -98,7 +98,7 @@ try {
         domainSkillCache.set(k, entry);
       }
     }
-    console.log(`[domain-cache] loaded ${domainSkillCache.size} entries from disk`);
+    console.error(`[domain-cache] loaded ${domainSkillCache.size} entries from disk`);
   }
 } catch { /* fresh start */ }
 
@@ -107,7 +107,7 @@ let _routeCacheDirty = false;
 function persistRouteCache() {
   _routeCacheDirty = true;
 }
-setInterval(() => {
+const routeCacheFlushTimer = setInterval(() => {
   if (!_routeCacheDirty) return;
   _routeCacheDirty = false;
   try {
@@ -117,6 +117,7 @@ setInterval(() => {
     writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(entries), "utf-8");
   } catch { /* best effort */ }
 }, 5_000);
+routeCacheFlushTimer.unref?.();
 
 // Load route cache from disk on startup
 try {
@@ -129,7 +130,7 @@ try {
         skillRouteCache.set(k, entry);
       }
     }
-    console.log(`[route-cache] loaded ${skillRouteCache.size} entries from disk`);
+    console.error(`[route-cache] loaded ${skillRouteCache.size} entries from disk`);
   }
 } catch { /* fresh start */ }
 const routeResultCache = new Map<
@@ -1982,37 +1983,12 @@ export async function resolveAndExecute(
     }
     return timing;
   }
-
-  /** Try auto-execute, fall back to deferral. This is the single entry point for all deferral paths. */
+  /** Always defer to the agent — auto-exec is unreliable and picks wrong endpoints. */
   async function buildDeferralWithAutoExec(
     skill: SkillManifest,
     source: "marketplace" | "live-capture",
     extraFields?: Record<string, unknown>,
   ): Promise<AutoExecDecision> {
-    // Only attempt auto-exec if we have an intent to infer params from
-    if (queryIntent && queryIntent.trim().length > 0) {
-      try {
-        const autoResult = await tryAutoExecute(skill, source);
-        if (autoResult) {
-          // Promote to marketplace cache so subsequent requests skip live-capture
-          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "", context?.url);
-          return { orchestratorResult: autoResult, autoexecFailedAll: false };
-        }
-        return {
-          orchestratorResult: buildDeferral(skill, source, extraFields),
-          autoexecFailedAll:
-            !skillHasContextStructuredSearchEndpoint(skill, queryIntent, context?.url) &&
-            !skillHasBetterStructuredSearchEndpoint(
-              skill,
-              undefined,
-              queryIntent,
-              context?.url,
-            ),
-        };
-      } catch (err) {
-        console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
-      }
-    }
     return {
       orchestratorResult: buildDeferral(skill, source, extraFields),
       autoexecFailedAll: false,
