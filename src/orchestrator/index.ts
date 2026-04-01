@@ -75,10 +75,10 @@ const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-
 
 // Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
 // This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it
-const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
+export const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
 const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-skill-cache.json");
 
-function persistDomainCache() {
+export function persistDomainCache() {
   try {
     const dir = dirname(DOMAIN_CACHE_FILE);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -160,7 +160,7 @@ type RouteCacheCandidate = {
   skill: SkillManifest;
 };
 
-function scopedCacheKey(scope: string, key: string): string {
+export function scopedCacheKey(scope: string, key: string): string {
   return `${scope}:${key}`;
 }
 
@@ -170,12 +170,12 @@ function scopedResolveCacheKeys(scope: string, key: string): string[] {
     : [scopedCacheKey(scope, key), scopedCacheKey("global", key)];
 }
 
-function snapshotPathForCacheKey(cacheKey: string): string {
+export function snapshotPathForCacheKey(cacheKey: string): string {
   const digest = createHash("sha1").update(cacheKey).digest("hex");
   return join(SKILL_SNAPSHOT_DIR, `${digest}.json`);
 }
 
-function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
+export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
   try {
     mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
     const target = snapshotPathForCacheKey(cacheKey);
@@ -314,7 +314,7 @@ function isPortSensitiveHostname(hostname: string): boolean {
   );
 }
 
-function getDomainReuseKey(input?: string | null): string | null {
+export function getDomainReuseKey(input?: string | null): string | null {
   if (!input) return null;
   try {
     const parsed = new URL(input);
@@ -3532,7 +3532,7 @@ export function hasUsableEndpoints(skill: SkillManifest): boolean {
 }
 
 /** Generate a local heuristic description for an endpoint so BM25 can work immediately. */
-function generateLocalDescription(ep: import("../types/index.js").EndpointDescriptor): string {
+export function generateLocalDescription(ep: import("../types/index.js").EndpointDescriptor): string {
   let id = "";
   try {
     const u = new URL(ep.url_template);
