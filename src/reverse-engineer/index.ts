@@ -621,6 +621,16 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
   }
   scored.sort((a, b) => b.score - a.score);
 
+  // For passive captures (no context page URL), pre-compute path templates across
+  // all candidate paths so individual endpoints can be annotated without needing
+  // collapseEndpoints' sibling grouping.
+  const minedTemplateMap = !context?.pageUrl
+    ? minePathTemplates(scored.map(({ req }) => {
+        try { return new URL(req.url).pathname; } catch { return ""; }
+      }).filter(Boolean))
+    : new Map<string, string>();
+
+
   for (const { req } of scored) {
     const normalized = normalizeUrl(req.url);
     const key = `${req.method}:${normalized}`;
@@ -749,6 +759,12 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       action_kind: endpoint.semantic?.action_kind,
       resource_kind: endpoint.semantic?.resource_kind,
     });
+    // Annotate with mined template when available (passive capture, no page context)
+    try {
+      const pathname = new URL(req.url).pathname;
+      const mined = minedTemplateMap.get(pathname);
+      if (mined) endpoint._minedTemplate = mined;
+    } catch { /* ignore bad URLs */ }
     endpoints.push(endpoint);
   }
 
@@ -1098,6 +1114,18 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
  * Used by collapseEndpoints to avoid merging distinct API actions
  * like /relationships/connectionsSummary + /relationships/invitationsSummary.
  */
+/** Compute Shannon entropy (bits per character) for a string. */
+function computeEntropy(s: string): number {
+  const freq = new Map<string, number>();
+  for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  let h = 0;
+  for (const count of freq.values()) {
+    const p = count / s.length;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+
 function looksLikeEntityId(segment: string): boolean {
   if (segment.startsWith("{")) return true;
   // UUID (with or without dashes)
@@ -1112,6 +1140,12 @@ function looksLikeEntityId(segment: string): boolean {
   if (/^[A-Z]{1,5}(\.[A-Z])?$/.test(segment)) return true;
   // Comma-separated lists
   if (segment.includes(",")) return true;
+  // Base64-encoded IDs: mixed case with = padding
+  if (/^[A-Za-z0-9+/]{6,}={1,2}$/.test(segment)) return true;
+
+  // High-entropy strings are likely encoded IDs (tokens, hashes, opaque cursors, etc.)
+  const entropy = computeEntropy(segment);
+  if (entropy > 3.5 && segment.length > 5) return true;
 
   // === NOT an entity ID — these are action/resource names ===
   // camelCase: lowercase letter followed by uppercase (e.g., connectionsSummary)
@@ -1120,6 +1154,9 @@ function looksLikeEntityId(segment: string): boolean {
   if (/[a-z][_-][a-z]/i.test(segment)) return false;
   // Pure lowercase alphabetic word 3+ chars (REST resource: "connections", "settings")
   if (/^[a-z]{3,}$/.test(segment)) return false;
+
+  // Low-entropy strings are likely readable names, not IDs
+  if (entropy < 2.5 && segment.length > 3) return false;
 
   // Ambiguous — allow collapsing (conservative)
   return true;
@@ -1139,6 +1176,71 @@ function looksLikeEntityId(segment: string): boolean {
  * Only collapses when the majority (>50%) of varying segments look like entity
  * IDs, NOT distinct action/resource names (camelCase, REST words).
  */
+
+/**
+ * Mine path templates from a batch of URL paths that lack a context page URL.
+ * Builds a prefix trie and identifies positions where enough distinct children
+ * look like entity IDs, replacing them with `{id}` placeholders.
+ *
+ * @param paths - Array of URL pathnames (e.g. "/api/users/123/posts")
+ * @param maxChildren - Minimum distinct values at a position to trigger wildcarding (default 4)
+ * @returns Map from original path to templated path (only paths that changed are included)
+ */
+export function minePathTemplates(
+  paths: string[],
+  maxChildren = 4,
+): Map<string, string> {
+  // Build a prefix trie: prefix → Map<segment, count>
+  const trie = new Map<string, Map<string, number>>();
+
+  for (const path of paths) {
+    const segments = path.split("/").filter(Boolean);
+    for (let i = 0; i < segments.length; i++) {
+      const prefix = "/" + segments.slice(0, i).join("/");
+      const children = trie.get(prefix) ?? new Map<string, number>();
+      const seg = segments[i];
+      children.set(seg, (children.get(seg) ?? 0) + 1);
+      trie.set(prefix, children);
+    }
+  }
+
+  // Identify wildcard prefixes: positions where distinct children >= maxChildren
+  // AND more than 50% of those children look like entity IDs.
+  const wildcardPrefixes = new Set<string>();
+  for (const [prefix, children] of trie) {
+    if (children.size < maxChildren) continue;
+    const segs = Array.from(children.keys());
+    const entityCount = segs.filter((s) => looksLikeEntityId(s)).length;
+    if (entityCount / segs.length > 0.5) {
+      wildcardPrefixes.add(prefix);
+    }
+  }
+
+  if (wildcardPrefixes.size === 0) return new Map();
+
+  // Build original → template map for paths that contain wildcarded positions.
+  const result = new Map<string, string>();
+  for (const path of paths) {
+    const segments = path.split("/").filter(Boolean);
+    const templated: string[] = [];
+    let changed = false;
+    for (let i = 0; i < segments.length; i++) {
+      const prefix = "/" + segments.slice(0, i).join("/");
+      if (wildcardPrefixes.has(prefix)) {
+        templated.push("{id}");
+        changed = true;
+      } else {
+        templated.push(segments[i]);
+      }
+    }
+    if (changed) {
+      result.set(path, "/" + templated.join("/"));
+    }
+  }
+
+  return result;
+}
+
 function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
   // Group by method + origin + all-but-last path segment
   const groups = new Map<string, EndpointDescriptor[]>();
