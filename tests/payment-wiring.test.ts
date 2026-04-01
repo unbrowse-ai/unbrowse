@@ -7,6 +7,8 @@ import {
 import { checkWalletConfigured } from "../src/payments/wallet.js";
 import type { PaymentGateResult } from "../src/payments/index.js";
 
+const PAID_ROUTE = { price_usd: "0.001" } as const;
+
 // ---------------------------------------------------------------------------
 // checkPaymentRequirement — real function tests
 // ---------------------------------------------------------------------------
@@ -49,10 +51,10 @@ describe("checkPaymentRequirement", () => {
     expect(result.status).toBe("free");
   });
 
-  test("returns payment_required for marketplace skills with default price", async () => {
+  test("returns payment_required for marketplace skills with explicit price", async () => {
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
-    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1");
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", PAID_ROUTE);
     expect(result.status).toBe("payment_required");
     expect(result.requirement).toBeDefined();
     expect(result.requirement!.amount).toBe("0.001");
@@ -63,6 +65,7 @@ describe("checkPaymentRequirement", () => {
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
     const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
+      ...PAID_ROUTE,
       wallet_configured: false,
     });
     expect(result.status).toBe("wallet_not_configured");
@@ -73,7 +76,7 @@ describe("checkPaymentRequirement", () => {
   test("requirement includes correct memo format", async () => {
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
-    const result = await checkPaymentRequirement("my-skill", "search-ep");
+    const result = await checkPaymentRequirement("my-skill", "search-ep", PAID_ROUTE);
     expect(result.requirement!.memo).toBe("unbrowse:my-skill:search-ep");
   });
 });
@@ -259,6 +262,7 @@ describe("payment gate integration", () => {
     expect(walletCheck.configured).toBe(false);
 
     const paymentCheck = await checkPaymentRequirement("marketplace:skill", "ep-1", {
+      ...PAID_ROUTE,
       wallet_configured: walletCheck.configured,
     });
     expect(paymentCheck.status).toBe("wallet_not_configured");
@@ -277,6 +281,7 @@ describe("payment gate integration", () => {
     expect(walletCheck.configured).toBe(true);
 
     const paymentCheck = await checkPaymentRequirement("marketplace:skill", "ep-1", {
+      ...PAID_ROUTE,
       wallet_configured: walletCheck.configured,
     });
     expect(paymentCheck.status).toBe("payment_required");
@@ -313,7 +318,7 @@ describe("payment gate integration", () => {
 describe("OrchestratorResult payment field", () => {
   test("payment field is typed correctly from PaymentGateResult", async () => {
     // Verify the payment module exports are importable and well-typed
-    const gate: PaymentGateResult = await checkPaymentRequirement("test", "ep");
+    const gate: PaymentGateResult = await checkPaymentRequirement("test", "ep", PAID_ROUTE);
     expect(gate).toHaveProperty("status");
     expect(gate).toHaveProperty("message");
     // The status should be one of the valid PaymentStatus values

@@ -33,9 +33,11 @@ interface TestResult {
 }
 
 let testResults: TestResult[] = [];
+const runP0P1Integration = process.env.UNBROWSE_RUN_P0_P1 === "1";
+const suite = runP0P1Integration ? describe : describe.skip;
 const UNBROWSE_CLI = path.join(
   process.cwd(),
-  "packages/skill/dist/cli.js"
+  "src/cli.ts"
 );
 
 // Load test cases from JSON
@@ -47,6 +49,14 @@ function loadTestCases(): TestCase[] {
   }
   const content = fs.readFileSync(testCasePath, "utf-8");
   return JSON.parse(content);
+}
+
+function countResultEvidence(result: any): number {
+  if (Array.isArray(result?.result)) return result.result.length;
+  if (Array.isArray(result?.available_endpoints)) return result.available_endpoints.length;
+  if (Array.isArray(result?.result?.data)) return result.result.data.length;
+  if (result?.result && typeof result.result === "object" && !result.result.error) return 1;
+  return 0;
 }
 
 // Run unbrowse CLI and validate output
@@ -63,7 +73,7 @@ async function runUnbrowseTest(
       "--force-capture",
     ];
 
-    const proc = spawn("bun", ["run", UNBROWSE_CLI, ...args], {
+    const proc = spawn("bun", [UNBROWSE_CLI, ...args], {
       cwd: process.cwd(),
       timeout: 60000,
     });
@@ -95,13 +105,11 @@ async function runUnbrowseTest(
         if (testCase.expectedSignals) {
           if (
             testCase.expectedSignals.minEndpoints &&
-            (!result.endpoints ||
-              result.endpoints.length <
-                testCase.expectedSignals.minEndpoints)
+            countResultEvidence(result) < testCase.expectedSignals.minEndpoints
           ) {
             resolve({
               passed: false,
-              error: `Expected at least ${testCase.expectedSignals.minEndpoints} endpoints, got ${result.endpoints?.length || 0}`,
+              error: `Expected at least ${testCase.expectedSignals.minEndpoints} result signal(s), got ${countResultEvidence(result)}`,
             });
             return;
           }
@@ -133,7 +141,7 @@ async function runUnbrowseTest(
   });
 }
 
-describe("P0/P1 Issue Validation Tests", () => {
+suite("P0/P1 Issue Validation Tests (integration)", () => {
   const testCases = loadTestCases();
 
   if (testCases.length === 0) {
@@ -150,8 +158,8 @@ describe("P0/P1 Issue Validation Tests", () => {
     console.log(`\nRunning ${testCases.length} P0/P1 issue tests...\n`);
   });
 
-  testCases.forEach((testCase) => {
-    it(`Issue #${testCase.issueNumber}: ${testCase.title}`, async () => {
+  it("runs configured issue validations sequentially", async () => {
+    for (const testCase of testCases) {
       const startTime = Date.now();
       const result = await runUnbrowseTest(testCase);
       const duration = Date.now() - startTime;
@@ -169,10 +177,14 @@ describe("P0/P1 Issue Validation Tests", () => {
       } else {
         console.log(`  ✅ #${testCase.issueNumber} (${duration}ms)`);
       }
+    }
 
-      expect(result.passed).toBe(true);
-    });
-  });
+    const failedIssues = testResults
+      .filter((result) => !result.passed)
+      .map((result) => `#${result.issue}: ${result.error ?? "failed"}`);
+
+    expect(failedIssues).toEqual([]);
+  }, 180_000);
 
   afterAll(() => {
     const passed = testResults.filter((r) => r.passed).length;

@@ -13,7 +13,7 @@
   {
     "issueNumber": 152,
     "title": "mergeEndpoints silently drops richer rediscoveries of existing endpoints",
-    "url": "https://www.wikipedia.org/",
+    "url": "https://en.wikipedia.org/wiki/Special:Search?search=openai",
     "intent": "search for articles",
     "expectedSignals": {
       "minEndpoints": 1,

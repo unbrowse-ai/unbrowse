@@ -195,7 +195,15 @@ export function isIndexingInFlight(domain: string): boolean {
   return indexInFlight.has(domain);
 }
 
-/** Reset for tests. */
+/** Await all in-flight background index jobs. Call before process exit. */
+export async function drainPendingIndexJobs(): Promise<void> {
+  const pending = [...indexInFlight.values()];
+  if (pending.length === 0) return;
+  console.log(`[background-index] draining ${pending.length} pending job(s)...`);
+  await Promise.allSettled(pending);
+  console.log(`[background-index] all jobs drained`);
+}
+
 export function resetIndexQueueForTests(): void {
   indexInFlight.clear();
 }

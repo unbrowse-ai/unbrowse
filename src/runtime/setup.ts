@@ -193,11 +193,12 @@ export async function runSetup(options?: {
     ? { installed: false, action: "skipped" as const }
     : await ensureBrowserEngineInstalled();
   const walletCheck = checkWalletConfigured();
+  const skipWalletSetup = process.env.UNBROWSE_SKIP_WALLET_SETUP === "1";
   const lobsterInstalled = hasBinary("lobstercash") ||
     existsSync(path.join(os.homedir(), ".agents", "skills", "lobstercash", "SKILL.md"));
 
   // Auto-setup lobster.cash wallet if skill is installed but wallet not configured
-  if (!walletCheck.configured && lobsterInstalled) {
+  if (!skipWalletSetup && !walletCheck.configured && lobsterInstalled) {
     console.log("[unbrowse] lobster.cash skill detected but wallet not configured — running wallet setup...");
     try {
       execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {

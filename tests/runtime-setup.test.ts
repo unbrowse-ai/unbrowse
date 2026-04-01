@@ -7,10 +7,25 @@ import { runSetup } from "../src/runtime/setup.js";
 
 const tmpDirs: string[] = [];
 const originalPackageRoot = process.env.UNBROWSE_PACKAGE_ROOT;
+const originalHome = process.env.HOME;
+const originalPath = process.env.PATH;
+const originalSkipWalletSetup = process.env.UNBROWSE_SKIP_WALLET_SETUP;
+
+function isolateSetupEnv(homeDir: string): void {
+  process.env.HOME = homeDir;
+  process.env.PATH = "/usr/bin:/bin";
+  process.env.UNBROWSE_SKIP_WALLET_SETUP = "1";
+}
 
 afterEach(() => {
   if (originalPackageRoot === undefined) delete process.env.UNBROWSE_PACKAGE_ROOT;
   else process.env.UNBROWSE_PACKAGE_ROOT = originalPackageRoot;
+  if (originalHome === undefined) delete process.env.HOME;
+  else process.env.HOME = originalHome;
+  if (originalPath === undefined) delete process.env.PATH;
+  else process.env.PATH = originalPath;
+  if (originalSkipWalletSetup === undefined) delete process.env.UNBROWSE_SKIP_WALLET_SETUP;
+  else process.env.UNBROWSE_SKIP_WALLET_SETUP = originalSkipWalletSetup;
   while (tmpDirs.length > 0) {
     const dir = tmpDirs.pop();
     if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
@@ -21,6 +36,7 @@ describe("runtime setup", () => {
   it("installs an Open Code project command file with strict Unbrowse-only guidance", async () => {
     const cwd = mkdtempSync(path.join(os.tmpdir(), "unbrowse-setup-"));
     tmpDirs.push(cwd);
+    isolateSetupEnv(cwd);
 
     const report = await runSetup({
       cwd,
@@ -39,6 +55,7 @@ describe("runtime setup", () => {
   it("treats a packaged Kuri binary as already installed", async () => {
     const cwd = mkdtempSync(path.join(os.tmpdir(), "unbrowse-setup-bin-"));
     tmpDirs.push(cwd);
+    isolateSetupEnv(cwd);
     process.env.UNBROWSE_PACKAGE_ROOT = cwd;
 
     const target = process.platform === "darwin" && process.arch === "arm64"
@@ -70,6 +87,7 @@ describe("runtime setup", () => {
   it("finds the vendored package binary from a monorepo checkout", async () => {
     const cwd = mkdtempSync(path.join(os.tmpdir(), "unbrowse-setup-monorepo-bin-"));
     tmpDirs.push(cwd);
+    isolateSetupEnv(cwd);
     process.env.UNBROWSE_PACKAGE_ROOT = cwd;
 
     const target = process.platform === "darwin" && process.arch === "arm64"

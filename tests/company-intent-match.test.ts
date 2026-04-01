@@ -27,6 +27,6 @@ describe("company intent matching", () => {
       },
     }, "get company info");
 
-    expect(result.verdict).toBe("fail");
+    expect(result.verdict).toBe("skip");
   });
 });

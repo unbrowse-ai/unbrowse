@@ -35,14 +35,19 @@ export async function fetchDagAdvisoryPlan(
     try {
       const chain = await fetchChain(skill.domain, targetEndpointId, knownBindingKeys);
       if (chain && Array.isArray(chain.chain) && chain.chain.length > 0) {
-        return {
-          chain_ready: chain.resolved ?? true,
-          prerequisite_order: chain.chain
-            .filter((link) => link.endpoint_id !== targetEndpointId)
-            .map((link) => link.endpoint_id),
-          predicted_next: [],
-          skippable: [],
-        };
+        // Validate that chain endpoints exist in the local skill — discard stale backend data
+        const localEndpointIds = new Set(skill.endpoints.map((ep) => ep.endpoint_id));
+        const validPrereqs = chain.chain.filter(
+          (link) => link.endpoint_id !== targetEndpointId && localEndpointIds.has(link.endpoint_id),
+        );
+        if (validPrereqs.length > 0) {
+          return {
+            chain_ready: chain.resolved ?? true,
+            prerequisite_order: validPrereqs.map((link) => link.endpoint_id),
+            predicted_next: [],
+            skippable: [],
+          };
+        }
       }
     } catch {
       // Backend unavailable — fall through to local planner

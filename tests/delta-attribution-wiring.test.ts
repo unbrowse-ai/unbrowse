@@ -11,7 +11,7 @@
  *   bun test tests/delta-attribution-wiring.test.ts
  */
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { buildExecutionPayload, getAgentId } from "../src/client/index.js";
+import { buildExecutionPayload, getAgentId, hashApiKey } from "../src/client/index.js";
 import type { ExecutionTrace, SkillManifest } from "../src/types/index.js";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
 import { join } from "path";
@@ -50,6 +50,25 @@ function makeSkill(overrides?: Partial<SkillManifest>): SkillManifest {
 }
 
 describe("buildExecutionPayload — indexer_id wiring (#232)", () => {
+  const origApiKey = process.env.UNBROWSE_API_KEY;
+  const origConfigDir = process.env.UNBROWSE_CONFIG_DIR;
+  let emptyConfigDir: string;
+
+  beforeEach(() => {
+    emptyConfigDir = join(tmpdir(), `unbrowse-delta-attribution-${Date.now()}`);
+    mkdirSync(emptyConfigDir, { recursive: true });
+    process.env.UNBROWSE_CONFIG_DIR = emptyConfigDir;
+    delete process.env.UNBROWSE_API_KEY;
+  });
+
+  afterEach(() => {
+    if (origApiKey !== undefined) process.env.UNBROWSE_API_KEY = origApiKey;
+    else delete process.env.UNBROWSE_API_KEY;
+    if (origConfigDir !== undefined) process.env.UNBROWSE_CONFIG_DIR = origConfigDir;
+    else delete process.env.UNBROWSE_CONFIG_DIR;
+    if (existsSync(emptyConfigDir)) rmSync(emptyConfigDir, { recursive: true });
+  });
+
   it("includes indexer_id from skill manifest when present", () => {
     const skill = makeSkill({ indexer_id: "agent-xyz" });
     const trace = makeTrace();
@@ -61,13 +80,23 @@ describe("buildExecutionPayload — indexer_id wiring (#232)", () => {
     expect(payload.endpoint_id).toBe("ep-1");
   });
 
-  it("omits indexer_id when skill has no indexer_id and no local agent", () => {
+  it("omits indexer_id when skill has no indexer_id and no local api key", () => {
     const skill = makeSkill();
     const trace = makeTrace();
 
     const payload = buildExecutionPayload(skill.skill_id, trace.endpoint_id, trace, skill);
 
     expect(payload.indexer_id).toBeUndefined();
+  });
+
+  it("falls back to a hashed local api key when skill has no indexer_id", () => {
+    process.env.UNBROWSE_API_KEY = "test-api-key";
+    const skill = makeSkill();
+    const trace = makeTrace();
+
+    const payload = buildExecutionPayload(skill.skill_id, trace.endpoint_id, trace, skill);
+
+    expect(payload.indexer_id).toBe(hashApiKey("test-api-key"));
   });
 
   it("strips result data from trace (only metadata for scoring)", () => {

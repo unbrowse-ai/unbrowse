@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "path";
@@ -10,6 +10,7 @@ const ROOT = join(TESTS_DIR, "..");
 const BASE_URL = process.env.UNBROWSE_URL ?? "http://localhost:6969";
 
 let serverProc: Bun.Subprocess<"ignore", "pipe", "pipe"> | null = null;
+let ensureBaseServerPromise: Promise<void> | null = null;
 
 // Product-truth suite: always drive the CLI/orchestrator path.
 // Do not replace these with raw captureSession/executeSkill plumbing tests.
@@ -41,7 +42,41 @@ async function waitForServerDown(timeoutMs = 10_000, baseUrl = BASE_URL): Promis
   throw new Error(`server stayed healthy at ${baseUrl} for ${timeoutMs}ms`);
 }
 
+async function ensureBaseServer(): Promise<void> {
+  if (await isServerUp()) return;
+  if (ensureBaseServerPromise) {
+    await ensureBaseServerPromise;
+    return;
+  }
+
+  ensureBaseServerPromise = (async () => {
+    if (await isServerUp()) return;
+
+    serverProc = Bun.spawn([process.execPath, "src/index.ts"], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        UNBROWSE_NON_INTERACTIVE: "1",
+        UNBROWSE_TOS_ACCEPTED: "1",
+      },
+      stdout: "ignore",
+      stderr: "pipe",
+    });
+
+    try {
+      await waitForServer();
+    } catch (error) {
+      serverProc.kill();
+      const stderr = await new Response(serverProc.stderr).text();
+      throw new Error(`${error instanceof Error ? error.message : String(error)}\n${stderr}`);
+    }
+  })();
+
+  await ensureBaseServerPromise;
+}
+
 async function runCli(args: string[], envOverrides: Record<string, string> = {}): Promise<{ code: number; body: any; stdout: string; stderr: string }> {
+  await ensureBaseServer();
   const proc = Bun.spawn([process.execPath, "src/cli.ts", ...args, "--no-auto-start"], {
     cwd: ROOT,
     env: {
@@ -150,29 +185,6 @@ function hasData(body: any): boolean {
   }
   return false;
 }
-
-beforeAll(async () => {
-  if (await isServerUp()) return;
-
-  serverProc = Bun.spawn([process.execPath, "src/index.ts"], {
-    cwd: ROOT,
-    env: {
-      ...process.env,
-      UNBROWSE_NON_INTERACTIVE: "1",
-      UNBROWSE_TOS_ACCEPTED: "1",
-    },
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-
-  try {
-    await waitForServer();
-  } catch (error) {
-    serverProc.kill();
-    const stderr = await new Response(serverProc.stderr).text();
-    throw new Error(`${error instanceof Error ? error.message : String(error)}\n${stderr}`);
-  }
-});
 
 afterAll(() => {
   serverProc?.kill();

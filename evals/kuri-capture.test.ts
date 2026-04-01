@@ -52,7 +52,7 @@ describe("Kuri capture pipeline", () => {
     await kuri.start();
     const h = await kuri.health();
     console.log(`[eval] Kuri health: ${JSON.stringify(h)}`);
-  }, 15_000);
+  });
 
   afterAll(async () => {
     // Don't stop Kuri — other tests may use it
