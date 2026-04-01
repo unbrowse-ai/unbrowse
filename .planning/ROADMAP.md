@@ -130,7 +130,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. Skill owners can set a price per execution; free skills remain free
   4. Payment transactions are recorded and visible to both consumer and creator
 
-**Plans**: TBD
+**Plans**: 1/? in progress (06-01: payment gate wiring)
 
 ---
 
@@ -143,7 +143,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | 3. Browser Replacement API | 2/2 | Complete | 2026-04-01 |
 | 4. Endpoint Graph | 2/2 | Complete | 2026-04-01 |
 | 5. Marketplace Wiring and Telemetry | 0/? | Not started | - |
-| 6. Marketplace Payments | 0/? | Not started | - |
+| 6. Marketplace Payments | 1/? | In Progress | - |
 
 ---
 

@@ -1968,6 +1968,18 @@ export async function resolveAndExecute(
       outcome: trace?.success === false ? "failure" : trace?.success ? "success" : "skip",
       error: trace?.error,
     });
+    // Auto-file GitHub issues on repeated failures
+    if (trace?.success === false && trace?.error && skillId) {
+      const domain = context?.domain ?? (context?.url ? (() => { try { return new URL(context.url!).hostname; } catch { return ""; } })() : "");
+      recordFailure({
+        skillId,
+        endpointId: trace.endpoint_id,
+        domain,
+        intent,
+        url: context?.url,
+        error: trace.error,
+      });
+    }
     return timing;
   }
 
