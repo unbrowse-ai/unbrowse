@@ -15,13 +15,13 @@
 | Field | Value |
 |-------|-------|
 | Phase | 1 — Passive Capture Foundation |
-| Plan | 01-01 complete, next: 01-02 |
-| Status | In progress |
+| Plan | Phase 1 complete (01-01, 01-02 done) |
+| Status | Complete |
 | Last updated | 2026-04-01 |
 
 **Progress**:
 ```
-[==        ] Phase 1 — 1/2 plans complete
+[==========] Phase 1 — 2/2 plans complete
 [          ] Phase 2
 [          ] Phase 3
 [          ] Phase 4
@@ -35,7 +35,7 @@
 ## Phase Status
 
 | Phase | Goal | Status | Plans |
-| 1 — Passive Capture Foundation | Passive network interception with response bodies | In progress | 1/2 |
+| 1 — Passive Capture Foundation | Passive network interception with response bodies | Complete | 2/2 |
 | 1 — Passive Capture Foundation | Passive network interception with response bodies | Not started | 0/? |
 | 2 — Background Indexing and Cache-First | Non-blocking indexing + cache-first resolution | Not started | 0/? |
 | 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | Not started | 0/? |
@@ -65,6 +65,7 @@
 | Passive capture over active navigation | Active capture fights the browser (cookie injection, headless detection, timing races). Passive observes what the real browser actually does. |
 | Kuri builtin extension as capture source | chrome.webRequest already observes all traffic; supplement with CDP for response bodies |
 | Login-as-dependency deferred to v2 | Cookie extraction from existing sessions covers most use cases for launch |
+| Four-priority merge pipeline (01-02) | JS interceptor > HAR > extension observer > responseBodies-only; URL dedup keeps highest priority source |
 | scriptInject before navigation (01-01) | Persistent interceptor via Page.addScriptToEvaluateOnNewDocument eliminates polling race; fallback to evaluate for older kuri |
 | Login-as-dependency deferred to v2 | Cookie extraction from existing sessions covers most use cases for launch |
 
@@ -96,6 +97,6 @@
 
 **To resume**: Read `.planning/ROADMAP.md` for current phase goals and success criteria. Read `.planning/STATE.md` (this file) for current position and blockers. Check git log on `rach/restart-base` for recent progress.
 
-**Last session**: 2026-04-01T10:17:50Z — Completed 01-01-PLAN.md (persistent interceptor via scriptInject)
+**Last session**: 2026-04-01T10:36:52Z — Completed 01-02-PLAN.md (extension data collection + merge pipeline)
 
-**Next action**: Execute 01-02-PLAN.md (next plan in Phase 1).
+**Next action**: Phase 1 complete. Begin Phase 2 planning.
