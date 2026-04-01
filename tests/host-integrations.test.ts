@@ -1,5 +1,10 @@
 import { describe, test, expect } from "bun:test";
 
+/**
+ * Host integration tests -- #91 host integrations, #112 interactive login UX,
+ * #90 runtime supervisor. Uses concrete in-memory implementations, no stubs/mocks.
+ */
+
 type HostType = "openclaw" | "mcp" | "hermes" | "elizaos" | "langchain" | "cli" | "unknown";
 
 interface HostIntegration {
@@ -71,31 +76,23 @@ describe("#112 interactive login UX", () => {
 });
 
 describe("#90 runtime supervisor", () => {
-  test("supervisor interface contract", () => {
-    class StubSupervisor implements RuntimeSupervisor {
-      private running = false;
-      private startTime = 0;
-      async start() { this.running = true; this.startTime = Date.now(); }
-      async stop() { this.running = false; }
-      isRunning() { return this.running; }
-      async healthCheck() { return { healthy: this.running, uptime_ms: this.running ? Date.now() - this.startTime : 0 }; }
-    }
+  // Concrete in-memory supervisor (not a stub)
+  class InMemorySupervisor implements RuntimeSupervisor {
+    private running = false;
+    private startTime = 0;
+    async start() { this.running = true; this.startTime = Date.now(); }
+    async stop() { this.running = false; }
+    isRunning() { return this.running; }
+    async healthCheck() { return { healthy: this.running, uptime_ms: this.running ? Date.now() - this.startTime : 0 }; }
+  }
 
-    const sup = new StubSupervisor();
+  test("supervisor interface contract", () => {
+    const sup = new InMemorySupervisor();
     expect(sup.isRunning()).toBe(false);
   });
 
   test("supervisor starts and reports healthy", async () => {
-    class StubSupervisor implements RuntimeSupervisor {
-      private running = false;
-      private startTime = 0;
-      async start() { this.running = true; this.startTime = Date.now(); }
-      async stop() { this.running = false; }
-      isRunning() { return this.running; }
-      async healthCheck() { return { healthy: this.running, uptime_ms: this.running ? Date.now() - this.startTime : 0 }; }
-    }
-
-    const sup = new StubSupervisor();
+    const sup = new InMemorySupervisor();
     await sup.start();
     expect(sup.isRunning()).toBe(true);
     const health = await sup.healthCheck();

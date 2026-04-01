@@ -1,7 +1,7 @@
 /**
  * Tests for schema drift → endpoint deprecation behavior (Feature #101).
  */
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import { detectSchemaDrift } from "../src/transform/drift.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../src/types/index.js";
 
