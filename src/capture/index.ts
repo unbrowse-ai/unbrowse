@@ -100,6 +100,11 @@ export interface CaptureResult {
   ws_messages?: CapturedWsMessage[];
   html?: string;
   js_bundles?: Map<string, string>;
+  graph_session?: {
+    observed_operations: string[];
+    known_bindings: Record<string, unknown>;
+    suggested_next: string[];
+  };
 }
 
 export interface RawRequest {
