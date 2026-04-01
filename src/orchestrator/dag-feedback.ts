@@ -11,7 +11,7 @@
  */
 
 import { nanoid } from "nanoid";
-import { cachePublishedSkill } from "../client/index.js";
+import { cachePublishedSkill, getApiKey } from "../client/index.js";
 import { recordSession, recordNegative } from "../client/graph-client.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
 import type { SkillManifest, SkillOperationEdge, SkillOperationNode } from "../types/index.js";
@@ -45,6 +45,15 @@ export function _resetForTesting(debounceMs = 5_000): void {
   lastWriteAt.clear();
   DAG_WRITE_DEBOUNCE_MS = debounceMs;
 }
+/** Retrieve the API key for backend edge publishing. Reuses graph-client auth. */
+function _getApiKeyForPublish(): string {
+  try {
+    return getApiKey();
+  } catch {
+    return "";
+  }
+}
+
 
 function scheduleWrite(skillId: string, fn: () => void): void {
   if (pendingTimers.size >= MAX_PENDING_WRITES) return; // back-pressure: drop silently
@@ -216,7 +225,9 @@ export function publishEdgesToBackend(
   domain: string,
   graph: { operations: SkillOperationNode[]; edges: SkillOperationEdge[] },
 ): void {
-  const backendUrl = process.env.UNBROWSE_API_URL || "https://api.unbrowse.ai";
+  const backendUrl = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
+
+  const apiKey = _getApiKeyForPublish();
 
   for (const op of graph.operations) {
     const node = {
@@ -233,7 +244,10 @@ export function publishEdgesToBackend(
 
     fetch(`${backendUrl}/v1/graph/edges`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
       body: JSON.stringify({ domain, node, edges }),
     }).catch(() => {
       /* fire-and-forget — never block skill publish */
