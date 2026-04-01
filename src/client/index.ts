@@ -714,6 +714,19 @@ export async function recordExecution(
   await api("POST", "/v1/stats/execution", payload);
 }
 
+/** Record a payment transaction for a paid skill execution. Fire-and-forget. */
+export async function recordTransaction(params: {
+  transaction_id: string;
+  consumer_id: string;
+  creator_id: string;
+  skill_id: string;
+  endpoint_id?: string;
+  price_usd: number;
+  payment_proof?: string;
+}): Promise<void> {
+  if (LOCAL_ONLY) return;
+  await api("POST", "/v1/transactions", params);
+}
 export async function recordFeedback(
   skillId: string,
   endpointId: string,
