@@ -12,6 +12,7 @@ import { isStructuredSearchForm } from "../execution/search-forms.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
+import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import type {
   ExecutionOptions,
@@ -2016,7 +2017,14 @@ export async function resolveAndExecute(
       known_bindings: knownBindingsFromInputs(params, context?.url),
       max_operations: 8,
     });
-    const epRanked = rankEndpoints(resolvedSkill.endpoints, queryIntent, resolvedSkill.domain, context?.url);
+    let epRanked = rankEndpoints(resolvedSkill.endpoints, queryIntent, resolvedSkill.domain, context?.url);
+    // Graph-aware reachability filter
+    const known = knownBindingsFromInputs(params, context?.url);
+    const deferGraph = ensureSkillOperationGraph(resolvedSkill);
+    const reachableIds = computeReachableEndpoints(deferGraph, known);
+    if (reachableIds.size > 0) {
+      epRanked = epRanked.filter(r => reachableIds.has(r.endpoint.endpoint_id));
+    }
     const deferTrace: ExecutionTrace = {
       trace_id: nanoid(),
       skill_id: resolvedSkill.skill_id,
@@ -2580,8 +2588,32 @@ const dagPlan = await fetchDagAdvisoryPlan(
           } catch {
             // Trace storage must never block the execution path
           }
+          // Prefetch related endpoints via parent_child edges
+          let prefetched: import("../capture/prefetch.js").PrefetchResult[] = [];
+          try {
+            const execGraph = ensureSkillOperationGraph(skill);
+            const resolvedOp = execGraph.operations.find(op => op.endpoint_id === candidate.endpoint.endpoint_id);
+            if (resolvedOp) {
+              const prefetchTargets = getPrefetchTargets(execGraph, resolvedOp.operation_id, resolvedParams);
+              if (prefetchTargets.length > 0) {
+                console.log(`[prefetch] ${prefetchTargets.length} target(s) for ${candidate.endpoint.endpoint_id}`);
+                prefetched = await executePrefetch(skill, prefetchTargets, resolvedParams);
+                console.log(`[prefetch] ${prefetched.filter(r => r.success).length}/${prefetched.length} succeeded`);
+              }
+            }
+          } catch (prefetchErr) {
+            console.log(`[prefetch] error: ${(prefetchErr as Error).message}`);
+          }
           return {
-            result: execOut.result,
+            result: prefetched.length > 0 ? {
+              ...(typeof execOut.result === "object" && execOut.result !== null ? execOut.result as Record<string, unknown> : { data: execOut.result }),
+              prefetched: prefetched.filter(r => r.success).map(r => ({
+                endpoint_id: r.endpoint_id,
+                action_kind: r.action_kind,
+                resource_kind: r.resource_kind,
+                data: r.data,
+              })),
+            } : execOut.result,
             trace: execOut.trace,
             source,
             skill,
