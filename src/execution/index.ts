@@ -946,7 +946,7 @@ export async function executeSkill(
   options?: ExecutionOptions
 ): Promise<ExecutionResult> {
   if (skill.execution_type === "browser-capture") {
-    return executeBrowserCapture(skill, params);
+    return executeBrowserCapture(skill, params, options);
   }
 
   // Allow targeting a specific endpoint by ID
@@ -965,7 +965,8 @@ export async function executeSkill(
 
 async function executeBrowserCapture(
   skill: SkillManifest,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  options?: ExecutionOptions,
 ): Promise<ExecutionResult> {
   const fallbackUrl =
     (typeof params.context_url === "string" && params.context_url) ||
