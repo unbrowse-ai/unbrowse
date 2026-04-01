@@ -4,6 +4,7 @@
 
 ### Features
 
+* **#218**: wire DAG planner to backend EmergentDB graph — dag-advisor now queries the backend graph (fetchChain) first for cross-session intelligence with local planner fallback; publishEdgesToBackend fixed to use correct URL (beta-api.unbrowse.ai) and send Authorization headers; planner.ts stub replaced with real delegation to dag-feedback
 * **#155**: add BM25 lexical channel with RRF fusion — `indexEndpoints` stores docs in KV; `searchIntentInDomain` runs BM25 + graph in parallel and fuses with RRF (k=60), falling back to graph-only when no index exists
 * **#221**: wire `computeCompositeSearchScore` into search/resolve path — search results are now rescored with the Section 3.3 composite formula (40% embedding, 30% reliability, 15% freshness, 15% verification) instead of pure vector similarity; orchestrator scoring aligned to use continuous verified ratio
 * **#220**: wire `computeBottleneckMetrics` into backend — new `GET /v1/analytics/bottleneck` route returns latency percentiles (p50/p95 for capture, resolve, execute), cache/marketplace/live-capture hit rates, failure rate, and skills-per-domain capacity metric, all loaded from KV perf stats and skill data

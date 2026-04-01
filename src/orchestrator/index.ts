@@ -2340,11 +2340,12 @@ export async function resolveAndExecute(
     epRanked = prioritizeIntentMatchedApis(epRanked, queryIntent, context?.url);
 
     // --- DAG advisory boosts (discover-choose-act) ---
-    // Fire-and-forget advisory call: graph service enriches score order using
-    // prerequisite-chain reachability and co-occurrence predictions.
+    // Backend-first advisory call: tries the EmergentDB graph for cross-session
+    // intelligence, falls back to local planner if backend is unavailable.
     if (epRanked.length > 1 && skill.domain) {
       const bindings = Object.keys(knownBindingsFromInputs(resolvedParams, context?.url));
-      const dagPlan = fetchDagAdvisoryPlan(
+const dagPlan = fetchDagAdvisoryPlan(
+const dagPlan = await fetchDagAdvisoryPlan(
         skill,
         epRanked[0].endpoint.endpoint_id,
         bindings,

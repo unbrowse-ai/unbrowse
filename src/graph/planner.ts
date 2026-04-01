@@ -387,17 +387,25 @@ export function getDagSessionTrace(
 }
 
 // ---------------------------------------------------------------------------
-// 6. upsertDagEdgesFromOperationGraph (stub — satisfies the import)
+// 6. upsertDagEdgesFromOperationGraph — delegates to dag-feedback
 // ---------------------------------------------------------------------------
 
 /**
- * Placeholder: in the full implementation this would persist learned edges
- * back into the skill manifest.  For now it's a no-op because the planner
- * is purely advisory and runs against the in-memory graph.
+ * Rebuild and persist the operation graph from the skill's current endpoints.
+ * Delegates to the dag-feedback module which handles debounced local caching
+ * and fire-and-forget backend publishing.
+ *
+ * Callers that import from planner.ts get the real implementation via lazy
+ * dynamic import to avoid circular dependency with dag-feedback.ts.
  */
 export function upsertDagEdgesFromOperationGraph(
-  _skill: SkillManifest,
-  _graph: SkillOperationGraph,
+  skill: SkillManifest,
+  _graph?: SkillOperationGraph,
 ): void {
-  // no-op — advisory planner does not persist edges
+  // Lazy import to avoid circular dependency (dag-feedback imports from graph/)
+  import("../orchestrator/dag-feedback.js").then((mod) => {
+    mod.upsertDagEdgesFromOperationGraph(skill);
+  }).catch(() => {
+    // Graceful degradation — edge persistence is best-effort
+  });
 }
