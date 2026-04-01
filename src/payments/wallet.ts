@@ -1,4 +1,18 @@
 /**
+ * WalletProvider — abstract interface for wallet plugins (e.g. lobster.cash).
+ *
+ * Unbrowse owns: describing the interface contract.
+ * Wallet plugins (lobster.cash, etc.) own: implementing connect/sign/broadcast.
+ */
+export interface WalletProvider {
+  name: string;
+  connect(): Promise<{ address: string }>;
+  disconnect(): Promise<void>;
+  signTransaction(tx: unknown): Promise<string>;
+  getBalance(): Promise<bigint>;
+}
+
+/**
  * Wallet precheck — lobster.cash compatible.
  *
  * This module only checks whether the agent has a wallet configured.
@@ -6,7 +20,6 @@
  * Wallet provisioning and transaction execution are owned by
  * the agent's wallet plugin (e.g. lobster.cash).
  */
-
 export type WalletCheckResult = {
   configured: boolean;
   provider?: string;
