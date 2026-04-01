@@ -9,27 +9,21 @@ One agent learns a site once. Every later agent gets the fast path.
 ## Quick start
 
 ```bash
-# 30-second setup — clone + register skills + start server
+# 30-second setup — clone, register skill, start server
 git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.claude/skills/unbrowse \
   && cd ~/.claude/skills/unbrowse && ./setup
 ```
 
-The setup script checks prerequisites (Node.js 18+ or Bun), installs dependencies, verifies the Kuri browser engine, auto-detects your agent host (Claude Code, Codex, Open Code), registers the `/unbrowse` skill, and starts the local server.
+The setup script installs dependencies, auto-detects your agent host (Claude Code, Codex), registers the `/unbrowse` skill, then delegates to the CLI for Kuri verification, marketplace registration, and server startup.
 
 ### Alternative: npm install
 
 For a standalone CLI without the skill integration:
 
 ```bash
-npx unbrowse setup          # one-shot: downloads + runs setup
+npx unbrowse setup
 npm install -g unbrowse     # or install globally for daily use
 unbrowse setup
-```
-
-If your agent host uses the skills protocol:
-
-```bash
-npx skills add unbrowse-ai/unbrowse
 ```
 
 ### Setup flags
@@ -38,8 +32,6 @@ npx skills add unbrowse-ai/unbrowse
 | ---- | ----------- |
 | `--host claude\|codex\|opencode\|auto` | Force a specific agent host (default: auto-detect) |
 | `--no-start` | Skip starting the server after setup |
-| `--no-prefix` | Use short skill name (default) |
-| `--prefix` | Use `unbrowse-` prefixed skill name |
 
 ## Upgrading
 
@@ -74,11 +66,10 @@ This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](h
 
 ## What setup does
 
-- Checks local prerequisites (Node.js 18+ or Bun).
-- Installs npm dependencies if `node_modules/` is missing.
-- Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when Zig is installed.
-- Auto-detects installed agent hosts and registers the `/unbrowse` skill.
-- Starts the local Unbrowse server unless `--no-start` is passed.
+- Checks prerequisites (Node.js 18+ or Bun).
+- Installs dependencies if `node_modules/` is missing.
+- Auto-detects installed agent hosts and creates skill symlinks.
+- Delegates to `unbrowse setup` for Kuri verification, Open Code registration, marketplace registration, and server startup.
 
 ## Common commands
 
