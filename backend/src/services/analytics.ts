@@ -7,7 +7,8 @@
  */
 
 import type { Env, AgentProfile } from "../types.js";
-import { statsKV } from "./kv.js";
+import { statsKV, skillsKV } from "./kv.js";
+import { getPerf } from "./perf.js";
 
 // ─── Helpers ───
 
@@ -361,4 +362,65 @@ export function computeBottleneckMetrics(
     failure_rate: totalRequests > 0 ? failures / totalRequests : 0,
     skills_per_domain: uniqueDomains > 0 ? totalSkills / uniqueDomains : 0,
   };
+}
+
+
+// ─── KV-backed bottleneck aggregation ───
+
+/**
+ * Load orchestration stats from KV and compute bottleneck metrics.
+ * Uses perf:recent timing window for latency percentiles,
+ * PerfStats for hit rates, and skillsKV for domain/skill counts.
+ */
+export async function getBottleneckMetrics(env: Env): Promise<BottleneckMetrics> {
+  const [perfStats, recentRaw, skillEntries] = await Promise.all([
+    getPerf(env),
+    statsKV(env).get("perf:recent") as Promise<string | null>,
+    skillsKV(env).listWithValues("skill:"),
+  ]);
+
+  // Parse per-phase timing windows — fall back to totals when unavailable
+  const recent: number[] = recentRaw ? (safeJsonArray(recentRaw) ?? []) : [];
+
+  const captureRaw = await statsKV(env).get("perf:recent:capture") as string | null;
+  const resolveRaw = await statsKV(env).get("perf:recent:resolve") as string | null;
+  const executeRaw = await statsKV(env).get("perf:recent:execute") as string | null;
+  const captures: number[] = captureRaw ? (safeJsonArray(captureRaw) ?? []) : [];
+  const resolves: number[] = resolveRaw ? (safeJsonArray(resolveRaw) ?? recent) : recent;
+  const executes: number[] = executeRaw ? (safeJsonArray(executeRaw) ?? []) : [];
+
+  // Count skills and unique domains
+  let totalSkills = 0;
+  const domainSet = new Set<string>();
+  for (const { value } of skillEntries) {
+    try {
+      const s = JSON.parse(value) as { domain?: string; lifecycle?: string };
+      if (s.lifecycle === "deprecated" || s.lifecycle === "disabled") continue;
+      totalSkills++;
+      if (s.domain) domainSet.add(s.domain);
+    } catch { /* skip malformed */ }
+  }
+
+  const totalRequests = perfStats.total_resolves;
+  const failures = totalRequests - (perfStats.marketplace_hits + perfStats.cache_hits + perfStats.live_captures + perfStats.dom_fallbacks);
+
+  return computeBottleneckMetrics(
+    captures,
+    resolves,
+    executes,
+    perfStats.cache_hits,
+    perfStats.marketplace_hits,
+    perfStats.live_captures,
+    Math.max(0, failures),
+    totalRequests,
+    domainSet.size,
+    totalSkills,
+  );
+}
+
+function safeJsonArray(s: string): number[] | null {
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v : null;
+  } catch { return null; }
 }
