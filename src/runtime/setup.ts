@@ -6,6 +6,7 @@ import { ensureDir } from "./paths.js";
 import { findKuriBinary, getKuriSourceCandidates } from "../kuri/client.js";
 import { detectHostEnvironment, type HostEnvironment } from "./browser-host.js";
 import { log } from "../logger.js";
+import { checkWalletConfigured, type WalletCheckResult } from "../payments/wallet.js";
 
 export type SetupScope = "auto" | "global" | "project" | "off";
 
@@ -31,7 +32,9 @@ export type SetupReport = {
     detected: boolean;
     action: "installed" | "updated" | "skipped" | "not-detected";
     scope: "global" | "project" | "off";
-    command_file?: string;
+  };
+  wallet: WalletCheckResult & {
+    message: string;
   };
 };
 
@@ -189,6 +192,13 @@ export async function runSetup(options?: {
   const browser = options?.installBrowser === false
     ? { installed: false, action: "skipped" as const }
     : await ensureBrowserEngineInstalled();
+  const walletCheck = checkWalletConfigured();
+  const wallet = {
+    ...walletCheck,
+    message: walletCheck.configured
+      ? `Wallet configured (${walletCheck.provider})`
+      : "No wallet configured. Set up lobster.cash to use paid marketplace skills, or use indexing mode for free.",
+  };
 
   return {
     os: {
@@ -200,5 +210,6 @@ export async function runSetup(options?: {
     package_managers: detectPackageManagers(),
     browser_engine: browser,
     opencode: writeOpenCodeCommand(options?.opencode ?? "auto", cwd),
+    wallet,
   };
 }
