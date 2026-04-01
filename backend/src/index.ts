@@ -12,6 +12,7 @@ import { publicIssueRoutes, issueRoutes } from "./routes/issues.js";
 import { opsRoutes } from "./routes/ops.js";
 import { graphRoutes } from "./routes/graph.js";
 import { telemetryRoutes } from "./routes/telemetry.js";
+import { feeRoutes } from "./routes/fees.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -19,8 +20,10 @@ const app = new Hono<{ Bindings: Env }>();
 app.use("*", cors({
   origin: "*",
   allowMethods: ["GET", "POST", "PUT", "PATCH", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization"],
+  allowHeaders: ["Content-Type", "Authorization", "X-Payment-Proof"],
+  exposeHeaders: ["X-Payment-Required"],
   maxAge: 86400,
+}));
 }));
 
 // Public routes (reads, search, validation, agent registration, issues list)
@@ -34,6 +37,7 @@ app.route("/v1", publicAgentRoutes);
 app.route("/v1", publicIssueRoutes);
 app.route("/v1", opsRoutes);
 app.route("/v1", graphRoutes);
+app.route("/v1", feeRoutes);
 app.route("/v1", telemetryRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
