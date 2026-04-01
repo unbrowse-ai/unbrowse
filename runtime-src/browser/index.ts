@@ -1,7 +1,12 @@
 import * as kuri from "../kuri/client.js";
+import type { KuriHarEntry } from "../kuri/client.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
+import { extractEndpoints } from "../reverse-engineer/index.js";
+import type { RawRequest } from "../capture/index.js";
+import { queueBackgroundIndex } from "../indexer/index.js";
 import { UnbrowseResponse, type BrowserLaunchOptions, type GotoOptions, type SkillResolutionResult } from "./types.js";
 import type { SkillManifest } from "../types/index.js";
+import { nanoid } from "nanoid";
 
 /**
  * Infer a search intent from a URL's path and query params.
@@ -28,6 +33,70 @@ function requireTab(tabId: string | null): string {
   return tabId;
 }
 
+/** Convert Kuri HAR entries to RawRequest format for extractEndpoints */
+function harEntriesToRawRequests(entries: KuriHarEntry[]): RawRequest[] {
+  return entries
+    .filter(e => e.request && e.response)
+    .map(e => ({
+      url: e.request.url,
+      method: e.request.method,
+      request_headers: Object.fromEntries(
+        (e.request.headers ?? []).map(h => [h.name.toLowerCase(), h.value])
+      ),
+      request_body: e.request.postData?.text,
+      response_status: e.response.status,
+      response_headers: Object.fromEntries(
+        (e.response.headers ?? []).map(h => [h.name.toLowerCase(), h.value])
+      ),
+      response_body: e.response.content?.text,
+      timestamp: e.startedDateTime ?? new Date().toISOString(),
+    }));
+}
+
+/** Process captured HAR entries into routes and queue for background indexing */
+function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
+  if (entries.length === 0) return;
+
+  const requests = harEntriesToRawRequests(entries);
+  if (requests.length === 0) return;
+
+  let domain: string;
+  try { domain = new URL(pageUrl).hostname; } catch { return; }
+
+  const endpoints = extractEndpoints(requests, undefined, {
+    pageUrl,
+    finalUrl: pageUrl,
+  });
+
+  if (endpoints.length === 0) return;
+
+  const skill: SkillManifest = {
+    skill_id: nanoid(),
+    version: "1.0.0",
+    schema_version: "1",
+    lifecycle: "active" as const,
+    execution_type: "http" as const,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    name: domain,
+    intent_signature: `browse ${domain}`,
+    domain,
+    description: `Passively indexed API routes for ${domain}`,
+    owner_type: "agent" as const,
+    endpoints,
+  };
+
+  const cacheKey = `passive:${domain}:${Date.now()}`;
+  queueBackgroundIndex({
+    skill,
+    domain,
+    intent: `browse ${domain}`,
+    contextUrl: pageUrl,
+    cacheKey,
+  });
+}
+
+
 /**
  * Page — Kuri browser tab with Unbrowse acceleration.
  *
@@ -45,11 +114,16 @@ export class Page {
   private _html: string | null = null;
   private _closed = false;
   private _defaultIntent?: string;
+  private _harActive = false;
 
   /** @internal */
   constructor(tabId: string | null, defaultIntent?: string) {
     this._tabId = tabId;
     this._defaultIntent = defaultIntent;
+    // Start passive HAR recording so all network traffic is captured
+    if (tabId) {
+      kuri.harStart(tabId).then(() => { this._harActive = true; }).catch(() => {});
+    }
   }
 
   /** Whether this page has a live browser tab (vs skill-cache-only) */
@@ -104,10 +178,24 @@ export class Page {
 
     // Cache miss or resolve failure — navigate via Kuri directly.
     if (this._tabId) {
+      // Flush any prior HAR entries before navigating to a new page
+      if (this._harActive && this._url !== "about:blank") {
+        try {
+          const { entries } = await kuri.harStop(this._tabId);
+          passiveIndexHar(entries, this._url);
+        } catch { /* non-fatal */ }
+        this._harActive = false;
+      }
+
       await kuri.navigate(this._tabId, url);
       const finalUrl = await kuri.getCurrentUrl(this._tabId).catch(() => url);
       if (typeof finalUrl === "string" && finalUrl.startsWith("http")) {
         this._url = finalUrl;
+      }
+
+      // Restart HAR recording for the new page
+      if (!this._harActive) {
+        kuri.harStart(this._tabId).then(() => { this._harActive = true; }).catch(() => {});
       }
 
       try {
@@ -417,9 +505,17 @@ export class Page {
 
   // ── Lifecycle ───────────────────────────────────────────────────────
 
-  /** Close this page */
+  /** Close this page. Stops passive HAR recording and indexes captured traffic. */
   async close(): Promise<void> {
     if (this._tabId && !this._closed) {
+      // Stop HAR and passively index any captured API traffic
+      if (this._harActive) {
+        try {
+          const { entries } = await kuri.harStop(this._tabId);
+          passiveIndexHar(entries, this._url);
+        } catch { /* HAR stop failure is non-fatal */ }
+        this._harActive = false;
+      }
       await kuri.closeTab(this._tabId).catch(() => {});
       this._closed = true;
     }
