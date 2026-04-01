@@ -227,6 +227,10 @@ export interface SkillManifest {
   indexer_id?: string;
   /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
   operation_graph?: SkillOperationGraph;
+  /** Price in USD per execution; undefined or 0 = free */
+  base_price_usd?: number;
+  /** Whether the skill owner has opted into compensation */
+  owner_compensation_opt_in?: boolean;
 }
 
 export interface ExecutionTrace {

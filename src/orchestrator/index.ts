@@ -1,5 +1,5 @@
 import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
-import { emitRouteTrace } from "../telemetry.js";
+import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
 import { getSkillChunk, knownBindingsFromInputs, computeReachableEndpoints, ensureSkillOperationGraph } from "../graph/index.js";
@@ -14,6 +14,8 @@ import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
+import { checkPaymentRequirement } from "../payments/index.js";
+import { checkWalletConfigured } from "../payments/wallet.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -2604,6 +2606,38 @@ const dagPlan = await fetchDagAdvisoryPlan(
           } catch (prefetchErr) {
             console.log(`[prefetch] error: ${(prefetchErr as Error).message}`);
           }
+          // --- Payment gate: only for marketplace-sourced paid skills ---
+          if (source === "marketplace" && skill.base_price_usd && skill.base_price_usd > 0) {
+            try {
+              const walletCheck = checkWalletConfigured();
+              const paymentResult = await checkPaymentRequirement(
+                skill.skill_id,
+                candidate.endpoint.endpoint_id,
+                {
+                  price_usd: String(skill.base_price_usd),
+                  wallet_configured: walletCheck.configured,
+                },
+              );
+              if (paymentResult.status !== "free" && paymentResult.status !== "paid") {
+                return {
+                  result: {
+                    error: "payment_required",
+                    price_usd: skill.base_price_usd,
+                    payment_status: paymentResult.status,
+                    message: paymentResult.message,
+                    next_step: paymentResult.next_step,
+                  },
+                  trace: execOut.trace,
+                  source,
+                  skill,
+                  timing: finalize(source, null, skill.skill_id, skill, execOut.trace),
+                };
+              }
+            } catch (payErr) {
+              console.warn(`[payment] check failed, proceeding without payment gate: ${(payErr as Error).message}`);
+            }
+          }
+          // --- end payment gate ---
           return {
             result: prefetched.length > 0 ? {
               ...(typeof execOut.result === "object" && execOut.result !== null ? execOut.result as Record<string, unknown> : { data: execOut.result }),
