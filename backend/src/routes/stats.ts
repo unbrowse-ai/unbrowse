@@ -6,6 +6,8 @@ import { validateSkillManifest } from "../services/validator.js";
 import { recordAgentExecution, recordAgentFeedback, countAgents } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { skillsKV, statsKV } from "../services/kv.js";
+import { getAgentFeeLedger, getFeesSummary } from "../services/fees.js";
+import { recordAttribution, getIndexerLedger, getAttributionSummary } from "../services/attribution.js";
 
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
@@ -130,13 +132,18 @@ statsRoutes.post("/stats/diagnostics", async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /v1/stats/execution — record execution + recompute score
+// POST /v1/stats/execution — record execution + recompute score + Tier 1 attribution
 statsRoutes.post("/stats/execution", async (c) => {
-  const { skill_id, endpoint_id, trace } = await c.req.json<{
+  const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
     trace: import("../types.js").ExecutionTrace;
+    /** Optional: indexer who published the skill (for Tier 1 attribution). */
+    indexer_id?: string;
+    /** Optional: reliability score of the next best alternative endpoint. */
+    next_best_score?: number;
   }>();
+  const { skill_id, endpoint_id, trace } = body;
   if (!skill_id || !endpoint_id || !trace) {
     return c.json({ error: "skill_id, endpoint_id, and trace required" }, 400);
   }
@@ -145,6 +152,23 @@ statsRoutes.post("/stats/execution", async (c) => {
   const agentId = c.get("agent_id");
   if (agentId) {
     c.executionCtx.waitUntil(recordAgentExecution(c.env, agentId));
+  }
+  // Tier 1 attribution: credit the indexer if execution succeeded and indexer is known.
+  if (trace.success && body.indexer_id) {
+    const { getStats } = await import("../services/scoring.js");
+    const stats = await getStats(c.env, skill_id, endpoint_id);
+    c.executionCtx.waitUntil(
+      recordAttribution(c.env, {
+        execution_id: trace.trace_id,
+        skill_id,
+        endpoint_id,
+        indexer_id: body.indexer_id,
+        reliability_score: stats.total_executions > 0
+          ? stats.successful_executions / stats.total_executions
+          : 0.5,
+        next_best_score: body.next_best_score ?? 0,
+      }),
+    );
   }
   return c.json({ ok: true });
 });
@@ -166,4 +190,52 @@ statsRoutes.post("/stats/feedback", async (c) => {
     c.executionCtx.waitUntil(recordAgentFeedback(c.env, agentId));
   }
   return c.json({ ok: true, avg_rating: avgRating });
+});
+
+// GET /v1/stats/fees — aggregate graph fee summary (admin)
+statsRoutes.get("/stats/fees", async (c) => {
+  try {
+    const summary = await getFeesSummary(c.env);
+    return c.json(summary);
+  } catch (err) {
+    console.error("[stats/fees] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /v1/stats/fees/:agentId — per-agent fee ledger (admin)
+statsRoutes.get("/stats/fees/:agentId", async (c) => {
+  const agentId = c.req.param("agentId");
+  try {
+    const ledger = await getAgentFeeLedger(c.env, agentId);
+    if (!ledger) return c.json({ error: "no fee records for agent" }, 404);
+    return c.json(ledger);
+  } catch (err) {
+    console.error("[stats/fees/:agentId] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /v1/stats/attribution — aggregate Tier 1 attribution summary (admin)
+statsRoutes.get("/stats/attribution", async (c) => {
+  try {
+    const summary = await getAttributionSummary(c.env);
+    return c.json(summary);
+  } catch (err) {
+    console.error("[stats/attribution] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+// GET /v1/stats/attribution/:indexerId — per-indexer attribution ledger (admin)
+statsRoutes.get("/stats/attribution/:indexerId", async (c) => {
+  const indexerId = c.req.param("indexerId");
+  try {
+    const ledger = await getIndexerLedger(c.env, indexerId);
+    if (!ledger) return c.json({ error: "no attribution records for indexer" }, 404);
+    return c.json(ledger);
+  } catch (err) {
+    console.error("[stats/attribution/:indexerId] error:", (err as Error).message);
+    return c.json({ error: (err as Error).message }, 500);
+  }
 });
