@@ -577,6 +577,25 @@ export async function getEndpointSchema(
   }
 }
 
+/**
+ * Fetch the dynamic route price for a skill from the backend pricing endpoint.
+ * Returns the price in USD as a string, or null if the request fails or is local-only.
+ *
+ * @see GET /v1/skills/:id/price
+ */
+export async function fetchRoutePrice(skillId: string): Promise<string | null> {
+  if (LOCAL_ONLY || skillId.startsWith("local:")) return null;
+  try {
+    const result = await api<{ price_usd: number }>("GET", `/v1/skills/${skillId}/price`, undefined, { noAuth: true });
+    if (typeof result.price_usd === "number" && result.price_usd >= 0) {
+      return result.price_usd.toString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // --- Search ---
 
 export async function searchIntent(

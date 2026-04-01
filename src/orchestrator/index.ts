@@ -9,7 +9,7 @@ import { extractTemplateQueryBindings, mergeContextTemplateParams } from "../tem
 import { writeDebugTrace } from "../debug-trace.js";
 import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
 import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
-import { checkPaymentRequirement, resolveUnpaidAccess } from "../payments/index.js";
+import { checkPaymentRequirement, resolveUnpaidAccess, resolveRoutePrice } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
 import type { PaymentGateResult } from "../payments/index.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
@@ -2013,10 +2013,11 @@ export async function resolveAndExecute(
     });
     // Check payment status for deferral responses too
     const deferWalletCheck = checkWalletConfigured();
+    const deferPriceUsd = await resolveRoutePrice(resolvedSkill.skill_id);
     const deferPaymentCheck = checkPaymentRequirement(
       resolvedSkill.skill_id,
       epRanked[0]?.endpoint?.endpoint_id ?? "",
-      { wallet_configured: deferWalletCheck.configured },
+      { wallet_configured: deferWalletCheck.configured, price_usd: deferPriceUsd },
     );
     const deferPaymentInfo = deferPaymentCheck.status !== "free" ? {
       payment: {
@@ -2356,11 +2357,13 @@ export async function resolveAndExecute(
     // requirement in the decision trace but does NOT block execution —
     // the backend does final enforcement.
     const walletCheck = checkWalletConfigured();
+    const priceUsd = await resolveRoutePrice(skill.skill_id);
     const paymentCheck = checkPaymentRequirement(
       skill.skill_id,
       epRanked[0]?.endpoint?.endpoint_id ?? "",
       {
         wallet_configured: walletCheck.configured,
+        price_usd: priceUsd,
       },
     );
 
