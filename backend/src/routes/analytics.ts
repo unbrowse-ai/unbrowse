@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
-import { getEngagement, getRetention, getActivation, getAgentHealth } from "../services/analytics.js";
+import { getEngagement, getRetention, getActivation, getAgentHealth, getBottleneckMetrics } from "../services/analytics.js";
 import { getAcquisitionSummary } from "../services/acquisition.js";
 import { getInstallTelemetrySummary } from "../services/install-telemetry.js";
 import { getFunnelSummary } from "../services/funnel.js";
@@ -43,6 +43,14 @@ analyticsRoutes.get("/analytics/agents", async (c) => {
   c.header("Cache-Control", "public, max-age=300");
   c.header("Access-Control-Allow-Origin", "*");
   return c.json(health);
+});
+
+// GET /v1/analytics/bottleneck — latency percentiles, hit rates, and capacity metrics
+analyticsRoutes.get("/analytics/bottleneck", async (c) => {
+  const metrics = await getBottleneckMetrics(c.env);
+  c.header("Cache-Control", "public, max-age=300");
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.json(metrics);
 });
 
 // GET /v1/analytics/dashboard — combined view of all metrics
