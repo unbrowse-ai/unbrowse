@@ -139,6 +139,10 @@ export interface SkillManifest {
   needs_reindex?: boolean;
   /** Agent ID of the indexer who published this skill — used for Tier 1 attribution */
   indexer_id?: string;
+  /** All agents who contributed endpoints to this skill, with their shares */
+  contributors?: SkillContributor[];
+  /** Cascade Split address for this skill — x402 payments route here */
+  split_config?: string;
   /**
    * Site-owner opt-in for revenue sharing.
    * When true, the domain operator will receive a compensation share for
@@ -150,6 +154,23 @@ export interface SkillManifest {
    * If unset, the platform default base price applies.
    */
   base_price_usd?: number;
+}
+
+export interface SkillContributor {
+  /** Agent ID of the contributor */
+  agent_id: string;
+  /** Solana wallet address for payouts (from agent registration) */
+  wallet_address?: string;
+  /** Number of endpoints this agent contributed */
+  endpoints_contributed: number;
+  /** Cumulative attribution delta score */
+  cumulative_delta: number;
+  /** Share out of 100 for Cascade Split (computed from relative contribution) */
+  share: number;
+  /** When this agent first contributed */
+  first_contributed_at: string;
+  /** When this agent last contributed */
+  last_contributed_at: string;
 }
 export interface EndpointStats {
   total_executions: number;

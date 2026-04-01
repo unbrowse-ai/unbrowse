@@ -9,7 +9,7 @@ import { skillsKV, statsKV } from "../services/kv.js";
 import { getAgentFeeLedger, getFeesSummary } from "../services/fees.js";
 import { recordAttribution, getIndexerLedger, getAttributionSummary } from "../services/attribution.js";
 import { getSkill } from "../services/marketplace.js";
-
+import { updateContributorDelta } from "../services/splits.js";
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
 
@@ -176,9 +176,11 @@ statsRoutes.post("/stats/execution", async (c) => {
             ? stats.successful_executions / stats.total_executions
             : 0.5,
           next_best_score: body.next_best_score ?? 0,
+        }).then((event) => {
+          // Update contributor delta scores for split share recomputation
+          return updateContributorDelta(c.env, skill_id, indexerId!, event.delta_score);
         }),
       );
-    }
   }
   return c.json({ ok: true });
 });
