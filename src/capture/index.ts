@@ -473,6 +473,90 @@ async function collectInterceptedRequests(tabId: string): Promise<Array<{
   return [];
 }
 
+
+/**
+ * Merge three passive capture data sources into a unified RawRequest list.
+ * Priority: JS interceptor (has bodies) > HAR entries > extension observer > responseBodies-only.
+ * Deduplicates by URL, keeps the highest-priority version.
+ */
+function mergePassiveCaptureData(
+  intercepted: Array<{ url: string; method: string; response_body?: string; response_status: number; request_headers: Record<string, string>; response_headers: Record<string, string>; request_body?: string; content_type?: string; is_js?: boolean; timestamp: string }>,
+  harEntries: kuri.KuriHarEntry[],
+  extensionEntries: ExtensionEntry[],
+  responseBodies: Map<string, string>,
+): RawRequest[] {
+  const seen = new Map<string, RawRequest>();
+
+  // Priority 1: JS-intercepted entries (have response bodies)
+  for (const entry of intercepted) {
+    if (entry.is_js) continue; // skip JS bundles
+    seen.set(entry.url, {
+      url: entry.url,
+      method: entry.method,
+      request_headers: entry.request_headers,
+      request_body: entry.request_body,
+      response_status: entry.response_status,
+      response_headers: entry.response_headers,
+      response_body: entry.response_body,
+      timestamp: entry.timestamp,
+    });
+  }
+
+  // Priority 2: HAR entries (supplement with responseBodies map)
+  for (const entry of harEntries) {
+    const url = entry.request?.url;
+    if (!url || seen.has(url)) continue;
+    const reqHeaders: Record<string, string> = {};
+    for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
+    const respHeaders: Record<string, string> = {};
+    for (const h of entry.response.headers ?? []) respHeaders[h.name] = h.value;
+    seen.set(url, {
+      url,
+      method: entry.request.method,
+      request_headers: reqHeaders,
+      request_body: entry.request.postData?.text,
+      response_status: entry.response.status,
+      response_headers: respHeaders,
+      response_body: responseBodies.get(url) ?? entry.response.content?.text,
+      timestamp: entry.startedDateTime,
+    });
+  }
+
+  // Priority 3: Extension entries (URL+headers supplement, no bodies)
+  for (const entry of extensionEntries) {
+    if (seen.has(entry.url)) continue;
+    const reqHeaders: Record<string, string> = {};
+    for (const h of entry.requestHeaders ?? []) reqHeaders[h.name] = h.value;
+    const respHeaders: Record<string, string> = {};
+    for (const h of entry.responseHeaders ?? []) respHeaders[h.name] = h.value;
+    seen.set(entry.url, {
+      url: entry.url,
+      method: entry.method,
+      request_headers: reqHeaders,
+      response_status: entry.statusCode ?? 0,
+      response_headers: respHeaders,
+      response_body: responseBodies.get(entry.url),
+      timestamp: new Date(entry.timestamp).toISOString(),
+    });
+  }
+
+  // Priority 4: responseBodies-only entries (from Performance API replay / intent-aware wait)
+  // These URLs have bodies but weren't in HAR, interceptor, or extension data
+  for (const [bodyUrl, body] of responseBodies) {
+    if (seen.has(bodyUrl)) continue;
+    seen.set(bodyUrl, {
+      url: bodyUrl,
+      method: "GET",
+      request_headers: {},
+      response_status: 200,
+      response_headers: {},
+      response_body: body,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  return Array.from(seen.values());
+}
 /**
  * Collect network requests observed by kuri's builtin extension (chrome.webRequest).
  * Gracefully returns [] if the extension relay is not yet wired.
@@ -798,6 +882,7 @@ export async function captureSession(
 
     // Collect all intercepted requests
     const intercepted = await phase("collectIntercepted", () => collectInterceptedRequests(tabId));
+    const extensionEntries = await phase("collectExtension", () => collectExtensionRequests(tabId));
 
     // Separate JS bundles from data responses
     for (const entry of intercepted) {
@@ -860,12 +945,10 @@ export async function captureSession(
     const har_lineage_id = nanoid();
 
     // Debug: log captured counts
-    log("capture", `tracked ${harEntries.length} HAR entries, ${intercepted.length} intercepted, ${responseBodies.size} response bodies`);
+    log("capture", `tracked ${harEntries.length} HAR, ${intercepted.length} intercepted, ${extensionEntries.length} extension, ${responseBodies.size} bodies`);
     for (const [bodyUrl] of responseBodies) {
       log("capture", `response body captured: ${bodyUrl.substring(0, 150)}`);
     }
-
-    // (HAR-based replay removed — Performance API replay above is more reliable)
 
     let final_url = url;
     let html: string | undefined;
@@ -877,57 +960,9 @@ export async function captureSession(
       html = await phase("getPageHtml", () => kuri.getPageHtml(tabId));
     } catch {}
 
-    // Build requests from HAR entries
-    const requests: RawRequest[] = harEntries.map((entry) => {
-      const reqHeaders: Record<string, string> = {};
-      for (const h of entry.request.headers ?? []) reqHeaders[h.name] = h.value;
-      const respHeaders: Record<string, string> = {};
-      for (const h of entry.response.headers ?? []) respHeaders[h.name] = h.value;
-      return {
-        url: entry.request.url,
-        method: entry.request.method,
-        request_headers: reqHeaders,
-        request_body: entry.request.postData?.text,
-        response_status: entry.response.status,
-        response_headers: respHeaders,
-        response_body: responseBodies.get(entry.request.url) ?? entry.response.content?.text,
-        timestamp: entry.startedDateTime,
-      };
-    });
-
-    // Synthesize RawRequests for intercepted responses not in HAR
-    const harUrls = new Set(harEntries.map((e) => e.request.url));
-    for (const entry of intercepted) {
-      if (entry.is_js) continue;
-      if (!harUrls.has(entry.url)) {
-        requests.push({
-          url: entry.url,
-          method: entry.method,
-          request_headers: entry.request_headers,
-          request_body: entry.request_body,
-          response_status: entry.response_status,
-          response_headers: entry.response_headers,
-          response_body: entry.response_body,
-          timestamp: entry.timestamp,
-        });
-      }
-    }
-
-    // Synthesize RawRequests for response bodies captured during intent-aware wait
-    const allTrackedUrls = new Set([...harUrls, ...intercepted.map((e) => e.url)]);
-    for (const [bodyUrl, body] of responseBodies) {
-      if (!allTrackedUrls.has(bodyUrl)) {
-        requests.push({
-          url: bodyUrl,
-          method: "GET",
-          request_headers: {},
-          response_status: 200,
-          response_headers: {},
-          response_body: body,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
+    // Merge all passive capture sources into unified request list
+    const requests: RawRequest[] = mergePassiveCaptureData(intercepted, harEntries, extensionEntries, responseBodies);
+    log("capture", `tracked ${harEntries.length} HAR, ${intercepted.length} intercepted, ${extensionEntries.length} extension, ${responseBodies.size} bodies → ${requests.length} merged`);
 
     // Extract session cookies via document.cookie
     const rawCookies = await phase("extractCookies", () => extractCookiesFromPage(tabId, url));
