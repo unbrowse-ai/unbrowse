@@ -11,7 +11,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 
 ## Phases
 
-- [ ] **Phase 1: Passive Capture Foundation** — Wire kuri's builtin extension into the capture pipeline; intercept real browser traffic with response bodies
+- [x] **Phase 1: Passive Capture Foundation** — Wire kuri's builtin extension into the capture pipeline; intercept real browser traffic with response bodies
 - [ ] **Phase 2: Background Indexing and Cache-First Resolution** — Reverse-engineer passively observed traffic in the background; skip re-capture on second visit
 - [ ] **Phase 3: Browser Replacement API** — Drop-in interface so agents use unbrowse instead of Playwright/Puppeteer; UI action support when kuri hook lands
 - [ ] **Phase 4: Endpoint Graph** — Track endpoint relationships; prefetch related endpoints so agents get complete context in one round-trip
@@ -36,7 +36,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. The JS interceptor is injected via `Page.addScriptToEvaluateOnNewDocument` so early SPA API calls (first-paint hydration) are not missed
   4. Captured traffic from the passive observer reaches the existing `extractEndpoints` pipeline and produces `EndpointDescriptor[]`
 
-**Plans**: 2 total (01-01: scriptInject wiring, 01-02: TBD)
+**Plans**: 2/2 complete (01-01: scriptInject wiring, 01-02: extension data + merge pipeline)
 
 **Notes**: PASSIVE-02 is the kuri builtin extension integration point. The `adding-extensions` kuri branch adds chrome.webRequest + CDP agent bridge (`window.__kuri`). HAR body gap requires CDP supplement — this is the core technical problem of Phase 1.
 
@@ -138,7 +138,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Passive Capture Foundation | 1/2 | In progress | - |
+| 1. Passive Capture Foundation | 2/2 | Complete | 2026-04-01 |
 | 2. Background Indexing and Cache-First | 0/? | Not started | - |
 | 3. Browser Replacement API | 0/? | Not started | - |
 | 4. Endpoint Graph | 0/? | Not started | - |

@@ -3,8 +3,8 @@
 ## v1 Requirements
 
 ### Passive Capture
-- [ ] **PASSIVE-01**: Passive network capture — index all API traffic while the browser operates normally, no explicit capture step required
-- [ ] **PASSIVE-02**: Kuri builtin extension integration — wire chrome.webRequest network observer data into unbrowse's capture pipeline, supplement with CDP for response bodies
+- [x] **PASSIVE-01**: Passive network capture — index all API traffic while the browser operates normally, no explicit capture step required
+- [x] **PASSIVE-02**: Kuri builtin extension integration — wire chrome.webRequest network observer data into unbrowse's capture pipeline, supplement with CDP for response bodies
 - [ ] **PASSIVE-03**: Background indexing — reverse-engineer endpoints from passively observed traffic without blocking the user's navigation or agent's browsing
 - [ ] **PASSIVE-04**: Cache-first resolution — second call to any site resolves from local skill cache or marketplace, never re-captures unless forced
 
@@ -38,8 +38,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PASSIVE-01  | Phase 1 — Passive Capture Foundation | In progress (01-01 complete: scriptInject wiring) |
-| PASSIVE-02  | Phase 1 — Passive Capture Foundation | Pending |
+| PASSIVE-01  | Phase 1 — Passive Capture Foundation | Complete (01-01: scriptInject, 01-02: merge pipeline) |
+| PASSIVE-02  | Phase 1 — Passive Capture Foundation | Complete (01-02: extension data + merge pipeline) |
 | PASSIVE-03  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
 | PASSIVE-04  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
 | BROWSER-01  | Phase 3 — Browser Replacement API | Pending |
