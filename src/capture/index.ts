@@ -2,25 +2,22 @@ import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
-import { getBrowserConfig, type BrowserPathConfig } from "../runtime/browser-host.js";
+import type { BrowserAccessConfig } from "../runtime/browser-access.js";
+import { DEFAULT_BROWSER_ACCESS } from "../runtime/browser-access.js";
+
+/**
+ * Check whether the current BrowserAccessConfig allows browser-based capture.
+ * Returns true when the default or fallback path is "unbrowse" or "direct"
+ * (i.e. not proxy-only), meaning we can launch a local browser via Kuri.
+ */
+export function isBrowserAccessAvailable(
+  config: BrowserAccessConfig = DEFAULT_BROWSER_ACCESS,
+): boolean {
+  return config.default_path !== "proxy" || config.fallback_path !== "proxy";
+}
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-// Host-aware browser configuration — viewport, user agent
-const hostBrowserConfig: BrowserPathConfig = getBrowserConfig();
-
-/**
- * Apply host-specific browser config (viewport, user agent) to a tab.
- * Called after tab acquisition, before capture navigation.
- */
-async function applyBrowserConfig(tabId: string): Promise<void> {
-  // Always set UA: host config doesn't carry a UA field, so use standard CHROME_UA
-  await kuri.setUserAgent(tabId, CHROME_UA);
-  // Set viewport to standard desktop size for consistent capture
-  await kuri.setViewport(tabId, 1280, 800);
-  log("capture", `applied browser config (headless=${hostBrowserConfig.headless})`);
-}
 
 // Tab semaphore: max 3 concurrent capture tabs
 const MAX_CONCURRENT_TABS = 3;
@@ -672,6 +669,12 @@ export async function captureSession(
 ): Promise<CaptureResult> {
   await acquireTabSlot();
 
+  // Guard: check browser access config before launching
+  if (!isBrowserAccessAvailable()) {
+    releaseTabSlot("no-tab");
+    throw new Error("Browser access is not available (proxy-only config)");
+  }
+
   // Ensure Kuri is running and tabs are discovered
   await kuri.start();
   await kuri.discoverTabs(); // Sync Chrome tabs into Kuri's registry
@@ -688,7 +691,6 @@ export async function captureSession(
     }
   }
   activeTabRegistry.add(tabId);
-  await applyBrowserConfig(tabId);
 
   const domain = new URL(url).hostname;
   let captureTimedOut = false;
@@ -952,6 +954,9 @@ export async function executeInBrowser(
   authHeaders?: Record<string, string>,
   cookies?: Array<{ name: string; value: string; domain: string; path?: string; secure?: boolean; httpOnly?: boolean; sameSite?: string; expires?: number }>
 ): Promise<{ status: number; data: unknown; trace_id: string }> {
+  if (!isBrowserAccessAvailable()) {
+    throw new Error("Browser access is not available (proxy-only config)");
+  }
   await kuri.start();
   await kuri.discoverTabs();
 
@@ -963,7 +968,6 @@ export async function executeInBrowser(
     tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
-  await applyBrowserConfig(tabId);
 
   try {
     const allHeaders = { ...CLIENT_HINT_HEADERS, ...authHeaders, ...requestHeaders };
@@ -1011,7 +1015,6 @@ export async function triggerAndIntercept(
     tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
-  await applyBrowserConfig(tabId);
 
   try {
     // Set headers
@@ -1194,7 +1197,6 @@ export async function executeActionSequence(
     tabId = await kuri.getDefaultTab();
   }
   activeTabRegistry.add(tabId);
-  await applyBrowserConfig(tabId);
 
   const traceId = nanoid();
   const stepResults: BrowserActionResult["steps"] = [];

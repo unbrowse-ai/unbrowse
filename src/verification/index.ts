@@ -2,6 +2,8 @@ import { executeInBrowser } from "../capture/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { listSkills, getSkill } from "../marketplace/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
+import { computeVerificationCoverage, INITIAL_MATRIX } from "./matrix.js";
+import type { VerificationMatrix } from "./matrix.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
 
 /**
@@ -70,6 +72,19 @@ export async function verifySkill(
     results[endpoint.endpoint_id] = await verifyEndpoint(skill, endpoint);
   }
   return results;
+}
+
+/**
+ * Verify all safe endpoints in a skill and compute verification coverage
+ * from the integration matrix. Returns endpoint results plus a coverage ratio.
+ */
+export async function verifySkillWithCoverage(
+  skill: SkillManifest,
+  matrix: VerificationMatrix = INITIAL_MATRIX,
+): Promise<{ results: Record<string, VerificationStatus>; coverage: number }> {
+  const results = await verifySkill(skill);
+  const coverage = computeVerificationCoverage(matrix);
+  return { results, coverage };
 }
 
 const VERIFICATION_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
