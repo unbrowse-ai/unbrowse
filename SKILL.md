@@ -15,14 +15,11 @@ Browse once, cache the APIs, reuse them instantly. First call discovers and lear
 
 ## Installation
 
-Recommended (30 seconds):
-
 ```bash
-git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.claude/skills/unbrowse \
-  && cd ~/.claude/skills/unbrowse && ./setup
+curl -fsSL https://unbrowse.ai/install.sh | bash
 ```
 
-This auto-detects your agent host, registers the skill, and starts the server. Use `--host codex` or `--host opencode` to target a specific host.
+This clones the repo, registers the skill with your agent host, and starts the server.
 
 Alternative (npm):
 
