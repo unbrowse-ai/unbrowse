@@ -367,13 +367,18 @@ describe("executeActionSequence live flows", () => {
       { action: "snapshot", value: "interactive" },
       { action: "click", ref: "e0" },
       { action: "wait", value: '#result[data-ready="1"]', timeoutMs: 5_000 },
-      { action: "evaluate", value: 'document.getElementById("result")?.textContent' },
+      { action: "evaluate", value: `JSON.stringify({
+        result: document.getElementById("result")?.textContent,
+        searched: document.body.dataset.searched
+      })` },
     ]);
 
     expect(result.ok).toBe(true);
     expect(result.steps.map((step) => step.ok)).toEqual([true, true, true, true]);
     expect(String(result.steps[0].result)).toContain("[e0]");
-    expect(result.steps[3].result).toBe("codex");
+    const evaluated = JSON.parse(String(result.steps[3].result));
+    expect(evaluated.result).toBe("codex");
+    expect(evaluated.searched).toBe("codex");
     expect(result.capture?.requests.length).toBeGreaterThanOrEqual(1);
   }, 60_000);
 

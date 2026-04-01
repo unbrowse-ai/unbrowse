@@ -22,6 +22,28 @@ bun test backend/tests/composite-scoring.test.ts backend/tests/scoring-deprecati
 bun test tests/orchestrator-browser-action-fallback.test.ts tests/orchestrator-cache-promotion.test.ts tests/unsafe-action-gate.test.ts tests/query-hook-bridge.test.ts
 ```
 
+## Truth Gate
+
+Run this when the question is product-truth, not just unit correctness:
+
+```bash
+bun run test:e2e:truth
+```
+
+Coverage in this lane:
+
+- real CLI resolve/execute path
+- CLI payload ingestion path
+- live Kuri/browser action path
+- real P0/P1 regression cases
+- live graph edge upsert / graph API path
+
+For user-facing claims, pair it with:
+
+```bash
+bun run test:claims
+```
+
 ## Manual Product Cases
 
 Run these against a fresh port so you know which code is serving:
