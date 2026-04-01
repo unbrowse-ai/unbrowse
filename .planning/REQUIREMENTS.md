@@ -5,8 +5,8 @@
 ### Passive Capture
 - [x] **PASSIVE-01**: Passive network capture — index all API traffic while the browser operates normally, no explicit capture step required
 - [x] **PASSIVE-02**: Kuri builtin extension integration — wire chrome.webRequest network observer data into unbrowse's capture pipeline, supplement with CDP for response bodies
-- [ ] **PASSIVE-03**: Background indexing — reverse-engineer endpoints from passively observed traffic without blocking the user's navigation or agent's browsing
-- [ ] **PASSIVE-04**: Cache-first resolution — second call to any site resolves from local skill cache or marketplace, never re-captures unless forced
+- [x] **PASSIVE-03**: Background indexing — reverse-engineer endpoints from passively observed traffic without blocking the user's navigation or agent's browsing
+- [x] **PASSIVE-04**: Cache-first resolution — second call to any site resolves from local skill cache or marketplace, never re-captures unless forced
 
 ### Browser Replacement
 - [ ] **BROWSER-01**: Drop-in browser replacement API — agents can use unbrowse as their browser instead of Playwright/Puppeteer/agent-browser, with the same navigation/action primitives
@@ -40,9 +40,9 @@
 |-------------|-------|--------|
 | PASSIVE-01  | Phase 1 — Passive Capture Foundation | Complete (01-01: scriptInject, 01-02: merge pipeline) |
 | PASSIVE-02  | Phase 1 — Passive Capture Foundation | Complete (01-02: extension data + merge pipeline) |
-| PASSIVE-03  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
-| PASSIVE-04  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
-| BROWSER-01  | Phase 3 — Browser Replacement API | Pending |
+| PASSIVE-03  | Phase 2 — Background Indexing and Cache-First Resolution | Complete (02-01: background indexing queue) |
+| PASSIVE-04  | Phase 2 — Background Indexing and Cache-First Resolution | Complete (02-02: cache-first resolution wiring) |
+| BROWSER-01  | Phase 3 — Browser Replacement API | In Progress (03-01: API surface complete) |
 | BROWSER-02  | Phase 3 — Browser Replacement API | Pending (externally blocked on Rach's kuri hook) |
 | GRAPH-02    | Phase 4 — Endpoint Graph | Pending |
 | GRAPH-01    | Phase 4 — Endpoint Graph | Pending |

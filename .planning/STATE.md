@@ -6,7 +6,7 @@
 
 **Working branch**: `rach/restart-base`
 
-**Current focus**: Phase 2 — Background Indexing and Cache-First
+**Current focus**: Phase 4 in progress — Endpoint Graph (04-01 complete)
 
 ---
 
@@ -14,17 +14,17 @@
 
 | Field | Value |
 |-------|-------|
-| Phase | 2 — Background Indexing and Cache-First |
-| Plan | 02-01 complete, 02-02 next |
+| Phase | 4 — Endpoint Graph |
+| Plan | 04-01 complete |
 | Status | In Progress |
-| Last updated | 2026-04-01 |
+| Last updated | 2026-04-01T11:54:08Z |
 
 **Progress**:
 ```
 [==========] Phase 1 — 2/2 plans complete
-[=====     ] Phase 2 — 1/2 plans complete
-[          ] Phase 3
-[          ] Phase 4
+[==========] Phase 2 — 2/2 plans complete
+[=====     ] Phase 3 — 1/2 plans complete
+[=====     ] Phase 4 — 1/2 plans complete
 [          ] Phase 5
 [          ] Phase 6
 ```
@@ -35,9 +35,9 @@
 
 | Phase | Goal | Status | Plans |
 | 1 — Passive Capture Foundation | Passive network interception with response bodies | Complete | 2/2 |
-| 2 — Background Indexing and Cache-First | Non-blocking indexing + cache-first resolution | In Progress | 1/2 |
-| 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | Not started | 0/? |
-| 4 — Endpoint Graph | Dependency graph + prefetch | Not started | 0/? |
+| 2 — Background Indexing and Cache-First | Non-blocking indexing + cache-first resolution | Complete | 2/2 |
+| 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | In Progress | 1/2 |
+| 4 — Endpoint Graph | Dependency graph + prefetch | In Progress | 1/2 |
 | 5 — Marketplace Wiring and Telemetry | Cross-agent skill sharing + auto-issue filing | Not started | 0/? |
 | 6 — Marketplace Payments | Wallet-based skill monetization | Not started | 0/? |
 
@@ -67,6 +67,12 @@
 | scriptInject before navigation (01-01) | Persistent interceptor via Page.addScriptToEvaluateOnNewDocument eliminates polling race; fallback to evaluate for older kuri |
 | Login-as-dependency deferred to v2 | Cookie extraction from existing sessions covers most use cases for launch |
 | Per-domain dedup for background indexing (02-01) | In-memory Map ensures one job per domain at a time; fire-and-forget with logged failures |
+| Cache-first capture with background publish (02-02) | Immediate local cache write + background indexer replaces synchronous marketplace publish in executeBrowserCapture |
+| screenshot returns base64 string (03-01) | Matches kuri.screenshot() actual return type — string not Buffer |
+| click/fill use evaluate fallback (03-01) | BROWSER-02 kuri action hook not yet available; evaluate-based DOM manipulation works now |
+| Skill-resolved pages throw on evaluate/screenshot (03-01) | No browser tab exists when resolved from cache; agents should use $unbrowse |
+| Typed graph edges (04-01) | parent_child, pagination, auth edge kinds classified by action_kind semantics; persisted graph wins over rebuild |
+| ensureSkillOperationGraph priority fix (04-01) | Persisted graph is checked first; avoids discarding learned edge confidences |
 
 ### Critical Footguns (from CLAUDE.md + CONCERNS.md)
 
@@ -96,6 +102,6 @@
 
 **To resume**: Read `.planning/ROADMAP.md` for current phase goals and success criteria. Read `.planning/STATE.md` (this file) for current position and blockers. Check git log on `rach/restart-base` for recent progress.
 
-**Last session**: 2026-04-01T11:19:52Z — Completed 02-01-PLAN.md (background indexing queue)
+**Last session**: 2026-04-01T11:54:08Z — Completed 04-01-PLAN.md (typed graph edges + persistence)
 
-**Next action**: Execute 02-02-PLAN.md (cache-first resolution).
+**Next action**: Execute 04-02-PLAN.md (prefetch integration)
