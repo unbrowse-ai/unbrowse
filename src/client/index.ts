@@ -762,6 +762,68 @@ export async function validateManifest(manifest: unknown): Promise<ValidationRes
   return api<ValidationResult>("POST", "/v1/validate", manifest);
 }
 
+// --- Graph Edge Publishing ---
+
+/**
+ * Publish operation graph edges to the dedicated graph endpoint.
+ * Fire-and-forget: logs errors but does not throw.
+ */
+export async function publishGraphEdges(
+  domain: string,
+  node: { endpoint_id: string; method: string; url_template: string },
+  edges: Array<{ target_endpoint_id: string; kind: string; confidence: number }>
+): Promise<void> {
+  if (LOCAL_ONLY) return;
+  try {
+    await api("POST", "/v1/graph/edges", { domain, node, edges });
+  } catch (err) {
+    console.error(`[graph] failed to publish edges for ${domain}: ${(err as Error).message}`);
+  }
+}
+
+// --- Cross-Agent Discovery Diagnostics ---
+
+/**
+ * Diagnostic function: polls marketplace search to verify a skill is discoverable.
+ * Not called in production flow -- used for verifying cross-agent discovery within 60s.
+ */
+export async function verifyMarketplaceDiscovery(
+  skillId: string,
+  intent: string,
+  maxWaitMs = 60000
+): Promise<{ found: boolean; latency_ms: number }> {
+  const start = Date.now();
+  const pollInterval = 2000;
+
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const results = await searchIntent(intent, 10);
+      for (const result of results) {
+        const meta = result.metadata ?? {};
+        let foundId: string | undefined;
+        // Check metadata.skill_id directly
+        if (typeof meta.skill_id === "string") {
+          foundId = meta.skill_id;
+        }
+        // Try parsing metadata.content as JSON for skill_id
+        if (!foundId && typeof meta.content === "string") {
+          try {
+            const parsed = JSON.parse(meta.content);
+            if (typeof parsed.skill_id === "string") foundId = parsed.skill_id;
+          } catch { /* not JSON */ }
+        }
+        if (foundId === skillId) {
+          return { found: true, latency_ms: Date.now() - start };
+        }
+      }
+    } catch { /* search failed, retry */ }
+
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+
+  return { found: false, latency_ms: Date.now() - start };
+}
+
 // --- Agent Registration ---
 
 export async function registerAgent(name: string): Promise<{ agent_id: string; api_key: string }> {

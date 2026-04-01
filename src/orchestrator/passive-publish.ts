@@ -1,4 +1,4 @@
-import { cachePublishedSkill, validateManifest } from "../client/index.js";
+import { cachePublishedSkill, validateManifest, publishGraphEdges } from "../client/index.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { publishSkill } from "../marketplace/index.js";
 import type { SkillManifest } from "../types/index.js";
@@ -91,6 +91,28 @@ export function queuePassiveSkillPublish(
       operation_graph: skill.operation_graph,
       ...(skill.auth_profile_ref ? { auth_profile_ref: skill.auth_profile_ref } : {}),
     });
+
+    // Publish graph edges via dedicated endpoint (fire-and-forget)
+    if (skill.operation_graph?.operations) {
+      for (const op of skill.operation_graph.operations) {
+        const opEdges = (skill.operation_graph.edges ?? [])
+          .filter(e => e.from_operation_id === op.operation_id)
+          .map(e => ({
+            target_endpoint_id: skill.operation_graph!.operations.find(
+              t => t.operation_id === e.to_operation_id
+            )?.endpoint_id ?? e.to_operation_id,
+            kind: e.kind,
+            confidence: e.confidence,
+          }));
+        if (opEdges.length > 0) {
+          publishGraphEdges(skill.domain, {
+            endpoint_id: op.endpoint_id,
+            method: op.method,
+            url_template: op.url_template,
+          }, opEdges).catch(() => {});
+        }
+      }
+    }
 
     const publishEvent: LifecycleEvent = {
       phase: "publish",
