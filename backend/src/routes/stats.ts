@@ -8,6 +8,7 @@ import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { skillsKV, statsKV } from "../services/kv.js";
 import { getAgentFeeLedger, getFeesSummary } from "../services/fees.js";
 import { recordAttribution, getIndexerLedger, getAttributionSummary } from "../services/attribution.js";
+import { recordExecutionError } from "../services/issues.js";
 
 // Public stats — no auth required
 export const publicStatsRoutes = new Hono<{ Bindings: Env }>();
@@ -142,6 +143,8 @@ statsRoutes.post("/stats/execution", async (c) => {
     indexer_id?: string;
     /** Optional: reliability score of the next best alternative endpoint. */
     next_best_score?: number;
+    /** Optional: intent string used for auto-issue repro bundles. */
+    intent?: string;
   }>();
   const { skill_id, endpoint_id, trace } = body;
   if (!skill_id || !endpoint_id || !trace) {
@@ -168,6 +171,13 @@ statsRoutes.post("/stats/execution", async (c) => {
           : 0.5,
         next_best_score: body.next_best_score ?? 0,
       }),
+    );
+  }
+  // Telemetry-driven auto issue filing: buffer failures and file an issue when
+  // the error count crosses ISSUE_FILING_THRESHOLD.
+  if (!trace.success && trace.error) {
+    c.executionCtx.waitUntil(
+      recordExecutionError(c.env, skill_id, endpoint_id, body.intent ?? "", trace.error, trace.trace_id),
     );
   }
   return c.json({ ok: true });
