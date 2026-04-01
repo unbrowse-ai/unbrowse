@@ -1,4 +1,5 @@
 import type { Env } from "../types.js";
+import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
 
 const EMERGENTDB_BASE = "https://api.emergentdb.com";
 const SEARCH_CACHE_TTL = 300; // 5 minutes
@@ -250,6 +251,60 @@ export function rrfFuse(listA: SearchResult, listB: SearchResult, k: number): Se
     .map(([id, { score, metadata }]) => ({ id: id as unknown as number, score, metadata }));
 }
 
+/** Extract metadata fields from a search result's `content` JSON. */
+function extractMeta(metadata: Record<string, unknown>): {
+  avg_reliability: number;
+  verified_ratio: number;
+  updated_at: string;
+} {
+  const defaults = { avg_reliability: 0.5, verified_ratio: 0, updated_at: new Date().toISOString() };
+  const content = metadata.content;
+  if (typeof content !== "string") return defaults;
+  try {
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    return {
+      avg_reliability: typeof parsed.avg_reliability === "number" ? parsed.avg_reliability : defaults.avg_reliability,
+      verified_ratio: typeof parsed.verified_ratio === "number" ? parsed.verified_ratio : defaults.verified_ratio,
+      updated_at: typeof parsed.updated_at === "string" ? parsed.updated_at : defaults.updated_at,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+/**
+ * Rescore search results using the composite formula from Section 3.3:
+ * 40% embedding similarity, 30% reliability, 15% freshness, 15% verification.
+ *
+ * Accepts the raw vector-similarity results and returns them re-sorted by
+ * composite score.  Results without parseable metadata fall back to
+ * conservative defaults (reliability=0.5, verified=0, freshness=now).
+ */
+export function rescoreWithComposite(
+  results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>,
+  requestDomain?: string | null,
+): Array<{ id: number; score: number; metadata: Record<string, unknown> }> {
+  if (results.length === 0) return results;
+  return results
+    .map((r) => {
+      const meta = extractMeta(r.metadata);
+      const composite = computeCompositeSearchScore(
+        r.score,
+        meta.avg_reliability,
+        meta.updated_at,
+        meta.verified_ratio,
+      );
+      const domainBoost = requestDomain
+        ? computeDomainAffinityBoost(
+            typeof r.metadata.source_url === "string" ? r.metadata.source_url : "",
+            requestDomain,
+          )
+        : 0;
+      return { ...r, score: Math.min(1, composite + domainBoost) };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
 export async function searchIntentInDomain(
   env: Env,
   intent: string,
@@ -280,6 +335,8 @@ export async function searchIntentInDomain(
     } else {
       results = graphResults;
     }
+    // Rescore with composite formula (Section 3.3) before caching
+    results = rescoreWithComposite(results, domain);
     console.log(`[perf:search-domain] TOTAL: ${t2 - t0}ms`);
   } catch (err) {
     console.error(`[search] domain=${domain} error:`, (err as Error).message);
@@ -308,10 +365,11 @@ export async function searchIntentResolve(
   if (hit) try { return JSON.parse(hit) as ResolvedSearchResult; } catch { /* fall through */ }
 
   if (!domain) {
-    const global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {
+    let global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {
       console.error(`[search-resolve] global error:`, (err as Error).message);
       return [] as SearchResult;
     });
+    global_results = rescoreWithComposite(global_results);
     const t2 = Date.now();
     const resolved = { domain_results: [] as SearchResult, global_results, skipped_global: false };
     console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length}`);
@@ -324,15 +382,17 @@ export async function searchIntentResolve(
     console.error(`[search-resolve] global error:`, (err as Error).message);
     return [] as SearchResult;
   });
-  const domain_results = await graphSearch(env, domain, intent, domainK).catch((err) => {
+  let domain_results = await graphSearch(env, domain, intent, domainK).catch((err) => {
     console.error(`[search-resolve] domain=${domain} error:`, (err as Error).message);
     return [] as SearchResult;
   });
+  domain_results = rescoreWithComposite(domain_results, domain);
   const t2 = Date.now();
   console.log(`[perf:search-resolve] domain-search: ${t2 - t1}ms results=${domain_results.length}`);
 
   const skipped_global = shouldSkipGlobalSearch(domain_results, domain);
-  const global_results = skipped_global ? [] : await globalPromise;
+  let global_results = skipped_global ? [] : await globalPromise;
+  if (!skipped_global) global_results = rescoreWithComposite(global_results);
   const t3 = Date.now();
   console.log(
     `[perf:search-resolve] global-search: ${skipped_global ? "skipped" : `${t3 - t2}ms results=${global_results.length}`}`,
@@ -366,6 +426,8 @@ export async function searchIntent(
     console.error(`[search] global error:`, (err as Error).message);
     return [];
   }
+  // Rescore with composite formula (Section 3.3) before caching
+  results = rescoreWithComposite(results);
   const t2 = Date.now();
   console.log(`[perf:search-global] graph-search: ${t2 - t1}ms results=${results.length}`);
   console.log(`[perf:search-global] TOTAL: ${t2 - t0}ms`);
