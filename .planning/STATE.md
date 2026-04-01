@@ -15,18 +15,19 @@
 | Field | Value |
 |-------|-------|
 | Phase | 1 — Passive Capture Foundation |
-| Plan | None started |
-| Status | Not started |
+| Plan | 01-01 complete, next: 01-02 |
+| Status | In progress |
 | Last updated | 2026-04-01 |
 
 **Progress**:
 ```
-[          ] Phase 1 — Not started
+[==        ] Phase 1 — 1/2 plans complete
 [          ] Phase 2
 [          ] Phase 3
 [          ] Phase 4
 [          ] Phase 5
 [          ] Phase 6
+```
 ```
 
 ---
@@ -34,7 +35,7 @@
 ## Phase Status
 
 | Phase | Goal | Status | Plans |
-|-------|------|--------|-------|
+| 1 — Passive Capture Foundation | Passive network interception with response bodies | In progress | 1/2 |
 | 1 — Passive Capture Foundation | Passive network interception with response bodies | Not started | 0/? |
 | 2 — Background Indexing and Cache-First | Non-blocking indexing + cache-first resolution | Not started | 0/? |
 | 3 — Browser Replacement API | Drop-in Playwright/Puppeteer replacement | Not started | 0/? |
@@ -63,7 +64,8 @@
 |----------|-----------|
 | Passive capture over active navigation | Active capture fights the browser (cookie injection, headless detection, timing races). Passive observes what the real browser actually does. |
 | Kuri builtin extension as capture source | chrome.webRequest already observes all traffic; supplement with CDP for response bodies |
-| Marketplace payments deferred after passive capture | Browser replacement is the viral moment; payments are the monetization layer |
+| Login-as-dependency deferred to v2 | Cookie extraction from existing sessions covers most use cases for launch |
+| scriptInject before navigation (01-01) | Persistent interceptor via Page.addScriptToEvaluateOnNewDocument eliminates polling race; fallback to evaluate for older kuri |
 | Login-as-dependency deferred to v2 | Cookie extraction from existing sessions covers most use cases for launch |
 
 ### Critical Footguns (from CLAUDE.md + CONCERNS.md)
@@ -78,7 +80,7 @@
 
 ### High-Severity Concerns to Address in Phase 1
 
-- HAR does not capture response bodies — JS interceptor + CDP supplement required
+- JS interceptor injection race on navigation — FIXED in 01-01: scriptInject via Page.addScriptToEvaluateOnNewDocument (commit 208e27c)
 - JS interceptor injection race on navigation — fix with `Page.addScriptToEvaluateOnNewDocument` (`kuri.scriptInject` exists but is unused in `captureSession`)
 - Headless Chrome detection by major sites — additional CDP stealth patches needed
 
@@ -94,4 +96,6 @@
 
 **To resume**: Read `.planning/ROADMAP.md` for current phase goals and success criteria. Read `.planning/STATE.md` (this file) for current position and blockers. Check git log on `rach/restart-base` for recent progress.
 
-**Next action**: Run `/gsd:plan-phase 1` to decompose Phase 1 into executable plans.
+**Last session**: 2026-04-01T10:17:50Z — Completed 01-01-PLAN.md (persistent interceptor via scriptInject)
+
+**Next action**: Execute 01-02-PLAN.md (next plan in Phase 1).
