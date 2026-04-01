@@ -25,6 +25,17 @@ import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplat
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { isStructuredSearchForm, detectSearchForms, type SearchFormSpec } from "./search-forms.js";
 import { attributeLifecycle, type LifecycleEvent, type LifecyclePhase } from "../runtime/lifecycle.js";
+import { queueBackgroundIndex } from "../indexer/index.js";
+import {
+  writeSkillSnapshot,
+  domainSkillCache,
+  persistDomainCache,
+  getDomainReuseKey,
+  scopedCacheKey,
+  buildResolveCacheKey,
+  snapshotPathForCacheKey,
+  generateLocalDescription,
+} from "../orchestrator/index.js";
 
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
@@ -1369,25 +1380,43 @@ async function executeBrowserCapture(
     description: `API skill for ${domain}`,
     owner_type: "agent" as const,
     endpoints: localEndpoints,
-    operation_graph: buildSkillOperationGraph(localEndpoints),
     intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
     ...(auth_profile_ref ? { auth_profile_ref } : {}),
   };
-  let learned: SkillManifest = localDraft;
-  if (publishableEndpoints.length > 0) {
-    const { operation_graph: _graph, ...publishBase } = localDraft;
-    const publishDraft: SkillManifest = { ...publishBase, endpoints: publishableEndpoints };
-    const validation = await validateManifest({ ...publishDraft, skill_id: "__validate__" });
-    if (!validation.valid) throw new Error(`Skill validation failed: ${validation.hardErrors.join("; ")}`);
-    const published = await publishSkill(publishDraft);
-    learned = {
-      ...published,
-      endpoints: localEndpoints,
-      operation_graph: localDraft.operation_graph,
-      ...(auth_profile_ref ? { auth_profile_ref } : {}),
-    };
+  // Generate local descriptions immediately so BM25 ranking works on first cache hit
+  for (const ep of localDraft.endpoints) {
+    if (!ep.description) {
+      ep.description = generateLocalDescription(ep);
+    }
   }
-  try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
+
+  // PHASE 2: Write local cache IMMEDIATELY (~1ms) — populates cache before auto-exec
+  const bgCacheKey = buildResolveCacheKey(domain, intent, url);
+  const bgScopedKey = scopedCacheKey(options?.client_scope ?? "global", bgCacheKey);
+  writeSkillSnapshot(bgScopedKey, localDraft);
+  const bgDomainKey = getDomainReuseKey(url ?? domain);
+  if (bgDomainKey) {
+    domainSkillCache.set(bgDomainKey, {
+      skillId: localDraft.skill_id,
+      localSkillPath: snapshotPathForCacheKey(bgScopedKey),
+      ts: Date.now(),
+    });
+    persistDomainCache();
+  }
+
+  // PHASE 2: Queue heavy work for background (graph + validate + publish)
+  queueBackgroundIndex({
+    skill: { ...localDraft },
+    domain,
+    intent,
+    contextUrl: url,
+    clientScope: options?.client_scope,
+    cacheKey: bgCacheKey,
+  });
+
+  // Return the local draft as learned_skill — no blocking on marketplace publish
+  let learned: SkillManifest = localDraft;
+  try { cachePublishedSkill(localDraft, options?.client_scope); } catch { /* best-effort */ }
 
   // Attribute lifecycle phases for this capture-to-publish flow
   const completedAt = new Date().toISOString();
