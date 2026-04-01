@@ -10,6 +10,7 @@
 
 ### Bug Fixes
 
+* **#223**: wire `isStructuredSearchForm`, `attributeLifecycle`, and `isRepeatableEval` into production code — search forms are detected from captured HTML and attached to endpoints, lifecycle phases are attributed for observability in the orchestrator and publish flows, and eval repeatability checking flags flaky cases in the harness
 * **#229**: implement `tryFirstPassBrowserAction` — navigates to the URL, records HAR, performs intent-driven actions (search/click/navigate), collects intercepted JSON API responses, and synthesizes a mini-skill for passive indexing ([#229](https://github.com/justrach/unbrowse34/issues/229))
 * **capture**: thread AbortSignal through CDP phases so 90s timeout aborts hanging kuri calls immediately instead of waiting for each call's own 30s timeout to stack ([#113](https://github.com/justrach/unbrowse34/issues/113))
 * **#152**: `mergeEndpoints` now promotes richer endpoint rediscoveries instead of silently dropping them

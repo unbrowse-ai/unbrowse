@@ -69,6 +69,7 @@ function mapInputType(
   if (t === "radio") return "radio";
   if (t === "checkbox") return "checkbox";
   if (t === "date") return "date";
+  if (t === "hidden") return "hidden";
   if (t === "submit" || t === "button" || t === "image" || t === "reset") return null;
   if (t === "password" || t === "file") return null;
   if (SUPPORTED_INPUT_TYPES.has(t)) return "text";

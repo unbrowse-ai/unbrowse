@@ -711,6 +711,12 @@ function endpointMatchesFeedTimelineContext(
 function endpointHasSearchBindings(
   endpoint: SkillManifest["endpoints"][number],
 ): boolean {
+  // Primary check: if the endpoint carries a structured search form, use the
+  // canonical isStructuredSearchForm predicate (fields.length > 0 && submit_selector set).
+  if (endpoint.search_form && isStructuredSearchForm(endpoint.search_form)) {
+    return true;
+  }
+  // Fallback: regex over serialised query/body/semantic keys for API-style search params.
   const haystack = JSON.stringify({
     query: endpoint.query ?? {},
     body: endpoint.body ?? {},
