@@ -291,7 +291,7 @@ function inferRequires(endpoint: EndpointDescriptor): OperationBinding[] {
       semantic_type: key.endsWith("_id") || key === "id" ? "identifier" : "input",
     });
   };
-  for (const key of Object.keys(endpoint.path_params ?? {})) add(key, "path_params");
+  for (const key of Object.keys(endpoint.path_params ?? {})) add(key, "path_params", false);
   for (const key of Object.keys(endpoint.query ?? {})) add(normalizeQueryBindingKey(key), "query", false);
   for (const match of endpoint.url_template.matchAll(/\{([^}]+)\}/g)) add(match[1], "url_template");
   return requires;
@@ -562,6 +562,26 @@ export function resolveEndpointSemantic(
 
 function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
   const semantic = resolveEndpointSemantic(endpoint);
+  const normalizedRequires = (() => {
+    const byBinding = new Map<string, OperationBinding>();
+    for (const binding of semantic.requires ?? []) {
+      const defaultedPathParam =
+        binding.source === "path_params" &&
+        Object.prototype.hasOwnProperty.call(endpoint.path_params ?? {}, binding.key);
+      const normalized = defaultedPathParam ? { ...binding, required: false } : binding;
+      const id = [normalized.key, normalized.source ?? "", normalized.semantic_type ?? ""].join("|");
+      const existing = byBinding.get(id);
+      if (!existing) {
+        byBinding.set(id, normalized);
+        continue;
+      }
+      byBinding.set(id, {
+        ...existing,
+        required: existing.required && normalized.required,
+      });
+    }
+    return [...byBinding.values()];
+  })();
   return {
     operation_id: endpoint.endpoint_id,
     endpoint_id: endpoint.endpoint_id,
@@ -573,7 +593,7 @@ function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
     description_in: semantic.description_in,
     description_out: semantic.description_out,
     response_summary: semantic.response_summary,
-    requires: semantic.requires ?? [],
+    requires: normalizedRequires,
     provides: semantic.provides ?? [],
     negative_tags: semantic.negative_tags ?? [],
     example_request: semantic.example_request,
@@ -686,7 +706,13 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
     }
   }
   const entryOperationIds = operations
-    .filter((operation) => operation.requires.length === 0 || operation.requires.every((binding) => binding.source === "query"))
+    .filter(
+      (operation) =>
+        operation.requires.length === 0 ||
+        operation.requires.every(
+          (binding) => binding.source === "query" || binding.source === "path_params",
+        ),
+    )
     .map((operation) => operation.operation_id);
 
   return {
@@ -727,12 +753,75 @@ export function knownBindingsFromInputs(
   return known;
 }
 
-function isRunnable(operation: SkillOperationNode, bindings: Record<string, unknown>): boolean {
+export function isRunnable(operation: SkillOperationNode, bindings: Record<string, unknown>): boolean {
   return operation.requires.every((binding) => {
     if (!binding.required) return true;
     const value = bindings[binding.key];
     return value != null && value !== "";
   });
+}
+
+/**
+ * Compute the set of reachable operation IDs given current known bindings.
+ *
+ * An operation is reachable (A_reachable) if:
+ *   1. It has no required bindings (entry point), OR
+ *   2. All its required bindings are present in knownBindings, OR
+ *   3. All its required bindings can be transitively satisfied — either
+ *      directly from knownBindings or from the provides of another
+ *      reachable operation.
+ *
+ * Uses a fixpoint computation: starts with directly-runnable operations,
+ * then iteratively adds operations whose requirements are met by the
+ * accumulated provides of the reachable set, until no new operations
+ * are added.
+ */
+export function computeReachableEndpoints(
+  graph: SkillOperationGraph,
+  knownBindings: Record<string, unknown>,
+): Set<string> {
+  const reachable = new Set<string>();
+  if (!graph.operations || graph.operations.length === 0) return reachable;
+
+  // Seed: operations that are directly runnable with current bindings
+  for (const op of graph.operations) {
+    if (isRunnable(op, knownBindings)) {
+      reachable.add(op.operation_id);
+    }
+  }
+
+  // Fixpoint expansion: iterate until stable
+  let changed = true;
+  while (changed) {
+    changed = false;
+    // Collect all binding keys provided by currently reachable operations
+    const availableKeys = new Set<string>(Object.keys(knownBindings));
+    for (const op of graph.operations) {
+      if (!reachable.has(op.operation_id)) continue;
+      for (const provided of op.provides) {
+        availableKeys.add(provided.key);
+      }
+    }
+
+    // Check each non-reachable operation
+    for (const op of graph.operations) {
+      if (reachable.has(op.operation_id)) continue;
+      const allSatisfied = op.requires.every((binding) => {
+        if (!binding.required) return true;
+        // Check direct bindings first
+        const directValue = knownBindings[binding.key];
+        if (directValue != null && directValue !== "") return true;
+        // Check if any reachable operation provides this key
+        return availableKeys.has(binding.key);
+      });
+      if (allSatisfied) {
+        reachable.add(op.operation_id);
+        changed = true;
+      }
+    }
+  }
+
+  return reachable;
 }
 
 export function getSkillChunk(
