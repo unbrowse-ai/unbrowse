@@ -74,3 +74,4 @@ tmp/
 .release-notes.md
 .release-announcement.md
 .release-announcement.json
+.gstack/
