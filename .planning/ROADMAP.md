@@ -142,8 +142,8 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | 2. Background Indexing and Cache-First | 2/2 | Complete | 2026-04-01 |
 | 3. Browser Replacement API | 2/2 | Complete | 2026-04-01 |
 | 4. Endpoint Graph | 2/2 | Complete | 2026-04-01 |
-| 5. Marketplace Wiring and Telemetry | 0/? | Not started | - |
-| 6. Marketplace Payments | 1/? | In Progress | - |
+| 5. Marketplace Wiring and Telemetry | 2/2 | Complete | 2026-04-01 |
+| 6. Marketplace Payments | 2/2 | Complete | 2026-04-01 |
 
 ---
 
