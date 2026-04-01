@@ -56,7 +56,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. Cache-first resolution falls through to marketplace lookup on local miss, and only launches live capture as a last resort
   4. Skills built from passively captured traffic are functionally equivalent to skills built from the existing active capture flow (endpoints execute and return structured data)
 
-**Plans**: 1/2 complete (02-01: background indexing queue DONE, 02-02: wire indexer + cache-first resolution TODO)
+**Plans**: 2/2 complete (02-01: background indexing queue, 02-02: wire indexer + cache-first resolution)
 
 ---
 
@@ -74,7 +74,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. A navigation call to an uncached site opens a kuri tab, passively captures traffic, and returns the page result — the agent is unaware capture happened
   4. UI actions (click, fill form, trigger POST) execute correctly when the kuri UI action hook is available (BROWSER-02 delivery from Rach); unbrowse degrades gracefully to skill execution when the hook is not yet available
 
-**Plans**: TBD
+**Plans**: 1/2 complete (03-01: Browser/Page API + skill-first navigation complete, 03-02: live capture fallback + conditional UI actions)
 
 **Notes**: BROWSER-02 is externally blocked on Rach delivering the kuri-side UI action hook. Phase 3 ships BROWSER-01 fully and BROWSER-02 conditionally. Design the API surface for BROWSER-02 now so integration is mechanical once the hook arrives.
 
@@ -94,7 +94,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. The dependency graph is persisted with the skill manifest and survives server restarts
   4. Agent-visible `available_endpoints` in the resolve response reflects the graph's reachability analysis given known bindings, not just a flat list
 
-**Plans**: TBD
+**Plans**: 2 plans (04-01: dependency graph construction, 04-02: prefetch integration)
 
 ---
 
@@ -139,9 +139,9 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Passive Capture Foundation | 2/2 | Complete | 2026-04-01 |
-| 2. Background Indexing and Cache-First | 2/2 | Planned | - |
-| 3. Browser Replacement API | 0/? | Not started | - |
-| 4. Endpoint Graph | 0/? | Not started | - |
+| 2. Background Indexing and Cache-First | 2/2 | Complete | 2026-04-01 |
+| 3. Browser Replacement API | 0/2 | Planned | - |
+| 4. Endpoint Graph | 1/2 | In Progress | - |
 | 5. Marketplace Wiring and Telemetry | 0/? | Not started | - |
 | 6. Marketplace Payments | 0/? | Not started | - |
 
