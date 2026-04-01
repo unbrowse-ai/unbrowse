@@ -7,6 +7,7 @@ import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { computeRoutePrice } from "../services/pricing.js";
 import { getStats } from "../services/scoring.js";
 import { x402Response, verifyX402Proof, buildSkillPaymentTerms } from "../middleware/x402-gate.js";
+import { skillsKV } from "../services/kv.js";
 
 // Public read routes — no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -116,6 +117,27 @@ skillRoutes.post("/skills", async (c) => {
     ...skill,
     warnings: validation.softWarnings,
   }, 201);
+});
+
+// PATCH /v1/skills/:id -- update skill metadata (e.g. base_price_usd)
+skillRoutes.patch("/skills/:id", async (c) => {
+  const skillId = c.req.param("id");
+  const body = await c.req.json<{ base_price_usd?: number }>();
+
+  const skill = await getSkill(c.env, skillId);
+  if (!skill) return c.json({ error: "Skill not found" }, 404);
+
+  if (body.base_price_usd !== undefined) {
+    if (typeof body.base_price_usd !== "number" || body.base_price_usd < 0) {
+      return c.json({ error: "base_price_usd must be a non-negative number" }, 400);
+    }
+    skill.base_price_usd = body.base_price_usd;
+  }
+
+  skill.updated_at = new Date().toISOString();
+  const kv = skillsKV(c.env);
+  await kv.put(`skill:${skillId}`, JSON.stringify(skill));
+  return c.json(skill);
 });
 
 // PATCH /v1/skills/:id/endpoints/:eid — update endpoint score/status/schema
