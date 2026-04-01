@@ -38,14 +38,14 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PASSIVE-01  | —     | —      |
-| PASSIVE-02  | —     | —      |
-| PASSIVE-03  | —     | —      |
-| PASSIVE-04  | —     | —      |
-| BROWSER-01  | —     | —      |
-| BROWSER-02  | —     | —      |
-| GRAPH-01    | —     | —      |
-| GRAPH-02    | —     | —      |
-| TELEMETRY-01| —     | —      |
-| MARKETPLACE-01 | —  | —      |
-| MARKETPLACE-02 | —  | —      |
+| PASSIVE-01  | Phase 1 — Passive Capture Foundation | Pending |
+| PASSIVE-02  | Phase 1 — Passive Capture Foundation | Pending |
+| PASSIVE-03  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
+| PASSIVE-04  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
+| BROWSER-01  | Phase 3 — Browser Replacement API | Pending |
+| BROWSER-02  | Phase 3 — Browser Replacement API | Pending (externally blocked on Rach's kuri hook) |
+| GRAPH-02    | Phase 4 — Endpoint Graph | Pending |
+| GRAPH-01    | Phase 4 — Endpoint Graph | Pending |
+| TELEMETRY-01| Phase 5 — Marketplace Wiring and Telemetry | Pending |
+| MARKETPLACE-01 | Phase 5 — Marketplace Wiring and Telemetry | Pending |
+| MARKETPLACE-02 | Phase 6 — Marketplace Payments | Pending |
