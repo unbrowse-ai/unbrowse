@@ -48,7 +48,7 @@ function loadApiKey(): string {
 
 const API_URL = process.env.GRAPH_TEST_API_URL ?? "https://beta-api.unbrowse.ai";
 const API_KEY = loadApiKey();
-const TIMEOUT = 30_000;
+const TIMEOUT = 60_000;
 
 // Graph API tests hit a live backend with rate limits (30 req/60s).
 // Increase the default timeout to accommodate retries on rate-limited responses.
