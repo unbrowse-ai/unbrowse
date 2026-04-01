@@ -36,7 +36,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. The JS interceptor is injected via `Page.addScriptToEvaluateOnNewDocument` so early SPA API calls (first-paint hydration) are not missed
   4. Captured traffic from the passive observer reaches the existing `extractEndpoints` pipeline and produces `EndpointDescriptor[]`
 
-**Plans**: TBD
+**Plans**: 2 total (01-01: scriptInject wiring, 01-02: TBD)
 
 **Notes**: PASSIVE-02 is the kuri builtin extension integration point. The `adding-extensions` kuri branch adds chrome.webRequest + CDP agent bridge (`window.__kuri`). HAR body gap requires CDP supplement — this is the core technical problem of Phase 1.
 
@@ -138,7 +138,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Passive Capture Foundation | 0/? | Not started | - |
+| 1. Passive Capture Foundation | 1/2 | In progress | - |
 | 2. Background Indexing and Cache-First | 0/? | Not started | - |
 | 3. Browser Replacement API | 0/? | Not started | - |
 | 4. Endpoint Graph | 0/? | Not started | - |

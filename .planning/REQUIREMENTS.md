@@ -38,7 +38,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PASSIVE-01  | Phase 1 — Passive Capture Foundation | Pending |
+| PASSIVE-01  | Phase 1 — Passive Capture Foundation | In progress (01-01 complete: scriptInject wiring) |
 | PASSIVE-02  | Phase 1 — Passive Capture Foundation | Pending |
 | PASSIVE-03  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
 | PASSIVE-04  | Phase 2 — Background Indexing and Cache-First Resolution | Pending |
