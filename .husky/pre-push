@@ -1,0 +1,33 @@
+#!/bin/sh
+# Pre-push hook: Run full P0/P1 test suite before pushing
+# Ensures all critical fixes are still working
+
+set -e
+
+# Only run if we have test analyses
+if [ ! -f "tests/p0-p1-analyses.json" ]; then
+  echo "⚠️  No P0/P1 analyses found. Run: bun test:p0-p1:analyze"
+  exit 0
+fi
+
+echo ""
+echo "🔍 Analyzing P0/P1 issues for latest fixes..."
+bun test:p0-p1:analyze
+
+echo ""
+echo "🧪 Running full P0/P1 test suite..."
+bun test:p0-p1
+
+# Check results
+if [ -f "evals/p0-p1-test-results.json" ]; then
+  PASSED=$(jq '[.[] | select(.passed == true)] | length' evals/p0-p1-test-results.json)
+  TOTAL=$(jq 'length' evals/p0-p1-test-results.json)
+  
+  echo ""
+  echo "✅ Results: $PASSED/$TOTAL tests passed"
+  
+  if [ "$PASSED" -lt "$TOTAL" ]; then
+    echo "❌ Some tests failed. Fix them or skip with: git push --no-verify"
+    exit 1
+  fi
+fi
