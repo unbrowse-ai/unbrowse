@@ -8,10 +8,9 @@ import { getRegistrableDomain } from "../domain.js";
 import { extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
+import { isStructuredSearchForm } from "../execution/search-forms.js";
+import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
-import { checkPaymentRequirement, resolveUnpaidAccess } from "../payments/index.js";
-import { checkWalletConfigured } from "../payments/wallet.js";
-import type { PaymentGateResult } from "../payments/index.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import type {
@@ -28,6 +27,7 @@ import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
+import { resolveAuthPrerequisites, deriveAuthDependencies } from "../auth/runtime.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY ?? "";
@@ -845,13 +845,6 @@ export interface OrchestratorResult {
   timing: OrchestrationTiming;
   response_schema?: ResponseSchema;
   extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
-  payment?: {
-    status: PaymentGateResult["status"];
-    amount?: string;
-    currency?: string;
-    recipient?: string;
-    message?: string;
-  };
 }
 
 type AutoExecDecision = {
@@ -909,18 +902,25 @@ function computeCompositeScore(embeddingScore: number, skill: SkillManifest): nu
       ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
       : 0.5;
 
-  // Freshness: 1 / (1 + daysSinceUpdate / 30) — matches backend computeCompositeSearchScore
+  // Freshness: 1 / (1 + daysSinceUpdate / 30)
   const daysSinceUpdate =
     (Date.now() - new Date(skill.updated_at).getTime()) / (1000 * 60 * 60 * 24);
   const freshnessScore = 1 / (1 + daysSinceUpdate / 30);
 
-  // Verified ratio: continuous [0, 1] — matches backend computeCompositeSearchScore
+  // Verification bonus: 1.0 if all verified, 0.5 if some, 0.0 if none
   const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
-  const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
+  const verificationBonus =
+    skill.endpoints.length > 0
+      ? verifiedCount === skill.endpoints.length
+        ? 1.0
+        : verifiedCount > 0
+          ? 0.5
+          : 0.0
+      : 0.0;
 
-  // Section 3.3: 40% embedding, 30% reliability, 15% freshness, 15% verification
-  const raw = 0.4 * embeddingScore + 0.3 * avgReliability + 0.15 * freshnessScore + 0.15 * verifiedRatio;
-  return Math.max(0, Math.min(1, raw));
+  return (
+    0.4 * embeddingScore + 0.3 * avgReliability + 0.15 * freshnessScore + 0.15 * verificationBonus
+  );
 }
 
 type RankedCandidate = { endpoint: SkillManifest["endpoints"][number]; score: number };
@@ -1915,6 +1915,27 @@ export async function resolveAndExecute(
     console.log(
       `[perf] ${source}: ${timing.total_ms}ms (time_saved=${timing.time_saved_pct}% tokens_saved=${timing.tokens_saved_pct}%${cost ? " [real baseline]" : " [estimated]"})`,
     );
+
+    // Lifecycle attribution: aggregate per-phase durations for observability
+    const lifecycleSource: LifecycleEvent["source"] =
+      source === "marketplace" ? "marketplace" : source === "route-cache" ? "cache" : "live-capture";
+    const skillIdForLifecycle = skillId ?? "unknown";
+    const now = new Date().toISOString();
+    const lifecycleEvents: LifecycleEvent[] = [];
+    if (timing.get_skill_ms > 0) {
+      lifecycleEvents.push({ phase: "resolve", skill_id: skillIdForLifecycle, timestamp: now, duration_ms: timing.get_skill_ms, source: lifecycleSource });
+    }
+    if (timing.execute_ms > 0) {
+      lifecycleEvents.push({ phase: "execute", skill_id: skillIdForLifecycle, timestamp: now, duration_ms: timing.execute_ms, source: lifecycleSource });
+    }
+    if (timing.total_ms > 0) {
+      lifecycleEvents.push({ phase: "discover", skill_id: skillIdForLifecycle, timestamp: now, duration_ms: timing.total_ms, source: lifecycleSource });
+    }
+    const lifecycleTotals = attributeLifecycle(lifecycleEvents);
+    if (lifecycleTotals.size > 0) {
+      const breakdown = [...lifecycleTotals.entries()].map(([phase, ms]) => `${phase}=${ms}ms`).join(" ");
+      console.log(`[lifecycle] ${breakdown}`);
+    }
     // Fire-and-forget to backend
     recordOrchestrationPerf(timing).catch(() => {});
     // Persist anonymized local trace artifact (#28)
@@ -2011,24 +2032,6 @@ export async function resolveAndExecute(
       })),
       extra: extraFields ?? null,
     });
-    // Check payment status for deferral responses too
-    const deferWalletCheck = checkWalletConfigured();
-    const deferPaymentCheck = checkPaymentRequirement(
-      resolvedSkill.skill_id,
-      epRanked[0]?.endpoint?.endpoint_id ?? "",
-      { wallet_configured: deferWalletCheck.configured },
-    );
-    const deferPaymentInfo = deferPaymentCheck.status !== "free" ? {
-      payment: {
-        status: deferPaymentCheck.status === "wallet_not_configured" || deferPaymentCheck.status === "insufficient_balance"
-          ? resolveUnpaidAccess(deferPaymentCheck).status
-          : deferPaymentCheck.status,
-        amount: deferPaymentCheck.requirement?.amount,
-        currency: deferPaymentCheck.requirement?.currency,
-        recipient: deferPaymentCheck.requirement?.recipient,
-        message: deferPaymentCheck.message,
-      },
-    } : {};
     return {
       result: {
         message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${resolvedSkill.skill_id}/execute with params.endpoint_id.`,
@@ -2065,7 +2068,6 @@ export async function resolveAndExecute(
       source,
       skill: resolvedSkill,
       timing: finalize(source, null, resolvedSkill.skill_id, resolvedSkill, deferTrace),
-      ...deferPaymentInfo,
     };
   }
 
@@ -2336,8 +2338,8 @@ export async function resolveAndExecute(
     // prerequisite-chain reachability and co-occurrence predictions.
     if (epRanked.length > 1 && skill.domain) {
       const bindings = Object.keys(knownBindingsFromInputs(resolvedParams, context?.url));
-      const dagPlan = await fetchDagAdvisoryPlan(
-        skill.domain,
+      const dagPlan = fetchDagAdvisoryPlan(
+        skill,
         epRanked[0].endpoint.endpoint_id,
         bindings,
       );
@@ -2346,45 +2348,32 @@ export async function resolveAndExecute(
         (decisionTrace as Record<string, unknown>).dag_advisory = {
           chain_ready: dagPlan.chain_ready,
           predicted_next: dagPlan.predicted_next,
+          auth_dependencies: dagPlan.auth_dependencies,
         };
       }
     }
     // --- end DAG advisory ---
 
-    // --- Payment gate (non-blocking) ---
-    // Check payment requirement for the top candidate. This surfaces the
-    // requirement in the decision trace but does NOT block execution —
-    // the backend does final enforcement.
-    const walletCheck = checkWalletConfigured();
-    const paymentCheck = checkPaymentRequirement(
-      skill.skill_id,
-      epRanked[0]?.endpoint?.endpoint_id ?? "",
-      {
-        wallet_configured: walletCheck.configured,
-      },
-    );
-
-    if (paymentCheck.status === "payment_required") {
-      (decisionTrace as Record<string, unknown>).payment = {
-        status: paymentCheck.status,
-        amount: paymentCheck.requirement?.amount,
-        currency: paymentCheck.requirement?.currency,
-        recipient: paymentCheck.requirement?.recipient,
-      };
-      console.log(`[payment] payment_required for ${skill.skill_id} — continuing (backend enforces)`);
-    }
-
-    if (paymentCheck.status === "wallet_not_configured" || paymentCheck.status === "insufficient_balance") {
-      const fallback = resolveUnpaidAccess(paymentCheck);
-      if (fallback.status === "indexing_fallback") {
-        (decisionTrace as Record<string, unknown>).payment = {
-          status: "indexing_fallback",
-          message: fallback.message,
+    // --- Auth prerequisite gate ---
+    // When the top candidate targets an auth-gated endpoint, resolve auth
+    // via the runtime before attempting execution.
+    if (epRanked.length > 0) {
+      const topEndpoint = epRanked[0].endpoint;
+      const authDeps = deriveAuthDependencies(skill, topEndpoint.endpoint_id);
+      if (authDeps.length > 0) {
+        const authResults = await resolveAuthPrerequisites(authDeps);
+        const allAuthed = authResults.every((r) => r.authenticated);
+        (decisionTrace as Record<string, unknown>).auth_prerequisites = {
+          dependencies: authDeps.map((d) => ({ domain: d.domain, strategy: d.strategy })),
+          resolved: allAuthed,
         };
-        console.log(`[payment] indexing_fallback — user can contribute routes instead of paying`);
+        if (!allAuthed) {
+          console.log(`[auth] auth prerequisite unresolved for ${skill.domain} — continuing with best effort`);
+        }
       }
     }
-    // --- end payment gate ---
+    // --- end auth prerequisite gate ---
+
     // Try top candidates in order until one succeeds. If all fail, fall through to deferral.
     const ready = epRanked.filter((r) => canAutoExecuteEndpoint(r.endpoint));
     const tryList =
@@ -2482,23 +2471,6 @@ export async function resolveAndExecute(
           { ...options, intent: queryIntent, contextUrl: context?.url },
         );
         timing.execute_ms = Date.now() - te0;
-        // --- 402 Payment Required from backend ---
-        if (execOut.trace.status_code === 402) {
-          (decisionTrace as Record<string, unknown>).payment = {
-            status: "payment_required",
-            backend_402: true,
-          };
-          (decisionTrace.autoexec_attempts as unknown[]).push({
-            endpoint_id: candidate.endpoint.endpoint_id,
-            score: Math.round(candidate.score * 10) / 10,
-            trace_success: false,
-            judge: "skip",
-            status_code: 402,
-            error: "backend_payment_required",
-          });
-          console.log(`[auto-exec] #${i + 1} 402 payment required — trying next candidate`);
-          continue;
-        }
         if (execOut.trace.success) {
           const localAssessment = assessLocalExecutionResult(
             candidate.endpoint,
@@ -2609,15 +2581,6 @@ export async function resolveAndExecute(
             timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
             response_schema: execOut.response_schema,
             extraction_hints: execOut.extraction_hints,
-            ...(paymentCheck.status !== "free" ? {
-              payment: {
-                status: paymentCheck.status,
-                amount: paymentCheck.requirement?.amount,
-                currency: paymentCheck.requirement?.currency,
-                recipient: paymentCheck.requirement?.recipient,
-                message: paymentCheck.message,
-              },
-            } : {}),
           };
         }
         (decisionTrace.autoexec_attempts as unknown[]).push({
