@@ -106,6 +106,12 @@ export function getApiKey(): string {
   return "";
 }
 
+export function getAgentId(): string {
+  if (LOCAL_ONLY) return "";
+  const config = loadConfig();
+  return config?.agent_id ?? "";
+}
+
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
 
 async function validateApiKey(key: string): Promise<ApiKeyValidationResult> {
@@ -538,7 +544,8 @@ export async function publishSkill(
     } as SkillManifest & { warnings: string[] };
   }
   if (LOCAL_ONLY) throw new Error("local-only mode");
-  return api("POST", "/v1/skills", draft);
+  const agentId = getAgentId();
+  return api("POST", "/v1/skills", agentId ? { ...draft, indexer_id: draft.indexer_id ?? agentId } : draft);
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
@@ -640,16 +647,20 @@ export async function searchIntentResolve(
 export async function recordExecution(
   skillId: string,
   endpointId: string,
-  trace: ExecutionTrace
+  trace: ExecutionTrace,
+  indexerId?: string,
 ): Promise<void> {
   if (LOCAL_ONLY) return;
   // Strip actual API response data — only send metadata for scoring
   const { result: _result, ...metadata } = trace;
-  await api("POST", "/v1/stats/execution", {
+  const body: Record<string, unknown> = {
     skill_id: skillId,
     endpoint_id: endpointId,
     trace: metadata,
-  });
+  };
+  const effectiveIndexerId = indexerId ?? getAgentId();
+  if (effectiveIndexerId) body.indexer_id = effectiveIndexerId;
+  await api("POST", "/v1/stats/execution", body);
 }
 
 export async function recordFeedback(

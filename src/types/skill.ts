@@ -221,6 +221,8 @@ export interface SkillManifest {
   intents?: string[];
   /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
   operation_graph?: SkillOperationGraph;
+  /** Agent ID of the indexer who published this skill — used for Tier 1 attribution */
+  indexer_id?: string;
 }
 
 export interface ExecutionTrace {
