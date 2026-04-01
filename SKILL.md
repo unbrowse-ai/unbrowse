@@ -19,7 +19,7 @@ Browse once, cache the APIs, reuse them instantly. First call discovers and lear
 curl -fsSL https://unbrowse.ai/install.sh | bash
 ```
 
-This clones the repo, registers the skill with your agent host, and starts the server.
+This installs the CLI, registers the skill with your agent host, and starts the server.
 
 Alternative (npm):
 
