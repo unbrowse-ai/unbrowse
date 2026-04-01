@@ -2,6 +2,7 @@ import * as kuri from "../kuri/client.js";
 import { nanoid } from "nanoid";
 import { getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
+import { applyBrowserConfigToEnv } from "../runtime/kuri-config.js";
 
 // BUG-GC-012: Use a real Chrome UA — HeadlessChrome is actively blocked by Google and others.
 const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -657,6 +658,8 @@ export async function captureSession(
   await acquireTabSlot();
 
   // Ensure Kuri is running and tabs are discovered
+  // Apply host-detection browser config to env before kuri launch
+  applyBrowserConfigToEnv();
   await kuri.start();
   await kuri.discoverTabs(); // Sync Chrome tabs into Kuri's registry
 

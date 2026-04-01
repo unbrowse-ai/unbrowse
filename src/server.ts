@@ -9,6 +9,7 @@ import { schedulePeriodicVerification } from "./verification/index.js";
 import { ensureRegistered } from "./client/index.js";
 import { shutdownAllBrowsers } from "./capture/index.js";
 import * as kuri from "./kuri/client.js";
+import { applyBrowserConfigToEnv } from "./runtime/kuri-config.js";
 
 type StartServerOptions = {
   host?: string;
@@ -63,6 +64,8 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
 
   // Pre-start Kuri (Zig-native CDP broker — replaces agent-browser/Playwright)
   try {
+    // Auto-configure browser path/headless mode from detected host environment
+    applyBrowserConfigToEnv();
     await kuri.start();
     const h = await kuri.health();
     console.log(`[startup] Kuri ready — ${h.tabs ?? 0} tabs`);
