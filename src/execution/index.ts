@@ -23,6 +23,8 @@ import { log } from "../logger.js";
 import { TRACE_VERSION } from "../version.js";
 import { buildQueryBindingMap, extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
 import { assessIntentResult, projectIntentData } from "../intent-match.js";
+import { isStructuredSearchForm, detectSearchForms, type SearchFormSpec } from "./search-forms.js";
+import { attributeLifecycle, type LifecycleEvent, type LifecyclePhase } from "../runtime/lifecycle.js";
 
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
@@ -593,6 +595,7 @@ export function buildPageArtifactCapture(
   endpoint?: EndpointDescriptor;
   result?: { data: unknown; _extraction: Record<string, unknown> };
   quality_note?: string;
+  search_form?: SearchFormSpec;
 } {
   const extracted = extractFromDOM(html, intent);
   if (!extracted.data || extracted.confidence <= 0.2) return {};
@@ -604,6 +607,11 @@ export function buildPageArtifactCapture(
   if (semanticAssessment.verdict === "fail") {
     return { quality_note: semanticAssessment.reason };
   }
+
+  // Detect structured search forms from the captured HTML
+  const searchForms = detectSearchForms(html);
+  const validSearchForm = searchForms.find((spec: SearchFormSpec) => isStructuredSearchForm(spec));
+
   const response_schema = inferSchema([extracted.data]);
   const endpoint: EndpointDescriptor = {
     endpoint_id: nanoid(),
@@ -612,12 +620,15 @@ export function buildPageArtifactCapture(
     idempotency: "safe" as const,
     verification_status: "verified" as const,
     reliability_score: extracted.confidence,
-    description: `Captured page artifact for ${intent}`,
+    description: validSearchForm
+      ? `Captured search form artifact for ${intent}`
+      : `Captured page artifact for ${intent}`,
     response_schema,
     dom_extraction: {
       extraction_method: extracted.extraction_method,
       confidence: extracted.confidence,
       ...(extracted.selector ? { selector: extracted.selector } : {}),
+      ...(validSearchForm ? { search_form: validSearchForm } : {}),
     },
     trigger_url: url,
   };
@@ -630,6 +641,14 @@ export function buildPageArtifactCapture(
     }),
     ...(authRequired ? { auth_required: true } : {}),
   };
+  if (validSearchForm && endpoint.semantic) {
+    endpoint.semantic.action_kind = "search";
+  }
+
+  if (validSearchForm) {
+    log("execution", `detected structured search form: ${validSearchForm.form_selector} with ${validSearchForm.fields.length} fields`);
+  }
+
   return {
     endpoint,
     result: {
@@ -638,8 +657,10 @@ export function buildPageArtifactCapture(
         method: extracted.extraction_method,
         confidence: extracted.confidence,
         source: "dom-fallback",
+        ...(validSearchForm ? { search_form_detected: true } : {}),
       },
     },
+    ...(validSearchForm ? { search_form: validSearchForm } : {}),
   };
 }
 
@@ -1352,12 +1373,22 @@ async function executeBrowserCapture(
   }
   try { cachePublishedSkill(learned, options?.client_scope); } catch { /* local cache best-effort */ }
 
+  // Attribute lifecycle phases for this capture-to-publish flow
+  const completedAt = new Date().toISOString();
+  const captureDurationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
+  const lifecycleEvents: LifecycleEvent[] = [
+    { phase: "capture", skill_id: learned.skill_id, timestamp: startedAt, duration_ms: captureDurationMs, source: "live-capture" },
+    { phase: "publish", skill_id: learned.skill_id, timestamp: completedAt, duration_ms: 0, source: publishableEndpoints.length > 0 ? "marketplace" : "cache" },
+  ];
+  const lifecycleAttribution = attributeLifecycle(lifecycleEvents);
+  log("execution", `lifecycle attribution: capture=${lifecycleAttribution.get("capture") ?? 0}ms, publish=${lifecycleAttribution.get("publish") ?? 0}ms`);
+
   const trace: ExecutionTrace = stampTrace({
     trace_id: traceId,
     skill_id: learned.skill_id,
     endpoint_id: "browser-capture",
     started_at: startedAt,
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
     success: true,
     result: { learned_skill_id: learned.skill_id, endpoints_discovered: cleanEndpoints.length },
   });
