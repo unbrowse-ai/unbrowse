@@ -1,12 +1,16 @@
 import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import { emitRouteTrace } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
-import { getSkillChunk, knownBindingsFromInputs } from "../graph/index.js";
+import { getSkillChunk, knownBindingsFromInputs, computeReachableEndpoints, ensureSkillOperationGraph } from "../graph/index.js";
+import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
 import { getRegistrableDomain } from "../domain.js";
-import { mergeContextTemplateParams } from "../template-params.js";
-import { computeUnsafeActionScore, UNSAFE_ACTION_BLOCK_THRESHOLD } from "../router.js";
+import { extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
-import { executeActionSequence } from "../capture/index.js";
+import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
+import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
+import { queuePassiveSkillPublish } from "./passive-publish.js";
+import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -17,9 +21,10 @@ import type {
 } from "../types/index.js";
 import { TRACE_VERSION } from "../version.js";
 import { nanoid } from "nanoid";
-import { assessIntentResult } from "../intent-match.js";
-import { existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { assessIntentResult, projectIntentData } from "../intent-match.js";
+import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY ?? "";
@@ -52,7 +57,7 @@ const capturedDomainCache = new Map<
 // the same live capture instead of failing fast.
 const captureInFlight = new Map<
   string,
-  Promise<{ learned_skill?: SkillManifest; trace: ExecutionTrace; result: unknown }>
+  Promise<{ learned_skill?: SkillManifest; trace: ExecutionTrace; result: unknown; parity_baseline?: unknown }>
 >();
 // Cross-client profile lock: some sites/profile dirs do not tolerate parallel browser
 // launches against the same domain/profile. Serialize live captures per domain.
@@ -60,13 +65,14 @@ const captureDomainLocks = new Map<string, Promise<void>>();
 // Route cache: intent+domain → skill_id, skips search+getSkill on repeat queries.
 const skillRouteCache = new Map<
   string,
-  { skillId: string; domain: string; endpointId?: string; ts: number }
+  { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number }
 >();
 const ROUTE_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "route-cache.json");
+const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
 
 // Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
 // This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it
-const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; ts: number }>();
+const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
 const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-skill-cache.json");
 
 function persistDomainCache() {
@@ -81,7 +87,7 @@ try {
   if (existsSync(DOMAIN_CACHE_FILE)) {
     const data = JSON.parse(readFileSync(DOMAIN_CACHE_FILE, "utf-8"));
     for (const [k, v] of Object.entries(data)) {
-      const entry = v as { skillId: string; endpointId?: string; ts: number };
+      const entry = v as { skillId: string; endpointId?: string; localSkillPath?: string; ts: number };
       if (Date.now() - entry.ts < 7 * 24 * 60 * 60_000) { // 7 day TTL
         domainSkillCache.set(k, entry);
       }
@@ -111,7 +117,7 @@ try {
   if (existsSync(ROUTE_CACHE_FILE)) {
     const data = JSON.parse(readFileSync(ROUTE_CACHE_FILE, "utf-8"));
     for (const [k, v] of Object.entries(data)) {
-      const entry = v as { skillId: string; domain: string; endpointId?: string; ts: number };
+      const entry = v as { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number };
       // Only load entries less than 24h old
       if (Date.now() - entry.ts < 24 * 60 * 60_000) {
         skillRouteCache.set(k, entry);
@@ -137,9 +143,205 @@ const MARKETPLACE_HYDRATE_LIMIT = Math.max(1, Number(process.env.UNBROWSE_MARKET
 const MARKETPLACE_GET_SKILL_TIMEOUT_MS = Math.max(250, Number(process.env.UNBROWSE_MARKETPLACE_GET_SKILL_TIMEOUT_MS ?? 2500));
 const MARKETPLACE_DOMAIN_SEARCH_K = Math.max(1, Number(process.env.UNBROWSE_MARKETPLACE_DOMAIN_SEARCH_K ?? 5));
 const MARKETPLACE_GLOBAL_SEARCH_K = Math.max(1, Number(process.env.UNBROWSE_MARKETPLACE_GLOBAL_SEARCH_K ?? 10));
+type SkillRouteCacheEntry = {
+  skillId: string;
+  domain: string;
+  endpointId?: string;
+  localSkillPath?: string;
+  ts: number;
+};
+type RouteCacheCandidate = {
+  scopedKey: string;
+  scope: string;
+  entry: SkillRouteCacheEntry;
+  skill: SkillManifest;
+};
 
 function scopedCacheKey(scope: string, key: string): string {
   return `${scope}:${key}`;
+}
+
+function scopedResolveCacheKeys(scope: string, key: string): string[] {
+  return scope === "global"
+    ? [scopedCacheKey("global", key)]
+    : [scopedCacheKey(scope, key), scopedCacheKey("global", key)];
+}
+
+function snapshotPathForCacheKey(cacheKey: string): string {
+  const digest = createHash("sha1").update(cacheKey).digest("hex");
+  return join(SKILL_SNAPSHOT_DIR, `${digest}.json`);
+}
+
+function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
+  try {
+    mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
+    const target = snapshotPathForCacheKey(cacheKey);
+    writeFileSync(target, JSON.stringify(skill), "utf-8");
+    return target;
+  } catch {
+    return undefined;
+  }
+}
+
+function hasSearchBindings(endpoint: SkillManifest["endpoints"][number]): boolean {
+  const haystack = JSON.stringify({
+    url: endpoint.url_template,
+    query: endpoint.query ?? {},
+    body_params: endpoint.body_params ?? {},
+    body: endpoint.body ?? {},
+    semantic: endpoint.semantic ?? {},
+  }).toLowerCase();
+  return /(basicsearchkey|query|keyword|search|lookup|find|term)/.test(haystack);
+}
+
+function scoreSkillSnapshot(skill: SkillManifest): number {
+  let score = 0;
+  for (const endpoint of skill.endpoints) {
+    const active = endpoint.verification_status !== "disabled";
+    if (active) score += 20;
+    if (endpoint.dom_extraction || endpoint.response_schema) score += 10;
+    if (hasSearchBindings(endpoint)) score += 40;
+    if (endpoint.method === "POST") score += 6;
+    if (/\/result-page\b/i.test(endpoint.url_template)) score += 12;
+    if (/captured page artifact/i.test(endpoint.description ?? "")) score -= 18;
+  }
+  return score + skill.endpoints.length;
+}
+
+export function pickPreferredSkillSnapshot(
+  primary: SkillManifest,
+  candidates: SkillManifest[],
+): SkillManifest {
+  let best = primary;
+  let bestScore = scoreSkillSnapshot(primary);
+  for (const candidate of candidates) {
+    if (candidate.skill_id !== primary.skill_id) continue;
+    const candidateScore = scoreSkillSnapshot(candidate);
+    if (candidateScore > bestScore) {
+      best = candidate;
+      bestScore = candidateScore;
+    }
+  }
+  return best;
+}
+
+function readSkillSnapshot(path?: string): SkillManifest | undefined {
+  if (!path || !existsSync(path)) return undefined;
+  try {
+    const primary = JSON.parse(readFileSync(path, "utf-8")) as SkillManifest;
+    if (!existsSync(SKILL_SNAPSHOT_DIR)) return primary;
+    const siblingSnapshots: SkillManifest[] = [];
+    for (const entry of readdirSync(SKILL_SNAPSHOT_DIR)) {
+      if (!entry.endsWith(".json")) continue;
+      const candidatePath = join(SKILL_SNAPSHOT_DIR, entry);
+      if (candidatePath === path) continue;
+      try {
+        const candidate = JSON.parse(readFileSync(candidatePath, "utf-8")) as SkillManifest;
+        if (candidate.skill_id === primary.skill_id) siblingSnapshots.push(candidate);
+      } catch {
+        /* ignore bad snapshot */
+      }
+    }
+    return pickPreferredSkillSnapshot(primary, siblingSnapshots);
+  } catch {
+    return undefined;
+  }
+}
+
+function findBestLocalDomainSnapshot(
+  requestedDomain: string,
+  intent: string,
+  contextUrl?: string,
+  excludeSkillIds?: ReadonlySet<string>,
+): SkillManifest | undefined {
+  if (!existsSync(SKILL_SNAPSHOT_DIR)) return undefined;
+  const targetDomain = getRegistrableDomain(requestedDomain);
+  const bestBySkill = new Map<string, SkillManifest>();
+  for (const entry of readdirSync(SKILL_SNAPSHOT_DIR)) {
+    if (!entry.endsWith(".json")) continue;
+    try {
+      const candidate = JSON.parse(readFileSync(join(SKILL_SNAPSHOT_DIR, entry), "utf-8")) as SkillManifest;
+      if (getRegistrableDomain(candidate.domain) !== targetDomain) continue;
+      if (excludeSkillIds?.has(candidate.skill_id)) continue;
+      const existing = bestBySkill.get(candidate.skill_id);
+      bestBySkill.set(
+        candidate.skill_id,
+        existing ? pickPreferredSkillSnapshot(existing, [candidate]) : candidate,
+      );
+    } catch {
+      /* ignore bad snapshot */
+    }
+  }
+  let best: SkillManifest | undefined;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const candidate of bestBySkill.values()) {
+    if (!hasUsableEndpoints(candidate)) continue;
+    if (!isCachedSkillRelevantForIntent(candidate, intent, contextUrl)) continue;
+    if (!marketplaceSkillMatchesContext(candidate, intent, contextUrl)) continue;
+    const ranked = rankEndpoints(candidate.endpoints, intent, candidate.domain, contextUrl);
+    const topScore = ranked[0]?.score ?? Number.NEGATIVE_INFINITY;
+    const composite = topScore + scoreSkillSnapshot(candidate);
+    if (composite > bestScore) {
+      best = candidate;
+      bestScore = composite;
+    }
+  }
+  return best;
+}
+
+function isIpv4Hostname(hostname: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+}
+
+function isIpv6Hostname(hostname: string): boolean {
+  return hostname.includes(":");
+}
+
+function isPortSensitiveHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "::1" ||
+    normalized === "[::1]" ||
+    isIpv4Hostname(normalized) ||
+    isIpv6Hostname(normalized) ||
+    !normalized.includes(".")
+  );
+}
+
+function getDomainReuseKey(input?: string | null): string | null {
+  if (!input) return null;
+  try {
+    const parsed = new URL(input);
+    if (isPortSensitiveHostname(parsed.hostname)) return parsed.host.toLowerCase();
+    return getRegistrableDomain(parsed.hostname);
+  } catch {
+    return getRegistrableDomain(input);
+  }
+}
+
+function endpointMatchesContextOrigin(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  if (!contextUrl) return true;
+  try {
+    const context = new URL(contextUrl);
+    if (!isPortSensitiveHostname(context.hostname)) return true;
+    const sameOrigin = (candidate?: string | null): boolean => {
+      if (!candidate) return false;
+      try {
+        return new URL(candidate).origin === context.origin;
+      } catch {
+        return false;
+      }
+    };
+    return sameOrigin(endpoint.url_template) || sameOrigin(endpoint.trigger_url ?? null);
+  } catch {
+    return true;
+  }
 }
 
 function normalizeRouteContext(url?: string): string {
@@ -168,21 +370,45 @@ function promoteLearnedSkill(
   cacheKey: string,
   skill: SkillManifest,
   endpointId?: string,
+  contextUrl?: string,
 ): void {
+  const localSkillPath = writeSkillSnapshot(cacheKey, skill);
   capturedDomainCache.set(cacheKey, { skill, endpointId, expires: Date.now() + 5 * 60_000 });
   skillRouteCache.set(cacheKey, {
     skillId: skill.skill_id,
     domain: skill.domain,
     endpointId,
+    ...(localSkillPath ? { localSkillPath } : {}),
     ts: Date.now(),
   });
   persistRouteCache();
   // Also cache at domain level for cross-intent reuse
-  const regDomain = getRegistrableDomain(skill.domain);
-  if (regDomain) {
-    domainSkillCache.set(regDomain, { skillId: skill.skill_id, endpointId, ts: Date.now() });
+  const domainKey = getDomainReuseKey(contextUrl ?? skill.domain);
+  if (domainKey) {
+    domainSkillCache.set(domainKey, {
+      skillId: skill.skill_id,
+      endpointId,
+      ...(localSkillPath ? { localSkillPath } : {}),
+      ts: Date.now(),
+    });
     persistDomainCache();
   }
+}
+
+function cacheResolvedSkill(
+  cacheKey: string,
+  skill: SkillManifest,
+  endpointId?: string,
+): void {
+  const localSkillPath = writeSkillSnapshot(cacheKey, skill);
+  skillRouteCache.set(cacheKey, {
+    skillId: skill.skill_id,
+    domain: skill.domain,
+    endpointId,
+    ...(localSkillPath ? { localSkillPath } : {}),
+    ts: Date.now(),
+  });
+  persistRouteCache();
 }
 
 function promoteResultSnapshot(
@@ -203,6 +429,52 @@ function promoteResultSnapshot(
     extraction_hints,
     expires: Date.now() + ROUTE_CACHE_TTL,
   });
+}
+
+function buildCachedResultResponse(
+  cached: {
+    skill: SkillManifest;
+    endpointId?: string;
+    result: unknown;
+    trace: ExecutionTrace;
+    response_schema?: ResponseSchema;
+    extraction_hints?: OrchestratorResult["extraction_hints"];
+  },
+  source: "marketplace" | "live-capture",
+  timing: OrchestrationTiming,
+): OrchestratorResult {
+  const now = new Date().toISOString();
+  return {
+    result: cached.result,
+    trace: {
+      ...cached.trace,
+      trace_id: nanoid(),
+      started_at: now,
+      completed_at: now,
+      endpoint_id: cached.endpointId ?? cached.trace.endpoint_id,
+      skill_id: cached.skill.skill_id,
+    },
+    source,
+    skill: cached.skill,
+    timing,
+    response_schema: cached.response_schema,
+    extraction_hints: cached.extraction_hints,
+  };
+}
+
+function invalidateResolveCacheEntries(cacheKeys: string[], domainKeys: string[] = []): void {
+  let routeCacheDirty = false;
+  let domainCacheDirty = false;
+  for (const cacheKey of new Set(cacheKeys.filter(Boolean))) {
+    routeResultCache.delete(cacheKey);
+    capturedDomainCache.delete(cacheKey);
+    if (skillRouteCache.delete(cacheKey)) routeCacheDirty = true;
+  }
+  for (const domainKey of new Set(domainKeys.filter(Boolean))) {
+    if (domainSkillCache.delete(domainKey)) domainCacheDirty = true;
+  }
+  if (routeCacheDirty) persistRouteCache();
+  if (domainCacheDirty) persistDomainCache();
 }
 
 async function getSkillWithTimeout(
@@ -228,7 +500,7 @@ export function promoteExplicitExecution(
   const assessment = assessIntentResult(result, intent);
   if (assessment.verdict === "fail") return false;
   const cacheKey = buildResolveCacheKey(skill.domain, intent, contextUrl);
-  promoteLearnedSkill(scope, cacheKey, skill, endpointId);
+  promoteLearnedSkill(scope, cacheKey, skill, endpointId, contextUrl);
   return true;
 }
 
@@ -260,6 +532,286 @@ function withContextReplayEndpoint(
   };
 }
 
+function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
+  if (/\b(search|find|lookup|browse|discover)\b/i.test(intent ?? "")) return true;
+  try {
+    const pathname = contextUrl ? new URL(contextUrl).pathname.toLowerCase() : "";
+    return /\/(?:search|basic-search|result-page|results?|discover|browse)\b/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
+export function isCachedSkillRelevantForIntent(
+  skill: SkillManifest,
+  intent?: string,
+  contextUrl?: string,
+): boolean {
+  if (!hasUsableEndpoints(skill)) return false;
+  if (contextUrl && !skill.endpoints.some((endpoint) => endpointMatchesContextOrigin(endpoint, contextUrl))) {
+    return false;
+  }
+  if (!intent || intent.trim().length === 0) return true;
+  if (isFeedTimelineIntent(intent, contextUrl)) {
+    const hasFeedLikeEndpoint = skill.endpoints.some((endpoint) =>
+      endpointMatchesFeedTimelineContext(endpoint, contextUrl),
+    );
+    if (!hasFeedLikeEndpoint) return false;
+  }
+  const resolvedSkill = withContextReplayEndpoint(skill, intent, contextUrl);
+  const ranked = rankEndpoints(
+    resolvedSkill.endpoints,
+    intent,
+    resolvedSkill.domain,
+    contextUrl,
+  );
+  const top = ranked[0];
+  const isSearchIntent = isSearchLikeIntent(intent, contextUrl);
+  if (
+    top &&
+    isSearchIntent &&
+    contextUrl &&
+    /captured page artifact/i.test(top.endpoint.description ?? "") &&
+    top.endpoint.response_schema?.type !== "array" &&
+    top.endpoint.url_template === contextUrl &&
+    !skillHasBetterStructuredSearchEndpoint(
+      resolvedSkill,
+      top.endpoint.endpoint_id,
+      intent,
+      contextUrl,
+    )
+  ) {
+    return false;
+  }
+  if (
+    top &&
+    isEducationCatalogIntent(intent) &&
+    isRootContextUrl(contextUrl) &&
+    /captured page artifact/i.test(top.endpoint.description ?? "") &&
+    top.endpoint.url_template === contextUrl
+  ) {
+    return false;
+  }
+  if (isSearchIntent) {
+    const hasStructuredSearchEndpoint = resolvedSkill.endpoints.some((endpoint) =>
+      endpointHasSearchBindings(endpoint) &&
+      (!!endpoint.dom_extraction || !!endpoint.response_schema) &&
+      endpointMatchesContextOrigin(endpoint, contextUrl),
+    );
+    if (hasStructuredSearchEndpoint) return true;
+  }
+  return (top?.score ?? Number.NEGATIVE_INFINITY) >= 0;
+}
+
+export function assessLocalExecutionResult(
+  endpoint: SkillManifest["endpoints"][number],
+  result: unknown,
+  intent: string,
+  trace?: ExecutionTrace,
+): { verdict: "pass" | "fail" | "skip"; reason: string } {
+  const semanticAssessment = assessIntentResult(result, intent);
+  if (!/\b(search|find|lookup|browse|discover)\b/i.test(intent)) return semanticAssessment;
+  if (endpoint.response_schema?.type !== "array") return semanticAssessment;
+  if (Array.isArray(result)) {
+    if (result.length === 0) return { verdict: "fail", reason: "search_empty_results" };
+    const rows = result.filter((row): row is Record<string, unknown> => !!row && typeof row === "object");
+    if (rows.length === 0) return semanticAssessment;
+    const authBounce = rows.some((row) => {
+      const title = String(row.title ?? row.name ?? "").trim().toLowerCase();
+      const description = String(row.description ?? row.summary ?? "").trim().toLowerCase();
+      const link = String(row.link ?? row.url ?? "").trim().toLowerCase();
+      return /^(about|home|welcome)\b/.test(title) ||
+        /\b(login|log in|sign in|password)\b/.test(`${title} ${description}`) ||
+        /\/(?:about|home|login)\b/.test(link);
+    });
+    if (authBounce) return { verdict: "fail", reason: "search_auth_or_homepage_bounce" };
+    const hasStructuredRows = rows.some((row) =>
+      typeof row.title === "string" ||
+      typeof row.name === "string" ||
+      typeof row.case_name === "string" ||
+      typeof row.citation === "string",
+    );
+    if (hasStructuredRows) return { verdict: "pass", reason: "search_result_rows" };
+    return semanticAssessment;
+  }
+  if (result == null || typeof result !== "object") return semanticAssessment;
+
+  const record = result as Record<string, unknown>;
+  const title = String(record.title ?? "").trim().toLowerCase();
+  const link = String(record.link ?? record.url ?? "").trim().toLowerCase();
+  const description = String(record.description ?? "").trim().toLowerCase();
+  const finalUrl = String(
+    (trace?.result as Record<string, unknown> | undefined)?._extraction &&
+      typeof (trace?.result as Record<string, unknown>)._extraction === "object"
+      ? ((trace?.result as Record<string, unknown>)._extraction as Record<string, unknown>).final_url ?? ""
+      : "",
+  )
+    .trim()
+    .toLowerCase();
+  const looksLikeHomeOrAuthPage =
+    /^(about|home|welcome)\b/.test(title) ||
+    /\b(login|log in|sign in|password)\b/.test(`${title} ${description}`) ||
+    /\/(?:about|home|login)\b/.test(`${link} ${finalUrl}`);
+  if (looksLikeHomeOrAuthPage) {
+    return { verdict: "fail", reason: "search_auth_or_homepage_bounce" };
+  }
+  return { verdict: "fail", reason: "search_result_shape_mismatch" };
+}
+
+function isEducationCatalogIntent(intent?: string): boolean {
+  return /\b(module|modules|course|courses|class|classes|lesson|lessons|timetable|schedule|semester|semesters)\b/i.test(intent ?? "");
+}
+
+function isFeedTimelineIntent(intent?: string, contextUrl?: string): boolean {
+  const text = `${intent ?? ""} ${contextUrl ?? ""}`.toLowerCase();
+  const asksForPosts = /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(text);
+  if (!asksForPosts) return false;
+  return /\b(feed|timeline|stream|home|for-you|for_you|latest)\b/.test(text) || /\/(feed|home)\//.test(text);
+}
+
+function endpointMatchesFeedTimelineContext(
+  endpoint: SkillManifest["endpoints"][number],
+  contextUrl?: string,
+): boolean {
+  const haystack = [
+    endpoint.url_template,
+    endpoint.trigger_url ?? "",
+    endpoint.description ?? "",
+    endpoint.semantic?.action_kind ?? "",
+    endpoint.semantic?.resource_kind ?? "",
+    endpoint.semantic?.description_in ?? "",
+    endpoint.semantic?.description_out ?? "",
+    JSON.stringify(endpoint.response_schema ?? {}),
+  ]
+    .join(" ")
+    .toLowerCase();
+  const mentionsFeed = /\b(feed|timeline|stream|mainfeed|main feed|home)\b/.test(haystack);
+  const mentionsPosts = /\b(post|posts|tweet|tweets|status|statuses|update|updates)\b/.test(haystack);
+  if (mentionsFeed && mentionsPosts) return true;
+  if (!contextUrl) return false;
+  try {
+    const contextPath = new URL(contextUrl).pathname;
+    const endpointPath = new URL(endpoint.url_template).pathname;
+    if (endpointPath === contextPath) return true;
+  } catch {
+    // ignore
+  }
+  try {
+    if (!endpoint.trigger_url) return false;
+    const triggerPath = new URL(endpoint.trigger_url).pathname;
+    return triggerPath === new URL(contextUrl).pathname;
+  } catch {
+    return false;
+  }
+}
+
+function endpointHasSearchBindings(
+  endpoint: SkillManifest["endpoints"][number],
+): boolean {
+  const haystack = JSON.stringify({
+    query: endpoint.query ?? {},
+    body: endpoint.body ?? {},
+    body_params: endpoint.body_params ?? {},
+    semantic: endpoint.semantic ?? {},
+  }).toLowerCase();
+  return /(basicsearchkey|basic_search_key|query|keyword|search|lookup|find|term)/.test(haystack);
+}
+
+function skillHasBetterStructuredSearchEndpoint(
+  skill: SkillManifest,
+  currentEndpointId: string | undefined,
+  intent: string,
+  contextUrl?: string,
+): boolean {
+  if (!isSearchLikeIntent(intent, contextUrl)) return false;
+  return rankEndpoints(skill.endpoints, intent, skill.domain, contextUrl).some((candidate) =>
+    candidate.endpoint.endpoint_id !== currentEndpointId &&
+    endpointHasSearchBindings(candidate.endpoint) &&
+    (!!candidate.endpoint.dom_extraction || !!candidate.endpoint.response_schema) &&
+    candidate.score >= 0
+  );
+}
+
+export function skillHasContextStructuredSearchEndpoint(
+  skill: SkillManifest,
+  intent: string,
+  contextUrl?: string,
+): boolean {
+  if (!isSearchLikeIntent(intent, contextUrl)) return false;
+  return skill.endpoints.some((endpoint) =>
+    endpointHasSearchBindings(endpoint) &&
+    (!!endpoint.dom_extraction || !!endpoint.response_schema) &&
+    endpointMatchesContextOrigin(endpoint, contextUrl),
+  );
+}
+
+function scoreRouteCacheCandidate(
+  candidate: RouteCacheCandidate,
+  intent: string,
+  contextUrl?: string,
+): number {
+  const resolvedSkill = withContextReplayEndpoint(candidate.skill, intent, contextUrl);
+  const ranked = dedupeObservedOverBundle(
+    rankEndpoints(resolvedSkill.endpoints, intent, resolvedSkill.domain, contextUrl),
+  );
+  const top = ranked[0];
+  let score = top?.score ?? Number.NEGATIVE_INFINITY;
+  const cachedEndpoint = candidate.entry.endpointId
+    ? resolvedSkill.endpoints.find((endpoint) => endpoint.endpoint_id === candidate.entry.endpointId)
+    : undefined;
+
+  if (!cachedEndpoint && candidate.entry.endpointId) return score - 25;
+  if (!cachedEndpoint) return score;
+
+  const cachedRank = ranked.findIndex(
+    (rankedCandidate) => rankedCandidate.endpoint.endpoint_id === cachedEndpoint.endpoint_id,
+  );
+  if (cachedRank === 0) score += 25;
+  else if (cachedRank > 0) score += Math.max(0, 10 - cachedRank);
+  else score -= 20;
+
+  if (endpointHasSearchBindings(cachedEndpoint)) score += 15;
+  if (cachedEndpoint.dom_extraction || cachedEndpoint.response_schema) score += 8;
+
+  const isCapturedPageArtifact = /captured page artifact/i.test(cachedEndpoint.description ?? "");
+  if (isCapturedPageArtifact) score -= 10;
+  if (
+    isCapturedPageArtifact &&
+    skillHasBetterStructuredSearchEndpoint(
+      resolvedSkill,
+      cachedEndpoint.endpoint_id,
+      intent,
+      contextUrl,
+    )
+  ) {
+    score -= 80;
+  }
+
+  return score;
+}
+
+export function chooseBestRouteCacheCandidate(
+  candidates: RouteCacheCandidate[],
+  intent: string,
+  contextUrl?: string,
+): RouteCacheCandidate | null {
+  if (candidates.length === 0) return null;
+  return [...candidates].sort((a, b) => {
+    const scoreDelta = scoreRouteCacheCandidate(b, intent, contextUrl) - scoreRouteCacheCandidate(a, intent, contextUrl);
+    if (scoreDelta !== 0) return scoreDelta;
+    return b.entry.ts - a.entry.ts;
+  })[0] ?? null;
+}
+
+function isRootContextUrl(contextUrl?: string): boolean {
+  if (!contextUrl) return false;
+  try {
+    return new URL(contextUrl).pathname === "/";
+  } catch {
+    return false;
+  }
+}
+
 async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): Promise<T> {
   const prev = captureDomainLocks.get(domain);
   if (prev) {
@@ -285,11 +837,58 @@ async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): P
 export interface OrchestratorResult {
   result: unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "browser-action";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass";
   skill: SkillManifest;
   timing: OrchestrationTiming;
   response_schema?: ResponseSchema;
   extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
+}
+
+type AutoExecDecision = {
+  orchestratorResult: OrchestratorResult;
+  autoexecFailedAll: boolean;
+};
+
+export function shouldFallbackToLiveCaptureAfterAutoexecFailure(
+  autoexecFailedAll: boolean,
+  contextUrl?: string,
+): boolean {
+  return autoexecFailedAll && !!contextUrl;
+}
+
+export function shouldReuseRouteResultSnapshot(
+  cached: {
+    expires: number;
+    skill: SkillManifest;
+  },
+  intent: string,
+  contextUrl?: string,
+  now = Date.now(),
+): boolean {
+  if (cached.expires <= now) return false;
+  if (isRouteCacheEntryStale({ skillId: cached.skill.skill_id, domain: cached.skill.domain, ts: cached.expires - ROUTE_CACHE_TTL }, cached.skill)) return false;
+  return isCachedSkillRelevantForIntent(cached.skill, intent, contextUrl);
+}
+
+/**
+ * Returns true when a route cache entry is stale because its pinned endpoint
+ * has been disabled, failed verification, or has a critically low reliability
+ * score — indicating the endpoint is no longer reliably available.
+ *
+ * An entry with no pinned endpointId is never considered stale by this check
+ * since the skill itself may still have usable endpoints.
+ */
+export function isRouteCacheEntryStale(
+  entry: SkillRouteCacheEntry,
+  skill: SkillManifest,
+): boolean {
+  if (!entry.endpointId) return false;
+  const endpoint = skill.endpoints.find((ep) => ep.endpoint_id === entry.endpointId);
+  if (!endpoint) return true; // endpoint removed from skill → stale
+  if (endpoint.verification_status === "disabled" || endpoint.verification_status === "failed") return true;
+  // Treat as stale when reliability has dropped below the auto-deprecation floor
+  if (typeof endpoint.reliability_score === "number" && endpoint.reliability_score < 0.2) return true;
+  return false;
 }
 
 function computeCompositeScore(embeddingScore: number, skill: SkillManifest): number {
@@ -429,14 +1028,276 @@ function inferDefaultParam(
  * Returns a map of param_name → inferred_value for params the LLM could resolve.
  * Params it can't resolve are omitted.
  */
-/** Strip meta-phrases from intent to get raw search terms. Returns null if intent is too complex. */
-function extractSearchTermsFromIntent(intent: string): string | null {
-  let terms = intent.trim().toLowerCase();
-  // Strip common prefixes
-  terms = terms
-    .replace(/^(search\s+for|find\s+me|find|look\s+for|looking\s+for|show\s+me|get\s+me|get|browse|shop\s+for|buy)\s+/i, "")
-    .replace(/\s+(on|at|from|in|via)\s+\S+$/i, "") // strip "on amazon", "at walmart"
+const SEARCH_INTENT_STOPWORDS = new Set([
+  "a", "an", "and", "are", "at", "be", "boss", "but", "by", "do", "doing", "fact", "for", "from", "get",
+  "going", "had", "has", "have", "i", "if", "im", "in", "into", "is", "it", "its", "just",
+  "let", "like", "me", "my", "now", "of", "on", "or", "our", "s", "says", "search", "should",
+  "show", "so", "take", "taking", "tell", "that", "the", "their", "them", "there", "these",
+  "they", "this", "thoroughly", "to", "up", "us", "was", "we", "were", "what", "where", "which", "who",
+  "why", "with", "would", "you", "your",
+]);
+
+const SEARCH_DIRECTIVE_PREFIX =
+  /^(search\s+for|search|find\s+me|find|look\s+for|looking\s+for|show\s+me|show|get\s+me|get|browse|discover|shop\s+for|buy)\s+/i;
+const SEARCH_TRAILING_SITE_HINT = /\s+(on|at|from|in|via)\s+\S+$/i;
+const SEARCH_INSTRUCTION_NOISE =
+  /\b(do not|don't|dont|tell me|let me know|extremely thoroughly|thoroughly|random cases|for the sake of it|if there is no such|if none exists|if no such)\b/i;
+const SEARCH_PRIORITY_PATTERN =
+  /\b(high|court|appeal|leave|adduce|evidence|assessment|damages?|tranche|tranches|started|late|stage|hearing|trial|mediation|case|cases|allow|allowed)\b/;
+
+function isLikelySearchParam(
+  urlTemplate: string,
+  param: string,
+): boolean {
+  const lowerParam = param.toLowerCase();
+  if (/(^q$|^k$|basicsearchkey|basic_search_key|query|keyword|keywords|search|lookup|find|term|phrase|querystr|query_string)/.test(lowerParam)) {
+    return true;
+  }
+  try {
+    const parsed = new URL(urlTemplate.replace(/\{[^}]+\}/g, "x"));
+    for (const [key, value] of parsed.searchParams.entries()) {
+      if (key === param || value === "x") {
+        if (/(^q$|^k$|query|keyword|keywords|search|lookup|find|term|phrase|querystr|query_string)/.test(key.toLowerCase())) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    /* ignore malformed templates */
+  }
+  return false;
+}
+
+function collectSearchBindingKeys(
+  endpoint: SkillManifest["endpoints"][number],
+): string[] {
+  const keys = new Set<string>();
+  for (const key of Object.keys(endpoint.body_params ?? {})) {
+    if (isLikelySearchParam(endpoint.url_template, key)) keys.add(key);
+  }
+  for (const key of Object.keys(endpoint.query ?? {})) {
+    if (isLikelySearchParam(endpoint.url_template, key)) keys.add(key);
+  }
+  for (const [rawKey, bindingKey] of Object.entries(extractTemplateQueryBindings(endpoint.url_template))) {
+    if (isLikelySearchParam(endpoint.url_template, rawKey)
+      || isLikelySearchParam(endpoint.url_template, bindingKey)) {
+      keys.add(bindingKey);
+    }
+  }
+  for (const match of endpoint.url_template.matchAll(/\{([^}]+)\}/g)) {
+    const key = match[1];
+    if (isLikelySearchParam(endpoint.url_template, key)) keys.add(key);
+  }
+  return [...keys];
+}
+
+function stripSearchIntentBoilerplate(intent: string): string {
+  return intent
+    .trim()
+    .replace(SEARCH_DIRECTIVE_PREFIX, "")
+    .replace(SEARCH_TRAILING_SITE_HINT, "")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+export function extractLiteralSearchTermsFromIntent(intent: string): string | null {
+  const stripped = stripSearchIntentBoilerplate(intent);
+  if (!stripped) return null;
+  const clauses = stripped
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  if (clauses.length <= 1) return stripped;
+
+  const scored = clauses.map((clause, index) => {
+    const tokens = clause
+      .toLowerCase()
+      .replace(/[^a-z0-9\-/]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 3 && !SEARCH_INTENT_STOPWORDS.has(token));
+    let score = Math.min(tokens.length, 12);
+    if (/["“”']/.test(clause)) score += 4;
+    if (/[()]/.test(clause)) score += 2;
+    if (/\d/.test(clause)) score += 2;
+    if (SEARCH_INSTRUCTION_NOISE.test(clause)) score -= 8;
+    return { clause, index, score };
+  });
+
+  const selected = scored
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 2)
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.clause.replace(/\s+/g, " ").trim());
+
+  const joined = (selected.length > 0 ? selected.join(" ") : stripped).trim();
+  return joined || null;
+}
+
+export function inferSearchParamOverrides(
+  endpoint: SkillManifest["endpoints"][number],
+  intent: string,
+  explicitParams: Record<string, unknown> = {},
+): Record<string, string> {
+  if (!/\b(search|find|lookup|browse|discover)\b/i.test(intent)) return {};
+  const keys = collectSearchBindingKeys(endpoint);
+  if (keys.length === 0) return {};
+  const selectedTerms = selectSearchTermsForExecution(intent);
+  if (!selectedTerms) return {};
+  const overrides: Record<string, string> = {};
+  for (const key of keys) {
+    if (explicitParams[key] != null && explicitParams[key] !== "") continue;
+    overrides[key] = selectedTerms;
+  }
+  return overrides;
+}
+
+export function selectSearchTermsForExecution(intent: string): string | null {
+  const literal = extractLiteralSearchTermsFromIntent(intent);
+  const condensed = extractSearchTermsFromIntent(intent);
+  if (!literal) return condensed;
+  if (!condensed || condensed === literal) return literal;
+  const wordCount = literal.split(/\s+/).filter(Boolean).length;
+  const hasQuotedPhrase = /["“”]/.test(literal);
+  const hasSentencePunctuation = /[.!?]/.test(literal);
+  const tooLongForSingleField = literal.length > 180 || wordCount > 24;
+  if (hasQuotedPhrase && !tooLongForSingleField) return literal;
+  if (!hasSentencePunctuation && !tooLongForSingleField) return literal;
+  if (tooLongForSingleField) {
+    const compactPhraseQuery = buildCompactPhraseSearchQuery(intent);
+    if (compactPhraseQuery) return compactPhraseQuery;
+  }
+  return condensed;
+}
+
+function buildCompactPhraseSearchQuery(intent: string): string | null {
+  const stripped = stripSearchIntentBoilerplate(intent);
+  if (!stripped) return null;
+  const sourceText = extractLiteralSearchTermsFromIntent(intent) ?? stripped;
+  const clauses = sourceText
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  const phraseScores = new Map<string, { score: number; clauseIndex: number }>();
+  const remember = (rawPhrase: string, score: number, clauseIndex: number) => {
+    const phrase = rawPhrase
+      .toLowerCase()
+      .replace(/[^a-z0-9\s/-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!phrase) return;
+    const words = phrase.split(/\s+/).filter(Boolean);
+    const contentWords = words.filter((word) => !SEARCH_INTENT_STOPWORDS.has(word));
+    if (contentWords.length < 2) return;
+    if (!contentWords.some((word) => SEARCH_PRIORITY_PATTERN.test(word))) return;
+    if (words.length > 8) return;
+    if (SEARCH_INSTRUCTION_NOISE.test(phrase)) return;
+    const priorityHits = contentWords.filter((word) => SEARCH_PRIORITY_PATTERN.test(word)).length;
+    const proceduralHits = contentWords.filter((word) => /^(started|tranche|tranches|allow|allowed)$/.test(word)).length;
+    const startsBadly = /^(eg|\d)$/.test(words[0] ?? "") || /^\d+$/.test(words[0] ?? "");
+    const endsBadly = /^(eg|\d)$/.test(words[words.length - 1] ?? "") || /^\d+$/.test(words[words.length - 1] ?? "");
+    const connectorHits = words.filter((word) => ["of", "to", "for", "at", "after"].includes(word)).length;
+    if (/\b(such|none|random)\b/.test(phrase)) return;
+    const boostedScore =
+      score
+      + Math.min(contentWords.length, 4)
+      + priorityHits * 3
+      + proceduralHits * 4
+      + connectorHits
+      + (words.length >= 3 && words.length <= 5 ? 2 : 0)
+      + (/\d/.test(phrase) ? 2 : 0)
+      - (startsBadly ? 4 : 0)
+      - (endsBadly ? 4 : 0)
+      - (/\beg\b/.test(phrase) ? 6 : 0);
+    const existing = phraseScores.get(phrase);
+    if (!existing || boostedScore > existing.score) phraseScores.set(phrase, { score: boostedScore, clauseIndex });
+  };
+
+  for (const [clauseIndex, clause] of clauses.entries()) {
+    for (const match of clause.matchAll(/["“”']([^"“”']{3,80})["“”']/g)) {
+      remember(match[1], 12, clauseIndex);
+    }
+  }
+
+  for (const [clauseIndex, clause] of clauses.entries()) {
+    for (const match of clause.matchAll(/\b[a-z0-9-]+(?:\s+(?:of|to|for|at|after)\s+[a-z0-9-]+){1,4}\b/gi)) {
+      remember(match[0], 14, clauseIndex);
+    }
+    const tokens = clause
+      .toLowerCase()
+      .replace(/[^a-z0-9\s/-]+/g, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+    for (let start = 0; start < tokens.length; start++) {
+      for (let size = 2; size <= 6 && start + size <= tokens.length; size++) {
+        const slice = tokens.slice(start, start + size);
+        if (SEARCH_INTENT_STOPWORDS.has(slice[0]) || SEARCH_INTENT_STOPWORDS.has(slice[slice.length - 1])) continue;
+        remember(slice.join(" "), 6 - Math.abs(size - 4), clauseIndex);
+      }
+    }
+  }
+
+  const selected: string[] = [];
+  const selectedRaw: string[] = [];
+  let currentLength = 0;
+  const clauseCounts = new Map<number, number>();
+  for (const [phrase, meta] of Array.from(phraseScores.entries())
+    .sort((a, b) => b[1].score - a[1].score || a[0].length - b[0].length)) {
+    if (selectedRaw.some((chosen) => chosen.includes(phrase) || phrase.includes(chosen))) continue;
+    if ((clauseCounts.get(meta.clauseIndex) ?? 0) >= 2) continue;
+    const rendered = `"${phrase}"`;
+    const nextLength = currentLength === 0 ? rendered.length : currentLength + 1 + rendered.length;
+    if (nextLength > 140) continue;
+    selected.push(rendered);
+    selectedRaw.push(phrase);
+    clauseCounts.set(meta.clauseIndex, (clauseCounts.get(meta.clauseIndex) ?? 0) + 1);
+    currentLength = nextLength;
+    if (selected.length >= 4) break;
+  }
+
+  return selected.length > 0 ? selected.join(" ") : null;
+}
+
+function condenseSearchIntent(intent: string): string | null {
+  const wantsSearchAction = /\b(search|find|lookup|look\s+for|browse|discover)\b/i.test(intent);
+  const tokens = intent
+    .toLowerCase()
+    .replace(/[^a-z0-9\][\-/]+/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !SEARCH_INTENT_STOPWORDS.has(token));
+  const scored = new Map<string, { token: string; index: number; score: number }>();
+  tokens.forEach((token, index) => {
+    let score = 0;
+    if (SEARCH_PRIORITY_PATTERN.test(token)) score += 10;
+    if (token.length >= 8) score += 2;
+    if (index < 12) score += 1;
+    const existing = scored.get(token);
+    if (!existing || score > existing.score) {
+      scored.set(token, { token, index, score });
+    }
+  });
+  const budget = wantsSearchAction ? 13 : 14;
+  const selected = Array.from(scored.values())
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, budget)
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.token);
+  if (selected.length === 0) return null;
+  if (wantsSearchAction && selected[0] !== "search") {
+    selected.unshift("search");
+  }
+  return selected.join(" ");
+}
+
+/** Strip meta-phrases from intent to get raw search terms. Returns null if intent is too complex. */
+export function extractSearchTermsFromIntent(intent: string): string | null {
+  let terms = stripSearchIntentBoilerplate(intent).toLowerCase();
+  if (!terms) return null;
+  const words = terms.split(/\s+/).filter(Boolean);
+  if (terms.length > 160 || words.length > 20 || /[.!?]/.test(terms)) {
+    return condenseSearchIntent(terms);
+  }
   // If there are multiple clauses (dates, locations, filters), fall back to LLM
   if (/\b(from|to|between|before|after|near|in\s+\w+,?\s+\w+|under\s+\$|over\s+\$|cheaper\s+than|more\s+than)\b/i.test(terms)) {
     return null;
@@ -455,9 +1316,11 @@ async function inferParamsFromIntent(
   // Fast path: single search-like param — extract search terms directly, skip LLM
   if (unboundParams.length === 1) {
     const param = unboundParams[0];
-    const searchTerms = extractSearchTermsFromIntent(intent);
-    if (searchTerms) {
-      return { [param]: searchTerms };
+    if (isLikelySearchParam(urlTemplate, param, endpointDescription)) {
+      const searchTerms = selectSearchTermsForExecution(intent);
+      if (searchTerms) {
+        return { [param]: searchTerms };
+      }
     }
   }
 
@@ -556,6 +1419,29 @@ async function withOpTimeout<T>(label: string, ms: number, work: Promise<T>): Pr
   ]);
 }
 
+async function withAbortableOpTimeout<T>(
+  label: string,
+  ms: number,
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error(`${label}_timeout:${ms}`)), ms);
+  try {
+    return await Promise.race([
+      work(controller.signal),
+      new Promise<never>((_, reject) =>
+        controller.signal.addEventListener(
+          "abort",
+          () => reject(controller.signal.reason ?? new Error(`${label}_timeout:${ms}`)),
+          { once: true },
+        ),
+      ),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function inferPreferredEntityTokens(intent: string): string[] {
   const lower = intent.toLowerCase();
   if (/\b(post|posts|tweet|tweets|status|statuses)\b/.test(lower))
@@ -650,6 +1536,12 @@ export function marketplaceSkillMatchesContext(
   intent: string,
   contextUrl?: string,
 ): boolean {
+  if (contextUrl && !skill.endpoints.some((endpoint) => endpointMatchesContextOrigin(endpoint, contextUrl))) {
+    return false;
+  }
+  if (isFeedTimelineIntent(intent, contextUrl)) {
+    return skill.endpoints.some((endpoint) => endpointMatchesFeedTimelineContext(endpoint, contextUrl));
+  }
   if (!contextUrl || !isConcreteEntityDetailIntent(intent, contextUrl)) return true;
   let contextPath = "";
   try {
@@ -795,6 +1687,111 @@ async function agentJudgeExecution(
   return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
 }
 
+function normalizeParityRows(data: unknown, intent: string): Array<Record<string, unknown>> {
+  const projected = projectIntentData(data, intent);
+  if (Array.isArray(projected)) {
+    return projected.filter((row): row is Record<string, unknown> => !!row && typeof row === "object");
+  }
+  if (projected && typeof projected === "object") return [projected as Record<string, unknown>];
+  return [];
+}
+
+function compactParityValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim().toLowerCase().slice(0, 160);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.slice(0, 3).map((item) => compactParityValue(item)).filter(Boolean).join("|");
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).slice(0, 3).map((item) => compactParityValue(item)).filter(Boolean).join("|");
+  }
+  return "";
+}
+
+function parityFingerprint(row: Record<string, unknown>): string {
+  const preferredKeys = [
+    "id",
+    "entityUrn",
+    "urn",
+    "url",
+    "link",
+    "slug",
+    "name",
+    "title",
+    "headline",
+    "author",
+    "user",
+    "content",
+    "text",
+    "body",
+  ];
+  const parts = preferredKeys
+    .map((key) => compactParityValue(row[key]))
+    .filter(Boolean)
+    .slice(0, 4);
+  if (parts.length > 0) return parts.join("::");
+  return compactParityValue(row);
+}
+
+function localParityVerdict(
+  intent: string,
+  browserBaseline: unknown,
+  replayResult: unknown,
+): { verdict: "pass" | "fail" | "skip"; reason: string } {
+  const browserAssessment = assessIntentResult(browserBaseline, intent);
+  const replayAssessment = assessIntentResult(replayResult, intent);
+  if (replayAssessment.verdict === "fail") return { verdict: "fail", reason: `replay_${replayAssessment.reason}` };
+  if (browserAssessment.verdict === "fail") return { verdict: "skip", reason: `browser_${browserAssessment.reason}` };
+
+  const browserRows = normalizeParityRows(browserBaseline, intent);
+  const replayRows = normalizeParityRows(replayResult, intent);
+  if (browserRows.length === 0 || replayRows.length === 0) return { verdict: "skip", reason: "insufficient_rows" };
+
+  const browserPrints = new Set(browserRows.map(parityFingerprint).filter(Boolean));
+  const replayPrints = new Set(replayRows.map(parityFingerprint).filter(Boolean));
+  if (browserPrints.size === 0 || replayPrints.size === 0) return { verdict: "skip", reason: "insufficient_fingerprints" };
+
+  let overlap = 0;
+  for (const fingerprint of browserPrints) {
+    if (replayPrints.has(fingerprint)) overlap += 1;
+  }
+  const overlapRatio = overlap / Math.max(1, Math.min(browserPrints.size, replayPrints.size));
+  if (overlapRatio >= 0.4) return { verdict: "pass", reason: `fingerprint_overlap_${overlap}/${Math.min(browserPrints.size, replayPrints.size)}` };
+  if (overlap === 0 && browserPrints.size >= 2 && replayPrints.size >= 1) {
+    return { verdict: "fail", reason: "zero_overlap" };
+  }
+  return { verdict: "skip", reason: `low_overlap_${overlapRatio.toFixed(2)}` };
+}
+
+async function agentJudgeParity(
+  intent: string,
+  browserBaseline: unknown,
+  replayResult: unknown,
+): Promise<"pass" | "fail" | "skip"> {
+  const browserProjected = projectIntentData(browserBaseline, intent);
+  const replayProjected = projectIntentData(replayResult, intent);
+  const verdict = await callJsonAgent<{
+    verdict?: "pass" | "fail" | "skip";
+    result?: "pass" | "fail" | "skip";
+    judgment?: "pass" | "fail" | "skip";
+  }>(
+    "You judge whether a replay/API result is close enough to the browser-visible result for the same web task. Return JSON only.",
+    JSON.stringify({
+      task: "judge_browser_replay_parity",
+      intent,
+      browser_result: browserProjected,
+      replay_result: replayProjected,
+      rules: [
+        "This is a soft parity check, not strict equality.",
+        "Pass when the replay captures substantially the same user-visible entities or records, even if order, counts, or some fields differ.",
+        "Fail when the replay is a different entity type, obviously unrelated, or misses almost all visible items.",
+        "Skip when evidence is too sparse or ambiguous.",
+      ],
+    }),
+    { verdict: "skip" as const },
+  );
+  return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
+}
+
 export function resolveEndpointTemplateBindings(
   endpoint: SkillManifest["endpoints"][number],
   params: Record<string, unknown> = {},
@@ -846,6 +1843,8 @@ export async function resolveAndExecute(
     search_candidates: [] as unknown[],
     autoexec_attempts: [] as unknown[],
   };
+  const queryIntent = selectSearchTermsForExecution(intent) ?? extractSearchTermsFromIntent(intent) ?? intent;
+  if (queryIntent !== intent) decisionTrace.query_intent = queryIntent;
 
   // Fallback baselines when a skill has no discovery_cost (old skills / first capture)
   const DEFAULT_CAPTURE_MS = 22_000;
@@ -859,7 +1858,7 @@ export async function resolveAndExecute(
   const clientScope = options?.client_scope ?? "global";
   // force_capture: clear domain caches so we go straight to browser capture
   if (forceCapture && context?.url) {
-    const d = new URL(context.url).hostname;
+    const d = getDomainReuseKey(context.url) ?? new URL(context.url).hostname;
     for (const [k] of capturedDomainCache) {
       if (k.startsWith(`${clientScope}:`) && k.includes(`:${d}:`)) capturedDomainCache.delete(k);
     }
@@ -893,7 +1892,7 @@ export async function resolveAndExecute(
     const baselineMs = cost?.capture_ms ?? DEFAULT_CAPTURE_MS;
 
     // Token savings: marketplace/cache returns structured data, skipping full-page browsing
-    if (source === "marketplace" || source === "route-cache") {
+    if (source === "marketplace" || source === "route-cache" || source === "first-pass") {
       timing.tokens_saved = Math.max(0, baselineTokens - responseTokens);
       timing.tokens_saved_pct =
         baselineTokens > 0 ? Math.round((timing.tokens_saved / baselineTokens) * 100) : 0;
@@ -915,6 +1914,27 @@ export async function resolveAndExecute(
     );
     // Fire-and-forget to backend
     recordOrchestrationPerf(timing).catch(() => {});
+    // Persist anonymized local trace artifact (#28)
+    emitRouteTrace({
+      trace_id: trace?.trace_id ?? nanoid(),
+      session_scope: clientScope,
+      goal: intent,
+      domain: context?.domain ?? (context?.url ? (() => { try { return new URL(context.url!).hostname; } catch { return ""; } })() : ""),
+      started_at: new Date(t0).toISOString(),
+      skill_id: skillId,
+      endpoint_id: trace?.endpoint_id,
+      source,
+      status_code: trace?.status_code,
+      response_bytes: timing.response_bytes,
+      result,
+      schema_match: trace?.success ?? false,
+      candidates_considered: timing.candidates_found,
+      bindings_before: params,
+      bindings_resolved: {},
+      bindings_missing: [],
+      outcome: trace?.success === false ? "failure" : trace?.success ? "success" : "skip",
+      error: trace?.error,
+    });
     return timing;
   }
 
@@ -923,24 +1943,35 @@ export async function resolveAndExecute(
     skill: SkillManifest,
     source: "marketplace" | "live-capture",
     extraFields?: Record<string, unknown>,
-  ): Promise<OrchestratorResult> {
+  ): Promise<AutoExecDecision> {
     // Only attempt auto-exec if we have an intent to infer params from
-    if (intent && intent.trim().length > 0) {
+    if (queryIntent && queryIntent.trim().length > 0) {
       try {
         const autoResult = await tryAutoExecute(skill, source);
         if (autoResult) {
           // Promote to marketplace cache so subsequent requests skip live-capture
-          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "");
-          return autoResult;
+          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "", context?.url);
+          return { orchestratorResult: autoResult, autoexecFailedAll: false };
         }
+        return {
+          orchestratorResult: buildDeferral(skill, source, extraFields),
+          autoexecFailedAll:
+            !skillHasContextStructuredSearchEndpoint(skill, queryIntent, context?.url) &&
+            !skillHasBetterStructuredSearchEndpoint(
+              skill,
+              undefined,
+              queryIntent,
+              context?.url,
+            ),
+        };
       } catch (err) {
         console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
       }
     }
-    // Even when auto-exec fails or is skipped, promote skill to caches
-    // to avoid re-searching marketplace on second-pass retrieval (#89)
-    promoteLearnedSkill(clientScope, cacheKey, skill, "");
-    return buildDeferral(skill, source, extraFields);
+    return {
+      orchestratorResult: buildDeferral(skill, source, extraFields),
+      autoexecFailedAll: false,
+    };
   }
 
   /** Build a deferral response — returns the skill + ranked endpoints for the agent to choose. */
@@ -949,13 +1980,13 @@ export async function resolveAndExecute(
     source: "marketplace" | "live-capture",
     extraFields?: Record<string, unknown>,
   ): OrchestratorResult {
-    const resolvedSkill = withContextReplayEndpoint(skill, intent, context?.url);
+    const resolvedSkill = withContextReplayEndpoint(skill, queryIntent, context?.url);
     const chunk = getSkillChunk(resolvedSkill, {
-      intent,
+      intent: queryIntent,
       known_bindings: knownBindingsFromInputs(params, context?.url),
       max_operations: 8,
     });
-    const epRanked = rankEndpoints(resolvedSkill.endpoints, intent, resolvedSkill.domain, context?.url);
+    const epRanked = rankEndpoints(resolvedSkill.endpoints, queryIntent, resolvedSkill.domain, context?.url);
     const deferTrace: ExecutionTrace = {
       trace_id: nanoid(),
       skill_id: resolvedSkill.skill_id,
@@ -1028,22 +2059,48 @@ export async function resolveAndExecute(
     });
   }
 
-  function canAutoExecuteEndpoint(endpoint: SkillManifest["endpoints"][number]): boolean {
-    // Block endpoints with high unsafe action score (#87)
-    const unsafeScore = computeUnsafeActionScore(endpoint);
-    if (unsafeScore >= UNSAFE_ACTION_BLOCK_THRESHOLD) return false;
+  const UNSAFE_ACTION_BLOCK_THRESHOLD = 0.6;
 
+  function computeUnsafeActionScore(endpoint: SkillManifest["endpoints"][number]): number {
+    let score = 0;
+    if (endpoint.idempotency === "unsafe") score += 0.4;
+    if (endpoint.method === "POST" || endpoint.method === "PUT" || endpoint.method === "DELETE") score += 0.2;
+    const inferredFromBundle = /inferred from js bundle/i.test(endpoint.description ?? "");
+    if (inferredFromBundle) score += 0.2; // guessed from bundle = risky
+    if (!endpoint.response_schema) score += 0.1;
+    if (endpoint.verification_status === "failed") score += 0.1;
+    if (endpoint.reliability_score < 0.3) score += 0.1;
+    // Reduce score for strong evidence
+    if (endpoint.trigger_url) score -= 0.1;
+    if (endpoint.verification_status === "verified") score -= 0.15;
+    return Math.max(0, Math.min(1, score));
+  }
+
+
+  function canAutoExecuteEndpoint(endpoint: SkillManifest["endpoints"][number]): boolean {
     const endpointParams = resolveEndpointTemplateBindings(endpoint, resolvedParams, context?.url);
     const missing = missingTemplateParams(endpoint, endpointParams);
-    const unresolvedBySync = missing.filter((name) => inferDefaultParam(name, intent) === undefined);
+    // For params that inferDefaultParam can't resolve synchronously, check if LLM
+    // inference is plausible (i.e. we have an intent string and unbound params).
+    // The actual LLM call happens at execution time, not here.
+    const unresolvedBySync = missing.filter((name) => inferDefaultParam(name, queryIntent) === undefined);
     if (unresolvedBySync.length > 0) {
-      if (!intent || intent.trim().length === 0) return false;
+      // If we have an intent, assume the LLM can likely resolve remaining params
+      // (search terms, locations, dates, etc.) — don't block execution.
+      if (!queryIntent || queryIntent.trim().length === 0) return false;
+      // Safety: don't auto-execute if there are too many unresolved params (likely wrong endpoint)
       if (unresolvedBySync.length > 4) return false;
     }
-    if (endpoint.dom_extraction) {
-      // Block mutable DOM endpoints from hidden auto-exec (#89)
-      if (endpoint.method !== "GET" && endpoint.idempotency !== "safe") return false;
-      return true;
+    if (endpoint.dom_extraction) return true;
+    if (endpoint.method !== "GET" && endpoint.idempotency !== "safe") {
+      // Block high-risk non-safe endpoints unless caller has confirmed
+      const unsafeScore = computeUnsafeActionScore(endpoint);
+      if (unsafeScore >= UNSAFE_ACTION_BLOCK_THRESHOLD && !options?.confirm_unsafe) {
+        console.log(
+          `[auto-exec] blocked unsafe endpoint ${endpoint.endpoint_id} (unsafe_score=${unsafeScore.toFixed(2)})`,
+        );
+        return false;
+      }
     }
     return endpoint.method === "GET" || endpoint.idempotency === "safe";
   }
@@ -1062,6 +2119,26 @@ export async function resolveAndExecute(
     }
     return merged;
   })();
+
+  // --- Prior trace retrieval (lightweight RAG signal) ---
+  // Retrieve prior execution traces for this domain+intent to boost endpoints that worked before.
+  const requestedDomainForTraces = context?.domain ?? (context?.url ? (() => { try { return new URL(context.url!).hostname; } catch { return null; } })() : null);
+  let priorSuccessEndpoints: Set<string> | undefined;
+  if (requestedDomainForTraces && queryIntent) {
+    try {
+      const priorTraces = findTracesByIntent(requestedDomainForTraces, queryIntent, 3);
+      if (priorTraces.length > 0) {
+        priorSuccessEndpoints = new Set(
+          priorTraces.filter(t => t.success && t.selected_endpoint_id)
+            .map(t => t.selected_endpoint_id!),
+        );
+        (decisionTrace as Record<string, unknown>).prior_traces = priorTraces.length;
+        (decisionTrace as Record<string, unknown>).prior_success_endpoints = [...priorSuccessEndpoints];
+      }
+    } catch {
+      // Trace retrieval must never block the resolve path
+    }
+  }
   /**
    * Try to auto-select and execute the best endpoint when the agent hasn't chosen one.
    * Uses BM25 ranking (boosted by LLM descriptions). Auto-executes when:
@@ -1073,17 +2150,20 @@ export async function resolveAndExecute(
     skill: SkillManifest,
     source: "marketplace" | "live-capture",
   ): Promise<OrchestratorResult | null> {
-    let epRanked = rankEndpoints(skill.endpoints, intent, skill.domain, context?.url);
+    let epRanked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url);
     const originalRanked = epRanked;
     const chunk = getSkillChunk(skill, {
-      intent,
+      intent: queryIntent,
       known_bindings: knownBindingsFromInputs(resolvedParams, context?.url),
       max_operations: 8,
     });
+    const preferredAutoexecIds = new Set(
+      epRanked.slice(0, Math.min(5, epRanked.length)).map((ranked) => ranked.endpoint.endpoint_id),
+    );
     const graphEndpointIds = new Set(
       chunk.available_operation_ids.length > 0
-        ? chunk.available_operation_ids
-        : chunk.operations.map((operation) => operation.operation_id),
+        ? [...chunk.available_operation_ids, ...preferredAutoexecIds]
+        : [...chunk.operations.map((operation) => operation.operation_id), ...preferredAutoexecIds],
     );
     if (graphEndpointIds.size > 0) {
       epRanked = epRanked.filter((ranked) => graphEndpointIds.has(ranked.endpoint.endpoint_id));
@@ -1097,6 +2177,18 @@ export async function resolveAndExecute(
         epRanked = dedupeObservedOverBundle([...observedBeforeFilter, ...epRanked]);
       }
     }
+
+    // --- Hard reachability filter (A_reachable from the Machine Intent paper) ---
+    // Unreachable endpoints are removed, not just penalized. Only applied when the
+    // graph has at least one reachable entry point to avoid degenerate cases.
+    const reachableIds = computeReachableEndpoints(
+      ensureSkillOperationGraph(skill),
+      knownBindingsFromInputs(resolvedParams, context?.url),
+    );
+    if (reachableIds.size > 0) {
+      epRanked = epRanked.filter((r) => reachableIds.has(r.endpoint.endpoint_id));
+    }
+    // --- end reachability filter ---
     if (epRanked.length === 0) return null;
     decisionTrace.search_candidates = epRanked.slice(0, 10).map((ranked) => ({
       endpoint_id: ranked.endpoint.endpoint_id,
@@ -1104,14 +2196,15 @@ export async function resolveAndExecute(
       description: ranked.endpoint.description,
       url: ranked.endpoint.url_template,
       dom_extraction: !!ranked.endpoint.dom_extraction,
+      unsafe_action_score: Math.round(computeUnsafeActionScore(ranked.endpoint) * 100) / 100,
     }));
 
     // When BM25 scores are tied, use schema field overlap with intent as tiebreaker.
     // "get subreddit posts" → intent tokens ["subreddit","posts","get"]
     // Endpoint with schema {title, author, score, num_comments} > {token, expires}
-    if (epRanked.length >= 2 && intent) {
+    if (epRanked.length >= 2 && queryIntent) {
       const intentTokens = new Set(
-        intent
+        queryIntent
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, " ")
           .split(/\s+/)
@@ -1177,13 +2270,13 @@ export async function resolveAndExecute(
       const missing = missingTemplateParams(r.endpoint, endpointBindings);
       if (missing.length === 0) readinessBonus += 40;
       else {
-        const syncSatisfiable = missing.filter((name) => inferDefaultParam(name, intent) !== undefined);
+        const syncSatisfiable = missing.filter((name) => inferDefaultParam(name, queryIntent) !== undefined);
         const remaining = missing.length - syncSatisfiable.length;
         // Sync-resolvable params get full bonus; remaining params get partial credit
         // if we have an intent (LLM can likely resolve them at execution time)
         if (remaining === 0) {
           readinessBonus += 8;
-        } else if (intent && remaining <= 4) {
+        } else if (queryIntent && remaining <= 4) {
           // Likely LLM-resolvable — small penalty instead of catastrophic one
           readinessBonus += 4 - (remaining * 5);
         } else {
@@ -1197,6 +2290,12 @@ export async function resolveAndExecute(
       if (hasObservedApiCandidate && inferredFromBundle) readinessBonus -= 45;
       if (hasInternalApiCandidate && r.endpoint.dom_extraction) readinessBonus -= 35;
       if (hasInternalApiCandidate && isDocumentRoute) readinessBonus -= 80;
+      if (isSearchLikeIntent(queryIntent, context?.url)) {
+        const isCapturedPageArtifact = /captured page artifact/i.test(r.endpoint.description ?? "");
+        if (endpointHasSearchBindings(r.endpoint)) readinessBonus += 70;
+        if (endpointHasSearchBindings(r.endpoint) && r.endpoint.trigger_url) readinessBonus += 20;
+        if (isCapturedPageArtifact) readinessBonus -= 55;
+      }
       if (r.endpoint.trigger_url && context?.url) {
         try {
           if (new URL(r.endpoint.trigger_url).pathname === new URL(context.url).pathname)
@@ -1208,7 +2307,27 @@ export async function resolveAndExecute(
       return { ...r, score: r.score + readinessBonus };
     });
     epRanked.sort((a, b) => b.score - a.score);
-    epRanked = prioritizeIntentMatchedApis(epRanked, intent, context?.url);
+    epRanked = prioritizeIntentMatchedApis(epRanked, queryIntent, context?.url);
+
+    // --- DAG advisory boosts (discover-choose-act) ---
+    // Fire-and-forget advisory call: graph service enriches score order using
+    // prerequisite-chain reachability and co-occurrence predictions.
+    if (epRanked.length > 1 && skill.domain) {
+      const bindings = Object.keys(knownBindingsFromInputs(resolvedParams, context?.url));
+      const dagPlan = await fetchDagAdvisoryPlan(
+        skill.domain,
+        epRanked[0].endpoint.endpoint_id,
+        bindings,
+      );
+      if (dagPlan) {
+        epRanked = applyDagAdvisoryBoosts(epRanked, dagPlan);
+        (decisionTrace as Record<string, unknown>).dag_advisory = {
+          chain_ready: dagPlan.chain_ready,
+          predicted_next: dagPlan.predicted_next,
+        };
+      }
+    }
+    // --- end DAG advisory ---
 
     // Try top candidates in order until one succeeds. If all fail, fall through to deferral.
     const ready = epRanked.filter((r) => canAutoExecuteEndpoint(r.endpoint));
@@ -1217,9 +2336,14 @@ export async function resolveAndExecute(
         ? [...ready, ...epRanked.filter((r) => !canAutoExecuteEndpoint(r.endpoint))]
         : epRanked;
     const MAX_TRIES = Math.min(tryList.length, 5);
+    const deterministicStructuredSearchLeader =
+      /\b(search|find|lookup|browse|discover)\b/i.test(queryIntent) &&
+      !!epRanked[0] &&
+      endpointHasSearchBindings(epRanked[0].endpoint) &&
+      (!!epRanked[0].endpoint.dom_extraction || !!epRanked[0].endpoint.response_schema);
     const agentOrder =
-      !agentChoseEndpoint && tryList.length > 1
-        ? await agentSelectEndpoint(intent, skill, tryList.slice(0, MAX_TRIES), context?.url)
+      !agentChoseEndpoint && tryList.length > 1 && !deterministicStructuredSearchLeader
+        ? await agentSelectEndpoint(queryIntent, skill, tryList.slice(0, MAX_TRIES), context?.url)
         : null;
     const orderedTryList = agentOrder
       ? [
@@ -1242,8 +2366,13 @@ export async function resolveAndExecute(
           candidate.endpoint.url_template,
           context?.url,
         );
+        const templateDefaults: Record<string, string | number | boolean> = {
+          ...(candidate.endpoint.path_params ?? {}),
+          ...(candidate.endpoint.body_params ?? {}),
+        };
+        const searchOverrides = inferSearchParamOverrides(candidate.endpoint, intent, params);
         const inferredOptionalParams: Record<string, string | number | boolean> = {};
-        const inferredType = inferDefaultParam("type", intent);
+        const inferredType = inferDefaultParam("type", queryIntent);
         if (
           inferredType !== undefined &&
           endpointParams.type == null &&
@@ -1256,21 +2385,27 @@ export async function resolveAndExecute(
           [...candidate.endpoint.url_template.matchAll(/\{([^}]+)\}/g)]
             .map((m) => m[1])
             .filter((name) => endpointParams[name] == null || endpointParams[name] === "")
-            .map((name) => [name, inferDefaultParam(name, intent)] as const)
+            .map((name) => [name, inferDefaultParam(name, queryIntent)] as const)
             .filter(
               (entry): entry is [string, string | number | boolean] => entry[1] !== undefined,
             ),
         );
         // LLM inference for remaining unbound params (search queries, locations, dates, etc.)
-        const allBound = { ...endpointParams, ...syncInferred, ...inferredOptionalParams };
+        const allBound = {
+          ...templateDefaults,
+          ...endpointParams,
+          ...syncInferred,
+          ...searchOverrides,
+          ...inferredOptionalParams,
+        };
         const stillUnbound = [...candidate.endpoint.url_template.matchAll(/\{([^}]+)\}/g)]
           .map((m) => m[1])
           .filter((name) => allBound[name] == null || allBound[name] === "");
         let llmInferred: Record<string, string> = {};
-        if (stillUnbound.length > 0 && intent) {
+        if (stillUnbound.length > 0 && queryIntent) {
           llmInferred = await inferParamsFromIntent(
             candidate.endpoint.url_template,
-            intent,
+            queryIntent,
             stillUnbound,
             candidate.endpoint.description,
           );
@@ -1278,18 +2413,26 @@ export async function resolveAndExecute(
         const execOut = await executeSkill(
           skill,
           {
+            ...templateDefaults,
             ...endpointParams,
             ...syncInferred,
+            ...searchOverrides,
             ...llmInferred,
             ...inferredOptionalParams,
             endpoint_id: candidate.endpoint.endpoint_id,
+            ...(queryIntent !== intent ? { intent: queryIntent } : {}),
           },
           projection,
-          { ...options, intent, contextUrl: context?.url },
+          { ...options, intent: queryIntent, contextUrl: context?.url },
         );
         timing.execute_ms = Date.now() - te0;
         if (execOut.trace.success) {
-          const localAssessment = assessIntentResult(execOut.result, intent);
+          const localAssessment = assessLocalExecutionResult(
+            candidate.endpoint,
+            execOut.result,
+            queryIntent,
+            execOut.trace,
+          );
           if (localAssessment.verdict === "fail") {
             (decisionTrace.autoexec_attempts as unknown[]).push({
               endpoint_id: candidate.endpoint.endpoint_id,
@@ -1304,11 +2447,33 @@ export async function resolveAndExecute(
             );
             continue;
           }
+          const isCapturedPageArtifact = /captured page artifact/i.test(
+            candidate.endpoint.description ?? "",
+          );
+          if (candidate.endpoint.dom_extraction && isCapturedPageArtifact && localAssessment.verdict !== "pass") {
+            (decisionTrace.autoexec_attempts as unknown[]).push({
+              endpoint_id: candidate.endpoint.endpoint_id,
+              score: Math.round(candidate.score * 10) / 10,
+              trace_success: true,
+              judge: "fail",
+              status_code: execOut.trace.status_code ?? null,
+              local_reason: `artifact_${localAssessment.reason}`,
+            });
+            console.log(
+              `[auto-exec] #${i + 1} local fail: ${candidate.endpoint.endpoint_id} (artifact_${localAssessment.reason})`,
+            );
+            continue;
+          }
           // For DOM extraction endpoints, trust the local assessment more — the LLM judge
           // often fails on DOM-extracted data because the schema (heading_1, heading_2, etc.)
           // looks unfamiliar. If the extraction succeeded and wasn't locally rejected, pass it.
+          const trustDomExtraction =
+            candidate.endpoint.dom_extraction &&
+            !isCapturedPageArtifact &&
+            localAssessment.verdict !== "fail" &&
+            candidate.score >= 0;
           const judged =
-            localAssessment.verdict === "pass" || candidate.endpoint.dom_extraction
+            localAssessment.verdict === "pass" || trustDomExtraction
               ? "pass"
               : await agentJudgeExecution(intent, candidate.endpoint, execOut.result);
           (decisionTrace.autoexec_attempts as unknown[]).push({
@@ -1323,13 +2488,11 @@ export async function resolveAndExecute(
             console.log(
               `[auto-exec] #${i + 1} rejected: ${candidate.endpoint.endpoint_id} (${judged})`,
             );
+            recordDagNegative(skill, candidate.endpoint.endpoint_id);
             continue;
           }
-          skillRouteCache.set(cacheKey, {
-            skillId: skill.skill_id,
-            domain: skill.domain,
-            ts: Date.now(),
-          });
+          cacheResolvedSkill(cacheKey, skill, candidate.endpoint.endpoint_id);
+          recordDagSessionAction(skill, candidate.endpoint.endpoint_id, true);
           writeDebugTrace("resolve", {
             ...decisionTrace,
             outcome: "autoexec_success",
@@ -1346,6 +2509,25 @@ export async function resolveAndExecute(
             execOut.response_schema,
             execOut.extraction_hints,
           );
+          // --- Store successful execution trace for future RAG retrieval ---
+          try {
+            const endpointSeq = (decisionTrace.autoexec_attempts as { endpoint_id: string }[])
+              .map(a => a.endpoint_id);
+            storeExecutionTrace({
+              trace_id: execOut.trace.trace_id ?? nanoid(),
+              domain: skill.domain,
+              intent: queryIntent,
+              endpoint_sequence: endpointSeq,
+              selected_endpoint_id: candidate.endpoint.endpoint_id,
+              params: resolvedParams,
+              success: true,
+              timestamp: new Date().toISOString(),
+              duration_ms: timing.execute_ms,
+              context_url: context?.url,
+            });
+          } catch {
+            // Trace storage must never block the execution path
+          }
           return {
             result: execOut.result,
             trace: execOut.trace,
@@ -1383,60 +2565,151 @@ export async function resolveAndExecute(
       source,
       skill_id: skill.skill_id,
     });
+    // --- Store failed execution trace for future RAG retrieval ---
+    try {
+      const endpointSeq = (decisionTrace.autoexec_attempts as { endpoint_id: string }[])
+        .map(a => a.endpoint_id);
+      storeExecutionTrace({
+        trace_id: nanoid(),
+        domain: skill.domain,
+        intent: queryIntent,
+        endpoint_sequence: endpointSeq,
+        params: resolvedParams,
+        success: false,
+        timestamp: new Date().toISOString(),
+        duration_ms: timing.execute_ms,
+        context_url: context?.url,
+      });
+    } catch {
+      // Trace storage must never block the execution path
+    }
     return null; // All candidates failed, fall through to deferral
   }
 
   const requestedDomain = context?.domain ?? (context?.url ? new URL(context.url).hostname : null);
-  const cacheKey = scopedCacheKey(
-    clientScope,
-    buildResolveCacheKey(requestedDomain, intent, context?.url),
-  );
+  const requestedDomainCacheKey = getDomainReuseKey(context?.url ?? requestedDomain);
+  const resolveCacheKey = buildResolveCacheKey(requestedDomain, intent, context?.url);
+  const cacheKey = scopedCacheKey(clientScope, resolveCacheKey);
 
   if (!forceCapture && !agentChoseEndpoint) {
     const cachedResult = routeResultCache.get(cacheKey);
     if (cachedResult) {
-      if (
-        cachedResult.expires <= Date.now() ||
-        !isAcceptableIntentResult(cachedResult.result, intent)
-      ) {
+      if (!shouldReuseRouteResultSnapshot(cachedResult, queryIntent, context?.url)) {
         routeResultCache.delete(cacheKey);
       } else {
         timing.cache_hit = true;
-        const deferred = await buildDeferralWithAutoExec(cachedResult.skill, "marketplace");
-        deferred.timing.cache_hit = true;
-        return deferred;
+        writeDebugTrace("resolve", {
+          ...decisionTrace,
+          outcome: "route_result_cache_hit",
+          source: "route-cache",
+          skill_id: cachedResult.skill.skill_id,
+          selected_endpoint_id: cachedResult.endpointId ?? cachedResult.trace.endpoint_id,
+        });
+        return buildCachedResultResponse(
+          cachedResult,
+          "marketplace",
+          finalize(
+            "route-cache",
+            cachedResult.result,
+            cachedResult.skill.skill_id,
+            cachedResult.skill,
+            cachedResult.trace,
+          ),
+        );
       }
     }
   }
 
   // Route-cache fast path: exact intent+url match from prior resolve
   if (!forceCapture && !agentChoseEndpoint) {
-    const cached = skillRouteCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
-      const skill = await getSkill(cached.skillId, clientScope);
-      if (skill && hasUsableEndpoints(skill)) {
-        timing.cache_hit = true;
-        const deferred = await buildDeferralWithAutoExec(skill, "marketplace");
-        deferred.timing.cache_hit = true;
-        return deferred;
+    const routeCacheCandidates: RouteCacheCandidate[] = [];
+    for (const scopedKey of scopedResolveCacheKeys(clientScope, resolveCacheKey)) {
+      const cached = skillRouteCache.get(scopedKey);
+      if (!cached) continue;
+      if (Date.now() - cached.ts >= ROUTE_CACHE_TTL) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
       }
-      skillRouteCache.delete(cacheKey);
-      persistRouteCache();
+      const skill =
+        readSkillSnapshot(cached.localSkillPath) ??
+        await getSkillWithTimeout(cached.skillId, clientScope);
+      if (!skill || !isCachedSkillRelevantForIntent(skill, queryIntent, context?.url)) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
+      }
+      routeCacheCandidates.push({
+        scopedKey,
+        scope: scopedKey.slice(0, scopedKey.indexOf(":")),
+        entry: cached,
+        skill,
+      });
+    }
+    const bestCached = chooseBestRouteCacheCandidate(routeCacheCandidates, queryIntent, context?.url);
+    if (bestCached) {
+      if (bestCached.scopedKey !== cacheKey) {
+        promoteLearnedSkill(
+          clientScope,
+          resolveCacheKey,
+          bestCached.skill,
+          bestCached.entry.endpointId,
+          context?.url,
+        );
+      }
+      const deferred = await buildDeferralWithAutoExec(bestCached.skill, "marketplace");
+      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+        console.log("[route-cache] stale cached skill; retrying via live capture");
+        invalidateResolveCacheEntries(
+          [cacheKey, bestCached.scopedKey],
+          requestedDomainCacheKey ? [requestedDomainCacheKey] : [],
+        );
+      } else {
+        timing.cache_hit = true;
+        deferred.orchestratorResult.timing.cache_hit = true;
+        return deferred.orchestratorResult;
+      }
     }
   }
 
   // Domain-level cache: different intent, same domain → reuse skill with new params
   if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
-    const regDomain = getRegistrableDomain(requestedDomain);
-    const domainCached = regDomain ? domainSkillCache.get(regDomain) : null;
+    const domainKey = getDomainReuseKey(context?.url ?? requestedDomain);
+    const domainCached = domainKey ? domainSkillCache.get(domainKey) : null;
     if (domainCached && Date.now() - domainCached.ts < 7 * 24 * 60 * 60_000) {
-      const skill = await getSkill(domainCached.skillId, clientScope);
-      if (skill && hasUsableEndpoints(skill)) {
-        timing.cache_hit = true;
-        console.log(`[domain-cache] hit for ${regDomain} → skill ${skill.skill_id.slice(0, 15)}`);
+      const skill = readSkillSnapshot(domainCached.localSkillPath) ?? await getSkill(domainCached.skillId, clientScope);
+      if (skill && isCachedSkillRelevantForIntent(skill, queryIntent, context?.url)) {
+        console.log(`[domain-cache] hit for ${domainKey} → skill ${skill.skill_id.slice(0, 15)}`);
         const result = await buildDeferralWithAutoExec(skill, "marketplace");
-        result.timing.cache_hit = true;
-        return result;
+        if (shouldFallbackToLiveCaptureAfterAutoexecFailure(result.autoexecFailedAll, context?.url)) {
+          console.log(`[domain-cache] stale skill for ${domainKey}; retrying via live capture`);
+          invalidateResolveCacheEntries([cacheKey], [domainKey]);
+        } else {
+          timing.cache_hit = true;
+          result.orchestratorResult.timing.cache_hit = true;
+          return result.orchestratorResult;
+        }
+      } else if (skill) {
+        const ranked = rankEndpoints(skill.endpoints, queryIntent, skill.domain, context?.url);
+        const top = ranked[0];
+        console.log(
+          `[domain-cache] skip ${domainKey}: no relevant endpoint for "${queryIntent}"` +
+            (top ? ` (${top.endpoint.endpoint_id} score=${top.score.toFixed(1)})` : ""),
+        );
+      }
+    }
+
+    const localDomainSkill = findBestLocalDomainSnapshot(requestedDomain, queryIntent, context?.url);
+    if (localDomainSkill) {
+      console.log(`[local-snapshot] hit for ${requestedDomain} → skill ${localDomainSkill.skill_id.slice(0, 15)}`);
+      const result = await buildDeferralWithAutoExec(localDomainSkill, "marketplace");
+      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(result.autoexecFailedAll, context?.url)) {
+        console.log(`[local-snapshot] stale skill for ${requestedDomain}; retrying via live capture`);
+      } else {
+        timing.cache_hit = true;
+        result.orchestratorResult.timing.cache_hit = true;
+        promoteLearnedSkill(clientScope, cacheKey, localDomainSkill, result.orchestratorResult.trace.endpoint_id, context?.url);
+        return result.orchestratorResult;
       }
     }
   }
@@ -1444,25 +2717,54 @@ export async function resolveAndExecute(
   // --- Agent explicitly chose an endpoint — execute directly via any cache/skill path ---
   if (!forceCapture && agentChoseEndpoint) {
     // Route cache
-    const cached = skillRouteCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < ROUTE_CACHE_TTL) {
-      const skill = await getSkill(cached.skillId, clientScope);
+    const routeCacheCandidates: RouteCacheCandidate[] = [];
+    for (const scopedKey of scopedResolveCacheKeys(clientScope, resolveCacheKey)) {
+      const cached = skillRouteCache.get(scopedKey);
+      if (!cached) continue;
+      if (Date.now() - cached.ts >= ROUTE_CACHE_TTL) {
+        skillRouteCache.delete(scopedKey);
+        persistRouteCache();
+        continue;
+      }
+      const skill =
+        readSkillSnapshot(cached.localSkillPath) ??
+        await getSkillWithTimeout(cached.skillId, clientScope);
+      if (!skill) continue;
+      routeCacheCandidates.push({
+        scopedKey,
+        scope: scopedKey.slice(0, scopedKey.indexOf(":")),
+        entry: cached,
+        skill,
+      });
+    }
+    const cached = chooseBestRouteCacheCandidate(routeCacheCandidates, queryIntent, context?.url);
+    if (cached) {
+      if (cached.scopedKey !== cacheKey) {
+        promoteLearnedSkill(
+          clientScope,
+          resolveCacheKey,
+          cached.skill,
+          cached.entry.endpointId,
+          context?.url,
+        );
+      }
+      const skill = cached.skill;
       if (skill) {
         const te0 = Date.now();
         try {
           const execOut = await executeSkill(
             skill,
-            { ...params, endpoint_id: params.endpoint_id ?? cached.endpointId },
+            { ...params, endpoint_id: params.endpoint_id ?? cached.entry.endpointId, ...(queryIntent !== intent ? { intent: queryIntent } : {}) },
             projection,
-            { ...options, intent, contextUrl: context?.url },
+            { ...options, intent: queryIntent, contextUrl: context?.url },
           );
           timing.execute_ms = Date.now() - te0;
-          if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
-            timing.cache_hit = true;
+          if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
+              timing.cache_hit = true;
             promoteResultSnapshot(
               cacheKey,
               skill,
-              params.endpoint_id ?? cached.endpointId,
+              params.endpoint_id ?? cached.entry.endpointId,
               execOut.result,
               execOut.trace,
               execOut.response_schema,
@@ -1473,7 +2775,7 @@ export async function resolveAndExecute(
               trace: execOut.trace,
               source: "marketplace",
               skill,
-              timing: finalize("route-cache", execOut.result, cached.skillId, skill, execOut.trace),
+              timing: finalize("route-cache", execOut.result, cached.entry.skillId, skill, execOut.trace),
               response_schema: execOut.response_schema,
               extraction_hints: execOut.extraction_hints,
             };
@@ -1482,19 +2784,38 @@ export async function resolveAndExecute(
           timing.execute_ms = Date.now() - te0;
         }
       }
-      skillRouteCache.delete(cacheKey);
+      skillRouteCache.delete(cached.scopedKey);
     }
   }
 
-  // No disk-snapshot reads in the default resolve path.
-  // Remote/shared skills are the source of truth; local snapshots stay explicit debug/test only.
+  if (!forceCapture && !agentChoseEndpoint && requestedDomain) {
+    const localSnapshot = findBestLocalDomainSnapshot(requestedDomain, queryIntent, context?.url);
+    if (localSnapshot) {
+      console.log(`[local-snapshot:default] hit for ${requestedDomain} → skill ${localSnapshot.skill_id.slice(0, 15)}`);
+      const deferred = await buildDeferralWithAutoExec(localSnapshot, "marketplace");
+      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+        console.log(`[local-snapshot:default] stale skill for ${requestedDomain}; retrying via live capture`);
+      } else {
+        timing.cache_hit = true;
+        deferred.orchestratorResult.timing.cache_hit = true;
+        promoteLearnedSkill(
+          clientScope,
+          cacheKey,
+          localSnapshot,
+          deferred.orchestratorResult.trace.endpoint_id,
+          context?.url,
+        );
+        return deferred.orchestratorResult;
+      }
+    }
+  }
 
   if (!forceCapture) {
     // 1. Search marketplace — single remote call, shared embedding, conditional global fallback
     const ts0 = Date.now();
     type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
     const { domain_results: domainResults, global_results: globalResults } = await searchIntentResolve(
-      intent,
+      queryIntent,
       requestedDomain ?? undefined,
       MARKETPLACE_DOMAIN_SEARCH_K,
       MARKETPLACE_GLOBAL_SEARCH_K,
@@ -1548,7 +2869,8 @@ export async function resolveAndExecute(
       if (!skill) continue;
       if (skill.lifecycle !== "active") continue;
       if (!hasUsableEndpoints(skill)) continue;
-      if (!marketplaceSkillMatchesContext(skill, intent, context?.url)) continue;
+      if (!isCachedSkillRelevantForIntent(skill, queryIntent, context?.url)) continue;
+      if (!marketplaceSkillMatchesContext(skill, queryIntent, context?.url)) continue;
       if (targetRegDomain && getRegistrableDomain(skill.domain) !== targetRegDomain) continue;
       const endpointId = extractEndpointId(c.metadata) ?? undefined;
       ranked.push({
@@ -1574,7 +2896,7 @@ export async function resolveAndExecute(
               Promise.race([
                 executeSkill(candidate.skill, params, projection, {
                   ...options,
-                  intent,
+                  intent: queryIntent,
                   contextUrl: context?.url,
                 })
                   .then((execOut) => {
@@ -1599,12 +2921,11 @@ export async function resolveAndExecute(
             ),
           );
           timing.execute_ms = Date.now() - te0;
-          skillRouteCache.set(cacheKey, {
-            skillId: winner.candidate.skill.skill_id,
-            domain: winner.candidate.skill.domain,
-            endpointId: winner.trace.endpoint_id,
-            ts: Date.now(),
-          });
+          cacheResolvedSkill(
+            cacheKey,
+            winner.candidate.skill,
+            winner.trace.endpoint_id,
+          );
           promoteResultSnapshot(
             cacheKey,
             winner.candidate.skill,
@@ -1644,11 +2965,54 @@ export async function resolveAndExecute(
             `[search] endpoint-level hit hint: ${best.endpointId} score=${best.candidate.score.toFixed(3)}`,
           );
         }
-        return await buildDeferralWithAutoExec(best.skill, "marketplace");
+        const deferred = await buildDeferralWithAutoExec(best.skill, "marketplace");
+        if (!shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+          return deferred.orchestratorResult;
+        }
+        console.log("[marketplace] stale top skill; retrying via live capture");
       }
     }
   } // end !forceCapture
 
+  // 1.5 First-pass browser action: lightweight 8s attempt before full capture
+  if (context?.url && !forceCapture) {
+    const firstPassResult = await tryFirstPassBrowserAction(
+      intent, params, context.url,
+      { signal: options?.signal, clientScope: options?.client_scope },
+    );
+    decisionTrace.first_pass = {
+      intentClass: firstPassResult.intentClass,
+      actionTaken: firstPassResult.actionTaken,
+      hit: firstPassResult.hit,
+      interceptedCount: firstPassResult.interceptedEntries.length,
+      timeMs: firstPassResult.timeMs,
+    };
+    if (firstPassResult.hit && firstPassResult.miniSkill) {
+      const fpNow = new Date().toISOString();
+      const trace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: firstPassResult.miniSkill.skill_id,
+        endpoint_id: firstPassResult.miniSkill.endpoints[0]?.endpoint_id ?? "",
+        started_at: fpNow,
+        completed_at: fpNow,
+        success: true,
+        network_events: firstPassResult.interceptedEntries,
+      };
+      const t = finalize(
+        "first-pass", firstPassResult.result,
+        firstPassResult.miniSkill.skill_id,
+        firstPassResult.miniSkill, trace,
+      );
+      return {
+        result: firstPassResult.result,
+        trace,
+        source: "first-pass",
+        skill: firstPassResult.miniSkill,
+        timing: t,
+      };
+    }
+    console.log(`[first-pass] miss (${firstPassResult.intentClass}/${firstPassResult.actionTaken}) — falling through to live capture`);
+  }
   // 2. No match (or force_capture) — invoke browser-capture skill
   if (!context?.url) {
     throw new Error(
@@ -1661,51 +3025,62 @@ export async function resolveAndExecute(
   // Check recently-captured cache: avoids re-capturing when EmergentDB hasn't indexed yet
   const domainHit = !forceCapture ? capturedDomainCache.get(cacheKey) : undefined;
   if (domainHit && Date.now() < domainHit.expires) {
-    timing.cache_hit = true;
-    let staleCachedEndpoint = false;
-    if (agentChoseEndpoint) {
-      const execOut = await executeSkill(
-        domainHit.skill,
-        { ...params, endpoint_id: params.endpoint_id ?? domainHit.endpointId },
-        projection,
-        { ...options, intent, contextUrl: context?.url },
-      );
-      if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
-        promoteResultSnapshot(
-          cacheKey,
+    if (!isCachedSkillRelevantForIntent(domainHit.skill, queryIntent, context?.url)) {
+      capturedDomainCache.delete(cacheKey);
+    } else {
+      if (agentChoseEndpoint) {
+        const execOut = await executeSkill(
           domainHit.skill,
-          params.endpoint_id ?? domainHit.endpointId,
-          execOut.result,
-          execOut.trace,
-          execOut.response_schema,
-          execOut.extraction_hints,
+          { ...params, endpoint_id: params.endpoint_id ?? domainHit.endpointId, ...(queryIntent !== intent ? { intent: queryIntent } : {}) },
+          projection,
+          { ...options, intent: queryIntent, contextUrl: context?.url },
         );
-        return {
-          result: execOut.result,
-          trace: execOut.trace,
-          source: "marketplace",
-          skill: domainHit.skill,
-          timing: finalize(
-            "marketplace",
-            execOut.result,
-            domainHit.skill.skill_id,
+        if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
+          promoteResultSnapshot(
+            cacheKey,
             domainHit.skill,
+            params.endpoint_id ?? domainHit.endpointId,
+            execOut.result,
             execOut.trace,
-          ),
-          response_schema: execOut.response_schema,
-          extraction_hints: execOut.extraction_hints,
-        };
+            execOut.response_schema,
+            execOut.extraction_hints,
+          );
+          return {
+            result: execOut.result,
+            trace: execOut.trace,
+            source: "marketplace",
+            skill: domainHit.skill,
+            timing: finalize(
+              "marketplace",
+              execOut.result,
+              domainHit.skill.skill_id,
+              domainHit.skill,
+              execOut.trace,
+            ),
+            response_schema: execOut.response_schema,
+              extraction_hints: execOut.extraction_hints,
+            };
+        }
+        invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
       }
-      staleCachedEndpoint = true;
+      const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
+      if (shouldFallbackToLiveCaptureAfterAutoexecFailure(deferred.autoexecFailedAll, context?.url)) {
+        console.log("[captured-domain-cache] stale skill; retrying via live capture");
+        invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
+      } else {
+        timing.cache_hit = true;
+        deferred.orchestratorResult.timing.cache_hit = true;
+        return deferred.orchestratorResult;
+      }
     }
-    const deferred = await buildDeferralWithAutoExec(domainHit.skill, "marketplace");
-    deferred.timing.cache_hit = true;
-    return deferred;
   }
 
   // In-flight capture queue: wait for the same domain capture instead of failing.
   const bypassLiveCaptureQueue = shouldBypassLiveCaptureQueue(context?.url);
   const captureLockKey = scopedCacheKey(clientScope, captureDomain);
+  let learned_skill: SkillManifest | undefined;
+  let trace: import("../types/index.js").ExecutionTrace;
+  let result: unknown;
   if (!bypassLiveCaptureQueue) {
     const existingCapture = captureInFlight.get(captureLockKey);
     if (existingCapture) {
@@ -1717,6 +3092,7 @@ export async function resolveAndExecute(
       trace = waited.trace;
       result = waited.result;
       learned_skill = waited.learned_skill;
+      const parityBaseline = waited.parity_baseline;
       timing.execute_ms = 0;
       if (!learned_skill && !trace.success) {
         return {
@@ -1736,12 +3112,13 @@ export async function resolveAndExecute(
           authRecommended
             ? {
                 auth_recommended: true,
-                auth_hint: captureResult!.auth_hint,
-              }
+              auth_hint: captureResult!.auth_hint,
+            }
             : undefined,
         );
-        deferred.timing.cache_hit = true;
-        return deferred;
+        queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
+        deferred.orchestratorResult.timing.cache_hit = true;
+        return deferred.orchestratorResult;
       }
       return {
         result,
@@ -1753,33 +3130,45 @@ export async function resolveAndExecute(
     }
   }
 
-  let learned_skill: SkillManifest | undefined;
-  let trace: import("../types/index.js").ExecutionTrace;
-  let result: unknown;
+  let parityBaseline: unknown;
   let captureSkill: SkillManifest;
   const te0 = Date.now();
   if (bypassLiveCaptureQueue) {
     captureSkill = await getOrCreateBrowserCaptureSkill();
-    const out = await withOpTimeout(
+    const out = await withAbortableOpTimeout(
       "live_capture_execute",
       LIVE_CAPTURE_TIMEOUT_MS,
-      executeSkill(captureSkill, { ...params, url: context.url, intent }),
+      (signal) =>
+        executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
+          ...options,
+          intent,
+          contextUrl: context?.url,
+          signal,
+        }),
     );
     trace = out.trace;
     result = out.result;
     learned_skill = out.learned_skill;
+    parityBaseline = out.parity_baseline;
   } else {
     const capturePromise = withDomainCaptureLock(captureDomain, async () => {
       const captureSkill = await getOrCreateBrowserCaptureSkill();
-      const out = await withOpTimeout(
+      const out = await withAbortableOpTimeout(
         "live_capture_execute",
         LIVE_CAPTURE_TIMEOUT_MS,
-        executeSkill(captureSkill, { ...params, url: context.url, intent }),
+        (signal) =>
+          executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
+            ...options,
+            intent,
+            contextUrl: context?.url,
+            signal,
+          }),
       );
       return {
         trace: out.trace,
         result: out.result,
         learned_skill: out.learned_skill,
+        parity_baseline: out.parity_baseline,
       };
     });
     captureInFlight.set(captureLockKey, capturePromise);
@@ -1789,11 +3178,14 @@ export async function resolveAndExecute(
       trace = out.trace;
       result = out.result;
       learned_skill = out.learned_skill;
+      parityBaseline = out.parity_baseline;
     } finally {
       captureInFlight.delete(captureLockKey);
     }
   }
   timing.execute_ms = Date.now() - te0;
+  const captureResult = result as Record<string, unknown> | null;
+  const authRecommended = captureResult?.auth_recommended === true;
 
   const directDomCaptureResult =
     trace.success &&
@@ -1805,6 +3197,60 @@ export async function resolveAndExecute(
   if (learned_skill && !learnedSkillUsable) {
     console.warn("[capture] dropping unusable learned skill with no replayable endpoints");
     if (!directDomCaptureResult) learned_skill = undefined;
+  }
+
+  if (learned_skill && learnedSkillUsable && !isCachedSkillRelevantForIntent(learned_skill, queryIntent, context?.url)) {
+    const repairedSnapshot =
+      requestedDomain
+        ? findBestLocalDomainSnapshot(
+            requestedDomain,
+            queryIntent,
+            context?.url,
+            new Set([learned_skill.skill_id]),
+          )
+        : undefined;
+    if (repairedSnapshot) {
+      console.log(
+        `[capture] reviving local snapshot ${repairedSnapshot.skill_id.slice(0, 15)} after irrelevant learned skill`,
+      );
+      const repaired = await buildDeferralWithAutoExec(repairedSnapshot, "marketplace");
+      repaired.orchestratorResult.timing.cache_hit = true;
+      return repaired.orchestratorResult;
+    }
+    const resolvedSkill = withContextReplayEndpoint(learned_skill, queryIntent, context?.url);
+    const ranked = rankEndpoints(
+      resolvedSkill.endpoints,
+      queryIntent,
+      resolvedSkill.domain,
+      context?.url,
+    );
+    const rejectedTrace: ExecutionTrace = {
+      ...trace,
+      success: false,
+      error: `No relevant endpoint discovered for "${queryIntent}"`,
+    };
+    console.warn(`[capture] dropping learned skill with no relevant endpoints for "${queryIntent}"`);
+    return {
+      result: {
+        error: `No relevant endpoint discovered for "${queryIntent}"`,
+        discovered_endpoints: ranked.slice(0, 3).map((candidate) => ({
+          endpoint_id: candidate.endpoint.endpoint_id,
+          score: Math.round(candidate.score * 10) / 10,
+          description: candidate.endpoint.description,
+          url: candidate.endpoint.url_template,
+        })),
+        ...(authRecommended
+          ? {
+              auth_recommended: true,
+              auth_hint: captureResult?.auth_hint,
+            }
+          : {}),
+      },
+      trace: rejectedTrace,
+      source: "live-capture",
+      skill: captureSkill!,
+      timing: finalize("live-capture", result, undefined, undefined, rejectedTrace),
+    };
   }
 
   // Stamp learned skill with real discovery cost so future cache hits use real baselines.
@@ -1824,74 +3270,26 @@ export async function resolveAndExecute(
         ep.description = generateLocalDescription(ep);
       }
     }
-
-    // Await publish so backend-generated LLM descriptions come back before auto-exec
-    try {
-      const published = await publishSkill(learned_skill);
-      // Update local copy with backend descriptions
-      if (published.endpoints) {
-        for (const ep of learned_skill.endpoints) {
-          const backendEp = published.endpoints.find((e) => e.endpoint_id === ep.endpoint_id);
-          if (backendEp?.description) ep.description = backendEp.description;
-        }
-      }
-      // Cache at domain level for cross-intent reuse
-      const regDomain = getRegistrableDomain(learned_skill.domain);
-      if (regDomain) {
-        const bestEp = learned_skill.endpoints.find(e => e.dom_extraction) ?? learned_skill.endpoints[0];
-        domainSkillCache.set(regDomain, {
-          skillId: learned_skill.skill_id,
-          endpointId: bestEp?.endpoint_id,
-          ts: Date.now(),
-        });
-        persistDomainCache();
-        console.log(`[domain-cache] cached ${regDomain} → ${learned_skill.skill_id.slice(0, 15)}`);
-      }
-    } catch (err) {
-      console.error("[publish] discovery_cost update failed:", (err as Error).message);
-    }
   }
 
-  // Auth-gated or no data: attempt first-pass browser action execution before giving up.
-  // This handles interaction-required pages where passive capture alone is insufficient.
+  function queuePassivePublishIfExecuted(
+    skill: SkillManifest,
+    orchestratorResult: OrchestratorResult,
+    browserBaseline?: unknown,
+  ): void {
+    if (!orchestratorResult.trace.success || !orchestratorResult.trace.endpoint_id) return;
+    const parity = browserBaseline === undefined
+      ? undefined
+      : (async () => {
+          const local = localParityVerdict(intent, browserBaseline, orchestratorResult.result);
+          if (local.verdict !== "skip") return local.verdict;
+          return await agentJudgeParity(intent, browserBaseline, orchestratorResult.result);
+        })();
+    void queuePassiveSkillPublish(skill, { parity });
+  }
+
+  // Auth-gated or no data: pass through error
   if (!learned_skill && !trace.success) {
-    try {
-      console.log("[browser-action] passive capture failed — attempting first-pass browser action fallback");
-      const actionResult = await executeActionSequence(
-        context!.url!,
-        [{ action: "snapshot" }],
-        { intent },
-      );
-      const now = new Date().toISOString();
-      const browserTrace: ExecutionTrace = {
-        trace_id: actionResult.trace_id,
-        skill_id: captureSkill!.skill_id,
-        endpoint_id: "browser-action",
-        started_at: now,
-        completed_at: now,
-        success: actionResult.ok,
-        status_code: actionResult.ok ? 200 : 0,
-      };
-      timing.source = "browser-action" as OrchestrationTiming["source"];
-      return {
-        result: {
-          browser_action_ok: actionResult.ok,
-          steps: actionResult.steps,
-          final_url: actionResult.final_url,
-          html: actionResult.html,
-          snapshot: actionResult.snapshot,
-          capture: actionResult.capture,
-          trace_id: actionResult.trace_id,
-        },
-        trace: browserTrace,
-        source: "browser-action",
-        skill: captureSkill!,
-        timing: finalize("browser-action", result, undefined, undefined, browserTrace),
-      };
-    } catch (actionErr) {
-      console.warn("[browser-action] fallback also failed:", (actionErr as Error).message);
-    }
-    // Both passive capture and browser action failed — return original error
     return {
       result,
       trace,
@@ -1905,11 +3303,37 @@ export async function resolveAndExecute(
   const hasNonDomApiEndpoints = !!learned_skill?.endpoints?.some(
     (ep) => !ep.dom_extraction && ep.method !== "WS",
   );
+  const hasBetterStructuredSearchEndpoint = learned_skill
+    ? skillHasBetterStructuredSearchEndpoint(learned_skill, trace.endpoint_id, queryIntent, context?.url)
+    : false;
   const isDirectDomResult = directDomCaptureResult;
-  if (isDirectDomResult && !hasNonDomApiEndpoints) {
+  const directExtractionSource =
+    isDirectDomResult && result && typeof result === "object"
+      ? ((result as Record<string, unknown>)._extraction as Record<string, unknown> | undefined)?.source
+      : undefined;
+  if (
+    isDirectDomResult &&
+    (
+      (directExtractionSource === "html-embedded" && !hasBetterStructuredSearchEndpoint) ||
+      !hasNonDomApiEndpoints
+    )
+  ) {
     if (learned_skill) {
-      const deferred = await buildDeferralWithAutoExec(learned_skill, "live-capture");
-      return deferred;
+      const direct: OrchestratorResult = {
+        result,
+        trace,
+        source: directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+        skill: learned_skill,
+        timing: finalize(
+          directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+          result,
+          learned_skill.skill_id,
+          learned_skill,
+          trace,
+        ),
+      };
+      queuePassivePublishIfExecuted(learned_skill, direct, parityBaseline);
+      return direct;
     }
     return {
       result,
@@ -1935,13 +3359,34 @@ export async function resolveAndExecute(
     const te1 = Date.now();
     const execOut = await executeSkill(learned_skill, params, projection, {
       ...options,
-      intent,
+      intent: queryIntent,
       contextUrl: context?.url,
     });
     timing.execute_ms += Date.now() - te1;
     if (execOut.trace.success)
-      promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id);
-    if (execOut.trace.success && isAcceptableIntentResult(execOut.result, intent)) {
+      promoteLearnedSkill(clientScope, cacheKey, learned_skill, execOut.trace.endpoint_id, context?.url);
+    if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
+      queuePassivePublishIfExecuted(
+        learned_skill,
+        {
+          result: execOut.result,
+          trace: execOut.trace,
+          source: "live-capture",
+          skill: learned_skill,
+          timing: finalize(
+            "live-capture",
+            execOut.result,
+            learned_skill.skill_id,
+            learned_skill,
+            execOut.trace,
+          ),
+          response_schema: execOut.response_schema,
+          extraction_hints: execOut.extraction_hints,
+        },
+        parityBaseline,
+      );
+    }
+    if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
       promoteResultSnapshot(
         cacheKey,
         learned_skill,
@@ -1968,10 +3413,7 @@ export async function resolveAndExecute(
       extraction_hints: execOut.extraction_hints,
     };
   }
-
-  const captureResult = result as Record<string, unknown> | null;
-  const authRecommended = captureResult?.auth_recommended === true;
-  return await buildDeferralWithAutoExec(
+  const deferred = await buildDeferralWithAutoExec(
     learned_skill!,
     "live-capture",
     authRecommended
@@ -1981,6 +3423,9 @@ export async function resolveAndExecute(
         }
       : undefined,
   );
+  queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
+  upsertDagEdgesFromOperationGraph(learned_skill!);
+  return deferred.orchestratorResult;
 }
 
 async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
@@ -2011,11 +3456,18 @@ async function getOrCreateBrowserCaptureSkill(): Promise<SkillManifest> {
   return skill;
 }
 
-/** Reject skills where no endpoint returns structured data from the skill's domain */
-function hasUsableEndpoints(skill: SkillManifest): boolean {
+/** Reject skills where no endpoint returns structured data or a replayable canonical document route. */
+export function hasUsableEndpoints(skill: SkillManifest): boolean {
   if (!skill.endpoints || skill.endpoints.length === 0) return false;
   return skill.endpoints.some((ep) => {
     try {
+      const isCanonicalReplay =
+        typeof ep.trigger_url === "string" &&
+        !!ep.trigger_url &&
+        (ep.url_template === deriveStructuredDataReplayUrl(ep.trigger_url) ||
+          ep.url_template === deriveStructuredDataReplayTemplate(ep.trigger_url));
+      if (isCanonicalReplay) return true;
+
       const u = new URL(ep.url_template);
       const onDomain = u.hostname === skill.domain || u.hostname.endsWith(`.${skill.domain}`);
       if (!onDomain) return false;
