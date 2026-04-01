@@ -6,6 +6,7 @@ import { log } from "../logger.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
+import { getDefaultLoginConfig } from "../runtime/supervisor.js";
 
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -40,7 +41,9 @@ export async function interactiveLogin(
   const targetDomain = domain ?? new URL(url).hostname;
   const profileDir = getProfilePath(targetDomain);
 
-  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}`);
+  const isHeadless = process.env.HEADLESS === "true" || process.env.HEADLESS === "1";
+  const loginConfig = getDefaultLoginConfig(isHeadless);
+  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}, interactive: ${loginConfig.interactive}, timeout: ${loginConfig.timeout_ms}ms`);
 
   // Login requires a visible browser — disable headless for this flow
   const prevHeadless = process.env.HEADLESS;
@@ -70,7 +73,8 @@ export async function interactiveLogin(
     // Wait for user to complete login — detect via cookie changes + URL change
     let loggedIn = false;
     let lastLoggedUrl = "";
-    while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
+    const effectiveTimeout = loginConfig.interactive ? LOGIN_TIMEOUT_MS : loginConfig.timeout_ms;
+    while (Date.now() - startTime < effectiveTimeout) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       const elapsed = Date.now() - startTime;
 
@@ -110,7 +114,15 @@ export async function interactiveLogin(
     }
 
     if (!loggedIn) {
-      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — capturing cookies anyway`);
+      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — fallback: ${loginConfig.fallback_strategy}`);
+      if (loginConfig.fallback_strategy === "fail") {
+        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login timed out (fallback: fail)" };
+      }
+      if (loginConfig.fallback_strategy === "skip") {
+        log("auth", `skipping cookie capture per fallback_strategy`);
+        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login skipped (headless)" };
+      }
+      // fallback_strategy === "prompt" — continue to capture cookies anyway
     }
 
     // Extract and store cookies

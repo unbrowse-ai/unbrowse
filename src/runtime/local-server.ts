@@ -2,6 +2,7 @@ import { openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { ensureDir, getPackageRoot, getServerAutostartLogFile, getServerPidFile, resolveSiblingEntrypoint, runtimeArgsForEntrypoint } from "./paths.js";
+import { LocalSupervisor } from "./supervisor.js";
 
 type PidState = {
   pid: number;
@@ -117,19 +118,32 @@ function spawnServer(
   return state;
 }
 
+/** Shared supervisor instance used for health checking. */
+const supervisor = new LocalSupervisor();
+
+export { supervisor };
+
 export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
-  if (await isServerHealthy(baseUrl)) return;
+  if (await isServerHealthy(baseUrl)) {
+    // Server already healthy — ensure supervisor state reflects this
+    if (!supervisor.isRunning()) await supervisor.start();
+    return;
+  }
 
   const pidFile = getServerPidFile(baseUrl);
   const existing = readPidState(pidFile);
 
   if (existing?.pid && isPidAlive(existing.pid)) {
     // Process alive but not healthy — wait then try supervisor restart
-    if (await waitForHealthy(baseUrl, 15_000)) return;
+    if (await waitForHealthy(baseUrl, 15_000)) {
+      if (!supervisor.isRunning()) await supervisor.start();
+      return;
+    }
     // Still unhealthy after wait — kill stale process and restart
     try { process.kill(existing.pid, "SIGTERM"); } catch { /* ignore */ }
     await new Promise((r) => setTimeout(r, 1_000));
     clearStalePidFile(pidFile);
+    if (supervisor.isRunning()) await supervisor.stop();
   } else if (existing) {
     clearStalePidFile(pidFile);
   }
@@ -142,7 +156,10 @@ export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, m
   for (let attempt = 0; attempt <= MAX_RESTART_ATTEMPTS; attempt++) {
     spawnServer(baseUrl, metaUrl, pidFile, attempt);
 
-    if (await waitForHealthy(baseUrl, 30_000)) return;
+    if (await waitForHealthy(baseUrl, 30_000)) {
+      await supervisor.start();
+      return;
+    }
 
     // Failed to start — clear and retry with backoff
     const state = readPidState(pidFile);
@@ -188,6 +205,8 @@ export function stopServer(baseUrl: string): boolean {
   try {
     process.kill(state.pid, "SIGTERM");
     clearStalePidFile(pidFile);
+    // Synchronously mark supervisor as stopped (fire-and-forget the async stop)
+    if (supervisor.isRunning()) void supervisor.stop();
     return true;
   } catch {
     clearStalePidFile(pidFile);
