@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
 import { buildQueryBindingMap } from "../template-params.js";
+import { isRscPayload } from "../capture/rsc.js";
 
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
@@ -646,6 +647,14 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // BUG-008: Detect Cloudflare challenge responses — exclude from skill
     if (isCloudflareChallenge(req.response_body)) {
       traceRows.push({ url: req.url, method: req.method, kept: false, reason: "cloudflare_challenge" });
+      continue;
+    }
+
+    // #227: Reject React Server Components wire format payloads — they are framework
+    // rendering wire format, not data APIs. Use the proper RSC parser instead of
+    // relying solely on the content-type header (which is often absent or wrong).
+    if (isRscPayload(req.response_body)) {
+      traceRows.push({ url: req.url, method: req.method, kept: false, reason: "rsc_payload" });
       continue;
     }
 
