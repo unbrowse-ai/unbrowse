@@ -322,10 +322,14 @@ export async function searchIntentInDomain(
   const normDomain = normalizeDomain(env, domain);
   let results: SearchResult;
   try {
-    const [graphResults, bm25Results] = await Promise.all([
+    const [graphSettled, bm25Settled] = await Promise.allSettled([
       graphSearch(env, domain, intent, k),
       bm25Search(env, normDomain, intent, k),
     ]);
+    const graphResults = graphSettled.status === "fulfilled" ? graphSettled.value : [];
+    const bm25Results = bm25Settled.status === "fulfilled" ? bm25Settled.value : [];
+    if (graphSettled.status === "rejected") console.warn(`[search] graph search failed: ${graphSettled.reason}`);
+    if (bm25Settled.status === "rejected") console.warn(`[search] bm25 search failed: ${bm25Settled.reason}`);
     const t2 = Date.now();
     console.log(`[perf:search-domain] graph-search: ${t2 - t1}ms graph=${graphResults.length} bm25=${bm25Results.length}`);
 
