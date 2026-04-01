@@ -225,6 +225,18 @@ export interface SkillManifest {
   intents?: string[];
   /** Agent ID of the indexer who published this skill - used for Tier 1 attribution */
   indexer_id?: string;
+  /** All agents who contributed endpoints to this skill */
+  contributors?: Array<{
+    agent_id: string;
+    wallet_address?: string;
+    endpoints_contributed: number;
+    cumulative_delta: number;
+    share: number;
+    first_contributed_at: string;
+    last_contributed_at: string;
+  }>;
+  /** Cascade Split address — x402 payments route here for multi-contributor skills */
+  split_config?: string;
   /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
   operation_graph?: SkillOperationGraph;
   /** Price in USD per execution; undefined or 0 = free */
