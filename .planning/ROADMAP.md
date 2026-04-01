@@ -94,7 +94,7 @@ Passive browser replacement for AI agents. Agents install unbrowse and get struc
   3. The dependency graph is persisted with the skill manifest and survives server restarts
   4. Agent-visible `available_endpoints` in the resolve response reflects the graph's reachability analysis given known bindings, not just a flat list
 
-**Plans**: 2 plans (04-01: dependency graph construction, 04-02: prefetch integration)
+**Plans**: 2 plans (04-01: dependency graph construction -- complete, 04-02: prefetch integration)
 
 ---
 
