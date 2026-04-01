@@ -152,6 +152,25 @@ export async function getSplitConfig(
  * Update contributor delta scores from attribution events.
  * Called after recordAttribution to keep contributor shares in sync.
  */
+/**
+ * Decay rate applied to all contributors' cumulative_delta on each execution.
+ * 0.95 = 5% decay per execution — contributors must keep providing value
+ * or their share erodes. A contributor whose routes are never chosen
+ * decays to near-zero in ~60 executions.
+ */
+const DELTA_DECAY_RATE = 0.95;
+
+/** Minimum delta threshold — contributors below this lose their share entirely. */
+const MIN_DELTA_THRESHOLD = 0.01;
+
+/**
+ * Update contributor delta scores from attribution events.
+ * Applies exponential decay to ALL contributors, then adds the new delta
+ * to the credited contributor. This means:
+ * - Active contributors (routes frequently chosen) maintain/grow share
+ * - Inactive contributors (routes replaced by better ones) decay to 0
+ * - Contributors below MIN_DELTA_THRESHOLD are pruned
+ */
 export async function updateContributorDelta(
   env: Env,
   skillId: string,
@@ -164,11 +183,21 @@ export async function updateContributorDelta(
 
   try {
     const skill = JSON.parse(skillRaw) as SkillManifest;
-    const contributors = skill.contributors ?? [];
+    let contributors = skill.contributors ?? [];
+
+    // Decay all contributors' cumulative_delta
+    for (const c of contributors) {
+      c.cumulative_delta *= DELTA_DECAY_RATE;
+    }
+
+    // Credit the active contributor
     const idx = contributors.findIndex((c) => c.agent_id === indexerId);
     if (idx >= 0) {
       contributors[idx].cumulative_delta += deltaScore;
     }
+
+    // Prune contributors below threshold — they've lost impact
+    contributors = contributors.filter((c) => c.cumulative_delta >= MIN_DELTA_THRESHOLD);
 
     // Recompute shares
     const shares = computeContributorShares(contributors);
