@@ -4,6 +4,8 @@ import { publishSkill, getSkill, listSkills, updateEndpointScore, updateEndpoint
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
+import { computeRoutePrice } from "../services/pricing.js";
+import { getStats } from "../services/scoring.js";
 
 // Public read routes — no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -31,6 +33,19 @@ publicSkillRoutes.get("/skills/:id/endpoints/:eid/schema", async (c) => {
   return c.json(schema);
 });
 
+// GET /v1/skills/:id/price — dynamic route price + site-owner compensation info
+publicSkillRoutes.get("/skills/:id/price", async (c) => {
+  const skill = await getSkill(c.env, c.req.param("id"));
+  if (!skill) return c.json({ error: "Skill not found" }, 404);
+  // Load per-endpoint stats in parallel
+  const statsArr = await Promise.all(
+    skill.endpoints.map((ep) => getStats(c.env, skill.skill_id, ep.endpoint_id)),
+  );
+  const price = computeRoutePrice(skill, statsArr);
+  return c.json(price);
+});
+
+// Protected write routes — auth required
 // Protected write routes — auth required
 export const skillRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
