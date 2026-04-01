@@ -327,8 +327,6 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   };
   // Carry over result (even if empty array — don't silently drop it)
   if ("result" in obj) out.result = obj.result;
-  // Keep extraction_hints — agents need them for --path/--extract guidance
-  if (obj.extraction_hints) out.extraction_hints = obj.extraction_hints;
   return out;
 }
 
@@ -433,6 +431,7 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   const body: Record<string, unknown> = { intent };
   const url = flags.url as string | undefined;
   const domain = flags.domain as string | undefined;
+  const explicitEndpointId = flags["endpoint-id"] as string | undefined;
 
   if (url) {
     body.params = { url };
@@ -441,23 +440,44 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   if (domain) {
     body.context = { ...(body.context as Record<string, unknown> ?? {}), domain };
   }
-  if (flags["endpoint-id"]) {
-    body.params = { ...(body.params as Record<string, unknown> ?? {}), endpoint_id: flags["endpoint-id"] };
+  if (explicitEndpointId) {
+    body.params = { ...(body.params as Record<string, unknown> ?? {}), endpoint_id: explicitEndpointId };
   }
   if (flags.params) {
     body.params = { ...(body.params as Record<string, unknown> ?? {}), ...JSON.parse(flags.params as string) };
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction
+  // Always get raw data — agent handles extraction via --path/--extract
   const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || hasTransforms) body.projection = { raw: true };
+  body.projection = { raw: true };
 
   const startedAt = Date.now();
   let result = await withPendingNotice(
     api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
     "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back.",
   );
+
+  // When agent explicitly picked an endpoint but resolve deferred, execute it directly
+  if (explicitEndpointId && result.available_endpoints) {
+    const skillId = (result.skill as Record<string, unknown>)?.skill_id as string
+      ?? (result as Record<string, unknown>).skill_id as string;
+    if (skillId) {
+      const execBody: Record<string, unknown> = {
+        params: { endpoint_id: explicitEndpointId, ...(flags.params ? JSON.parse(flags.params as string) : {}) },
+        intent,
+        projection: { raw: true },
+      };
+      result = await withPendingNotice(
+        api("POST", `/v1/skills/${skillId}/execute`, execBody) as Promise<Record<string, unknown>>,
+        "Executing selected endpoint...",
+      );
+    }
+  }
+
+  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
+    info("Live capture finished. Future runs against this site should be much faster.");
+  }
 
   // --schema: return only schema + extraction hints (no data)
   if (flags.schema) {
@@ -468,9 +488,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   // --path / --extract / --limit: transform .result in-place
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  } else if (!flags.raw && result.result != null) {
-    // No transforms requested — try auto-extraction from hints
-    result = autoExtractOrWrap(result);
   }
 
   // Append CLI hint for feedback
@@ -478,10 +495,6 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   const trace = result.trace as Record<string, unknown> | undefined;
   if (skill?.skill_id && trace) {
     (result as Record<string, unknown>)._feedback = `unbrowse feedback --skill ${skill.skill_id} --endpoint ${trace.endpoint_id || "?"} --rating <1-5>`;
-  }
-
-  if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
-    info("Live capture finished. Future runs against this site should be much faster.");
   }
 
   output(result, !!flags.pretty);
@@ -505,9 +518,9 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   if (flags.intent) body.intent = flags.intent;
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  // When explicit CLI transforms are present, get raw data for client-side extraction
+  // Always get raw data — agent handles extraction via --path/--extract
   const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || hasTransforms) body.projection = { raw: true };
+  body.projection = { raw: true };
 
   let result = await withPendingNotice(
     api("POST", `/v1/skills/${skillId}/execute`, body) as Promise<Record<string, unknown>>,
@@ -523,9 +536,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   // --path / --extract / --limit: transform .result in-place
   if (hasTransforms && result.result != null) {
     result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  } else if (!flags.raw && result.result != null) {
-    // No transforms requested — try auto-extraction from hints
-    result = autoExtractOrWrap(result);
   }
 
   output(result, !!flags.pretty);
