@@ -18,6 +18,8 @@
     "test:p0-p1:analyze": "bun scripts/analyze-p0-p1-issues.ts",
     "test:p0-p1:generate": "bun scripts/fetch-p0-p1-issues.ts",
     "test:all": "bun test tests/ evals/quality-gate.test.ts backend/tests/",
+    "test:e2e:truth": "bash scripts/test-e2e-truth.sh",
+    "test:claims": "bun run test:e2e:truth && bun run eval:codex:product-success",
     "test:openclaw-plugin": "bash scripts/ensure-submodules.sh && npm test --prefix submodules/openclaw-unbrowse-plugin",
     "typecheck:openclaw-plugin": "bash scripts/ensure-submodules.sh && npm run typecheck --prefix submodules/openclaw-unbrowse-plugin",
     "precommit": "bash scripts/precommit.sh",
