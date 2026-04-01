@@ -11,6 +11,7 @@ import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
+import { mergeAgentReview } from "../indexer/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -201,6 +202,37 @@ export async function registerRoutes(app: FastifyInstance) {
     return reply.send(skill);
   });
 
+  // POST /v1/skills/:skill_id/review — agent submits reviewed descriptions + synthetic examples
+  app.post("/v1/skills/:skill_id/review", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const { skill_id } = req.params as { skill_id: string };
+    const { endpoints: reviews } = req.body as {
+      endpoints: Array<{
+        endpoint_id: string;
+        description?: string;
+        action_kind?: string;
+        resource_kind?: string;
+        example_request?: unknown;
+        example_response?: unknown;
+      }>;
+    };
+    if (!reviews?.length) return reply.code(400).send({ error: "endpoints[] required" });
+
+    const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    const updated = mergeAgentReview(skill.endpoints, reviews);
+    skill.endpoints = updated;
+    skill.updated_at = new Date().toISOString();
+
+    // Re-publish with agent-reviewed metadata
+    try {
+      await publishSkill(skill);
+      return reply.send({ ok: true, endpoints_updated: reviews.length });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
   // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
   app.post("/v1/skills/:skill_id/chunk", async (req, reply) => {
     const clientScope = clientScopeFor(req);

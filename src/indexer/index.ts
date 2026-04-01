@@ -249,160 +249,39 @@ export function sanitizeForPublish(endpoints: EndpointDescriptor[]): EndpointDes
   });
 }
 
-const SANITIZE_SYSTEM = `You are an API reverse-engineering agent. You receive captured API endpoint metadata
-and must produce clean, publishable data for a shared API registry.
-
-Your job:
-1. Write a clear, one-line description for each endpoint (what it does, not implementation details)
-2. Classify each endpoint: action_kind (search/detail/create/update/delete/list) and resource_kind (what entity)
-3. Generate a realistic synthetic example_response that matches the endpoint's schema — use plausible but fake data that helps agents understand the response shape. For example:
-   - A music search endpoint should have fake song names, artist names, durations
-   - A product search should have fake product names, prices, categories
-   - A user profile should have fake usernames, bios, join dates
-   The examples should look real enough to be useful documentation, but contain zero actual user data.
-4. Generate a synthetic example_request with plausible parameter values for the domain.
-5. Flag any PII or user-specific data you spot in the input.
-6. Return ONLY the JSON structure requested — no explanation.
-
-NEVER copy actual data from the input. Generate fresh plausible values appropriate to the domain.`;
-
-interface AgentSanitizeResult {
-  endpoints: Array<{
-    endpoint_id: string;
-    description: string;
-    action_kind: string;
-    resource_kind: string;
-    example_request?: Record<string, unknown>;
-    example_response?: unknown;
-    pii_flagged: boolean;
-    pii_fields?: string[];
-  }>;
-}
-
 /**
- * Agent-based endpoint review — sends endpoint shapes to an LLM for
- * description generation, PII scrubbing, and synthetic example creation.
- * Falls back to the deterministic sanitizer if no LLM provider is configured.
+ * Merge agent-reviewed endpoint metadata into sanitized endpoints.
+ * Called by the /v1/skills/:id/review route when an agent submits
+ * reviewed descriptions and synthetic examples for a skill's endpoints.
  */
-/**
- * Agent-based endpoint review — sends endpoint shapes to an LLM for
- * description generation, PII scrubbing, and synthetic example creation.
- * Falls back to the deterministic sanitizer if no LLM provider is configured.
- */
-export async function agentSanitizeEndpoints(
+export function mergeAgentReview(
   endpoints: EndpointDescriptor[],
-  domain: string,
-  intents?: string[],
-): Promise<EndpointDescriptor[]> {
-  // Always apply deterministic sanitization first (redacts secrets, strips real values)
-  const cleaned = sanitizeForPublish(endpoints);
-
-  // Build a compact view for the agent — includes field paths and schema, no real data
-  const agentInput = cleaned.map((ep) => ({
-    endpoint_id: ep.endpoint_id,
-    method: ep.method,
-    url_template: ep.url_template,
-    query_keys: ep.query ? Object.keys(ep.query) : [],
-    response_fields: ep.semantic?.example_fields ?? [],
-    response_summary: ep.semantic?.response_summary,
-    current_description: ep.description,
-    current_action_kind: ep.semantic?.action_kind,
-    current_resource_kind: ep.semantic?.resource_kind,
-  }));
-
-  const intentContext = intents?.length
-    ? `\nOriginal user intents that discovered these endpoints: ${JSON.stringify(intents)}\nUse these intents to write descriptions that help other agents find this endpoint for similar tasks.`
-    : "";
-
-  const userPrompt = `Domain: ${domain}${intentContext}
-Endpoints:
-${JSON.stringify(agentInput, null, 2)}
-
-Return JSON: { "endpoints": [{ "endpoint_id": "...", "description": "...", "action_kind": "...", "resource_kind": "...", "example_request": {...}, "example_response": {...}, "pii_flagged": false }] }
-
-Generate realistic synthetic data appropriate for ${domain}. The descriptions should help agents match this endpoint to user intents like: ${intents?.join(", ") ?? "general queries"}.`;
-
-  try {
-    const result = await callSanitizeAgent(userPrompt);
-    if (!result?.endpoints?.length) return cleaned;
-
-    // Merge agent output back into sanitized endpoints
-    const agentMap = new Map(result.endpoints.map((e) => [e.endpoint_id, e]));
-    return cleaned.map((ep) => {
-      const reviewed = agentMap.get(ep.endpoint_id);
-      if (!reviewed) return ep;
-
-      if (reviewed.pii_flagged) {
-        console.warn(`[agent-sanitize] PII flagged on ${ep.endpoint_id}: ${reviewed.pii_fields?.join(", ")}`);
-      }
-
-      return {
-        ...ep,
-        description: reviewed.description || ep.description,
-        semantic: ep.semantic ? {
-          ...ep.semantic,
-          action_kind: reviewed.action_kind || ep.semantic.action_kind,
-          resource_kind: reviewed.resource_kind || ep.semantic.resource_kind,
-          description_out: reviewed.description || ep.semantic.description_out,
-          // Agent-generated synthetic examples replace deterministic placeholders
-          ...(reviewed.example_response ? { example_response_compact: reviewed.example_response } : {}),
-          ...(reviewed.example_request ? { example_request: reviewed.example_request } : {}),
-        } : ep.semantic,
-      };
-    });
-  } catch (err) {
-    console.warn(`[agent-sanitize] failed, using deterministic fallback: ${(err as Error).message}`);
-    return cleaned;
-  }
-}
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
-const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY ?? "";
-const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
-const NEBIUS_CHAT_URL = "https://api.studio.nebius.com/v1/chat/completions";
-const SANITIZE_MODEL = "gpt-4o-mini";
-
-async function callSanitizeAgent(userPrompt: string): Promise<AgentSanitizeResult | null> {
-  const providers = [
-    OPENAI_API_KEY ? { url: OPENAI_CHAT_URL, key: OPENAI_API_KEY, model: SANITIZE_MODEL } : null,
-    NEBIUS_API_KEY ? { url: NEBIUS_CHAT_URL, key: NEBIUS_API_KEY, model: SANITIZE_MODEL } : null,
-  ].filter((p): p is { url: string; key: string; model: string } => !!p);
-  if (providers.length === 0) return null;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    for (const provider of providers) {
-      const res = await fetch(provider.url, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          Authorization: `Bearer ${provider.key}`,
-        },
-        body: JSON.stringify({
-          model: provider.model,
-          temperature: 0,
-          max_tokens: 2000,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: SANITIZE_SYSTEM },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) continue;
-      const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      const content = json.choices?.[0]?.message?.content;
-      if (!content) continue;
-      return JSON.parse(content) as AgentSanitizeResult;
-    }
-    return null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
+  reviews: Array<{
+    endpoint_id: string;
+    description?: string;
+    action_kind?: string;
+    resource_kind?: string;
+    example_request?: unknown;
+    example_response?: unknown;
+  }>,
+): EndpointDescriptor[] {
+  const reviewMap = new Map(reviews.map((r) => [r.endpoint_id, r]));
+  return endpoints.map((ep) => {
+    const reviewed = reviewMap.get(ep.endpoint_id);
+    if (!reviewed) return ep;
+    return {
+      ...ep,
+      description: reviewed.description || ep.description,
+      semantic: ep.semantic ? {
+        ...ep.semantic,
+        action_kind: reviewed.action_kind || ep.semantic.action_kind,
+        resource_kind: reviewed.resource_kind || ep.semantic.resource_kind,
+        description_out: reviewed.description || ep.semantic.description_out,
+        ...(reviewed.example_response ? { example_response_compact: reviewed.example_response } : {}),
+        ...(reviewed.example_request ? { example_request: reviewed.example_request } : {}),
+      } : ep.semantic,
+    };
+  });
 }
 
 
@@ -518,9 +397,9 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     return;
   }
 
-  // Falls back to deterministic stripping if no LLM provider is available.
-  const intents = Array.from(new Set([job.intent, ...(skill.intents ?? []), skill.intent_signature].filter(Boolean)));
-  const sanitized = await agentSanitizeEndpoints(publishable, domain, intents);
+  // Deterministic PII sanitization — secrets redacted, values replaced with synthetic placeholders.
+  // The calling agent can later POST to /v1/skills/:id/review with better descriptions and examples.
+  const sanitized = sanitizeForPublish(publishable);
 
   const { operation_graph: _g, ...base } = skill;
   const draft: SkillManifest = { ...base, endpoints: sanitized, indexer_id: getLocalAgentId() };
