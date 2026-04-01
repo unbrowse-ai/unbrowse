@@ -42,8 +42,15 @@ export async function interactiveLogin(
 
   log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}`);
 
+  // Login requires a visible browser — disable headless for this flow
+  const prevHeadless = process.env.HEADLESS;
+  process.env.HEADLESS = "false";
+
   try {
     fs.mkdirSync(profileDir, { recursive: true });
+
+    // Stop any existing headless Kuri so it restarts with HEADLESS=false
+    try { await kuri.stop(); } catch { /* may not be running */ }
 
     // Start Kuri and get a tab
     await kuri.start();
@@ -125,7 +132,9 @@ export async function interactiveLogin(
 
     return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
   } finally {
-    // Cleanup handled by Kuri's tab management
+    // Restore headless setting so subsequent captures run headless
+    if (prevHeadless !== undefined) process.env.HEADLESS = prevHeadless;
+    else delete process.env.HEADLESS;
   }
 }
 
