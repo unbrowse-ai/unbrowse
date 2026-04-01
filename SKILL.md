@@ -1,22 +1,24 @@
 ---
 name: unbrowse
-description: Drop-in browser replacement for AI agents. Routes requests through a shared graph of internal APIs (shadow APIs) that every website already exposes behind its UI. Three execution paths -- local cache (<200ms), shared route graph, or browser fallback -- so agents get structured data via direct API calls instead of slow, brittle page automation. 3.6x mean speedup over Playwright across 94 domains. Discovered routes are published to a collectively maintained marketplace, scored, and reusable by all agents. Free to capture and index; paid tiers for shared graph lookups and skill installs.
+description: API-native agent browser powered by Kuri (Zig-native CDP, 464KB, ~3ms cold start). Unbrowse is the intelligence layer — learns internal APIs (shadow APIs) from real browsing traffic and progressively replaces browser calls with cached API routes (<200ms). Three paths: skill cache, shared route graph, or Kuri browser fallback. 3.6x mean speedup over Playwright across 94 domains. Full Kuri API surface exposed (snapshots, ref-based actions, HAR, cookies, DOM, screenshots). Free to capture and index; agents earn from mining routes for other agents.
 user-invocable: true
 metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "npm", "kind": "node", "package": "unbrowse", "bins": ["unbrowse"]}], "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
 ---
 
-# Unbrowse — Drop-in Browser Replacement for Agents
+# Unbrowse — Agent Browser Powered by Kuri
 
-Every website already exposes internal APIs (shadow APIs) behind its UI -- the same endpoints that power the site's own functionality. Agents don't need to render pages, parse DOMs, or click through UIs. Unbrowse discovers these internal APIs from real browsing traffic and serves them as cached, callable routes.
+Kuri is the agent's browser — a 464 KB Zig-native CDP broker with ~3ms cold start. Unbrowse is the intelligence layer that runs on top: it watches what Kuri does, learns the internal APIs (shadow APIs) that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
+
+**How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
 
 **Three execution paths:**
-1. **Local cache** (Path 1) — instant, <200ms. Checks local route cache first.
-2. **Shared route graph** (Path 2) — sub-second. Queries the collectively maintained marketplace for a route discovered by any agent. No browser launched, no DOM parsed, no LLM tokens spent on page reasoning.
-3. **Browser fallback** (Path 3) — 20-80s. Launches headless Chrome via Kuri (Zig-native CDP broker), captures traffic, reverse-engineers the APIs, and publishes the learned route for future reuse by all agents.
+1. **Skill cache** (Path 1) — instant, <200ms. Cached internal API route.
+2. **Shared route graph** (Path 2) — sub-second. Route discovered by another agent, served from the collectively maintained marketplace.
+3. **Kuri browser** (Path 3) — 20-80s. Full browser session via Kuri. Unbrowse captures and indexes traffic for future acceleration.
 
-From the agent's perspective, nothing changes: describe what you want, and Unbrowse handles routing transparently. Every time any agent discovers a new route, every other agent benefits. Agents can always bypass the shared graph and fall back to browser discovery -- the graph wins only when it delivers genuine value (`fee < rediscovery_cost`).
+Every method except `goto()` proxies directly to Kuri — snapshots, ref-based actions, DOM queries, HAR recording, cookies, screenshots. The full Kuri API surface is available. Unbrowse is the second-class citizen here: it indexes in the background and provides a faster path when one exists.
 
-**Performance:** 3.6x mean speedup, 5.4x median over Playwright across 94 live domains. 18 domains completed in <100ms. Well-cached routes eliminate browser execution overhead entirely. See the whitepaper for full benchmark: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
+**Performance:** 3.6x mean speedup, 5.4x median over Playwright across 94 live domains. 18 domains completed in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
 
 **IMPORTANT: Always use the CLI (`unbrowse`, or `npx unbrowse` when the CLI is not globally installed). NEVER pipe output to `node -e`, `python -c`, or `jq` — this causes shell escaping failures. Use `--path`, `--extract`, and `--limit` flags instead.**
 
@@ -307,35 +309,77 @@ Always `--dry-run` first, ask user before `--confirm-unsafe`:
 unbrowse execute --skill {id} --endpoint {id} --dry-run
 unbrowse execute --skill {id} --endpoint {id} --confirm-unsafe
 ```
-## Browser API (Playwright/Puppeteer replacement)
+## Browser API (Kuri-powered)
 
-For agents that use Playwright or Puppeteer, Unbrowse provides a drop-in replacement:
+Kuri is the primary browser. Unbrowse accelerates it — `goto()` checks the skill cache first and returns structured API data in <200ms when a cached route exists. Every other method proxies directly to Kuri's CDP-based HTTP API.
 
 ```typescript
 import { Browser } from "unbrowse";
 
-const browser = await Browser.launch();
+const browser = await Browser.launch(); // starts Kuri
 const page = await browser.newPage();
 
-// Skill-first: resolves from cache if available, no browser tab opened
+// goto() is the only accelerated call — cache hit returns API data, no browser tab
 const response = await page.goto("https://example.com/search?q=test");
 const data = await response.json();
 
-// Standard browser API also works
-const html = await page.content();
+// Everything else is Kuri's native browser — a11y snapshots, ref-based actions, etc.
+const tree = await page.snapshot();        // a11y tree with @eN refs (token-optimized)
+await page.click("e5");                    // click by ref (from snapshot)
+await page.fill("e3", "hello world");      // fill by ref
+await page.press("Enter");
+await page.screenshot();
+
+// Also supports CSS selectors (evaluate fallback)
 await page.click("button.submit");
 await page.fill("input[name=q]", "test");
 await page.waitForSelector(".results");
 
-// Access raw skill data
-const skillData = page.$unbrowse; // { skill, trace, result, source }
+// Content extraction
+const html = await page.content();         // raw HTML
+const text = await page.text();            // text only
+const md = await page.markdown();          // Markdown
+const links = await page.links();          // all links
 
+// DOM queries, cookies, HAR recording, sessions, viewport...
+await page.query("div.result");
+const cookies = await page.cookies();
+await page.harStart();
+// ... navigate ...
+const har = await page.harStop();
+
+// Access raw unbrowse skill data when goto() resolved from cache
+const skillData = page.$unbrowse; // { skill, trace, result, source }
 await browser.close();
 ```
 
-`page.goto()` checks the skill cache first. If a cached skill exists, the response contains structured API data without opening a browser. On cache miss, it navigates via kuri and captures traffic transparently -- the next visit will resolve from cache.
+### Full Page API
 
-UI actions (`click`, `fill`, `waitForSelector`) use kuri's evaluate-based fallback. When Rach's kuri UI action hook lands, they'll upgrade to ref-based actions automatically via feature detection.
+| Category | Methods |
+|----------|---------|
+| **Navigation** | `goto(url)`, `goBack()`, `goForward()`, `reload()`, `url()` |
+| **Content** | `content()`, `text()`, `markdown()`, `links()`, `snapshot(filter?)` |
+| **Actions (ref)** | `click(ref)`, `fill(ref, value)`, `select(ref, value)`, `scroll()`, `scrollIntoView(ref)`, `drag(from, to)`, `press(key)`, `action(type, ref)` |
+| **Keyboard** | `type(text)`, `insertText(text)`, `keyDown(key)`, `keyUp(key)` |
+| **Wait** | `waitForSelector(css)`, `waitForLoad()` |
+| **Evaluate** | `evaluate(fn)` |
+| **DOM** | `query(css)`, `innerHTML(css)`, `attributes(ref)`, `findText(query)` |
+| **Screenshots** | `screenshot()` |
+| **Cookies/Auth** | `cookies()`, `setCookie(name, value)`, `setHeaders(headers)` |
+| **HAR** | `harStart()`, `harStop()`, `networkEvents()` |
+| **Viewport** | `setViewport(w, h)`, `setUserAgent(ua)`, `setCredentials(user, pass)` |
+| **Session** | `sessionSave(name)`, `sessionLoad(name)`, `sessionList()` |
+| **Debug** | `console()`, `errors()`, `injectScript(js)` |
+
+`snapshot()` returns Kuri's token-optimized a11y tree with `@eN` refs. Use refs with `click()`, `fill()`, `select()` for reliable, selector-free interaction. On Google Flights, a full agent loop (`goto` → `snapshot` → `click` → `snapshot` → `evaluate`) costs ~4,100 tokens.
+
+For the full Kuri HTTP API (80+ endpoints including security testing, video recording, tracing, profiling), see the [Kuri docs](https://github.com/justrach/kuri). Access any Kuri endpoint directly via `page.tabId`:
+
+```typescript
+// Direct Kuri access for anything not wrapped by Page
+import * as kuri from "unbrowse/kuri";
+await kuri.action(page.tabId, "hover", "e5");
+```
 
 ## Route Quality and Skill Lifecycle
 
@@ -397,6 +441,25 @@ Paid skills return HTTP 402 with x402 payment requirements. Wallet operations ar
 ```
 
 **Wallet setup:** Set `LOBSTER_WALLET_ADDRESS` env var when pairing with lobster.cash. The skill detects the wallet automatically and includes payment proof in subsequent requests.
+
+### Earning from route mining
+
+Agents earn by indexing the web for other agents. Every time an agent browses a new site through Kuri, Unbrowse captures the internal APIs and publishes them to the shared route graph. When another agent later installs that route (Tier 1), the original discoverer gets paid.
+
+**How contributors earn:**
+- **Route discovery** — browse a site, Unbrowse learns its APIs, you earn when others install the route
+- **Route improvement** — map additional parameters, document auth flows, add error handling to existing routes
+- **Route maintenance** — keep routes fresh by re-verifying endpoints as APIs drift
+
+Attribution is delta-based: each contributor's share is proportional to their marginal contribution to route quality. Contributors collectively receive ~70% of Tier 1 install revenue.
+
+This is mining the internet — agents doing normal browsing work passively build a shared index of callable APIs, and get paid when that knowledge saves other agents from redundant discovery. The more you browse, the more routes you contribute, the more you earn.
+
+Check earnings:
+```bash
+# View your contributor earnings
+curl http://localhost:6969/v1/transactions/creator/{agentId}
+```
 
 ## REST API Reference
 
