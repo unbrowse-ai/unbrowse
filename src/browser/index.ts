@@ -76,12 +76,26 @@ export class Page {
       // Resolve failed — fall through to kuri navigation
     }
 
-    // Cache miss or resolve failure — navigate via kuri
+    // Cache miss or resolve failure — navigate via kuri.
+    // resolveAndExecute already runs the full capture pipeline (marketplace lookup,
+    // first-pass browser action, live capture + indexing) as its last resort.
+    // This fallback only fires when that entire pipeline fails, so we keep it
+    // lightweight: navigate, grab HTML, and return.
     if (this._tabId) {
       await kuri.navigate(this._tabId, url);
       const finalUrl = await kuri.getCurrentUrl(this._tabId).catch(() => url);
       if (typeof finalUrl === "string" && finalUrl.startsWith("http")) {
         this._url = finalUrl;
+      }
+
+      // Fetch HTML eagerly so content() returns useful data immediately
+      try {
+        const html = await kuri.getPageHtml(this._tabId);
+        if (typeof html === "string" && html.startsWith("<")) {
+          this._html = html;
+        }
+      } catch {
+        // Non-fatal — content() will retry on demand
       }
     }
 
@@ -89,7 +103,7 @@ export class Page {
       status: 200,
       headers: { "x-unbrowse-source": "browser" },
       url: this._url,
-      body: null,
+      body: this._html ?? null,
     });
   }
 
