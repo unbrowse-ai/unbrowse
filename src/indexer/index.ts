@@ -14,7 +14,19 @@ import { getRegistrableDomain } from "../domain.js";
 import type { SkillManifest, EndpointDescriptor } from "../types/index.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 
+const UNBROWSE_CONFIG_PATH = join(homedir(), ".unbrowse", "config.json");
+
+/** Read agent_id from local config — used for contributor attribution on publish. */
+function getLocalAgentId(): string | undefined {
+  try {
+    const config = JSON.parse(readFileSync(UNBROWSE_CONFIG_PATH, "utf-8"));
+    return config.agent_id ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 /**
  * Strip PII and user-specific data from endpoints before publishing to marketplace.
  * Keeps: URL templates, method, schema structure, semantic metadata (action/resource kinds,
@@ -407,7 +419,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   const sanitized = await agentSanitizeEndpoints(publishable, domain);
 
   const { operation_graph: _g, ...base } = skill;
-  const draft: SkillManifest = { ...base, endpoints: sanitized };
+  const draft: SkillManifest = { ...base, endpoints: sanitized, indexer_id: getLocalAgentId() };
   const validation = await validateManifest({ ...draft, skill_id: "__validate__" });
   if (!validation.valid) {
     console.warn(
