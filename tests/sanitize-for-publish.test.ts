@@ -122,14 +122,14 @@ describe("redactSecrets", () => {
 });
 
 describe("sanitizeForPublish", () => {
-  it("strips query default values but keeps keys", () => {
+  it("replaces query values with generic placeholders", () => {
     const [clean] = sanitizeForPublish([makeEndpoint()]);
-    expect(clean.query).toEqual({ q: "", page: "" });
+    expect(clean.query).toEqual({ q: "example", page: "example" });
   });
 
-  it("strips path_params default values but keeps keys", () => {
+  it("replaces path_params with generic placeholders", () => {
     const [clean] = sanitizeForPublish([makeEndpoint()]);
-    expect(clean.path_params).toEqual({ id: "" });
+    expect(clean.path_params).toEqual({ id: "example" });
   });
 
   it("strips header values but keeps keys", () => {
@@ -142,19 +142,37 @@ describe("sanitizeForPublish", () => {
     expect(clean.trigger_url).toBe("https://example.com/search");
   });
 
-  it("strips example_response_compact", () => {
+  it("synthesizes example_response_compact instead of deleting", () => {
     const [clean] = sanitizeForPublish([makeEndpoint()]);
-    expect(clean.semantic?.example_response_compact).toBeUndefined();
+    const resp = clean.semantic?.example_response_compact as Record<string, unknown>;
+    expect(resp).toBeDefined();
+    // Structure preserved — items array with objects
+    expect(resp.items).toBeDefined();
+    expect(Array.isArray(resp.items)).toBe(true);
+    const item = (resp.items as unknown[])[0] as Record<string, unknown>;
+    // Real values replaced — no "User's Private Item" or "user@secret.com"
+    expect(item.name).not.toBe("User's Private Item");
+    expect(item.owner_email).toBe("user@example.com"); // email → placeholder
+    expect(typeof item.id).toBe("number"); // number preserved as number
+    expect(typeof item.price).toBe("number");
   });
 
-  it("strips example_request", () => {
+  it("synthesizes example_request instead of deleting", () => {
     const [clean] = sanitizeForPublish([makeEndpoint()]);
-    expect(clean.semantic?.example_request).toBeUndefined();
+    const req = clean.semantic?.example_request as Record<string, unknown>;
+    expect(req).toBeDefined();
+    expect(req.q).toBeDefined(); // key preserved
+    expect(req.q).not.toBe("secret query"); // value replaced
+    expect(typeof req.page).toBe("number"); // type preserved
   });
 
-  it("strips sample_request_url", () => {
+  it("replaces sample_request_url query param values", () => {
     const [clean] = sanitizeForPublish([makeEndpoint()]);
-    expect(clean.semantic?.sample_request_url).toBeUndefined();
+    const url = clean.semantic?.sample_request_url;
+    expect(url).toBeDefined();
+    expect(url).toContain("q=example");
+    expect(url).toContain("page=example");
+    expect(url).not.toContain("secret");
   });
 
   it("strips example_value from requires/provides bindings", () => {
@@ -179,13 +197,15 @@ describe("sanitizeForPublish", () => {
     expect(clean.description).toBe("Search items");
   });
 
-  it("strips body and body_params", () => {
+  it("synthesizes body instead of blanking", () => {
     const [clean] = sanitizeForPublish([makeEndpoint({
-      body: { action: "create", name: "Private Name" },
+      body: { action: "create", name: "Private Name", email: "user@secret.com" },
       body_params: { name: "Private Name" },
     })]);
-    expect(clean.body).toEqual({});
-    expect(clean.body_params).toEqual({});
+    const body = clean.body as Record<string, unknown>;
+    expect(body.action).toBeDefined();
+    expect(body.email).toBe("user@example.com");
+    expect(body.name).not.toBe("Private Name");
   });
 
   it("handles endpoints with no semantic/query/headers", () => {
