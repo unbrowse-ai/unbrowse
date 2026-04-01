@@ -35,42 +35,42 @@ describe("checkWalletConfigured", () => {
 });
 
 describe("checkPaymentRequirement", () => {
-  it("free when skip_payment", () => {
-    expect(checkPaymentRequirement("s1", "e1", { skip_payment: true }).status).toBe("free");
+  it("free when skip_payment", async () => {
+    expect((await checkPaymentRequirement("s1", "e1", { skip_payment: true })).status).toBe("free");
   });
-  it("free when env skip", () => {
+  it("free when env skip", async () => {
     process.env.UNBROWSE_SKIP_PAYMENT = "1";
-    expect(checkPaymentRequirement("s1", "e1").status).toBe("free");
+    expect((await checkPaymentRequirement("s1", "e1")).status).toBe("free");
   });
-  it("free for local: skills", () => {
-    expect(checkPaymentRequirement("local:x", "e1").status).toBe("free");
+  it("free for local: skills", async () => {
+    expect((await checkPaymentRequirement("local:x", "e1")).status).toBe("free");
   });
-  it("free when FREE_TIER", () => {
+  it("free when FREE_TIER", async () => {
     process.env.UNBROWSE_FREE_TIER = "1";
-    expect(checkPaymentRequirement("s1", "e1").status).toBe("free");
+    expect((await checkPaymentRequirement("s1", "e1")).status).toBe("free");
   });
-  it("free when price 0", () => {
-    expect(checkPaymentRequirement("s1", "e1", { price_usd: "0" }).status).toBe("free");
+  it("free when price 0", async () => {
+    expect((await checkPaymentRequirement("s1", "e1", { price_usd: "0" })).status).toBe("free");
   });
-  it("payment_required for marketplace", () => {
-    const r = checkPaymentRequirement("skill-123", "ep-1");
+  it("payment_required for marketplace", async () => {
+    const r = await checkPaymentRequirement("skill-123", "ep-1");
     expect(r.status).toBe("payment_required");
     expect(r.requirement?.currency).toBe("USDC");
     expect(r.requirement?.amount).toBe("0.001");
   });
-  it("wallet_not_configured when false", () => {
-    const r = checkPaymentRequirement("s1", "e1", { wallet_configured: false });
+  it("wallet_not_configured when false", async () => {
+    const r = await checkPaymentRequirement("s1", "e1", { wallet_configured: false });
     expect(r.status).toBe("wallet_not_configured");
     expect(r.message).toContain("lobster.cash");
   });
-  it("uses price override", () => {
-    expect(checkPaymentRequirement("s1", "e1", { price_usd: "0.05" }).requirement?.amount).toBe("0.05");
+  it("uses price override", async () => {
+    expect((await checkPaymentRequirement("s1", "e1", { price_usd: "0.05" })).requirement?.amount).toBe("0.05");
   });
-  it("includes facilitator", () => {
-    expect(checkPaymentRequirement("s1", "e1").requirement?.recipient).toBe("https://api.corbits.dev");
+  it("includes facilitator", async () => {
+    expect((await checkPaymentRequirement("s1", "e1")).requirement?.recipient).toBe("https://api.corbits.dev");
   });
-  it("includes memo", () => {
-    expect(checkPaymentRequirement("abc", "xyz").requirement?.memo).toBe("unbrowse:abc:xyz");
+  it("includes memo", async () => {
+    expect((await checkPaymentRequirement("abc", "xyz")).requirement?.memo).toBe("unbrowse:abc:xyz");
   });
 });
 
@@ -111,13 +111,13 @@ describe("delegation boundary", () => {
     const m = await import("../src/payments/index.js");
     expect("signTransaction" in m).toBe(false);
   });
-  it("no hardcoded action names", () => {
-    const r = checkPaymentRequirement("s1", "e1");
+  it("no hardcoded action names", async () => {
+    const r = await checkPaymentRequirement("s1", "e1");
     expect(r.message).not.toContain("lobster_tx_create");
     expect(r.message).not.toContain("lobster_send");
   });
-  it("capability-level wording", () => {
-    const r = checkPaymentRequirement("s1", "e1");
+  it("capability-level wording", async () => {
+    const r = await checkPaymentRequirement("s1", "e1");
     expect(r.message).toContain("wallet provider");
   });
 });
@@ -157,8 +157,8 @@ describe("indexing fallback", () => {
     expect(resolved.status).toBe("awaiting_confirmation");
   });
 
-  it("free does NOT fall back", () => {
-    const gate = checkPaymentRequirement("local:x", "e1");
+  it("free does NOT fall back", async () => {
+    const gate = await checkPaymentRequirement("local:x", "e1");
     const resolved = resolveUnpaidAccess(gate);
     expect(resolved.status).toBe("free");
   });

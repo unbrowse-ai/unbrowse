@@ -18,51 +18,51 @@ describe("checkPaymentRequirement", () => {
     process.env = { ...origEnv };
   });
 
-  test("returns free for local: skills", () => {
-    const result = checkPaymentRequirement("local:my-skill", "ep-1");
+  test("returns free for local: skills", async () => {
+    const result = await checkPaymentRequirement("local:my-skill", "ep-1");
     expect(result.status).toBe("free");
   });
 
-  test("returns free when UNBROWSE_SKIP_PAYMENT=1", () => {
+  test("returns free when UNBROWSE_SKIP_PAYMENT=1", async () => {
     process.env.UNBROWSE_SKIP_PAYMENT = "1";
-    const result = checkPaymentRequirement("marketplace:skill-1", "ep-1");
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1");
     expect(result.status).toBe("free");
   });
 
-  test("returns free when UNBROWSE_FREE_TIER=1", () => {
+  test("returns free when UNBROWSE_FREE_TIER=1", async () => {
     process.env.UNBROWSE_FREE_TIER = "1";
-    const result = checkPaymentRequirement("marketplace:skill-1", "ep-1");
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1");
     expect(result.status).toBe("free");
   });
 
-  test("returns free when skip_payment option is true", () => {
-    const result = checkPaymentRequirement("marketplace:skill-1", "ep-1", {
+  test("returns free when skip_payment option is true", async () => {
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
       skip_payment: true,
     });
     expect(result.status).toBe("free");
   });
 
-  test("returns free when price_usd is zero", () => {
-    const result = checkPaymentRequirement("marketplace:skill-1", "ep-1", {
+  test("returns free when price_usd is zero", async () => {
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
       price_usd: "0",
     });
     expect(result.status).toBe("free");
   });
 
-  test("returns payment_required for marketplace skills with default price", () => {
+  test("returns payment_required for marketplace skills with default price", async () => {
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
-    const result = checkPaymentRequirement("marketplace:skill-1", "ep-1");
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1");
     expect(result.status).toBe("payment_required");
     expect(result.requirement).toBeDefined();
     expect(result.requirement!.amount).toBe("0.001");
     expect(result.requirement!.currency).toBe("USDC");
   });
 
-  test("returns wallet_not_configured when wallet_configured is false", () => {
+  test("returns wallet_not_configured when wallet_configured is false", async () => {
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
-    const result = checkPaymentRequirement("marketplace:skill-1", "ep-1", {
+    const result = await checkPaymentRequirement("marketplace:skill-1", "ep-1", {
       wallet_configured: false,
     });
     expect(result.status).toBe("wallet_not_configured");
@@ -70,10 +70,10 @@ describe("checkPaymentRequirement", () => {
     expect(result.requirement!.required).toBe(true);
   });
 
-  test("requirement includes correct memo format", () => {
+  test("requirement includes correct memo format", async () => {
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
-    const result = checkPaymentRequirement("my-skill", "search-ep");
+    const result = await checkPaymentRequirement("my-skill", "search-ep");
     expect(result.requirement!.memo).toBe("unbrowse:my-skill:search-ep");
   });
 });
@@ -249,7 +249,7 @@ describe("payment gate integration", () => {
     process.env = { ...origEnv };
   });
 
-  test("full flow: no wallet -> wallet_not_configured -> indexing_fallback", () => {
+  test("full flow: no wallet -> wallet_not_configured -> indexing_fallback", async () => {
     delete process.env.LOBSTER_WALLET_ADDRESS;
     delete process.env.AGENT_WALLET_ADDRESS;
     delete process.env.UNBROWSE_SKIP_PAYMENT;
@@ -258,7 +258,7 @@ describe("payment gate integration", () => {
     const walletCheck = checkWalletConfigured();
     expect(walletCheck.configured).toBe(false);
 
-    const paymentCheck = checkPaymentRequirement("marketplace:skill", "ep-1", {
+    const paymentCheck = await checkPaymentRequirement("marketplace:skill", "ep-1", {
       wallet_configured: walletCheck.configured,
     });
     expect(paymentCheck.status).toBe("wallet_not_configured");
@@ -268,7 +268,7 @@ describe("payment gate integration", () => {
     expect(fallback.message).toContain("Indexing mode");
   });
 
-  test("full flow: wallet configured -> payment_required (no block)", () => {
+  test("full flow: wallet configured -> payment_required (no block)", async () => {
     process.env.LOBSTER_WALLET_ADDRESS = "test-wallet-addr";
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
@@ -276,7 +276,7 @@ describe("payment gate integration", () => {
     const walletCheck = checkWalletConfigured();
     expect(walletCheck.configured).toBe(true);
 
-    const paymentCheck = checkPaymentRequirement("marketplace:skill", "ep-1", {
+    const paymentCheck = await checkPaymentRequirement("marketplace:skill", "ep-1", {
       wallet_configured: walletCheck.configured,
     });
     expect(paymentCheck.status).toBe("payment_required");
@@ -284,24 +284,24 @@ describe("payment gate integration", () => {
     expect(paymentCheck.requirement!.amount).toBe("0.001");
   });
 
-  test("full flow: local skill is always free regardless of wallet", () => {
+  test("full flow: local skill is always free regardless of wallet", async () => {
     delete process.env.LOBSTER_WALLET_ADDRESS;
     delete process.env.UNBROWSE_SKIP_PAYMENT;
     delete process.env.UNBROWSE_FREE_TIER;
 
-    const paymentCheck = checkPaymentRequirement("local:my-tool", "ep-1");
+    const paymentCheck = await checkPaymentRequirement("local:my-tool", "ep-1");
     expect(paymentCheck.status).toBe("free");
   });
 
-  test("UNBROWSE_SKIP_PAYMENT bypasses everything", () => {
+  test("UNBROWSE_SKIP_PAYMENT bypasses everything", async () => {
     process.env.UNBROWSE_SKIP_PAYMENT = "1";
-    const paymentCheck = checkPaymentRequirement("marketplace:expensive-skill", "ep-1");
+    const paymentCheck = await checkPaymentRequirement("marketplace:expensive-skill", "ep-1");
     expect(paymentCheck.status).toBe("free");
   });
 
-  test("UNBROWSE_FREE_TIER bypasses everything", () => {
+  test("UNBROWSE_FREE_TIER bypasses everything", async () => {
     process.env.UNBROWSE_FREE_TIER = "1";
-    const paymentCheck = checkPaymentRequirement("marketplace:expensive-skill", "ep-1");
+    const paymentCheck = await checkPaymentRequirement("marketplace:expensive-skill", "ep-1");
     expect(paymentCheck.status).toBe("free");
   });
 });
@@ -311,9 +311,9 @@ describe("payment gate integration", () => {
 // ---------------------------------------------------------------------------
 
 describe("OrchestratorResult payment field", () => {
-  test("payment field is typed correctly from PaymentGateResult", () => {
+  test("payment field is typed correctly from PaymentGateResult", async () => {
     // Verify the payment module exports are importable and well-typed
-    const gate: PaymentGateResult = checkPaymentRequirement("test", "ep");
+    const gate: PaymentGateResult = await checkPaymentRequirement("test", "ep");
     expect(gate).toHaveProperty("status");
     expect(gate).toHaveProperty("message");
     // The status should be one of the valid PaymentStatus values
