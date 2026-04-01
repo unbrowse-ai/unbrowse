@@ -65,140 +65,6 @@ function extractFlashNoticeSpecial(html: string, intent: string): ExtractedStruc
   }];
 }
 
-function extractSearchTermsSpecial(html: string, intent: string): ExtractedStructure[] {
-  if (!/\bsearch term/.test(intent.toLowerCase()) && !/class="search-terms"/i.test(html)) return [];
-  const $ = cheerio.load(html);
-  const rows: Record<string, string>[] = [];
-  $("ul.search-terms li.item a[href]").each((_, el) => {
-    const $a = $(el);
-    const term = cleanText($a.text());
-    const href = $a.attr("href")?.trim() ?? "";
-    if (!term || term.length > 200) return;
-    const row: Record<string, string> = { term };
-    if (href) row.url = href;
-    rows.push(row);
-  });
-  if (rows.length === 0) return [];
-  return [{
-    type: "repeated-elements",
-    data: rows,
-    element_count: rows.length,
-    selector: "ul.search-terms li.item",
-  }];
-}
-
-function extractMagentoReviewSpecial(html: string, intent: string): ExtractedStructure[] {
-  const lower = intent.toLowerCase();
-  if (!/\breview|reviewer/.test(lower) && !/class="review-item"/i.test(html)) return [];
-  if (!/class="review-item"/i.test(html)) return [];
-  const $ = cheerio.load(html);
-  const rows: Record<string, string>[] = [];
-  $("li.review-item").each((_, el) => {
-    const $item = $(el);
-    const title = cleanText($item.find(".review-title").first().text());
-    const body = cleanText($item.find(".review-content").first().text());
-    const author = cleanText($item.find("[itemprop='author'], .review-author .review-details-value").first().text());
-    const date = cleanText($item.find("[itemprop='datePublished'], .review-date .review-details-value").first().text());
-    const ratingText = cleanText($item.find("[itemprop='ratingValue']").first().text()).replace(/%/g, "");
-    const ratingPercent = Number(ratingText);
-    const row: Record<string, string> = {};
-    if (title) row.title = title;
-    if (body) row.body = body;
-    if (author) row.author = author;
-    if (date) row.date = date;
-    if (Number.isFinite(ratingPercent)) {
-      row.rating = String(Math.max(1, Math.min(5, Math.round(ratingPercent / 20))));
-      row.rating_percent = String(ratingPercent);
-    }
-    if (Object.keys(row).length >= 2) rows.push(row);
-  });
-  if (rows.length === 0) return [];
-  return [{
-    type: "repeated-elements",
-    data: rows,
-    element_count: rows.length,
-    selector: "li.review-item",
-  }];
-}
-
-function extractPostmillForumSpecial(html: string, intent: string): ExtractedStructure[] {
-  const lower = intent.toLowerCase();
-  if (!/\bforum\b/.test(lower) && !/class="submission__title"/i.test(html)) return [];
-  if (!/class="submission__title"/i.test(html)) return [];
-  const $ = cheerio.load(html);
-  const pageTitle = cleanText($("title").first().text());
-  const subreddit = pageTitle || cleanText($(".page-heading").first().text());
-  const rows: Record<string, string>[] = [];
-  $("article.submission").each((_, el) => {
-    const $item = $(el);
-    const title = cleanText($item.find(".submission__title a").first().text());
-    const author = cleanText($item.find(".submission__submitter strong, .submission__submitter").first().text());
-    const commentsUrl = $item.find(".submission__nav a[href*='/f/']").first().attr("href")?.trim() ?? "";
-    const score = cleanText($item.find(".vote__net-score").first().text()).replace(/[^\d-]/g, "");
-    const date = $item.find("time").first().attr("datetime")?.trim() ?? cleanText($item.find("time").first().text());
-    const commentsText = cleanText($item.find(".submission__nav a strong").first().text());
-    const row: Record<string, string> = {};
-    if (title) row.title = title;
-    if (author) row.author = author;
-    if (commentsUrl) {
-      row.url = commentsUrl;
-      row.permalink = commentsUrl;
-      row.comments_url = commentsUrl;
-    }
-    if (subreddit) row.subreddit = subreddit;
-    if (score) row.score = score;
-    if (date) row.date = date;
-    const commentsCount = commentsText.match(/([0-9,]+)/)?.[1]?.replace(/,/g, "");
-    if (commentsCount) row.num_comments = commentsCount;
-    if (Object.keys(row).length >= 4) rows.push(row);
-  });
-  if (rows.length === 0) return [];
-  return [{
-    type: "repeated-elements",
-    data: rows,
-    element_count: rows.length,
-    selector: "article.submission",
-  }];
-}
-
-function extractPostmillCommentSpecial(html: string, intent: string): ExtractedStructure[] {
-  const lower = intent.toLowerCase();
-  if (!/\bcomment/.test(lower) && !/class="comment__body"/i.test(html)) return [];
-  if (!/class="comment__body"/i.test(html)) return [];
-  const $ = cheerio.load(html);
-  const postTitle = cleanText($(".submission__title").first().text()) || cleanText($("title").first().text());
-  const postAuthor = cleanText($(".submission__submitter strong, .submission__submitter").first().text());
-  const rows: Record<string, string>[] = [];
-  $("article.comment").each((_, el) => {
-    const $item = $(el);
-    const author = cleanText($item.find(".comment__info a[href^='/user/'] strong, .comment__info a[href^='/user/']").first().text());
-    const body = cleanText($item.find(".comment__body").first().text());
-    const permalink = $item.find(".comment__permalink").first().attr("href")?.trim() ?? "";
-    const scoreText = cleanText($item.find(".vote__net-score").first().text())
-      .replace(/[−–—]/g, "-")
-      .replace(/&minus;/g, "-")
-      .replace(/[^\d-]/g, "");
-    const row: Record<string, string> = {};
-    if (author) row.author = author;
-    if (body) row.body = body;
-    if (permalink) {
-      row.url = permalink;
-      row.permalink = permalink;
-    }
-    if (scoreText) row.score = scoreText;
-    if (postTitle) row.post_title = postTitle;
-    if (postAuthor) row.post_author = postAuthor;
-    if (Object.keys(row).length >= 3) rows.push(row);
-  });
-  if (rows.length === 0) return [];
-  return [{
-    type: "repeated-elements",
-    data: rows,
-    element_count: rows.length,
-    selector: "article.comment",
-  }];
-}
-
 /**
  * Extract structured data embedded by SPA frameworks BEFORE cleanDOM strips scripts.
  * Must be called on raw HTML.
@@ -436,14 +302,6 @@ function normalizeStructureForIntent(structure: ExtractedStructure, intent: stri
   if (structure.type !== "repeated-elements" || !Array.isArray(structure.data)) return structure;
   const objectRows = (structure.data as unknown[]).filter((row): row is Record<string, string> => !!row && typeof row === "object" && !Array.isArray(row));
   if (objectRows.length === 0) return structure;
-  const normalizedLawNet = normalizeLawNetSearchRows(objectRows);
-  if (normalizedLawNet.length >= 1) {
-    return {
-      ...structure,
-      data: normalizedLawNet,
-      element_count: normalizedLawNet.length,
-    };
-  }
   const pruned = pruneRowsForIntent(objectRows, intent);
   if (pruned.length >= 1 && pruned.length < objectRows.length) {
     return {
@@ -453,92 +311,6 @@ function normalizeStructureForIntent(structure: ExtractedStructure, intent: stri
     };
   }
   return structure;
-}
-
-function parseLawNetCitation(title: string): { case_name?: string; citation?: string } {
-  const match = title.match(/^(.*?)\s*-\s*(\[[^\]]+\].+)$/);
-  if (!match) return {};
-  const case_name = cleanText(match[1] ?? "");
-  const citation = cleanText(match[2] ?? "");
-  return {
-    ...(case_name ? { case_name } : {}),
-    ...(citation ? { citation } : {}),
-  };
-}
-
-function parseLawNetLabeledField(text: string, label: string): string | undefined {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = text.match(
-    new RegExp(`${escaped}\\s*:\\s*([\\s\\S]*?)(?=\\s+(?:Court|Corams?|Decision Date|Case Number|Catchword)\\s*:|$)`, "i"),
-  );
-  const value = cleanText(match?.[1] ?? "");
-  return value || undefined;
-}
-
-function isLikelyLawNetSearchShell(rows: Array<Record<string, string>>): boolean {
-  return rows.some((row) => {
-    if (row.title === "Search Results") return true;
-    const keys = Object.keys(row);
-    if (!keys.some((key) => /^heading_\d+$/.test(key))) return false;
-    return Object.values(row).some((value) =>
-      typeof value === "string" &&
-      (/Results returned:/i.test(value) || /\bCourt\s*:/.test(value) || /\[\d{4}\]/.test(value))
-    );
-  });
-}
-
-function parseLawNetCaseRow(text: string): Record<string, string> | null {
-  const cleaned = cleanText(text.replace(/\u00a0/g, " "));
-  if (!cleaned) return null;
-  if (
-    cleaned === "Search Results" ||
-    /^Results returned:/i.test(cleaned) ||
-    /^(Catchword|Category|Courts|Coram|Jurisdiction|Years|Title \[A to Z\]|Title \[Z to A\]|Date \[latest first\])$/i.test(cleaned) ||
-    /^Please enter the no\. of words before and after\./i.test(cleaned)
-  ) {
-    return null;
-  }
-  if (!/\[\d{4}\]/.test(cleaned)) return null;
-
-  const marker = cleaned.search(/\s+(?:Court|Corams?|Decision Date|Case Number|Catchword)\s*:/i);
-  const title = cleanText(marker >= 0 ? cleaned.slice(0, marker) : cleaned);
-  if (!title || !/\[\d{4}\]/.test(title) || title.length < 12) return null;
-
-  const row: Record<string, string> = {
-    title,
-    ...parseLawNetCitation(title),
-  };
-  const court = parseLawNetLabeledField(cleaned, "Court");
-  const coram = parseLawNetLabeledField(cleaned, "Corams") ?? parseLawNetLabeledField(cleaned, "Coram");
-  const decision_date = parseLawNetLabeledField(cleaned, "Decision Date");
-  const case_number = parseLawNetLabeledField(cleaned, "Case Number");
-  const catchword = parseLawNetLabeledField(cleaned, "Catchword");
-  if (court) row.court = court;
-  if (coram) row.coram = coram;
-  if (decision_date) row.decision_date = decision_date;
-  if (case_number) row.case_number = case_number;
-  if (catchword) row.catchword = catchword;
-  row.raw_text = cleaned;
-  return row;
-}
-
-export function normalizeLawNetSearchRows(rows: Array<Record<string, string>>): Array<Record<string, string>> {
-  if (rows.length === 0 || !isLikelyLawNetSearchShell(rows)) return [];
-
-  const bestByTitle = new Map<string, Record<string, string>>();
-  for (const row of rows) {
-    for (const value of Object.values(row)) {
-      if (typeof value !== "string") continue;
-      const parsed = parseLawNetCaseRow(value);
-      if (!parsed) continue;
-      const existing = bestByTitle.get(parsed.title);
-      if (!existing || Object.keys(parsed).length > Object.keys(existing).length) {
-        bestByTitle.set(parsed.title, parsed);
-      }
-    }
-  }
-
-  return [...bestByTitle.values()];
 }
 
 function normalizeGitHubPath(href: string | undefined): string | null {
@@ -1436,36 +1208,6 @@ function scoreFieldRichness(structure: ExtractedStructure): number {
   return 0;
 }
 
-function scoreCaseRowElements(structure: ExtractedStructure): number {
-  if (structure.type !== "repeated-elements" || !Array.isArray(structure.data)) return 0;
-  const items = structure.data as Array<Record<string, unknown>>;
-  if (items.length < 2) return 0;
-  const caseLike = items.filter((item) =>
-    typeof item.title === "string" &&
-    (
-      typeof item.case_name === "string" ||
-      typeof item.citation === "string" ||
-      typeof item.case_number === "string" ||
-      typeof item.court === "string"
-    ),
-  ).length;
-  if (caseLike >= Math.min(3, items.length)) return 220;
-  if (caseLike >= 2) return 140;
-  return 0;
-}
-
-function scoreSearchShellNoise(structure: ExtractedStructure): number {
-  if (structure.type !== "key-value" || !structure.data || typeof structure.data !== "object") return 0;
-  const record = structure.data as Record<string, unknown>;
-  const title = typeof record.title === "string" ? record.title : "";
-  const description = typeof record.description === "string" ? record.description : "";
-  const headingCount = Object.keys(record).filter((key) => /^heading_\d+$/.test(key)).length;
-  if (/^search results$/i.test(title) && /results returned:/i.test(description) && headingCount >= 6) {
-    return -260;
-  }
-  return 0;
-}
-
 // ---------------------------------------------------------------------------
 // extractFromDOM
 // ---------------------------------------------------------------------------
@@ -1538,7 +1280,6 @@ export function extractFromDOMWithHint(
 export function extractFromDOM(html: string, intent: string): ExtractionResult {
   // Cap HTML size to prevent cheerio from hanging on massive pages
   const MAX_HTML_SIZE = 300_000;
-  const rawHtml = html;
   let workingHtml = html;
   if (workingHtml.length > MAX_HTML_SIZE) {
     // Strip attribute bloat first (class/style/data-* attributes inflate HTML 2-3x)
@@ -1558,22 +1299,18 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   }
 
   // Extract SPA-embedded data from raw HTML BEFORE cleanDOM strips scripts
-  const spaStructures = extractSPAData(rawHtml);
-  const flashStructures = extractFlashNoticeSpecial(rawHtml, intent);
+  const spaStructures = extractSPAData(workingHtml);
+  const flashStructures = extractFlashNoticeSpecial(workingHtml, intent);
   const cleaned = cleanDOM(workingHtml);
-  const searchTermStructures = extractSearchTermsSpecial(rawHtml, intent);
-  const magentoReviewStructures = extractMagentoReviewSpecial(rawHtml, intent);
-  const postmillForumStructures = extractPostmillForumSpecial(rawHtml, intent);
-  const postmillCommentStructures = extractPostmillCommentSpecial(rawHtml, intent);
-  const githubStructures = extractGitHubSpecial(rawHtml, intent);
-  const linkedInStructures = extractLinkedInSpecial(rawHtml, intent);
-  const packageSearchStructures = extractPackageSearchSpecial(rawHtml, intent);
-  const xProfileStructures = extractXProfileSpecial(rawHtml, intent);
-  const postStructures = extractPostSpecial(rawHtml, intent);
-  const trendStructures = extractTrendSpecial(rawHtml, intent);
-  const definitionStructures = extractDefinitionSpecial(rawHtml, intent);
-  const courseStructures = extractCourseSearchSpecial(rawHtml, intent);
-  const structures = [...flashStructures, ...searchTermStructures, ...magentoReviewStructures, ...postmillForumStructures, ...postmillCommentStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
+  const githubStructures = extractGitHubSpecial(workingHtml, intent);
+  const linkedInStructures = extractLinkedInSpecial(workingHtml, intent);
+  const packageSearchStructures = extractPackageSearchSpecial(workingHtml, intent);
+  const xProfileStructures = extractXProfileSpecial(workingHtml, intent);
+  const postStructures = extractPostSpecial(workingHtml, intent);
+  const trendStructures = extractTrendSpecial(workingHtml, intent);
+  const definitionStructures = extractDefinitionSpecial(workingHtml, intent);
+  const courseStructures = extractCourseSearchSpecial(workingHtml, intent);
+  const structures = [...flashStructures, ...githubStructures, ...linkedInStructures, ...packageSearchStructures, ...xProfileStructures, ...postStructures, ...trendStructures, ...definitionStructures, ...courseStructures, ...spaStructures, ...parseStructured(cleaned)]
     .map((structure) => normalizeStructureForIntent(structure, intent));
 
   if (structures.length === 0) {
@@ -1584,13 +1321,7 @@ export function extractFromDOM(html: string, intent: string): ExtractionResult {
   const intentWords = intent.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = structures.map((s) => ({
     structure: s,
-    score:
-      scoreRelevance(s, intentWords) +
-      scoreSemanticFit(s, intent) +
-      scoreSparseLinkList(s) +
-      scoreFieldRichness(s) +
-      scoreCaseRowElements(s) +
-      scoreSearchShellNoise(s),
+    score: scoreRelevance(s, intentWords) + scoreSemanticFit(s, intent) + scoreSparseLinkList(s) + scoreFieldRichness(s),
   }));
 
   scored.sort((a, b) => b.score - a.score);

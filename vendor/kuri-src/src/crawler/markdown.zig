@@ -89,6 +89,24 @@ pub fn htmlToMarkdown(html: []const u8, allocator: std.mem.Allocator) ![]const u
                 } else if (std.mem.startsWith(u8, html[i..], "&nbsp;")) {
                     try writer.writeByte(' ');
                     i += 6;
+                } else if (std.mem.startsWith(u8, html[i..], "&apos;")) {
+                    try writer.writeByte('\'');
+                    i += 6;
+                } else if (decodeNumericEntity(html[i..])) |decoded| {
+                    // Numeric entities: &#123; (decimal) or &#x7b; (hex)
+                    if (decoded.codepoint < 128) {
+                        try writer.writeByte(@intCast(decoded.codepoint));
+                    } else {
+                        // Encode as UTF-8
+                        var utf8_buf: [4]u8 = undefined;
+                        const utf8_len = std.unicode.utf8Encode(@intCast(decoded.codepoint), &utf8_buf) catch {
+                            try writer.writeByte('?');
+                            i += decoded.len;
+                            continue;
+                        };
+                        try writer.writeAll(utf8_buf[0..utf8_len]);
+                    }
+                    i += decoded.len;
                 } else {
                     try writer.writeByte(html[i]);
                     i += 1;
@@ -101,6 +119,29 @@ pub fn htmlToMarkdown(html: []const u8, allocator: std.mem.Allocator) ![]const u
     }
 
     return buf.toOwnedSlice(allocator);
+}
+
+const NumericEntity = struct {
+    codepoint: u21,
+    len: usize,
+};
+
+fn decodeNumericEntity(entity: []const u8) ?NumericEntity {
+    if (!std.mem.startsWith(u8, entity, "&#")) return null;
+
+    const is_hex = entity.len > 2 and (entity[2] == 'x' or entity[2] == 'X');
+    const digits_start: usize = if (is_hex) 3 else 2;
+    const semicolon = std.mem.indexOfScalarPos(u8, entity, digits_start, ';') orelse return null;
+    if (semicolon == digits_start) return null;
+
+    const digits = entity[digits_start..semicolon];
+    const radix: u8 = if (is_hex) 16 else 10;
+    const codepoint = std.fmt.parseUnsigned(u21, digits, radix) catch return null;
+
+    return .{
+        .codepoint = codepoint,
+        .len = semicolon + 1,
+    };
 }
 
 fn extractTagName(tag: []const u8) []const u8 {

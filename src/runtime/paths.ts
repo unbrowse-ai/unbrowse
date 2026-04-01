@@ -2,8 +2,7 @@ import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export function getModuleDir(metaUrl: string): string {
   return path.dirname(fileURLToPath(metaUrl));
@@ -11,18 +10,13 @@ export function getModuleDir(metaUrl: string): string {
 
 export function getPackageRoot(metaUrl: string): string {
   if (process.env.UNBROWSE_PACKAGE_ROOT) return process.env.UNBROWSE_PACKAGE_ROOT;
-  const dir = getModuleDir(metaUrl);
-
-  let cursor = dir;
-  while (true) {
-    if (existsSync(path.join(cursor, "package.json"))) return cursor;
-    const parent = path.dirname(cursor);
-    if (parent === cursor) break;
-    cursor = parent;
+  let dir = getModuleDir(metaUrl);
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    if (existsSync(path.join(dir, "package.json"))) return dir;
+    dir = path.dirname(dir);
   }
-
-  const base = path.basename(dir);
-  return base === "src" || base === "dist" ? path.dirname(dir) : dir;
+  return getModuleDir(metaUrl);
 }
 
 export function resolveSiblingEntrypoint(metaUrl: string, basename: string): string {
@@ -30,38 +24,20 @@ export function resolveSiblingEntrypoint(metaUrl: string, basename: string): str
   return path.join(path.dirname(file), `${basename}${path.extname(file) || ".js"}`);
 }
 
-function resolveBinaryOnPath(name: string): string | null {
-  const checker = process.platform === "win32" ? "where" : "which";
-  try {
-    const output = execFileSync(checker, [name], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-    const match = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
-    return match || null;
-  } catch {
-    return null;
-  }
-}
-
-export function runtimeInvocationForEntrypoint(metaUrl: string, entrypoint: string): { command: string; args: string[] } {
-  if (path.extname(entrypoint) !== ".ts") return { command: process.execPath, args: [entrypoint] };
-  if (process.versions.bun) return { command: process.execPath, args: [entrypoint] };
-
-  const bunBinary = process.env.BUN_BIN || resolveBinaryOnPath("bun");
-  if (bunBinary) return { command: bunBinary, args: [entrypoint] };
+export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): string[] {
+  if (path.extname(entrypoint) !== ".ts") return [entrypoint];
+  if (process.versions.bun) return [entrypoint];
 
   try {
     const req = createRequire(metaUrl);
     const tsxPkg = req.resolve("tsx/package.json");
     const tsxLoader = path.join(path.dirname(tsxPkg), "dist", "loader.mjs");
-    if (existsSync(tsxLoader)) return { command: process.execPath, args: ["--import", tsxLoader, entrypoint] };
+    if (existsSync(tsxLoader)) return ["--import", pathToFileURL(tsxLoader).href, entrypoint];
   } catch {
     // fall through to bare specifier
   }
 
-  return { command: process.execPath, args: ["--import", "tsx", entrypoint] };
-}
-
-export function runtimeArgsForEntrypoint(metaUrl: string, entrypoint: string): string[] {
-  return runtimeInvocationForEntrypoint(metaUrl, entrypoint).args;
+  return ["--import", "tsx", entrypoint];
 }
 
 export function isMainModule(metaUrl: string): boolean {

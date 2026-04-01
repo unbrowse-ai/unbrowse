@@ -9,18 +9,14 @@ import { fileURLToPath } from "node:url";
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(packageRoot, "../..");
 const vendorRoot = path.join(packageRoot, "vendor", "kuri");
+const binaryName = process.platform === "win32" ? "kuri.exe" : "kuri";
 
 const supportedTargets = [
-  { id: "darwin-arm64", zigTarget: "aarch64-macos", binaryName: "kuri" },
-  { id: "darwin-x64", zigTarget: "x86_64-macos", binaryName: "kuri" },
-  { id: "linux-arm64", zigTarget: "aarch64-linux", binaryName: "kuri" },
-  { id: "linux-x64", zigTarget: "x86_64-linux", binaryName: "kuri" },
-  { id: "win32-x64", zigTarget: "x86_64-windows", binaryName: "kuri.exe" },
+  { id: "darwin-arm64", zigTarget: "aarch64-macos" },
+  { id: "darwin-x64", zigTarget: "x86_64-macos" },
+  { id: "linux-arm64", zigTarget: "aarch64-linux" },
+  { id: "linux-x64", zigTarget: "x86_64-linux" },
 ];
-
-function binaryPathForTarget(target) {
-  return path.join(vendorRoot, target.id, target.binaryName);
-}
 
 function hasBinary(name) {
   const checker = process.platform === "win32" ? "where" : "which";
@@ -42,18 +38,12 @@ function resolveSourceDir() {
 }
 
 function hasVendoredBinaries() {
-  return supportedTargets.every((target) => existsSync(binaryPathForTarget(target)));
-}
-
-// Skip build entirely if vendor binaries already exist — they're committed to git
-// and only need rebuilding when Kuri source actually changes.
-if (hasVendoredBinaries()) {
-  console.log("[kuri] vendor binaries present for all platforms — skipping build");
-  process.exit(0);
+  return supportedTargets.every((target) => existsSync(path.join(vendorRoot, target.id, binaryName)));
 }
 
 const sourceDir = resolveSourceDir();
 if (!sourceDir) {
+  if (hasVendoredBinaries()) process.exit(0);
   throw new Error(
     "Kuri source not found. Expected submodules/kuri in the monorepo or vendor/kuri-src in the standalone skill repo.",
   );
@@ -77,22 +67,15 @@ for (const target of supportedTargets) {
     stdio: "inherit",
   });
 
-  const builtBinary = path.join(prefixDir, "bin", target.binaryName);
+  const builtBinary = path.join(prefixDir, "bin", binaryName);
   if (!existsSync(builtBinary)) {
     throw new Error(`Kuri build succeeded for ${target.id}, but ${builtBinary} is missing`);
   }
 
   const outDir = path.join(vendorRoot, target.id);
   mkdirSync(outDir, { recursive: true });
-  const outFile = binaryPathForTarget(target);
+  const outFile = path.join(outDir, binaryName);
   cpSync(builtBinary, outFile);
   chmodSync(outFile, 0o755);
   rmSync(prefixDir, { recursive: true, force: true });
-}
-
-if (!hasVendoredBinaries()) {
-  const missing = supportedTargets
-    .map((target) => binaryPathForTarget(target))
-    .filter((candidate) => !existsSync(candidate));
-  throw new Error(`Missing bundled Kuri binaries: ${missing.join(", ")}`);
 }

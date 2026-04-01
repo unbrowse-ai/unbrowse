@@ -113,6 +113,13 @@ export interface EndpointDescriptor {
   exec_strategy?: "server" | "trigger-intercept" | "browser";
   /** Semantic v2 metadata for endpoint-level retrieval and DAG planning */
   semantic?: EndpointSemanticDescriptor;
+  /** Path template inferred by batch mining (passive captures without a context page URL).
+   *  Internal annotation — not persisted to the skill manifest. */
+  _minedTemplate?: string;
+  /** Structured search form spec — when present, indicates this endpoint can be driven
+   *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
+   *  to gate search-form execution paths. */
+  search_form?: import("../execution/search-forms.js").SearchFormSpec;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -152,7 +159,7 @@ export interface SkillOperationEdge {
   from_operation_id: string;
   to_operation_id: string;
   binding_key: string;
-  kind: "dependency" | "hint";
+  kind: "dependency" | "hint" | "parent_child" | "pagination" | "auth";
   confidence: number;
 }
 
@@ -216,8 +223,26 @@ export interface SkillManifest {
   discovery_cost?: DiscoveryCost;
   /** Intent strings that contributed endpoints to this domain-level skill */
   intents?: string[];
+  /** Agent ID of the indexer who published this skill - used for Tier 1 attribution */
+  indexer_id?: string;
+  /** All agents who contributed endpoints to this skill */
+  contributors?: Array<{
+    agent_id: string;
+    wallet_address?: string;
+    endpoints_contributed: number;
+    cumulative_delta: number;
+    share: number;
+    first_contributed_at: string;
+    last_contributed_at: string;
+  }>;
+  /** Cascade Split address — x402 payments route here for multi-contributor skills */
+  split_config?: string;
   /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
   operation_graph?: SkillOperationGraph;
+  /** Price in USD per execution; undefined or 0 = free */
+  base_price_usd?: number;
+  /** Whether the skill owner has opted into compensation */
+  owner_compensation_opt_in?: boolean;
 }
 
 export interface ExecutionTrace {
@@ -242,45 +267,6 @@ export interface ExecutionTrace {
   tokens_saved_pct?: number;
   /** Code version hash + git SHA — tracks which code produced this trace */
   trace_version?: string;
-  /** HAR-like executed request/response events for offline eval/judging */
-  network_events?: TraceNetworkEvent[];
-}
-
-export interface TraceNetworkHeader {
-  name: string;
-  value: string;
-}
-
-export interface TraceNetworkCookie {
-  name: string;
-  value: string;
-}
-
-export interface TraceNetworkContent {
-  mimeType?: string;
-  text?: string;
-}
-
-export interface TraceNetworkPostData {
-  mimeType?: string;
-  text?: string;
-}
-
-export interface TraceNetworkEvent {
-  startedDateTime: string;
-  request: {
-    url: string;
-    method: string;
-    headers: TraceNetworkHeader[];
-    postData?: TraceNetworkPostData;
-  };
-  response: {
-    status: number;
-    headers: TraceNetworkHeader[];
-    content?: TraceNetworkContent;
-    redirectURL?: string;
-    cookies?: TraceNetworkCookie[];
-  };
 }
 
 export interface DiscoveryCandidate {
@@ -340,8 +326,6 @@ export interface ExecutionOptions {
   force_capture?: boolean;
   /** Request/client namespace for isolating local server state across concurrent CLI users */
   client_scope?: string;
-  /** Internal abort hook for timeout/cancellation of long-running live capture work */
-  signal?: AbortSignal;
 }
 
 export interface ValidationResult {
@@ -356,7 +340,7 @@ export interface OrchestrationTiming {
   get_skill_ms: number;
   execute_ms: number;
   total_ms: number;
-  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache" | "browser-action";
   cache_hit: boolean;
   candidates_found: number;
   candidates_tried: number;

@@ -56,6 +56,14 @@ pub const HarRecorder = struct {
         }
         self.entries.clearRetainingCapacity();
 
+        var pending_it = self.pending_requests.iterator();
+        while (pending_it.next()) |kv| {
+            self.allocator.free(kv.key_ptr.*);
+            self.allocator.free(kv.value_ptr.url);
+            self.allocator.free(kv.value_ptr.method);
+        }
+        self.pending_requests.clearRetainingCapacity();
+
         // Enable Network domain via CDP
         _ = client.send(self.allocator, "Network.enable", null) catch |err| {
             std.log.warn("HAR: Network.enable failed: {s}", .{@errorName(err)});
@@ -78,12 +86,20 @@ pub const HarRecorder = struct {
 
     /// Add a manually observed request/response to the HAR log.
     pub fn addEntry(self: *HarRecorder, entry: HarEntry) !void {
+        const owned_url = try self.allocator.dupe(u8, entry.url);
+        errdefer self.allocator.free(owned_url);
+        const owned_method = try self.allocator.dupe(u8, entry.method);
+        errdefer self.allocator.free(owned_method);
+        const owned_status_text = try self.allocator.dupe(u8, entry.status_text);
+        errdefer self.allocator.free(owned_status_text);
+        const owned_mime_type = try self.allocator.dupe(u8, entry.mime_type);
+        errdefer self.allocator.free(owned_mime_type);
         const owned = HarEntry{
-            .url = try self.allocator.dupe(u8, entry.url),
-            .method = try self.allocator.dupe(u8, entry.method),
+            .url = owned_url,
+            .method = owned_method,
             .status = entry.status,
-            .status_text = try self.allocator.dupe(u8, entry.status_text),
-            .mime_type = try self.allocator.dupe(u8, entry.mime_type),
+            .status_text = owned_status_text,
+            .mime_type = owned_mime_type,
             .timestamp = entry.timestamp,
             .duration_ms = entry.duration_ms,
             .request_size = entry.request_size,
@@ -94,10 +110,10 @@ pub const HarRecorder = struct {
 
     /// Stop recording and return the HAR as a JSON string.
     pub fn stop(self: *HarRecorder, client: *CdpClient) ![]const u8 {
-        self.recording = false;
-
         // Disable Network domain
         _ = client.send(self.allocator, "Network.disable", null) catch {};
+
+        self.recording = false;
 
         return self.toJson();
     }
@@ -146,12 +162,17 @@ pub const HarRecorder = struct {
     /// Handle a raw CDP event JSON string.
     /// Looks for Network.requestWillBeSent and Network.responseReceived events.
     pub fn handleCdpEvent(self: *HarRecorder, event_json: []const u8) void {
-        if (!self.recording) return;
+        // NOTE: allow events even when recording==false — the stop() flow
+        // flushes buffered events after setting recording=false.
 
         if (std.mem.indexOf(u8, event_json, "\"Network.requestWillBeSent\"") != null) {
+            // CDP shape: {"method":"Network.requestWillBeSent","params":{"requestId":"X","request":{"url":"...","method":"GET",...},...}}
             const request_id = extractField(event_json, "requestId") orelse return;
-            const url = extractField(event_json, "url") orelse return;
-            const method = extractField(event_json, "method") orelse "GET";
+            // url and method are inside the nested "request" object — search after "\"request\":{" to skip the top-level "method" field
+            const request_obj_pos = std.mem.indexOf(u8, event_json, "\"request\":{") orelse return;
+            const request_obj = event_json[request_obj_pos..];
+            const url = extractField(request_obj, "url") orelse return;
+            const method = extractField(request_obj, "method") orelse "GET";
 
             const owned_id = self.allocator.dupe(u8, request_id) catch return;
             const owned_url = self.allocator.dupe(u8, url) catch {
@@ -175,15 +196,23 @@ pub const HarRecorder = struct {
             };
         } else if (std.mem.indexOf(u8, event_json, "\"Network.responseReceived\"") != null) {
             const request_id = extractField(event_json, "requestId") orelse return;
-            const pending = self.pending_requests.get(request_id) orelse return;
+            const pending_kv = self.pending_requests.fetchRemove(request_id) orelse return;
+            const pending = pending_kv.value;
+            defer {
+                self.allocator.free(pending_kv.key);
+                self.allocator.free(pending.url);
+                self.allocator.free(pending.method);
+            }
 
-            // Extract status and mimeType from the response object
-            const status_str = extractField(event_json, "status");
+            // Extract status and mimeType from the nested "response" object
+            const response_obj_pos = std.mem.indexOf(u8, event_json, "\"response\":{");
+            const search_json = if (response_obj_pos) |pos| event_json[pos..] else event_json;
+            const status_str = extractField(search_json, "status");
             const status: u16 = if (status_str) |s|
                 std.fmt.parseInt(u16, s, 10) catch 200
             else
                 200;
-            const mime = extractField(event_json, "mimeType") orelse "application/octet-stream";
+            const mime = extractField(search_json, "mimeType") orelse "application/octet-stream";
             const status_text = if (status >= 200 and status < 300) "OK" else if (status >= 300 and status < 400) "Redirect" else if (status >= 400) "Error" else "Unknown";
 
             self.addEntry(.{
@@ -313,20 +342,53 @@ test "HarRecorder handleCdpEvent processes request and response" {
     var rec = HarRecorder.init(std.testing.allocator);
     defer rec.deinit();
 
-    // Not recording — should be ignored
-    rec.handleCdpEvent("{\"method\":\"Network.requestWillBeSent\",\"params\":{\"requestId\":\"1\",\"url\":\"https://example.com\",\"method\":\"GET\"}}");
-    try std.testing.expectEqual(@as(usize, 0), rec.entryCount());
+    // Events are processed even when recording==false (needed for stop() flush flow)
+    rec.handleCdpEvent("{\"method\":\"Network.requestWillBeSent\",\"params\":{\"requestId\":\"req1\",\"request\":{\"url\":\"https://example.com/page\",\"method\":\"GET\"}}}");
+    try std.testing.expectEqual(@as(usize, 1), rec.pending_requests.count());
 
     // Start recording
     rec.recording = true;
 
-    // Send requestWillBeSent
-    rec.handleCdpEvent("{\"method\":\"Network.requestWillBeSent\",\"params\":{\"requestId\":\"req1\",\"url\":\"https://example.com/page\",\"method\":\"GET\"}}");
+    // Send requestWillBeSent with realistic nested CDP shape
+    rec.handleCdpEvent("{\"method\":\"Network.requestWillBeSent\",\"params\":{\"requestId\":\"req2\",\"request\":{\"url\":\"https://example.com/api\",\"method\":\"POST\"}}}");
     try std.testing.expectEqual(@as(usize, 0), rec.entryCount());
+    try std.testing.expectEqual(@as(usize, 2), rec.pending_requests.count());
 
-    // Send responseReceived for the same requestId
-    rec.handleCdpEvent("{\"method\":\"Network.responseReceived\",\"params\":{\"requestId\":\"req1\",\"response\":{\"status\":200}}}");
+    // Send responseReceived with nested "response" object
+    rec.handleCdpEvent("{\"method\":\"Network.responseReceived\",\"params\":{\"requestId\":\"req2\",\"response\":{\"status\":200,\"mimeType\":\"application/json\"}}}");
     try std.testing.expectEqual(@as(usize, 1), rec.entryCount());
+    try std.testing.expectEqual(@as(usize, 1), rec.pending_requests.count());
+
+    // Complete the first request too
+    rec.handleCdpEvent("{\"method\":\"Network.responseReceived\",\"params\":{\"requestId\":\"req1\",\"response\":{\"status\":304,\"mimeType\":\"text/html\"}}}");
+    try std.testing.expectEqual(@as(usize, 2), rec.entryCount());
+    try std.testing.expectEqual(@as(usize, 0), rec.pending_requests.count());
+}
+
+test "HarRecorder start clears stale pending requests before enabling network" {
+    var rec = HarRecorder.init(std.testing.allocator);
+    defer rec.deinit();
+
+    const owned_id = try std.testing.allocator.dupe(u8, "stale");
+    const owned_url = try std.testing.allocator.dupe(u8, "https://example.com/stale");
+    const owned_method = try std.testing.allocator.dupe(u8, "GET");
+    try rec.pending_requests.put(owned_id, .{
+        .url = owned_url,
+        .method = owned_method,
+        .timestamp = 123,
+    });
+
+    rec.recording = true;
+    rec.handleCdpEvent("{\"method\":\"Network.requestWillBeSent\",\"params\":{\"requestId\":\"req1\",\"request\":{\"url\":\"https://example.com/page\",\"method\":\"GET\"}}}");
+    try std.testing.expectEqual(@as(usize, 2), rec.pending_requests.count());
+
+    var client = CdpClient.init(std.testing.allocator, "ws://127.0.0.1:1/devtools/browser/test");
+    defer client.deinit();
+    try std.testing.expectError(error.ConnectionRefused, rec.start(&client));
+
+    try std.testing.expect(rec.isRecording());
+    try std.testing.expectEqual(@as(usize, 0), rec.entryCount());
+    try std.testing.expectEqual(@as(usize, 0), rec.pending_requests.count());
 }
 
 test "HarRecorder extractField helper" {
@@ -341,4 +403,23 @@ test "HarRecorder extractField helper" {
 
     const missing = HarRecorder.extractField(json, "nonexistent");
     try std.testing.expect(missing == null);
+}
+
+test "HarRecorder parses nested CDP request fields" {
+    var rec = HarRecorder.init(std.testing.allocator);
+    defer rec.deinit();
+    rec.recording = true;
+
+    // Real CDP shape: method/url are inside params.request, not at top level
+    rec.handleCdpEvent("{\"method\":\"Network.requestWillBeSent\",\"params\":{\"requestId\":\"42.1\",\"request\":{\"url\":\"https://cdn.example.com/style.css\",\"method\":\"GET\",\"headers\":{}}}}");
+    try std.testing.expectEqual(@as(usize, 1), rec.pending_requests.count());
+
+    rec.handleCdpEvent("{\"method\":\"Network.responseReceived\",\"params\":{\"requestId\":\"42.1\",\"response\":{\"status\":200,\"mimeType\":\"text/css\",\"headers\":{}}}}");
+    try std.testing.expectEqual(@as(usize, 1), rec.entryCount());
+
+    const entry = rec.entries.items[0];
+    try std.testing.expectEqualStrings("https://cdn.example.com/style.css", entry.url);
+    try std.testing.expectEqualStrings("GET", entry.method);
+    try std.testing.expectEqual(@as(u16, 200), entry.status);
+    try std.testing.expectEqualStrings("text/css", entry.mime_type);
 }

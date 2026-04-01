@@ -1,5 +1,6 @@
 const std = @import("std");
 const config = @import("../bridge/config.zig");
+const extensions_mod = @import("extensions.zig");
 
 /// 🧁 Chrome lifecycle manager — launch, supervise, restart.
 /// Handles spawning headless Chrome with CDP debugging port,
@@ -14,6 +15,8 @@ pub const Launcher = struct {
     mode: Mode,
     extensions: ?[]const u8,
     headless: bool,
+    state_dir: []const u8,
+    builtin_ext_path: ?[]const u8,
 
     pub const Mode = enum {
         managed, // we launched Chrome ourselves
@@ -23,6 +26,17 @@ pub const Launcher = struct {
     pub const ChromeStatus = struct {
         alive: bool,
         ws_url: ?[]const u8,
+    };
+
+    pub const StartResult = struct {
+        cdp_port: u16,
+        cdp_url: []const u8,
+    };
+
+    const ParsedUrl = struct {
+        host: []const u8,
+        port: u16,
+        path: []const u8,
     };
 
     const default_cdp_port: u16 = 9222;
@@ -35,6 +49,7 @@ pub const Launcher = struct {
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
         },
         else => &[_][]const u8{
+            "chrome",
             "google-chrome",
             "chromium-browser",
             "chromium",
@@ -54,27 +69,32 @@ pub const Launcher = struct {
             .mode = mode,
             .extensions = cfg.extensions,
             .headless = cfg.headless,
+            .state_dir = cfg.state_dir,
+            .builtin_ext_path = null,
         };
     }
 
     /// Start Chrome or connect to an existing instance.
-    /// Returns the CDP port to connect to.
-    pub fn start(self: *Launcher, cfg: config.Config) !u16 {
+    /// Returns the resolved websocket CDP endpoint and port.
+    pub fn start(self: *Launcher, cfg: config.Config) !StartResult {
         switch (self.mode) {
             .external => {
-                // Validate the external Chrome is reachable
-                const status = self.healthCheck();
-                if (!status.alive) {
-                    std.log.warn("external Chrome at port {d} is not reachable", .{self.cdp_port});
-                }
-                return self.cdp_port;
+                const raw_url = cfg.cdp_url orelse return error.MissingCdpUrl;
+                try self.resolveExternal(raw_url);
+                return .{
+                    .cdp_port = self.cdp_port,
+                    .cdp_url = self.cdpUrl() orelse return error.MissingDebuggerUrl,
+                };
             },
             .managed => {
-                _ = cfg;
                 // Find a free CDP port
                 self.cdp_port = try findFreePort(default_cdp_port);
                 try self.launchChrome();
-                return self.cdp_port;
+                try self.waitForDebuggerUrl();
+                return .{
+                    .cdp_port = self.cdp_port,
+                    .cdp_url = self.cdpUrl() orelse return error.MissingDebuggerUrl,
+                };
             },
         }
     }
@@ -86,15 +106,28 @@ pub const Launcher = struct {
             return error.ChromeNotFound;
         };
 
-        var port_buf: [8]u8 = undefined;
-        const port_str = std.fmt.bufPrint(&port_buf, "{d}", .{self.cdp_port}) catch unreachable;
+        // Extract builtin extension to disk and prepend to extensions list
+        const builtin_path = extensions_mod.extractBuiltinExtension(self.allocator, self.state_dir) catch |err| blk: {
+            std.log.warn("failed to extract builtin extension: {}, continuing without it", .{err});
+            break :blk null;
+        };
+        if (builtin_path) |bp| {
+            self.builtin_ext_path = bp;
+        }
 
-        const port_flag = std.fmt.bufPrint(
-            &self.ws_url_buf,
-            "--remote-debugging-port={s}",
-            .{port_str},
-        ) catch unreachable;
-        const port_flag_len = port_flag.len;
+        // Merge builtin extension with user-configured extensions
+        const merged_extensions: ?[]const u8 = if (builtin_path) |bp|
+            extensions_mod.prependBuiltinExtension(self.allocator, bp, self.extensions) catch null
+        else
+            null;
+        defer if (merged_extensions) |m| self.allocator.free(m);
+
+        const effective_extensions = merged_extensions orelse self.extensions;
+
+        // Allocate the port flag on the heap so it outlives this function.
+        // Previously this was written into ws_url_buf which gets overwritten
+        // by storeWsUrl(), causing a dangling pointer in the Child struct on Linux.
+        const port_flag = try std.fmt.allocPrint(self.allocator, "--remote-debugging-port={d}", .{self.cdp_port});
 
         // Build argv
         var argv_list: std.ArrayList([]const u8) = .empty;
@@ -111,17 +144,14 @@ pub const Launcher = struct {
             try argv_list.append(self.allocator, data_dir);
         }
         try argv_list.append(self.allocator, "--no-sandbox");
-        try argv_list.append(self.allocator, self.ws_url_buf[0..port_flag_len]);
+        try argv_list.append(self.allocator, "--remote-allow-origins=*");
+        try argv_list.append(self.allocator, port_flag);
 
-        // Build and append extension flags if configured
-        const ext_flags: ?[][]u8 = if (self.extensions) |ext_str|
+        // Build and append extension flags (builtin + user-configured)
+        const ext_flags: ?[][]u8 = if (effective_extensions) |ext_str|
             try buildExtensionFlags(self.allocator, ext_str)
         else
             null;
-        defer if (ext_flags) |flags| {
-            for (flags) |f| self.allocator.free(f);
-            self.allocator.free(flags);
-        };
 
         if (ext_flags) |flags| {
             for (flags) |f| try argv_list.append(self.allocator, f);
@@ -134,10 +164,33 @@ pub const Launcher = struct {
         try child.spawn();
         self.child = child;
 
+        // Free argv-owned strings now that spawn has completed and child has exec'd.
+        // The Child struct no longer needs these after spawn().
+        self.allocator.free(port_flag);
+        if (!self.headless) {
+            // data_dir was appended at index 1 (after chrome_bin)
+            if (argv_list.items.len > 1) {
+                // Find and free the data_dir string (starts with --user-data-dir=)
+                for (argv_list.items) |item| {
+                    if (std.mem.startsWith(u8, item, "--user-data-dir=")) {
+                        self.allocator.free(item);
+                        break;
+                    }
+                }
+            }
+        }
+        if (ext_flags) |flags| {
+            for (flags) |f| self.allocator.free(f);
+            self.allocator.free(flags);
+        }
+
         std.log.info("launched Chrome (pid={d}) on CDP port {d}", .{
             child.id,
             self.cdp_port,
         });
+        if (builtin_path != null) {
+            std.log.info("builtin extension loaded from {s}", .{self.builtin_ext_path.?});
+        }
         // Give Chrome a moment to start
         std.Thread.sleep(500 * std.time.ns_per_ms);
     }
@@ -145,6 +198,11 @@ pub const Launcher = struct {
     /// Check if Chrome is alive by probing /json/version on the CDP port.
     pub fn healthCheck(self: *Launcher) ChromeStatus {
         return httpProbeJsonVersion(self.cdp_port);
+    }
+
+    pub fn cdpUrl(self: *const Launcher) ?[]const u8 {
+        if (self.ws_url_len == 0) return null;
+        return self.ws_url_buf[0..self.ws_url_len];
     }
 
     /// Supervise Chrome — call periodically. Restarts on crash.
@@ -181,6 +239,10 @@ pub const Launcher = struct {
             _ = child.wait() catch {};
             self.child = null;
         }
+        if (self.builtin_ext_path) |bp| {
+            self.allocator.free(bp);
+            self.builtin_ext_path = null;
+        }
     }
 
     /// Find the first Chrome binary that exists on this system.
@@ -195,6 +257,53 @@ pub const Launcher = struct {
             return path;
         }
         return null;
+    }
+
+    fn resolveExternal(self: *Launcher, raw_url: []const u8) !void {
+        if (std.mem.startsWith(u8, raw_url, "ws://") or std.mem.startsWith(u8, raw_url, "wss://")) {
+            const parsed = parseSocketUrl(raw_url) orelse return error.InvalidCdpUrl;
+            self.cdp_port = parsed.port;
+            try self.storeWsUrl(raw_url);
+
+            const status = httpProbe(raw_url, parsed.host, parsed.port, "/json/version");
+            if (!status.alive) return error.ConnectionRefused;
+            return;
+        }
+
+        if (std.mem.startsWith(u8, raw_url, "http://")) {
+            const parsed = parseHttpUrl(raw_url) orelse return error.InvalidCdpUrl;
+            self.cdp_port = parsed.port;
+            const status = httpProbe(raw_url, parsed.host, parsed.port, parsed.path);
+            if (!status.alive) return error.ConnectionRefused;
+            const ws_url = status.ws_url orelse return error.MissingDebuggerUrl;
+            try self.storeWsUrl(ws_url);
+            return;
+        }
+
+        if (std.mem.startsWith(u8, raw_url, "https://")) {
+            return error.UnsupportedCdpScheme;
+        }
+
+        return error.InvalidCdpUrl;
+    }
+
+    fn waitForDebuggerUrl(self: *Launcher) !void {
+        var attempts: u8 = 0;
+        while (attempts < 20) : (attempts += 1) {
+            const status = self.healthCheck();
+            if (status.alive and status.ws_url != null) {
+                try self.storeWsUrl(status.ws_url.?);
+                return;
+            }
+            std.Thread.sleep(250 * std.time.ns_per_ms);
+        }
+        return error.ConnectionRefused;
+    }
+
+    fn storeWsUrl(self: *Launcher, ws_url: []const u8) !void {
+        if (ws_url.len > self.ws_url_buf.len) return error.NameTooLong;
+        @memcpy(self.ws_url_buf[0..ws_url.len], ws_url);
+        self.ws_url_len = ws_url.len;
     }
 };
 
@@ -265,13 +374,19 @@ pub fn isPortInUse(port: u16) bool {
 /// Probe Chrome's /json/version endpoint via raw TCP HTTP GET.
 /// Returns alive status and optional webSocketDebuggerUrl.
 fn httpProbeJsonVersion(port: u16) Launcher.ChromeStatus {
-    const addr = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, port);
-    var stream = std.net.tcpConnectToAddress(addr) catch
+    return httpProbe("/json/version", "127.0.0.1", port, "/json/version");
+}
+
+fn httpProbe(raw_url: []const u8, host: []const u8, port: u16, path: []const u8) Launcher.ChromeStatus {
+    const connect_host = normalizeHost(host);
+    var stream = std.net.tcpConnectToHost(std.heap.page_allocator, connect_host, port) catch
         return .{ .alive = false, .ws_url = null };
 
     defer stream.close();
 
-    const request = "GET /json/version HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+    var req_buf: [512]u8 = undefined;
+    const request = std.fmt.bufPrint(&req_buf, "GET {s} HTTP/1.1\r\nHost: {s}:{d}\r\nConnection: close\r\n\r\n", .{ path, host, port }) catch
+        return .{ .alive = false, .ws_url = null };
     _ = stream.write(request) catch
         return .{ .alive = false, .ws_url = null };
 
@@ -292,7 +407,51 @@ fn httpProbeJsonVersion(port: u16) Launcher.ChromeStatus {
 
     // Try to extract webSocketDebuggerUrl
     const ws_url = extractWsUrl(body);
+    _ = raw_url;
     return .{ .alive = true, .ws_url = ws_url };
+}
+
+fn normalizeHost(host: []const u8) []const u8 {
+    if (std.mem.eql(u8, host, "localhost")) return "127.0.0.1";
+    return host;
+}
+
+fn parseSocketUrl(url: []const u8) ?Launcher.ParsedUrl {
+    var remainder = url;
+    if (std.mem.startsWith(u8, url, "ws://")) {
+        remainder = url[5..];
+    } else if (std.mem.startsWith(u8, url, "wss://")) {
+        remainder = url[6..];
+    } else {
+        return null;
+    }
+    return parseHostPortPath(remainder, Launcher.default_cdp_port, "/");
+}
+
+fn parseHttpUrl(url: []const u8) ?Launcher.ParsedUrl {
+    if (!std.mem.startsWith(u8, url, "http://")) return null;
+    return parseHostPortPath(url[7..], 80, "/json/version");
+}
+
+fn parseHostPortPath(remainder: []const u8, default_port: u16, default_path: []const u8) ?Launcher.ParsedUrl {
+    const slash = std.mem.indexOfScalar(u8, remainder, '/') orelse remainder.len;
+    const host_port = remainder[0..slash];
+    if (host_port.len == 0) return null;
+
+    var host = host_port;
+    var port = default_port;
+    if (std.mem.indexOfScalar(u8, host_port, ':')) |colon| {
+        host = host_port[0..colon];
+        port = std.fmt.parseInt(u16, host_port[colon + 1 ..], 10) catch return null;
+    }
+    if (host.len == 0) return null;
+
+    const path = if (slash < remainder.len) remainder[slash..] else default_path;
+    return .{
+        .host = normalizeHost(host),
+        .port = port,
+        .path = path,
+    };
 }
 
 /// Extract the webSocketDebuggerUrl value from a JSON response body.
@@ -345,6 +504,20 @@ test "extractWsUrl returns null for missing key" {
     try std.testing.expect(extractWsUrl(body) == null);
 }
 
+test "parseHttpUrl extracts host port and path" {
+    const parsed = parseHttpUrl("http://localhost:9333/json/version").?;
+    try std.testing.expectEqualStrings("127.0.0.1", parsed.host);
+    try std.testing.expectEqual(@as(u16, 9333), parsed.port);
+    try std.testing.expectEqualStrings("/json/version", parsed.path);
+}
+
+test "parseSocketUrl extracts websocket port" {
+    const parsed = parseSocketUrl("ws://127.0.0.1:9444/devtools/browser/abc").?;
+    try std.testing.expectEqualStrings("127.0.0.1", parsed.host);
+    try std.testing.expectEqual(@as(u16, 9444), parsed.port);
+    try std.testing.expectEqualStrings("/devtools/browser/abc", parsed.path);
+}
+
 test "Launcher init managed mode" {
     const cfg = config.Config{
         .host = "127.0.0.1",
@@ -358,9 +531,10 @@ test "Launcher init managed mode" {
         .extensions = null,
         .headless = true,
     };
-    const launcher = Launcher.init(std.testing.allocator, cfg);
-    try std.testing.expectEqual(Launcher.Mode.managed, launcher.mode);
-    try std.testing.expectEqual(@as(?[]const u8, null), launcher.extensions);
+    const launcher_inst = Launcher.init(std.testing.allocator, cfg);
+    try std.testing.expectEqual(Launcher.Mode.managed, launcher_inst.mode);
+    try std.testing.expectEqual(@as(?[]const u8, null), launcher_inst.extensions);
+    try std.testing.expectEqual(@as(?[]const u8, null), launcher_inst.builtin_ext_path);
 }
 
 test "Launcher init external mode" {
@@ -376,8 +550,8 @@ test "Launcher init external mode" {
         .extensions = null,
         .headless = true,
     };
-    const launcher = Launcher.init(std.testing.allocator, cfg);
-    try std.testing.expectEqual(Launcher.Mode.external, launcher.mode);
+    const launcher_inst = Launcher.init(std.testing.allocator, cfg);
+    try std.testing.expectEqual(Launcher.Mode.external, launcher_inst.mode);
 }
 
 test "Launcher init with extensions" {
@@ -393,13 +567,13 @@ test "Launcher init with extensions" {
         .extensions = "/path/to/ext1,/path/to/ext2",
         .headless = true,
     };
-    const launcher = Launcher.init(std.testing.allocator, cfg);
-    try std.testing.expectEqual(Launcher.Mode.managed, launcher.mode);
-    try std.testing.expectEqualStrings("/path/to/ext1,/path/to/ext2", launcher.extensions.?);
+    const launcher_inst = Launcher.init(std.testing.allocator, cfg);
+    try std.testing.expectEqual(Launcher.Mode.managed, launcher_inst.mode);
+    try std.testing.expectEqualStrings("/path/to/ext1,/path/to/ext2", launcher_inst.extensions.?);
 }
 
 test "healthCheck returns not alive for unbound port" {
-    var launcher = Launcher{
+    var launcher_inst = Launcher{
         .allocator = std.testing.allocator,
         .cdp_port = 19876,
         .child = null,
@@ -409,8 +583,10 @@ test "healthCheck returns not alive for unbound port" {
         .mode = .managed,
         .extensions = null,
         .headless = true,
+        .state_dir = ".kuri",
+        .builtin_ext_path = null,
     };
-    const status = launcher.healthCheck();
+    const status = launcher_inst.healthCheck();
     try std.testing.expect(!status.alive);
     try std.testing.expect(status.ws_url == null);
 }

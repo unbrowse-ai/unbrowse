@@ -1,5 +1,6 @@
 const std = @import("std");
 const markdown = @import("crawler/markdown.zig");
+const validator = @import("crawler/validator.zig");
 
 const version = "0.1.0";
 const user_agent = "kuri-browse/" ++ version;
@@ -82,6 +83,16 @@ const Browser = struct {
 
     fn navigate(self: *Browser, url: []const u8) !void {
         const resolved = self.resolveUrl(url);
+
+        // SSRF validation — block private IPs, metadata endpoints, non-HTTP schemes
+        validator.validateUrl(resolved) catch |err| {
+            if (self.color) {
+                std.debug.print("\x1b[31m✗\x1b[0m blocked: {s} ({s})\n", .{ resolved, @errorName(err) });
+            } else {
+                std.debug.print("error: blocked URL: {s} ({s})\n", .{ resolved, @errorName(err) });
+            }
+            return error.FetchFailed;
+        };
 
         if (self.color) {
             std.debug.print("\x1b[2m→\x1b[0m loading \x1b[4m{s}\x1b[0m\n", .{resolved});

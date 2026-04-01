@@ -1,0 +1,104 @@
+{"ok":true,"action":"TypeError: this.scrollIntoViewIfNeeded is not a function\n    at HTMLDocument.<anonymous> (<anonymous>:1:20)"}
+{"url":"https://vercel.com/","title":"Vercel: Build and deploy the best web experiences with the AI Cloud"}
+link "Skip to content" @e0
+link "Save the date" @e1
+link "VercelLogotype" @e2
+link "LOADING STATUS\u2026" @e3
+button "Ask AI" @e4
+button "Open menu" @e5
+link "Start Deploying" @e6
+link "Get a Demo" @e7
+link "More about Infrastructure" @e8
+link "Learn about Enterprise" @e9
+link "Learn more" @e10
+link "Next.js Templates" @e11
+link "React Templates" @e12
+link "Astro Templates" @e13
+link "Svelte Templates" @e14
+link "Nuxt Templates" @e15
+link "Python Templates" @e16
+link "S t a r t D e p l o y i n g" @e17
+link "Talk to an Expert" @e18
+link "Get an Enterprise Trial" @e19
+link "Vercel logo" @e20
+radio "system" @e21
+radio "light" @e22
+radio "dark" @e23
+tab "AI Apps AI Apps" @e24
+tab "Web Apps Web Apps" @e25
+tab "Ecommerce Ecommerce" @e26
+tab "Marketing Marketing" @e27
+tab "Platforms Platforms" @e28
+link "Deploy AI Apps in seconds" @e29
+link @e30
+link @e31
+link @e32
+link "many more" @e33
+link "Templates" @e34
+link "Supported frameworks" @e35
+link "Marketplace" @e36
+link "Domains" @e37
+link "Next.js on Vercel" @e38
+link "Turborepo" @e39
+link "v0" @e40
+link "Content delivery network" @e41
+link "Fluid compute" @e42
+link "CI/CD" @e43
+link "Observability" @e44
+link "AI Gateway NEW" @e45
+link "Vercel Agent NEW" @e46
+link "Platform security" @e47
+link "Web Application Firewall" @e48
+link "Bot management" @e49
+link "BotID" @e50
+link "Sandbox NEW" @e51
+link "Pricing" @e52
+link "Customers" @e53
+link "Enterprise" @e54
+link "Articles" @e55
+link "Startups" @e56
+link "Solution partners" @e57
+link "Docs" @e58
+link "Blog" @e59
+link "Changelog" @e60
+link "Knowledge Base" @e61
+link "Academy" @e62
+link "Community" @e63
+link "Next.js" @e64
+link "Nuxt" @e65
+link "Svelte" @e66
+link "Nitro" @e67
+link "Turbo" @e68
+link "AI SDK" @e69
+link "Workflow DevKit NEW" @e70
+link "Flags SDK" @e71
+link "Chat SDK" @e72
+link "Streamdown AI NEW" @e73
+link "Composable commerce" @e74
+link "Multi-tenant platforms" @e75
+link "Web apps" @e76
+link "Marketing sites" @e77
+link "Platform engineers" @e78
+link "Design engineers" @e79
+link "About" @e80
+link "Careers" @e81
+link "Help" @e82
+link "Press" @e83
+link "Legal" @e84
+link "Privacy Policy" @e85
+link "Open source program" @e86
+link "Events" @e87
+link "Shipped on Vercel" @e88
+link "GitHub" @e89
+link "LinkedIn" @e90
+link "X" @e91
+link "YouTube" @e92
+link @e93
+link @e94
+button "Copy code" @e95
+radio "OpenAI" @e96
+radio "xAI" @e97
+radio "Anthropic" @e98
+tab "AI SDK" @e99
+tab "Python" @e100
+tab "OpenAI HTTP" @e101

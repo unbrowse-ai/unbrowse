@@ -1,11 +1,21 @@
 import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
-import { getSkillChunk, knownBindingsFromInputs } from "../graph/index.js";
+import { getSkillChunk, knownBindingsFromInputs, computeReachableEndpoints, ensureSkillOperationGraph } from "../graph/index.js";
+import { fetchDagAdvisoryPlan, applyDagAdvisoryBoosts } from "./dag-advisor.js";
 import { getRegistrableDomain } from "../domain.js";
 import { extractTemplateQueryBindings, mergeContextTemplateParams } from "../template-params.js";
 import { writeDebugTrace } from "../debug-trace.js";
+import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
+import { isStructuredSearchForm } from "../execution/search-forms.js";
+import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
+import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
+import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
+import { tryFirstPassBrowserAction } from "./first-pass-action.js";
+import { checkPaymentRequirement } from "../payments/index.js";
+import { checkWalletConfigured } from "../payments/wallet.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -20,6 +30,7 @@ import { assessIntentResult, projectIntentData } from "../intent-match.js";
 import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
+import { resolveAuthPrerequisites, deriveAuthDependencies } from "../auth/runtime.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY ?? "";
@@ -67,10 +78,10 @@ const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-
 
 // Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
 // This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it
-const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
+export const domainSkillCache = new Map<string, { skillId: string; endpointId?: string; localSkillPath?: string; ts: number }>();
 const DOMAIN_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "domain-skill-cache.json");
 
-function persistDomainCache() {
+export function persistDomainCache() {
   try {
     const dir = dirname(DOMAIN_CACHE_FILE);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -87,7 +98,7 @@ try {
         domainSkillCache.set(k, entry);
       }
     }
-    console.log(`[domain-cache] loaded ${domainSkillCache.size} entries from disk`);
+    console.error(`[domain-cache] loaded ${domainSkillCache.size} entries from disk`);
   }
 } catch { /* fresh start */ }
 
@@ -96,7 +107,7 @@ let _routeCacheDirty = false;
 function persistRouteCache() {
   _routeCacheDirty = true;
 }
-setInterval(() => {
+const routeCacheFlushTimer = setInterval(() => {
   if (!_routeCacheDirty) return;
   _routeCacheDirty = false;
   try {
@@ -106,6 +117,7 @@ setInterval(() => {
     writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(entries), "utf-8");
   } catch { /* best effort */ }
 }, 5_000);
+routeCacheFlushTimer.unref?.();
 
 // Load route cache from disk on startup
 try {
@@ -118,7 +130,7 @@ try {
         skillRouteCache.set(k, entry);
       }
     }
-    console.log(`[route-cache] loaded ${skillRouteCache.size} entries from disk`);
+    console.error(`[route-cache] loaded ${skillRouteCache.size} entries from disk`);
   }
 } catch { /* fresh start */ }
 const routeResultCache = new Map<
@@ -152,7 +164,7 @@ type RouteCacheCandidate = {
   skill: SkillManifest;
 };
 
-function scopedCacheKey(scope: string, key: string): string {
+export function scopedCacheKey(scope: string, key: string): string {
   return `${scope}:${key}`;
 }
 
@@ -162,12 +174,12 @@ function scopedResolveCacheKeys(scope: string, key: string): string[] {
     : [scopedCacheKey(scope, key), scopedCacheKey("global", key)];
 }
 
-function snapshotPathForCacheKey(cacheKey: string): string {
+export function snapshotPathForCacheKey(cacheKey: string): string {
   const digest = createHash("sha1").update(cacheKey).digest("hex");
   return join(SKILL_SNAPSHOT_DIR, `${digest}.json`);
 }
 
-function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
+export function writeSkillSnapshot(cacheKey: string, skill: SkillManifest): string | undefined {
   try {
     mkdirSync(SKILL_SNAPSHOT_DIR, { recursive: true });
     const target = snapshotPathForCacheKey(cacheKey);
@@ -306,7 +318,7 @@ function isPortSensitiveHostname(hostname: string): boolean {
   );
 }
 
-function getDomainReuseKey(input?: string | null): string | null {
+export function getDomainReuseKey(input?: string | null): string | null {
   if (!input) return null;
   try {
     const parsed = new URL(input);
@@ -703,6 +715,12 @@ function endpointMatchesFeedTimelineContext(
 function endpointHasSearchBindings(
   endpoint: SkillManifest["endpoints"][number],
 ): boolean {
+  // Primary check: if the endpoint carries a structured search form, use the
+  // canonical isStructuredSearchForm predicate (fields.length > 0 && submit_selector set).
+  if (endpoint.search_form && isStructuredSearchForm(endpoint.search_form)) {
+    return true;
+  }
+  // Fallback: regex over serialised query/body/semantic keys for API-style search params.
   const haystack = JSON.stringify({
     query: endpoint.query ?? {},
     body: endpoint.body ?? {},
@@ -832,7 +850,7 @@ async function withDomainCaptureLock<T>(domain: string, fn: () => Promise<T>): P
 export interface OrchestratorResult {
   result: unknown;
   trace: ExecutionTrace;
-  source: "marketplace" | "live-capture" | "dom-fallback";
+  source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass";
   skill: SkillManifest;
   timing: OrchestrationTiming;
   response_schema?: ResponseSchema;
@@ -861,7 +879,29 @@ export function shouldReuseRouteResultSnapshot(
   now = Date.now(),
 ): boolean {
   if (cached.expires <= now) return false;
+  if (isRouteCacheEntryStale({ skillId: cached.skill.skill_id, domain: cached.skill.domain, ts: cached.expires - ROUTE_CACHE_TTL }, cached.skill)) return false;
   return isCachedSkillRelevantForIntent(cached.skill, intent, contextUrl);
+}
+
+/**
+ * Returns true when a route cache entry is stale because its pinned endpoint
+ * has been disabled, failed verification, or has a critically low reliability
+ * score — indicating the endpoint is no longer reliably available.
+ *
+ * An entry with no pinned endpointId is never considered stale by this check
+ * since the skill itself may still have usable endpoints.
+ */
+export function isRouteCacheEntryStale(
+  entry: SkillRouteCacheEntry,
+  skill: SkillManifest,
+): boolean {
+  if (!entry.endpointId) return false;
+  const endpoint = skill.endpoints.find((ep) => ep.endpoint_id === entry.endpointId);
+  if (!endpoint) return true; // endpoint removed from skill → stale
+  if (endpoint.verification_status === "disabled" || endpoint.verification_status === "failed") return true;
+  // Treat as stale when reliability has dropped below the auto-deprecation floor
+  if (typeof endpoint.reliability_score === "number" && endpoint.reliability_score < 0.2) return true;
+  return false;
 }
 
 function computeCompositeScore(embeddingScore: number, skill: SkillManifest): number {
@@ -1865,7 +1905,7 @@ export async function resolveAndExecute(
     const baselineMs = cost?.capture_ms ?? DEFAULT_CAPTURE_MS;
 
     // Token savings: marketplace/cache returns structured data, skipping full-page browsing
-    if (source === "marketplace" || source === "route-cache") {
+    if (source === "marketplace" || source === "route-cache" || source === "first-pass") {
       timing.tokens_saved = Math.max(0, baselineTokens - responseTokens);
       timing.tokens_saved_pct =
         baselineTokens > 0 ? Math.round((timing.tokens_saved / baselineTokens) * 100) : 0;
@@ -1885,41 +1925,70 @@ export async function resolveAndExecute(
     console.log(
       `[perf] ${source}: ${timing.total_ms}ms (time_saved=${timing.time_saved_pct}% tokens_saved=${timing.tokens_saved_pct}%${cost ? " [real baseline]" : " [estimated]"})`,
     );
+
+    // Lifecycle attribution: aggregate per-phase durations for observability
+    const lifecycleSource: LifecycleEvent["source"] =
+      source === "marketplace" ? "marketplace" : source === "route-cache" ? "cache" : "live-capture";
+    const skillIdForLifecycle = skillId ?? "unknown";
+    const now = new Date().toISOString();
+    const lifecycleEvents: LifecycleEvent[] = [];
+    if (timing.get_skill_ms > 0) {
+      lifecycleEvents.push({ phase: "resolve", skill_id: skillIdForLifecycle, timestamp: now, duration_ms: timing.get_skill_ms, source: lifecycleSource });
+    }
+    if (timing.execute_ms > 0) {
+      lifecycleEvents.push({ phase: "execute", skill_id: skillIdForLifecycle, timestamp: now, duration_ms: timing.execute_ms, source: lifecycleSource });
+    }
+    if (timing.total_ms > 0) {
+      lifecycleEvents.push({ phase: "discover", skill_id: skillIdForLifecycle, timestamp: now, duration_ms: timing.total_ms, source: lifecycleSource });
+    }
+    const lifecycleTotals = attributeLifecycle(lifecycleEvents);
+    if (lifecycleTotals.size > 0) {
+      const breakdown = [...lifecycleTotals.entries()].map(([phase, ms]) => `${phase}=${ms}ms`).join(" ");
+      console.log(`[lifecycle] ${breakdown}`);
+    }
     // Fire-and-forget to backend
     recordOrchestrationPerf(timing).catch(() => {});
+    // Persist anonymized local trace artifact (#28)
+    emitRouteTrace({
+      trace_id: trace?.trace_id ?? nanoid(),
+      session_scope: clientScope,
+      goal: intent,
+      domain: context?.domain ?? (context?.url ? (() => { try { return new URL(context.url!).hostname; } catch { return ""; } })() : ""),
+      started_at: new Date(t0).toISOString(),
+      skill_id: skillId,
+      endpoint_id: trace?.endpoint_id,
+      source,
+      status_code: trace?.status_code,
+      response_bytes: timing.response_bytes,
+      result,
+      schema_match: trace?.success ?? false,
+      candidates_considered: timing.candidates_found,
+      bindings_before: params,
+      bindings_resolved: {},
+      bindings_missing: [],
+      outcome: trace?.success === false ? "failure" : trace?.success ? "success" : "skip",
+      error: trace?.error,
+    });
+    // Auto-file GitHub issues on repeated failures
+    if (trace?.success === false && trace?.error && skillId) {
+      const domain = context?.domain ?? (context?.url ? (() => { try { return new URL(context.url!).hostname; } catch { return ""; } })() : "");
+      recordFailure({
+        skillId,
+        endpointId: trace.endpoint_id,
+        domain,
+        intent,
+        url: context?.url,
+        error: trace.error,
+      });
+    }
     return timing;
   }
-
-  /** Try auto-execute, fall back to deferral. This is the single entry point for all deferral paths. */
+  /** Always defer to the agent — auto-exec is unreliable and picks wrong endpoints. */
   async function buildDeferralWithAutoExec(
     skill: SkillManifest,
     source: "marketplace" | "live-capture",
     extraFields?: Record<string, unknown>,
   ): Promise<AutoExecDecision> {
-    // Only attempt auto-exec if we have an intent to infer params from
-    if (queryIntent && queryIntent.trim().length > 0) {
-      try {
-        const autoResult = await tryAutoExecute(skill, source);
-        if (autoResult) {
-          // Promote to marketplace cache so subsequent requests skip live-capture
-          promoteLearnedSkill(clientScope, cacheKey, skill, autoResult.trace.endpoint_id ?? "", context?.url);
-          return { orchestratorResult: autoResult, autoexecFailedAll: false };
-        }
-        return {
-          orchestratorResult: buildDeferral(skill, source, extraFields),
-          autoexecFailedAll:
-            !skillHasContextStructuredSearchEndpoint(skill, queryIntent, context?.url) &&
-            !skillHasBetterStructuredSearchEndpoint(
-              skill,
-              undefined,
-              queryIntent,
-              context?.url,
-            ),
-        };
-      } catch (err) {
-        console.warn(`[auto-exec] failed, falling back to deferral: ${(err as Error).message}`);
-      }
-    }
     return {
       orchestratorResult: buildDeferral(skill, source, extraFields),
       autoexecFailedAll: false,
@@ -1938,7 +2007,14 @@ export async function resolveAndExecute(
       known_bindings: knownBindingsFromInputs(params, context?.url),
       max_operations: 8,
     });
-    const epRanked = rankEndpoints(resolvedSkill.endpoints, queryIntent, resolvedSkill.domain, context?.url);
+    let epRanked = rankEndpoints(resolvedSkill.endpoints, queryIntent, resolvedSkill.domain, context?.url);
+    // Graph-aware reachability filter
+    const known = knownBindingsFromInputs(params, context?.url);
+    const deferGraph = ensureSkillOperationGraph(resolvedSkill);
+    const reachableIds = computeReachableEndpoints(deferGraph, known);
+    if (reachableIds.size > 0) {
+      epRanked = epRanked.filter(r => reachableIds.has(r.endpoint.endpoint_id));
+    }
     const deferTrace: ExecutionTrace = {
       trace_id: nanoid(),
       skill_id: resolvedSkill.skill_id,
@@ -2011,6 +2087,24 @@ export async function resolveAndExecute(
     });
   }
 
+  const UNSAFE_ACTION_BLOCK_THRESHOLD = 0.6;
+
+  function computeUnsafeActionScore(endpoint: SkillManifest["endpoints"][number]): number {
+    let score = 0;
+    if (endpoint.idempotency === "unsafe") score += 0.4;
+    if (endpoint.method === "POST" || endpoint.method === "PUT" || endpoint.method === "DELETE") score += 0.2;
+    const inferredFromBundle = /inferred from js bundle/i.test(endpoint.description ?? "");
+    if (inferredFromBundle) score += 0.2; // guessed from bundle = risky
+    if (!endpoint.response_schema) score += 0.1;
+    if (endpoint.verification_status === "failed") score += 0.1;
+    if (endpoint.reliability_score < 0.3) score += 0.1;
+    // Reduce score for strong evidence
+    if (endpoint.trigger_url) score -= 0.1;
+    if (endpoint.verification_status === "verified") score -= 0.15;
+    return Math.max(0, Math.min(1, score));
+  }
+
+
   function canAutoExecuteEndpoint(endpoint: SkillManifest["endpoints"][number]): boolean {
     const endpointParams = resolveEndpointTemplateBindings(endpoint, resolvedParams, context?.url);
     const missing = missingTemplateParams(endpoint, endpointParams);
@@ -2026,6 +2120,16 @@ export async function resolveAndExecute(
       if (unresolvedBySync.length > 4) return false;
     }
     if (endpoint.dom_extraction) return true;
+    if (endpoint.method !== "GET" && endpoint.idempotency !== "safe") {
+      // Block high-risk non-safe endpoints unless caller has confirmed
+      const unsafeScore = computeUnsafeActionScore(endpoint);
+      if (unsafeScore >= UNSAFE_ACTION_BLOCK_THRESHOLD && !options?.confirm_unsafe) {
+        console.log(
+          `[auto-exec] blocked unsafe endpoint ${endpoint.endpoint_id} (unsafe_score=${unsafeScore.toFixed(2)})`,
+        );
+        return false;
+      }
+    }
     return endpoint.method === "GET" || endpoint.idempotency === "safe";
   }
 
@@ -2044,6 +2148,25 @@ export async function resolveAndExecute(
     return merged;
   })();
 
+  // --- Prior trace retrieval (lightweight RAG signal) ---
+  // Retrieve prior execution traces for this domain+intent to boost endpoints that worked before.
+  const requestedDomainForTraces = context?.domain ?? (context?.url ? (() => { try { return new URL(context.url!).hostname; } catch { return null; } })() : null);
+  let priorSuccessEndpoints: Set<string> | undefined;
+  if (requestedDomainForTraces && queryIntent) {
+    try {
+      const priorTraces = findTracesByIntent(requestedDomainForTraces, queryIntent, 3);
+      if (priorTraces.length > 0) {
+        priorSuccessEndpoints = new Set(
+          priorTraces.filter(t => t.success && t.selected_endpoint_id)
+            .map(t => t.selected_endpoint_id!),
+        );
+        (decisionTrace as Record<string, unknown>).prior_traces = priorTraces.length;
+        (decisionTrace as Record<string, unknown>).prior_success_endpoints = [...priorSuccessEndpoints];
+      }
+    } catch {
+      // Trace retrieval must never block the resolve path
+    }
+  }
   /**
    * Try to auto-select and execute the best endpoint when the agent hasn't chosen one.
    * Uses BM25 ranking (boosted by LLM descriptions). Auto-executes when:
@@ -2082,6 +2205,18 @@ export async function resolveAndExecute(
         epRanked = dedupeObservedOverBundle([...observedBeforeFilter, ...epRanked]);
       }
     }
+
+    // --- Hard reachability filter (A_reachable from the Machine Intent paper) ---
+    // Unreachable endpoints are removed, not just penalized. Only applied when the
+    // graph has at least one reachable entry point to avoid degenerate cases.
+    const reachableIds = computeReachableEndpoints(
+      ensureSkillOperationGraph(skill),
+      knownBindingsFromInputs(resolvedParams, context?.url),
+    );
+    if (reachableIds.size > 0) {
+      epRanked = epRanked.filter((r) => reachableIds.has(r.endpoint.endpoint_id));
+    }
+    // --- end reachability filter ---
     if (epRanked.length === 0) return null;
     decisionTrace.search_candidates = epRanked.slice(0, 10).map((ranked) => ({
       endpoint_id: ranked.endpoint.endpoint_id,
@@ -2089,6 +2224,7 @@ export async function resolveAndExecute(
       description: ranked.endpoint.description,
       url: ranked.endpoint.url_template,
       dom_extraction: !!ranked.endpoint.dom_extraction,
+      unsafe_action_score: Math.round(computeUnsafeActionScore(ranked.endpoint) * 100) / 100,
     }));
 
     // When BM25 scores are tied, use schema field overlap with intent as tiebreaker.
@@ -2200,6 +2336,47 @@ export async function resolveAndExecute(
     });
     epRanked.sort((a, b) => b.score - a.score);
     epRanked = prioritizeIntentMatchedApis(epRanked, queryIntent, context?.url);
+
+    // --- DAG advisory boosts (discover-choose-act) ---
+    // Backend-first advisory call: tries the EmergentDB graph for cross-session
+    // intelligence, falls back to local planner if backend is unavailable.
+    if (epRanked.length > 1 && skill.domain) {
+      const bindings = Object.keys(knownBindingsFromInputs(resolvedParams, context?.url));
+      const dagPlan = await fetchDagAdvisoryPlan(
+        skill,
+        epRanked[0].endpoint.endpoint_id,
+        bindings,
+      );
+      if (dagPlan) {
+        epRanked = applyDagAdvisoryBoosts(epRanked, dagPlan);
+        (decisionTrace as Record<string, unknown>).dag_advisory = {
+          chain_ready: dagPlan.chain_ready,
+          predicted_next: dagPlan.predicted_next,
+          auth_dependencies: dagPlan.auth_dependencies,
+        };
+      }
+    }
+    // --- end DAG advisory ---
+
+    // --- Auth prerequisite gate ---
+    // When the top candidate targets an auth-gated endpoint, resolve auth
+    // via the runtime before attempting execution.
+    if (epRanked.length > 0) {
+      const topEndpoint = epRanked[0].endpoint;
+      const authDeps = deriveAuthDependencies(skill, topEndpoint.endpoint_id);
+      if (authDeps.length > 0) {
+        const authResults = await resolveAuthPrerequisites(authDeps);
+        const allAuthed = authResults.every((r) => r.authenticated);
+        (decisionTrace as Record<string, unknown>).auth_prerequisites = {
+          dependencies: authDeps.map((d) => ({ domain: d.domain, strategy: d.strategy })),
+          resolved: allAuthed,
+        };
+        if (!allAuthed) {
+          console.log(`[auth] auth prerequisite unresolved for ${skill.domain} — continuing with best effort`);
+        }
+      }
+    }
+    // --- end auth prerequisite gate ---
 
     // Try top candidates in order until one succeeds. If all fail, fall through to deferral.
     const ready = epRanked.filter((r) => canAutoExecuteEndpoint(r.endpoint));
@@ -2360,9 +2537,11 @@ export async function resolveAndExecute(
             console.log(
               `[auto-exec] #${i + 1} rejected: ${candidate.endpoint.endpoint_id} (${judged})`,
             );
+            recordDagNegative(skill, candidate.endpoint.endpoint_id);
             continue;
           }
           cacheResolvedSkill(cacheKey, skill, candidate.endpoint.endpoint_id);
+          recordDagSessionAction(skill, candidate.endpoint.endpoint_id, true);
           writeDebugTrace("resolve", {
             ...decisionTrace,
             outcome: "autoexec_success",
@@ -2379,8 +2558,93 @@ export async function resolveAndExecute(
             execOut.response_schema,
             execOut.extraction_hints,
           );
+          // --- Store successful execution trace for future RAG retrieval ---
+          try {
+            const endpointSeq = (decisionTrace.autoexec_attempts as { endpoint_id: string }[])
+              .map(a => a.endpoint_id);
+            storeExecutionTrace({
+              trace_id: execOut.trace.trace_id ?? nanoid(),
+              domain: skill.domain,
+              intent: queryIntent,
+              endpoint_sequence: endpointSeq,
+              selected_endpoint_id: candidate.endpoint.endpoint_id,
+              params: resolvedParams,
+              success: true,
+              timestamp: new Date().toISOString(),
+              duration_ms: timing.execute_ms,
+              context_url: context?.url,
+            });
+          } catch {
+            // Trace storage must never block the execution path
+          }
+          // Prefetch related endpoints via parent_child edges
+          let prefetched: import("../capture/prefetch.js").PrefetchResult[] = [];
+          try {
+            const execGraph = ensureSkillOperationGraph(skill);
+            const resolvedOp = execGraph.operations.find(op => op.endpoint_id === candidate.endpoint.endpoint_id);
+            if (resolvedOp) {
+              const prefetchTargets = getPrefetchTargets(execGraph, resolvedOp.operation_id, resolvedParams);
+              if (prefetchTargets.length > 0) {
+                console.log(`[prefetch] ${prefetchTargets.length} target(s) for ${candidate.endpoint.endpoint_id}`);
+                prefetched = await executePrefetch(skill, prefetchTargets, resolvedParams);
+                console.log(`[prefetch] ${prefetched.filter(r => r.success).length}/${prefetched.length} succeeded`);
+              }
+            }
+          } catch (prefetchErr) {
+            console.log(`[prefetch] error: ${(prefetchErr as Error).message}`);
+          }
+          // --- Payment gate: only for marketplace-sourced paid skills ---
+          if (source === "marketplace" && skill.base_price_usd && skill.base_price_usd > 0) {
+            try {
+              const walletCheck = checkWalletConfigured();
+              const paymentResult = await checkPaymentRequirement(
+                skill.skill_id,
+                candidate.endpoint.endpoint_id,
+                {
+                  price_usd: String(skill.base_price_usd),
+                  wallet_configured: walletCheck.configured,
+                },
+              );
+              if (paymentResult.status !== "free" && paymentResult.status !== "paid") {
+                // Apply indexing fallback for unpaid users — they can still capture and contribute
+                const { resolveUnpaidAccess } = await import("../payments/index.js");
+                const fallback = resolveUnpaidAccess(paymentResult);
+                if (fallback.status === "indexing_fallback") {
+                  console.log(`[payment] ${skill.skill_id}: unpaid, falling back to indexing mode`);
+                  // Allow execution but tag result as indexing-mode
+                } else {
+                  return {
+                    result: {
+                      error: "payment_required",
+                      price_usd: skill.base_price_usd,
+                      payment_status: paymentResult.status,
+                      message: paymentResult.message,
+                      next_step: paymentResult.next_step,
+                      wallet_provider: "lobster.cash",
+                      indexing_fallback_available: true,
+                    },
+                    trace: execOut.trace,
+                    source,
+                    skill,
+                    timing: finalize(source, null, skill.skill_id, skill, execOut.trace),
+                  };
+                }
+              }
+            } catch (payErr) {
+              console.warn(`[payment] check failed, proceeding without payment gate: ${(payErr as Error).message}`);
+            }
+          }
+          // --- end payment gate ---
           return {
-            result: execOut.result,
+            result: prefetched.length > 0 ? {
+              ...(typeof execOut.result === "object" && execOut.result !== null ? execOut.result as Record<string, unknown> : { data: execOut.result }),
+              prefetched: prefetched.filter(r => r.success).map(r => ({
+                endpoint_id: r.endpoint_id,
+                action_kind: r.action_kind,
+                resource_kind: r.resource_kind,
+                data: r.data,
+              })),
+            } : execOut.result,
             trace: execOut.trace,
             source,
             skill,
@@ -2416,6 +2680,24 @@ export async function resolveAndExecute(
       source,
       skill_id: skill.skill_id,
     });
+    // --- Store failed execution trace for future RAG retrieval ---
+    try {
+      const endpointSeq = (decisionTrace.autoexec_attempts as { endpoint_id: string }[])
+        .map(a => a.endpoint_id);
+      storeExecutionTrace({
+        trace_id: nanoid(),
+        domain: skill.domain,
+        intent: queryIntent,
+        endpoint_sequence: endpointSeq,
+        params: resolvedParams,
+        success: false,
+        timestamp: new Date().toISOString(),
+        duration_ms: timing.execute_ms,
+        context_url: context?.url,
+      });
+    } catch {
+      // Trace storage must never block the execution path
+    }
     return null; // All candidates failed, fall through to deferral
   }
 
@@ -2807,6 +3089,45 @@ export async function resolveAndExecute(
     }
   } // end !forceCapture
 
+  // 1.5 First-pass browser action: lightweight 8s attempt before full capture
+  if (context?.url && !forceCapture) {
+    const firstPassResult = await tryFirstPassBrowserAction(
+      intent, params, context.url,
+      { signal: options?.signal, clientScope: options?.client_scope },
+    );
+    decisionTrace.first_pass = {
+      intentClass: firstPassResult.intentClass,
+      actionTaken: firstPassResult.actionTaken,
+      hit: firstPassResult.hit,
+      interceptedCount: firstPassResult.interceptedEntries.length,
+      timeMs: firstPassResult.timeMs,
+    };
+    if (firstPassResult.hit && firstPassResult.miniSkill) {
+      const fpNow = new Date().toISOString();
+      const trace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: firstPassResult.miniSkill.skill_id,
+        endpoint_id: firstPassResult.miniSkill.endpoints[0]?.endpoint_id ?? "",
+        started_at: fpNow,
+        completed_at: fpNow,
+        success: true,
+        network_events: firstPassResult.interceptedEntries,
+      };
+      const t = finalize(
+        "first-pass", firstPassResult.result,
+        firstPassResult.miniSkill.skill_id,
+        firstPassResult.miniSkill, trace,
+      );
+      return {
+        result: firstPassResult.result,
+        trace,
+        source: "first-pass",
+        skill: firstPassResult.miniSkill,
+        timing: t,
+      };
+    }
+    console.log(`[first-pass] miss (${firstPassResult.intentClass}/${firstPassResult.actionTaken}) — falling through to live capture`);
+  }
   // 2. No match (or force_capture) — invoke browser-capture skill
   if (!context?.url) {
     throw new Error(
@@ -3218,6 +3539,7 @@ export async function resolveAndExecute(
       : undefined,
   );
   queuePassivePublishIfExecuted(learned_skill, deferred.orchestratorResult, parityBaseline);
+  upsertDagEdgesFromOperationGraph(learned_skill!);
   return deferred.orchestratorResult;
 }
 
@@ -3273,7 +3595,7 @@ export function hasUsableEndpoints(skill: SkillManifest): boolean {
 }
 
 /** Generate a local heuristic description for an endpoint so BM25 can work immediately. */
-function generateLocalDescription(ep: import("../types/index.js").EndpointDescriptor): string {
+export function generateLocalDescription(ep: import("../types/index.js").EndpointDescriptor): string {
   let id = "";
   try {
     const u = new URL(ep.url_template);

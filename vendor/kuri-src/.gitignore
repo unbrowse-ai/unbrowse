@@ -3,3 +3,11 @@ zig-out/
 *.o
 *.swp
 .browdie/
+tweet.md
+.benchmarks/
+benchmarks/results/*
+!benchmarks/results/README.md
+!benchmarks/results/20260327-111742-https_vercel.com/
+!benchmarks/results/20260327-111742-https_vercel.com/**
+!benchmarks/results/20260327-111817-https_www.google.com_travel_flights_q=Flights%20to%20TPE%20from%/
+!benchmarks/results/20260327-111817-https_www.google.com_travel_flights_q=Flights%20to%20TPE%20from%/**

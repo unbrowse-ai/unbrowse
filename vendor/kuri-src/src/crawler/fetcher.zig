@@ -98,7 +98,10 @@ pub fn extractHtmlValue(json: []const u8, arena: std.mem.Allocator) ![]const u8 
     var i = str_start;
     while (i < json.len) : (i += 1) {
         if (json[i] == '"') break;
-        if (json[i] == '\\') i += 1; // skip next char (escape sequence)
+        if (json[i] == '\\') {
+            if (i + 1 >= json.len) return FetchError.FetchFailed;
+            i += 1; // skip next char (escape sequence)
+        }
     }
     if (i >= json.len) return FetchError.FetchFailed;
 

@@ -4,6 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { ensureDir } from "./paths.js";
 import { findKuriBinary, getKuriSourceCandidates } from "../kuri/client.js";
+import { detectHostEnvironment, type HostEnvironment } from "./browser-host.js";
+import { log } from "../logger.js";
+import { checkWalletConfigured, type WalletCheckResult } from "../payments/wallet.js";
 
 export type SetupScope = "auto" | "global" | "project" | "off";
 
@@ -13,6 +16,7 @@ export type SetupReport = {
     release: string;
     arch: string;
   };
+  host_environment: HostEnvironment;
   package_managers: {
     npm: boolean;
     npx: boolean;
@@ -28,7 +32,9 @@ export type SetupReport = {
     detected: boolean;
     action: "installed" | "updated" | "skipped" | "not-detected";
     scope: "global" | "project" | "off";
-    command_file?: string;
+  };
+  wallet: WalletCheckResult & {
+    message: string;
   };
 };
 
@@ -79,19 +85,9 @@ description: Use Unbrowse as the exclusive web-access tool for a task.
 Use Unbrowse as the only allowed tool for website access in this task.
 
 Rules:
-- If the user explicitly invokes \`/unbrowse\` or says to use Unbrowse for a site, treat that as strict Unbrowse-only mode until the user explicitly approves fallback.
-- If the user only gives a domain plus a retrieval task, first identify the exact workflow URL on that origin. Do not start from the homepage unless the homepage is the real workflow surface.
 - Do not use Brave Search, built-in web search, browser MCPs, curl, or other network tools for website access unless the user explicitly authorizes fallback.
-- Public mirrors, alternate domains, cached copies, and site-adjacent public portals also count as fallback. Do not switch from the target origin to those surfaces on your own.
 - If Unbrowse is slow on a first-time site, wait for it. Do not switch tools just because capture or indexing is still running.
-- \`unbrowse search\` is marketplace search, not on-site search. Do not use it as a substitute for the site's own search workflow.
 - If Unbrowse returns partial results, refine with more Unbrowse commands (\`resolve\`, \`search\`, \`execute\`, \`login\`) before considering fallback.
-- If login is required, call \`unbrowse login --url "<the exact page or workflow surface the user cares about>"\`, then retry \`resolve\` against that same URL.
-- If the task is likely gated and repeated \`resolve\` calls only return homepage, marketing, help, public, or artifact pages, stop retrying blind public routes and trigger \`login\` on the inferred workflow URL.
-- After login, do not pivot to the site homepage, marketing pages, help pages, or alternate public sections unless the user explicitly asked for those.
-- For long-form retrieval or research prompts, do not dump the entire story into one search field. Derive 2-4 compact search queries with quoted phrases, product names, titles, IDs, people, dates, or other discriminative terms, then retry inside Unbrowse.
-- For document, catalog, dashboard, or search-result workflows, stay on the same origin and follow result links, record ids, document ids, or raw endpoint output with Unbrowse before asking for any other tool.
-- Do not invent \`--params\` keys. If endpoint inputs are unclear, inspect \`--schema\` or \`--raw\` first, then use only fields the endpoint actually exposes.
 - If Unbrowse genuinely cannot complete the task, explain why and ask before using another tool.
 
 Suggested start:
@@ -189,9 +185,52 @@ export async function runSetup(options?: {
   installBrowser?: boolean;
 }): Promise<SetupReport> {
   const cwd = options?.cwd || process.cwd();
+
+  const hostEnv = detectHostEnvironment();
+  log("setup", `detected host environment: ${hostEnv}`);
+
   const browser = options?.installBrowser === false
     ? { installed: false, action: "skipped" as const }
     : await ensureBrowserEngineInstalled();
+  const walletCheck = checkWalletConfigured();
+  const skipWalletSetup = process.env.UNBROWSE_SKIP_WALLET_SETUP === "1";
+  const lobsterInstalled = hasBinary("lobstercash") ||
+    existsSync(path.join(os.homedir(), ".agents", "skills", "lobstercash", "SKILL.md"));
+
+  // Auto-setup lobster.cash wallet if skill is installed but wallet not configured
+  if (!skipWalletSetup && !walletCheck.configured && lobsterInstalled) {
+    console.log("[unbrowse] lobster.cash skill detected but wallet not configured — running wallet setup...");
+    try {
+      execFileSync("npx", ["@crossmint/lobster-cli", "setup"], {
+        stdio: "inherit",
+        timeout: 60_000,
+      });
+      // Re-check after setup
+      const recheck = checkWalletConfigured();
+      if (recheck.configured) {
+        console.log(`[unbrowse] wallet configured (${recheck.provider})`);
+      }
+    } catch {
+      console.warn("[unbrowse] lobster.cash wallet setup failed or was skipped — continuing without wallet");
+    }
+  }
+
+  // Re-check wallet state after potential setup
+  const finalWalletCheck = checkWalletConfigured();
+  const wallet = {
+    ...finalWalletCheck,
+    lobster_installed: lobsterInstalled,
+    message: finalWalletCheck.configured
+      ? `Wallet configured (${finalWalletCheck.provider})`
+      : lobsterInstalled
+        ? "lobster.cash installed but wallet not paired. Run: lobstercash setup"
+        : "No wallet configured. Install lobster.cash for paid marketplace skills, or use indexing mode for free.",
+    install_hint: finalWalletCheck.configured
+      ? undefined
+      : lobsterInstalled
+        ? "lobstercash setup"
+        : "npx skills add https://github.com/Crossmint/lobstercash-cli-skills --global --yes",
+  };
 
   return {
     os: {
@@ -199,8 +238,10 @@ export async function runSetup(options?: {
       release: os.release(),
       arch: process.arch,
     },
+    host_environment: hostEnv,
     package_managers: detectPackageManagers(),
     browser_engine: browser,
     opencode: writeOpenCodeCommand(options?.opencode ?? "auto", cwd),
+    wallet,
   };
 }

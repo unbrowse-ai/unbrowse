@@ -5,107 +5,12 @@ import { isDomainMatch, getRegistrableDomain } from "../domain.js";
 import { log } from "../logger.js";
 import path from "node:path";
 import os from "node:os";
-import {
-  findChromiumBrowserCandidate,
-  getSupportedChromiumBrowserCandidates,
-  getMacDefaultBrowserBundleId,
-} from "./browser-cookies.js";
-import type {
-  BrowserAuthSourceMeta,
-  BrowserSource,
-  ExtractBrowserCookiesOptions,
-} from "./browser-cookies.js";
+import fs from "node:fs";
+import { getDefaultLoginConfig } from "../runtime/supervisor.js";
 
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
 const MIN_WAIT_MS = 15_000;
-const FIREFOX_BUNDLE_ID = "org.mozilla.firefox";
-const SUPPORTED_INTERACTIVE_BROWSERS = ["auto", "chrome", "arc", "dia", "brave", "edge", "vivaldi", "chromium", "firefox"] as const;
-
-type InteractiveBrowser = typeof SUPPORTED_INTERACTIVE_BROWSERS[number];
-
-const MAC_BROWSER_NAME_BY_BUNDLE_ID: Record<string, string> = {
-  "com.apple.Safari": "Safari",
-  "org.mozilla.firefox": "Firefox",
-  "com.google.chrome": "Chrome",
-  "company.thebrowser.Browser": "Arc",
-  "company.thebrowser.dia": "Dia",
-  "com.brave.Browser": "Brave",
-  "com.microsoft.edgemac": "Edge",
-  "com.vivaldi.Vivaldi": "Vivaldi",
-  "org.chromium.Chromium": "Chromium",
-};
-
-const LINUX_BROWSER_COMMANDS: Partial<Record<Exclude<InteractiveBrowser, "auto">, string>> = {
-  firefox: "firefox",
-  chrome: "google-chrome",
-  arc: "arc",
-  dia: "dia",
-  brave: "brave-browser",
-  edge: "microsoft-edge",
-  vivaldi: "vivaldi",
-  chromium: "chromium",
-};
-
-export interface InteractiveLoginPlan {
-  browser: InteractiveBrowser;
-  browserLabel: string;
-  openCommand: string;
-  openArgs: string[];
-  extractOptions: ExtractBrowserCookiesOptions;
-}
-
-const DARWIN_APPLESCRIPT_NAMES: Partial<Record<Exclude<InteractiveBrowser, "auto" | "firefox">, string>> = {
-  chrome: "Google Chrome",
-  arc: "Arc",
-  dia: "Dia",
-  brave: "Brave Browser",
-  edge: "Microsoft Edge",
-  vivaldi: "Vivaldi",
-  chromium: "Chromium",
-};
-
-const DARWIN_BROWSER_BY_BUNDLE_ID: Partial<Record<string, Exclude<InteractiveBrowser, "auto">>> = {
-  "org.mozilla.firefox": "firefox",
-  "com.google.chrome": "chrome",
-  "company.thebrowser.Browser": "arc",
-  "company.thebrowser.dia": "dia",
-  "com.brave.Browser": "brave",
-  "com.microsoft.edgemac": "edge",
-  "com.vivaldi.Vivaldi": "vivaldi",
-  "org.chromium.Chromium": "chromium",
-};
-
-function buildDarwinChromiumOpenPlan(
-  browser: Exclude<InteractiveBrowser, "auto" | "firefox">,
-  url: string,
-  candidate: NonNullable<ReturnType<typeof findChromiumBrowserCandidate>>,
-): InteractiveLoginPlan {
-  const appName = DARWIN_APPLESCRIPT_NAMES[browser] ?? candidate.name;
-  const script = [
-    `tell application "${appName}"`,
-    "activate",
-    "if (count of windows) = 0 then",
-    "make new window",
-    "end if",
-    `set URL of active tab of front window to "${url.replaceAll("\"", "\\\"")}"`,
-    "end tell",
-  ].join("\n");
-  return {
-    browser,
-    browserLabel: candidate.name,
-    openCommand: "osascript",
-    openArgs: ["-e", script],
-    extractOptions: {
-      browser: "chromium",
-      chromium: {
-        userDataDir: candidate.userDataDir,
-        browserName: candidate.name,
-        safeStorageService: candidate.safeStorageService,
-      },
-    },
-  };
-}
 
 /**
  * Returns the persistent profile directory for a given domain.
@@ -119,202 +24,130 @@ export interface LoginResult {
   success: boolean;
   domain: string;
   cookies_stored: number;
-  browser_label?: string;
   error?: string;
 }
 
-export interface StoredAuthBundle {
-  cookies: AuthCookie[];
-  headers: Record<string, string>;
-  source_keys: string[];
-  source_meta?: BrowserAuthSourceMeta | null;
-}
-
-export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | undefined): boolean {
-  if (!bundle) return true;
-  if (bundle.cookies.length === 0 && Object.keys(bundle.headers).length === 0) return true;
-  const sourceMeta = bundle.source_meta;
-  if (!sourceMeta) return true;
-  if (sourceMeta.family === "chromium" && !sourceMeta.userDataDir && !sourceMeta.cookieDbPath) {
-    return true;
-  }
-  return false;
-}
-
-function normalizeInteractiveBrowser(browser?: string): InteractiveBrowser {
-  const normalized = (browser ?? "auto").trim().toLowerCase();
-  if ((SUPPORTED_INTERACTIVE_BROWSERS as readonly string[]).includes(normalized)) {
-    return normalized as InteractiveBrowser;
-  }
-  throw new Error(`Unsupported browser "${browser}". Use one of: ${SUPPORTED_INTERACTIVE_BROWSERS.join(", ")}`);
-}
-
-export function resolveInteractiveLoginPlan(
-  url: string,
-  browser?: string,
-  opts?: { platform?: NodeJS.Platform; defaultBundleId?: string | null },
-): InteractiveLoginPlan {
-  const requested = normalizeInteractiveBrowser(browser);
-  const runtimePlatform = opts?.platform ?? process.platform;
-
-  if (requested === "auto") {
-    if (runtimePlatform === "darwin") {
-      const defaultBundleId = opts?.defaultBundleId ?? getMacDefaultBrowserBundleId();
-      const supportedChromiumBundles = new Set(
-        getSupportedChromiumBrowserCandidates("darwin")
-          .map((candidate) => candidate.bundleId)
-          .filter((value): value is string => !!value),
-      );
-      const defaultBrowser = defaultBundleId ? DARWIN_BROWSER_BY_BUNDLE_ID[defaultBundleId] : undefined;
-      if (defaultBrowser === "firefox") {
-        return resolveInteractiveLoginPlan(url, "firefox", { platform: runtimePlatform, defaultBundleId });
-      }
-      if (defaultBrowser && defaultBrowser !== "firefox") {
-        return resolveInteractiveLoginPlan(url, defaultBrowser, { platform: runtimePlatform, defaultBundleId });
-      }
-      if (defaultBundleId && defaultBundleId !== FIREFOX_BUNDLE_ID && !supportedChromiumBundles.has(defaultBundleId)) {
-        const label = MAC_BROWSER_NAME_BY_BUNDLE_ID[defaultBundleId] ?? defaultBundleId;
-        throw new Error(`Default browser ${label} is not supported for cookie extraction. Re-run with --browser chrome, arc, dia, brave, edge, vivaldi, chromium, or firefox.`);
-      }
-    }
-
-    if (runtimePlatform === "darwin") {
-      return {
-        browser: requested,
-        browserLabel: "default browser",
-        openCommand: "open",
-        openArgs: [url],
-        extractOptions: { browser: "auto" },
-      };
-    }
-    if (runtimePlatform === "linux") {
-      return {
-        browser: requested,
-        browserLabel: "default browser",
-        openCommand: "xdg-open",
-        openArgs: [url],
-        extractOptions: { browser: "auto" },
-      };
-    }
-    return {
-      browser: requested,
-      browserLabel: "default browser",
-      openCommand: "cmd",
-      openArgs: ["/c", "start", "", url],
-      extractOptions: { browser: "auto" },
-    };
-  }
-
-  if (requested === "firefox") {
-    if (runtimePlatform === "darwin") {
-      return {
-        browser: requested,
-        browserLabel: "Firefox",
-        openCommand: "open",
-        openArgs: ["-b", FIREFOX_BUNDLE_ID, url],
-        extractOptions: { browser: "firefox" },
-      };
-    }
-    const command = runtimePlatform === "linux" ? LINUX_BROWSER_COMMANDS.firefox ?? "firefox" : "cmd";
-    return {
-      browser: requested,
-      browserLabel: "Firefox",
-      openCommand: command,
-      openArgs: runtimePlatform === "linux" ? [url] : ["/c", "start", "", "firefox", url],
-      extractOptions: { browser: "firefox" },
-    };
-  }
-
-  const candidate = findChromiumBrowserCandidate(requested, runtimePlatform);
-  if (!candidate) {
-    throw new Error(`Browser "${requested}" is not available on ${runtimePlatform}.`);
-  }
-
-  if (runtimePlatform === "darwin") {
-    return buildDarwinChromiumOpenPlan(requested, url, candidate);
-  }
-
-  const command = LINUX_BROWSER_COMMANDS[requested];
-  if (runtimePlatform === "linux" && command) {
-    return {
-      browser: requested,
-      browserLabel: candidate.name,
-      openCommand: command,
-      openArgs: [url],
-      extractOptions: {
-        browser: "chromium",
-        chromium: {
-          userDataDir: candidate.userDataDir,
-          browserName: candidate.name,
-          safeStorageService: candidate.safeStorageService,
-        },
-      },
-    };
-  }
-
-  throw new Error(`Explicit browser selection is not supported on ${runtimePlatform}.`);
-}
-
-async function launchInteractiveBrowser(plan: InteractiveLoginPlan): Promise<void> {
-  const { spawn } = await import("node:child_process");
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(plan.openCommand, plan.openArgs, {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.once("error", reject);
-    child.once("spawn", () => {
-      child.unref();
-      resolve();
-    });
-  });
-}
-
 /**
- * Open a visible browser for the user to complete login, then poll the chosen
- * local browser profile until fresh cookies are detected.
+ * Open a visible browser for the user to complete login.
+ * Uses Kuri to manage the browser tab, polls for login completion via cookies.
+ *
+ * Note: Kuri manages Chrome — for interactive login, the user's Chrome
+ * needs to be visible. We navigate to the login URL and poll for cookie changes.
  */
 export async function interactiveLogin(
   url: string,
   domain?: string,
-  opts?: { browser?: string },
 ): Promise<LoginResult> {
   const targetDomain = domain ?? new URL(url).hostname;
-  const plan = resolveInteractiveLoginPlan(url, opts?.browser);
+  const profileDir = getProfilePath(targetDomain);
 
-  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}, browser: ${plan.browserLabel}`);
-  await launchInteractiveBrowser(plan);
-  log("auth", `opened ${url} in ${plan.browserLabel}`);
+  const isHeadless = process.env.HEADLESS === "true" || process.env.HEADLESS === "1";
+  const loginConfig = getDefaultLoginConfig(isHeadless);
+  log("auth", `interactiveLogin — url: ${url}, domain: ${targetDomain}, interactive: ${loginConfig.interactive}, timeout: ${loginConfig.timeout_ms}ms`);
 
-  // Poll extractBrowserAuth until cookies appear or timeout
-  const startTime = Date.now();
-  while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  // Login requires a visible browser — disable headless for this flow
+  const prevHeadless = process.env.HEADLESS;
+  process.env.HEADLESS = "false";
 
-    try {
-      const result = await extractBrowserAuth(targetDomain, plan.extractOptions);
-      if (result.success && result.cookies_stored > 0) {
-        log("auth", `login detected — ${result.cookies_stored} cookies captured for ${targetDomain}`);
-        return { ...result, browser_label: plan.browserLabel };
+  try {
+    fs.mkdirSync(profileDir, { recursive: true });
+
+    // Stop any existing headless Kuri so it restarts with HEADLESS=false
+    try { await kuri.stop(); } catch { /* may not be running */ }
+
+    // Start Kuri and get a tab
+    await kuri.start();
+    const tabId = await kuri.getDefaultTab();
+    await kuri.networkEnable(tabId);
+
+    // Navigate to login URL
+    await kuri.navigate(tabId, url);
+
+    const startTime = Date.now();
+
+    // Snapshot initial cookies
+    const initialCookies = await kuri.getCookies(tabId);
+    const initialCookieCount = initialCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
+    log("auth", `initial cookies for ${targetDomain}: ${initialCookieCount}`);
+
+    // Wait for user to complete login — detect via cookie changes + URL change
+    let loggedIn = false;
+    let lastLoggedUrl = "";
+    const effectiveTimeout = loginConfig.interactive ? LOGIN_TIMEOUT_MS : loginConfig.timeout_ms;
+    while (Date.now() - startTime < effectiveTimeout) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      const elapsed = Date.now() - startTime;
+
+      try {
+        const currentUrl = await kuri.getCurrentUrl(tabId);
+        const currentDomain = new URL(currentUrl).hostname.toLowerCase();
+        const targetNorm = targetDomain.toLowerCase();
+
+        if (currentUrl !== lastLoggedUrl) {
+          log("auth", `navigated to: ${currentUrl}`);
+          lastLoggedUrl = currentUrl;
+        }
+
+        if (elapsed < MIN_WAIT_MS) continue;
+
+        const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
+        if (isOnTarget) {
+          const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/.test(new URL(currentUrl).pathname);
+
+          const currentCookies = await kuri.getCookies(tabId);
+          const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
+          const gotNewCookies = currentCookieCount > initialCookieCount;
+
+          if (!isStillLogin && gotNewCookies) {
+            loggedIn = true;
+            log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount})`);
+            break;
+          }
+
+          if (!isStillLogin && currentCookieCount > 0) {
+            loggedIn = true;
+            log("auth", `already logged in — ${currentUrl} (${currentCookieCount} cookies present)`);
+            break;
+          }
+        }
+      } catch { /* page navigating */ }
+    }
+
+    if (!loggedIn) {
+      log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — fallback: ${loginConfig.fallback_strategy}`);
+      if (loginConfig.fallback_strategy === "fail") {
+        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login timed out (fallback: fail)" };
       }
-    } catch (err) {
-      log("auth", `poll error: ${err instanceof Error ? err.message : err}`);
+      if (loginConfig.fallback_strategy === "skip") {
+        log("auth", `skipping cookie capture per fallback_strategy`);
+        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login skipped (headless)" };
+      }
+      // fallback_strategy === "prompt" — continue to capture cookies anyway
     }
 
-    // Log progress every 10s
-    const elapsed = Date.now() - startTime;
-    if (elapsed % 10_000 < POLL_INTERVAL_MS) {
-      log("auth", `waiting for login... ${Math.round(elapsed / 1000)}s elapsed`);
+    // Extract and store cookies
+    const cookies = await kuri.getCookies(tabId);
+    const domainCookies = cookies.filter((c) => isDomainMatch(c.domain, targetDomain));
+
+    if (domainCookies.length === 0) {
+      return { success: false, domain: targetDomain, cookies_stored: 0, error: "No cookies captured for domain" };
     }
+
+    const storableCookies = domainCookies.map((c) => ({
+      name: c.name, value: c.value, domain: c.domain, path: c.path,
+      secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, expires: c.expires,
+    }));
+
+    const vaultKey = `auth:${getRegistrableDomain(targetDomain)}`;
+    await storeCredential(vaultKey, JSON.stringify({ cookies: storableCookies }));
+    log("auth", `stored ${storableCookies.length} cookies under ${vaultKey}`);
+
+    return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
+  } finally {
+    // Restore headless setting so subsequent captures run headless
+    if (prevHeadless !== undefined) process.env.HEADLESS = prevHeadless;
+    else delete process.env.HEADLESS;
   }
-
-  return {
-    success: false,
-    domain: targetDomain,
-    cookies_stored: 0,
-    browser_label: plan.browserLabel,
-    error: `Login timed out after ${LOGIN_TIMEOUT_MS / 1000}s — no cookies detected in ${plan.browserLabel}`,
-  };
 }
 
 /**
@@ -323,7 +156,7 @@ export async function interactiveLogin(
  */
 export async function extractBrowserAuth(
   domain: string,
-  opts?: ExtractBrowserCookiesOptions
+  opts?: { chromeProfile?: string; firefoxProfile?: string }
 ): Promise<LoginResult> {
   const { extractBrowserCookies } = await import("./browser-cookies.js");
 
@@ -352,7 +185,7 @@ export async function extractBrowserAuth(
   const vaultKey = `auth:${getRegistrableDomain(domain)}`;
   await storeCredential(
     vaultKey,
-    JSON.stringify({ cookies: storableCookies, source_meta: result.sourceMeta ?? null })
+    JSON.stringify({ cookies: storableCookies })
   );
 
   log("auth", `stored ${storableCookies.length} cookies for ${domain} (key: ${vaultKey}) from ${result.source}`);
@@ -370,15 +203,6 @@ type AuthCookie = {
   expires?: number;
 };
 
-function getStoredAuthKeys(domain: string): string[] {
-  const regDomain = getRegistrableDomain(domain);
-  const keys = [`${regDomain}-session`];
-  if (domain !== regDomain) keys.push(`${domain}-session`);
-  keys.push(`auth:${regDomain}`);
-  if (domain !== regDomain) keys.push(`auth:${domain}`);
-  return keys;
-}
-
 /** Filter out expired cookies. Session cookies (expires <= 0) are kept. */
 function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
   const now = Math.floor(Date.now() / 1000);
@@ -388,72 +212,6 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
   });
 }
 
-function mergeCookies(target: AuthCookie[], incoming: AuthCookie[]): void {
-  const seen = new Map(
-    target.map((cookie, index) => [`${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`, index] as const),
-  );
-  for (const cookie of incoming) {
-    const key = `${cookie.name}\u0000${cookie.domain}\u0000${cookie.path ?? "/"}`;
-    const existingIndex = seen.get(key);
-    if (existingIndex != null) {
-      target[existingIndex] = cookie;
-      continue;
-    }
-    seen.set(key, target.length);
-    target.push(cookie);
-  }
-}
-
-export async function getStoredAuthBundle(
-  domain: string
-): Promise<StoredAuthBundle | null> {
-  const cookies: AuthCookie[] = [];
-  const headers: Record<string, string> = {};
-  const source_keys: string[] = [];
-  let source_meta: BrowserAuthSourceMeta | null = null;
-
-  for (const key of getStoredAuthKeys(domain)) {
-    const stored = await getCredential(key);
-    if (!stored) continue;
-    try {
-      const parsed = JSON.parse(stored) as {
-        cookies?: AuthCookie[];
-        headers?: Record<string, string>;
-        source_meta?: BrowserAuthSourceMeta | null;
-      };
-      const rawCookies = parsed.cookies ?? [];
-      const validCookies = filterExpired(rawCookies);
-      const parsedHeaders = parsed.headers ?? {};
-      if (rawCookies.length > 0 && validCookies.length === 0 && Object.keys(parsedHeaders).length === 0) {
-        log("auth", `all ${rawCookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
-        await deleteCredential(key);
-        continue;
-      }
-      if (validCookies.length < rawCookies.length) {
-        log("auth", `filtered ${rawCookies.length - validCookies.length} expired cookies for ${domain}`);
-      }
-      mergeCookies(cookies, validCookies);
-      for (const [header, value] of Object.entries(parsedHeaders)) {
-        if (headers[header] == null) headers[header] = value;
-      }
-      if ((validCookies.length > 0 || Object.keys(parsedHeaders).length > 0) && !source_keys.includes(key)) {
-        source_keys.push(key);
-        if (!source_meta && parsed.source_meta) source_meta = parsed.source_meta;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  if (cookies.length === 0 && Object.keys(headers).length === 0) return null;
-  return { cookies, headers, source_keys, source_meta };
-}
-
-export async function findStoredAuthReference(domain: string): Promise<string | null> {
-  const bundle = await getStoredAuthBundle(domain);
-  return bundle?.source_keys[0] ?? null;
-}
-
 /**
  * Retrieve stored auth cookies for a domain from the vault.
  * Filters out expired cookies automatically.
@@ -461,7 +219,33 @@ export async function findStoredAuthReference(domain: string): Promise<string | 
 export async function getStoredAuth(
   domain: string
 ): Promise<AuthCookie[] | null> {
-  return (await getStoredAuthBundle(domain))?.cookies ?? null;
+  const regDomain = getRegistrableDomain(domain);
+  const keysToTry = [`auth:${regDomain}`];
+  if (domain !== regDomain) keysToTry.push(`auth:${domain}`);
+
+  for (const key of keysToTry) {
+    const stored = await getCredential(key);
+    if (!stored) continue;
+    try {
+      const parsed = JSON.parse(stored) as { cookies?: AuthCookie[] };
+      const cookies = parsed.cookies;
+      if (!cookies || cookies.length === 0) continue;
+
+      const valid = filterExpired(cookies);
+      if (valid.length === 0) {
+        log("auth", `all ${cookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
+        await deleteCredential(key);
+        continue;
+      }
+      if (valid.length < cookies.length) {
+        log("auth", `filtered ${cookies.length - valid.length} expired cookies for ${domain}`);
+      }
+      return valid;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 /**
@@ -472,17 +256,12 @@ export async function getStoredAuth(
  *   2. Auto-extract from Chrome/Firefox SQLite (bird pattern — always fresh)
  */
 export async function getAuthCookies(
-  domain: string,
-  opts?: { autoExtract?: boolean }
+  domain: string
 ): Promise<AuthCookie[] | null> {
-  const bundle = await getStoredAuthBundle(domain);
-  if (bundle && bundle.cookies.length > 0 && !storedAuthNeedsBrowserRefresh(bundle)) {
-    return bundle.cookies;
-  }
+  const vaultCookies = await getStoredAuth(domain);
+  if (vaultCookies && vaultCookies.length > 0) return vaultCookies;
 
-  if (opts?.autoExtract === false) return bundle?.cookies ?? null;
-
-  log("auth", `${bundle ? "stored auth lacks usable browser source metadata" : "no vault cookies"} for ${domain} — auto-extracting from browser`);
+  log("auth", `no vault cookies for ${domain} — auto-extracting from browser`);
   try {
     const result = await extractBrowserAuth(domain);
     if (result.success && result.cookies_stored > 0) {
@@ -492,7 +271,7 @@ export async function getAuthCookies(
     log("auth", `browser auto-extract failed for ${domain}: ${err instanceof Error ? err.message : err}`);
   }
 
-  return bundle?.cookies ?? null;
+  return null;
 }
 
 /**
