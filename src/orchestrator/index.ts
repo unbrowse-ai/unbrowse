@@ -9,6 +9,9 @@ import { extractTemplateQueryBindings, mergeContextTemplateParams } from "../tem
 import { writeDebugTrace } from "../debug-trace.js";
 import { recordDagSessionAction, recordDagNegative, upsertDagEdgesFromOperationGraph } from "./dag-feedback.js";
 import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js";
+import { checkPaymentRequirement, resolveUnpaidAccess } from "../payments/index.js";
+import { checkWalletConfigured } from "../payments/wallet.js";
+import type { PaymentGateResult } from "../payments/index.js";
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import type {
@@ -842,6 +845,13 @@ export interface OrchestratorResult {
   timing: OrchestrationTiming;
   response_schema?: ResponseSchema;
   extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
+  payment?: {
+    status: PaymentGateResult["status"];
+    amount?: string;
+    currency?: string;
+    recipient?: string;
+    message?: string;
+  };
 }
 
 type AutoExecDecision = {
@@ -2008,6 +2018,24 @@ export async function resolveAndExecute(
       })),
       extra: extraFields ?? null,
     });
+    // Check payment status for deferral responses too
+    const deferWalletCheck = checkWalletConfigured();
+    const deferPaymentCheck = checkPaymentRequirement(
+      resolvedSkill.skill_id,
+      epRanked[0]?.endpoint?.endpoint_id ?? "",
+      { wallet_configured: deferWalletCheck.configured },
+    );
+    const deferPaymentInfo = deferPaymentCheck.status !== "free" ? {
+      payment: {
+        status: deferPaymentCheck.status === "wallet_not_configured" || deferPaymentCheck.status === "insufficient_balance"
+          ? resolveUnpaidAccess(deferPaymentCheck).status
+          : deferPaymentCheck.status,
+        amount: deferPaymentCheck.requirement?.amount,
+        currency: deferPaymentCheck.requirement?.currency,
+        recipient: deferPaymentCheck.requirement?.recipient,
+        message: deferPaymentCheck.message,
+      },
+    } : {};
     return {
       result: {
         message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${resolvedSkill.skill_id}/execute with params.endpoint_id.`,
@@ -2044,6 +2072,7 @@ export async function resolveAndExecute(
       source,
       skill: resolvedSkill,
       timing: finalize(source, null, resolvedSkill.skill_id, resolvedSkill, deferTrace),
+      ...deferPaymentInfo,
     };
   }
 
@@ -2329,6 +2358,40 @@ export async function resolveAndExecute(
     }
     // --- end DAG advisory ---
 
+    // --- Payment gate (non-blocking) ---
+    // Check payment requirement for the top candidate. This surfaces the
+    // requirement in the decision trace but does NOT block execution —
+    // the backend does final enforcement.
+    const walletCheck = checkWalletConfigured();
+    const paymentCheck = checkPaymentRequirement(
+      skill.skill_id,
+      epRanked[0]?.endpoint?.endpoint_id ?? "",
+      {
+        wallet_configured: walletCheck.configured,
+      },
+    );
+
+    if (paymentCheck.status === "payment_required") {
+      (decisionTrace as Record<string, unknown>).payment = {
+        status: paymentCheck.status,
+        amount: paymentCheck.requirement?.amount,
+        currency: paymentCheck.requirement?.currency,
+        recipient: paymentCheck.requirement?.recipient,
+      };
+      console.log(`[payment] payment_required for ${skill.skill_id} — continuing (backend enforces)`);
+    }
+
+    if (paymentCheck.status === "wallet_not_configured" || paymentCheck.status === "insufficient_balance") {
+      const fallback = resolveUnpaidAccess(paymentCheck);
+      if (fallback.status === "indexing_fallback") {
+        (decisionTrace as Record<string, unknown>).payment = {
+          status: "indexing_fallback",
+          message: fallback.message,
+        };
+        console.log(`[payment] indexing_fallback — user can contribute routes instead of paying`);
+      }
+    }
+    // --- end payment gate ---
     // Try top candidates in order until one succeeds. If all fail, fall through to deferral.
     const ready = epRanked.filter((r) => canAutoExecuteEndpoint(r.endpoint));
     const tryList =
@@ -2426,6 +2489,23 @@ export async function resolveAndExecute(
           { ...options, intent: queryIntent, contextUrl: context?.url },
         );
         timing.execute_ms = Date.now() - te0;
+        // --- 402 Payment Required from backend ---
+        if (execOut.trace.status_code === 402) {
+          (decisionTrace as Record<string, unknown>).payment = {
+            status: "payment_required",
+            backend_402: true,
+          };
+          (decisionTrace.autoexec_attempts as unknown[]).push({
+            endpoint_id: candidate.endpoint.endpoint_id,
+            score: Math.round(candidate.score * 10) / 10,
+            trace_success: false,
+            judge: "skip",
+            status_code: 402,
+            error: "backend_payment_required",
+          });
+          console.log(`[auto-exec] #${i + 1} 402 payment required — trying next candidate`);
+          continue;
+        }
         if (execOut.trace.success) {
           const localAssessment = assessLocalExecutionResult(
             candidate.endpoint,
@@ -2536,6 +2616,15 @@ export async function resolveAndExecute(
             timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
             response_schema: execOut.response_schema,
             extraction_hints: execOut.extraction_hints,
+            ...(paymentCheck.status !== "free" ? {
+              payment: {
+                status: paymentCheck.status,
+                amount: paymentCheck.requirement?.amount,
+                currency: paymentCheck.requirement?.currency,
+                recipient: paymentCheck.requirement?.recipient,
+                message: paymentCheck.message,
+              },
+            } : {}),
           };
         }
         (decisionTrace.autoexec_attempts as unknown[]).push({
