@@ -1,47 +1,198 @@
-export interface PaymentRequest {
-  skill_id: string;
-  endpoint_id: string;
-  caller_address: string;
-  amount_wei: bigint;
-  token: string;
+/**
+ * Payment integration — lobster.cash compatible.
+ *
+ * This module describes payment INTENT and requirements.
+ * It does NOT implement wallet internals, generate wallets,
+ * or hardcode wallet provider action names.
+ *
+ * Delegation boundary:
+ * - Unbrowse owns: use-case intent, amount, recipient, memo
+ * - Wallet provider (lobster.cash) owns: provisioning, signing, broadcast, status
+ *
+ * @see https://lobster.cash/docs/skill-compatibility-guide
+ */
+
+// ---------------------------------------------------------------------------
+// Payment requirement — what unbrowse tells the agent/wallet
+// ---------------------------------------------------------------------------
+
+export interface PaymentRequirement {
+  required: boolean;
+  amount: string;
+  currency: string;
+  reason: string;
+  recipient?: string;
+  memo?: string;
 }
 
-export interface PaymentReceipt {
-  tx_hash: string;
-  status: "confirmed" | "pending" | "failed";
-  amount_wei: bigint;
-  paid_at: string;
+export type PaymentStatus =
+  | "paid"
+  | "payment_required"
+  | "wallet_not_configured"
+  | "insufficient_balance"
+  | "payment_failed"
+  | "awaiting_confirmation"
+  | "indexing_fallback"
+  | "free";
+
+export interface PaymentGateResult {
+  status: PaymentStatus;
+  requirement?: PaymentRequirement;
+  message: string;
+  next_step?: string;
 }
 
-export interface PaymentGate {
-  requiresPayment(skillId: string, endpointId: string): Promise<boolean>;
-  createPaymentRequest(skillId: string, endpointId: string): Promise<PaymentRequest>;
-  verifyPayment(receipt: PaymentReceipt): Promise<boolean>;
-}
+// ---------------------------------------------------------------------------
+// X402 configuration — Solana + USDC via corbits.dev
+// ---------------------------------------------------------------------------
+
+export const X402_CONFIG = {
+  chain: "solana",
+  currency: "USDC",
+  facilitator: "https://api.corbits.dev",
+  supports_pda_wallets: true,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Payment gate — determines if execution requires payment
+// ---------------------------------------------------------------------------
 
 /**
- * Stub payment gate — always allows execution (no payment required).
- * Replace with Lobster/Corbits x402 integration when payment provider is available.
+ * Check if a skill execution requires payment.
+ * Returns a PaymentGateResult describing what the agent needs to do.
+ *
+ * This function does NOT execute payments — it describes requirements.
+ * The agent's wallet plugin (lobster.cash) handles actual payment.
  */
-export class StubPaymentGate implements PaymentGate {
-  async requiresPayment(_skillId: string, _endpointId: string): Promise<boolean> {
-    return false;
+export function checkPaymentRequirement(
+  skillId: string,
+  endpointId: string,
+  options?: {
+    price_usd?: string;
+    skip_payment?: boolean;
+    wallet_configured?: boolean;
+  },
+): PaymentGateResult {
+  if (options?.skip_payment || process.env.UNBROWSE_SKIP_PAYMENT === "1") {
+    return { status: "free", message: "Payment skipped." };
   }
 
-  async createPaymentRequest(skillId: string, endpointId: string): Promise<PaymentRequest> {
+  if (skillId.startsWith("local:") || process.env.UNBROWSE_FREE_TIER === "1") {
+    return { status: "free", message: "No payment required for local skills." };
+  }
+
+  const amount = options?.price_usd ?? "0.001";
+  if (parseFloat(amount) <= 0) {
+    return { status: "free", message: "No payment required." };
+  }
+
+  const requirement: PaymentRequirement = {
+    required: true,
+    amount,
+    currency: X402_CONFIG.currency,
+    reason: `Per-query fee for ${skillId}/${endpointId}`,
+    recipient: X402_CONFIG.facilitator,
+    memo: `unbrowse:${skillId}:${endpointId}`,
+  };
+
+  if (options?.wallet_configured === false) {
     return {
-      skill_id: skillId,
-      endpoint_id: endpointId,
-      caller_address: "0x0000000000000000000000000000000000000000",
-      amount_wei: BigInt(0),
-      token: "USDC",
+      status: "wallet_not_configured",
+      requirement,
+      message: "No agent wallet configured. Set up a wallet like lobster.cash to use paid skills.",
+      next_step: "Complete wallet setup before proceeding with this skill execution.",
     };
   }
 
-  async verifyPayment(receipt: PaymentReceipt): Promise<boolean> {
-    return receipt.status === "confirmed";
+  return {
+    status: "payment_required",
+    requirement,
+    message: `This execution requires ${amount} ${X402_CONFIG.currency}. Transaction execution and final status are handled by your wallet provider.`,
+    next_step: "If a wallet step is required and wallet context is missing, complete wallet setup first.",
+  };
+}
+
+/**
+ * Interpret a payment result from the agent's wallet.
+ * Maps wallet outcomes to gate decisions.
+ */
+/**
+ * Interpret a payment result from the agent's wallet.
+ * Maps wallet outcomes to gate decisions.
+ *
+ * When the wallet reports insufficient balance or no wallet,
+ * the caller should use resolveUnpaidAccess() to determine
+ * whether indexing fallback is available.
+ */
+export function interpretPaymentResult(
+  walletStatus: string,
+  requirement: PaymentRequirement,
+): PaymentGateResult {
+  switch (walletStatus) {
+    case "confirmed":
+    case "success":
+    case "paid":
+      return { status: "paid", requirement, message: "Payment confirmed. Proceeding with execution." };
+
+    case "pending":
+    case "processing":
+      return {
+        status: "awaiting_confirmation",
+        requirement,
+        message: "Payment is being processed. Wait for your wallet to report the final transaction status before continuing.",
+      };
+
+    case "insufficient_balance":
+    case "insufficient_funds":
+      return {
+        status: "insufficient_balance",
+        requirement,
+        message: `Insufficient balance. Fund your wallet with at least ${requirement.amount} ${requirement.currency}, or fall back to indexing mode.`,
+        next_step: "Fund your agent wallet and retry, or use resolveUnpaidAccess() to contribute indexing instead.",
+      };
+
+    case "wallet_not_configured":
+    case "no_wallet":
+      return {
+        status: "wallet_not_configured",
+        requirement,
+        message: "No agent wallet configured. Falling back to indexing mode — you can contribute route indexing instead of paying.",
+        next_step: "Set up lobster.cash to unlock paid execution, or continue in indexing mode.",
+      };
+
+    default:
+      return {
+        status: "payment_failed",
+        requirement,
+        message: `Payment failed: ${walletStatus}. You may retry or fall back to indexing mode.`,
+        next_step: "Retry the payment, or use resolveUnpaidAccess() to contribute indexing instead.",
+      };
   }
 }
 
-/** Singleton payment gate instance */
-export const paymentGate: PaymentGate = new StubPaymentGate();
+/**
+ * Determine what an unpaid user can do.
+ *
+ * Users who can't pay (no wallet, insufficient balance, payment failed)
+ * fall back to indexing mode: they can capture, reverse-engineer, and
+ * index routes into the marketplace — contributing to the network
+ * instead of consuming paid executions.
+ *
+ * This is the default behavior when payment is required but not available.
+ */
+export function resolveUnpaidAccess(
+  gateResult: PaymentGateResult,
+): PaymentGateResult {
+  const cantPay = gateResult.status === "wallet_not_configured"
+    || gateResult.status === "insufficient_balance"
+    || gateResult.status === "payment_failed";
+
+  if (!cantPay) return gateResult;
+
+  return {
+    status: "indexing_fallback",
+    requirement: gateResult.requirement,
+    message: "Indexing mode: you can capture and index routes for the marketplace. Paid execution requires a funded wallet.",
+    next_step: "Use resolve with --force-capture to contribute new routes. Set up lobster.cash to unlock paid execution.",
+  };
+}
