@@ -19,13 +19,17 @@ command -v npm >/dev/null 2>&1 || command -v bun >/dev/null 2>&1 || \
   Install Node.js: https://nodejs.org/ (v18+)
   Install Bun:     https://bun.sh/"
 
-# ─── Install CLI + register skill ────────────────────────────
+# ─── Install CLI ──────────────────────────────────────────────
 info "Installing unbrowse..."
 npm install -g unbrowse@latest 2>/dev/null || bun install -g unbrowse@latest
 
+# ─── Register skill (non-interactive) ────────────────────────
 info "Registering skill..."
-npx skills add unbrowse-ai/unbrowse
+npx -y skills add unbrowse-ai/unbrowse --yes
 
-# ─── Run setup (Kuri, marketplace registration, server) ──────
-info "Running setup..."
-exec unbrowse setup "$@"
+# ─── Verify install ──────────────────────────────────────────
+ok "Installed. Run 'unbrowse health' to start the server."
+echo ""
+echo "  Quick start:"
+echo "    unbrowse resolve --intent \"get trending\" --url \"https://google.com\" --pretty"
+echo ""
