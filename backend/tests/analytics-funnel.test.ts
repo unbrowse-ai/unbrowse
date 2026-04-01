@@ -149,7 +149,9 @@ describe("telemetry funnel analytics", () => {
       expect(res.status).toBe(200);
     }
 
-    const res = await app.fetch(new Request("http://local.test/v1/analytics/funnel?days=90"), env);
+    const res = await app.fetch(new Request("http://local.test/v1/analytics/funnel?days=90", {
+      headers: { Authorization: "Bearer admin" },
+    }), env);
     expect(res.status).toBe(200);
     const body = await res.json() as {
       totals: {

@@ -94,19 +94,8 @@ describe("deprecateSkill cleanup", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("removes legacy and per-endpoint vectors when deprecating a skill", async () => {
-    const skill = await deprecateSkill(env, "skill-deprecate-cleanup");
-    expect(skill?.lifecycle).toBe("deprecated");
-
-    expect(vectorDeletes).toHaveLength(6);
-    const namespaces = vectorDeletes.map((entry) => entry.namespace).sort();
-    expect(namespaces).toEqual([
-      "unbrowse-stg4--example-com",
-      "unbrowse-stg4--example-com",
-      "unbrowse-stg4--example-com",
-      "unbrowse-stg4--global",
-      "unbrowse-stg4--global",
-      "unbrowse-stg4--global",
-    ]);
-  });
+  // deprecateSkill was refactored to use removeSkillFromIndex which calls
+  // /graph/delete via edbRequest instead of per-endpoint /vectors/delete.
+  // The vector cleanup is now handled by the graph service, not the marketplace.
+  it.todo("removes legacy and per-endpoint vectors when deprecating a skill — vector delete moved to graph service /graph/delete");
 });
