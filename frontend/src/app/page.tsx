@@ -12,7 +12,7 @@ import { ArrowRight, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, 
 const WHITEPAPER_URL = "/shadow-apis-are-all-you-need";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? "The fastest way to install is curl -fsSL https://unbrowse.ai/install.sh | bash — this clones the repo, registers the skill with your agent host (Claude Code, Codex), and starts the server. For npm users, npx unbrowse setup works too. For skill-compatible hosts, use npx skills add unbrowse-ai/unbrowse."
+  ? "The fastest way to install is curl -fsSL https://unbrowse.ai/install.sh | bash — this installs the CLI globally, registers the skill with your agent host (Claude Code, Codex), and starts the server. For npm users, npx unbrowse setup works too. For skill-compatible hosts, use npx skills add unbrowse-ai/unbrowse."
   : "Start with curl -fsSL https://unbrowse.ai/install.sh | bash for a one-line install.";
 
 const faqJsonLd = {
@@ -64,7 +64,7 @@ const faqJsonLd = {
       "name": "How do I install Unbrowse?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Run curl -fsSL https://unbrowse.ai/install.sh | bash for a one-line install that clones the repo, registers the skill with your agent host, and starts the server. Alternatively, run npx unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
+        "text": "Run curl -fsSL https://unbrowse.ai/install.sh | bash for a one-line install that sets up the CLI, registers the skill with your agent host, and starts the server. Alternatively, run npx unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
       },
     },
     {
@@ -448,7 +448,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">curl -fsSL https://unbrowse.ai/install.sh | bash</code> for a one-line install that clones the repo, registers the skill with your agent host, and starts the server. Alternatively, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code>. For skill-based agent platforms like OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">curl -fsSL https://unbrowse.ai/install.sh | bash</code> for a one-line install that sets up the CLI, registers the skill with your agent host, and starts the server. Alternatively, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code>. For skill-based agent platforms like OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

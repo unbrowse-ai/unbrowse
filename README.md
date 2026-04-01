@@ -12,7 +12,7 @@ One agent learns a site once. Every later agent gets the fast path.
 curl -fsSL https://unbrowse.ai/install.sh | bash
 ```
 
-Clones the repo to `~/.claude/skills/unbrowse`, installs dependencies, auto-detects your agent host (Claude Code, Codex), registers the `/unbrowse` skill, and starts the server.
+Installs the CLI globally, auto-detects your agent host (Claude Code, Codex), registers the `/unbrowse` skill, and starts the server.
 
 ### Alternative: npm install
 
