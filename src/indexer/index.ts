@@ -1,5 +1,6 @@
 import { buildSkillOperationGraph } from "../graph/index.js";
 import { validateManifest, publishSkill, cachePublishedSkill, publishGraphEdges } from "../client/index.js";
+import { mergeEndpoints } from "../marketplace/index.js";
 import {
   writeSkillSnapshot,
   domainSkillCache,
@@ -9,8 +10,60 @@ import {
   snapshotPathForCacheKey,
   generateLocalDescription,
 } from "../orchestrator/index.js";
+import { getRegistrableDomain } from "../domain.js";
 import type { SkillManifest } from "../types/index.js";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
+
+const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
+
+/**
+ * Find existing domain snapshots and merge incoming endpoints into them.
+ * Returns a merged skill with all endpoints from both existing snapshots
+ * and the incoming skill, or null if no existing snapshot found.
+ */
+export function findAndMergeDomainSnapshot(
+  snapshotDir: string,
+  domain: string,
+  incoming: SkillManifest,
+): SkillManifest | null {
+  if (!existsSync(snapshotDir)) return null;
+  const targetDomain = getRegistrableDomain(domain);
+
+  let bestExisting: SkillManifest | null = null;
+  let bestEndpointCount = 0;
+
+  for (const entry of readdirSync(snapshotDir)) {
+    if (!entry.endsWith(".json")) continue;
+    try {
+      const candidate = JSON.parse(readFileSync(join(snapshotDir, entry), "utf-8")) as SkillManifest;
+      if (getRegistrableDomain(candidate.domain) !== targetDomain) continue;
+      if (candidate.execution_type !== "http") continue;
+      const epCount = candidate.endpoints?.length ?? 0;
+      if (epCount > bestEndpointCount) {
+        bestExisting = candidate;
+        bestEndpointCount = epCount;
+      }
+    } catch { /* skip corrupt */ }
+  }
+
+  if (!bestExisting) return null;
+
+  const merged = mergeEndpoints(bestExisting.endpoints, incoming.endpoints);
+  if (merged.length <= bestEndpointCount) return null; // no new endpoints to add
+
+  return {
+    ...bestExisting,
+    endpoints: merged,
+    intents: Array.from(new Set([
+      ...(bestExisting.intents ?? []),
+      ...(incoming.intents ?? []),
+      incoming.intent_signature,
+    ])),
+    updated_at: new Date().toISOString(),
+  };
+}
 const indexInFlight = new Map<string, Promise<void>>();
 
 export interface BackgroundIndexJob {
@@ -45,11 +98,18 @@ export function queueBackgroundIndex(job: BackgroundIndexJob): void {
 }
 
 async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
-  const { skill, domain, clientScope } = job;
+  let { skill, domain, clientScope } = job;
   const scope = clientScope ?? "global";
   const scopedKey = scopedCacheKey(scope, job.cacheKey);
 
-  // 1. Build operation graph (CPU, ~20ms)
+  // 0. Merge with existing domain snapshot (accumulate endpoints across captures)
+  const merged = findAndMergeDomainSnapshot(SKILL_SNAPSHOT_DIR, domain, skill);
+  if (merged) {
+    console.log(`[background-index] merged ${skill.endpoints.length} new endpoint(s) into existing ${merged.endpoints.length - skill.endpoints.length} for ${domain}`);
+    skill = merged;
+  }
+
+  // 1. Build operation graph from ALL accumulated endpoints
   skill.operation_graph = buildSkillOperationGraph(skill.endpoints);
 
   // 2. Generate local descriptions for BM25 ranking
@@ -59,8 +119,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     }
   }
 
-  // 3. Update local snapshot with graph + descriptions
-  writeSkillSnapshot(scopedKey, skill);
+  // 3. Update local snapshot with merged skill + graph + descriptions
 
   // 4. Validate + publish to marketplace (remote, ~1.5s total)
   const publishable = skill.endpoints.filter(ep => ep.method !== "WS");
@@ -84,7 +143,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   const publishMs = Date.now() - publishStart;
   console.log(`[background-index] publish latency: ${publishMs}ms for ${domain}`);
 
-  const merged: SkillManifest = {
+  const publishedSkill: SkillManifest = {
     ...published,
     endpoints: skill.endpoints,
     operation_graph: skill.operation_graph,
@@ -92,8 +151,8 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   };
 
   // 5. Update caches with published version (has backend descriptions)
-  cachePublishedSkill(merged, clientScope);
-  writeSkillSnapshot(scopedKey, merged);
+  cachePublishedSkill(publishedSkill, clientScope);
+  writeSkillSnapshot(scopedKey, publishedSkill);
 
   // 6. Publish graph edges via dedicated endpoint (fire-and-forget)
   if (skill.operation_graph?.operations) {
@@ -121,7 +180,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   const domainKey = getDomainReuseKey(job.contextUrl ?? domain);
   if (domainKey) {
     domainSkillCache.set(domainKey, {
-      skillId: merged.skill_id,
+      skillId: publishedSkill.skill_id,
       localSkillPath: snapshotPathForCacheKey(scopedKey),
       ts: Date.now(),
     });
