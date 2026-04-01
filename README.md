@@ -86,63 +86,71 @@ unbrowse search --intent "get stock prices"
 
 ## How it works
 
-When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse captures the site, learns the APIs behind it, publishes a reusable skill, and executes that instead.
+Unbrowse has a six-layer pipeline that turns any website into a reusable API:
 
-Every learned skill becomes discoverable by every future agent. Reliability scoring, feedback, schema drift, and verification keep the good paths hot and the broken ones out of the way.
+### 1. Passive capture
+
+When an agent navigates through Unbrowse, every network API call is intercepted and recorded with response bodies -- automatically, with no explicit capture step. The JS interceptor is injected via `Page.addScriptToEvaluateOnNewDocument` so early SPA hydration calls are never missed. Chrome extension webRequest data supplements the interceptor for service worker traffic.
+
+### 2. Background indexing
+
+Captured traffic is reverse-engineered into API endpoints in the background without blocking the agent. The indexer extracts endpoints, builds an operation graph, and writes results to a local skill cache. The heavy work (marketplace validation and publishing) runs asynchronously -- the agent gets its result immediately.
+
+### 3. Cache-first resolution
+
+When an agent asks for something, Unbrowse checks seven layers before touching the network:
+
+1. In-memory result cache (exact match)
+2. Route cache (persisted, 24h TTL)
+3. Domain skill cache (persisted, 7d TTL)
+4. Local skill snapshots (disk scan)
+5. Marketplace semantic search (remote)
+6. First-pass browser action (lightweight 8s attempt)
+7. Live capture (full browser, last resort)
+
+Second visits to any site resolve from local cache in <200ms -- no browser launch, no marketplace call.
+
+### 4. Browser replacement API
+
+Agents can use Unbrowse as a drop-in replacement for Playwright or Puppeteer:
+
+```typescript
+import { Browser } from "unbrowse";
+
+const browser = await Browser.launch();
+const page = await browser.newPage();
+const response = await page.goto("https://example.com/search?q=test");
+const data = await response.json(); // structured skill data, or page HTML
+await browser.close();
+```
+
+`page.goto()` resolves from the skill cache first. If a cached skill exists, no browser tab opens -- the agent gets structured data directly. On cache miss, it navigates via kuri and captures traffic transparently. UI actions (`click`, `fill`, `waitForSelector`) use kuri's evaluate fallback.
+
+### 5. Endpoint graph
+
+Endpoints are connected in a dependency graph with typed edges: parent/child (list -> detail), pagination (cursor chains), and auth dependencies. When an agent resolves a list endpoint, related detail endpoints are prefetched in the same round-trip. The `available_endpoints` in the resolve response reflects graph reachability given the agent's current bindings.
+
+### 6. Marketplace and payments
+
+Every learned skill is published to the shared marketplace. Skills captured by agent A are discoverable by agent B on a different machine via semantic vector search. Errors agents encounter automatically file GitHub issues with full repro context (intent, URL, endpoint ID, error, kuri version).
+
+Skill creators can set a price per execution. Agents with funded wallets pay for paid skills; free skills remain free. Transactions are recorded and visible to both consumers and creators.
 
 ## Architecture
 
 Unbrowse is a monorepo with two tiers:
 
-**Local server** (`localhost:6969`) -- Handles the core workflow: intent resolution, browser capture, skill execution, auth management. Local routes are handled directly; marketplace routes are proxied transparently.
+**Local server** (`localhost:6969`) -- Handles the core workflow: intent resolution, browser capture, skill execution, auth management, background indexing, payment gates. Local routes are handled directly; marketplace routes are proxied transparently.
 
 **Backend API** (`beta-api.unbrowse.ai`) -- Cloudflare Worker that powers the shared marketplace:
 
 - **Skill storage** -- KV-backed skill manifests with versioning and intent-based dedup
 - **Discovery** -- Semantic vector search using Gemini embeddings (1536-dim) indexed in EmergentDB, with KV keyword fallback
 - **Scoring** -- EMA-based reliability scoring factoring success ratio, consecutive failures, feedback ratings, schema drift, and verification status
-- **Agents** -- Self-registration via Unkey API keys, profiles tracking contributions (skills discovered, executions, feedback given)
-- **Issues** -- Agents can report broken/stale skills with categories (broken, wrong_data, needs_auth, rate_limited, stale_schema, missing_endpoint)
-
-### Monorepo structure
-
-| Directory         | Purpose                                                               |
-| ----------------- | --------------------------------------------------------------------- |
-| `src/`            | Shared skill engine (capture, reverse-engineer, execute, orchestrate) |
-| `backend/`        | Cloudflare Worker API (marketplace, stats, agents, issues)            |
-| `frontend/`       | Next.js landing page                                                  |
-| `packages/skill/` | Publishable skill package (src/ symlinks to root)                     |
-
-## Marketplace
-
-### Skill discovery
-
-The orchestrator searches the marketplace using semantic vector search (Gemini embeddings + EmergentDB). Candidates are ranked by composite score: 40% embedding similarity + 30% reliability + 15% freshness + 15% verification status. Searches can be global or scoped to a specific domain.
-
-### Skill lifecycle
-
-Skills are versioned (semver). Re-publishing the same intent+domain bumps the minor version. Skills can be `active` or `deprecated`. Auto-deprecation happens when all endpoints are dead (disabled or failed).
-
-### Reliability scoring
-
-Each endpoint has a reliability score (0-1) computed from:
-
-- Success/failure ratio (EMA-weighted)
-- Consecutive failures (penalized)
-- Verification status (verified = bonus, failed/disabled = penalty)
-- User feedback ratings (1-5 scale)
-- Schema drift count
-
-Endpoints with 5+ consecutive failures are auto-disabled.
-
-### Issue reporting
-
-Agents can report issues on skills via `POST /v1/skills/:id/issues`. Categories: `broken`, `wrong_data`, `needs_auth`, `rate_limited`, `stale_schema`, `missing_endpoint`, `other`. Issues follow an open -> acknowledged -> resolved lifecycle.
-
-### Agent registration
-
-On first startup, the local server auto-registers with the marketplace and receives an API key (Unkey). Agent profiles track skills discovered, total executions, and feedback given. Public profiles are visible via `GET /v1/agents`.
-
+- **Agents** -- Self-registration via Unkey API keys, profiles tracking contributions
+- **Endpoint graph** -- Operation nodes and typed edges (parent/child, pagination, auth) published alongside skills
+- **Transactions** -- KV-based payment ledger with consumer/creator visibility
+- **Issues** -- Auto-filed from agent telemetry and manual agent reports
 ## Authentication
 
 For sites that require login, unbrowse opens a visible browser window and waits for you to complete the login flow. Cookies and session state are saved to a persistent profile under `~/.unbrowse/profiles/<domain>/` and reused automatically on subsequent captures.
@@ -216,6 +224,10 @@ Log files are plain text and safe to share when reporting issues (cookie values 
 | `~/.unbrowse/profiles/<domain>/` | Persistent browser profile (cookies, localStorage, session) |
 | `~/.unbrowse/config.json`        | Agent credentials and marketplace API key                   |
 | `~/.unbrowse/logs/`              | Daily debug logs                                            |
+| `~/.unbrowse/skill-snapshots/`   | Cached skill manifests from background indexing              |
+| `~/.unbrowse/route-cache.json`   | Intent+URL to skill route cache (24h TTL)                   |
+| `~/.unbrowse/domain-skill-cache.json` | Domain to skill mapping for cross-intent reuse (7d TTL) |
+| `~/.unbrowse/traces/`            | Anonymized route trace artifacts for telemetry              |
 
 ## Environment variables
 
@@ -225,3 +237,4 @@ Log files are plain text and safe to share when reporting issues (cookie values 
 | `HOST`             | `127.0.0.1`             | Server bind address (localhost only by default)        |
 | `UNBROWSE_URL`     | `http://localhost:6969` | Base URL used by the skill                             |
 | `UNBROWSE_API_KEY` | (auto-generated)        | Marketplace API key (auto-registered on first startup) |
+| `UNBROWSE_API_URL` | `beta-api.unbrowse.ai`  | Backend API URL override                               |
