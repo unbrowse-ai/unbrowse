@@ -1,77 +1,28 @@
 import { describe, test, expect } from "bun:test";
+import { LocalAuthRuntime, authRuntime } from "../src/auth/runtime";
+import type { AuthDependency } from "../src/auth/runtime";
 
 /**
- * #116 auth dependency runtime -- tests a real in-memory auth runtime
- * implementation. The AuthRuntime interface is not yet exported from src,
- * so we define and test a concrete implementation here.
+ * #230 auth dependency runtime -- tests the real LocalAuthRuntime
+ * imported from src/auth/runtime.ts.
  * No stubs or mocks.
  */
 
-type AuthStrategy = "login_if_needed" | "ensure_account" | "refresh_session" | "none";
-
-interface AuthDependency {
-  domain: string;
-  strategy: AuthStrategy;
-  login_url?: string;
-  session_check_url?: string;
-}
-
-class InMemoryAuthRuntime {
-  private sessions = new Map<string, { token: string; expires: number }>();
-
-  async resolveAuth(dep: AuthDependency): Promise<{ authenticated: boolean; session_token?: string }> {
-    if (dep.strategy === "none") return { authenticated: true };
-
-    const session = this.sessions.get(dep.domain);
-    if (session && session.expires > Date.now()) {
-      return { authenticated: true, session_token: session.token };
-    }
-
-    if (dep.strategy === "refresh_session" && session) {
-      const refreshed = await this.refreshSession(dep.domain);
-      if (refreshed) {
-        const newSession = this.sessions.get(dep.domain);
-        return { authenticated: true, session_token: newSession?.token };
-      }
-    }
-
-    return { authenticated: false };
-  }
-
-  async isSessionValid(domain: string): Promise<boolean> {
-    const session = this.sessions.get(domain);
-    return !!session && session.expires > Date.now();
-  }
-
-  async refreshSession(domain: string): Promise<boolean> {
-    const session = this.sessions.get(domain);
-    if (session) {
-      session.expires = Date.now() + 3600_000;
-      return true;
-    }
-    return false;
-  }
-
-  setSession(domain: string, token: string, ttlMs: number = 3600_000) {
-    this.sessions.set(domain, { token, expires: Date.now() + ttlMs });
-  }
-}
-
-describe("#116 auth dependency runtime", () => {
+describe("#230 auth dependency runtime", () => {
   test("none strategy always authenticates", async () => {
-    const runtime = new InMemoryAuthRuntime();
+    const runtime = new LocalAuthRuntime();
     const result = await runtime.resolveAuth({ domain: "example.com", strategy: "none" });
     expect(result.authenticated).toBe(true);
   });
 
   test("login_if_needed returns false without session", async () => {
-    const runtime = new InMemoryAuthRuntime();
+    const runtime = new LocalAuthRuntime();
     const result = await runtime.resolveAuth({ domain: "example.com", strategy: "login_if_needed" });
     expect(result.authenticated).toBe(false);
   });
 
   test("login_if_needed returns true with valid session", async () => {
-    const runtime = new InMemoryAuthRuntime();
+    const runtime = new LocalAuthRuntime();
     runtime.setSession("example.com", "tok123");
     const result = await runtime.resolveAuth({ domain: "example.com", strategy: "login_if_needed" });
     expect(result.authenticated).toBe(true);
@@ -79,7 +30,7 @@ describe("#116 auth dependency runtime", () => {
   });
 
   test("refresh_session extends expired session", async () => {
-    const runtime = new InMemoryAuthRuntime();
+    const runtime = new LocalAuthRuntime();
     runtime.setSession("example.com", "tok123", -1000);
     const refreshed = await runtime.refreshSession("example.com");
     expect(refreshed).toBe(true);
@@ -87,7 +38,41 @@ describe("#116 auth dependency runtime", () => {
   });
 
   test("isSessionValid returns false for unknown domain", async () => {
-    const runtime = new InMemoryAuthRuntime();
+    const runtime = new LocalAuthRuntime();
     expect(await runtime.isSessionValid("unknown.com")).toBe(false);
+  });
+
+  test("authRuntime singleton is an AuthRuntime instance", () => {
+    expect(authRuntime).toBeDefined();
+    expect(typeof authRuntime.resolveAuth).toBe("function");
+    expect(typeof authRuntime.isSessionValid).toBe("function");
+    expect(typeof authRuntime.refreshSession).toBe("function");
+    expect(typeof authRuntime.loginIfNeeded).toBe("function");
+  });
+
+  test("loginIfNeeded returns true when session exists (refresh path)", async () => {
+    const runtime = new LocalAuthRuntime();
+    runtime.setSession("example.com", "tok456", -500);
+    const result = await runtime.loginIfNeeded("example.com");
+    expect(result).toBe(true);
+    expect(await runtime.isSessionValid("example.com")).toBe(true);
+  });
+
+  test("loginIfNeeded returns false when no session exists", async () => {
+    const runtime = new LocalAuthRuntime();
+    const result = await runtime.loginIfNeeded("unknown.com");
+    expect(result).toBe(false);
+  });
+
+  test("refreshSession called before full login in loginIfNeeded", async () => {
+    const runtime = new LocalAuthRuntime();
+    // No session — refreshSession returns false, loginIfNeeded returns false
+    const result = await runtime.loginIfNeeded("nope.com");
+    expect(result).toBe(false);
+
+    // With expired session — refreshSession returns true, loginIfNeeded returns true
+    runtime.setSession("nope.com", "tok789", -100);
+    const result2 = await runtime.loginIfNeeded("nope.com");
+    expect(result2).toBe(true);
   });
 });

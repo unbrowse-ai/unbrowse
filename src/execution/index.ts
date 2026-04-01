@@ -6,6 +6,7 @@ import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
+import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { generateExtractionHints } from "../transform/schema-hints.js";
@@ -1978,15 +1979,41 @@ export async function executeEndpoint(
     trace.result = data;
   }
 
-  // Stale credential detection: on 401/403, try refreshing from browser (bird pattern)
-  // instead of just deleting. Next request will use fresh cookies.
+  // Stale credential detection: on 401/403, attempt auth recovery before giving up.
+  // Chain: authRuntime.refreshSession (lightweight) → refreshAuthFromBrowser (re-extract)
+  //        → authRuntime.loginIfNeeded (full interactive login)
   if (status === 401 || status === 403) {
+    let authRecovered = false;
     try {
-      const refreshed = await refreshAuthFromBrowser(epDomain);
-      if (refreshed) {
-        trace.error = `${trace.error} (credentials refreshed from browser — retry should succeed)`;
+      // 1. Lightweight session refresh via authRuntime
+      const sessionRefreshed = await authRuntime.refreshSession(epDomain);
+      if (sessionRefreshed) {
+        log("auth", `session refreshed via authRuntime for ${epDomain} — retry should succeed`);
+        authRecovered = true;
+      }
+
+      // 2. Re-extract cookies from browser SQLite (bird pattern)
+      if (!authRecovered) {
+        const browserRefreshed = await refreshAuthFromBrowser(epDomain);
+        if (browserRefreshed) {
+          log("auth", `credentials refreshed from browser for ${epDomain}`);
+          authRecovered = true;
+        }
+      }
+
+      // 3. Full login flow via authRuntime as last resort
+      if (!authRecovered) {
+        const loginResult = await authRuntime.loginIfNeeded(epDomain);
+        if (loginResult) {
+          log("auth", `loginIfNeeded succeeded for ${epDomain}`);
+          authRecovered = true;
+        }
+      }
+
+      if (authRecovered) {
+        trace.error = `${trace.error} (credentials refreshed — retry should succeed)`;
       } else {
-        // No fresh cookies available — delete stale ones
+        // No recovery path worked — delete stale credentials
         if (skill.auth_profile_ref) {
           await deleteCredential(skill.auth_profile_ref);
         }

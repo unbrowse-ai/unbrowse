@@ -16,6 +16,7 @@ export interface AuthRuntime {
   resolveAuth(dep: AuthDependency): Promise<AuthResult>;
   isSessionValid(domain: string): Promise<boolean>;
   refreshSession(domain: string): Promise<boolean>;
+  loginIfNeeded(domain: string, loginUrl?: string): Promise<boolean>;
 }
 
 /**
@@ -55,6 +56,15 @@ export class LocalAuthRuntime implements AuthRuntime {
       session.expires = Date.now() + 3600_000;
       return true;
     }
+    return false;
+  }
+
+  async loginIfNeeded(domain: string, _loginUrl?: string): Promise<boolean> {
+    // Try session refresh first — cheap path
+    const refreshed = await this.refreshSession(domain);
+    if (refreshed) return true;
+    // Full interactive login not yet implemented in LocalAuthRuntime.
+    // Browser-based login will be wired through the auth/index.ts flow.
     return false;
   }
 
