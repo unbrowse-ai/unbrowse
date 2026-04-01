@@ -9,40 +9,51 @@ One agent learns a site once. Every later agent gets the fast path.
 ## Quick start
 
 ```bash
-# Fastest full setup
-npx unbrowse setup
+# 30-second setup — clone + register skills + start server
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.claude/skills/unbrowse \
+  && cd ~/.claude/skills/unbrowse && ./setup
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+The setup script checks prerequisites (Node.js 18+ or Bun), installs dependencies, verifies the Kuri browser engine, auto-detects your agent host (Claude Code, Codex, Open Code), registers the `/unbrowse` skill, and starts the local server.
 
-For daily use:
+### Alternative: npm install
+
+For a standalone CLI without the skill integration:
 
 ```bash
-npm install -g unbrowse
+npx unbrowse setup          # one-shot: downloads + runs setup
+npm install -g unbrowse     # or install globally for daily use
 unbrowse setup
 ```
 
-If your agent host uses skills:
+If your agent host uses the skills protocol:
 
 ```bash
 npx skills add unbrowse-ai/unbrowse
 ```
 
+### Setup flags
+
+| Flag | Description |
+| ---- | ----------- |
+| `--host claude\|codex\|opencode\|auto` | Force a specific agent host (default: auto-detect) |
+| `--no-start` | Skip starting the server after setup |
+| `--no-prefix` | Use short skill name (default) |
+| `--prefix` | Use `unbrowse-` prefixed skill name |
+
 ## Upgrading
 
-Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
+If you installed via git clone:
 
-If you installed the CLI globally:
+```bash
+cd ~/.claude/skills/unbrowse && git pull && ./setup
+```
+
+If you installed via npm:
 
 ```bash
 npm install -g unbrowse@latest
 unbrowse setup
-```
-
-If your agent host uses skills, rerun its skill install/update command too:
-
-```bash
-npx skills add unbrowse-ai/unbrowse
 ```
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
@@ -63,9 +74,10 @@ This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](h
 
 ## What setup does
 
-- Checks local prerequisites for the npm/npx flow.
-- Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
-- Registers the Open Code `/unbrowse` command when Open Code is present.
+- Checks local prerequisites (Node.js 18+ or Bun).
+- Installs npm dependencies if `node_modules/` is missing.
+- Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when Zig is installed.
+- Auto-detects installed agent hosts and registers the `/unbrowse` skill.
 - Starts the local Unbrowse server unless `--no-start` is passed.
 
 ## Common commands
