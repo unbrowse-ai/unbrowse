@@ -2,22 +2,19 @@
   {
     "issue": 155,
     "title": "Add BM25 lexical channel to skill search alongside vector similarity",
-    "passed": false,
-    "error": "Expected at least 1 endpoints, got 0",
-    "duration": 23
+    "passed": true,
+    "duration": 6908
   },
   {
     "issue": 152,
     "title": "mergeEndpoints silently drops richer rediscoveries of existing endpoints",
-    "passed": false,
-    "error": "Expected at least 1 endpoints, got 0",
-    "duration": 20
+    "passed": true,
+    "duration": 8392
   },
   {
     "issue": 144,
     "title": "Batch path template mining for captures without context URLs",
-    "passed": false,
-    "error": "Expected at least 1 endpoints, got 0",
-    "duration": 20
+    "passed": true,
+    "duration": 2464
   }
 ]

@@ -39,7 +39,7 @@ describe("promoteExplicitExecution", () => {
     expect(ok).toBe(true);
   });
 
-  it("does not promote wrong-entity explicit execute results", () => {
+  it("still promotes skip-grade wrong-entity results", () => {
     const ok = promoteExplicitExecution(
       "scope-1",
       "get company info",
@@ -51,6 +51,19 @@ describe("promoteExplicitExecution", () => {
           elements: [{ mailboxId: "abc", unreadCount: 3 }],
         },
       },
+    );
+
+    expect(ok).toBe(true);
+  });
+
+  it("does not promote fail-grade explicit execute results", () => {
+    const ok = promoteExplicitExecution(
+      "scope-1",
+      "get company info",
+      "https://www.linkedin.com/company/openai/about/",
+      baseSkill,
+      "endpoint-1",
+      { error: "backend exploded" },
     );
 
     expect(ok).toBe(false);

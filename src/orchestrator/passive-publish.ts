@@ -138,6 +138,15 @@ export function queuePassiveSkillPublish(
   return job;
 }
 
+/** Await all in-flight passive publish jobs. Call before process exit. */
+export async function drainPendingPassivePublishes(): Promise<void> {
+  const pending = [...passivePublishInFlight.values()];
+  if (pending.length === 0) return;
+  console.log(`[publish] draining ${pending.length} pending passive publish(es)...`);
+  await Promise.allSettled(pending);
+  console.log(`[publish] all passive publishes drained`);
+}
+
 export function resetPassivePublishQueueForTests(): void {
   passivePublishInFlight.clear();
 }

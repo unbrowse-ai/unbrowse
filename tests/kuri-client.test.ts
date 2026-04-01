@@ -22,6 +22,7 @@ afterEach(async () => {
 
 describe("kuri client", () => {
   it("fails cleanly when the kuri binary is missing", async () => {
+    await kuri.stop();
     process.env.KURI_BIN = "/tmp/definitely-missing-kuri-binary";
     await expect(kuri.start(7799)).rejects.toThrow("Kuri binary not found");
   });

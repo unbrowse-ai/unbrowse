@@ -12,6 +12,8 @@ import { ensureRegistered, getApiKey } from "./client/index.js";
 import { findSitePack, findTask, allSitePacks, buildDepsGraph, planExecution, buildDepsMetadata, type SitePack } from "./cli/shortcuts.js";
 import { ensureLocalServer, checkServerVersion, stopServer, restartServer } from "./runtime/local-server.js";
 import { isMainModule } from "./runtime/paths.js";
+import { drainPendingIndexJobs } from "./indexer/index.js";
+import { drainPendingPassivePublishes } from "./orchestrator/passive-publish.js";
 import { runSetup, type SetupReport, type SetupScope } from "./runtime/setup.js";
 
 loadEnv({ quiet: true });
@@ -973,9 +975,10 @@ async function main(): Promise<void> {
   }
 }
 
-// Only run when this file is the entry point (not when imported by sync script etc.)
 if (isMainModule(import.meta.url)) {
-  main().catch((err) => {
-    die((err as Error).message);
-  });
+  main()
+    .then(() => Promise.all([drainPendingIndexJobs(), drainPendingPassivePublishes()]))
+    .catch((err) => {
+      die((err as Error).message);
+    });
 }

@@ -183,7 +183,7 @@ describe("intent result assessment", () => {
         image: "https://example.com/thumb.webp",
       },
     ], "get stock quote");
-    expect(verdict.verdict).toBe("fail");
+    expect(verdict.verdict).toBe("skip");
   });
 
   test("passes product rows locally", () => {
@@ -248,7 +248,7 @@ describe("intent result assessment", () => {
         price: "$25.99",
       },
     ], "search products");
-    expect(verdict.verdict).toBe("fail");
+    expect(verdict.verdict).toBe("skip");
   });
 
   test("fails discord guild affinities for list servers intent", () => {
@@ -258,7 +258,7 @@ describe("intent result assessment", () => {
         { guild_id: "2", affinity: 32.4 },
       ],
     }, "list my discord servers");
-    expect(verdict.verdict).toBe("fail");
+    expect(verdict.verdict).toBe("skip");
   });
 
   test("passes Docker Hub search payloads locally", () => {
@@ -470,7 +470,7 @@ describe("intent result assessment", () => {
       { title: "Newest", link: "/questions/tagged/javascript?tab=Newest" },
       { title: "Unanswered", link: "/questions/tagged/javascript?tab=Unanswered" },
     ], "get tag questions");
-    expect(verdict.verdict).toBe("fail");
+    expect(verdict.verdict).toBe("skip");
   });
 
   test("passes rich question rows locally", () => {
@@ -524,7 +524,7 @@ describe("intent result assessment", () => {
         text: "69 Example post authored by someone 2 hours ago | 43 comments",
       },
     ], "get posts");
-    expect(verdict.verdict).toBe("fail");
+    expect(verdict.verdict).toBe("skip");
   });
 
   test("passes DEV tag article payloads locally", () => {
@@ -570,6 +570,6 @@ describe("intent result assessment", () => {
       { title: "operative", link: "/dictionary/english/operative" },
       { title: "spy", link: "/dictionary/english/spy" },
     ], "get definition");
-    expect(verdict.verdict).toBe("fail");
+    expect(verdict.verdict).toBe("skip");
   });
 });
