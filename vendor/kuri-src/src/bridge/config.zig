@@ -18,14 +18,21 @@ pub fn load() Config {
         .host = std.posix.getenv("HOST") orelse "127.0.0.1",
         .port = parsePort() orelse 8080,
         .cdp_url = std.posix.getenv("CDP_URL"),
-        .auth_secret = std.posix.getenv("BROWDIE_SECRET"),
-        .state_dir = std.posix.getenv("STATE_DIR") orelse ".browdie",
+        .auth_secret = getenvAny(&.{ "KURI_SECRET", "BROWDIE_SECRET" }),
+        .state_dir = getenvAny(&.{ "STATE_DIR" }) orelse ".kuri",
         .stale_tab_interval_s = parseU32("STALE_TAB_INTERVAL_S") orelse 30,
         .request_timeout_ms = parseU32("REQUEST_TIMEOUT_MS") orelse 30_000,
         .navigate_timeout_ms = parseU32("NAVIGATE_TIMEOUT_MS") orelse 30_000,
-        .extensions = std.posix.getenv("BROWDIE_EXTENSIONS"),
+        .extensions = getenvAny(&.{ "KURI_EXTENSIONS", "BROWDIE_EXTENSIONS" }),
         .headless = parseBool("HEADLESS") orelse true,
     };
+}
+
+fn getenvAny(names: []const []const u8) ?[]const u8 {
+    for (names) |name| {
+        if (std.posix.getenv(name)) |value| return value;
+    }
+    return null;
 }
 
 fn parsePort() ?u16 {

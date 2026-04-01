@@ -34,3 +34,49 @@ jobs:
 
       - name: Run tests
         run: zig build test -Doptimize=ReleaseSafe
+
+  startup-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Zig 0.15.0
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.0
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          install-dependencies: true
+
+      - name: Build
+        run: zig build -Doptimize=ReleaseSafe
+
+      - name: Startup smoke test
+        run: |
+          set -euo pipefail
+          ./zig-out/bin/kuri > kuri.log 2>&1 &
+          kuri_pid=$!
+          cleanup() {
+            kill "${kuri_pid}" >/dev/null 2>&1 || true
+            wait "${kuri_pid}" >/dev/null 2>&1 || true
+            cat kuri.log
+          }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/health > health.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl -sf http://127.0.0.1:8080/health | tee health.json
+          curl -sf http://127.0.0.1:8080/tabs | tee tabs.json
+
+          grep '"ok":true' health.json
+          grep '"tabs":1' health.json
+          grep '"id":"' tabs.json

@@ -8,39 +8,20 @@ One agent learns a site once. Every later agent gets the fast path.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
-Docs and whitepaper companion:
-
-- https://docs.unbrowse.ai
-- <a href="./docs/whitepaper/unbrowse-whitepaper.pdf" target="_blank" rel="noopener noreferrer">Whitepaper PDF</a>
-
 ## Quick start
 
 ```bash
-# Fastest path: detect installed hosts and wire them automatically
-curl -fsSL https://www.unbrowse.ai/install.sh | bash
+# Fastest full setup
+npx unbrowse setup
 ```
 
-The installer detects supported hosts and wires Unbrowse into them automatically:
+`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, lets you register with an email-shaped display identity, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
 
-- Cursor
-- Windsurf
-- Claude Code
-- Claude Desktop
-- Codex
-- OpenClaw
-
-Manual path still works:
+For daily use:
 
 ```bash
 npm install -g unbrowse
-unbrowse health
-```
-
-If you prefer manual host wiring, install the CLI first:
-
-```bash
-npm install -g unbrowse
-unbrowse health
+unbrowse setup
 ```
 
 If your agent host uses skills:
@@ -49,26 +30,15 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
-If you use OpenClaw, use the native plugin path instead:
-
-```bash
-openclaw plugins install unbrowse-openclaw
-openclaw config set plugins.entries.unbrowse-openclaw.enabled true --strict-json
-openclaw config set plugins.entries.unbrowse-openclaw.config.routingMode '"strict"' --strict-json
-openclaw config set plugins.entries.unbrowse-openclaw.config.preferInBootstrap true --strict-json
-openclaw gateway restart
-```
-
 ## Upgrading
 
-Unbrowse now checks npm for a newer CLI release before each command. If your installed copy is stale, it upgrades the global npm install in place when possible, otherwise it re-runs the command through the latest npm package immediately.
+Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
-Disable that behavior with `UNBROWSE_DISABLE_AUTO_UPDATE=1`.
-
-If you want to refresh a global install manually anyway:
+If you installed the CLI globally:
 
 ```bash
 npm install -g unbrowse@latest
+unbrowse setup
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
@@ -77,57 +47,28 @@ If your agent host uses skills, rerun its skill install/update command too:
 npx skills add unbrowse-ai/unbrowse
 ```
 
-If you use OpenClaw, rerun the plugin install/update command too:
-
-```bash
-openclaw plugins install unbrowse-openclaw
-```
-
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. If no registration exists yet, the CLI now auto-runs registration before executing the command and caches credentials in `~/.unbrowse/config.json`. Set `UNBROWSE_AGENT_EMAIL` to control the displayed registration identity in headless setups.
-
-Using Unbrowse means accepting the Terms of Service: discovered API structures may be shared in the collective registry, and you must not use Unbrowse to attack, overload, or abuse target sites. Full terms: https://unbrowse.ai/terms
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 
-## Automatic bootstrap
+## What setup does
 
-- Any CLI command auto-registers first if needed.
-- Any CLI command auto-starts the local server unless `--no-auto-start` is passed.
-- Browser/runtime checks happen lazily as capture needs them.
-- `scripts/install-agent-integrations.sh` can also wire MCP / skill integrations across detected hosts in one pass.
-
-## Make It The Default
-
-Native browser-replacement routing exists only in the framework-specific integrations today:
-
-- OpenClaw: use `routingMode="strict"` plus `preferInBootstrap=true`
-
-Generic MCP hosts like Claude Code, Claude Desktop, Cursor, Windsurf, and Codex still choose between competing tools based on tool descriptions plus project memory. MCP install alone does not hard-disable other browser tools there.
-
-Add a short host-level rule if you want Unbrowse chosen first consistently:
-
-```md
-Always use the Unbrowse MCP server for website tasks, browser automation, logged-in pages, scraping, and structured extraction unless I explicitly ask for generic web search or Unbrowse has already failed. Start with `unbrowse_resolve`. Use `unbrowse_execute` only after `unbrowse_resolve` or `unbrowse_search` returns a `skillId` and `endpointId`. Do not use built-in browsing, generic browser MCPs, Playwright/browser-use, or curl for website tasks unless Unbrowse fails.
-```
-
-Put that in:
-
-- `CLAUDE.md` for Claude Code
-- `AGENTS.md` for Codex and other agent hosts that read repo instructions
+- Checks local prerequisites for the npm/npx flow.
+- Verifies the bundled Kuri binary, or builds it from the vendored Kuri source when working from repo source with Zig installed.
+- Registers the Open Code `/unbrowse` command when Open Code is present.
+- Starts the local Unbrowse server unless `--no-start` is passed.
 
 ## Common commands
 
 ```bash
 unbrowse health
 unbrowse resolve --intent "get trending searches" --url "https://google.com" --pretty
-unbrowse login --url "https://calendar.google.com" --browser chrome
+unbrowse login --url "https://calendar.google.com"
 unbrowse skills
 unbrowse search --intent "get stock prices"
 ```
-
-`unbrowse login` reuses cookies from a supported local browser profile. On macOS, pass `--browser chrome|arc|dia|brave|edge|vivaldi|chromium|firefox` if your default browser is Safari or another unsupported app.
 
 ## Demo notes
 
@@ -200,10 +141,6 @@ GET endpoints auto-execute. Mutations never fire without opt-in.
 ## API reference
 
 See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, search, feedback, auth, and issue reporting.
-
-For product docs, whitepaper companion pages, and shipped-vs-roadmap guidance, use:
-
-- https://docs.unbrowse.ai
 
 | Method | Endpoint                 | Description                                    |
 | ------ | ------------------------ | ---------------------------------------------- |

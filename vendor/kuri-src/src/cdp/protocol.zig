@@ -55,6 +55,7 @@ pub const Methods = struct {
     pub const target_attach_to_target = "Target.attachToTarget";
     pub const page_navigate = "Page.navigate";
     pub const page_add_script = "Page.addScriptToEvaluateOnNewDocument";
+    pub const page_remove_script = "Page.removeScriptToEvaluateOnNewDocument";
     pub const page_reload = "Page.reload";
     pub const page_get_layout_metrics = "Page.getLayoutMetrics";
     pub const runtime_evaluate = "Runtime.evaluate";

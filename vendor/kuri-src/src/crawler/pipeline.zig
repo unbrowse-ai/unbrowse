@@ -43,10 +43,10 @@ pub const ThreadPool = struct {
         self.queue.deinit(self.allocator);
     }
 
-    pub fn submit(self: *ThreadPool, work_fn: *const fn (*anyopaque) void, context: *anyopaque) void {
+    pub fn submit(self: *ThreadPool, work_fn: *const fn (*anyopaque) void, context: *anyopaque) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        self.queue.append(self.allocator, .{ .func = work_fn, .context = context }) catch return;
+        try self.queue.append(self.allocator, .{ .func = work_fn, .context = context });
     }
 
     pub fn pendingCount(self: *ThreadPool) usize {

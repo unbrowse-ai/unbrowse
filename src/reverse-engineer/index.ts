@@ -5,10 +5,9 @@ import { getRegistrableDomain } from "../domain.js";
 import { nanoid } from "nanoid";
 import { inferEndpointSemantic } from "../graph/index.js";
 import { writeDebugTrace } from "../debug-trace.js";
-import { buildTemplatedQuery } from "../template-params.js";
-import { extractFromDOM } from "../extraction/index.js";
-import { assessIntentResult } from "../intent-match.js";
-
+import { buildQueryBindingMap } from "../template-params.js";
+import { buildDescriptionPrompt, groundedDescription, extractResponseKeys } from "./description-prompt.js";
+import { isRscPayload, extractRscDataEndpoints } from "../capture/rsc.js";
 const SKIP_EXTENSIONS = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|map|webp|html|avif)([?#]|$)/i;
 const SKIP_JS_BUNDLES = /\/(boq-|_\/mss\/|og\/_\/js\/|_\/scs\/)/i;
 const SKIP_PATHS = /\/_next\/static\/|\/_next\/data\/|\/_next\/image|\/static\/chunks\/|\/static\/media\/|\/cdn-cgi\//i;
@@ -166,23 +165,36 @@ function buildEndpointDescription(
   sampleResponse: unknown,
 ): string {
   const url = new URL(req.url);
-  const pathTail = url.pathname.split("/").filter(Boolean).slice(-2).join(" ");
-  const requestKeys = Object.keys(sampleRequest).slice(0, 4);
-  const response = summarizeResponseExample(sampleResponse);
-  const action = requestKeys.some((key) => /^(q|query|search|term)$/i.test(key)) || /search|find|lookup/.test(url.pathname)
-    ? "Searches"
-    : /status|health|incident|maintenance/.test(url.pathname)
-      ? "Returns status for"
-      : url.pathname.match(/\{[^}]+\}|\/[0-9A-Za-z_-]{4,}(\/|$)/)
-        ? "Returns details for"
-        : "Returns";
-  const subjectSource = new Set(["response", "data", "result", "results", "item", "items"]).has(response.subject.toLowerCase())
-    ? inferPathSubject(url.pathname)
-    : response.subject;
-  const subject = titleCase(subjectSource === "response" ? (pathTail || url.hostname) : subjectSource);
-  const fieldText = response.fields.length > 0 ? ` with ${response.fields.join(", ")}` : "";
-  const inputText = requestKeys.length > 0 ? ` using ${requestKeys.join(", ")}` : "";
-  return `${action} ${subject}${fieldText}${inputText}`;
+
+  // Build param descriptors from the flattened sample request so the
+  // description is grounded in the actual parameters observed at capture time.
+  const params: Array<{ name: string; in: string; example?: string }> = [];
+  for (const [key, value] of Object.entries(sampleRequest)) {
+    // Determine whether the param came from the query string or the body.
+    const inKind = url.searchParams.has(key) ? "query"
+      : url.pathname.includes(`{${key}}`) ? "path"
+      : "body";
+    const example = value != null && typeof value !== "object" ? String(value) : undefined;
+    params.push({ name: key, in: inKind, ...(example ? { example } : {}) });
+  }
+
+  const responseKeys = extractResponseKeys(sampleResponse);
+
+  const ctx = {
+    url_template: req.url,
+    method: req.method,
+    params,
+    sample_response_keys: responseKeys.length > 0 ? responseKeys : undefined,
+    domain: url.hostname,
+  };
+
+  // Build the grounding prompt (available for optional LLM polish in
+  // backend/services/descriptions.ts) and the deterministic description.
+  const _prompt = buildDescriptionPrompt(ctx);
+
+  // Use the grounded description builder from description-prompt.ts so
+  // every description references real params and response fields.
+  return groundedDescription(ctx);
 }
 
 function looksLikeAdResponse(body: string | undefined): boolean {
@@ -301,44 +313,6 @@ function inferIntentActionKind(intent: string | undefined): IntentActionKind {
   return "read";
 }
 
-function extractStructuredHtmlResult(
-  body: string | undefined,
-  intent: string | undefined,
-): {
-  data: unknown;
-  extraction_method: string;
-  confidence: number;
-  selector?: string;
-} | null {
-  if (!body || !intent || !isHtmlResponseBody(body)) return null;
-  const extracted = extractFromDOM(body, intent);
-  if (!extracted.data || extracted.confidence <= 0.2) return null;
-  const assessment = assessIntentResult(extracted.data, intent);
-  if (assessment.verdict === "fail") return null;
-  return extracted;
-}
-
-function shouldTreatSubmissionAsSafe(
-  req: RawRequest,
-  sampleRequest: Record<string, unknown>,
-  context: ExtractionContext | undefined,
-  _actionKind?: string,
-): boolean {
-  if (req.method === "GET") return true;
-  const lowerIntent = context?.intent?.toLowerCase() ?? "";
-  const explicitReadIntent = /\b(search|find|lookup|get|fetch|list)\b/.test(lowerIntent);
-  const explicitWriteIntent = /\b(create|add|compose|draft|publish|send|post|delete|remove|update|edit)\b/.test(lowerIntent);
-  if (!explicitReadIntent && (explicitWriteIntent || inferIntentActionKind(context?.intent) !== "read")) return false;
-  const signals = [
-    req.url,
-    JSON.stringify(sampleRequest),
-  ].join(" ").toLowerCase();
-  if (/\b(delete|remove|create|publish|checkout|purchase|register|login|logout|comment|reply|message|send|post)\b/.test(signals)) {
-    return false;
-  }
-  return /search|query|keyword|lookup|find|filter|result|detail|fetch|list|read/.test(signals);
-}
-
 function parseCookieHeader(header: string | undefined): Record<string, string> {
   if (!header) return {};
   const out: Record<string, string> = {};
@@ -354,7 +328,6 @@ function parseCookieHeader(header: string | undefined): Record<string, string> {
 
 function normalizeBodyBindingKey(path: string): string {
   const normalized = path
-    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .replace(/\.(\d+)\./g, "_$1_")
     .replace(/\[(\d+)\]/g, "_$1")
     .replace(/[.[\]]+/g, "_")
@@ -366,7 +339,7 @@ function normalizeBodyBindingKey(path: string): string {
 }
 
 function shouldTemplateBodyValue(path: string, value: unknown, context?: ExtractionContext): boolean {
-  const lowerPath = normalizeBodyBindingKey(path);
+  const lowerPath = path.toLowerCase();
   if (value == null) return false;
   if (typeof value === "boolean") return false;
   if (typeof value === "number") {
@@ -422,30 +395,8 @@ function inferCsrfPlan(req: RawRequest, parsedBody?: unknown): CsrfPlan | undefi
     Object.entries(req.request_headers).map(([key, value]) => [key.toLowerCase(), value]),
   );
   const cookies = parseCookieHeader(headers["cookie"]);
-  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf|JSESSIONID)$/i.test(name));
-  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken", "csrf-token"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
-
-  // Also detect CSRF by value matching: if any cookie value appears as a header value,
-  // that's a CSRF token pattern regardless of naming convention
-  if (!headerName && csrfCookieNames.length === 0) {
-    for (const [cookieName, cookieValue] of Object.entries(cookies)) {
-      if (!cookieValue || cookieValue.length < 8) continue;
-      const unquoted = cookieValue.startsWith('"') && cookieValue.endsWith('"') ? cookieValue.slice(1, -1) : cookieValue;
-      for (const [hName, hValue] of Object.entries(headers)) {
-        if (hName === "cookie" || hName === "host" || hName === "content-length") continue;
-        const hUnquoted = hValue.startsWith('"') && hValue.endsWith('"') ? hValue.slice(1, -1) : hValue;
-        if (unquoted === hUnquoted && unquoted.length >= 8) {
-          return {
-            source: "cookie",
-            param_name: hName,
-            refresh_on_401: true,
-            extractor_sequence: [cookieName],
-          };
-        }
-      }
-    }
-  }
-
+  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf)$/i.test(name));
+  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
   if (headerName && csrfCookieNames.length > 0) {
     return {
       source: "cookie",
@@ -544,8 +495,6 @@ function isSemanticallyAdmissibleResponse(
 
   const bodyIsJson = isJsonResponseBody(req.response_body);
   if (!bodyIsJson && isHtmlResponseBody(req.response_body)) {
-    const extracted = extractStructuredHtmlResult(req.response_body, context?.intent);
-    if (extracted) return { ok: true, reason: "semantic_html_dom_match" };
     try {
       const reqPath = new URL(req.url).pathname;
       const pagePath = context?.pageUrl ? new URL(context.pageUrl).pathname : "";
@@ -593,12 +542,6 @@ const ON_DOMAIN_NOISE = /\/(recaptcha|captcha|update-recaptcha|csrf|consent|data
 // Score a request: higher = more likely to be a real data API (BUG-GC-004)
 function scoreRequest(req: RawRequest): number {
   let score = 0;
-  let pathname = "";
-  try {
-    pathname = new URL(req.url).pathname;
-  } catch {
-    pathname = "";
-  }
   // GET is preferred — safe, idempotent, more useful for data retrieval
   if (req.method === "GET") score += 2;
   if (RPC_HINTS.test(req.url)) score += 3;
@@ -613,15 +556,16 @@ function scoreRequest(req: RawRequest): number {
   if (ct.includes("x-protobuf") || ct.includes("json+protobuf")) score += 0;
   // Penalise long URLs — but only the path, not query params (GraphQL endpoints
   // have long variables/features query strings that inflate the URL length)
-  if (pathname.length > 200) score -= 5;
-  else if (req.url.length > 500) score -= 5;
+  try { if (new URL(req.url).pathname.length > 200) score -= 5; } catch { if (req.url.length > 500) score -= 5; }
   // Penalise telemetry paths even if they passed the host filter
-  if (pathname && SKIP_TELEMETRY_PATHS.test(pathname)) score -= 8;
+  if (SKIP_TELEMETRY_PATHS.test(new URL(req.url).pathname)) score -= 8;
   // Penalise Next.js RSC navigation requests — framework wire format, not data
   if (req.url.includes("_rsc=")) score -= 3;
   if (ct.includes("text/x-component")) score -= 10; // RSC wire format
+  // #227: Structural RSC body detection — catches payloads without URL/content-type hints
+  if (isRscPayload(req.response_body ?? "")) score -= 15;
   // Penalise on-domain noise (framework plumbing, recaptcha, consent, ad bids)
-  if (pathname && ON_DOMAIN_NOISE.test(pathname)) score -= 15;
+  try { if (ON_DOMAIN_NOISE.test(new URL(req.url).pathname)) score -= 15; } catch {}
   // Reward rich JSON responses (data endpoints have deep objects, noise has shallow)
   if (req.response_body) {
     try {
@@ -675,6 +619,14 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
       continue;
     }
+    // #227: Reject React Server Components wire format payloads — they are framework
+    // rendering wire format, not data APIs. Use the proper RSC parser instead of
+    // relying solely on URL heuristics (_rsc=) or content-type (text/x-component).
+    if (isRscPayload(req.response_body ?? "")) {
+      const rscUrls = extractRscDataEndpoints(req.response_body ?? "");
+      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "rsc_payload", rsc_embedded_urls: rscUrls.length > 0 ? rscUrls : undefined });
+      continue;
+    }
     if (affinityDomains.size > 0) {
       try {
         const reqHost = new URL(req.url).hostname;
@@ -692,6 +644,16 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     scored.push({ req, score });
   }
   scored.sort((a, b) => b.score - a.score);
+
+  // For passive captures (no context page URL), pre-compute path templates across
+  // all candidate paths so individual endpoints can be annotated without needing
+  // collapseEndpoints' sibling grouping.
+  const minedTemplateMap = !context?.pageUrl
+    ? minePathTemplates(scored.map(({ req }) => {
+        try { return new URL(req.url).pathname; } catch { return ""; }
+      }).filter(Boolean))
+    : new Map<string, string>();
+
 
   for (const { req } of scored) {
     const normalized = normalizeUrl(req.url);
@@ -720,8 +682,6 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
 
     const isGet = req.method === "GET";
 
-    const domArtifact = extractStructuredHtmlResult(req.response_body, context?.intent);
-
     // Infer response schema from captured body
     let response_schema = undefined;
     if (req.response_body) {
@@ -732,9 +692,6 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       } catch {
         // not valid JSON — skip schema inference
       }
-    }
-    if (!response_schema && domArtifact) {
-      response_schema = inferSchema([domArtifact.data]);
     }
 
     // BUG-008: mark endpoints with no response body as potentially CF-blocked
@@ -751,8 +708,9 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     // endpoint.query stores the captured defaults for execution-time fallback.
     const sanitizedQParams = isGet ? sanitizeQueryParams(extractQueryParams(req.url)) : undefined;
     let pathTemplate = sanitizeUrlTemplate(normalized);
+    const qBindings = sanitizedQParams ? buildQueryBindingMap(Object.keys(sanitizedQParams)) : {};
     const qTemplateStr = sanitizedQParams && Object.keys(sanitizedQParams).length > 0
-      ? Object.entries(buildTemplatedQuery(sanitizedQParams)).map(([k, v]) => `${encodeURIComponent(k)}=${v}`).join("&")
+      ? Object.keys(sanitizedQParams).map((k) => `${encodeURIComponent(k)}={${qBindings[k] ?? k}}`).join("&")
       : null;
 
     // BUG-006: Parameterize dynamic path segments (comma lists, page URL entities)
@@ -764,7 +722,7 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
     const templatedRequestBody = !isGet && parsedRequestBody && typeof parsedRequestBody === "object" && !Array.isArray(parsedRequestBody)
       ? templatizeBodyObject(parsedRequestBody, context, "", bodyParams) as Record<string, unknown>
       : parsedRequestBody;
-    const sampleResponse = domArtifact?.data ?? (req.response_body ? tryParseBody(req.response_body) : undefined);
+    const sampleResponse = req.response_body ? tryParseBody(req.response_body) : undefined;
     const sampleRequest = flattenRequestExample({
       path_params: Object.keys(pathParams).length > 0 ? pathParams : undefined,
       query: sanitizedQParams,
@@ -787,13 +745,6 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       verification_status: verificationStatus,
       reliability_score: 0.5,
       response_schema,
-      ...(domArtifact ? {
-        dom_extraction: {
-          extraction_method: domArtifact.extraction_method,
-          confidence: domArtifact.confidence,
-          ...(domArtifact.selector ? { selector: domArtifact.selector } : {}),
-        },
-      } : {}),
       // Record which page triggered this API call — used for trigger-and-intercept execution
       trigger_url: context?.pageUrl,
     };
@@ -812,22 +763,6 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       };
     }
     endpoint.description = endpoint.semantic?.description_out ?? endpoint.description;
-    if (shouldTreatSubmissionAsSafe(req, sampleRequest, context, endpoint.semantic?.action_kind)) {
-      const searchLike = /\b(search|find|lookup)\b/.test(context?.intent ?? "");
-      const resourceKind = /\b(case|cases|document|documents|paper|papers|article|articles)\b/.test(context?.intent ?? "")
-        ? "document"
-        : "resource";
-      const responseSummary = summarizeResponseExample(sampleResponse);
-      const fieldText = responseSummary.fields.length > 0 ? ` with ${responseSummary.fields.join(", ")}` : "";
-      endpoint.idempotency = "safe";
-      endpoint.semantic = {
-        ...(endpoint.semantic ?? {}),
-        action_kind: searchLike ? "search" : "detail",
-        resource_kind: resourceKind,
-        description_out: `${searchLike ? "Searches" : "Returns"} ${resourceKind === "document" ? "documents" : "results"}${fieldText}`,
-      };
-      endpoint.description = endpoint.semantic.description_out ?? endpoint.description;
-    }
     const admission = isSemanticallyAdmissibleResponse(req, sampleResponse, sampleRequest, context);
     if (!admission.ok) {
       traceRows.push({
@@ -848,6 +783,12 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       action_kind: endpoint.semantic?.action_kind,
       resource_kind: endpoint.semantic?.resource_kind,
     });
+    // Annotate with mined template when available (passive capture, no page context)
+    try {
+      const pathname = new URL(req.url).pathname;
+      const mined = minedTemplateMap.get(pathname);
+      if (mined) endpoint._minedTemplate = mined;
+    } catch { /* ignore bad URLs */ }
     endpoints.push(endpoint);
   }
 
@@ -1181,16 +1122,7 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
   try {
     const params = new URLSearchParams(body);
     const result: Record<string, unknown> = {};
-    params.forEach((v, k) => {
-      const existing = result[k];
-      if (existing == null) {
-        result[k] = v;
-      } else if (Array.isArray(existing)) {
-        existing.push(v);
-      } else {
-        result[k] = [existing, v];
-      }
-    });
+    params.forEach((v, k) => { result[k] = v; });
     if (Object.keys(result).length > 0) return result;
   } catch {}
 
@@ -1206,6 +1138,18 @@ function tryParseBody(body: string): Record<string, unknown> | undefined {
  * Used by collapseEndpoints to avoid merging distinct API actions
  * like /relationships/connectionsSummary + /relationships/invitationsSummary.
  */
+/** Compute Shannon entropy (bits per character) for a string. */
+function computeEntropy(s: string): number {
+  const freq = new Map<string, number>();
+  for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  let h = 0;
+  for (const count of freq.values()) {
+    const p = count / s.length;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+
 function looksLikeEntityId(segment: string): boolean {
   if (segment.startsWith("{")) return true;
   // UUID (with or without dashes)
@@ -1220,6 +1164,12 @@ function looksLikeEntityId(segment: string): boolean {
   if (/^[A-Z]{1,5}(\.[A-Z])?$/.test(segment)) return true;
   // Comma-separated lists
   if (segment.includes(",")) return true;
+  // Base64-encoded IDs: mixed case with = padding
+  if (/^[A-Za-z0-9+/]{6,}={1,2}$/.test(segment)) return true;
+
+  // High-entropy strings are likely encoded IDs (tokens, hashes, opaque cursors, etc.)
+  const entropy = computeEntropy(segment);
+  if (entropy > 3.5 && segment.length > 5) return true;
 
   // === NOT an entity ID — these are action/resource names ===
   // camelCase: lowercase letter followed by uppercase (e.g., connectionsSummary)
@@ -1228,6 +1178,9 @@ function looksLikeEntityId(segment: string): boolean {
   if (/[a-z][_-][a-z]/i.test(segment)) return false;
   // Pure lowercase alphabetic word 3+ chars (REST resource: "connections", "settings")
   if (/^[a-z]{3,}$/.test(segment)) return false;
+
+  // Low-entropy strings are likely readable names, not IDs
+  if (entropy < 2.5 && segment.length > 3) return false;
 
   // Ambiguous — allow collapsing (conservative)
   return true;
@@ -1247,6 +1200,71 @@ function looksLikeEntityId(segment: string): boolean {
  * Only collapses when the majority (>50%) of varying segments look like entity
  * IDs, NOT distinct action/resource names (camelCase, REST words).
  */
+
+/**
+ * Mine path templates from a batch of URL paths that lack a context page URL.
+ * Builds a prefix trie and identifies positions where enough distinct children
+ * look like entity IDs, replacing them with `{id}` placeholders.
+ *
+ * @param paths - Array of URL pathnames (e.g. "/api/users/123/posts")
+ * @param maxChildren - Minimum distinct values at a position to trigger wildcarding (default 4)
+ * @returns Map from original path to templated path (only paths that changed are included)
+ */
+export function minePathTemplates(
+  paths: string[],
+  maxChildren = 4,
+): Map<string, string> {
+  // Build a prefix trie: prefix → Map<segment, count>
+  const trie = new Map<string, Map<string, number>>();
+
+  for (const path of paths) {
+    const segments = path.split("/").filter(Boolean);
+    for (let i = 0; i < segments.length; i++) {
+      const prefix = "/" + segments.slice(0, i).join("/");
+      const children = trie.get(prefix) ?? new Map<string, number>();
+      const seg = segments[i];
+      children.set(seg, (children.get(seg) ?? 0) + 1);
+      trie.set(prefix, children);
+    }
+  }
+
+  // Identify wildcard prefixes: positions where distinct children >= maxChildren
+  // AND more than 50% of those children look like entity IDs.
+  const wildcardPrefixes = new Set<string>();
+  for (const [prefix, children] of trie) {
+    if (children.size < maxChildren) continue;
+    const segs = Array.from(children.keys());
+    const entityCount = segs.filter((s) => looksLikeEntityId(s)).length;
+    if (entityCount / segs.length > 0.5) {
+      wildcardPrefixes.add(prefix);
+    }
+  }
+
+  if (wildcardPrefixes.size === 0) return new Map();
+
+  // Build original → template map for paths that contain wildcarded positions.
+  const result = new Map<string, string>();
+  for (const path of paths) {
+    const segments = path.split("/").filter(Boolean);
+    const templated: string[] = [];
+    let changed = false;
+    for (let i = 0; i < segments.length; i++) {
+      const prefix = "/" + segments.slice(0, i).join("/");
+      if (wildcardPrefixes.has(prefix)) {
+        templated.push("{id}");
+        changed = true;
+      } else {
+        templated.push(segments[i]);
+      }
+    }
+    if (changed) {
+      result.set(path, "/" + templated.join("/"));
+    }
+  }
+
+  return result;
+}
+
 function collapseEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
   // Group by method + origin + all-but-last path segment
   const groups = new Map<string, EndpointDescriptor[]>();

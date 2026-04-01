@@ -149,6 +149,27 @@ zig build test         # run 230+ tests
 ./zig-out/bin/kuri-browse https://example.com
 ```
 
+### First run, shortest path
+
+```bash
+# start the server; if CDP_URL is unset, kuri launches managed Chrome for you
+./zig-out/bin/kuri
+
+# discover tabs from that managed browser
+curl -s http://127.0.0.1:8080/discover
+
+# inspect the discovered tab list
+curl -s http://127.0.0.1:8080/tabs
+```
+
+If you already have Chrome running with remote debugging, set `CDP_URL` to either the WebSocket or HTTP endpoint:
+
+```bash
+CDP_URL=ws://127.0.0.1:9222/devtools/browser/... ./zig-out/bin/kuri
+# or
+CDP_URL=http://127.0.0.1:9222 ./zig-out/bin/kuri
+```
+
 ### Browse vercel.com in 4 commands
 
 ```bash
@@ -189,10 +210,12 @@ All endpoints return JSON. Optional auth via `KURI_SECRET` env var.
 | Path | Params | Description |
 |------|--------|-------------|
 | `GET /navigate` | `tab_id`, `url` | Navigate tab to URL |
+| `GET /tab/new` | `url` | Create a new tab |
+| `GET /window/new` | `url` | Create a new window/tab target |
 | `GET /snapshot` | `tab_id`, `filter`, `format` | A11y tree snapshot with `@eN` refs |
 | `GET /text` | `tab_id` | Extract page text |
 | `GET /screenshot` | `tab_id`, `format`, `quality` | Capture screenshot (base64) |
-| `POST /action` | `tab_id`, `ref`, `kind` | Click/type/scroll by ref |
+| `GET /action` | `tab_id`, `ref`, `kind` | Click/type/scroll by ref |
 | `GET /evaluate` | `tab_id`, `expression` | Execute JavaScript |
 | `GET /close` | `tab_id` | Close tab + cleanup |
 
@@ -226,9 +249,23 @@ All endpoints return JSON. Optional auth via `KURI_SECRET` env var.
 | `GET /cookies/clear` | Clear all cookies |
 | `GET /storage/local` | Get localStorage |
 | `GET /storage/session` | Get sessionStorage |
+| `GET /storage/local/clear` | Clear localStorage |
+| `GET /storage/session/clear` | Clear sessionStorage |
 | `GET /session/save` | Save browser session |
 | `GET /session/load` | Restore browser session |
+| `GET /session/list` | List saved browser sessions |
+| `GET /auth/profile/save` | Save cookies + storage as a named auth profile |
+| `GET /auth/profile/load` | Restore a named auth profile into a tab |
+| `GET /auth/profile/list` | List saved auth profiles |
+| `GET /auth/profile/delete` | Delete a saved auth profile |
+| `GET /debug/enable` | Enable in-page debug HUD and optional freeze mode |
+| `GET /debug/disable` | Disable in-page debug HUD |
 | `GET /headers` | Set custom request headers |
+| `GET /perf/lcp` | Capture Largest Contentful Paint timing, optionally after navigation |
+
+On macOS, auth profile secrets are stored in the user Keychain. On other platforms, Kuri falls back to `.kuri/auth-profiles/`.
+
+`url` and `expression` query params are percent-decoded by the server, so encoded values like `https%3A%2F%2Fexample.com` are accepted.
 
 ### Advanced
 
@@ -250,6 +287,30 @@ All endpoints return JSON. Optional auth via `KURI_SECRET` env var.
 | `GET /console` | Get console messages |
 | `GET /stop` | Stop page loading |
 | `GET /get` | Direct HTTP fetch (server-side) |
+| `GET /scrollintoview` | Scroll a referenced element into view |
+| `GET /drag` | Drag from one ref to another |
+| `GET /keyboard/type` | Type text with key events |
+| `GET /keyboard/inserttext` | Insert text directly |
+| `GET /keydown` | Dispatch a keydown event |
+| `GET /keyup` | Dispatch a keyup event |
+| `GET /wait` | Wait for ready state or element conditions |
+| `GET /tab/close` | Close a tab |
+| `GET /highlight` | Highlight an element by ref or selector |
+| `GET /errors` | Get page/runtime errors |
+| `GET /set/offline` | Toggle offline network emulation |
+| `GET /set/media` | Set emulated media features |
+| `GET /set/credentials` | Set HTTP basic auth credentials |
+| `GET /find` | Find text matches in the current page |
+| `GET /trace/start` | Start Chrome tracing |
+| `GET /trace/stop` | Stop tracing and return trace data |
+| `GET /profiler/start` | Start JS profiler |
+| `GET /profiler/stop` | Stop JS profiler |
+| `GET /inspect` | Inspect an element or page state |
+| `GET /set/viewport` | Set viewport size |
+| `GET /set/useragent` | Override user agent |
+| `GET /dom/attributes` | Get element attributes |
+| `GET /frames` | List frame tree |
+| `GET /network` | Inspect network state/requests |
 
 ---
 
@@ -556,7 +617,7 @@ kuri/
 |---------|---------|-------------|
 | `HOST` | `127.0.0.1` | Server bind address |
 | `PORT` | `8080` | Server port |
-| `CDP_URL` | *(none)* | Connect to existing Chrome (`ws://127.0.0.1:9222`) |
+| `CDP_URL` | *(none)* | Connect to existing Chrome (`ws://...` or `http://127.0.0.1:9222`) |
 | `KURI_SECRET` | *(none)* | Auth secret for API requests |
 | `STATE_DIR` | `.kuri` | Session state directory |
 | `REQUEST_TIMEOUT_MS` | `30000` | HTTP request timeout |

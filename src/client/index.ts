@@ -1,9 +1,11 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
 import { homedir, hostname } from "os";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
 import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
+import { attributeLifecycle } from "../runtime/lifecycle.js";
+import type { LifecycleEvent } from "../runtime/lifecycle.js";
 
 const API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
@@ -106,6 +108,25 @@ export function getApiKey(): string {
   return "";
 }
 
+/**
+* Derive a stable, privacy-safe indexer identifier from the raw API key.
+ * Returns a hex SHA-256 hash, or "" for empty / local-only keys.
+ */
+export function hashApiKey(key: string): string {
+  if (!key || key === "local-only") return "";
+  return createHash("sha256").update(key).digest("hex");
+}
+
+/**
+ * Return the locally registered agent_id, or null if not registered.
+ * Used as the default indexer_id for Tier 1 attribution when the skill
+ * manifest doesn't already carry one.
+ */
+export function getAgentId(): string | null {
+  const config = loadConfig();
+  return config?.agent_id ?? null;
+}
+
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
 
 async function validateApiKey(key: string): Promise<ApiKeyValidationResult> {
@@ -205,6 +226,17 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
     throw new Error("ToS update required. Restart unbrowse to accept new terms.");
   }
 
+  // Handle x402 payment required — surface payment terms to the caller
+  if (res.status === 402) {
+    const paymentTerms = res.headers.get("X-Payment-Required");
+    const terms = paymentTerms ? JSON.parse(paymentTerms) : (data as Record<string, unknown>).terms;
+    const err = new Error(`Payment required: ${(data as Record<string, unknown>).error ?? "This skill requires payment"}`);
+    (err as Error & { x402: boolean; terms: unknown; status: number }).x402 = true;
+    (err as Error & { terms: unknown }).terms = terms;
+    (err as Error & { status: number }).status = 402;
+    throw err;
+  }
+
   if (!res.ok) {
     const errData = data as { error?: string; details?: string[] };
     const msg = errData.details?.length ? `${errData.error}: ${errData.details.join("; ")}` : errData.error ?? `API HTTP ${res.status}`;
@@ -216,15 +248,14 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
 // --- ToS acceptance ---
 
 async function promptTosAcceptance(summary: string, tosUrl: string): Promise<boolean> {
-  if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
-    console.log("[unbrowse] ToS accepted by user via agent.");
-    return true;
-  }
-
   // Non-interactive mode: skip the readline prompt, return false.
   // The calling agent is expected to show the ToS to the user and ask for consent,
   // then re-run with UNBROWSE_TOS_ACCEPTED=1 after the user agrees.
   if (process.env.UNBROWSE_NON_INTERACTIVE === "1") {
+    if (process.env.UNBROWSE_TOS_ACCEPTED === "1") {
+      console.log("[unbrowse] ToS accepted by user via agent.");
+      return true;
+    }
     console.log("[unbrowse] ToS acceptance required. Set UNBROWSE_TOS_ACCEPTED=1 after user consents.");
     console.log(`[unbrowse] ToS summary:\n${summary}`);
     console.log(`[unbrowse] Full terms: ${tosUrl}`);
@@ -316,31 +347,6 @@ async function checkTosStatus(): Promise<void> {
   }
 }
 
-async function registerAndPersist(
-  name: string,
-  tosVersion?: string | null,
-): Promise<void> {
-  const result = await api<{
-    agent_id: string;
-    api_key: string;
-    tos_accepted_version?: string;
-    tos_accepted_at?: string;
-  }>("POST", "/v1/agents/register", {
-    name,
-    ...(tosVersion ? { tos_version: tosVersion } : {}),
-  });
-
-  process.env.UNBROWSE_API_KEY = result.api_key;
-  saveConfig({
-    api_key: result.api_key,
-    agent_id: result.agent_id,
-    agent_name: name,
-    registered_at: new Date().toISOString(),
-    tos_accepted_version: result.tos_accepted_version ?? tosVersion ?? null,
-    tos_accepted_at: result.tos_accepted_at ?? new Date().toISOString(),
-  });
-}
-
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
 export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
@@ -351,24 +357,6 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
     }
     await checkTosStatus();
     return;
-  }
-
-  const existingConfig = loadConfig();
-  if (existingConfig?.tos_accepted_version && process.env.UNBROWSE_TOS_ACCEPTED !== "1") {
-    const fallbackName = buildDefaultAgentName();
-    const name = options?.promptForEmail
-      ? await promptAgentEmail(fallbackName)
-      : resolveAgentName(process.env.UNBROWSE_AGENT_EMAIL, fallbackName);
-    console.log(`Registering as "${name}"...`);
-
-    try {
-      await registerAndPersist(name, existingConfig.tos_accepted_version);
-      console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
-      return;
-    } catch (err) {
-      console.warn(`Registration failed: ${(err as Error).message}`);
-      console.warn("Falling back to live ToS lookup.");
-    }
   }
 
   // Step 1: Fetch current ToS version from backend
@@ -394,7 +382,20 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   console.log(`Registering as "${name}"...`);
 
   try {
-    await registerAndPersist(name, tosInfo.version);
+    const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
+      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
+    );
+
+    process.env.UNBROWSE_API_KEY = api_key;
+    saveConfig({
+      api_key,
+      agent_id,
+      agent_name: name,
+      registered_at: new Date().toISOString(),
+      tos_accepted_version: tosInfo.version,
+      tos_accepted_at: new Date().toISOString(),
+    });
+
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
@@ -477,37 +478,13 @@ function isIntentCompatible(lhs: string | undefined, rhs: string | undefined): b
   return intentFamily(left) === intentFamily(right);
 }
 
-function normalizeContextPath(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    const pathname = new URL(value).pathname.replace(/\/+$/, "");
-    return pathname || "/";
-  } catch {
-    return null;
-  }
-}
-
-function skillMatchesContextPath(skill: SkillManifest, contextUrl?: string): boolean {
-  const contextPath = normalizeContextPath(contextUrl);
-  if (!contextPath) return true;
-  for (const endpoint of skill.endpoints) {
-    const triggerPath = normalizeContextPath(endpoint.trigger_url);
-    if (triggerPath === contextPath) return true;
-    const templatePath = normalizeContextPath(endpoint.url_template);
-    if (templatePath === contextPath) return true;
-  }
-  return false;
-}
-
-export function findExistingSkillForDomain(domain: string, intent?: string, contextUrl?: string): SkillManifest | null {
+export function findExistingSkillForDomain(domain: string, intent?: string): SkillManifest | null {
   try {
     const skillCacheDir = getSkillCacheDir();
     if (!existsSync(skillCacheDir)) return null;
     const files = readdirSync(skillCacheDir);
     let compatible: SkillManifest | null = null;
     let fallback: SkillManifest | null = null;
-    let pathCompatible: SkillManifest | null = null;
-    let pathFallback: SkillManifest | null = null;
     for (const f of files) {
       if (!f.endsWith(".json") || f === "browser-capture.json") continue;
       try {
@@ -515,25 +492,12 @@ export function findExistingSkillForDomain(domain: string, intent?: string, cont
         const skill = JSON.parse(raw) as SkillManifest;
         if (skill.domain === domain && skill.execution_type === "http") {
           if (!fallback) fallback = skill;
-          if (skillMatchesContextPath(skill, contextUrl) && !pathFallback) {
-            pathFallback = skill;
-          }
-          const intentCompatible =
-            isIntentCompatible(skill.intent_signature, intent) ||
-            (skill.intents ?? []).some((candidate) => isIntentCompatible(candidate, intent));
-          if (intentCompatible) {
+          if (isIntentCompatible(skill.intent_signature, intent) || (skill.intents ?? []).some((candidate) => isIntentCompatible(candidate, intent))) {
             compatible = skill;
-            if (skillMatchesContextPath(skill, contextUrl)) {
-              pathCompatible = skill;
-              break;
-            }
+            break;
           }
         }
       } catch { /* skip corrupt files */ }
-    }
-    if (contextUrl && normalizeContextPath(contextUrl)) {
-      if (intent && normalizeIntent(intent)) return pathCompatible;
-      return pathFallback;
     }
     if (intent && normalizeIntent(intent)) return compatible;
     return compatible ?? fallback;
@@ -544,16 +508,15 @@ export function findExistingSkillForDomain(domain: string, intent?: string, cont
 export async function getSkill(skillId: string, scopeId?: string): Promise<SkillManifest | null> {
   const recent = getRecentLocalSkill(skillId, scopeId ?? process.env.UNBROWSE_CLIENT_ID);
   if (recent) return recent;
-  const cached = readSkillCache(skillId);
   if (LOCAL_ONLY) {
-    return cached;
+    return readSkillCache(skillId);
   }
   try {
     const skill = await api<SkillManifest>("GET", `/v1/skills/${skillId}`, undefined, { noAuth: true });
     writeSkillCache(skill, scopeId);
     return skill;
   } catch {
-    return cached;
+    return null;
   }
 }
 
@@ -706,21 +669,64 @@ export async function searchIntentResolve(
 
 // --- Stats ---
 
-export async function recordExecution(
+/** Execution payload sent to POST /v1/stats/execution */
+export interface ExecutionPayload {
+  skill_id: string;
+  endpoint_id: string;
+  trace: Omit<ExecutionTrace, "result">;
+  indexer_id?: string;
+}
+
+/**
+ * Build the POST body for /v1/stats/execution.
+ * Pure function — no I/O, fully testable.
+ *
+ * Derives indexer_id from:
+ *   1. Explicit override (opts.indexer_id)
+ *   2. skill.indexer_id (set by the backend at publish time)
+ *   3. undefined (backend will fall back to its own lookup)
+ */
+export function buildExecutionPayload(
   skillId: string,
   endpointId: string,
-  trace: ExecutionTrace
-): Promise<void> {
-  if (LOCAL_ONLY) return;
-  // Strip actual API response data — only send metadata for scoring
+  trace: ExecutionTrace,
+  skill?: Pick<SkillManifest, "indexer_id"> | null,
+  opts?: { indexer_id?: string },
+): ExecutionPayload {
   const { result: _result, ...metadata } = trace;
-  await api("POST", "/v1/stats/execution", {
+  const indexer_id = opts?.indexer_id ?? skill?.indexer_id ?? (hashApiKey(getApiKey()) || undefined);
+  const payload: ExecutionPayload = {
     skill_id: skillId,
     endpoint_id: endpointId,
     trace: metadata,
-  });
+  };
+  if (indexer_id) payload.indexer_id = indexer_id;
+  return payload;
+}
+export async function recordExecution(
+  skillId: string,
+  endpointId: string,
+  trace: ExecutionTrace,
+  skill?: Pick<SkillManifest, "indexer_id"> | null,
+): Promise<void> {
+  if (LOCAL_ONLY) return;
+  const payload = buildExecutionPayload(skillId, endpointId, trace, skill);
+  await api("POST", "/v1/stats/execution", payload);
 }
 
+/** Record a payment transaction for a paid skill execution. Fire-and-forget. */
+export async function recordTransaction(params: {
+  transaction_id: string;
+  consumer_id: string;
+  creator_id: string;
+  skill_id: string;
+  endpoint_id?: string;
+  price_usd: number;
+  payment_proof?: string;
+}): Promise<void> {
+  if (LOCAL_ONLY) return;
+  await api("POST", "/v1/transactions", params);
+}
 export async function recordFeedback(
   skillId: string,
   endpointId: string,
@@ -754,7 +760,23 @@ export async function recordDiagnostics(
 
 export async function recordOrchestrationPerf(timing: OrchestrationTiming): Promise<void> {
   if (LOCAL_ONLY) return;
-  await api("POST", "/v1/stats/perf", timing);
+  const lifecycleSource: LifecycleEvent["source"] =
+    timing.source === "marketplace" ? "marketplace"
+    : timing.source === "live-capture" ? "live-capture"
+    : "cache";
+  const now = new Date().toISOString();
+  const events: LifecycleEvent[] = [];
+  if (timing.search_ms > 0) {
+    events.push({ phase: "discover", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.search_ms, source: lifecycleSource });
+  }
+  if (timing.get_skill_ms > 0) {
+    events.push({ phase: "resolve", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.get_skill_ms, source: lifecycleSource });
+  }
+  if (timing.execute_ms > 0) {
+    events.push({ phase: "execute", skill_id: timing.skill_id ?? "", timestamp: now, duration_ms: timing.execute_ms, source: lifecycleSource });
+  }
+  const phaseTotals = Object.fromEntries(attributeLifecycle(events));
+  await api("POST", "/v1/stats/perf", { ...timing, phase_totals_ms: phaseTotals });
 }
 
 // --- Validation ---
@@ -762,6 +784,102 @@ export async function recordOrchestrationPerf(timing: OrchestrationTiming): Prom
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {
   if (LOCAL_ONLY) return { valid: true, hardErrors: [], softWarnings: [] };
   return api<ValidationResult>("POST", "/v1/validate", manifest);
+}
+
+// --- Graph Edge Publishing ---
+
+/**
+ * Publish operation graph edges to the dedicated graph endpoint.
+ * Fire-and-forget: logs errors but does not throw.
+ */
+export async function publishGraphEdges(
+  domain: string,
+  node: { endpoint_id: string; method: string; url_template: string },
+  edges: Array<{ target_endpoint_id: string; kind: string; confidence: number }>
+): Promise<void> {
+  if (LOCAL_ONLY) return;
+  try {
+    await api("POST", "/v1/graph/edges", { domain, node, edges });
+  } catch (err) {
+    console.error(`[graph] failed to publish edges for ${domain}: ${(err as Error).message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-file GitHub issues from accumulated agent errors
+// ---------------------------------------------------------------------------
+
+export interface AutoFilePayload {
+  skill_id: string;
+  endpoint_id: string;
+  domain: string;
+  intent: string;
+  url?: string;
+  error: string;
+  failure_count: number;
+  first_seen: string;
+  last_seen: string;
+  kuri_version: string;
+}
+
+/**
+ * Auto-file a GitHub issue via the backend. Fire-and-forget — failures
+ * are logged but never thrown.
+ */
+export async function autoFileIssue(payload: AutoFilePayload): Promise<void> {
+  if (isLocalOnlyMode()) {
+    console.log(`[auto-file] skipped (local-only mode): ${payload.skill_id}:${payload.endpoint_id}`);
+    return;
+  }
+  try {
+    await api("POST", "/v1/issues/auto-file", payload);
+    console.log(`[auto-file] issue filed for ${payload.skill_id}:${payload.endpoint_id} (${payload.failure_count} failures)`);
+  } catch (err) {
+    console.warn(`[auto-file] failed: ${(err as Error).message}`);
+  }
+}
+
+// --- Cross-Agent Discovery Diagnostics ---
+
+/**
+ * Diagnostic function: polls marketplace search to verify a skill is discoverable.
+ * Not called in production flow -- used for verifying cross-agent discovery within 60s.
+ */
+export async function verifyMarketplaceDiscovery(
+  skillId: string,
+  intent: string,
+  maxWaitMs = 60000
+): Promise<{ found: boolean; latency_ms: number }> {
+  const start = Date.now();
+  const pollInterval = 2000;
+
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const results = await searchIntent(intent, 10);
+      for (const result of results) {
+        const meta = result.metadata ?? {};
+        let foundId: string | undefined;
+        // Check metadata.skill_id directly
+        if (typeof meta.skill_id === "string") {
+          foundId = meta.skill_id;
+        }
+        // Try parsing metadata.content as JSON for skill_id
+        if (!foundId && typeof meta.content === "string") {
+          try {
+            const parsed = JSON.parse(meta.content);
+            if (typeof parsed.skill_id === "string") foundId = parsed.skill_id;
+          } catch { /* not JSON */ }
+        }
+        if (foundId === skillId) {
+          return { found: true, latency_ms: Date.now() - start };
+        }
+      }
+    } catch { /* search failed, retry */ }
+
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+
+  return { found: false, latency_ms: Date.now() - start };
 }
 
 // --- Agent Registration ---
@@ -780,4 +898,61 @@ export async function getAgent(agentId: string): Promise<{ agent_id: string; nam
 
 export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
   return api("GET", "/v1/agents/me", undefined);
+}
+
+
+// --- Transaction Visibility ---
+
+/** Get consumer payment history for an agent. */
+export async function getTransactionHistory(agentId: string): Promise<{
+  ledger: {
+    agent_id: string;
+    total_spent_uc: number;
+    total_spent_usd: number;
+    transaction_count: number;
+    first_transaction_at: string;
+    last_transaction_at: string;
+  } | null;
+  transactions: Array<{
+    transaction_id: string;
+    consumer_id: string;
+    creator_id: string;
+    skill_id: string;
+    price_usd: number;
+    price_uc: number;
+    status: string;
+    created_at: string;
+  }>;
+}> {
+  return api("GET", `/v1/transactions/consumer/${agentId}`);
+}
+
+/** Get creator earnings history for an agent/indexer. */
+export async function getCreatorEarnings(agentId: string): Promise<{
+  ledger: {
+    agent_id: string;
+    total_earned_uc: number;
+    total_earned_usd: number;
+    total_fees_uc: number;
+    transaction_count: number;
+    first_transaction_at: string;
+    last_transaction_at: string;
+  } | null;
+  transactions: Array<{
+    transaction_id: string;
+    consumer_id: string;
+    creator_id: string;
+    skill_id: string;
+    price_usd: number;
+    creator_payout_uc: number;
+    status: string;
+    created_at: string;
+  }>;
+}> {
+  return api("GET", `/v1/transactions/creator/${agentId}`);
+}
+
+/** Set the base price for a skill (requires auth as skill owner). */
+export async function setSkillPrice(skillId: string, priceUsd: number): Promise<unknown> {
+  return api("PATCH", `/v1/skills/${skillId}`, { base_price_usd: priceUsd });
 }

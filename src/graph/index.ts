@@ -411,6 +411,20 @@ function isGenericBindingKey(key: string | undefined): boolean {
   return /^(id|ids|url|urls|page|cursor|offset|limit|slug(?:_\d+)?|pathname|domain|query|q|type|name)$/.test(key);
 }
 
+const PAGINATION_KEYS = new Set(["cursor", "page", "offset", "page_token", "next_cursor", "after", "before", "start", "next_page", "continuation_token", "skip", "from", "scroll_id"]);
+function isPaginationBindingKey(key: string): boolean {
+  return PAGINATION_KEYS.has(key) || /^(next_|prev_|previous_)/.test(key) || /_cursor$/.test(key);
+}
+
+function classifyEdgeKind(source: SkillOperationNode, target: SkillOperationNode, bindingKey: string): SkillOperationEdge["kind"] {
+  if (source.operation_id === target.operation_id && isPaginationBindingKey(bindingKey)) return "pagination";
+  const LIST_ACTIONS = new Set(["list", "search", "timeline", "trending", "feed"]);
+  const DETAIL_ACTIONS = new Set(["detail", "fetch"]);
+  if (LIST_ACTIONS.has(source.action_kind) && DETAIL_ACTIONS.has(target.action_kind) && source.resource_kind === target.resource_kind && source.resource_kind !== "resource") return "parent_child";
+  if (target.auth_required && /^(auth|login|token|session|oauth)$/.test(source.action_kind)) return "auth";
+  return "dependency";
+}
+
 function isGenericSemanticType(type: string | undefined): boolean {
   if (!type) return true;
   return /^(identifier|input|resource|value|string|number|flag)$/.test(type);
@@ -565,9 +579,10 @@ function buildOperationNode(endpoint: EndpointDescriptor): SkillOperationNode {
   const normalizedRequires = (() => {
     const byBinding = new Map<string, OperationBinding>();
     for (const binding of semantic.requires ?? []) {
+      const pathParamValue = (endpoint.path_params as Record<string, string> | undefined)?.[binding.key];
       const defaultedPathParam =
         binding.source === "path_params" &&
-        Object.prototype.hasOwnProperty.call(endpoint.path_params ?? {}, binding.key);
+        typeof pathParamValue === "string" && pathParamValue !== "";
       const normalized = defaultedPathParam ? { ...binding, required: false } : binding;
       const id = [normalized.key, normalized.source ?? "", normalized.semantic_type ?? ""].join("|");
       const existing = byBinding.get(id);
@@ -679,7 +694,7 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
   for (const target of operations) {
     for (const required of target.requires) {
       for (const source of operations) {
-        if (source.operation_id === target.operation_id) continue;
+        if (source.operation_id === target.operation_id && !isPaginationBindingKey(required.key)) continue;
         const match = source.provides.find((provided) => {
           const exactKeyMatch = provided.key === required.key && !isGenericBindingKey(required.key);
           const semanticMatch =
@@ -687,10 +702,14 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
             !!required.semantic_type &&
             provided.semantic_type === required.semantic_type &&
             !isGenericSemanticType(required.semantic_type);
-          return exactKeyMatch || semanticMatch;
+          const paginationSelfMatch =
+            source.operation_id === target.operation_id &&
+            provided.key === required.key &&
+            isPaginationBindingKey(required.key);
+          return exactKeyMatch || semanticMatch || paginationSelfMatch;
         });
         if (!match) continue;
-        if (!isBefore(source.observed_at, target.observed_at)) continue;
+        if (source.operation_id !== target.operation_id && !isBefore(source.observed_at, target.observed_at)) continue;
         const edgeId = `${source.operation_id}:${target.operation_id}:${required.key}`;
         if (seenEdges.has(edgeId)) continue;
         seenEdges.add(edgeId);
@@ -699,19 +718,25 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
           from_operation_id: source.operation_id,
           to_operation_id: target.operation_id,
           binding_key: required.key,
-          kind: match.key === required.key ? "dependency" : "hint",
+          kind: match.key === required.key ? classifyEdgeKind(source, target, required.key) : "hint",
           confidence: match.key === required.key ? 0.9 : 0.6,
         });
       }
     }
   }
+
+  // Operations that are targets of dependency edges are not entry points
+  const dependencyTargets = new Set(
+    edges.filter((e) => e.kind === "dependency").map((e) => e.to_operation_id),
+  );
   const entryOperationIds = operations
     .filter(
       (operation) =>
-        operation.requires.length === 0 ||
-        operation.requires.every(
-          (binding) => binding.source === "query" || binding.source === "path_params",
-        ),
+        !dependencyTargets.has(operation.operation_id) &&
+        (operation.requires.length === 0 ||
+          operation.requires.every(
+            (binding) => binding.source === "query" || binding.source === "path_params",
+          )),
     )
     .map((operation) => operation.operation_id);
 
@@ -724,8 +749,12 @@ export function buildSkillOperationGraph(endpoints: EndpointDescriptor[]): Skill
 }
 
 export function ensureSkillOperationGraph(skill: SkillManifest): SkillOperationGraph {
-  if (skill.endpoints.length > 0) return buildSkillOperationGraph(skill.endpoints);
-  if (skill.operation_graph?.operations?.length) return skill.operation_graph;
+  if (skill.operation_graph?.operations?.length) {
+    // Rebuild if stored graph is stale (doesn't cover all endpoints)
+    const graphOpIds = new Set(skill.operation_graph.operations.map((op) => op.operation_id));
+    const allCovered = skill.endpoints.every((ep) => graphOpIds.has(ep.endpoint_id));
+    if (allCovered) return skill.operation_graph;
+  }
   return buildSkillOperationGraph(skill.endpoints);
 }
 
@@ -753,12 +782,75 @@ export function knownBindingsFromInputs(
   return known;
 }
 
-function isRunnable(operation: SkillOperationNode, bindings: Record<string, unknown>): boolean {
+export function isRunnable(operation: SkillOperationNode, bindings: Record<string, unknown>): boolean {
   return operation.requires.every((binding) => {
     if (!binding.required) return true;
     const value = bindings[binding.key];
     return value != null && value !== "";
   });
+}
+
+/**
+ * Compute the set of reachable operation IDs given current known bindings.
+ *
+ * An operation is reachable (A_reachable) if:
+ *   1. It has no required bindings (entry point), OR
+ *   2. All its required bindings are present in knownBindings, OR
+ *   3. All its required bindings can be transitively satisfied — either
+ *      directly from knownBindings or from the provides of another
+ *      reachable operation.
+ *
+ * Uses a fixpoint computation: starts with directly-runnable operations,
+ * then iteratively adds operations whose requirements are met by the
+ * accumulated provides of the reachable set, until no new operations
+ * are added.
+ */
+export function computeReachableEndpoints(
+  graph: SkillOperationGraph,
+  knownBindings: Record<string, unknown>,
+): Set<string> {
+  const reachable = new Set<string>();
+  if (!graph.operations || graph.operations.length === 0) return reachable;
+
+  // Seed: operations that are directly runnable with current bindings
+  for (const op of graph.operations) {
+    if (isRunnable(op, knownBindings)) {
+      reachable.add(op.operation_id);
+    }
+  }
+
+  // Fixpoint expansion: iterate until stable
+  let changed = true;
+  while (changed) {
+    changed = false;
+    // Collect all binding keys provided by currently reachable operations
+    const availableKeys = new Set<string>(Object.keys(knownBindings));
+    for (const op of graph.operations) {
+      if (!reachable.has(op.operation_id)) continue;
+      for (const provided of op.provides) {
+        availableKeys.add(provided.key);
+      }
+    }
+
+    // Check each non-reachable operation
+    for (const op of graph.operations) {
+      if (reachable.has(op.operation_id)) continue;
+      const allSatisfied = op.requires.every((binding) => {
+        if (!binding.required) return true;
+        // Check direct bindings first
+        const directValue = knownBindings[binding.key];
+        if (directValue != null && directValue !== "") return true;
+        // Check if any reachable operation provides this key
+        return availableKeys.has(binding.key);
+      });
+      if (allSatisfied) {
+        reachable.add(op.operation_id);
+        changed = true;
+      }
+    }
+  }
+
+  return reachable;
 }
 
 export function getSkillChunk(

@@ -6,7 +6,7 @@ import { executeSkill } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, recordDiagnostics, getApiKey, getRecentLocalSkill } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import type { ProjectionOptions } from "../types/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
@@ -141,7 +141,7 @@ export async function registerRoutes(app: FastifyInstance) {
   const clientScopeFor = (req: { headers: Record<string, unknown>; id: string }) =>
     (typeof req.headers["x-unbrowse-client-id"] === "string" && req.headers["x-unbrowse-client-id"].trim())
       ? req.headers["x-unbrowse-client-id"].trim()
-      : "global";
+      : req.id;
 
   // Auth gate: block all routes except /health when no API key is configured
   app.addHook("onRequest", async (req, reply) => {
@@ -151,7 +151,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!key) {
       return reply.code(401).send({
         error: "api_key_required",
-        message: "No API key configured. Run any unbrowse CLI command to auto-register, then retry.",
+        message: "No API key configured. Restart the server to auto-register, or run: bash scripts/setup.sh",
         docs_url: "https://unbrowse.ai",
       });
     }
@@ -235,19 +235,21 @@ export async function registerRoutes(app: FastifyInstance) {
     };
     const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
+    const execParams = {
+      ...(params ?? {}),
+      ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
+    };
     try {
-      const effectiveParams = {
-        ...(params ?? {}),
-        ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
-        ...(intent && typeof params?.intent !== "string" ? { intent } : {}),
-      };
-      const execResult = await executeSkill(skill, effectiveParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
+      if (execResult.trace.endpoint_id) {
+        recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
+      }
       if (execResult.trace.success) {
         promoteExplicitExecution(
           clientScope,
           intent || skill.intent_signature,
-          context_url || (typeof effectiveParams.url === "string" ? effectiveParams.url : undefined),
+          context_url || (typeof execParams.url === "string" ? execParams.url : undefined),
           skill,
           execResult.trace.endpoint_id,
           execResult.result,
@@ -264,17 +266,20 @@ export async function registerRoutes(app: FastifyInstance) {
         try {
           const recoveryUrl =
             context_url ||
-            (typeof effectiveParams.url === "string" && effectiveParams.url) ||
+            (typeof execParams.url === "string" && execParams.url) ||
             skill.endpoints.find((endpoint) => typeof endpoint.trigger_url === "string" && endpoint.trigger_url)?.trigger_url ||
             `https://${skill.domain}`;
           const freshResult = await resolveAndExecute(
             intent || skill.intent_signature,
-            { ...effectiveParams, url: recoveryUrl },
+            { ...execParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
             { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
+          if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
+            recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
+          }
           return reply.send({
             ...freshResult,
             _recovery: {
@@ -321,14 +326,13 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/auth/login — interactive OAuth flow or direct browser cookie extraction
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
-    const { url, browser } = req.body as { url: string; browser?: string };
+    const { url } = req.body as { url: string };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
-      const result = await interactiveLogin(url, undefined, { browser });
+      const result = await interactiveLogin(url);
       return reply.send(result);
     } catch (err) {
-      const message = (err as Error).message;
-      return reply.code(/unsupported browser|default browser .*not supported|not available on/i.test(message) ? 400 : 500).send({ error: message });
+      return reply.code(500).send({ error: (err as Error).message });
     }
   });
 

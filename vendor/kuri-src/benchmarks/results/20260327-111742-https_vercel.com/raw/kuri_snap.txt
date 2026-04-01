@@ -1,0 +1,241 @@
+RootWebArea "Vercel: Build and deploy the best web experiences with the AI Cloud"
+link "Skip to content" @e0
+link "Save the date" @e1
+navigation "Vercel Directory"
+link "VercelLogotype" @e2
+heading "GET STARTED"
+heading "BUILD"
+heading "SCALE"
+heading "SECURE"
+heading "RESOURCES"
+heading "LEARN"
+heading "FRAMEWORKS"
+heading "SDKS"
+heading "USE CASES"
+heading "COMPANY"
+heading "COMMUNITY"
+link "LOADING STATUS\u2026" @e3
+group "Select a display theme:"
+image "VercelLogotype"
+button "Ask AI" @e4
+button "Open menu" @e5
+StaticText "Ship 26 is coming to 5 cities"
+heading "Build and deploy on the AI Cloud."
+link "Start Deploying" @e6
+link "Get a Demo" @e7
+tablist "Type of website"
+heading "Your product, delivered."
+image "Agent modal thinking"
+image "Web browser featuring the text: What will you create?"
+image "Commerce webpage featuring polo shirts"
+heading "Framework-Defined Infrastructure"
+link "More about Infrastructure" @e8
+link "Learn about Enterprise" @e9
+heading "Fluid Compute"
+link "Learn more" @e10
+image "Fluid compute"
+heading "AI Gateway"
+heading "Deploy your first app in seconds."
+link "Next.js Templates" @e11
+link "React Templates" @e12
+link "Astro Templates" @e13
+link "Svelte Templates" @e14
+link "Nuxt Templates" @e15
+link "Python Templates" @e16
+link "S t a r t D e p l o y i n g" @e17
+link "Talk to an Expert" @e18
+link "Get an Enterprise Trial" @e19
+link "Vercel logo" @e20
+radio "system" @e21
+radio "light" @e22
+radio "dark" @e23
+image "Vercel's logo, a triangle, sits in the center of a grid, surrounded by"
+StaticText "Vercel provides the developer tools and cloud infrastructure to build,"
+tab "AI Apps AI Apps" @e24
+tab "Web Apps Web Apps" @e25
+tab "Ecommerce Ecommerce" @e26
+tab "Marketing Marketing" @e27
+tab "Platforms Platforms" @e28
+link "Deploy AI Apps in seconds" @e29
+StaticText "Security, speed, and AI included, so you can focus on your user."
+heading "Agents"
+link @e30
+heading "Web Apps"
+link @e31
+heading "Composable Commerce"
+link @e32
+StaticText "From code to infrastructure in one git push."
+StaticText "Vercel deeply understands your app to provision the right resources an"
+heading "Deploy once, deliver everywhere."
+StaticText "When you push code to Vercel, we make it instantly available across th"
+log "Animated 2D grid globe with Vercel CDN nodes arbitrarily placed"
+StaticText "A compute model for all workloads. With Active\u00a0CPU pricing."
+StaticText "The AI Gateway For Developers."
+StaticText "Effortlessly access and deploy hundreds of AI models from one interfac"
+link "many more" @e33
+StaticText "Top models on "
+StaticText "Mar 27, 2026"
+StaticText "Claude Sonnet 4.6"
+StaticText "34.9"
+StaticText "Gemini 3 Flash"
+StaticText "19.1"
+StaticText "Claude Opus 4.6"
+StaticText "16.6"
+StaticText "Grok 4.1 Fast Non-Reasoning"
+StaticText "6.3"
+StaticText "KAT-Coder-Pro V1"
+StaticText "3.1"
+StaticText "GPT 5.4 Mini"
+StaticText "2.9"
+StaticText "Grok 4.1 Fast Reasoning"
+StaticText "2.5"
+StaticText "Claude Haiku 4.5"
+StaticText "2.3"
+StaticText "Gemini 2.5 Flash Lite"
+StaticText "1.9"
+StaticText "10"
+StaticText "Minimax M2.7"
+StaticText "1.3"
+heading "S t a r t D e p l o y i n g"
+link "Templates" @e34
+link "Supported frameworks" @e35
+link "Marketplace" @e36
+link "Domains" @e37
+link "Next.js on Vercel" @e38
+link "Turborepo" @e39
+link "v0" @e40
+link "Content delivery network" @e41
+link "Fluid compute" @e42
+link "CI/CD" @e43
+link "Observability" @e44
+link "AI Gateway NEW" @e45
+link "Vercel Agent NEW" @e46
+link "Platform security" @e47
+link "Web Application Firewall" @e48
+link "Bot management" @e49
+link "BotID" @e50
+link "Sandbox NEW" @e51
+link "Pricing" @e52
+link "Customers" @e53
+link "Enterprise" @e54
+link "Articles" @e55
+link "Startups" @e56
+link "Solution partners" @e57
+link "Docs" @e58
+link "Blog" @e59
+link "Changelog" @e60
+link "Knowledge Base" @e61
+link "Academy" @e62
+link "Community" @e63
+link "Next.js" @e64
+link "Nuxt" @e65
+link "Svelte" @e66
+link "Nitro" @e67
+link "Turbo" @e68
+link "AI SDK" @e69
+link "Workflow DevKit NEW" @e70
+link "Flags SDK" @e71
+link "Chat SDK" @e72
+link "Streamdown AI NEW" @e73
+link "Composable commerce" @e74
+link "Multi-tenant platforms" @e75
+link "Web apps" @e76
+link "Marketing sites" @e77
+link "Platform engineers" @e78
+link "Design engineers" @e79
+link "About" @e80
+link "Careers" @e81
+link "Help" @e82
+link "Press" @e83
+link "Legal" @e84
+link "Privacy Policy" @e85
+link "Open source program" @e86
+link "Events" @e87
+link "Shipped on Vercel" @e88
+link "GitHub" @e89
+link "LinkedIn" @e90
+link "X" @e91
+link "YouTube" @e92
+image "Vercel logo"
+image "Runway"
+StaticText " build times went from 7m to 40s."
+image "LeonardoAi"
+StaticText "\u00a0saw a 95% reduction in page load times.\u00a0"
+image "Zapier"
+StaticText "\u00a0saw 24x faster builds."
+StaticText "Ecommerce"
+StaticText "Marketing"
+StaticText "Platforms"
+StaticText "Get started using our pre-built templates. Easily stream long-running "
+StaticText "Deliver more value to users by executing complex workflows."
+heading "AI Apps"
+link @e93
+StaticText "Ship beautiful interfaces that don\u2019t compromise speed or function"
+StaticText "Increase conversion with fast, branded storefronts."
+heading "Multi-tenant Platform"
+link @e94
+StaticText "Nodes on the globe are sending out small pulses to indicate activity"
+button "Copy code" @e95
+StaticText "Use it with"
+radio "OpenAI" @e96
+radio "xAI" @e97
+radio "Anthropic" @e98
+StaticText "and"
+StaticText "Deploy automatically "
+StaticText " or with"
+StaticText " support for the most popular frameworks"
+StaticText " for every push"
+StaticText " for all your domains"
+StaticText "v0"
+StaticText "NEW"
+StaticText "Vercel Agent"
+StaticText "NEW"
+StaticText "Sandbox"
+StaticText "NEW"
+StaticText "Workflow DevKit"
+StaticText "NEW"
+StaticText "Streamdown AI"
+StaticText "NEW"
+StaticText "Ecommerce"
+StaticText "Marketing"
+StaticText "Platforms"
+StaticText "Enrich any product or feature with the latest models and tools."
+StaticText "Serve millions securely across isolated environments."
+StaticText "Vite"
+StaticText "Turbopack"
+StaticText "from git"
+StaticText "our CLI"
+StaticText "Wide range"
+StaticText "Previews"
+StaticText "Automatic HTTPS"
+StaticText " Templates"
+StaticText "React"
+StaticText " Templates"
+StaticText "Astro"
+StaticText " Templates"
+StaticText " Templates"
+StaticText " Templates"
+StaticText " Templates"
+StaticText "Fluid"
+StaticText "AI"
+StaticText "SDK"
+StaticText "AI"
+StaticText "GATEWAY"
+StaticText "Workflow"
+StaticText "Sandbox"
+tab "AI SDK" @e99
+tab "Python" @e100
+tab "OpenAI HTTP" @e101
+StaticText "import"
+StaticText " { streamText } "
+StaticText "from"
+StaticText "'ai'"
+StaticText "\n\n"
+StaticText "const"
+StaticText " result = "
+StaticText "streamText"
+StaticText "({\n  model: "
+StaticText "'openai/gpt-5.4'"
+StaticText "\n  prompt: "
+StaticText "'Why is the sky blue?'"
+StaticText "\n})"

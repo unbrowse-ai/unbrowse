@@ -1,0 +1,276 @@
+Skip to content
+Ask AI
+Events
+
+Ship 26 is coming to 5 cities
+
+Save the date
+Build and deploy on the AI Cloud.
+
+Vercel provides the developer tools and cloud infrastructure to build, scale, and secure a faster, more personalized web.
+
+Start Deploying
+Get a Demo
+ build times went from 7m to 40s.
+\u00a0saw a 95% reduction in page load times.\u00a0
+\u00a0saw 24x faster builds.
+AI Apps
+AI Apps
+Web Apps
+Web Apps
+Ecommerce
+Ecommerce
+Marketing
+Marketing
+Platforms
+Platforms
+
+Get started using our pre-built templates. Easily stream long-running LLM responses for a better user experience with zero-config infrastructure that's always globally performant.
+
+Deploy AI Apps in seconds
+Your product, delivered.
+
+Security, speed, and AI included, so you can focus on your user.
+
+Agents
+
+Deliver more value to users by executing complex workflows.
+
+AI Apps
+
+Enrich any product or feature with the latest models and tools.
+
+Fluid
+AI
+SDK
+AI
+GATEWAY
+Workflow
+Sandbox
+BotID
+Web Apps
+
+Ship beautiful interfaces that don\u2019t compromise speed or functionality.
+
+Composable Commerce
+
+Increase conversion with fast, branded storefronts.
+
+Multi-tenant Platform
+
+Serve millions securely across isolated environments.
+
+customer.domain.com
+project.domain.com
+jane.domain.com
+joe.domain.com
+Svelte
+Vite
+Next.js
+Nuxt
+Turbopack
+Framework-Defined Infrastructure
+
+From code to infrastructure in one git push. Vercel deeply understands your app to provision the right resources and optimize for high-performance apps.
+
+Deploy once, deliver everywhere.
+
+ When you push code to Vercel, we make it instantly available across the globe.
+
+More about Infrastructure
+Learn about Enterprise
+Nodes on the globe are sending out small pulses to indicate activity
+Fluid Compute
+
+A compute model for all workloads. With Active\u00a0CPU pricing.
+
+Learn more
+AI Gateway
+
+The AI Gateway For Developers. Effortlessly access and deploy hundreds of AI models from one interface.
+
+AI SDK
+Python
+OpenAI HTTP
+1
+2
+3
+4
+5
+6
+import { streamText } from 'ai'
+
+const result = streamText({
+  model: 'openai/gpt-5.4',
+  prompt: 'Why is the sky blue?'
+})
+
+Use it with
+
+OpenAI
+xAI
+Anthropic
+
+and
+
+many more
+
+Top models on Mar 27, 2026
+
+1
+
+Claude Sonnet 4.6
+
+34.9%
+
+2
+
+Gemini 3 Flash
+
+19.1%
+
+3
+
+Claude Opus 4.6
+
+16.6%
+
+4
+
+Grok 4.1 Fast Non-Reasoning
+
+6.3%
+
+5
+
+KAT-Coder-Pro V1
+
+3.1%
+
+6
+
+GPT 5.4 Mini
+
+2.9%
+
+7
+
+Grok 4.1 Fast Reasoning
+
+2.5%
+
+8
+
+Claude Haiku 4.5
+
+2.3%
+
+9
+
+Gemini 2.5 Flash Lite
+
+1.9%
+
+10
+
+Minimax M2.7
+
+1.3%
+
+Deploy your first app in seconds.
+Deploy automatically from git or with our CLI
+Wide range support for the most popular frameworks
+Previews for every push
+Automatic HTTPS for all your domains
+Next.js Templates
+React Templates
+Astro Templates
+Svelte Templates
+Nuxt Templates
+Python Templates
+Start Deploying
+Start Deploying
+Talk to an Expert
+Get an Enterprise Trial
+GET STARTED
+Templates
+Supported frameworks
+Marketplace
+Domains
+BUILD
+Next.js on Vercel
+Turborepo
+v0
+SCALE
+Content delivery network
+Fluid compute
+CI/CD
+Observability
+AI Gateway
+NEW
+Vercel Agent
+NEW
+SECURE
+Platform security
+Web Application Firewall
+Bot management
+BotID
+Sandbox
+NEW
+RESOURCES
+Pricing
+Customers
+Enterprise
+Articles
+Startups
+Solution partners
+LEARN
+Docs
+Blog
+Changelog
+Knowledge Base
+Academy
+Community
+FRAMEWORKS
+Next.js
+Nuxt
+Svelte
+Nitro
+Turbo
+SDKS
+AI SDK
+Workflow DevKit
+NEW
+Flags SDK
+Chat SDK
+Streamdown AI
+NEW
+USE CASES
+Composable commerce
+Multi-tenant platforms
+Web apps
+Marketing sites
+Platform engineers
+Design engineers
+COMPANY
+About
+Careers
+Help
+Press
+Legal
+Privacy Policy
+COMMUNITY
+Open source program
+Events
+Shipped on Vercel
+GitHub
+LinkedIn
+X
+YouTube
+
+LOADING STATUS\u2026
+
+Select a display theme:
+system
+light
+dark

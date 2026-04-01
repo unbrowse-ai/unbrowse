@@ -1,4 +1,5 @@
 const std = @import("std");
+const net = std.net;
 
 // Import all modules under test
 const config_mod = @import("../bridge/config.zig");
@@ -14,6 +15,50 @@ const validator = @import("../crawler/validator.zig");
 const json_util = @import("../util/json.zig");
 const harness_mod = @import("harness.zig");
 const launcher_mod = @import("../chrome/launcher.zig");
+const router_mod = @import("../server/router.zig");
+
+const FakeChromeServer = struct {
+    port: u16,
+    thread: std.Thread,
+
+    fn start(body: []const u8) !FakeChromeServer {
+        var port: u16 = 19440;
+        while (port < 19540) : (port += 1) {
+            const address = try net.Address.parseIp4("127.0.0.1", port);
+            const server = address.listen(.{ .reuse_address = true }) catch |err| switch (err) {
+                error.AddressInUse => continue,
+                else => return err,
+            };
+            const thread = try std.Thread.spawn(.{}, serveOnce, .{ server, body });
+            return .{ .port = port, .thread = thread };
+        }
+        return error.NoFreePort;
+    }
+
+    fn stop(self: *FakeChromeServer) void {
+        self.thread.join();
+    }
+
+    fn serveOnce(server: net.Server, body: []const u8) !void {
+        var tcp_server = server;
+        defer tcp_server.deinit();
+
+        const conn = try tcp_server.accept();
+        defer conn.stream.close();
+
+        var req_buf: [2048]u8 = undefined;
+        _ = conn.stream.read(&req_buf) catch 0;
+
+        const response = try std.fmt.allocPrint(
+            std.heap.page_allocator,
+            "HTTP/1.1 200 OK\r\nContent-Length:{d}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{s}",
+            .{ body.len, body },
+        );
+        defer std.heap.page_allocator.free(response);
+
+        try conn.stream.writeAll(response);
+    }
+};
 
 // ─── Config Tests ───────────────────────────────────────────────────────
 
@@ -23,10 +68,65 @@ test "config defaults are sensible" {
     try std.testing.expectEqual(@as(u16, 8080), cfg.port);
     try std.testing.expectEqual(@as(?[]const u8, null), cfg.cdp_url);
     try std.testing.expectEqual(@as(?[]const u8, null), cfg.auth_secret);
-    try std.testing.expectEqualStrings(".browdie", cfg.state_dir);
+    try std.testing.expectEqualStrings(".kuri", cfg.state_dir);
     try std.testing.expectEqual(@as(u32, 30), cfg.stale_tab_interval_s);
     try std.testing.expectEqual(@as(u32, 30_000), cfg.request_timeout_ms);
     try std.testing.expectEqual(@as(u32, 30_000), cfg.navigate_timeout_ms);
+}
+
+test "discoverTabs hydrates bridge from Chrome target list" {
+    const body =
+        \\[
+        \\  {
+        \\    "id":"page-1",
+        \\    "type":"page",
+        \\    "url":"https://example.com",
+        \\    "title":"Example",
+        \\    "webSocketDebuggerUrl":"ws://127.0.0.1:9222/devtools/page/page-1"
+        \\  },
+        \\  {
+        \\    "id":"worker-1",
+        \\    "type":"service_worker",
+        \\    "url":"https://example.com/sw.js",
+        \\    "title":"Worker",
+        \\    "webSocketDebuggerUrl":"ws://127.0.0.1:9222/devtools/page/worker-1"
+        \\  }
+        \\]
+    ;
+
+    var fake = try FakeChromeServer.start(body);
+    defer fake.stop();
+
+    const cdp_url = try std.fmt.allocPrint(std.testing.allocator, "http://127.0.0.1:{d}/json/version", .{fake.port});
+    defer std.testing.allocator.free(cdp_url);
+
+    var bridge = Bridge.init(std.testing.allocator);
+    defer bridge.deinit();
+
+    const cfg = config_mod.Config{
+        .host = "127.0.0.1",
+        .port = 8080,
+        .cdp_url = cdp_url,
+        .auth_secret = null,
+        .state_dir = ".kuri",
+        .stale_tab_interval_s = 30,
+        .request_timeout_ms = 30_000,
+        .navigate_timeout_ms = 30_000,
+        .extensions = null,
+        .headless = true,
+    };
+
+    var arena_impl = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_impl.deinit();
+
+    const discovered = try router_mod.discoverTabs(arena_impl.allocator(), &bridge, cfg, fake.port);
+    try std.testing.expectEqual(@as(usize, 1), discovered);
+    try std.testing.expectEqual(@as(usize, 1), bridge.tabCount());
+
+    const tab = bridge.getTab("page-1").?;
+    try std.testing.expectEqualStrings("https://example.com", tab.url);
+    try std.testing.expectEqualStrings("Example", tab.title);
+    try std.testing.expectEqualStrings("ws://127.0.0.1:9222/devtools/page/page-1", tab.ws_url);
 }
 
 // ─── Bridge Stress Tests ────────────────────────────────────────────────
