@@ -146,6 +146,17 @@ export interface QueryHookEvent {
   timestamp: number;
 }
 
+interface ExtensionEntry {
+  url: string;
+  method: string;
+  type: string;       // "xmlhttprequest", "fetch", "main_frame", etc.
+  statusCode?: number;
+  requestHeaders?: Array<{ name: string; value: string }>;
+  responseHeaders?: Array<{ name: string; value: string }>;
+  tabId?: number;
+  timestamp: number;
+}
+
 export type CapturedCookie = {
   name: string;
   value: string;
@@ -460,6 +471,31 @@ async function collectInterceptedRequests(tabId: string): Promise<Array<{
     }
   } catch { /* non-fatal */ }
   return [];
+}
+
+/**
+ * Collect network requests observed by kuri's builtin extension (chrome.webRequest).
+ * Gracefully returns [] if the extension relay is not yet wired.
+ */
+async function collectExtensionRequests(tabId: string): Promise<ExtensionEntry[]> {
+  try {
+    // Query the builtin extension's network log via the agent bridge
+    const raw = await kuri.evaluate(tabId, `
+      (function() {
+        if (!window.__kuri || !window.__kuri._networkLog) return '[]';
+        var log = window.__kuri._networkLog;
+        window.__kuri._networkLog = []; // drain
+        return JSON.stringify(log);
+      })()
+    `);
+    if (typeof raw !== "string" || !raw.startsWith("[")) return [];
+    const entries: ExtensionEntry[] = JSON.parse(raw);
+    log("capture", `extension observer: ${entries.length} entries collected`);
+    return entries;
+  } catch {
+    log("capture", "extension observer: not available (expected if relay not wired)");
+    return [];
+  }
 }
 
 /**
