@@ -9,7 +9,7 @@ on:
 jobs:
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -22,7 +22,7 @@ jobs:
 
   quality-gate:
     name: Quality Gate
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -35,7 +35,7 @@ jobs:
 
   backend-tests:
     name: Backend Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -48,7 +48,7 @@ jobs:
 
   typecheck:
     name: Typecheck Backend
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: backend
@@ -65,7 +65,7 @@ jobs:
 
   package-cli:
     name: Package CLI
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - run: git submodule update --init submodules/kuri
@@ -84,7 +84,7 @@ jobs:
 
   cli-e2e:
     name: CLI E2E
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       UNBROWSE_DISABLE_AUTO_UPDATE: "1"
       UNBROWSE_NON_INTERACTIVE: "1"
