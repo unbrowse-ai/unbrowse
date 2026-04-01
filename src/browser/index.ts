@@ -1,7 +1,12 @@
 import * as kuri from "../kuri/client.js";
+import type { KuriHarEntry } from "../kuri/client.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
+import { extractEndpoints } from "../reverse-engineer/index.js";
+import type { RawRequest } from "../capture/index.js";
+import { queueBackgroundIndex } from "../indexer/index.js";
 import { UnbrowseResponse, type BrowserLaunchOptions, type GotoOptions, type SkillResolutionResult } from "./types.js";
 import type { SkillManifest } from "../types/index.js";
+import { nanoid } from "nanoid";
 
 /**
  * Infer a search intent from a URL's path and query params.
@@ -22,6 +27,86 @@ function inferIntentFromUrl(url: string): string {
   }
 }
 
+/** Require a live browser tab, throw if page resolved from skill cache */
+function requireTab(tabId: string | null): string {
+  if (!tabId) throw new Error("No browser tab — page resolved from skill cache. Call goto() with a URL that requires browser interaction.");
+  return tabId;
+}
+
+/** Convert Kuri HAR entries to RawRequest format for extractEndpoints */
+function harEntriesToRawRequests(entries: KuriHarEntry[]): RawRequest[] {
+  return entries
+    .filter(e => e.request && e.response)
+    .map(e => ({
+      url: e.request.url,
+      method: e.request.method,
+      request_headers: Object.fromEntries(
+        (e.request.headers ?? []).map(h => [h.name.toLowerCase(), h.value])
+      ),
+      request_body: e.request.postData?.text,
+      response_status: e.response.status,
+      response_headers: Object.fromEntries(
+        (e.response.headers ?? []).map(h => [h.name.toLowerCase(), h.value])
+      ),
+      response_body: e.response.content?.text,
+      timestamp: e.startedDateTime ?? new Date().toISOString(),
+    }));
+}
+
+/** Process captured HAR entries into routes and queue for background indexing */
+function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
+  if (entries.length === 0) return;
+
+  const requests = harEntriesToRawRequests(entries);
+  if (requests.length === 0) return;
+
+  let domain: string;
+  try { domain = new URL(pageUrl).hostname; } catch { return; }
+
+  const endpoints = extractEndpoints(requests, undefined, {
+    pageUrl,
+    finalUrl: pageUrl,
+  });
+
+  if (endpoints.length === 0) return;
+
+  const skill: SkillManifest = {
+    skill_id: nanoid(),
+    version: "1.0.0",
+    schema_version: "1",
+    lifecycle: "active" as const,
+    execution_type: "http" as const,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    name: domain,
+    intent_signature: `browse ${domain}`,
+    domain,
+    description: `Passively indexed API routes for ${domain}`,
+    owner_type: "agent" as const,
+    endpoints,
+  };
+
+  const cacheKey = `passive:${domain}:${Date.now()}`;
+  queueBackgroundIndex({
+    skill,
+    domain,
+    intent: `browse ${domain}`,
+    contextUrl: pageUrl,
+    cacheKey,
+  });
+}
+
+
+/**
+ * Page — Kuri browser tab with Unbrowse acceleration.
+ *
+ * Kuri is the primary browser primitive. Every method proxies directly to
+ * Kuri's CDP-based HTTP API. The one exception is goto(): Unbrowse
+ * transparently checks the skill cache and shared route graph first,
+ * returning structured API data in <200ms when a cached route exists.
+ * On cache miss, goto() falls through to Kuri navigation and captures
+ * traffic in the background for future acceleration.
+ */
 export class Page {
   private _tabId: string | null = null;
   private _url: string = "about:blank";
@@ -29,16 +114,31 @@ export class Page {
   private _html: string | null = null;
   private _closed = false;
   private _defaultIntent?: string;
+  private _harActive = false;
 
   /** @internal */
   constructor(tabId: string | null, defaultIntent?: string) {
     this._tabId = tabId;
     this._defaultIntent = defaultIntent;
+    // Start passive HAR recording so all network traffic is captured
+    if (tabId) {
+      kuri.harStart(tabId).then(() => { this._harActive = true; }).catch(() => {});
+    }
   }
 
+  /** Whether this page has a live browser tab (vs skill-cache-only) */
+  get hasTab(): boolean { return this._tabId !== null; }
+
+  /** The raw Kuri tab ID, for direct kuri API calls */
+  get tabId(): string | null { return this._tabId; }
+
+  // ── Navigation ──────────────────────────────────────────────────────
+
   /**
-   * Navigate to a URL. Checks skill cache first — if a cached skill exists,
-   * returns the skill result without opening a browser tab.
+   * Navigate to a URL. Unbrowse transparently checks skill cache first —
+   * if a cached route exists, returns structured API data without opening
+   * a browser tab. On cache miss, navigates via Kuri and captures traffic
+   * in the background for future acceleration.
    */
   async goto(url: string, options?: GotoOptions): Promise<UnbrowseResponse> {
     this._url = url;
@@ -76,19 +176,28 @@ export class Page {
       // Resolve failed — fall through to kuri navigation
     }
 
-    // Cache miss or resolve failure — navigate via kuri.
-    // resolveAndExecute already runs the full capture pipeline (marketplace lookup,
-    // first-pass browser action, live capture + indexing) as its last resort.
-    // This fallback only fires when that entire pipeline fails, so we keep it
-    // lightweight: navigate, grab HTML, and return.
+    // Cache miss or resolve failure — navigate via Kuri directly.
     if (this._tabId) {
+      // Flush any prior HAR entries before navigating to a new page
+      if (this._harActive && this._url !== "about:blank") {
+        try {
+          const { entries } = await kuri.harStop(this._tabId);
+          passiveIndexHar(entries, this._url);
+        } catch { /* non-fatal */ }
+        this._harActive = false;
+      }
+
       await kuri.navigate(this._tabId, url);
       const finalUrl = await kuri.getCurrentUrl(this._tabId).catch(() => url);
       if (typeof finalUrl === "string" && finalUrl.startsWith("http")) {
         this._url = finalUrl;
       }
 
-      // Fetch HTML eagerly so content() returns useful data immediately
+      // Restart HAR recording for the new page
+      if (!this._harActive) {
+        kuri.harStart(this._tabId).then(() => { this._harActive = true; }).catch(() => {});
+      }
+
       try {
         const html = await kuri.getPageHtml(this._tabId);
         if (typeof html === "string" && html.startsWith("<")) {
@@ -107,6 +216,28 @@ export class Page {
     });
   }
 
+  /** Navigate back */
+  async goBack(): Promise<void> {
+    await kuri.goBack(requireTab(this._tabId));
+  }
+
+  /** Navigate forward */
+  async goForward(): Promise<void> {
+    await kuri.goForward(requireTab(this._tabId));
+  }
+
+  /** Reload the page */
+  async reload(): Promise<void> {
+    await kuri.reload(requireTab(this._tabId));
+  }
+
+  /** Get current URL */
+  url(): string {
+    return this._url;
+  }
+
+  // ── Content Extraction ──────────────────────────────────────────────
+
   /** Get page HTML content */
   async content(): Promise<string> {
     if (this._skillResult) {
@@ -123,38 +254,114 @@ export class Page {
     return this._html ?? "";
   }
 
-  /** Get current URL */
-  url(): string {
-    return this._url;
+  /** Get page text content (stripped of HTML) */
+  async text(): Promise<string> {
+    return kuri.getText(requireTab(this._tabId));
   }
 
-  /** Evaluate JavaScript in page context */
-  async evaluate<T = unknown>(fn: string | (() => T)): Promise<T> {
-    if (!this._tabId) throw new Error("No browser tab — page resolved from skill cache");
-    const script = typeof fn === "function" ? `(${fn.toString()})()` : fn;
-    const result = await kuri.evaluate(this._tabId, script);
-    return result as T;
+  /** Get page content as Markdown */
+  async markdown(): Promise<string> {
+    return kuri.getMarkdown(requireTab(this._tabId));
   }
 
-  /** Take a screenshot (returns base64-encoded PNG string) */
-  async screenshot(): Promise<string> {
-    if (!this._tabId) throw new Error("No browser tab — page resolved from skill cache");
-    return await kuri.screenshot(this._tabId);
+  /** Extract all links from the page */
+  async links(): Promise<unknown> {
+    return kuri.getLinks(requireTab(this._tabId));
   }
 
-  /** Click an element (BROWSER-02 — uses evaluate fallback if kuri hook unavailable) */
-  async click(selector: string): Promise<void> {
-    if (!this._tabId) throw new Error("No browser tab — page resolved from skill cache");
-    await kuri.evaluate(this._tabId, `document.querySelector(${JSON.stringify(selector)})?.click()`);
+  /**
+   * Get accessibility tree snapshot — token-optimized for LLMs.
+   * Returns elements with stable @eN refs for use with click/fill/action.
+   * This is Kuri's primary observation primitive for agent loops.
+   */
+  async snapshot(filter?: string): Promise<string> {
+    return kuri.snapshot(requireTab(this._tabId), filter);
   }
 
-  /** Fill an input (BROWSER-02 — uses evaluate fallback if kuri hook unavailable) */
-  async fill(selector: string, value: string): Promise<void> {
-    if (!this._tabId) throw new Error("No browser tab — page resolved from skill cache");
-    await kuri.evaluate(this._tabId, `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (el) { el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('input', {bubbles:true})); } })()`);
+  // ── Actions (ref-based via Kuri) ────────────────────────────────────
+
+  /**
+   * Click an element by ref (from snapshot) or CSS selector.
+   * Ref-based clicks (e.g. "e5") use Kuri's native action system.
+   * CSS selectors fall back to evaluate-based clicking.
+   */
+  async click(refOrSelector: string): Promise<void> {
+    const tabId = requireTab(this._tabId);
+    if (/^e\d+$/.test(refOrSelector)) {
+      await kuri.click(tabId, refOrSelector);
+    } else {
+      await kuri.evaluate(tabId, `document.querySelector(${JSON.stringify(refOrSelector)})?.click()`);
+    }
   }
 
-  /** Wait for a selector to appear */
+  /**
+   * Fill an input by ref (from snapshot) or CSS selector.
+   * Ref-based fills use Kuri's native action system with input event dispatch.
+   */
+  async fill(refOrSelector: string, value: string): Promise<void> {
+    const tabId = requireTab(this._tabId);
+    if (/^e\d+$/.test(refOrSelector)) {
+      await kuri.fill(tabId, refOrSelector, value);
+    } else {
+      await kuri.evaluate(tabId, `(() => { const el = document.querySelector(${JSON.stringify(refOrSelector)}); if (el) { el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('input', {bubbles:true})); } })()`);
+    }
+  }
+
+  /** Select an option by ref */
+  async select(ref: string, value: string): Promise<void> {
+    await kuri.select(requireTab(this._tabId), ref, value);
+  }
+
+  /** Scroll by direction */
+  async scroll(direction: "up" | "down" | "left" | "right" = "down", amount?: number): Promise<void> {
+    await kuri.scroll(requireTab(this._tabId), direction, amount);
+  }
+
+  /** Scroll an element into view by ref */
+  async scrollIntoView(ref: string): Promise<void> {
+    await kuri.scrollIntoView(requireTab(this._tabId), ref);
+  }
+
+  /** Drag from one ref to another */
+  async drag(fromRef: string, toRef: string): Promise<void> {
+    await kuri.drag(requireTab(this._tabId), fromRef, toRef);
+  }
+
+  /** Press a key (e.g. "Enter", "Tab", "Escape") */
+  async press(key: string): Promise<void> {
+    await kuri.press(requireTab(this._tabId), key);
+  }
+
+  /** Perform a raw Kuri action by ref */
+  async action(actionType: string, ref: string, value?: string): Promise<unknown> {
+    return kuri.action(requireTab(this._tabId), actionType as any, ref, value);
+  }
+
+  // ── Keyboard ────────────────────────────────────────────────────────
+
+  /** Type text with key events */
+  async type(text: string): Promise<void> {
+    await kuri.keyboardType(requireTab(this._tabId), text);
+  }
+
+  /** Insert text directly (no key events) */
+  async insertText(text: string): Promise<void> {
+    await kuri.keyboardInsertText(requireTab(this._tabId), text);
+  }
+
+  /** Dispatch a keydown event */
+  async keyDown(key: string): Promise<void> {
+    await kuri.keyDown(requireTab(this._tabId), key);
+  }
+
+  /** Dispatch a keyup event */
+  async keyUp(key: string): Promise<void> {
+    await kuri.keyUp(requireTab(this._tabId), key);
+  }
+
+  // ── Wait ────────────────────────────────────────────────────────────
+
+  /** Wait for a CSS selector to appear */
   async waitForSelector(selector: string, options?: { timeout?: number }): Promise<void> {
     if (!this._tabId) return; // No-op for skill-resolved pages
     const timeout = options?.timeout ?? 5000;
@@ -167,9 +374,148 @@ export class Page {
     throw new Error(`waitForSelector: timeout waiting for ${selector}`);
   }
 
-  /** Close this page */
+  /** Wait for page load */
+  async waitForLoad(): Promise<void> {
+    await kuri.waitForLoad(requireTab(this._tabId));
+  }
+
+  // ── Evaluate ────────────────────────────────────────────────────────
+
+  /** Evaluate JavaScript in page context */
+  async evaluate<T = unknown>(fn: string | (() => T)): Promise<T> {
+    const tabId = requireTab(this._tabId);
+    const script = typeof fn === "function" ? `(${fn.toString()})()` : fn;
+    const result = await kuri.evaluate(tabId, script);
+    return result as T;
+  }
+
+  // ── DOM Queries ─────────────────────────────────────────────────────
+
+  /** Query DOM elements by CSS selector */
+  async query(selector: string): Promise<unknown> {
+    return kuri.domQuery(requireTab(this._tabId), selector);
+  }
+
+  /** Get element HTML by CSS selector */
+  async innerHTML(selector: string): Promise<unknown> {
+    return kuri.domHtml(requireTab(this._tabId), selector);
+  }
+
+  /** Get element attributes by ref */
+  async attributes(ref: string): Promise<unknown> {
+    return kuri.domAttributes(requireTab(this._tabId), ref);
+  }
+
+  /** Find text matches in the page */
+  async findText(query: string): Promise<unknown> {
+    return kuri.findText(requireTab(this._tabId), query);
+  }
+
+  // ── Screenshots & Media ─────────────────────────────────────────────
+
+  /** Take a screenshot (returns base64-encoded PNG string) */
+  async screenshot(): Promise<string> {
+    return kuri.screenshot(requireTab(this._tabId));
+  }
+
+  // ── Cookies & Auth ──────────────────────────────────────────────────
+
+  /** Get cookies for the current page */
+  async cookies(): Promise<unknown> {
+    return kuri.getCookies(requireTab(this._tabId));
+  }
+
+  /** Set a cookie */
+  async setCookie(name: string, value: string, domain?: string): Promise<void> {
+    await kuri.setCookie(requireTab(this._tabId), name, value, domain);
+  }
+
+  /** Set custom request headers */
+  async setHeaders(headers: Record<string, string>): Promise<void> {
+    await kuri.setHeaders(requireTab(this._tabId), headers);
+  }
+
+  // ── HAR Recording ───────────────────────────────────────────────────
+
+  /** Start recording network traffic (HAR format) */
+  async harStart(): Promise<void> {
+    await kuri.harStart(requireTab(this._tabId));
+  }
+
+  /** Stop recording and return HAR 1.2 JSON */
+  async harStop(): Promise<unknown> {
+    return kuri.harStop(requireTab(this._tabId));
+  }
+
+  /** Get network events */
+  async networkEvents(): Promise<unknown> {
+    return kuri.getNetworkEvents(requireTab(this._tabId));
+  }
+
+  // ── Viewport & Emulation ────────────────────────────────────────────
+
+  /** Set viewport size */
+  async setViewport(width: number, height: number): Promise<void> {
+    await kuri.setViewport(requireTab(this._tabId), width, height);
+  }
+
+  /** Override user agent */
+  async setUserAgent(ua: string): Promise<void> {
+    await kuri.setUserAgent(requireTab(this._tabId), ua);
+  }
+
+  /** Set HTTP basic auth credentials */
+  async setCredentials(username: string, password: string): Promise<void> {
+    await kuri.setCredentials(requireTab(this._tabId), username, password);
+  }
+
+  // ── Session ─────────────────────────────────────────────────────────
+
+  /** Save browser session (cookies + storage) */
+  async sessionSave(name: string): Promise<void> {
+    await kuri.sessionSave(requireTab(this._tabId), name);
+  }
+
+  /** Restore a saved browser session */
+  async sessionLoad(name: string): Promise<void> {
+    await kuri.sessionLoad(requireTab(this._tabId), name);
+  }
+
+  /** List saved sessions */
+  async sessionList(): Promise<unknown> {
+    return kuri.sessionList(requireTab(this._tabId));
+  }
+
+  // ── Debug ───────────────────────────────────────────────────────────
+
+  /** Get console messages */
+  async console(): Promise<unknown> {
+    return kuri.getConsole(requireTab(this._tabId));
+  }
+
+  /** Get page/runtime errors */
+  async errors(): Promise<unknown> {
+    return kuri.getErrors(requireTab(this._tabId));
+  }
+
+  /** Inject JavaScript into the page */
+  async injectScript(script: string): Promise<void> {
+    await kuri.scriptInject(requireTab(this._tabId), script);
+  }
+
+  // ── Lifecycle ───────────────────────────────────────────────────────
+
+  /** Close this page. Stops passive HAR recording and indexes captured traffic. */
   async close(): Promise<void> {
     if (this._tabId && !this._closed) {
+      // Stop HAR and passively index any captured API traffic
+      if (this._harActive) {
+        try {
+          const { entries } = await kuri.harStop(this._tabId);
+          passiveIndexHar(entries, this._url);
+        } catch { /* HAR stop failure is non-fatal */ }
+        this._harActive = false;
+      }
       await kuri.closeTab(this._tabId).catch(() => {});
       this._closed = true;
     }
@@ -181,6 +527,13 @@ export class Page {
   }
 }
 
+/**
+ * Browser — launches Kuri (Zig-native CDP broker) as the primary browser.
+ *
+ * Kuri is the agent's browser. Unbrowse runs in the background, learning
+ * internal APIs from traffic and progressively replacing browser calls with
+ * direct API calls via the skill cache.
+ */
 export class Browser {
   private _pages: Page[] = [];
   private _defaultIntent?: string;
@@ -190,7 +543,7 @@ export class Browser {
     this._defaultIntent = options?.intent;
   }
 
-  /** Launch a new browser instance */
+  /** Launch Kuri browser instance */
   static async launch(options?: BrowserLaunchOptions): Promise<Browser> {
     const browser = new Browser(options);
     await kuri.start().catch(() => {});
