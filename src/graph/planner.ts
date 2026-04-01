@@ -14,6 +14,7 @@ import type {
   SkillOperationEdge,
 } from "../types/index.js";
 import { ensureSkillOperationGraph } from "./index.js";
+import { deriveAuthDependencies } from "../auth/runtime.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,6 +45,8 @@ export interface DagAdvisoryPlan {
   prerequisite_order: string[];
   /** Operations in the graph that are not needed for the target. */
   skippable: string[];
+  /** Auth dependencies detected from endpoint semantics. */
+  auth_dependencies: import("../auth/runtime.js").AuthDependency[];
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +200,9 @@ export function fetchDagAdvisoryPlan(
   const graph = ensureSkillOperationGraph(skill);
   const knownSet = new Set(knownBindingKeys);
 
+  // Derive auth dependencies from the target endpoint's semantics.
+  const authDeps = deriveAuthDependencies(skill, targetEndpointId);
+
   // Find the target operation by endpoint_id.
   const targetOp = graph.operations.find(
     (op) => op.endpoint_id === targetEndpointId,
@@ -207,6 +213,7 @@ export function fetchDagAdvisoryPlan(
       predicted_next: [],
       prerequisite_order: [],
       skippable: [],
+      auth_dependencies: authDeps,
     };
   }
 
@@ -241,6 +248,7 @@ export function fetchDagAdvisoryPlan(
     predicted_next: predictedNext,
     prerequisite_order: prerequisiteOrder,
     skippable,
+    auth_dependencies: authDeps,
   };
 }
 
