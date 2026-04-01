@@ -223,6 +223,8 @@ export interface SkillManifest {
   discovery_cost?: DiscoveryCost;
   /** Intent strings that contributed endpoints to this domain-level skill */
   intents?: string[];
+  /** Agent ID of the indexer who published this skill - used for Tier 1 attribution */
+  indexer_id?: string;
   /** Graph v2: endpoint dependencies, semantic summaries, and dynamic availability */
   operation_graph?: SkillOperationGraph;
 }

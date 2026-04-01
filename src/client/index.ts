@@ -109,12 +109,18 @@ export function getApiKey(): string {
 }
 
 /**
- * Derive a stable, privacy-safe indexer identifier from the raw API key.
+* Derive a stable, privacy-safe indexer identifier from the raw API key.
  * Returns a hex SHA-256 hash, or "" for empty / local-only keys.
  */
 export function hashApiKey(key: string): string {
   if (!key || key === "local-only") return "";
   return createHash("sha256").update(key).digest("hex");
+* Return the locally registered agent_id, or null if not registered.
+ * Used as the default indexer_id for Tier 1 attribution when the skill
+ * manifest doesn't already carry one.
+export function getAgentId(): string | null {
+  const config = loadConfig();
+  return config?.agent_id ?? null;
 }
 
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
@@ -648,15 +654,32 @@ export async function searchIntentResolve(
 
 // --- Stats ---
 
-export async function recordExecution(
+/** Execution payload sent to POST /v1/stats/execution */
+export interface ExecutionPayload {
+  skill_id: string;
+  endpoint_id: string;
+  trace: Omit<ExecutionTrace, "result">;
+  indexer_id?: string;
+}
+
+/**
+ * Build the POST body for /v1/stats/execution.
+ * Pure function — no I/O, fully testable.
+ *
+ * Derives indexer_id from:
+ *   1. Explicit override (opts.indexer_id)
+ *   2. skill.indexer_id (set by the backend at publish time)
+ *   3. undefined (backend will fall back to its own lookup)
+ */
+export function buildExecutionPayload(
   skillId: string,
   endpointId: string,
-  trace: ExecutionTrace
-): Promise<void> {
-  if (LOCAL_ONLY) return;
-  // Strip actual API response data — only send metadata for scoring
+  trace: ExecutionTrace,
+  skill?: Pick<SkillManifest, "indexer_id"> | null,
+  opts?: { indexer_id?: string },
+): ExecutionPayload {
   const { result: _result, ...metadata } = trace;
-  // Derive a privacy-safe indexer_id from the API key for Tier 1 attribution (#232)
+// Derive a privacy-safe indexer_id from the API key for Tier 1 attribution (#232)
   const indexerId = hashApiKey(getApiKey());
   await api("POST", "/v1/stats/execution", {
     skill_id: skillId,
@@ -664,6 +687,21 @@ export async function recordExecution(
     trace: metadata,
     ...(indexerId ? { indexer_id: indexerId } : {}),
   });
+const indexer_id = opts?.indexer_id ?? skill?.indexer_id ?? undefined;
+  const payload: ExecutionPayload = {
+  };
+  if (indexer_id) payload.indexer_id = indexer_id;
+  return payload;
+}
+export async function recordExecution(
+  skillId: string,
+  endpointId: string,
+  trace: ExecutionTrace,
+  skill?: Pick<SkillManifest, "indexer_id"> | null,
+): Promise<void> {
+  if (LOCAL_ONLY) return;
+  const payload = buildExecutionPayload(skillId, endpointId, trace, skill);
+  await api("POST", "/v1/stats/execution", payload);
 }
 
 export async function recordFeedback(
