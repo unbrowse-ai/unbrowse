@@ -43,13 +43,25 @@ export interface PaymentGateResult {
 }
 
 // ---------------------------------------------------------------------------
-// X402 configuration — Solana + USDC via corbits.dev
+// X402 configuration — Solana + Base, USDC via corbits.dev
 // ---------------------------------------------------------------------------
 
 export const X402_CONFIG = {
-  chain: "solana",
-  currency: "USDC",
-  facilitator: "https://api.corbits.dev",
+  chains: {
+    solana: {
+      network: "solana",
+      currency: "USDC",
+      testnet: "solana-devnet",
+      mainnet: "solana-mainnet",
+    },
+    base: {
+      network: "base",
+      currency: "USDC",
+      testnet: "base-sepolia",
+      mainnet: "base-mainnet",
+    },
+  },
+  facilitator: "https://facilitator.corbits.dev",
   supports_pda_wallets: true,
 } as const;
 
@@ -147,7 +159,7 @@ export async function checkPaymentRequirement(
   const requirement: PaymentRequirement = {
     required: true,
     amount,
-    currency: X402_CONFIG.currency,
+    currency: "USDC",
     reason: `Per-query fee for ${skillId}/${endpointId}`,
     recipient: X402_CONFIG.facilitator,
     memo: `unbrowse:${skillId}:${endpointId}`,
@@ -165,7 +177,7 @@ export async function checkPaymentRequirement(
   return {
     status: "payment_required",
     requirement,
-    message: `This execution requires ${amount} ${X402_CONFIG.currency}. Transaction execution and final status are handled by your wallet provider.`,
+    message: `This execution requires ${amount} USDC. Transaction execution and final status are handled by your wallet provider.`,
     next_step: "If a wallet step is required and wallet context is missing, complete wallet setup first.",
   };
 }

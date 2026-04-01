@@ -15,6 +15,7 @@ out/
 .env.local
 .env.*.local
 .env.runtime
+.env.x402
 backend/.dev.vars
 
 # Project-specific
