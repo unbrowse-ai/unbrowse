@@ -43,6 +43,51 @@ function schemaKeys(ep: EndpointDescriptor): string {
   return nested.slice(0, 10).join(", ");
 }
 
+function collectTemplateParams(value: unknown, params: Set<string>): void {
+  if (typeof value === "string") {
+    for (const match of value.matchAll(/\{([^}]+)\}/g)) {
+      const param = match[1]?.trim();
+      if (param) params.add(param);
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectTemplateParams(item, params);
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      params.add(key);
+      collectTemplateParams(nested, params);
+    }
+  }
+}
+
+function collectParamNames(ep: EndpointDescriptor): string[] {
+  const params = new Set<string>();
+  collectTemplateParams(ep.url_template, params);
+  collectTemplateParams(ep.query, params);
+  collectTemplateParams(ep.body, params);
+  collectTemplateParams(ep.headers_template, params);
+  return Array.from(params).sort();
+}
+
+function actionKind(method: EndpointDescriptor["method"]): "read" | "create" | "update" | "delete" | "stream" {
+  switch (method) {
+    case "POST":
+      return "create";
+    case "PUT":
+    case "PATCH":
+      return "update";
+    case "DELETE":
+      return "delete";
+    case "WS":
+      return "stream";
+    default:
+      return "read";
+  }
+}
+
 /** Build a compact summary line for one endpoint (used in the LLM prompt) */
 /** Build a compact summary line for one endpoint (used in the LLM prompt) */
 function endpointSummary(ep: EndpointDescriptor, idx: number): string {

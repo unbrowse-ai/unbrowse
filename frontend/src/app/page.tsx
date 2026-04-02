@@ -12,8 +12,8 @@ import { ArrowRight, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, 
 const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? "For skill-compatible hosts, start with npx skills add unbrowse-ai/unbrowse. If you want the local runtime wired automatically, use the one-shot installer script. If you do not want auto-detect, the manual fallback is npm install -g unbrowse. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths. OpenClaw, Hermes, and ElizaOS use native browser-replacement integrations rather than simple package installs, so their full setup lives in the docs."
-  : "Start with the shared skill: npx skills add unbrowse-ai/unbrowse. The landing page is intentionally pinned to that path for now. Full host-specific wiring and runtime setup still live in skill.md when you need them.";
+  ? "For CLI-first hosts, start with npx unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. If you prefer a global install, use npm install -g unbrowse or npm install -g unbrowse-openclaw depending on the host. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths."
+  : "Start with npx unbrowse setup for the CLI host path. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -64,7 +64,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with npm install -g unbrowse@latest and rerun unbrowse setup. For skill-based agent platforms like OpenClaw, use npx skills add unbrowse-ai/unbrowse.",
+        text: "Run npx unbrowse setup for the CLI host path. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart.",
       },
     },
     {
@@ -93,7 +93,7 @@ export default function Home() {
           </p>
           <p>Setup: npx unbrowse setup</p>
           <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
-          <p>For skill hosts: npx skills add unbrowse-ai/unbrowse</p>
+          <p>For OpenClaw: npx unbrowse-openclaw install --restart</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
@@ -449,7 +449,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for a one-command installation that sets up browser assets and configures your agent host. If Unbrowse is already installed, upgrade to the latest version with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For skill-based agent platforms like OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx skills add unbrowse-ai/unbrowse</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for the CLI host path. If Unbrowse is already installed, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

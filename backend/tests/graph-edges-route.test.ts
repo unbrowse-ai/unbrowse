@@ -91,6 +91,7 @@ const API_URL = process.env.GRAPH_TEST_API_URL ?? "https://beta-api.unbrowse.ai"
 const API_KEY = process.env.GRAPH_TEST_API_KEY ?? "";
 const TIMEOUT = 30_000;
 const RETRY_DELAY_MS = 5_000;
+const liveIt = process.env.GRAPH_TEST_RUN === "1" ? it : it.skip;
 
 async function postLiveGraphEdges(body: unknown) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -119,7 +120,7 @@ async function postLiveGraphEdges(body: unknown) {
 }
 
 describe("POST /v1/graph/edges — integration", () => {
-  it("upserts edges for a test node", async () => {
+  liveIt("upserts edges for a test node", async () => {
     const testDomain = `test-integration-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.example.com`;
     const res = await postLiveGraphEdges({
       domain: testDomain,

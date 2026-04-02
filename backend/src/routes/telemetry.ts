@@ -19,9 +19,9 @@ telemetryRoutes.post("/telemetry/events", async (c) => {
     host_type?: string;
     created_at?: string;
     properties?: Record<string, unknown>;
-  }>().catch(() => ({}));
+  }>().catch(() => null);
 
-  if (!body.install_id || !body.name || !body.source) {
+  if (!body?.install_id || !body.name || !body.source) {
     return c.json({ error: "install_id, name, and source are required" }, 400);
   }
 
@@ -52,9 +52,9 @@ telemetryRoutes.post("/telemetry/install", async (c) => {
     status?: string;
     created_at?: string;
     properties?: Record<string, unknown>;
-  }>().catch(() => ({}));
+  }>().catch(() => null);
 
-  if (!body.install_id || !body.source) {
+  if (!body?.install_id || !body.source) {
     return c.json({ error: "install_id and source are required" }, 400);
   }
 
@@ -85,9 +85,9 @@ telemetryRoutes.post("/telemetry/web", async (c) => {
     referrer?: string | null;
     created_at?: string;
     properties?: Record<string, unknown>;
-  }>().catch(() => ({}));
+  }>().catch(() => null);
 
-  if (!body.visitor_id || !body.session_id || !body.name) {
+  if (!body?.visitor_id || !body.session_id || !body.name) {
     return c.json({ error: "visitor_id, session_id, and name are required" }, 400);
   }
 
