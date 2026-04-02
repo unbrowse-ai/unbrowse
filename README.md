@@ -4,6 +4,8 @@ Turn any website into a reusable API interface for agents. Unbrowse captures net
 
 One agent learns a site once. Every later agent gets the fast path.
 
+Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, but with route learning, reuse, and browser fallback built in.
+
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
 ## Quick start
@@ -62,6 +64,15 @@ git submodule update --init --recursive
 ```
 
 This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](https://github.com/justrach/kuri.git). `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
+
+## Docs
+
+Long-form docs live under [`docs/`](./docs/), including the restored whitepaper companion set:
+
+- [`docs/whitepaper/README.md`](./docs/whitepaper/README.md) - public companion index
+- [`docs/whitepaper/for-technical-readers.md`](./docs/whitepaper/for-technical-readers.md) - architecture, eval truth, and product boundary
+- [`docs/whitepaper/for-investors.md`](./docs/whitepaper/for-investors.md) - market and business framing
+- [`docs/analytics-api.md`](./docs/analytics-api.md) - canonical investor/product analytics surface
 
 ## What setup does
 

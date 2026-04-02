@@ -214,6 +214,29 @@ const comparisonRows: { dimension: string; pow: string; poi: string }[] = [
   },
 ];
 
+const faqItems: { question: string; answer: string }[] = [
+  {
+    question: "What is proof of indexing?",
+    answer:
+      "Proof of indexing is Unbrowse's incentive mechanism for building a shared route graph for AI agents. Contributors browse real websites, Unbrowse discovers the callable API routes behind those sessions, and contributors earn USDC when agents resolve those routes from the shared index.",
+  },
+  {
+    question: "Why not just use browser automation or scraping?",
+    answer:
+      "Because browser automation repeats the same discovery work every time. It launches a browser, renders pixels, parses DOM, and reconstructs structure on every session. Proof of indexing turns that repeated cost into a reusable asset: once a route is discovered, future agents can call it directly.",
+  },
+  {
+    question: "Why pay contributors in USDC instead of a token?",
+    answer:
+      "USDC keeps the mechanism tied to usage instead of speculation. Contributors earn stable dollars, agents pay stable dollars, and the network only grows when routes are useful enough to get real traffic. No governance token, no liquidity mining, no fake yield.",
+  },
+  {
+    question: "How do contributors earn more?",
+    answer:
+      "By indexing valuable domains early, keeping routes current, and maintaining high-quality coverage on workflows agents actually query. The upside comes from useful route volume, not from hoarding a token or spinning up more hardware.",
+  },
+];
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -246,12 +269,28 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
     isAccessibleForFree: true,
     inLanguage: "en-US",
   };
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
 
   return (
     <div className="bg-surface min-h-screen text-text-primary">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
 
       <article className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
@@ -402,6 +441,27 @@ export default function ProofOfIndexingVsProofOfWorkPage() {
                 First-indexer bonus on new domains
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-2xl font-semibold tracking-tight mb-4">
+            FAQ
+          </h2>
+          <div className="space-y-6">
+            {faqItems.map((item) => (
+              <div
+                key={item.question}
+                className="rounded-2xl border border-border bg-surface-raised p-6"
+              >
+                <h3 className="text-lg font-semibold tracking-tight mb-2">
+                  {item.question}
+                </h3>
+                <p className="text-base sm:text-lg leading-8 text-text-secondary">
+                  {item.answer}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
