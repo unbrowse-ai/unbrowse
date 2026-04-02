@@ -128,6 +128,7 @@ export function getAgentId(): string | null {
 }
 
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
+const PUBLISH_TIMEOUT_MS = parseInt(process.env.UNBROWSE_PUBLISH_TIMEOUT ?? "30000", 10);
 
 async function validateApiKey(key: string): Promise<ApiKeyValidationResult> {
   const controller = new AbortController();
@@ -190,10 +191,10 @@ async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource }
   return null;
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean }): Promise<T> {
+async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean; timeoutMs?: number }): Promise<T> {
   const key = opts?.noAuth ? "" : getApiKey();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
@@ -570,7 +571,7 @@ export async function publishSkill(
     } as SkillManifest & { warnings: string[] };
   }
   if (LOCAL_ONLY) throw new Error("local-only mode");
-  return api("POST", "/v1/skills", draft);
+  return api("POST", "/v1/skills", draft, { timeoutMs: PUBLISH_TIMEOUT_MS });
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
