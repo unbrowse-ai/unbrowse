@@ -13,6 +13,8 @@
 * **frontend/economics**: add explicit `/login`, `/dashboard`, and `/leaderboard` surfaces for agent-key auth, economics visibility, and public contribution ranking
 ### Bug Fixes
 
+* **browse/session**: validate stored Kuri tabs before reuse, recreate the browse session once on recoverable CDP/transport failures or empty snapshots, and fall forward to a fresh Kuri port when the default listener is wedged, so `unbrowse go/snap/eval` no longer stay pinned to dead tabs or a poisoned `127.0.0.1:7700`
+* **browse/submit**: add `POST /v1/browse/submit` plus `unbrowse submit`, with generic DOM submit first, same-origin HTML rehydrate fallback, best-effort `data-load-plugins` / `WRS.require` recovery, and capture restart so JS-heavy multi-step checkouts can advance without site-specific JS indexing
 * **github/ci**: remove stale `main` base-branch assumptions from workflows and PR helper scripts so repo automation targets `rach/restart-base` only
 * **ci/backend**: restore the shared telemetry type exports used by analytics routes, make the x402 gate Worker-safe without Node `Buffer`, mark the live graph-edge test truly opt-in again, and stop npm `prepack` from deleting tracked Kuri binaries before CI package validation
 * **openclaw plugin**: restore the repo `ensure-submodules` helper, add the missing `print-trusted-install` CLI path for the OpenClaw Unbrowse plugin, ship a one-shot installer plus published `npx unbrowse-openclaw install` package entrypoint, point frontend/install docs at the npm plugin flow, and clean up the plugin install/allowlist docs so the Unbrowse-first browser replacement flow is actually usable
