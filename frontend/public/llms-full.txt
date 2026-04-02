@@ -90,6 +90,8 @@ unbrowse setup
 npx unbrowse-openclaw install --restart
 ```
 
+The package pulls in the local Unbrowse runtime automatically. Older OpenClaw builds may ask once to trust the plugin.
+
 ### Upgrading
 
 ```
