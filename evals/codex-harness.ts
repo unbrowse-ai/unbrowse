@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { spawn } from "node:child_process";
 import { assessIntentResult } from "../src/intent-match.js";
 import { getAuthCookies } from "../src/auth/index.js";
-import { buildAgentExecuteCliArgs, compactForArtifact, deriveEndpointSignals, fallbackEndpointOrder, normalizeHarnessCases, type DeferredEndpoint, type HarnessCase, type ReviewQueueCandidate } from "./codex-harness-lib.js";
+import { buildAgentExecuteCliArgs, compactForArtifact, deriveEndpointSignals, fallbackEndpointOrder, hasCliFlag, normalizeHarnessCases, type DeferredEndpoint, type HarnessCase, type ReviewQueueCandidate } from "./codex-harness-lib.js";
 import { isRepeatableEval, type EvalResult } from "./eval-types.js";
 import { buildLocalHarnessFixtures } from "../src/graph/local-fixtures.js";
 import { evaluateDependencyWalks, evaluateLocalHarness, type DependencyWalkCase } from "../src/graph/local-harness.js";
@@ -128,7 +128,7 @@ const argv = process.argv.slice(
 );
 const args = new Set(argv);
 const getArg = (flag: string) => argv.find((_, i) => argv[i - 1] === `--${flag}`) ?? "";
-const hasFlag = (flag: string) => args.has(`--${flag}`);
+const hasFlag = (flag: string) => hasCliFlag(args, flag);
 const forceCapture = hasFlag("--force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
 const restartServer = hasFlag("--restart-server");
 const maxReviewCandidates = Math.max(1, Number(getArg("max-candidates") || getArg("max-attempts") || "3") || 3);
