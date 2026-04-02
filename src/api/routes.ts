@@ -407,10 +407,10 @@ export async function registerRoutes(app: FastifyInstance) {
       }
     }
 
-    // Also publish to marketplace so all agents benefit
-    try {
-      await publishSkill(skill);
-    } catch { /* marketplace publish is best-effort */ }
+    // Also publish to marketplace so all agents benefit — then re-cache
+    // locally since publishSkill merges backend fields that may overwrite
+    try { await publishSkill(skill); } catch {}
+    try { cachePublishedSkill(skill); } catch {}
     return reply.send({ ok: true, endpoints_updated: reviews.length });
   });
 
@@ -466,8 +466,10 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       }
 
-      // Publish to marketplace
+      // Publish to marketplace — then re-cache locally since publishSkill
+      // merges backend fields that may overwrite our updated endpoints
       try { await publishSkill(skill); } catch {}
+      try { cachePublishedSkill(skill); } catch {}
       return reply.send({
         ok: true,
         skill_id: skill.skill_id,
