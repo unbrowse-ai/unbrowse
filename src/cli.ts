@@ -252,6 +252,93 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   output(result, !!flags.pretty);
 }
 
+// ---------------------------------------------------------------------------
+// Post-processing helpers for --path, --extract, --limit, --schema
+// ---------------------------------------------------------------------------
+
+/** Drill into a value using a dot-path like "data.items[].name".
+ *  `[]` flattens arrays at that level so nested arrays become flat collections. */
+function drillPath(data: unknown, path: string): unknown {
+  const segments = path.split(/\./).flatMap((s) => {
+    // "items[]" → ["items", "[]"]
+    const m = s.match(/^(.+)\[\]$/);
+    return m ? [m[1], "[]"] : [s];
+  });
+  // Work with an array of "current values" to handle multi-level flattening
+  let values: unknown[] = [data];
+  for (const seg of segments) {
+    if (values.length === 0) return [];
+    if (seg === "[]") {
+      // Flatten: each value that is an array gets its elements spread out
+      values = values.flatMap((v) => (Array.isArray(v) ? v : [v]));
+      continue;
+    }
+    // Drill into each value
+    values = values.flatMap((v) => {
+      if (v == null) return [];
+      if (Array.isArray(v)) {
+        // Auto-flatten arrays even without explicit []
+        return v.map((item) => (item as Record<string, unknown>)?.[seg]).filter((x) => x !== undefined);
+      }
+      if (typeof v === "object") {
+        const val = (v as Record<string, unknown>)[seg];
+        return val !== undefined ? [val] : [];
+      }
+      return [];
+    });
+  }
+  return values;
+}
+
+/** Resolve a dot-path on a single object, e.g. "core.user_results.result.core.screen_name" */
+function resolveDotPath(obj: unknown, path: string): unknown {
+  let cur = obj;
+  for (const key of path.split(".")) {
+    if (cur == null || typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[key];
+  }
+  return cur;
+}
+
+/** Apply --extract field spec: "alias:deep.path,field2,alias2:path" */
+function applyExtract(items: unknown[], extractSpec: string): unknown[] {
+  const fields = extractSpec.split(",").map((f) => {
+    const colon = f.indexOf(":");
+    if (colon > 0) return { alias: f.slice(0, colon), path: f.slice(colon + 1) };
+    return { alias: f, path: f };
+  });
+  return items
+    .map((item) => {
+      const row: Record<string, unknown> = {};
+      let hasValue = false;
+      for (const { alias, path } of fields) {
+        const val = resolveDotPath(item, path);
+        row[alias] = val ?? null;
+        if (val != null) hasValue = true;
+      }
+      return hasValue ? row : null;
+    })
+    .filter((row): row is Record<string, unknown> => row !== null);
+}
+
+/** Build a compact schema tree from a value (depth-limited). */
+function schemaOf(value: unknown, depth = 4): unknown {
+  if (value == null) return "null";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return ["unknown"];
+    return [schemaOf(value[0], depth - 1)];
+  }
+  if (typeof value === "object") {
+    if (depth <= 0) return "object";
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = schemaOf(v, depth - 1);
+    }
+    return out;
+  }
+  return typeof value;
+}
+
 async function cmdExecute(flags: Record<string, string | boolean>): Promise<void> {
   const skillId = flags.skill as string;
   if (!skillId) die("--skill is required");
@@ -280,6 +367,53 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   // Strip metadata bloat
   result = slimTrace(result);
 
+  const pathFlag = flags.path as string | undefined;
+  const extractFlag = flags.extract as string | undefined;
+  const limitFlag = flags.limit ? Number(flags.limit) : undefined;
+  const schemaFlag = !!flags.schema;
+  const rawFlag = !!flags.raw;
+
+  // --schema: show response structure without data
+  if (schemaFlag && !rawFlag) {
+    const data = result.result;
+    output({ trace: result.trace, schema: schemaOf(data) }, !!flags.pretty);
+    return;
+  }
+
+  // Apply --path, --extract, --limit when not --raw
+  if (!rawFlag && (pathFlag || extractFlag || limitFlag)) {
+    let data = pathFlag ? drillPath(result.result, pathFlag) : result.result;
+
+    // Ensure array for extract/limit
+    const items = Array.isArray(data) ? data : data != null ? [data] : [];
+
+    // Apply --extract
+    const extracted = extractFlag ? applyExtract(items, extractFlag) : items;
+
+    // Apply --limit
+    const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
+
+    output({ trace: result.trace, data: limited, count: limited.length }, !!flags.pretty);
+    return;
+  }
+
+  // Auto-wrap large responses with extraction_hints when no flags given
+  if (!rawFlag && !pathFlag && !extractFlag && !schemaFlag) {
+    const raw = JSON.stringify(result.result);
+    if (raw && raw.length > 2048) {
+      const schema = schemaOf(result.result);
+      output({
+        trace: result.trace,
+        extraction_hints: {
+          message: "Response is large. Use --path/--extract/--limit to filter, or --schema to see structure, or --raw for full response.",
+          schema_tree: schema,
+          response_bytes: raw.length,
+        },
+      }, !!flags.pretty);
+      return;
+    }
+  }
+
   output(result, !!flags.pretty);
 }
 
@@ -298,6 +432,16 @@ async function cmdFeedback(flags: Record<string, string | boolean>): Promise<voi
   if (flags.diagnostics) body.diagnostics = JSON.parse(flags.diagnostics as string);
 
   output(await api("POST", "/v1/feedback", body), !!flags.pretty);
+}
+
+async function cmdReview(flags: Record<string, string | boolean>): Promise<void> {
+  const skillId = flags.skill as string;
+  if (!skillId) die("--skill is required");
+  const endpointsJson = flags.endpoints as string;
+  if (!endpointsJson) die("--endpoints is required (JSON array of {endpoint_id, description?, action_kind?, resource_kind?})");
+  const endpoints = JSON.parse(endpointsJson) as Array<Record<string, unknown>>;
+  if (!Array.isArray(endpoints) || endpoints.length === 0) die("--endpoints must be a non-empty JSON array");
+  output(await api("POST", `/v1/skills/${skillId}/review`, { endpoints }), !!flags.pretty);
 }
 
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
@@ -841,7 +985,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "login", "skills", "skill", "search", "sessions",
+    "feedback", "fb", "review", "login", "skills", "skill", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "close",
@@ -875,6 +1019,7 @@ async function main(): Promise<void> {
     case "resolve": return cmdResolve(flags);
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
+    case "review": return cmdReview(flags);
     case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);
