@@ -164,6 +164,58 @@ async function findFreeCdpPort(): Promise<number> {
   return 9222; // Fallback
 }
 
+/** Launch the user's real Chrome with CDP debugging if no Chrome is running.
+ *  This gives Kuri access to all the user's existing cookies/sessions. */
+async function ensureUserChromeRunning(): Promise<void> {
+  // Check if Chrome already has CDP
+  for (const port of [9222, 9223, 9224, 9225]) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(500) });
+      if (res.ok) return; // Already running
+    } catch { /* not on this port */ }
+  }
+
+  // No CDP-enabled Chrome found — launch the user's real Chrome with debugging
+  const chromePaths: Record<string, string> = {
+    darwin: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    linux: "google-chrome",
+    win32: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  };
+  const chromeBin = chromePaths[process.platform];
+  if (!chromeBin) return;
+
+  const port = await findFreeCdpPort();
+  log("kuri", `launching user Chrome with CDP on port ${port}`);
+
+  try {
+    const child = spawn(chromeBin, [
+      `--remote-debugging-port=${port}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+    ], {
+      stdio: "ignore",
+      detached: true,
+    });
+    child.unref();
+
+    // Wait for CDP to become available
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(500) });
+        if (res.ok) {
+          log("kuri", `user Chrome ready with CDP on port ${port}`);
+          return;
+        }
+      } catch { /* not ready */ }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    log("kuri", "user Chrome launched but CDP not responding — Kuri will launch managed Chrome");
+  } catch (err) {
+    log("kuri", `failed to launch user Chrome: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
 function kuriUrl(path: string, params?: Record<string, string>): string {
   const base = `http://127.0.0.1:${kuriPort}${path}`;
   if (!params || Object.keys(params).length === 0) return base;
@@ -252,14 +304,14 @@ export async function start(port?: number): Promise<void> {
     throw new Error(`Kuri binary not found at ${binary}`);
   }
 
-  // Check if Chrome is already running — if so, pass CDP_URL to connect
-  // If not, omit CDP_URL so Kuri launches its own managed Chrome
+  // Discover existing Chrome CDP if available
   await discoverCdpPort();
 
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
     PORT: String(kuriPort),
     HOST: "127.0.0.1",
+    HEADLESS: "false",  // Use visible Chrome so extensions (stealth) load + user-data-dir is used
   };
   if (kuriCdpPort) {
     env.CDP_URL = `ws://127.0.0.1:${kuriCdpPort}`;
@@ -329,6 +381,11 @@ export async function start(port?: number): Promise<void> {
       kuriProcess.kill();
       await waitForChildExit(kuriProcess);
     }
+    // Also kill any orphaned Chrome processes on the CDP port
+    try {
+      execFileSync("pkill", ["-f", `remote-debugging-port=${kuriCdpPort ?? 9222}`], { stdio: "ignore" });
+      await new Promise((r) => setTimeout(r, 1000));
+    } catch { /* no matching process — fine */ }
   }
   throw new Error(`Kuri failed to start after ${maxAttempts} attempts`);
 }
@@ -940,4 +997,26 @@ export async function getConsole(tabId: string): Promise<unknown> {
 /** Get JavaScript errors from the page. */
 export async function getErrors(tabId: string): Promise<unknown> {
   return kuriGet("/errors", { tab_id: tabId });
+}
+
+// ── Auth Profiles ─────────────────────────────────────────────────────
+
+/** Save cookies + storage as a named auth profile (persisted in Keychain on macOS). */
+export async function authProfileSave(tabId: string, name: string): Promise<unknown> {
+  return kuriGet("/auth/profile/save", { tab_id: tabId, name });
+}
+
+/** Load a named auth profile into a tab (restores cookies + storage). */
+export async function authProfileLoad(tabId: string, name: string): Promise<unknown> {
+  return kuriGet("/auth/profile/load", { tab_id: tabId, name });
+}
+
+/** List saved auth profiles. */
+export async function authProfileList(tabId: string): Promise<unknown> {
+  return kuriGet("/auth/profile/list", { tab_id: tabId });
+}
+
+/** Delete a saved auth profile. */
+export async function authProfileDelete(name: string): Promise<unknown> {
+  return kuriGet("/auth/profile/delete", { name });
 }

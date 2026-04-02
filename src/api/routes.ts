@@ -1,4 +1,18 @@
 import type { FastifyInstance } from "fastify";
+import * as kuri from "../kuri/client.js";
+import type { KuriHarEntry } from "../kuri/client.js";
+import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
+import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, type RawRequest } from "../capture/index.js";
+import { queueBackgroundIndex } from "../indexer/index.js";
+import { nanoid } from "nanoid";
+import type { SkillManifest } from "../types/index.js";
+import { extractBrowserCookies } from "../auth/browser-cookies.js";
+import { mergeEndpoints } from "../marketplace/index.js";
+import { buildSkillOperationGraph } from "../graph/index.js";
+import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
+import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
+import { storeCredential } from "../vault/index.js";
+import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
@@ -18,6 +32,137 @@ import { join } from "path";
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
+
+
+/** Convert Kuri HAR entries to RawRequest format */
+function harEntriesToRawRequests(entries: KuriHarEntry[]): RawRequest[] {
+  return entries
+    .filter(e => e.request && e.response)
+    .map(e => ({
+      url: e.request.url,
+      method: e.request.method,
+      request_headers: Object.fromEntries((e.request.headers ?? []).map(h => [h.name.toLowerCase(), h.value])),
+      request_body: e.request.postData?.text,
+      response_status: e.response.status,
+      response_headers: Object.fromEntries((e.response.headers ?? []).map(h => [h.name.toLowerCase(), h.value])),
+      response_body: e.response.content?.text,
+      timestamp: e.startedDateTime ?? new Date().toISOString(),
+    }));
+}
+
+/** Process HAR entries into routes and queue for background indexing */
+/** Full passive indexing pipeline — same enrichment as explicit capture */
+function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void {
+  if (requests.length === 0) return;
+
+  let domain: string;
+  try { domain = new URL(pageUrl).hostname; } catch { return; }
+  const intent = `browse ${domain}`;
+
+  // Fire-and-forget — full pipeline runs async
+  void (async () => {
+    try {
+      // 1. Extract endpoints from captured traffic
+      const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
+      if (rawEndpoints.length === 0) {
+        console.log(`[passive-index] ${domain}: 0 endpoints from ${requests.length} requests`);
+        return;
+      }
+
+      // 2. Extract and store auth credentials (cookies + sensitive headers)
+      const capturedAuthHeaders = extractAuthHeaders(requests);
+      if (Object.keys(capturedAuthHeaders).length > 0) {
+        const authKey = `${domain}-session`;
+        await storeCredential(authKey, JSON.stringify({ headers: capturedAuthHeaders }));
+      }
+
+      // 3. Merge with existing skill for this domain (never reduce endpoint count)
+      const existingSkill = findExistingSkillForDomain(domain, intent);
+      const mergedEndpoints = existingSkill
+        ? mergeEndpoints(existingSkill.endpoints, rawEndpoints)
+        : rawEndpoints;
+      // Guard: if passive capture found fewer endpoints than what exists, keep the richer set
+      if (existingSkill && mergedEndpoints.length < existingSkill.endpoints.length) {
+        console.log(`[passive-index] ${domain}: skipping — would reduce ${existingSkill.endpoints.length} → ${mergedEndpoints.length} endpoints`);
+        return;
+      }
+
+      // 4. Generate descriptions for endpoints without them (enables BM25 ranking)
+      for (const ep of mergedEndpoints) {
+        if (!ep.description) {
+          ep.description = generateLocalDescription(ep);
+        }
+      }
+
+      // 5. Skip LLM-based augmentation — the calling agent IS the LLM.
+      // Endpoint descriptions come from generateLocalDescription (heuristic).
+      // The agent reviews endpoints in the deferral response and picks the right one.
+      const enrichedEndpoints = mergedEndpoints;
+
+      // 6. Build operation dependency graph
+      const operationGraph = buildSkillOperationGraph(enrichedEndpoints);
+
+      // 7. Assemble full skill manifest
+      const skill: SkillManifest = {
+        skill_id: existingSkill?.skill_id ?? nanoid(),
+        version: "1.0.0",
+        schema_version: "1",
+        lifecycle: "active" as const,
+        execution_type: "http" as const,
+        created_at: existingSkill?.created_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        name: domain,
+        intent_signature: intent,
+        domain,
+        description: `API skill for ${domain}`,
+        owner_type: "agent" as const,
+        endpoints: enrichedEndpoints,
+        operation_graph: operationGraph,
+        intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
+      };
+
+      // 8. Cache locally for immediate reuse — write to BOTH the published skill cache
+      // AND the domain skill snapshot so resolveAndExecute finds it on next call
+      try { cachePublishedSkill(skill); } catch { /* best-effort */ }
+
+      // Write domain skill snapshot (keyed by resolve cache key)
+      const bgCacheKey = buildResolveCacheKey(domain, intent, pageUrl);
+      const bgScopedKey = scopedCacheKey("global", bgCacheKey);
+      writeSkillSnapshot(bgScopedKey, skill);
+
+      // Update domain-level reuse cache
+      const bgDomainKey = getDomainReuseKey(pageUrl ?? domain);
+      if (bgDomainKey) {
+        domainSkillCache.set(bgDomainKey, {
+          skillId: skill.skill_id,
+          localSkillPath: snapshotPathForCacheKey(bgScopedKey),
+          ts: Date.now(),
+        });
+        persistDomainCache();
+      }
+
+      // 9. Queue background index (graph building, validation, marketplace publish)
+      const cacheKey = `passive:${domain}:${Date.now()}`;
+      queueBackgroundIndex({ skill, domain, intent, contextUrl: pageUrl, cacheKey });
+
+      console.log(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed from ${requests.length} requests`);
+    } catch (err) {
+      console.error(`[passive-index] ${domain} failed: ${err instanceof Error ? err.message : err}`);
+    }
+  })();
+}
+
+/** Convenience wrapper: convert HAR entries and run passive indexing */
+function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
+  passiveIndexFromRequests(harEntriesToRawRequests(entries), pageUrl);
+}
+// ── Browse session state (module-level so orchestrator can register sessions) ──
+const browseSessions = new Map<string, { tabId: string; url: string; harActive: boolean; domain: string }>();
+
+/** Register a browse session from the orchestrator (Phase 4 handoff) */
+export function registerBrowseSession(tabId: string, url: string, domain: string): void {
+  browseSessions.set("default", { tabId, url, harActive: true, domain });
+}
 
 // ── /v1/stats cache ──────────────────────────────────────────────────
 let statsCache: { data: unknown; ts: number } | null = null;
@@ -507,6 +652,292 @@ export async function registerRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.code(502).send({ error: `Proxy to beta-api failed: ${(err as Error).message}` });
     }
+  });
+
+  // ── Browse session management ─────────────────────────────────────────
+  // Kuri browser actions with passive HAR indexing. The server manages a
+  // per-session tab + HAR state so every action the agent takes through
+  // the CLI is passively captured and indexed.
+
+  // browseSessions is module-level (shared with orchestrator via registerBrowseSession)
+
+  /** Extract registrable domain for auth profile naming */
+  function profileName(url: string): string {
+    try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "unknown"; }
+  }
+
+  async function getOrCreateBrowseSession(): Promise<{ tabId: string; url: string; harActive: boolean; domain: string }> {
+    const existing = browseSessions.get("default");
+    if (existing) return existing;
+    await kuri.start().catch(() => {});
+    const tabId = await kuri.newTab();
+    await kuri.harStart(tabId).catch(() => {});
+    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    const session = { tabId, url: "about:blank", harActive: true, domain: "" };
+    browseSessions.set("default", session);
+    return session;
+  }
+
+  // POST /v1/browse/go — navigate to URL
+  app.post("/v1/browse/go", async (req, reply) => {
+    const { url } = req.body as { url: string };
+    if (!url) return reply.code(400).send({ error: "url required" });
+    const session = await getOrCreateBrowseSession();
+    const newDomain = profileName(url);
+
+    // Flush prior HAR entries before navigating
+    if (session.harActive && session.url !== "about:blank") {
+      try {
+        const { entries } = await kuri.harStop(session.tabId);
+        passiveIndexHar(entries, session.url);
+      } catch { /* non-fatal */ }
+      session.harActive = false;
+    }
+
+    // Auto-save auth profile for the old domain before leaving
+    if (session.domain && session.domain !== newDomain) {
+      await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+    }
+
+    // Inject cookies: try Kuri auth profile first, fall back to Chrome SQLite extraction
+    if (newDomain && newDomain !== session.domain) {
+      await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
+
+      // Also inject cookies from the user's real Chrome/Firefox browser
+      try {
+        const { cookies: browserCookies } = extractBrowserCookies(newDomain);
+        if (browserCookies.length > 0) {
+          for (const c of browserCookies) {
+            await kuri.setCookie(session.tabId, c).catch(() => {});
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+    // Start capture BEFORE navigation so all initial API calls are recorded
+    await kuri.networkEnable(session.tabId).catch(() => {});
+    await kuri.harStart(session.tabId).catch(() => {});
+    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    session.harActive = true;
+
+    await kuri.navigate(session.tabId, url);
+    const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
+    session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
+    session.domain = profileName(session.url);
+
+    // Re-inject interceptor via evaluate for current page context
+    await kuri.evaluate(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+
+    return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain });
+  });
+
+  // POST /v1/browse/snap — a11y snapshot
+  app.post("/v1/browse/snap", async (req, reply) => {
+    const { filter } = (req.body as { filter?: string }) ?? {};
+    const session = await getOrCreateBrowseSession();
+    const snapshot = await kuri.snapshot(session.tabId, filter);
+    return reply.send({ snapshot, tab_id: session.tabId });
+  });
+
+  // POST /v1/browse/click — click by ref
+  app.post("/v1/browse/click", async (req, reply) => {
+    const { ref } = req.body as { ref: string };
+    if (!ref) return reply.code(400).send({ error: "ref required" });
+    const session = await getOrCreateBrowseSession();
+    await kuri.click(session.tabId, ref);
+    return reply.send({ ok: true });
+  });
+
+  // POST /v1/browse/fill — fill input by ref
+  app.post("/v1/browse/fill", async (req, reply) => {
+    const { ref, value } = req.body as { ref: string; value: string };
+    if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
+    const session = await getOrCreateBrowseSession();
+    await kuri.fill(session.tabId, ref, value);
+    return reply.send({ ok: true });
+  });
+
+  // POST /v1/browse/type — keyboard type
+  app.post("/v1/browse/type", async (req, reply) => {
+    const { text } = req.body as { text: string };
+    if (!text) return reply.code(400).send({ error: "text required" });
+    const session = await getOrCreateBrowseSession();
+    await kuri.keyboardType(session.tabId, text);
+    return reply.send({ ok: true });
+  });
+
+  // POST /v1/browse/press — press key
+  app.post("/v1/browse/press", async (req, reply) => {
+    const { key } = req.body as { key: string };
+    if (!key) return reply.code(400).send({ error: "key required" });
+    const session = await getOrCreateBrowseSession();
+    await kuri.press(session.tabId, key);
+    return reply.send({ ok: true });
+  });
+
+  // POST /v1/browse/select — select option by ref
+  app.post("/v1/browse/select", async (req, reply) => {
+    const { ref, value } = req.body as { ref: string; value: string };
+    if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
+    const session = await getOrCreateBrowseSession();
+    await kuri.select(session.tabId, ref, value);
+    return reply.send({ ok: true });
+  });
+
+  // POST /v1/browse/scroll — scroll
+  app.post("/v1/browse/scroll", async (req, reply) => {
+    const { direction, amount } = (req.body as { direction?: string; amount?: number }) ?? {};
+    const session = await getOrCreateBrowseSession();
+    await kuri.scroll(session.tabId, (direction as any) ?? "down", amount);
+    return reply.send({ ok: true });
+  });
+
+  // GET /v1/browse/screenshot — capture screenshot
+  app.get("/v1/browse/screenshot", async (_req, reply) => {
+    const session = await getOrCreateBrowseSession();
+    const data = await kuri.screenshot(session.tabId);
+    return reply.send({ screenshot: data, tab_id: session.tabId });
+  });
+
+  // GET /v1/browse/text — page text
+  app.get("/v1/browse/text", async (_req, reply) => {
+    const session = await getOrCreateBrowseSession();
+    const text = await kuri.getText(session.tabId);
+    return reply.send({ text });
+  });
+
+  // GET /v1/browse/markdown — page as markdown
+  app.get("/v1/browse/markdown", async (_req, reply) => {
+    const session = await getOrCreateBrowseSession();
+    const markdown = await kuri.getMarkdown(session.tabId);
+    return reply.send({ markdown });
+  });
+
+  // GET /v1/browse/cookies — page cookies
+  app.get("/v1/browse/cookies", async (_req, reply) => {
+    const session = await getOrCreateBrowseSession();
+    const cookies = await kuri.getCookies(session.tabId);
+    return reply.send({ cookies });
+  });
+
+  // POST /v1/browse/eval — evaluate JS
+  app.post("/v1/browse/eval", async (req, reply) => {
+    const { expression } = req.body as { expression: string };
+    if (!expression) return reply.code(400).send({ error: "expression required" });
+    const session = await getOrCreateBrowseSession();
+    const result = await kuri.evaluate(session.tabId, expression);
+    return reply.send({ result });
+  });
+
+  // POST /v1/browse/back — navigate back
+  app.post("/v1/browse/back", async (_req, reply) => {
+    const session = await getOrCreateBrowseSession();
+    await kuri.goBack(session.tabId);
+    return reply.send({ ok: true });
+  });
+
+  // POST /v1/browse/forward — navigate forward
+  app.post("/v1/browse/forward", async (_req, reply) => {
+    const session = await getOrCreateBrowseSession();
+    await kuri.goForward(session.tabId);
+    return reply.send({ ok: true });
+  });
+
+  // POST /v1/browse/close — close session, flush HAR, index, save auth
+  app.post("/v1/browse/close", async (_req, reply) => {
+    const session = browseSessions.get("default");
+    if (!session) return reply.send({ ok: true, message: "no active session" });
+
+    // Save auth profile for the current domain before closing
+    if (session.domain) {
+      await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+    }
+
+    // Collect intercepted fetch/XHR requests (has response bodies HAR misses)
+    let intercepted: RawRequest[] = [];
+    try {
+      const raw = await collectInterceptedRequests(session.tabId);
+      intercepted = raw.map(r => ({
+        url: r.url,
+        method: r.method,
+        request_headers: r.request_headers ?? {},
+        request_body: r.request_body,
+        response_status: r.response_status,
+        response_headers: r.response_headers ?? {},
+        response_body: r.response_body,
+        timestamp: r.timestamp,
+      }));
+    } catch { /* non-fatal */ }
+
+    // Also collect HAR entries
+    let harEntries: KuriHarEntry[] = [];
+    if (session.harActive) {
+      try {
+        const { entries } = await kuri.harStop(session.tabId);
+        harEntries = entries;
+      } catch { /* non-fatal */ }
+    }
+
+    // Merge: intercepted requests (better bodies) + HAR entries, deduplicated
+    const harRequests = harEntriesToRawRequests(harEntries);
+    const seen = new Set<string>();
+    const allRequests: RawRequest[] = [];
+    for (const r of intercepted) {
+      const key = `${r.method}:${r.url}`;
+      if (!seen.has(key)) { seen.add(key); allRequests.push(r); }
+    }
+    for (const r of harRequests) {
+      const key = `${r.method}:${r.url}`;
+      if (!seen.has(key)) { seen.add(key); allRequests.push(r); }
+    }
+
+    // Quick synchronous cache write: extract endpoints and cache immediately
+    // so the next resolve finds them. Full enrichment runs async after.
+    {
+      let domain: string;
+      try { domain = new URL(session.url).hostname; } catch { domain = session.domain; }
+      const rawEndpoints = extractEndpoints(allRequests, undefined, { pageUrl: session.url, finalUrl: session.url });
+      if (rawEndpoints.length > 0) {
+        const existingSkill = findExistingSkillForDomain(domain);
+        const mergedEps = existingSkill ? mergeEndpoints(existingSkill.endpoints, rawEndpoints) : rawEndpoints;
+        if (!existingSkill || mergedEps.length >= existingSkill.endpoints.length) {
+          for (const ep of mergedEps) { if (!ep.description) ep.description = generateLocalDescription(ep); }
+          const quickSkill: SkillManifest = {
+            skill_id: existingSkill?.skill_id ?? nanoid(),
+            version: "1.0.0", schema_version: "1",
+            lifecycle: "active" as const, execution_type: "http" as const,
+            created_at: existingSkill?.created_at ?? new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            name: domain, intent_signature: `browse ${domain}`, domain,
+            description: `API skill for ${domain}`, owner_type: "agent" as const,
+            endpoints: mergedEps,
+            intents: Array.from(new Set([...(existingSkill?.intents ?? []), `browse ${domain}`])),
+          };
+          // Write snapshot + domain cache synchronously
+          const cacheKey = buildResolveCacheKey(domain, `browse ${domain}`, session.url);
+          const scopedKey = scopedCacheKey("global", cacheKey);
+          writeSkillSnapshot(scopedKey, quickSkill);
+          const domainKey = getDomainReuseKey(session.url ?? domain);
+          if (domainKey) {
+            domainSkillCache.set(domainKey, {
+              skillId: quickSkill.skill_id,
+              localSkillPath: snapshotPathForCacheKey(scopedKey),
+              ts: Date.now(),
+            });
+            persistDomainCache();
+          }
+          try { cachePublishedSkill(quickSkill); } catch { /* best-effort */ }
+          // Invalidate stale route cache entries so resolve finds the fresh skill
+          invalidateRouteCacheForDomain(domain);
+          console.log(`[passive-index] ${domain}: ${mergedEps.length} endpoints cached synchronously`);
+        }
+      }
+    }
+
+    // Run full async enrichment pipeline (agent augmentation, graph, marketplace publish)
+    passiveIndexFromRequests(allRequests, session.url);
+    await kuri.closeTab(session.tabId).catch(() => {});
+    browseSessions.delete("default");
+    return reply.send({ ok: true, indexed: true, auth_saved: session.domain || null });
   });
 }
 
