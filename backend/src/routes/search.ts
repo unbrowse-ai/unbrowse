@@ -3,7 +3,7 @@ import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
-import { buildSkillPaymentTerms, verifyX402Proof, x402Response } from "../middleware/x402-gate.js";
+import { buildSkillPaymentTerms, paymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
 
 function extractAgentId(authHeader: string | undefined | null): string {
   if (!authHeader) return "anonymous";
@@ -16,7 +16,7 @@ function chargeSearchFee(env: Env, agentId: string): void {
 }
 
 function shouldRequireSearchPayment(env: Env): boolean {
-  return env.ENVIRONMENT === "production";
+  return paymentsEnabled(env);
 }
 
 async function requireSearchPayment(
@@ -35,7 +35,7 @@ async function requireSearchPayment(
       `graph-search:${routeLabel}`,
       recipient,
       c.req.url,
-      { testnet: c.env.ENVIRONMENT !== "production" },
+      { testnet: x402UseTestnet(c.env) },
     );
     return x402Response(c, terms);
   }
@@ -63,8 +63,10 @@ searchRoutes.post("/search", async (c) => {
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntent(c.env, intent, k ?? 5);
-    chargeSearchFee(c.env, agentId);
-    c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
+    if (paymentsEnabled(c.env)) {
+      chargeSearchFee(c.env, agentId);
+      c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
+    }
     return c.json({ results });
   } catch (err) {
     console.error("[search] global search failed:", (err as Error).message);
@@ -80,8 +82,10 @@ searchRoutes.post("/search/domain", async (c) => {
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentInDomain(c.env, intent, domain, k ?? 5);
-    chargeSearchFee(c.env, agentId);
-    c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
+    if (paymentsEnabled(c.env)) {
+      chargeSearchFee(c.env, agentId);
+      c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
+    }
     return c.json({ results });
   } catch (err) {
     console.error("[search] domain search failed:", (err as Error).message);
@@ -102,8 +106,10 @@ searchRoutes.post("/search/resolve", async (c) => {
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
-    chargeSearchFee(c.env, agentId);
-    c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
+    if (paymentsEnabled(c.env)) {
+      chargeSearchFee(c.env, agentId);
+      c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
+    }
     return c.json(results);
   } catch (err) {
     console.error("[search] resolve search failed:", (err as Error).message);

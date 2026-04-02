@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { computeContributorShares, mergeContributor, buildSplitRecipients } from "../src/services/splits.js";
-import type { SkillContributor } from "../src/types.js";
+import { computeContributorShares, mergeContributor, buildSplitRecipients, resolveSkillPaymentRecipient, selectPrimaryContributor, syncSkillSplitConfig } from "../src/services/splits.js";
+import type { SkillContributor, SkillManifest } from "../src/types.js";
 
 function makeContributor(overrides: Partial<SkillContributor>): SkillContributor {
   return {
@@ -131,6 +131,70 @@ describe("buildSplitRecipients", () => {
     const aShare = recipients.find((r) => r.address === "wallet-a")!.share;
     const bShare = recipients.find((r) => r.address === "wallet-b")!.share;
     expect(aShare).toBeGreaterThan(bShare);
+  });
+});
+
+describe("syncSkillSplitConfig", () => {
+  it("routes multi-contributor skills to the majority contributor wallet", () => {
+    const skill = {
+      skill_id: "skill-1",
+      version: "1.0.0",
+      schema_version: "1",
+      name: "example.com",
+      intent_signature: "example.com",
+      domain: "example.com",
+      description: "fixture",
+      owner_type: "marketplace",
+      execution_type: "http",
+      endpoints: [],
+      lifecycle: "active",
+      contributors: [
+        makeContributor({ agent_id: "a", wallet_address: "wallet-a" }),
+        makeContributor({ agent_id: "b", wallet_address: "wallet-b" }),
+      ],
+      split_config: "old-split-config",
+      created_at: "2026-04-02T00:00:00.000Z",
+      updated_at: "2026-04-02T00:00:00.000Z",
+    } as SkillManifest;
+
+    const synced = syncSkillSplitConfig(skill);
+    expect(synced.split_config).toBe("wallet-a");
+  });
+});
+
+describe("selectPrimaryContributor", () => {
+  it("returns the highest-share contributor", () => {
+    const primary = selectPrimaryContributor([
+      makeContributor({ agent_id: "a", wallet_address: "wallet-a", cumulative_delta: 3 }),
+      makeContributor({ agent_id: "b", wallet_address: "wallet-b", cumulative_delta: 1 }),
+    ]);
+    expect(primary?.agent_id).toBe("a");
+    expect(primary?.wallet_address).toBe("wallet-a");
+  });
+});
+
+describe("resolveSkillPaymentRecipient", () => {
+  it("uses the majority contributor wallet before fallback recipients", () => {
+    const recipient = resolveSkillPaymentRecipient({
+      skill_id: "skill-1",
+      version: "1.0.0",
+      schema_version: "1",
+      name: "example.com",
+      intent_signature: "example.com",
+      domain: "example.com",
+      description: "fixture",
+      owner_type: "marketplace",
+      execution_type: "http",
+      endpoints: [],
+      lifecycle: "active",
+      contributors: [
+        makeContributor({ agent_id: "a", wallet_address: "wallet-a", cumulative_delta: 3 }),
+        makeContributor({ agent_id: "b", wallet_address: "wallet-b", cumulative_delta: 1 }),
+      ],
+      created_at: "2026-04-02T00:00:00.000Z",
+      updated_at: "2026-04-02T00:00:00.000Z",
+    } as SkillManifest, { PAYMENT_RECIPIENT: "platform-wallet" });
+    expect(recipient).toBe("wallet-a");
   });
 });
 

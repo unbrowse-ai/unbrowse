@@ -25,6 +25,11 @@
 * **payments/search**: make production cloud search routes return x402 `402 PAYMENT-REQUIRED` terms for Tier 3 graph lookups, and propagate those payment-required errors through the runtime instead of silently downgrading to empty marketplace results
 * **payments/tests**: add backend route coverage for the x402 skill gate so paid skill reads now prove the real `402` header handshake and proof-accepted retry path
 * **payments**: align the backend x402 gate with lobster.cash and Corbits by emitting `PAYMENT-REQUIRED` v2 terms, settling `PAYMENT-SIGNATURE` retries through the facilitator, and preserving the older `X-Payment-Proof` fallback for legacy clients
+* **payments/splits**: sync creator payout wallets onto agent profiles, route single-contributor paid skills directly to that wallet, add an authenticated wallet-sync endpoint for existing agents, fan transaction ledgers out across contributor payouts from skill attribution shares, and teach publish-time split provisioning to accept either a fixed Cascade `split_config` override or auto-create/update one through `@cascade-fyi/splits-sdk`
+* **payments/auth**: enforce auth on protected skill/stats write routes again, carry the current wallet through publish to avoid wallet-sync/read-after-write races, and clear stale single-wallet `split_config` values when a skill becomes multi-contributor
+* **payments/policy**: disable Cascade-based multi-contributor routing for now and send paid skill proceeds to the current majority contributor wallet only, with creator ledgers following the same single-recipient policy
+* **payments/e2e**: verify real Lobster x402 settlement against staging end-to-end, document `X402_NETWORK_MODE=mainnet` for staging workers, and note that winning contributor wallets must already have a mainnet USDC token account for Corbits settlement to succeed
+* **payments/flags**: add Worker-level `PAYMENTS_ENABLED` kill switch so x402 gates and Tier 3 search fees can be disabled entirely without changing skill pricing metadata or redeploying code paths
 * **telemetry/economics**: add per-agent savings ledgers from `POST /v1/stats/perf`, expose `GET /v1/dashboard/me` and `GET /v1/leaderboard`, and propagate billed Tier 3 search cost through the client/runtime for dashboard truth
 * **auth**: cookie injection via raw CDP for full `secure`/`httpOnly`/`sameSite`/`expires` support — Kuri's `/cookies` endpoint was dropping these flags, causing HTTP 400 on LinkedIn and other sites requiring secure cookies
 * **auth**: strip wrapping quotes from cookie values — Chrome stores JSESSIONID as `"ajax:..."` with literal quotes that broke LinkedIn's CSRF validation
@@ -1221,3 +1226,4 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 - fix: template param hydration now infers dev.to-style `tag` bindings from route context for query-based replay endpoints
 - fix: post projection now derives dev.to authors from article paths and recovers Lobsters scores from text-heavy list rows
 - docs: curated public expansion corpus now includes validated non-dev science/reference/news cases for arXiv, Wiktionary, and NPR, with exact blocked terminals where needed
+- x402 workers can now force `mainnet` payment terms outside production via `X402_NETWORK_MODE`, which unblocks Lobster wallet e2e against staging.

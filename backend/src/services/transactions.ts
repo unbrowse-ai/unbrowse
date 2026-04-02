@@ -13,6 +13,8 @@
 
 import type { Env } from "../types.js";
 import { statsKV } from "./kv.js";
+import { getSkill } from "./marketplace.js";
+import { computeContributorPayouts } from "./splits.js";
 
 // --- Types ---
 
@@ -26,6 +28,12 @@ export interface Transaction {
   price_uc: number;
   platform_fee_uc: number;
   creator_payout_uc: number;
+  creator_payouts?: Array<{
+    agent_id: string;
+    wallet_address?: string;
+    share: number;
+    payout_uc: number;
+  }>;
   payment_proof?: string;
   status: "completed" | "pending" | "failed";
   created_at: string;
@@ -76,7 +84,7 @@ export async function recordTransaction(
   params: {
     transaction_id: string;
     consumer_id: string;
-    creator_id: string;
+    creator_id?: string;
     skill_id: string;
     endpoint_id?: string;
     price_usd: number;
@@ -88,17 +96,25 @@ export async function recordTransaction(
   const price_uc = Math.round(params.price_usd * 1_000_000);
   const platform_fee_uc = Math.round(price_uc * PLATFORM_FEE_RATE);
   const creator_payout_uc = price_uc - platform_fee_uc;
+  const skill = await getSkill(env, params.skill_id);
+  const creator_payouts = computeContributorPayouts(skill?.contributors ?? [], creator_payout_uc, params.creator_id);
+  const primaryCreatorId = creator_payouts[0]?.agent_id ?? params.creator_id;
+
+  if (!primaryCreatorId) {
+    throw new Error("creator_id required when skill has no payable contributors");
+  }
 
   const tx: Transaction = {
     transaction_id: params.transaction_id,
     consumer_id: params.consumer_id,
-    creator_id: params.creator_id,
+    creator_id: primaryCreatorId,
     skill_id: params.skill_id,
     endpoint_id: params.endpoint_id,
     price_usd: params.price_usd,
     price_uc,
     platform_fee_uc,
     creator_payout_uc,
+    creator_payouts,
     payment_proof: params.payment_proof,
     status: "completed",
     created_at: now,
@@ -106,7 +122,7 @@ export async function recordTransaction(
 
   await kv.put(txKey(tx.transaction_id), JSON.stringify(tx));
   await updateConsumerLedger(kv, tx);
-  await updateCreatorLedger(kv, tx);
+  await updateCreatorLedgers(kv, tx);
   await addToIndex(kv, TX_INDEX_KEY, tx.transaction_id);
 
   return tx;
@@ -205,24 +221,37 @@ async function updateConsumerLedger(kv: ReturnType<typeof statsKV>, tx: Transact
   await kv.put(key, JSON.stringify(ledger));
 }
 
-async function updateCreatorLedger(kv: ReturnType<typeof statsKV>, tx: Transaction): Promise<void> {
-  const key = creatorLedgerKey(tx.creator_id);
-  const raw = await kv.get(key) as string | null;
-  let ledger: CreatorLedger;
-  if (raw) {
-    try { ledger = JSON.parse(raw) as CreatorLedger; } catch {
-      ledger = emptyCreatorLedger(tx.creator_id, tx.created_at);
+async function updateCreatorLedgers(kv: ReturnType<typeof statsKV>, tx: Transaction): Promise<void> {
+  const payouts = tx.creator_payouts?.length
+    ? tx.creator_payouts
+    : [{ agent_id: tx.creator_id, payout_uc: tx.creator_payout_uc, share: 100 }];
+
+  const totalPayoutUc = payouts.reduce((sum, payout) => sum + payout.payout_uc, 0) || 1;
+  let remainingFeeUc = tx.platform_fee_uc;
+
+  for (const [index, payout] of payouts.entries()) {
+    const key = creatorLedgerKey(payout.agent_id);
+    const raw = await kv.get(key) as string | null;
+    let ledger: CreatorLedger;
+    if (raw) {
+      try { ledger = JSON.parse(raw) as CreatorLedger; } catch {
+        ledger = emptyCreatorLedger(payout.agent_id, tx.created_at);
+      }
+    } else {
+      ledger = emptyCreatorLedger(payout.agent_id, tx.created_at);
+      await addToIndex(kv, CREATOR_INDEX_KEY, payout.agent_id);
     }
-  } else {
-    ledger = emptyCreatorLedger(tx.creator_id, tx.created_at);
-    await addToIndex(kv, CREATOR_INDEX_KEY, tx.creator_id);
+    ledger.total_earned_uc += payout.payout_uc;
+    ledger.total_earned_usd = ledger.total_earned_uc / 1_000_000;
+    const feeShareUc = index === payouts.length - 1
+      ? remainingFeeUc
+      : Math.round((tx.platform_fee_uc * payout.payout_uc) / totalPayoutUc);
+    remainingFeeUc -= feeShareUc;
+    ledger.total_fees_uc += feeShareUc;
+    ledger.transaction_count++;
+    ledger.last_transaction_at = tx.created_at;
+    await kv.put(key, JSON.stringify(ledger));
   }
-  ledger.total_earned_uc += tx.creator_payout_uc;
-  ledger.total_earned_usd = ledger.total_earned_uc / 1_000_000;
-  ledger.total_fees_uc += tx.platform_fee_uc;
-  ledger.transaction_count++;
-  ledger.last_transaction_at = tx.created_at;
-  await kv.put(key, JSON.stringify(ledger));
 }
 
 function emptyConsumerLedger(agentId: string, now: string): ConsumerLedger {
@@ -258,8 +287,22 @@ async function getTransactionsByParticipant(
       try { return JSON.parse(raw) as Transaction; } catch { return null; }
     }),
   );
-  return txs.filter((tx): tx is Transaction => {
-    if (!tx) return false;
-    return role === "consumer" ? tx.consumer_id === agentId : tx.creator_id === agentId;
-  });
+  return txs
+    .filter((tx): tx is Transaction => !!tx)
+    .filter((tx) => {
+      if (role === "consumer") return tx.consumer_id === agentId;
+      return tx.creator_payouts?.some((entry) => entry.agent_id === agentId) || tx.creator_id === agentId;
+    })
+    .map((tx) => {
+      if (role === "consumer") return tx;
+      const payout = tx.creator_payouts?.find((entry) => entry.agent_id === agentId);
+      if (!payout) return tx;
+      const payoutTotal = tx.creator_payouts?.reduce((sum, entry) => sum + entry.payout_uc, 0) || payout.payout_uc || 1;
+      return {
+        ...tx,
+        creator_id: agentId,
+        creator_payout_uc: payout.payout_uc,
+        platform_fee_uc: Math.round((tx.platform_fee_uc * payout.payout_uc) / payoutTotal),
+      };
+    });
 }

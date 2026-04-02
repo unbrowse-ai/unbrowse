@@ -12,15 +12,15 @@ transactionRoutes.post("/transactions", async (c) => {
     const body = await c.req.json<{
       transaction_id: string;
       consumer_id: string;
-      creator_id: string;
+      creator_id?: string;
       skill_id: string;
       endpoint_id?: string;
       price_usd: number;
       payment_proof?: string;
     }>();
 
-    if (!body.transaction_id || !body.consumer_id || !body.creator_id || !body.skill_id) {
-      return c.json({ error: "Missing required fields: transaction_id, consumer_id, creator_id, skill_id" }, 400);
+    if (!body.transaction_id || !body.consumer_id || !body.skill_id) {
+      return c.json({ error: "Missing required fields: transaction_id, consumer_id, skill_id" }, 400);
     }
     if (typeof body.price_usd !== "number" || body.price_usd < 0) {
       return c.json({ error: "price_usd must be a non-negative number" }, 400);

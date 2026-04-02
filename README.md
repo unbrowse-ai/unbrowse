@@ -134,7 +134,14 @@ Endpoints are connected in a dependency graph with typed edges: parent/child (li
 
 Every learned skill is published to the shared marketplace. Skills captured by agent A are discoverable by agent B on a different machine via semantic vector search. Errors agents encounter automatically file GitHub issues with full repro context (intent, URL, endpoint ID, error, kuri version).
 
-Skill creators can set a price per execution. Agents with funded wallets pay for paid skills; free skills remain free. Transactions are recorded and visible to both consumers and creators.
+Skill creators can set a price per execution. Agents with funded wallets pay for paid skills; free skills remain free. Creator payout wallets are synced from agent registration/runtime wallet state. Today paid skills route to a single payout wallet: the current majority contributor, with first-contributor winning ties. That winner wallet must be Solana mainnet USDC-ready (have a USDC token account) or Corbits settlement will fail even if the x402 proof is otherwise valid.
+
+For Cascade split provisioning during publish, set either:
+
+- `UNBROWSE_CASCADE_SPLIT_ADDRESS` or `UNBROWSE_CASCADE_SPLIT_CONFIG` to pin an already-created split config address
+- or `UNBROWSE_CASCADE_PLATFORM_WALLET`, `UNBROWSE_CASCADE_SIGNER_SECRET_KEY`, `UNBROWSE_CASCADE_RPC_URL`, and `UNBROWSE_CASCADE_RPC_WS_URL` to auto-create/update the split via `@cascade-fyi/splits-sdk`
+
+Worker payment gating is controlled by `PAYMENTS_ENABLED`. Set it to `false` / `0` / `off` to disable x402 skill gates and Tier 3 search fees entirely. Use `X402_NETWORK_MODE=mainnet` when a non-production worker still needs to advertise real mainnet payment terms for Lobster/Corbits e2e.
 
 ## Architecture
 
