@@ -56,6 +56,7 @@ Omit empty sections. No emojis. No file paths or function names.
 
 ## GitHub
 
-- Only create PRs and issues — do not push directly to main
+- Base branch is always `rach/restart-base`
+- Only create PRs and issues — do not push directly to `rach/restart-base`
 - Protect `rach/restart-base` with required checks before merge. Minimum repo checks: `Repo Sanity`, `Unit Tests`, `Quality Gate`, `Backend Tests`, `Typecheck Backend`, `Package CLI`, `CLI E2E`.
 - Secrets needed for releases: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SKILL_REPO_TOKEN`
