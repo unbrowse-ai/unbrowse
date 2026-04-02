@@ -107,6 +107,75 @@ describe("dashboard and leaderboard routes", () => {
     expect(body.rank.position).toBeNull();
   });
 
+  it("claims wallets, rejects conflicts, and serves wallet dashboards", async () => {
+    const alphaToken = "alpha123456";
+    const betaToken = "beta123456";
+    const alphaId = agentIdForToken(alphaToken);
+
+    await putProfile(makeProfile(alphaToken, {
+      name: "Alpha Agent",
+      total_executions: 4,
+      total_feedback_given: 1,
+      skills_discovered: ["skill-a"],
+    }));
+    await putProfile(makeProfile(betaToken, {
+      name: "Beta Agent",
+      total_executions: 1,
+    }));
+
+    const claimRes = await app.fetch(new Request("http://local.test/v1/agents/wallet", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${alphaToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ wallet_address: "wallet-alpha" }),
+    }), env);
+    expect(claimRes.status).toBe(200);
+
+    const repeatClaimRes = await app.fetch(new Request("http://local.test/v1/agents/wallet", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${alphaToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ wallet_address: "wallet-alpha" }),
+    }), env);
+    expect(repeatClaimRes.status).toBe(200);
+
+    const conflictingRes = await app.fetch(new Request("http://local.test/v1/agents/wallet", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${betaToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ wallet_address: "wallet-alpha" }),
+    }), env);
+    expect(conflictingRes.status).toBe(409);
+
+    await recordTransaction(env, {
+      transaction_id: "tx-wallet",
+      consumer_id: agentIdForToken("otherwallet"),
+      creator_id: alphaId,
+      skill_id: "skill-wallet",
+      endpoint_id: "execute",
+      price_usd: 0.003,
+    });
+
+    const walletDashRes = await app.fetch(new Request("http://local.test/v1/dashboard/wallet/wallet-alpha"), env);
+    expect(walletDashRes.status).toBe(200);
+    const walletDash = await walletDashRes.json() as {
+      profile: AgentProfile;
+      economics: { total_earned_usd: number };
+    };
+    expect(walletDash.profile.agent_id).toBe(alphaId);
+    expect(walletDash.profile.wallet_address).toBe("wallet-alpha");
+    expect(walletDash.economics.total_earned_usd).toBeGreaterThan(0);
+
+    const unknownWalletRes = await app.fetch(new Request("http://local.test/v1/dashboard/wallet/unknown-wallet"), env);
+    expect(unknownWalletRes.status).toBe(404);
+  });
+
   it("aggregates spend, earnings, attribution, and savings in dashboard/me", async () => {
     const alphaToken = "alpha123456";
     const betaToken = "beta123456";

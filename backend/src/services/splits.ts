@@ -1,20 +1,17 @@
 /**
- * Cascade Splits integration — on-chain revenue sharing for skill contributors.
+ * Contributor payout policy.
  *
- * When a skill has multiple contributors (agents who captured endpoints),
- * this service creates/updates a Cascade Split so x402 payments are
- * automatically distributed proportional to each contributor's delta score.
- *
- * Split address is deterministic per skill: labelToSeed("unbrowse:{skill_id}")
- * Platform gets PLATFORM_SHARE (10%), rest split among contributors.
+ * For now paid skills route to a single contributor wallet only:
+ * the current majority contributor by computed share.
  */
 
-import type { Env, SkillManifest, SkillContributor } from "../types.js";
-import { statsKV } from "./kv.js";
+import type { AgentProfile, Env, SkillManifest, SkillContributor } from "../types.js";
+import { skillsKV, statsKV } from "./kv.js";
 
 // Platform share out of 100 (Cascade uses 100-share model, protocol takes 1%)
 const PLATFORM_SHARE = 10;
 const CONTRIBUTOR_POOL = 100 - PLATFORM_SHARE; // 90 shares for contributors
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 /**
  * Compute contributor shares from their attribution data.
@@ -54,6 +51,50 @@ export function computeContributorShares(
   return shares;
 }
 
+export function getAgentWallet(profile?: Pick<AgentProfile, "wallet_address" | "wallet_provider"> | null): {
+  wallet_address?: string;
+  wallet_provider?: string;
+} {
+  const walletAddress = profile?.wallet_address?.trim();
+  if (!walletAddress) return {};
+  return {
+    wallet_address: walletAddress,
+    wallet_provider: profile?.wallet_provider?.trim() || undefined,
+  };
+}
+
+export function selectPrimaryContributor(
+  contributors: SkillContributor[],
+): { agent_id: string; wallet_address?: string; share: number } | null {
+  const shares = computeContributorShares(contributors);
+  if (shares.length === 0) return null;
+
+  let primary = shares[0]!;
+  for (const share of shares.slice(1)) {
+    if (share.share > primary.share) primary = share;
+  }
+  return primary;
+}
+
+export function syncSkillSplitConfig(skill: SkillManifest): SkillManifest {
+  const primary = selectPrimaryContributor(skill.contributors ?? []);
+  if (!primary?.wallet_address?.trim()) {
+    const { split_config: _splitConfig, ...rest } = skill;
+    return rest;
+  }
+  return { ...skill, split_config: primary.wallet_address.trim() };
+}
+
+export function resolveSkillPaymentRecipient(skill: SkillManifest, env: Pick<Env, "PAYMENT_RECIPIENT">): string {
+  const primary = selectPrimaryContributor(skill.contributors ?? []);
+  if (primary?.wallet_address?.trim()) return primary.wallet_address.trim();
+
+  const splitConfig = skill.split_config?.trim();
+  if (splitConfig) return splitConfig;
+
+  return env.PAYMENT_RECIPIENT ?? ZERO_ADDRESS;
+}
+
 /**
  * Build the Cascade Split recipients array for a skill.
  * Returns recipients ready for ensureSplit().
@@ -79,6 +120,35 @@ export function buildSplitRecipients(
   }
 
   return recipients;
+}
+
+export type ContributorPayout = {
+  agent_id: string;
+  wallet_address?: string;
+  share: number;
+  payout_uc: number;
+};
+
+export function computeContributorPayouts(
+  contributors: SkillContributor[],
+  totalPayoutUc: number,
+  fallbackCreatorId?: string,
+): ContributorPayout[] {
+  const primary = selectPrimaryContributor(contributors);
+  if (!primary) {
+    if (!fallbackCreatorId) return [];
+    return [{
+      agent_id: fallbackCreatorId,
+      share: CONTRIBUTOR_POOL,
+      payout_uc: totalPayoutUc,
+    }];
+  }
+  return [{
+    agent_id: primary.agent_id,
+    wallet_address: primary.wallet_address,
+    share: CONTRIBUTOR_POOL,
+    payout_uc: totalPayoutUc,
+  }];
 }
 
 /**
@@ -177,7 +247,7 @@ export async function updateContributorDelta(
   indexerId: string,
   deltaScore: number,
 ): Promise<void> {
-  const kv = statsKV(env);
+  const kv = skillsKV(env);
   const skillRaw = await kv.get(`skill:${skillId}`) as string | null;
   if (!skillRaw) return;
 
@@ -207,6 +277,6 @@ export async function updateContributorDelta(
     }
 
     skill.contributors = contributors;
-    await kv.put(`skill:${skillId}`, JSON.stringify(skill));
+    await kv.put(`skill:${skillId}`, JSON.stringify(syncSkillSplitConfig(skill)));
   } catch { /* non-fatal */ }
 }

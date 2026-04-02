@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
-import { ApiKeyGenerator } from "@/components/api-key-generator";
 import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
@@ -13,7 +12,7 @@ import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? "For CLI-first hosts, start with npx unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. If you prefer a global install, use npm install -g unbrowse or npm install -g unbrowse-openclaw depending on the host. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths."
+  ? "For CLI-first hosts, start with npx unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. The package pulls in the local Unbrowse runtime automatically. On older OpenClaw builds you may be asked once to trust the plugin. If you prefer a global install, use npm install -g unbrowse or npm install -g unbrowse-openclaw depending on the host. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths."
   : "Start with npx unbrowse setup for the CLI host path. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.";
 
 const faqJsonLd = {
@@ -65,7 +64,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup for the CLI host path. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart.",
+        text: "Run npx unbrowse setup for the CLI host path. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. The package pulls in the local Unbrowse runtime automatically. Older OpenClaw builds may ask once to trust the plugin.",
       },
     },
     {
@@ -111,6 +110,8 @@ export default function Home() {
           <p>Setup: npx unbrowse setup</p>
           <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
           <p>For OpenClaw: npx unbrowse-openclaw install --restart</p>
+          <p>The package pulls in the local Unbrowse runtime automatically.</p>
+          <p>Older OpenClaw builds may ask once to trust the plugin.</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
           <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
@@ -181,7 +182,7 @@ export default function Home() {
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Fresh install or quick upgrade. Same setup flow either way.
+                      One command install. OpenClaw plugin path includes the local Unbrowse runtime automatically.
                     </p>
                   </div>
                 </div>
@@ -396,10 +397,10 @@ export default function Home() {
                 After Install
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-text-primary">
-                Register, verify, and <span className="text-orange-500">start using it.</span>
+                Verify, explore, and <span className="text-orange-500">view contributors.</span>
               </h2>
                 <p className="text-text-secondary text-lg max-w-xl mx-auto leading-relaxed">
-                  Once the CLI is installed, grab your key, verify the local server, and jump into the docs and community.
+                  Once the CLI is installed, verify the local server, open the wallet dashboard, and jump into the docs and community.
                 </p>
             </div>
 
@@ -414,7 +415,23 @@ export default function Home() {
               after each release.
             </div>
 
-            <ApiKeyGenerator />
+            <div className="rounded-2xl border border-border bg-surface px-6 py-6 sm:px-8">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-500">Public contributor view</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-text-primary">Open any contributor by wallet.</h3>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
+                    Paste a wallet to see earnings, spending, savings, time saved, and leaderboard rank. No login flow on the website.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-5 py-3 font-semibold text-white transition-colors hover:bg-orange-600"
+                >
+                  View by wallet
+                </Link>
+              </div>
+            </div>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-text-secondary font-mono pt-8">
               <a href="/skill.md" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> skill.md</a>
@@ -456,7 +473,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for the CLI host path. If Unbrowse is already installed, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for the CLI host path. If Unbrowse is already installed, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>. The package pulls in the local Unbrowse runtime automatically, and older OpenClaw builds may ask once to trust the plugin.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>
@@ -527,7 +544,7 @@ export default function Home() {
              <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">GitHub</a>
              <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Discord</a>
              <Link href="/search" className="hover:text-text-primary transition-colors">Registry</Link>
-             <Link href="/dashboard" className="hover:text-text-primary transition-colors">Dashboard</Link>
+             <Link href="/dashboard" className="hover:text-text-primary transition-colors">View by wallet</Link>
              <Link href="/terms" className="hover:text-text-primary transition-colors">Terms</Link>
              <Link href="/privacy" className="hover:text-text-primary transition-colors">Privacy</Link>
              <a href="https://x.com/getFoundry" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors flex items-center gap-1.5">

@@ -146,6 +146,57 @@ describe("client registration recovery", () => {
     expect(saved.api_key).toBe("new-key");
     expect(saved.agent_id).toBe("new-agent");
   });
+
+  it("registers and syncs the local lobster wallet", async () => {
+    const configDir = makeConfigDirWithConfig({
+      api_key: "config-key",
+      agent_id: "agent-config",
+      agent_name: "saved-agent",
+      registered_at: "2026-03-13T00:00:00.000Z",
+      tos_accepted_version: "2026-02-22-v1",
+      tos_accepted_at: "2026-03-13T00:00:00.000Z",
+    });
+    process.env.UNBROWSE_CONFIG_DIR = configDir;
+    process.env.UNBROWSE_API_KEY = "config-key";
+    process.env.LOBSTER_WALLET_ADDRESS = "wallet-live";
+    console.warn = () => {};
+    console.log = () => {};
+
+    const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
+    globalThis.fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined;
+      calls.push({ url, body });
+      if (url.endsWith("/v1/agents/me")) {
+        return jsonResponse({
+          agent_id: "agent-config",
+          name: "saved-agent",
+          created_at: "2026-03-13T00:00:00.000Z",
+          wallet_address: null,
+          wallet_provider: null,
+          skills_discovered: [],
+          total_executions: 0,
+          total_feedback_given: 0,
+          tos_accepted_version: "2026-02-22-v1",
+          tos_accepted_at: "2026-03-13T00:00:00.000Z",
+          activity_dates: [],
+        });
+      }
+      if (url.endsWith("/v1/agents/wallet")) {
+        return jsonResponse({ ok: true });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    };
+
+    const { ensureRegistered } = await loadClientModule();
+    await ensureRegistered();
+
+    const walletCall = calls.find((call) => call.url.endsWith("/v1/agents/wallet"));
+    expect(walletCall?.body).toEqual({
+      wallet_address: "wallet-live",
+      wallet_provider: "lobster.cash",
+    });
+  });
 });
 
 describe("client registration identity", () => {

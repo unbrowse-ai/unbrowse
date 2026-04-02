@@ -84,5 +84,6 @@ tmp/
 .release-announcement.md
 .release-announcement.json
 .gstack/
+.codex/
 codedb.snapshot
 .kuri/

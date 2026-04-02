@@ -7,6 +7,7 @@
  */
 
 import type { Context } from "hono";
+import type { Env } from "../types.js";
 
 const CORBITS_FACILITATOR_URL = "https://facilitator.corbits.dev";
 const VERIFY_TIMEOUT_MS = 5_000;
@@ -181,9 +182,32 @@ export function x402Response(c: Context, terms: X402PaymentRequiredV2) {
   });
 }
 
-async function settlePaymentPayload(
+export function paymentsEnabled(env: Pick<Env, "PAYMENTS_ENABLED">): boolean {
+  const raw = env.PAYMENTS_ENABLED?.trim().toLowerCase();
+  if (!raw) return true;
+  return !["0", "false", "off", "disabled", "no"].includes(raw);
+}
+
+export function x402UseTestnet(
+  env: Pick<Env, "ENVIRONMENT" | "X402_NETWORK_MODE">,
+): boolean {
+  const mode = env.X402_NETWORK_MODE?.trim().toLowerCase();
+  if (mode === "mainnet") return false;
+  if (mode === "testnet") return true;
+  return env.ENVIRONMENT !== "production";
+}
+
+interface FacilitatorAttemptResult {
+  valid: boolean;
+  degraded: boolean;
+  transaction?: string;
+  settlementHeader?: string;
+  definitive?: boolean;
+}
+
+async function settlePaymentPayloadLegacy(
   paymentPayload: X402PaymentPayloadV2,
-): Promise<{ valid: boolean; degraded: boolean; transaction?: string; settlementHeader?: string }> {
+): Promise<FacilitatorAttemptResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
 
@@ -203,6 +227,7 @@ async function settlePaymentPayload(
 
     const body = await res.json() as Record<string, unknown>;
     if (!res.ok) {
+      console.warn("[x402] legacy facilitator settle rejected:", body.error ?? body.invalidReason ?? res.status);
       return { valid: false, degraded: false };
     }
 
@@ -211,13 +236,75 @@ async function settlePaymentPayload(
       degraded: false,
       transaction: (body.transaction ?? body.txHash) as string | undefined,
       settlementHeader: encodeBase64Json(body),
+      definitive: true,
     };
   } catch (err) {
     console.error("[x402] facilitator settlement failed, degrading gracefully:", (err as Error).message);
-    return { valid: true, degraded: true };
+    return { valid: true, degraded: true, definitive: true };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function verifyAndSettlePaymentHeader(
+  _paymentHeader: string,
+  paymentPayload: X402PaymentPayloadV2,
+): Promise<FacilitatorAttemptResult> {
+  const normalizedPaymentPayload = {
+    x402Version: paymentPayload.x402Version,
+    scheme: paymentPayload.accepted.scheme,
+    network: paymentPayload.accepted.network,
+    payload: paymentPayload.payload,
+  };
+  const paymentRequirements = {
+    ...paymentPayload.accepted,
+    description: paymentPayload.resource?.description ?? "",
+    resource: paymentPayload.resource?.url ?? "",
+    maxAmountRequired: paymentPayload.accepted.amount,
+    mimeType: paymentPayload.resource?.mimeType,
+  };
+  const requestBody = {
+    x402Version: paymentPayload.x402Version,
+    paymentPayload: normalizedPaymentPayload,
+    paymentRequirements,
+  };
+
+  const verifyRes = await fetch(`${CORBITS_FACILITATOR_URL}/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
+
+  const verifyBody = await verifyRes.json().catch(() => ({})) as Record<string, unknown>;
+  if (!verifyRes.ok) {
+    console.warn("[x402] facilitator verify rejected header flow:", verifyBody.error ?? verifyBody.invalidReason ?? verifyRes.status);
+    return { valid: false, degraded: false, definitive: false };
+  }
+
+  const isValid = verifyBody.isValid ?? verifyBody.success;
+  if (isValid === false) {
+    console.warn("[x402] facilitator verify invalid:", verifyBody.invalidReason ?? verifyBody.error ?? "unknown");
+    return { valid: false, degraded: false, definitive: true };
+  }
+
+  const settleRes = await fetch(`${CORBITS_FACILITATOR_URL}/settle`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
+  const settleBody = await settleRes.json().catch(() => ({})) as Record<string, unknown>;
+  if (!settleRes.ok || settleBody.success === false) {
+    console.warn("[x402] facilitator settle rejected header flow:", settleBody.error ?? settleBody.invalidReason ?? settleRes.status);
+    return { valid: false, degraded: false, definitive: true };
+  }
+
+  return {
+    valid: true,
+    degraded: false,
+    transaction: (settleBody.transaction ?? settleBody.txHash) as string | undefined,
+    settlementHeader: encodeBase64Json(settleBody),
+    definitive: true,
+  };
 }
 
 /**
@@ -230,7 +317,13 @@ export async function verifyX402Proof(
   try {
     const paymentPayload = decodeBase64Json<X402PaymentPayloadV2>(proof);
     if (paymentPayload?.x402Version === 2 && paymentPayload.accepted) {
-      return await settlePaymentPayload(paymentPayload);
+      try {
+        const headerResult = await verifyAndSettlePaymentHeader(proof, paymentPayload);
+        if (headerResult.definitive) return headerResult;
+      } catch (err) {
+        console.warn("[x402] header flow failed, trying legacy payload flow:", (err as Error).message);
+      }
+      return await settlePaymentPayloadLegacy(paymentPayload);
     }
   } catch {
     // not a PAYMENT-SIGNATURE payload

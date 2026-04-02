@@ -49,6 +49,9 @@ issueRoutes.post("/skills/:id/issues", bearerAuth, agentRateLimit({ limit: 10, w
   if (!VALID_CATEGORIES.includes(category as IssueCategory)) {
     return c.json({ error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` }, 400);
   }
+  if (!skillId || !agentId) {
+    return c.json({ error: "Missing issue context" }, 400);
+  }
 
   const issue = await createIssue(c.env, skillId, agentId, category as IssueCategory, description, endpoint_id, trace_id);
   return c.json(issue, 201);
@@ -97,6 +100,8 @@ issueRoutes.post("/issues/auto-file", bearerAuth, agentRateLimit({ limit: 10, wi
 // PATCH /v1/skills/:id/issues/:issue_id — update issue status (admin only)
 issueRoutes.patch("/skills/:id/issues/:issue_id", bearerAuth, async (c) => {
   const agentId = c.get("agent_id");
+  const skillId = c.req.param("id");
+  const issueId = c.req.param("issue_id");
   if (agentId !== "__admin__") {
     return c.json({ error: "Admin only" }, 403);
   }
@@ -104,6 +109,9 @@ issueRoutes.patch("/skills/:id/issues/:issue_id", bearerAuth, async (c) => {
   if (!["open", "acknowledged", "resolved"].includes(status)) {
     return c.json({ error: "Invalid status" }, 400);
   }
-  await updateIssueStatus(c.env, c.req.param("id"), c.req.param("issue_id"), status);
+  if (!skillId || !issueId) {
+    return c.json({ error: "Missing issue path params" }, 400);
+  }
+  await updateIssueStatus(c.env, skillId, issueId, status);
   return c.json({ ok: true });
 });

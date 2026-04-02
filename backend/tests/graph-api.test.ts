@@ -55,6 +55,15 @@ const TIMEOUT = 120_000;
 setDefaultTimeout(TIMEOUT);
 type ApiResult = { status: number; data: Record<string, unknown> };
 
+function expectSearchOkOrPaid(result: ApiResult): boolean {
+  expect([200, 402]).toContain(result.status);
+  if (result.status === 402) {
+    expect(result.data.error).toBe("Payment Required");
+    return false;
+  }
+  return true;
+}
+
 async function safeJson(res: Response): Promise<Record<string, unknown>> {
   try {
     return await res.json() as Record<string, unknown>;
@@ -229,7 +238,7 @@ describe("Graph API — Index & Search", () => {
       domain: "finance.yahoo.com",
       k: 5,
     });
-    expect(status).toBe(200);
+    if (!expectSearchOkOrPaid({ status, data })) return;
     const results = (data.results as any[]) ?? [];
     // Results may be empty if publish failed or index is cold — log for debugging
     console.log(`  yahoo quote search: ${results.length} results${results[0] ? `, top score=${results[0]?.score?.toFixed(4)}` : ""}`);
@@ -241,7 +250,7 @@ describe("Graph API — Index & Search", () => {
       domain: "reddit.com",
       k: 5,
     });
-    expect(status).toBe(200);
+    if (!expectSearchOkOrPaid({ status, data })) return;
     const results = (data.results as any[]) ?? [];
     console.log(`  reddit hot search: ${results.length} results${results[0] ? `, top score=${results[0]?.score?.toFixed(4)}` : ""}`);
   }, TIMEOUT);
@@ -251,7 +260,7 @@ describe("Graph API — Index & Search", () => {
       intent: "search for something by keyword",
       k: 10,
     });
-    expect(status).toBe(200);
+    if (!expectSearchOkOrPaid({ status, data })) return;
     const results = (data.results as any[]) ?? [];
     console.log(`  global search: ${results.length} results`);
   }, TIMEOUT);
@@ -262,8 +271,8 @@ describe("Graph API — Index & Search", () => {
       domain_k: 3,
       global_k: 5,
     });
-    // Resolve may return empty when index is cold or rate-limited — assert 200 only
-    expect(status).toBe(200);
+    // Resolve may return empty when index is cold or rate-limited; paid prod returns 402.
+    if (!expectSearchOkOrPaid({ status, data })) return;
     const domain_results = (data.domain_results as any[]) ?? [];
     const global_results = (data.global_results as any[]) ?? [];
     console.log(`  resolve: domain=${domain_results.length} global=${global_results.length} skipped=${data.skipped_global}`);
@@ -275,8 +284,8 @@ describe("Graph API — Index & Search", () => {
       domain: "finance.yahoo.com",
       k: 3,
     });
-    // Search may return empty when index is cold or rate-limited — assert 200 only
-    expect(status).toBe(200);
+    // Search may return empty when index is cold or rate-limited; paid prod returns 402.
+    if (!expectSearchOkOrPaid({ status, data })) return;
     const results = (data.results as any[]) ?? [];
     console.log(`  chart query top scores: ${results.map((r: any) => r.score?.toFixed(4)).join(", ") || "(none)"}`);
   }, TIMEOUT);
