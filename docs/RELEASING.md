@@ -29,7 +29,7 @@ Do not bump or publish only from `packages/skill/`.
 Pushing to `main` runs `.github/workflows/release.yml`, which now:
 
 1. Publishes the CLI from `packages/skill/` to npm if the current version is not already published.
-2. Deploys the backend worker.
+2. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
 3. Deploys the frontend.
 4. Syncs the external skill repo on `unbrowse-ai/unbrowse` `stable`.
 5. Creates the matching tag + GitHub Release in `unbrowse-ai/unbrowse` if that version does not already exist.
@@ -41,7 +41,7 @@ Pushing `v*` tags still runs the same workflow, which remains safe for explicit 
 Tag pushes reuse `.github/workflows/release.yml`, which:
 
 1. Publishes the CLI from `packages/skill/` to npm.
-2. Deploys the backend worker.
+2. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
 3. Deploys the frontend.
 4. Syncs the external skill repo.
 5. Creates or reuses the matching tag + GitHub Release in `unbrowse-ai/unbrowse`.
