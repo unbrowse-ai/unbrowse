@@ -84,25 +84,26 @@ interface X402PaymentPayloadV2 {
   extensions?: Record<string, unknown>;
 }
 
+function bytesToBinary(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return binary;
+}
+
+function binaryToBytes(binary: string): Uint8Array {
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 function safeBase64Encode(data: string): string {
-  if (typeof globalThis !== "undefined" && typeof globalThis.btoa === "function") {
-    const bytes = new TextEncoder().encode(data);
-    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
-    return globalThis.btoa(binary);
-  }
-  return Buffer.from(data, "utf8").toString("base64");
+  if (typeof globalThis?.btoa !== "function") throw new Error("base64 encoder unavailable");
+  return globalThis.btoa(bytesToBinary(new TextEncoder().encode(data)));
 }
 
 function safeBase64Decode(data: string): string {
-  if (typeof globalThis !== "undefined" && typeof globalThis.atob === "function") {
-    const binary = globalThis.atob(data);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return new TextDecoder("utf-8").decode(bytes);
-  }
-  return Buffer.from(data, "base64").toString("utf8");
+  if (typeof globalThis?.atob !== "function") throw new Error("base64 decoder unavailable");
+  return new TextDecoder("utf-8").decode(binaryToBytes(globalThis.atob(data)));
 }
 
 function encodeBase64Json(value: unknown): string {

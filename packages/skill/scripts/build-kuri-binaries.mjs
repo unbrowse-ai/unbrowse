@@ -41,6 +41,10 @@ function hasVendoredBinaries() {
   return supportedTargets.every((target) => existsSync(path.join(vendorRoot, target.id, binaryName)));
 }
 
+if (hasVendoredBinaries() && process.env.UNBROWSE_REBUILD_KURI !== "1") {
+  process.exit(0);
+}
+
 const sourceDir = resolveSourceDir();
 if (!sourceDir) {
   if (hasVendoredBinaries()) process.exit(0);

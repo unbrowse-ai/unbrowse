@@ -183,7 +183,6 @@ export interface EndpointStats {
   last_execution_at?: string;
   last_success_at?: string;
   auto_deprecated_at?: string;
-  auto_deprecated_at?: string;
 }
 
 export interface ExecutionTrace {
@@ -251,4 +250,183 @@ export interface PerfStats {
   avg_time_saved_pct: number;
   avg_tokens_saved_pct: number;
   last_updated_at: string;
+}
+
+export type FunnelEventName =
+  | "cli_invoked"
+  | "setup_completed"
+  | "server_autostart_succeeded"
+  | "registration_succeeded"
+  | "resolve_started"
+  | "resolve_completed"
+  | "search_started"
+  | "search_completed"
+  | `${string}_failed`;
+
+export type FunnelEventSource =
+  | "host"
+  | "setup"
+  | "cli-first-seen"
+  | "cli"
+  | "agent"
+  | "server"
+  | (string & {});
+
+export interface FunnelEvent {
+  event_id: string;
+  install_id: string;
+  session_id?: string;
+  name: FunnelEventName | string;
+  source: FunnelEventSource;
+  host_type?: string;
+  created_at: string;
+  properties?: Record<string, unknown>;
+  agent_id?: string | null;
+}
+
+export interface FunnelFailureBucket {
+  key: string;
+  count: number;
+}
+
+export interface FunnelHostSummary {
+  host_type: string;
+  installs: number;
+  registrations: number;
+  first_resolve_started: number;
+  first_resolve_succeeded: number;
+  second_success: number;
+  repeat_success: number;
+  power_users: number;
+}
+
+export interface FunnelSummary {
+  generated_at: string;
+  window_days: number;
+  events: number;
+  totals: {
+    installs: number;
+    cli_invoked: number;
+    setup_completed: number;
+    server_autostart_succeeded: number;
+    registrations: number;
+    search_started: number;
+    search_completed: number;
+    first_resolve_started: number;
+    first_resolve_succeeded: number;
+    second_success: number;
+    repeat_success: number;
+    power_users: number;
+    abandonment_24h: number;
+  };
+  rates: {
+    cli_invoked_from_install: number;
+    registration_from_cli: number;
+    first_resolve_started_from_registered: number;
+    first_resolve_succeeded_from_started: number;
+    second_success_from_first_success: number;
+    repeat_success_from_first_success: number;
+    power_from_first_success: number;
+  };
+  latency_ms: {
+    cli_to_registration_p50: number | null;
+    cli_to_first_resolve_start_p50: number | null;
+    cli_to_first_success_p50: number | null;
+    registration_to_first_success_p50: number | null;
+  };
+  failures: {
+    total: number;
+    top_stages: FunnelFailureBucket[];
+    top_reasons: FunnelFailureBucket[];
+  };
+  hosts: FunnelHostSummary[];
+}
+
+export interface InstallTelemetryEvent {
+  event_id: string;
+  install_id: string;
+  source: string;
+  host_type?: string;
+  skill?: string;
+  skill_version?: string;
+  status?: string;
+  created_at: string;
+  properties?: Record<string, unknown>;
+  agent_id?: string | null;
+}
+
+export interface InstallTelemetryHostSummary {
+  host_type: string;
+  installs: number;
+  invoked: number;
+  registered: number;
+  first_resolve_started: number;
+  first_resolve_succeeded: number;
+}
+
+export interface InstallTelemetrySummary {
+  generated_at: string;
+  window_days: number;
+  events: number;
+  totals: {
+    reported_installs: number;
+    host_reported_installs: number;
+    setup_reported_installs: number;
+    cli_first_seen_installs: number;
+    invoked_installs: number;
+    uninvoked_installs: number;
+    registered_installs: number;
+    first_resolve_started: number;
+    first_resolve_succeeded: number;
+  };
+  rates: {
+    invoked_from_reported_install: number;
+    registration_from_reported_install: number;
+    first_resolve_started_from_reported_install: number;
+    first_resolve_succeeded_from_reported_install: number;
+  };
+  hosts: InstallTelemetryHostSummary[];
+}
+
+export type WebTelemetryEventName =
+  | "landing_page_viewed"
+  | "install_section_viewed"
+  | "install_command_copied"
+  | (string & {});
+
+export interface WebTelemetryEvent {
+  event_id: string;
+  visitor_id: string;
+  session_id: string;
+  name: WebTelemetryEventName | string;
+  path?: string;
+  referrer?: string | null;
+  created_at: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface AcquisitionReferrerSummary {
+  referrer: string;
+  sessions: number;
+}
+
+export interface AcquisitionSummary {
+  generated_at: string;
+  window_days: number;
+  events: number;
+  totals: {
+    visitors: number;
+    sessions: number;
+    landing_views: number;
+    install_section_views: number;
+    install_command_copies: number;
+    landing_without_install_view: number;
+    install_view_without_copy: number;
+  };
+  rates: {
+    install_section_view_from_landing: number;
+    install_copy_from_landing: number;
+    install_copy_from_install_view: number;
+  };
+  top_referrers: AcquisitionReferrerSummary[];
 }

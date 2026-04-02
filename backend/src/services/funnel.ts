@@ -112,7 +112,7 @@ export async function getFunnelSummary(env: Env, days = 90): Promise<FunnelSumma
   };
 
   for (const event of events) {
-    const timeline = installs.get(event.install_id) ?? {
+    const timeline: InstallTimeline = installs.get(event.install_id) ?? {
       install_id: event.install_id,
       host_type: normalizeHostType(event.host_type),
       first_event_at: event.created_at,
