@@ -1,68 +1,49 @@
-# The Problem
+# The Problem: The Discovery Tax
 
-The web was built for humans using browsers, not for agents trying to execute tasks programmatically.
+Every time an AI agent needs to do something on a website, it pays an invisible tax. We call it the **discovery tax** -- the cost of figuring out how a site works before the agent can actually do anything useful.
 
-That mismatch creates three common failure modes.
+This tax shows up in three distinct failure modes, each compounding the others.
 
-## 1. Custom Site-by-Site Integrations Do Not Scale
+## Failure Mode 1: Browser Automation Is Slow
 
-Building one-off integrations or scrapers per site is expensive, slow, and fragile.
+The dominant approach to web-capable agents today is browser automation. Load a page, read the DOM or take a screenshot, find the right element, click it, wait for the result, repeat.
 
-Even when it works, it creates a maintenance burden:
+It works. But it is slow.
 
-* site changes break the integration
-* long-tail site coverage stays poor
-* every team repeats the same reverse-engineering work
+As described in Section 4 of the paper, our benchmark across 94 domains found a median task completion time of 3.4 seconds via browser automation. The same tasks completed in a median of 950 milliseconds when a cached API route was available -- and under 100 milliseconds on subsequent local cache hits. That is a 3.6x speedup at the median, and over 30x when the route is already cached locally.
 
-## 2. GUI Automation Is Too High-Friction
+The latency is not just an inconvenience. It compounds. An agent that chains five web interactions to complete a workflow pays the browser tax five times. A cached agent pays it zero times.
 
-Browser automation can work, but it forces the agent through the visible interface:
+## Failure Mode 2: Official APIs Cover Almost Nothing
 
-* load page
-* inspect UI
-* click
-* wait
-* handle popups
-* retry
+The instinctive response is "just use the API." But most of the web does not have one.
 
-That is often the wrong abstraction layer for sites whose real logic lives in structured network requests behind the UI.
+Fewer than 5% of the sites agents need to interact with offer a documented, public API. And even when an API exists, it often does not expose the specific workflow the agent needs. Reddit has an API, but it does not let you do everything the site does. Most e-commerce sites, government portals, internal tools, forums, and niche platforms have no programmatic interface at all.
 
-## 3. Official APIs Cover Only a Small Slice of the Web
+Agents that depend on official APIs are limited to the small slice of the web that has chosen to be programmable. The rest -- the vast majority -- remains locked behind rendered HTML.
 
-Official APIs are great when they exist and when they expose the needed workflow.
+## Failure Mode 3: Every Agent Rediscovers the Same Routes
 
-But many useful sites either:
+Here is perhaps the most wasteful part. When one agent figures out how to get data from a site, that knowledge dies with the session. The next agent that needs the same site starts from scratch.
 
-* do not have public APIs
-* restrict them heavily
-* expose only partial workflows
-* make them unsuitable for the exact agent task
+Across the ecosystem, thousands of agents independently reverse-engineer the same endpoints on the same sites. Each one loads the same pages, clicks through the same flows, and discovers the same internal API calls. None of them share what they learned.
 
-## The Real Infrastructure Gap
+The paper formalizes this as redundant discovery cost. If N agents each need the same site, browser-first architectures pay the full discovery cost N times. A shared approach pays it once.
 
-Agents are often smart enough to understand what to do, but they are missing a stable way to use the web at the level where sites actually operate.
+## The Hidden Insight
 
-That is the problem Unbrowse is solving:
+The three failure modes above paint a bleak picture, but they obscure a surprisingly hopeful fact: **the APIs already exist.**
 
-* learn the internal request patterns
-* preserve auth and browser parity when needed
-* reuse that work across later runs
+Every modern website is a client-server application. When you load Hacker News, your browser does not receive a blob of static HTML -- it calls `https://hacker-news.firebaseio.com/v0/topstories.json`. When you search on an e-commerce site, your browser sends a structured request to an internal search endpoint and gets back JSON. When you scroll a social feed, your browser fetches paginated data from an API the site built for its own use.
 
-## Why The Timing Matters
+These are what the paper calls **shadow APIs** -- first-party endpoints that power a site's own UI, never documented or intended for external use, but fully functional and structured. They accept parameters, return JSON, and behave like any other API. They are just not advertised.
 
-The whitepaper is directionally right that agent demand is increasing faster than web infrastructure for agents.
+The problem is not that the web lacks APIs. The problem is that these APIs are undocumented, and every agent has to rediscover them independently through expensive browser automation.
 
-The current repo already reflects that pressure in practical product choices:
-
-* local-first execution
-* fast reuse from caches and marketplace search
-* live capture fallback when no route exists
-* canonical evals that judge retrieval, selection, and execution together
-
-So the problem is no longer hypothetical. The product is already built around it.
+That is the discovery tax. And it is what Unbrowse eliminates.
 
 ## Read Next
 
-* [Mental Models](mental-models.md)
-* [How It Works](how-it-works.md)
-* [Paper vs Product Status](../reference/paper-vs-product.md)
+* [What Is Unbrowse?](what-is-unbrowse.md) -- how shared discovery solves this
+* [How It Works](how-it-works.md) -- a concrete walkthrough
+* [Mental Models](mental-models.md) -- intuitive analogies

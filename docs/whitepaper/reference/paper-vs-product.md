@@ -1,76 +1,61 @@
-# Paper vs Product Status
+# Paper vs. Product
 
-This page maps the whitepaper to the actual codebase.
+An honest audit of claims made in "Internal APIs Are All You Need" against the current state of shipped code. Each claim is categorized as **Shipped**, **Partial**, or **Not Yet**.
 
-Status meanings:
+---
 
-* `Shipped`: present in the codebase today
-* `Partial`: some implementation exists, but not in the full form described in the paper
-* `Coming soon`: described in the paper, but not present in the current codebase
+## Shipped
 
-## Capability Layer
+These capabilities are fully implemented and working in the current release.
 
-| Paper claim                                                                  | Status      | Notes                                                                                                                                |
-| ---------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Shared marketplace of discovered skills                                      | Shipped     | Marketplace publish, fetch, search, ranking, and reuse are implemented.                                                              |
-| Local cache plus shared graph plus browser fallback                          | Shipped     | Practical three-path behavior exists through route cache, marketplace search, and live capture fallback.                             |
-| Passive indexing from normal use                                             | Shipped     | Capture, learn, and passive publish flow exists.                                                                                     |
-| Intent resolution with composite scoring                                     | Shipped     | Current ranking uses embedding similarity, reliability, freshness, and verification weighting.                                       |
-| Schema drift detection                                                       | Shipped     | Drift detection and verification-aware scoring exist.                                                                                |
-| Skill lifecycle: active, deprecated, disabled                                | Shipped     | Skill and endpoint lifecycle states exist in code.                                                                                   |
-| Periodic safe-endpoint re-verification                                       | Shipped     | Verification loop exists for safe GET endpoints.                                                                                     |
-| Local encrypted credential vault                                             | Shipped     | Local vault exists with keychain plus encrypted-file fallback.                                                                       |
-| MCP support                                                                  | Shipped     | `unbrowse mcp` is implemented.                                                                                                       |
-| Broad agent-host integration surface                                         | Shipped     | Installer, CLI, MCP, skill flows, and host-specific integrations exist.                                                              |
-| Route dependency graph and graph-backed planning                             | Partial     | Graph primitives and operation graph data structures exist, but this is not yet the dominant product surface described in the paper. |
-| Per-skill package containing `SKILL.md`, `auth.json`, and generated `api.ts` | Coming soon | The marketplace distributes skill manifests and auth references today, not full installable route bundles in the paper’s format.     |
-| A2A / ANP style protocol coverage                                            | Coming soon | Mentioned in the paper context, not implemented in this codebase.                                                                    |
+| Paper Claim | Status | Notes |
+|---|---|---|
+| Three-path execution (cache, marketplace, browser) | **Shipped** | The 10-step resolve cascade is the core execution loop. All three tiers are functional and used in production. |
+| Composite scoring (40/30/15/15) | **Shipped** | Endpoint candidates are ranked by embedding similarity (40%), reliability (30%), freshness (15%), and verification status (15%). The formula is implemented as described in the paper. |
+| Skill lifecycle (active/deprecated/disabled) | **Shipped** | Skills transition between states based on verification results. Disabled skills are excluded from resolution. |
+| Verification loop | **Shipped** | A 6-hour background cycle re-tests endpoint availability and schema consistency. Failed verifications trigger lifecycle state transitions. |
+| DOM extraction as fallback | **Shipped** | Multiple extraction strategies (SSR fast-path, table extraction, repeating patterns, SPA data, domain-specific extractors) are implemented and used when API routes are unavailable. |
+| Passive indexing during browse sessions | **Shipped** | HAR recording, fetch/XHR interceptor, and extension observer run on every browse session. Traffic is merged and enriched on session close. |
+| Auth cookie extraction from real browsers | **Shipped** | Chrome and Firefox SQLite cookie databases are read directly. Cookies are injected into Kuri sessions via CDP `setCookie`. Auto-login on `auth_required` completes the auth lifecycle. |
+| Marketplace with vector search | **Shipped** | Over 500 domains and ~10,000 endpoints indexed. Vector similarity search over semantic descriptions plus keyword fallback. Hosted on Cloudflare Workers. |
+| Kuri as bundled browser runtime | **Shipped** | Kuri (Zig-native CDP broker, 464KB binary, ~3ms cold start) ships bundled in the npm package. No separate browser installation required beyond Chrome itself. |
+| Capture pipeline (traffic to published skill) | **Shipped** | The full pipeline -- extract endpoints, extract auth, store credentials, merge, describe, augment, build graph, publish -- runs on every capture event. |
+| Route cache for sub-100ms execution | **Shipped** | Local route cache hits bypass marketplace search entirely. 18 benchmark domains execute in under 100ms from warm cache. |
+| MCP server integration | **Shipped** | The CLI's API surface is exposed as Model Context Protocol tools, usable by any MCP-compatible agent. |
+| Semantic enrichment via LLM | **Shipped** | Endpoint descriptors are augmented with LLM-generated descriptions of purpose, parameter semantics, and return value meaning. These descriptions power the embedding-based search. |
+| Freshness decay formula | **Shipped** | `1 / (1 + d/30)` is implemented and applied to the freshness signal in composite scoring. A 30-day-old endpoint scores 0.5 on freshness. |
 
-## Economic Layer
+## Partial
 
-| Paper claim                                                  | Status      | Notes                                                                                                                                                    |
-| ------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Economic adoption condition `froute < c_rediscovery`         | Partial     | The paper’s framing is documented, but the client does not currently execute explicit fee-vs-rediscovery decisions because route pricing is not shipped. |
-| Route-level pricing                                          | Coming soon | No x402 or marketplace fee flow in the current codebase.                                                                                                 |
-| HTTP 402 payment handshake                                   | Coming soon | Not implemented.                                                                                                                                         |
-| x402 settlement                                              | Coming soon | Not implemented.                                                                                                                                         |
-| USDC on Solana settlement                                    | Coming soon | Not implemented.                                                                                                                                         |
-| Fee splits across contributors, maintainers, infra, treasury | Coming soon | Not implemented.                                                                                                                                         |
-| Delta-based attribution for route improvements               | Coming soon | Not implemented.                                                                                                                                         |
-| Contributor payouts                                          | Coming soon | Not implemented.                                                                                                                                         |
-| Site-owner compensation and opt-in monetization              | Coming soon | Not implemented.                                                                                                                                         |
-| Dynamic route pricing based on savings and trust             | Coming soon | Not implemented.                                                                                                                                         |
+These capabilities are implemented but not yet used to their full potential as described in the paper.
 
-## Trust and Validation
+| Paper Claim | Status | Notes |
+|---|---|---|
+| Operation graph for multi-step planning | **Partial** | The DAG is built during skill enrichment -- endpoints are linked by `requires`/`provides` bindings derived from URL template parameters and response schemas. However, the graph is not yet used for automated multi-step execution planning. Currently, it serves as metadata for understanding endpoint relationships. The execution engine does not yet chain multiple endpoints automatically based on graph traversal. |
+| Delta-based attribution | **Partial** | Schema diffs and cosine dissimilarity between skill versions are computed during merges. These deltas quantify how much a contributor changed a skill. However, the attribution data is not yet connected to any payment or credit system. The diffs are stored but not acted upon economically. |
+| URL template parameterization | **Partial** | URL segments are templatized (e.g., `/r/{subreddit}/hot`), but semantic matching of template parameters to user intent is incomplete. The paper describes intelligent parameter binding where the system understands that `{subreddit}` should be filled with a subreddit name from the query. Current implementation handles simple cases but struggles with ambiguous templates -- e.g., confusing `/r/singularity` with `/r/programming` when both match the same template. |
+| Endpoint description quality | **Partial** | LLM augmentation generates descriptions, but they sometimes fail to capture the distinguishing semantics of similar endpoints. Two endpoints with the same URL template but different parameter values (different subreddits, different search queries) may receive descriptions too similar for the embedding search to differentiate. |
 
-| Paper claim                                                            | Status      | Notes                                                                                                                          |
-| ---------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Feedback-driven route quality                                          | Shipped     | Feedback contributes to reliability scoring.                                                                                   |
-| Verification status affects ranking                                    | Shipped     | Verification status is part of composite scoring.                                                                              |
-| Freshness affects ranking                                              | Shipped     | Freshness contributes to ranking today.                                                                                        |
-| Background endpoint verification                                       | Shipped     | Safe GET verification loop exists.                                                                                             |
-| Pre-publish quality gate                                               | Partial     | There are local quality checks and passive publish gating, but not the exact formal validator pipeline described in the paper. |
-| Continuous trust score with signed feedback and validator attestations | Partial     | There is a practical reliability model today, but not the full signed multi-signal trust system described in the paper.        |
-| Independent validators with staking/slashing                           | Coming soon | Not implemented.                                                                                                               |
-| E2B sandbox validation                                                 | Coming soon | Not implemented in the current codebase.                                                                                       |
-| TEE attestation for verification proofs                                | Coming soon | Not implemented.                                                                                                               |
+## Not Yet
 
-## Benchmark and Evaluation Claims
+These capabilities are described in the paper but have no implementation in the current codebase.
 
-| Paper claim                             | Status  | Notes                                                                                                                                      |
-| --------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Warm-cache vs browser benchmark framing | Shipped | The repo includes canonical evals and benchmark-style harnesses.                                                                           |
-| Benchmark-backed product evals          | Shipped | `eval:core` and related WebArena-backed lanes exist.                                                                                       |
-| Full 94-domain paper benchmark          | Partial | The paper reports it; current repo focus is the canonical eval stack and adapted benchmark corpora, not only the original paper benchmark. |
-| WebArena-style multistep evaluation     | Shipped | Present in the repo and part of the eval story.                                                                                            |
-| WebArena-Verified adapted corpus        | Shipped | Present in the repo as an adapted corpus and stable verified slice.                                                                        |
+| Paper Claim | Status | Notes |
+|---|---|---|
+| x402 micropayments | **Not Yet** | The paper describes a payment protocol where agents pay per-route-use in USDC on Solana via the x402 standard. No payment infrastructure exists in the current system. Routes are shared freely through the marketplace. |
+| TEE attestation for credential isolation | **Not Yet** | The paper proposes Trusted Execution Environments for isolating credential handling so that API keys and tokens are never exposed to the skill execution layer. Currently, credentials are stored in an encrypted local vault and the system keychain, but without hardware-level isolation guarantees. |
+| Dynamic route pricing | **Not Yet** | The paper describes demand-based pricing where popular routes cost more and rarely-used routes are cheaper. No pricing mechanism exists; all marketplace access is free. |
+| Ostrom commons governance | **Not Yet** | The paper references Elinor Ostrom's principles for governing shared resources, proposing community-driven rules for skill quality, deprecation, and dispute resolution. No governance system exists beyond the automated verification loop. |
+| Opt-in site-owner participation | **Not Yet** | The paper envisions site owners publishing official endpoint descriptors, receiving attribution fees, and controlling access to their APIs. No site-owner interface or opt-in mechanism exists. |
+| robots.txt compliance layer | **Not Yet** | The paper mentions respecting robots.txt directives when discovering endpoints. The current system does not check robots.txt before capturing traffic or executing endpoints. |
+| Cross-agent session persistence | **Not Yet** | The paper describes persisting browse session state across agent restarts so that a new agent instance can resume where the previous one left off. Sessions are currently ephemeral -- they exist only for the lifetime of the Kuri process. |
+| Three-tier pricing model | **Not Yet** | The paper defines three fee tiers: one-time skill install, per-execution, and per-query. No fee collection, metering, or billing infrastructure exists. |
+| 70/30 contributor fee split | **Not Yet** | The paper proposes that 70% of route fees go to contributors (weighted by delta attribution) and 30% to infrastructure. Without payments, there is no fee split. |
 
-## Read This As
+---
 
-The paper is best understood as:
+## Summary
 
-* a real description of the current capability layer
-* a partially realized description of trust and graph infrastructure
-* a forward-looking roadmap for the route economy
+The core technical system described in the paper -- three-path execution, capture pipeline, composite scoring, skill lifecycle, and marketplace -- is fully shipped. The economic layer (payments, pricing, attribution payouts) and trust infrastructure (TEE, governance) remain on the roadmap. The operation graph exists structurally but is not yet driving automated multi-step execution.
 
-Any paper section that depends on payments, payouts, validator staking, or cryptographic attestation should currently be read as `coming soon`.
+The gap between paper and product is primarily in the economic and governance layers. The technical claims about speed, cost reduction, and coverage are substantiated by the benchmark and the working system.

@@ -1,82 +1,54 @@
 # Internal APIs Are All You Need
 
-Implementation-aware companion docs for the Unbrowse whitepaper.
+Companion documentation for the Unbrowse whitepaper.
 
-* Authors: Lewis Tham, Nicholas Mac Gregor Garcia
-* Canonical PDF: [unbrowse-whitepaper.pdf](unbrowse-whitepaper.pdf)
-* Status: official paper plus implementation-aware companion docs
-* Codebase snapshot used for this companion: March 23, 2026
+**Paper:** "Internal APIs Are All You Need: Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent Architectures"
+**Authors:** Lewis Tham (Unbrowse AI), Nicholas Mac Gregor Garcia (NUS), Jungpil Hahn (NUS)
+**Year:** 2026
 
-> Important The PDF mixes shipped product behavior, research results, and forward-looking economic design. These companion docs separate those three things so readers can tell what exists in the codebase today and what is still coming soon.
+These docs explain the paper's concepts in accessible language and map each claim to the current product. They separate what ships today from what's still on the roadmap.
 
-## What This Companion Covers
+## Start Here
 
-* What Unbrowse ships today
-* Which whitepaper claims map directly to the codebase
-* Which paper sections are partial implementations
-* Which paper sections are still `coming soon`
-* Which evaluation paths are current product truth versus paper benchmark context
+| Doc | For | Summary |
+|-----|-----|---------|
+| [The Problem](start-here/the-problem.md) | Everyone | Why browser-first agent architectures fail |
+| [What Is Unbrowse?](start-here/what-is-unbrowse.md) | Everyone | Shadow APIs, shared discovery, three-path execution |
+| [How It Works](start-here/how-it-works.md) | Everyone | End-to-end walkthrough with a real example |
+| [Mental Models](start-here/mental-models.md) | Everyone | DNS for APIs, package manager, mining the web |
+| [Plain English](start-here/plain-english.md) | Non-technical | Shortest possible explanation |
 
-## The Short Hook
+## By Audience
 
-The web contains a huge amount of usable value, but most of it is trapped behind interfaces built for humans.
+| Doc | For | Summary |
+|-----|-----|---------|
+| [For Investors](by-audience/for-investors.md) | Investors | Market thesis, compounding loop, shipped vs roadmap |
+| [For Technical Readers](by-audience/for-technical-readers.md) | Engineers | Architecture, execution paths, eval methodology |
 
-Unbrowse is a way to unlock that layer for agents.
+## Reference
 
-It learns the request paths underneath websites, turns successful routes into reusable skills, and makes later agents faster and less brittle because they do not have to rediscover the same workflows from scratch.
+| Doc | For | Summary |
+|-----|-----|---------|
+| [Key Concepts](reference/key-concepts.md) | All | Definitions: shadow API, skill, endpoint, operation graph, scoring |
+| [System Today](reference/system-today.md) | Technical | What's shipped: pipeline, auth, CLI, marketplace, passive indexing |
+| [Paper vs Product](reference/paper-vs-product.md) | Due diligence | Honest audit: shipped / partial / not yet |
+| [Evaluation](reference/evaluation.md) | Technical | 94-domain benchmark, speedup results, cost analysis |
+| [Coming Soon](reference/coming-soon.md) | Forward-looking | x402 payments, delta attribution, TEE, dynamic pricing |
 
-## Quick Navigation
+## Technical Reference
 
-* [Unbrowse In Plain English](start-here/plain-english.md)
-* [For Technical Readers](by-audience/for-technical-readers.md)
-* [For Investors](by-audience/for-investors.md)
-* [What Is Unbrowse?](start-here/what-is-unbrowse.md)
-* [The Problem](start-here/the-problem.md)
-* [Mental Models](start-here/mental-models.md)
-* [How It Works](start-here/how-it-works.md)
-* [Key Concepts](reference/key-concepts.md)
-* [System Today](reference/system-today.md)
-* [Paper vs Product Status](reference/paper-vs-product.md)
-* [Evaluation and Benchmarks](reference/evaluation.md)
-* [Coming Soon](reference/coming-soon.md)
-
-## What Ships Today
-
-Unbrowse today is a local-first web capability layer for agents:
-
-* local CLI plus local server
-* browser capture through Kuri
-* reverse-engineering of internal API endpoints from observed traffic
-* marketplace-backed reuse of discovered skills
-* route cache plus marketplace search plus live-capture fallback
-* local credential storage and auth reuse
-* MCP server mode plus host integrations for major agent environments
-* reliability scoring, verification, and schema-drift-aware endpoint health
-* canonical product evals in this repo
-
-## What To Read First
-
-Read [Unbrowse In Plain English](start-here/plain-english.md) if you want the shortest narrative explainer in normal language.
-
-Read [For Technical Readers](by-audience/for-technical-readers.md) if you want the current architecture, eval truth, and paper-vs-product boundary in one place.
-
-Read [For Investors](by-audience/for-investors.md) if you want the market framing, compounding product loop, and the clean line between shipped product and roadmap.
-
-Read [System Today](reference/system-today.md) if you want the current product.
-
-Read [What Is Unbrowse?](start-here/what-is-unbrowse.md) and [How It Works](start-here/how-it-works.md) if you want the narrative explainer layer that used to live in the old docs set, now rewritten against the current repo and whitepaper.
-
-Read [Paper vs Product Status](reference/paper-vs-product.md) if you want the strict audit: shipped, partial, or `coming soon`.
-
-Read [Coming Soon](reference/coming-soon.md) if you care about the route economy, x402, contributor payouts, validator attestation, and other forward-looking parts of the paper.
+For implementation details, see:
+- [Architecture Guide](../architecture.md) — full pipeline, resolve decision tree, scoring formula
+- [API Reference](../api-reference.md) — all REST endpoints with request/response examples
+- [Types Reference](../types.md) — SkillManifest, EndpointDescriptor, OperationGraph, ExecutionTrace
 
 ## Citation
 
 ```bibtex
 @misc{tham2026internal,
-  title = {Internal APIs Are All You Need},
-  author = {Lewis Tham and Nicholas Mac Gregor Garcia},
+  title = {Internal APIs Are All You Need: Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent Architectures},
+  author = {Lewis Tham and Nicholas Mac Gregor Garcia and Jungpil Hahn},
   year = {2026},
-  note = {Official Unbrowse whitepaper with implementation-aware companion docs}
+  note = {Unbrowse AI}
 }
 ```
