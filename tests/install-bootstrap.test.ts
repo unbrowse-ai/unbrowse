@@ -32,4 +32,18 @@ describe("bootstrap install flow", () => {
     expect(script).toContain("UNBROWSE_AGENT_EMAIL");
     expect(script).toContain("UNBROWSE_SKIP_WALLET_SETUP=1");
   });
+
+  it("ships a standalone skill bootstrap script for the public repo clone path", () => {
+    const script = readFileSync(path.join(ROOT, "packages", "skill", "setup"), "utf8");
+
+    expect(script).toContain("node scripts/prepare-pack.mjs");
+    expect(script).toContain('exec node "$ROOT_DIR/bin/unbrowse-wrapper.mjs"');
+    expect(script).toContain('CODEX_HOME_DIR/skills/unbrowse');
+    expect(script).toContain('$HOME/.claude/skills/unbrowse');
+    expect(script).toContain("--accept-tos");
+    expect(script).toContain("--agent-email");
+    expect(script).toContain("UNBROWSE_TOS_ACCEPTED=1");
+    expect(script).toContain("UNBROWSE_AGENT_EMAIL");
+    expect(script).toContain("UNBROWSE_SKIP_WALLET_SETUP=1");
+  });
 });
