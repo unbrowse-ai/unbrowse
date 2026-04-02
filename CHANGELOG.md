@@ -31,6 +31,7 @@
 
 ### Features
 
+* **sdk**: add a first-party `@unbrowse/sdk` TypeScript client for the canonical local server routes, with typed `resolve`/`execute`/auth helpers, SDK tests, and first-party API/quickstart docs instead of forcing app developers through raw fetch or CLI wrappers
 * **analytics**: restore the canonical investor analytics surface (`growth`, `usage`, `funnel`, `network`, `economics`, `dashboard`), add explicit `POST /v1/analytics/sessions` runtime ingestion, split the legacy setup funnel onto `/v1/analytics/install-funnel`, make the canonical funnel monotonic with recovered profiles excluded and surfaced separately, and unbreak manual execute auth warmup so end-to-end session ingestion actually reaches the analytics backend
 * **backend/storage**: add Neon-backed canonical state storage for the Worker via a Postgres-backed KV adapter, ship a Cloudflare-KV-to-Neon backfill script, and wire `DATABASE_URL` as the production worker secret so agent profiles, skills, ledgers, and analytics state can cut over from EmergentDB/legacy KV drift to Neon
 * **frontend/economics**: switch the web dashboard to wallet-first public lookup on `rach/restart-base`, with public `/dashboard` wallet search, public `/dashboard/:wallet` contributor ledgers, wallet-linked leaderboard rows, and backend wallet lookup routing

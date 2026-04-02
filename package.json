@@ -47,6 +47,7 @@
     "sync:skill-md": "bun scripts/sync-skill-md.ts",
     "check:skill-md": "bun scripts/sync-skill-md.ts --check",
     "pack:cli": "npm pack --dry-run --workspace packages/skill",
+    "pack:sdk": "npm pack --dry-run --workspace packages/sdk",
     "issue:worktree:collect": "bun skills/worktree-issue-fix/scripts/issue-worktree-loop.ts collect",
     "issue:worktree:verify": "bun skills/worktree-issue-fix/scripts/issue-worktree-loop.ts verify",
     "capability:worktree:collect": "bun skills/worktree-issue-fix/scripts/issue-worktree-loop.ts collect",

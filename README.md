@@ -30,6 +30,23 @@ If your agent host uses skills:
 npx skills add unbrowse-ai/unbrowse
 ```
 
+If you want to call the canonical local API from app code instead of shelling out to the CLI:
+
+```bash
+npm install @unbrowse/sdk
+```
+
+```ts
+import { Unbrowse } from "@unbrowse/sdk";
+
+const unbrowse = new Unbrowse();
+
+const result = await unbrowse.resolve({
+  intent: "list tomorrow's events",
+  url: "https://calendar.google.com",
+});
+```
+
 ## Upgrading
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
@@ -71,6 +88,8 @@ Long-form docs live under [`docs/`](./docs/), including the restored whitepaper 
 - [`docs/whitepaper/for-technical-readers.md`](./docs/whitepaper/for-technical-readers.md) - architecture, eval truth, and product boundary
 - [`docs/whitepaper/for-investors.md`](./docs/whitepaper/for-investors.md) - market and business framing
 - [`docs/analytics-api.md`](./docs/analytics-api.md) - canonical investor/product analytics surface
+- [`docs/api.md`](./docs/api.md) - REST and TypeScript SDK surface
+- [`docs/guides/quickstart.md`](./docs/guides/quickstart.md) - setup + first resolve
 
 ## What setup does
 
