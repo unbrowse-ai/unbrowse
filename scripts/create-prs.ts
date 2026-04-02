@@ -33,7 +33,7 @@ async function createPR(token: string, opts: {
     body: JSON.stringify({
       title: opts.title,
       head: opts.head,
-      base: "main",
+      base: "rach/restart-base",
       body: opts.body,
     }),
   });
