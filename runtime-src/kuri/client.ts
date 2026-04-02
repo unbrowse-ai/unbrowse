@@ -311,6 +311,7 @@ export async function start(port?: number): Promise<void> {
     ...process.env as Record<string, string>,
     PORT: String(kuriPort),
     HOST: "127.0.0.1",
+    HEADLESS: "false",  // Use visible Chrome so extensions (stealth) load + user-data-dir is used
   };
   if (kuriCdpPort) {
     env.CDP_URL = `ws://127.0.0.1:${kuriCdpPort}`;
@@ -380,6 +381,11 @@ export async function start(port?: number): Promise<void> {
       kuriProcess.kill();
       await waitForChildExit(kuriProcess);
     }
+    // Also kill any orphaned Chrome processes on the CDP port
+    try {
+      execFileSync("pkill", ["-f", `remote-debugging-port=${kuriCdpPort ?? 9222}`], { stdio: "ignore" });
+      await new Promise((r) => setTimeout(r, 1000));
+    } catch { /* no matching process — fine */ }
   }
   throw new Error(`Kuri failed to start after ${maxAttempts} attempts`);
 }
