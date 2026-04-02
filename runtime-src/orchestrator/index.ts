@@ -3111,7 +3111,7 @@ export async function resolveAndExecute(
   } // end !forceCapture
 
   // 1.4 Direct JSON fetch: if URL looks like a raw API endpoint, try fetching directly
-  if (context?.url && /\.(json|xml)(\?|$)|\/api\/|\/v\d+\//.test(context.url)) {
+  if (context?.url && (/\.(json|xml)(\?|$)|\/api\/|\/v\d+\//.test(context.url) || /[?&]format=(j\d*|json)\b/i.test(context.url))) {
     try {
       const directRes = await fetch(context.url, {
         headers: { "Accept": "application/json", "User-Agent": "unbrowse/1.0" },
