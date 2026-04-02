@@ -27,9 +27,19 @@ export function Navbar() {
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
+          <NavLink href="/blog">Blog</NavLink>
+          <NavLink href="/papers">Papers</NavLink>
           <NavLink href="/search">Registry</NavLink>
-          <NavLink href="/leaderboard">Leaderboard</NavLink>
-          <NavLink href="/dashboard">View By Wallet</NavLink>
+          <NavLink href="/miners">Miners</NavLink>
+          <NavLink href="/dashboard">Dashboard</NavLink>
+          <a
+            href="https://discord.gg/VWugEeFNsG"
+            target="_blank"
+            rel="noopener"
+            className="px-4 py-2 rounded-xl text-sm font-medium text-text-secondary hover:text-orange-500 hover:bg-orange-50 transition-all"
+          >
+            Discord
+          </a>
 
           <div className="w-px h-5 bg-border mx-3" />
 
@@ -110,9 +120,21 @@ export function Navbar() {
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-surface/95 backdrop-blur-lg">
           <div className="px-6 py-4 space-y-1">
+            <MobileNavLink href="/blog" onClick={() => setMobileOpen(false)}>Blog</MobileNavLink>
+            <MobileNavLink href="/papers" onClick={() => setMobileOpen(false)}>Papers</MobileNavLink>
             <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>Registry</MobileNavLink>
-            <MobileNavLink href="/leaderboard" onClick={() => setMobileOpen(false)}>Leaderboard</MobileNavLink>
-            <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>View By Wallet</MobileNavLink>
+            <MobileNavLink href="/miners" onClick={() => setMobileOpen(false)}>Miners</MobileNavLink>
+            <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</MobileNavLink>
+            <a
+              href="https://discord.gg/VWugEeFNsG"
+              target="_blank"
+              rel="noopener"
+              onClick={() => setMobileOpen(false)}
+              className="block px-4 py-3 rounded-xl text-base font-medium text-text-secondary
+                         hover:text-orange-500 hover:bg-orange-50 transition-all"
+            >
+              Discord
+            </a>
           </div>
         </div>
       )}

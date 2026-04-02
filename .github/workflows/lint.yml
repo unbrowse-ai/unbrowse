@@ -2,9 +2,9 @@ name: Lint
 
 on:
   pull_request:
-    branches: [rach/restart-base, main]
+    branches: [rach/restart-base]
   push:
-    branches: [rach/restart-base, main]
+    branches: [rach/restart-base]
 
 jobs:
   repo-sanity:

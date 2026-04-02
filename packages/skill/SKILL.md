@@ -66,12 +66,17 @@ The backend still uses an opaque internal agent id. The email is just the user-f
 
 ## Docs
 
-Use the skill for the core loop. Use the docs when you need the public product and market context:
+Use the skill for the core loop. Use the docs when you need product context or repo mechanics:
 
 - [Whitepaper companion](./docs/whitepaper/README.md) — current map of the paper and companion docs
 - [For Technical Readers](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, and product boundary
 - [For Investors](./docs/whitepaper/for-investors.md) — market framing and roadmap boundary
 - [Analytics API](./docs/analytics-api.md) — canonical investor/product metrics surfaces
+- [Quickstart](./docs/guides/quickstart.md) — install/run path, first-use flow
+- [API notes](./docs/api.md) — route-level behavior and contracts
+- [Codex eval harness](./docs/codex-eval-harness.md) — how product-truth evals run
+- [Deployment](./docs/deployment.md) — runtime/deploy shape
+- [Releasing](./docs/RELEASING.md) — release checklist
 
 ## Core Workflow
 
