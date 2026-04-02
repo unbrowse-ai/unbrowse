@@ -1,4 +1,4 @@
-import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import { isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
@@ -34,18 +34,13 @@ import { createHash } from "node:crypto";
 import { resolveAuthPrerequisites, deriveAuthDependencies } from "../auth/runtime.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
-const NEBIUS_API_KEY = process.env.NEBIUS_API_KEY ?? "";
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
-const CHAT_URL = "https://api.tokenfactory.nebius.com/v1/chat/completions";
-const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
-const JUDGE_MODEL = process.env.UNBROWSE_AGENT_JUDGE_MODEL ?? "gpt-4.1-mini";
 const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS ?? "120000");
 
 /** Flat map of top-level property names → types from a ResponseSchema.
  *  Gives agents enough shape to pick --path targets without full schema bloat. */
 /** Recursive schema tree limited to `maxDepth` levels.
  *  Gives agents the response shape they need to pick --path/--extract targets. */
-function summarizeSchema(schema: ResponseSchema, maxDepth = 3): Record<string, unknown> | null {
+export function summarizeSchema(schema: ResponseSchema, maxDepth = 3): Record<string, unknown> | null {
   function walk(s: ResponseSchema, depth: number): unknown {
     if (depth <= 0) return s.type;
     if (s.type === "array" && s.items) {
@@ -72,7 +67,7 @@ function summarizeSchema(schema: ResponseSchema, maxDepth = 3): Record<string, u
 /** Extract a compact map of leaf key→value pairs from a sample response.
  *  Digs into the first array item at each level, stops at maxLeaves.
  *  Skips metadata noise to surface actual data fields agents care about. */
-function extractSampleValues(sample: unknown, maxLeaves = 12): Record<string, unknown> | null {
+export function extractSampleValues(sample: unknown, maxLeaves = 12): Record<string, unknown> | null {
   if (sample == null) return null;
   const SKIP_KEYS = new Set([
     "__typename", "entryType", "itemType", "clientEventInfo", "feedbackInfo",
@@ -1392,7 +1387,7 @@ async function inferParamsFromIntent(
 ): Promise<Record<string, string>> {
   if (unboundParams.length === 0) return {};
 
-  // Fast path: single search-like param — extract search terms directly, skip LLM
+  // Fast path: single search-like param — extract search terms directly
   if (unboundParams.length === 1) {
     const param = unboundParams[0];
     if (isLikelySearchParam(urlTemplate, param, endpointDescription)) {
@@ -1403,91 +1398,11 @@ async function inferParamsFromIntent(
     }
   }
 
-  const system = `You extract URL query/path parameter values from a user's natural-language intent.
-Given a URL template with placeholder parameters and the user's intent, return a JSON object mapping parameter names to their values.
-
-Rules:
-- Only fill in parameters where the intent clearly implies a value
-- For search/query parameters, extract the search terms from the intent
-- For filter parameters (location, category, price, date, etc.), extract if mentioned
-- Strip meta-phrases like "search for", "find me", "on amazon" — just return the core value
-- If you can't determine a value for a parameter, omit it from the response
-- Return raw values, not URL-encoded
-
-Examples:
-  URL: https://amazon.com/s?k={k}&ref={ref}
-  Intent: "search for wireless headphones under $50"
-  → {"k": "wireless headphones under $50"}
-
-  URL: https://yelp.com/search?find_desc={find_desc}&find_loc={find_loc}
-  Intent: "find pizza restaurants in san francisco"
-  → {"find_desc": "pizza restaurants", "find_loc": "san francisco"}
-
-  URL: https://booking.com/searchresults.html?ss={ss}&checkin={checkin}&checkout={checkout}
-  Intent: "hotels in tokyo for march 20 to march 25"
-  → {"ss": "tokyo", "checkin": "2026-03-20", "checkout": "2026-03-25"}`;
-
-  const user = `URL template: ${urlTemplate}
-${endpointDescription ? `Endpoint description: ${endpointDescription}` : ""}
-Unbound parameters: ${unboundParams.join(", ")}
-User intent: ${intent}
-
-Return JSON mapping parameter names to values. Only include parameters you can confidently fill from the intent.`;
-
-  const result = await callJsonAgent<Record<string, string>>(system, user, {});
-
-  // Filter: only return params that were actually in the unbound list
-  const unboundSet = new Set(unboundParams);
-  const filtered: Record<string, string> = {};
-  for (const [k, v] of Object.entries(result)) {
-    if (unboundSet.has(k) && v != null && v !== "") {
-      filtered[k] = String(v);
-    }
-  }
-  return filtered;
+  // Skip LLM call — unbound params will cause execution deferral, which shows
+  // the agent the endpoint's input_params with examples. The agent fills them via --params.
+  return {};
 }
 
-async function callJsonAgent<T>(system: string, user: string, fallback: T): Promise<T> {
-  const providers = [
-    OPENAI_API_KEY ? { url: OPENAI_CHAT_URL, key: OPENAI_API_KEY, model: JUDGE_MODEL } : null,
-    NEBIUS_API_KEY ? { url: CHAT_URL, key: NEBIUS_API_KEY, model: JUDGE_MODEL } : null,
-  ].filter((p): p is { url: string; key: string; model: string } => !!p);
-  if (providers.length === 0) return fallback;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
-  try {
-    for (const provider of providers) {
-      const res = await fetch(provider.url, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          Authorization: `Bearer ${provider.key}`,
-        },
-        body: JSON.stringify({
-          model: provider.model,
-          temperature: 0,
-          max_tokens: 400,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) continue;
-      const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      const content = json.choices?.[0]?.message?.content;
-      if (!content) continue;
-      return JSON.parse(content) as T;
-    }
-    return fallback;
-  } catch {
-    return fallback;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 async function withOpTimeout<T>(label: string, ms: number, work: Promise<T>): Promise<T> {
   return await Promise.race([
@@ -1671,99 +1586,28 @@ function prioritizeIntentMatchedApis(
 }
 
 async function agentSelectEndpoint(
-  intent: string,
-  skill: SkillManifest,
-  ranked: RankedCandidate[],
-  contextUrl?: string,
+  _intent: string,
+  _skill: SkillManifest,
+  _ranked: RankedCandidate[],
+  _contextUrl?: string,
 ): Promise<string[] | null> {
-  const topRanked = ranked.slice(0, 5);
-  const preferred = inferPreferredEntityTokens(intent);
-  const concreteEntityIntent = isConcreteEntityDetailIntent(intent, contextUrl);
-  const hasObservedCandidate = topRanked.some(
-    (r) => !/inferred from js bundle/i.test(r.endpoint.description ?? ""),
-  );
-  const narrowedBase = hasObservedCandidate
-    ? topRanked.filter((r) => !/inferred from js bundle/i.test(r.endpoint.description ?? ""))
-    : topRanked;
-  const hasPreferredObservedApi =
-    concreteEntityIntent &&
-    preferred.length > 0 &&
-    narrowedBase.some(
-      (candidate) =>
-        candidateMatchesPreferredEntity(candidate, preferred) &&
-        !isDocumentLikeCandidate(candidate, contextUrl),
-    );
-  const narrowed = hasPreferredObservedApi
-    ? narrowedBase.filter((candidate) => !isDocumentLikeCandidate(candidate, contextUrl))
-    : narrowedBase;
-  const top = narrowed.map((r) => ({
-    endpoint_id: r.endpoint.endpoint_id,
-    method: r.endpoint.method,
-    url: r.endpoint.url_template,
-    description: r.endpoint.description ?? "",
-    score: Math.round(r.score * 10) / 10,
-    schema: r.endpoint.response_schema ? summarizeSchema(r.endpoint.response_schema) : null,
-    dom_extraction: !!r.endpoint.dom_extraction,
-    trigger_url: r.endpoint.trigger_url ?? null,
-  }));
-  const fallback = { ordered_endpoint_ids: top.map((r) => r.endpoint_id) };
-  const judged = await callJsonAgent<{
-    ordered_endpoint_ids?: string[];
-    endpoint_ids?: string[];
-    ids?: string[];
-  }>(
-    "You pick the best endpoint(s) for a website task. Return JSON only.",
-    JSON.stringify({
-      task: "rank_endpoints_for_execution",
-      intent,
-      domain: skill.domain,
-      context_url: contextUrl ?? null,
-      endpoints: top,
-      rules: [
-        "Prefer endpoints that directly satisfy the intent, not adjacent metadata.",
-        "Prefer final user-visible data over experiments, config, telemetry, auth, status, or affinity endpoints.",
-        "If the intent asks for channels/messages/people/documents/listings, reject endpoints that return unrelated experiments or scores.",
-        "Return ordered_endpoint_ids best-first. Do not invent ids.",
-      ],
-    }),
-    fallback,
-  );
-  const orderedRaw = judged.ordered_endpoint_ids ?? judged.endpoint_ids ?? judged.ids ?? [];
-  const ordered = orderedRaw.filter((id) => top.some((r) => r.endpoint_id === id));
-  return ordered.length > 0 ? ordered : fallback.ordered_endpoint_ids;
+  // Deterministic scoring from rankEndpoints + readiness bonuses is already applied upstream.
+  // LLM reranking added ~8s latency for marginal benefit — removed.
+  return null;
 }
 
-async function agentJudgeExecution(
+function agentJudgeExecution(
   intent: string,
   endpoint: SkillManifest["endpoints"][number],
   result: unknown,
-): Promise<"pass" | "fail" | "skip"> {
+): "pass" | "fail" | "skip" {
+  // Fast deterministic heuristic — the host agent judges the data when it sees it.
   if (obviousSemanticMismatch(intent, endpoint, result)) return "fail";
-  const verdict = await callJsonAgent<{
-    verdict?: "pass" | "fail";
-    result?: "pass" | "fail";
-    judgment?: "pass" | "fail";
-  }>(
-    "You judge whether returned data satisfies a web data intent. Return JSON only.",
-    JSON.stringify({
-      task: "judge_endpoint_result",
-      intent,
-      endpoint: {
-        endpoint_id: endpoint.endpoint_id,
-        method: endpoint.method,
-        url: endpoint.url_template,
-        description: endpoint.description ?? "",
-      },
-      result,
-      rules: [
-        "pass only if the returned data directly answers the intent",
-        "fail if the data is empty, unrelated, config, experiment, telemetry, status, auth/session, or only a weak proxy",
-        "for list/search intents, wrong entity type is fail",
-      ],
-    }),
-    { verdict: "skip" as const },
-  );
-  return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
+  if (result == null) return "fail";
+  if (Array.isArray(result)) return result.length > 0 ? "pass" : "fail";
+  if (typeof result === "object") return Object.keys(result as Record<string, unknown>).length > 0 ? "pass" : "fail";
+  if (typeof result === "string") return result.length > 0 ? "pass" : "fail";
+  return "skip";
 }
 
 function normalizeParityRows(data: unknown, intent: string): Array<Record<string, unknown>> {
@@ -1841,34 +1685,14 @@ function localParityVerdict(
   return { verdict: "skip", reason: `low_overlap_${overlapRatio.toFixed(2)}` };
 }
 
-async function agentJudgeParity(
+function agentJudgeParity(
   intent: string,
   browserBaseline: unknown,
   replayResult: unknown,
-): Promise<"pass" | "fail" | "skip"> {
-  const browserProjected = projectIntentData(browserBaseline, intent);
-  const replayProjected = projectIntentData(replayResult, intent);
-  const verdict = await callJsonAgent<{
-    verdict?: "pass" | "fail" | "skip";
-    result?: "pass" | "fail" | "skip";
-    judgment?: "pass" | "fail" | "skip";
-  }>(
-    "You judge whether a replay/API result is close enough to the browser-visible result for the same web task. Return JSON only.",
-    JSON.stringify({
-      task: "judge_browser_replay_parity",
-      intent,
-      browser_result: browserProjected,
-      replay_result: replayProjected,
-      rules: [
-        "This is a soft parity check, not strict equality.",
-        "Pass when the replay captures substantially the same user-visible entities or records, even if order, counts, or some fields differ.",
-        "Fail when the replay is a different entity type, obviously unrelated, or misses almost all visible items.",
-        "Skip when evidence is too sparse or ambiguous.",
-      ],
-    }),
-    { verdict: "skip" as const },
-  );
-  return verdict.verdict ?? verdict.result ?? verdict.judgment ?? extractBinaryVerdict(verdict);
+): "pass" | "fail" | "skip" {
+  // Use local fingerprint-based parity only — LLM call removed.
+  const local = localParityVerdict(intent, browserBaseline, replayResult);
+  return local.verdict;
 }
 
 export function resolveEndpointTemplateBindings(
@@ -1913,6 +1737,7 @@ export async function resolveAndExecute(
     response_bytes: 0,
     time_saved_pct: 0,
     tokens_saved_pct: 0,
+    actual_total_ms: 0,
     trace_version: TRACE_VERSION,
   };
   const decisionTrace: Record<string, unknown> = {
@@ -1957,6 +1782,7 @@ export async function resolveAndExecute(
     trace?: ExecutionTrace,
   ): OrchestrationTiming {
     timing.total_ms = Date.now() - t0;
+    timing.actual_total_ms = timing.total_ms;
     timing.source = source;
     timing.skill_id = skillId;
 
@@ -1969,6 +1795,10 @@ export async function resolveAndExecute(
     const cost = skill?.discovery_cost;
     const baselineTokens = cost?.capture_tokens ?? DEFAULT_CAPTURE_TOKENS;
     const baselineMs = cost?.capture_ms ?? DEFAULT_CAPTURE_MS;
+    const paidSearchUc = timing.paid_search_uc ?? 0;
+    const paidExecutionUc = timing.paid_execution_uc ?? 0;
+    const totalActualCostUc = paidSearchUc + paidExecutionUc;
+    if (totalActualCostUc > 0) timing.actual_cost_uc = totalActualCostUc;
 
     // Token savings: marketplace/cache returns structured data, skipping full-page browsing
     if (source === "marketplace" || source === "route-cache" || source === "first-pass") {
@@ -1979,6 +1809,10 @@ export async function resolveAndExecute(
         baselineMs > 0
           ? Math.round((Math.max(0, baselineMs - timing.total_ms) / baselineMs) * 100)
           : 0;
+    }
+    if (cost?.capture_ms != null) {
+      timing.baseline_total_ms = cost.capture_ms;
+      timing.time_saved_ms = Math.max(0, cost.capture_ms - timing.total_ms);
     }
 
     // Stamp trace with token metrics so they persist in trace files
@@ -2140,6 +1974,7 @@ export async function resolveAndExecute(
           sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
           dom_extraction: !!r.endpoint.dom_extraction,
           trigger_url: r.endpoint.trigger_url,
+          needs_params: r.endpoint.semantic?.requires?.some((b) => b.required) ?? false,
         })),
         ...extraFields,
       },
@@ -2599,7 +2434,7 @@ export async function resolveAndExecute(
           const judged =
             localAssessment.verdict === "pass" || trustDomExtraction
               ? "pass"
-              : await agentJudgeExecution(intent, candidate.endpoint, execOut.result);
+              : agentJudgeExecution(intent, candidate.endpoint, execOut.result);
           (decisionTrace.autoexec_attempts as unknown[]).push({
             endpoint_id: candidate.endpoint.endpoint_id,
             score: Math.round(candidate.score * 10) / 10,
@@ -2992,20 +2827,180 @@ export async function resolveAndExecute(
     }
   }
 
+  const shouldBypassBrowserFirstPass = shouldBypassLiveCaptureQueue(context?.url);
+
+  // --- Fast path: URL given, no local cache → skip marketplace, go straight to browser ---
+  // Marketplace search can take 10-60s+ and blocks the agent. When we have a URL,
+  // the browser can achieve the goal via UI immediately while indexing passively.
+  // Marketplace search runs in the background to populate cache for next time.
+  if (context?.url && !agentChoseEndpoint && !forceCapture && !shouldBypassBrowserFirstPass) {
+    console.log(`[fast-path] no local cache for ${requestedDomain} — skipping marketplace, going to browser`);
+
+    // Fire-and-forget: marketplace search populates cache for future resolves
+    void (async () => {
+      try {
+        const { domain_results, global_results } = await searchIntentResolve(
+          queryIntent, requestedDomain ?? undefined,
+          MARKETPLACE_DOMAIN_SEARCH_K, MARKETPLACE_GLOBAL_SEARCH_K,
+        );
+        const totalResults = domain_results.length + global_results.length;
+        if (totalResults > 0) {
+          console.log(`[fast-path:bg] marketplace found ${totalResults} candidates — will be cached for next resolve`);
+        }
+      } catch { /* marketplace down — doesn't matter, browser is working */ }
+    })();
+
+    // Jump straight to first-pass browser action (8s) then browse session handoff
+    const firstPassResult = await tryFirstPassBrowserAction(
+      intent, params, context.url,
+      { signal: options?.signal, clientScope: options?.client_scope },
+    );
+    decisionTrace.first_pass = {
+      intentClass: firstPassResult.intentClass,
+      actionTaken: firstPassResult.actionTaken,
+      hit: firstPassResult.hit,
+      interceptedCount: firstPassResult.interceptedEntries.length,
+      timeMs: firstPassResult.timeMs,
+      fast_path: true,
+    };
+    if (firstPassResult.hit && firstPassResult.miniSkill) {
+      const fpNow = new Date().toISOString();
+      const trace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: firstPassResult.miniSkill.skill_id,
+        endpoint_id: firstPassResult.miniSkill.endpoints[0]?.endpoint_id ?? "",
+        started_at: fpNow,
+        completed_at: fpNow,
+        success: true,
+        network_events: firstPassResult.interceptedEntries,
+      };
+      return {
+        result: firstPassResult.result,
+        trace,
+        source: "first-pass",
+        skill: firstPassResult.miniSkill,
+        timing: finalize("first-pass", firstPassResult.result, firstPassResult.miniSkill.skill_id, firstPassResult.miniSkill, trace),
+      };
+    }
+    console.log(`[fast-path] first-pass miss — opening browse session for agent`);
+
+    // Browse session handoff — agent drives with snap/click/fill/close
+    if (firstPassResult.tabId && context.url) {
+      const tabId = firstPassResult.tabId;
+      const domain = new URL(context.url).hostname.replace(/^www\./, "");
+      try {
+        const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+        const { cookies } = extractBrowserCookies(domain);
+        for (const c of cookies) await kuri.setCookie(tabId, c).catch(() => {});
+      } catch { /* non-fatal */ }
+      await kuri.evaluate(tabId, (await import("../capture/index.js")).INTERCEPTOR_SCRIPT).catch(() => {});
+      await kuri.harStart(tabId).catch(() => {});
+      try {
+        const routesModule = await import("../api/routes.js");
+        if (typeof routesModule.registerBrowseSession === "function") {
+          routesModule.registerBrowseSession(tabId, context.url, domain);
+        }
+      } catch { /* routes module may not expose this yet */ }
+      const fpNow = new Date().toISOString();
+      const trace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: "browse-session",
+        endpoint_id: "",
+        started_at: fpNow,
+        completed_at: fpNow,
+        success: true,
+      };
+      return {
+        result: {
+          status: "browse_session_open",
+          tab_id: tabId,
+          url: context.url,
+          domain,
+          next_step: "unbrowse snap",
+          commands: [
+            "unbrowse snap --filter interactive",
+            "unbrowse click <ref>",
+            "unbrowse fill <ref> <value>",
+            "unbrowse close",
+          ],
+        },
+        trace,
+        source: "browser-action" as any,
+        skill: undefined as any,
+        timing: finalize("browser-action" as any, null, "browse-session", undefined as any, trace),
+      };
+    }
+  }
+
+
+  // --- Marketplace search with hard timeout ---
+  // When a URL is available, cap marketplace search at 5s. Beyond that, browser is faster.
+  const MARKETPLACE_TIMEOUT_MS = context?.url ? 5_000 : 30_000;
+
   if (!forceCapture) {
-    // 1. Search marketplace — single remote call, shared embedding, conditional global fallback
+    // 1. Search marketplace — single remote call, capped by timeout when URL available
     const ts0 = Date.now();
     type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
-    const { domain_results: domainResults, global_results: globalResults } = await searchIntentResolve(
-      queryIntent,
-      requestedDomain ?? undefined,
-      MARKETPLACE_DOMAIN_SEARCH_K,
-      MARKETPLACE_GLOBAL_SEARCH_K,
-    ).catch(() => ({
-      domain_results: [] as SearchResult[],
-      global_results: [] as SearchResult[],
-      skipped_global: false,
-    }));
+    let searchResponse: {
+      domain_results: SearchResult[];
+      global_results: SearchResult[];
+      skipped_global: boolean;
+      actual_cost_uc?: number;
+    };
+    try {
+      searchResponse = await Promise.race([
+        searchIntentResolve(
+          queryIntent,
+          requestedDomain ?? undefined,
+          MARKETPLACE_DOMAIN_SEARCH_K,
+          MARKETPLACE_GLOBAL_SEARCH_K,
+        ),
+        new Promise<{ domain_results: SearchResult[]; global_results: SearchResult[]; skipped_global: boolean; actual_cost_uc?: number }>((resolve) =>
+          setTimeout(() => {
+            console.log(`[marketplace] timeout after ${MARKETPLACE_TIMEOUT_MS}ms — falling through to browser`);
+            resolve({ domain_results: [], global_results: [], skipped_global: true });
+          }, MARKETPLACE_TIMEOUT_MS),
+        ),
+      ]);
+    } catch (err) {
+      if (isX402Error(err)) {
+        const trace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "marketplace-search",
+          endpoint_id: "search",
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          status_code: 402,
+          error: "payment_required",
+        };
+        return {
+          result: {
+            error: "payment_required",
+            payment_status: "payment_required",
+            wallet_provider: "lobster.cash",
+            message: "Marketplace search requires payment before shared graph results are returned.",
+            next_step: "Pay the Tier 3 search fee, or re-run with force capture for free local discovery.",
+            indexing_fallback_available: true,
+            tier: "tier3",
+            terms: err.terms,
+          },
+          trace,
+          source: "marketplace",
+          skill: undefined as any,
+          timing: finalize("marketplace", null, undefined, undefined, trace),
+        };
+      }
+      searchResponse = {
+        domain_results: [] as SearchResult[],
+        global_results: [] as SearchResult[],
+        skipped_global: false,
+      };
+    }
+    if (typeof searchResponse.actual_cost_uc === "number" && searchResponse.actual_cost_uc > 0) {
+      timing.paid_search_uc = searchResponse.actual_cost_uc;
+    }
+    const { domain_results: domainResults, global_results: globalResults } = searchResponse;
     timing.search_ms = Date.now() - ts0;
     console.log(`[marketplace] search: ${domainResults.length} domain + ${globalResults.length} global results (${timing.search_ms}ms)`);
 
@@ -3189,7 +3184,7 @@ export async function resolveAndExecute(
   }
 
   // 1.5 First-pass browser action: lightweight 8s attempt before full capture
-  if (context?.url && !forceCapture) {
+  if (context?.url && !forceCapture && !shouldBypassBrowserFirstPass) {
     const firstPassResult = await tryFirstPassBrowserAction(
       intent, params, context.url,
       { signal: options?.signal, clientScope: options?.client_scope },
@@ -3346,7 +3341,7 @@ export async function resolveAndExecute(
   }
 
   // In-flight capture queue: wait for the same domain capture instead of failing.
-  const bypassLiveCaptureQueue = shouldBypassLiveCaptureQueue(context?.url);
+  const bypassLiveCaptureQueue = shouldBypassBrowserFirstPass;
   const captureLockKey = scopedCacheKey(clientScope, captureDomain);
   let learned_skill: SkillManifest | undefined;
   let trace: import("../types/index.js").ExecutionTrace;
@@ -3550,11 +3545,7 @@ export async function resolveAndExecute(
     if (!orchestratorResult.trace.success || !orchestratorResult.trace.endpoint_id) return;
     const parity = browserBaseline === undefined
       ? undefined
-      : (async () => {
-          const local = localParityVerdict(intent, browserBaseline, orchestratorResult.result);
-          if (local.verdict !== "skip") return local.verdict;
-          return await agentJudgeParity(intent, browserBaseline, orchestratorResult.result);
-        })();
+      : Promise.resolve(agentJudgeParity(intent, browserBaseline, orchestratorResult.result));
     void queuePassiveSkillPublish(skill, { parity });
   }
 

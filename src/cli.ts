@@ -393,7 +393,15 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // Apply --limit
     const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
 
-    output({ trace: result.trace, data: limited, count: limited.length }, !!flags.pretty);
+    const trace = result.trace as Record<string, unknown> | undefined;
+    const out: Record<string, unknown> = { trace: result.trace, data: limited, count: limited.length };
+
+    // Prompt agent to review when this is likely a first-time execute
+    if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
+      out._review_hint = `After presenting results, improve this endpoint's description: unbrowse review --skill ${trace.skill_id} --endpoints '[{"endpoint_id":"${trace.endpoint_id}","description":"DESCRIBE WHAT THIS RETURNS","action_kind":"ACTION","resource_kind":"RESOURCE"}]'`;
+    }
+
+    output(out, !!flags.pretty);
     return;
   }
 
@@ -442,6 +450,21 @@ async function cmdReview(flags: Record<string, string | boolean>): Promise<void>
   const endpoints = JSON.parse(endpointsJson) as Array<Record<string, unknown>>;
   if (!Array.isArray(endpoints) || endpoints.length === 0) die("--endpoints must be a non-empty JSON array");
   output(await api("POST", `/v1/skills/${skillId}/review`, { endpoints }), !!flags.pretty);
+}
+
+async function cmdPublish(flags: Record<string, string | boolean>): Promise<void> {
+  const skillId = flags.skill as string;
+  if (!skillId) die("--skill is required");
+  const endpointsJson = flags.endpoints as string | undefined;
+  if (endpointsJson) {
+    // Phase 2: merge descriptions + publish
+    const endpoints = JSON.parse(endpointsJson) as Array<Record<string, unknown>>;
+    if (!Array.isArray(endpoints) || endpoints.length === 0) die("--endpoints must be a non-empty JSON array");
+    output(await api("POST", `/v1/skills/${skillId}/publish`, { endpoints }), !!flags.pretty);
+  } else {
+    // Phase 1: return endpoints needing descriptions
+    output(await api("POST", `/v1/skills/${skillId}/publish`, {}), !!flags.pretty);
+  }
 }
 
 async function cmdLogin(flags: Record<string, string | boolean>): Promise<void> {
@@ -539,6 +562,7 @@ export const CLI_REFERENCE = {
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
     { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/metadata back to skill" },
+    { name: "publish", usage: "--skill ID [--endpoints '[...]']", desc: "Describe + publish skill to marketplace (two-phase)" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
@@ -587,6 +611,8 @@ export const CLI_REFERENCE = {
     'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
     "unbrowse feedback --skill abc --endpoint def --rating 5",
     'unbrowse review --skill abc --endpoints \'[{"endpoint_id":"def","description":"..."}]\'',
+    "unbrowse publish --skill abc --pretty",
+    'unbrowse publish --skill abc --endpoints \'[{"endpoint_id":"def","description":"Search court judgments by keywords","action_kind":"search","resource_kind":"judgment"}]\'',
   ],
 };
 
@@ -993,7 +1019,7 @@ async function main(): Promise<void> {
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
     "health", "setup", "resolve", "execute", "exec",
-    "feedback", "fb", "review", "login", "skills", "skill", "search", "sessions",
+    "feedback", "fb", "review", "publish", "login", "skills", "skill", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
     "go", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "close",
@@ -1028,6 +1054,7 @@ async function main(): Promise<void> {
     case "execute": case "exec": return cmdExecute(flags);
     case "feedback": case "fb": return cmdFeedback(flags);
     case "review": return cmdReview(flags);
+    case "publish": return cmdPublish(flags);
     case "login": return cmdLogin(flags);
     case "skills": return cmdSkills(flags);
     case "skill": return cmdSkill(args, flags);

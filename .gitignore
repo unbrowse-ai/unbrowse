@@ -3,4 +3,6 @@ dist/
 packed-src/
 runtime-src/
 vendor/kuri/
+vendor/kuri-src/
+*.tgz
 .env

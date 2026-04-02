@@ -351,7 +351,7 @@ export const INTERCEPTOR_SCRIPT = `(function() {
   if (window.__unbrowse_interceptor_installed) return;
   window.__unbrowse_interceptor_installed = true;
   window.__unbrowse_intercepted = [];
-  var MAX_BODY = 512 * 1024;
+  var MAX_BODY = 2 * 1024 * 1024;
   var MAX_JS_BODY = 2 * 1024 * 1024;
   var MAX_ENTRIES = 500;
 
@@ -375,9 +375,10 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return response;
       var ct = response.headers.get('content-type') || '';
       var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
-                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
-                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
+      var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
+                   ct.indexOf('text/plain') !== -1 ||
+                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
+                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1;
       if (!isJs && !isData) return response;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return response;
       var clone = response.clone();
@@ -424,9 +425,10 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       var ct = xhr.getResponseHeader('content-type') || '';
       var url = xhr.__unbrowse_url || '';
       var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
-                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
-                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
+      var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
+                   ct.indexOf('text/plain') !== -1 ||
+                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
+                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1;
       if (!isJs && !isData) return;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return;
       var respBody = xhr.responseText || '';
@@ -471,6 +473,24 @@ export async function collectInterceptedRequests(tabId: string): Promise<Array<{
     }
   } catch { /* non-fatal */ }
   return [];
+}
+
+/**
+ * Inject the interceptor script in chunks to work around kuri's ~1KB evaluate limit.
+ * Falls back to scriptInject for persistent injection on new navigations.
+ */
+export async function injectInterceptor(tabId: string): Promise<void> {
+  // Split into setup (globals + fetch) and XHR parts
+  const SETUP = `(function(){if(window.__unbrowse_interceptor_installed)return;window.__unbrowse_interceptor_installed=true;window.__unbrowse_intercepted=[];window.__UB_MAX=2*1024*1024;window.__UB_MAX_JS=2*1024*1024;window.__UB_MAX_N=500;})()`;
+
+  const FETCH_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oF=window.fetch;window.fetch=function(){var a=arguments,u=typeof a[0]==='string'?a[0]:(a[0]&&a[0].url?a[0].url:''),o=a[1]||{},m=(o.method||'GET').toUpperCase(),rb=o.body?String(o.body).substring(0,M):void 0,rh={};if(o.headers){if(typeof o.headers.forEach==='function')o.headers.forEach(function(v,k){rh[k]=v});else Object.keys(o.headers).forEach(function(k){rh[k]=o.headers[k]})}return oF.apply(this,a).then(function(r){if(window.__unbrowse_intercepted.length>=MN)return r;var ct=r.headers.get('content-type')||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return r;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return r;var c=r.clone();c.text().then(function(b){var lim=isJ?MJ:M;if(b.length>lim)return;var rr={};r.headers.forEach(function(v,k){rr[k]=v});window.__unbrowse_intercepted.push({url:u,method:m,request_headers:rh,request_body:rb,response_status:r.status,response_headers:rr,response_body:b,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})}).catch(function(){});return r}).catch(function(e){throw e})}})()`;
+
+  const XHR_PATCH = `(function(){if(!window.__unbrowse_interceptor_installed)return;var M=window.__UB_MAX,MJ=window.__UB_MAX_JS,MN=window.__UB_MAX_N;var oO=XMLHttpRequest.prototype.open,oS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__ub_m=m;this.__ub_u=u;this.__ub_h={};var oSH=this.setRequestHeader.bind(this);this.setRequestHeader=function(k,v){this.__ub_h[k]=v;oSH(k,v)}.bind(this);return oO.apply(this,arguments)};XMLHttpRequest.prototype.send=function(b){var x=this;x.addEventListener('load',function(){if(window.__unbrowse_intercepted.length>=MN)return;var ct=x.getResponseHeader('content-type')||'',u=x.__ub_u||'';var isJ=ct.indexOf('javascript')!==-1||/\\.js(\\?|$)/.test(u);var isD=ct.indexOf('json')!==-1||ct.indexOf('x-protobuf')!==-1||ct.indexOf('text/plain')!==-1||u.indexOf('/api/')!==-1||u.indexOf('graphql')!==-1||u.indexOf('voyager')!==-1;if(!isJ&&!isD)return;if(/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(u))return;var rb=x.responseText||'';var lim=isJ?MJ:M;if(rb.length>lim)return;window.__unbrowse_intercepted.push({url:u,method:(x.__ub_m||'GET').toUpperCase(),request_headers:x.__ub_h||{},request_body:b?String(b).substring(0,M):void 0,response_status:x.status,response_headers:{},response_body:rb,content_type:ct,is_js:isJ,timestamp:new Date().toISOString()})});return oS.apply(this,arguments)}})()`;
+
+  // Inject in 3 small chunks
+  for (const chunk of [SETUP, FETCH_PATCH, XHR_PATCH]) {
+    await kuri.evaluate(tabId, chunk).catch(() => {});
+  }
 }
 
 
