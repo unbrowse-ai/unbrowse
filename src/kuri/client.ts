@@ -526,12 +526,78 @@ export async function getCookies(tabId: string): Promise<KuriCookie[]> {
   return raw?.result?.cookies ?? [];
 }
 
-/** Set a single cookie. */
+/** Set a cookie via raw CDP WebSocket — supports all cookie attributes (secure, httpOnly, sameSite, expires). */
+async function setCookieViaCDP(wsUrl: string, cookie: {
+  name: string; value: string; domain: string; path: string;
+  secure: boolean; httpOnly: boolean; sameSite: string; expires?: number;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { resolve(false); }, 3000);
+    try {
+      const ws = new (require("ws") as typeof import("ws"))(wsUrl);
+      ws.on("open", () => {
+        ws.send(JSON.stringify({
+          id: 1,
+          method: "Network.setCookie",
+          params: {
+            ...cookie,
+            url: `https://${cookie.domain.replace(/^\./, "")}/`,
+          },
+        }));
+      });
+      ws.on("message", (data: Buffer) => {
+        clearTimeout(timer);
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.id === 1) {
+            ws.close();
+            resolve(msg.result?.success ?? false);
+          }
+        } catch { ws.close(); resolve(false); }
+      });
+      ws.on("error", () => { clearTimeout(timer); resolve(false); });
+    } catch { clearTimeout(timer); resolve(false); }
+  });
+}
+
+/** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
+ *  Falls back to Kuri's /cookies endpoint if CDP is unavailable. */
+/** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
+ *  Falls back to Kuri's /cookies endpoint if CDP is unavailable. */
 export async function setCookie(tabId: string, cookie: KuriCookie): Promise<void> {
+  // Strip wrapping quotes from cookie values (Chrome stores some values like JSESSIONID with literal quotes)
+  const value = cookie.value.replace(/^"|"$/g, "");
+
+  // Try raw CDP first — Kuri's /cookies endpoint doesn't pass secure/httpOnly/sameSite/expires
+  // which causes auth failures on sites like LinkedIn that require secure cookies.
+  if (cookie.secure || cookie.httpOnly) {
+    try {
+      const res = await fetch("http://127.0.0.1:9222/json", { signal: AbortSignal.timeout(1000) }).catch(() => null);
+      if (res?.ok) {
+        const pages = await res.json() as Array<{ id: string; webSocketDebuggerUrl?: string }>;
+        const page = pages.find(p => p.id === tabId);
+        if (page?.webSocketDebuggerUrl) {
+          const success = await setCookieViaCDP(page.webSocketDebuggerUrl, {
+            name: cookie.name,
+            value,
+            domain: cookie.domain,
+            path: cookie.path || "/",
+            secure: cookie.secure ?? false,
+            httpOnly: cookie.httpOnly ?? false,
+            sameSite: cookie.sameSite || "Lax",
+            ...(cookie.expires && cookie.expires > 0 ? { expires: cookie.expires } : {}),
+          });
+          if (success) return;
+        }
+      }
+    } catch { /* CDP unavailable, fall through to Kuri */ }
+  }
+
+  // Fallback: Kuri's /cookies endpoint (no secure/httpOnly support)
   await kuriGet("/cookies", {
     tab_id: tabId,
     name: cookie.name,
-    value: cookie.value,
+    value,
     domain: cookie.domain,
     ...(cookie.path ? { path: cookie.path } : {}),
   });
