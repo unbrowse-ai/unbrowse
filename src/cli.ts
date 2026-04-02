@@ -229,9 +229,18 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   const resultObj = result.result as Record<string, unknown> | undefined;
   if (resultObj?.status === "browse_session_open") {
     info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
+    info(`Preferred flow: snap -> click/fill/eval -> submit -> sync -> close.`);
     info(`Use these commands to get your data:`);
-    const commands = resultObj.commands as string[] ?? ["unbrowse snap --filter interactive", "unbrowse click <ref>", "unbrowse close"];
+    const commands = resultObj.commands as string[] ?? [
+      "unbrowse snap --filter interactive",
+      "unbrowse click <ref>",
+      "unbrowse fill <ref> <value>",
+      "unbrowse submit --wait-for \"/next-step\"",
+      "unbrowse sync",
+      "unbrowse close",
+    ];
     for (const cmd of commands) info(`  ${cmd}`);
+    info(`For JS-heavy forms: prefer real date/time clicks first, inspect hidden inputs with eval when needed, then submit.`);
     info(`All traffic is being passively captured. Run "unbrowse close" when done.`);
     output(slimTrace(result), !!flags.pretty);
     return;
@@ -568,8 +577,8 @@ export const CLI_REFERENCE = {
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
-    { name: "go", usage: '<url>', desc: "Navigate browser to URL (passive indexing)" },
-    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form; fall back to same-origin fetch + rehydrate" },
+    { name: "go", usage: '<url>', desc: "Open a live Kuri browser tab for capture-first workflows" },
+    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows" },
     { name: "snap", usage: "[--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "<ref>", desc: "Click element by ref (e.g. e5)" },
     { name: "fill", usage: "<ref> <value>", desc: "Fill input by ref" },
@@ -584,7 +593,7 @@ export const CLI_REFERENCE = {
     { name: "eval", usage: "<expression>", desc: "Evaluate JavaScript" },
     { name: "back", usage: "", desc: "Navigate back" },
     { name: "forward", usage: "", desc: "Navigate forward" },
-    { name: "sync", usage: "", desc: "Flush current browse traffic into route cache without closing tab" },
+    { name: "sync", usage: "", desc: "Flush the current step's captured traffic into route cache without closing tab" },
     { name: "close", usage: "", desc: "Close browse session, flush + index traffic" },
   ],
   globalFlags: [
@@ -608,6 +617,10 @@ export const CLI_REFERENCE = {
     "unbrowse setup",
     'unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
+    'unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"',
+    'unbrowse snap --filter interactive',
+    'unbrowse submit --wait-for "/time-selection.html"',
+    'unbrowse sync',
     "unbrowse execute --skill abc --endpoint def --pretty",
     "unbrowse execute --skill abc --endpoint def --schema --pretty",
     'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
@@ -649,6 +662,24 @@ function printHelp(): void {
   for (const e of r.examples) {
     lines.push(`  ${e}`);
   }
+
+  lines.push(
+    "",
+    "Browser workflow:",
+    "  1. go -> open the live tab you want to work in",
+    "  2. snap -> inspect refs and confirm the page state",
+    "  3. click/fill/eval -> set real page state",
+    "  4. submit -> prefer DOM submit; auto-falls back to same-origin rehydrate",
+    "  5. sync -> flush captured routes after a successful step",
+    "  6. close -> finish capture + indexing",
+  );
+
+  lines.push(
+    "",
+    "JS-heavy forms:",
+    "  Prefer real calendar/time clicks before submit.",
+    "  If the UI is flaky, inspect hidden inputs/cookies with eval, then submit the real form.",
+  );
 
   lines.push("");
   process.stderr.write(lines.join("\n"));
