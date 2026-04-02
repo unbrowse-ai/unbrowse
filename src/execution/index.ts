@@ -1578,9 +1578,6 @@ async function executeDomExtractionEndpoint(
 
   // Fall back to DOM extraction from rendered HTML
   const html = captured.html ?? "";
-  // Browser fallback
-  const captured = await captureSession(url, authHeaders, cookies, intent);
-  const html = captured.html ?? "";
   const extracted = extractFromDOMWithHint(html, intent, endpoint.dom_extraction);
   if (extracted.data) {
     const quality = validateExtractionQuality(extracted.data, extracted.confidence, intent);

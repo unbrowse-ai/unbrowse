@@ -994,7 +994,6 @@ export async function registerRoutes(app: FastifyInstance) {
           invalidateRouteCacheForDomain(domain);
           console.log(`[passive-index] ${domain}: ${mergedEps.length} endpoints cached synchronously`);
         }
-        }
       } else {
         // No API endpoints from network traffic — create DOM extraction endpoint.
         // Handles server-rendered sites where search is form POST returning HTML.
@@ -1071,6 +1070,7 @@ export async function registerRoutes(app: FastifyInstance) {
           console.log(`[close] DOM fallback failed: ${err instanceof Error ? err.message : err}`);
         }
       }
+    }
 
     // Run full async enrichment pipeline (agent augmentation, graph, marketplace publish)
     passiveIndexFromRequests(allRequests, session.url);
