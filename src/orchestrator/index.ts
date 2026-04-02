@@ -1,4 +1,4 @@
-import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import { isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
@@ -2931,24 +2931,62 @@ export async function resolveAndExecute(
     // 1. Search marketplace — single remote call, capped by timeout when URL available
     const ts0 = Date.now();
     type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
-    const { domain_results: domainResults, global_results: globalResults } = await Promise.race([
-      searchIntentResolve(
-        queryIntent,
-        requestedDomain ?? undefined,
-        MARKETPLACE_DOMAIN_SEARCH_K,
-        MARKETPLACE_GLOBAL_SEARCH_K,
-      ),
-      new Promise<{ domain_results: SearchResult[]; global_results: SearchResult[]; skipped_global: boolean }>((resolve) =>
-        setTimeout(() => {
-          console.log(`[marketplace] timeout after ${MARKETPLACE_TIMEOUT_MS}ms — falling through to browser`);
-          resolve({ domain_results: [], global_results: [], skipped_global: true });
-        }, MARKETPLACE_TIMEOUT_MS),
-      ),
-    ]).catch(() => ({
-      domain_results: [] as SearchResult[],
-      global_results: [] as SearchResult[],
-      skipped_global: false,
-    }));
+    let searchResponse: {
+      domain_results: SearchResult[];
+      global_results: SearchResult[];
+      skipped_global: boolean;
+    };
+    try {
+      searchResponse = await Promise.race([
+        searchIntentResolve(
+          queryIntent,
+          requestedDomain ?? undefined,
+          MARKETPLACE_DOMAIN_SEARCH_K,
+          MARKETPLACE_GLOBAL_SEARCH_K,
+        ),
+        new Promise<{ domain_results: SearchResult[]; global_results: SearchResult[]; skipped_global: boolean }>((resolve) =>
+          setTimeout(() => {
+            console.log(`[marketplace] timeout after ${MARKETPLACE_TIMEOUT_MS}ms — falling through to browser`);
+            resolve({ domain_results: [], global_results: [], skipped_global: true });
+          }, MARKETPLACE_TIMEOUT_MS),
+        ),
+      ]);
+    } catch (err) {
+      if (isX402Error(err)) {
+        const trace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "marketplace-search",
+          endpoint_id: "search",
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: false,
+          status_code: 402,
+          error: "payment_required",
+        };
+        return {
+          result: {
+            error: "payment_required",
+            payment_status: "payment_required",
+            wallet_provider: "lobster.cash",
+            message: "Marketplace search requires payment before shared graph results are returned.",
+            next_step: "Pay the Tier 3 search fee, or re-run with force capture for free local discovery.",
+            indexing_fallback_available: true,
+            tier: "tier3",
+            terms: err.terms,
+          },
+          trace,
+          source: "marketplace",
+          skill: undefined as any,
+          timing: finalize("marketplace", null, undefined, undefined, trace),
+        };
+      }
+      searchResponse = {
+        domain_results: [] as SearchResult[],
+        global_results: [] as SearchResult[],
+        skipped_global: false,
+      };
+    }
+    const { domain_results: domainResults, global_results: globalResults } = searchResponse;
     timing.search_ms = Date.now() - ts0;
     console.log(`[marketplace] search: ${domainResults.length} domain + ${globalResults.length} global results (${timing.search_ms}ms)`);
 

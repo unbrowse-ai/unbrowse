@@ -6,7 +6,7 @@
  * callers for EmergentDB graph lookups.
  *
  * Fee schedule (USD micro-cents, i.e. 1 unit = $0.000001):
- *   search    — vector/intent search:         100 µ¢  ($0.000100)
+ *   search    — vector/intent search:        1000 µ¢  ($0.001000)
  *   chain     — DAG prerequisite resolution:  200 µ¢  ($0.000200)
  *   predict   — co-occurrence prediction:     100 µ¢  ($0.000100)
  *   session   — session action recording:      50 µ¢  ($0.000050)
@@ -23,7 +23,7 @@ import { statsKV } from "./kv.js";
 
 /** Micro-cents charged per graph operation (1 unit = $0.000001). */
 export const GRAPH_OPERATION_COST_UC: Record<GraphOperation, number> = {
-  search:   100,
+  search:  1000,
   chain:    200,
   predict:  100,
   session:   50,

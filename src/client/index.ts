@@ -28,6 +28,10 @@ function decodeBase64Json(value: string): unknown {
   }
 }
 
+export function isX402Error(err: unknown): err is Error & { x402: true; terms?: unknown; status?: number } {
+  return !!err && typeof err === "object" && (err as { x402?: unknown }).x402 === true;
+}
+
 function scopedSkillKey(skillId: string, scopeId?: string): string {
   return scopeId ? `${scopeId}:${skillId}` : skillId;
 }
@@ -678,12 +682,19 @@ export async function searchIntentResolve(
       domain_k: domainK,
       global_k: globalK,
     });
-  } catch {
+  } catch (err) {
+    if (isX402Error(err)) throw err;
     const [domain_results, global_results] = await Promise.all([
       domain
-        ? searchIntentInDomain(intent, domain, domainK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>)
+        ? searchIntentInDomain(intent, domain, domainK).catch((fallbackErr) => {
+            if (isX402Error(fallbackErr)) throw fallbackErr;
+            return [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+          })
         : Promise.resolve([] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
-      searchIntent(intent, globalK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
+      searchIntent(intent, globalK).catch((fallbackErr) => {
+        if (isX402Error(fallbackErr)) throw fallbackErr;
+        return [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+      }),
     ]);
     return { domain_results, global_results, skipped_global: false };
   }
