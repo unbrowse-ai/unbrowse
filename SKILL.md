@@ -29,17 +29,28 @@ Every method except `goto()` proxies directly to Kuri — snapshots, ref-based a
 ## Installation
 
 ```bash
-npx unbrowse setup
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
 ```
 
 `unbrowse setup` now prompts for an email-style agent identity before first registration. For headless runs, preseed it with `UNBROWSE_AGENT_EMAIL=you@example.com`.
 
-For repeat use, install globally:
+For agent-host installs:
 
 ```bash
-npm install -g unbrowse
-unbrowse setup
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.codex/skills/unbrowse
+cd ~/.codex/skills/unbrowse && ./setup --host codex
 ```
+
+Headless bootstrap:
+
+```bash
+cd ~/unbrowse && ./setup --host off --accept-tos --agent-email you@example.com --skip-wallet-setup
+```
+
+`./setup` is the single front door. It installs the local shim, then runs the real first-use path: ToS, agent registration/API key caching, and optional lobster.cash wallet detection.
+
+If a wallet is configured, that wallet address becomes the contributor truth: Unbrowse syncs it onto your agent profile, uses it as the destination for contributor payouts, and uses it for paid-route spending proof.
 
 If your agent host uses skills, add the Unbrowse skill too:
 

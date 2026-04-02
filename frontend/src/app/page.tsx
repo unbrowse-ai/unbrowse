@@ -7,9 +7,14 @@ import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { HeroCTA } from "@/components/hero-cta";
+import { INSTALL_CMD_GENERIC, UPGRADE_CMD_GENERIC } from "@/lib/install-command";
 import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
+const SHOW_ALL_INSTALL_OPTIONS = true;
+const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
+  ? `For CLI-first hosts, start with ${INSTALL_CMD_GENERIC}. That clone-and-setup path is deterministic and does not depend on npm release assets being healthy. It also handles the real first-run flow: ToS acceptance, agent registration plus API-key caching, and lobster.cash wallet detection when present. Pairing a wallet is how you turn browsing into earnings: that address is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. Upgrade with ${UPGRADE_CMD_GENERIC}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths.`
+  : `Start with ${INSTALL_CMD_GENERIC} for the CLI host path. It handles ToS, registration, and wallet detection. Pair a wallet if you want contributor payouts to land at your address. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
 const DOCS_URL = "https://docs.unbrowse.ai";
 
 const faqJsonLd = {
@@ -61,7 +66,7 @@ const faqJsonLd = {
       name: "How do I install Unbrowse?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run npx unbrowse setup for the CLI host path. If Unbrowse is already installed, upgrade with npm install -g unbrowse@latest and rerun unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. The package pulls in the local Unbrowse runtime automatically. Older OpenClaw builds may ask once to trust the plugin.",
+        text: INSTALL_ANSWER,
       },
     },
     {
@@ -104,8 +109,8 @@ export default function Home() {
           <p>
             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
-          <p>Setup: npx unbrowse setup</p>
-          <p>Upgrade existing installs: npm install -g unbrowse@latest && unbrowse setup</p>
+          <p>Setup: {INSTALL_CMD_GENERIC}</p>
+          <p>Upgrade existing installs: {UPGRADE_CMD_GENERIC}</p>
           <p>For OpenClaw: npx unbrowse-openclaw install --restart</p>
           <p>The package pulls in the local Unbrowse runtime automatically.</p>
           <p>Older OpenClaw builds may ask once to trust the plugin.</p>
@@ -188,8 +193,7 @@ export default function Home() {
                 </div>
                 <div className="border-t border-border bg-orange-50 px-5 py-4 sm:px-6 text-sm leading-relaxed text-orange-900">
                   <span className="font-medium">Already installed?</span>
-                  <code className="ml-2 text-orange-700 font-medium">npm install -g unbrowse@latest</code>
-                  <code className="ml-2 text-orange-700 font-medium">unbrowse setup</code>
+                  <code className="ml-2 text-orange-700 font-medium">{UPGRADE_CMD_GENERIC}</code>
                 </div>
               </div>
             </div>
@@ -407,10 +411,8 @@ export default function Home() {
             <div className="rounded-2xl border border-border bg-surface px-5 py-4 text-sm leading-relaxed text-text-secondary">
               Verify the install with
               <code className="ml-2 text-orange-700 font-medium">unbrowse health</code>
-              and rerun
-              <code className="mx-2 text-orange-700 font-medium">npm install -g unbrowse@latest</code>
-              plus
-              <code className="ml-2 text-orange-700 font-medium">unbrowse setup</code>
+              and upgrade in place with
+              <code className="ml-2 text-orange-700 font-medium">{UPGRADE_CMD_GENERIC}</code>
               after each release.
             </div>
 
@@ -474,7 +476,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse setup</code> for the CLI host path. If Unbrowse is already installed, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npm install -g unbrowse@latest</code> and rerun <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse setup</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>. The package pulls in the local Unbrowse runtime automatically, and older OpenClaw builds may ask once to trust the plugin.</p>
+               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_GENERIC}</code> for the deterministic CLI path. If Unbrowse is already installed from a repo clone, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_GENERIC}</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

@@ -1,25 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { Terminal, Copy, Check } from "lucide-react";
+import { Copy, Check } from "lucide-react";
+import {
+  INSTALL_CMD_CLAUDE,
+  INSTALL_CMD_GENERIC,
+  UPGRADE_CMD_CLAUDE,
+  UPGRADE_CMD_GENERIC,
+} from "@/lib/install-command";
 
 const tabs = [
     {
       id: "claude",
       label: "Claude Code",
-      code: `# Full setup in one command
-npx unbrowse setup
+      code: `# Install into Claude's skill directory
+${INSTALL_CMD_CLAUDE}
 
-# Install globally for repeat use
-npm install -g unbrowse
-unbrowse setup
+# Optional headless bootstrap
+./setup --host claude --accept-tos --agent-email you@example.com
 
-# Already installed? Upgrade to latest after releases
-npm install -g unbrowse@latest
-unbrowse setup
+# Pair a wallet if you want contributor payouts
+# The wallet address on your profile is where route earnings go
 
-# Add the skill for agent workflows
-npx skills add unbrowse-ai/unbrowse
+# Upgrade in place after releases
+${UPGRADE_CMD_CLAUDE}
 
 # Use it
 unbrowse resolve --intent "get events" --url "https://lu.ma"`,
@@ -48,19 +52,20 @@ unbrowse-openclaw install --profile work --restart`,
     {
       id: "cursor",
       label: "Cursor",
-      code: `# Full setup in one command
-npx unbrowse setup
+      code: `# Deterministic local install
+${INSTALL_CMD_GENERIC}
 
-# Install globally for repeat use
-npm install -g unbrowse
-unbrowse setup
+# Optional headless bootstrap
+./setup --host off --accept-tos --agent-email you@example.com
 
-# Already installed? Upgrade to latest after releases
-npm install -g unbrowse@latest
-unbrowse setup
+# Pair a wallet if you want contributor payouts
+# The wallet address on your profile is where route earnings go
 
-# Add the skill in Cursor
-npx skills add unbrowse-ai/unbrowse
+# Upgrade in place after releases
+${UPGRADE_CMD_GENERIC}
+
+# Add the skill in Cursor if you want slash-command discovery
+npx skills add https://github.com/unbrowse-ai/unbrowse --skill unbrowse
 
 # Check the install
 unbrowse health`,
@@ -116,7 +121,7 @@ export function InstallInstructions() {
           <pre className="pl-8 text-sm font-mono text-text-primary overflow-x-auto leading-relaxed whitespace-pre-wrap">
             {tab.code.split('\n').map((line, i) => {
               if (line.startsWith('#')) return <div key={i} className="text-text-muted">{line}</div>;
-              if (line.startsWith('npx')) return <div key={i} className="text-orange-600 font-medium">{line}</div>;
+              if (line.startsWith('git clone') || line.startsWith('cd ') || line.startsWith('npx')) return <div key={i} className="text-orange-600 font-medium">{line}</div>;
               if (line.startsWith('export') || line.startsWith('UNBROWSE')) return <div key={i} className="text-orange-500">{line}</div>;
               return <div key={i}>{line}</div>;
             })}
