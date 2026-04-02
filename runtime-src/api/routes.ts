@@ -135,6 +135,14 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
 function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
   passiveIndexFromRequests(harEntriesToRawRequests(entries), pageUrl);
 }
+// ── Browse session state (module-level so orchestrator can register sessions) ──
+const browseSessions = new Map<string, { tabId: string; url: string; harActive: boolean; domain: string }>();
+
+/** Register a browse session from the orchestrator (Phase 4 handoff) */
+export function registerBrowseSession(tabId: string, url: string, domain: string): void {
+  browseSessions.set("default", { tabId, url, harActive: true, domain });
+}
+
 // ── /v1/stats cache ──────────────────────────────────────────────────
 let statsCache: { data: unknown; ts: number } | null = null;
 const STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -630,7 +638,7 @@ export async function registerRoutes(app: FastifyInstance) {
   // per-session tab + HAR state so every action the agent takes through
   // the CLI is passively captured and indexed.
 
-  const browseSessions = new Map<string, { tabId: string; url: string; harActive: boolean; domain: string }>();
+  // browseSessions is module-level (shared with orchestrator via registerBrowseSession)
 
   /** Extract registrable domain for auth profile naming */
   function profileName(url: string): string {
