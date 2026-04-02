@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildAgentExecuteCliArgs, deriveEndpointSignals, fallbackEndpointOrder, normalizeHarnessCases } from "../evals/codex-harness-lib.js";
+import { buildAgentExecuteCliArgs, deriveEndpointSignals, fallbackEndpointOrder, hasCliFlag, normalizeHarnessCases } from "../evals/codex-harness-lib.js";
 
 describe("codex harness helpers", () => {
   it("pushes page artifacts behind schema-backed endpoints in fallback ordering", () => {
@@ -223,5 +223,13 @@ describe("codex harness helpers", () => {
       "third_party",
       "tracking_or_adtech",
     ]);
+  });
+
+  it("accepts boolean cli flags passed with standard double-dash syntax", () => {
+    const args = new Set(["--benchmark", "--force-capture"]);
+
+    expect(hasCliFlag(args, "--benchmark")).toBe(true);
+    expect(hasCliFlag(args, "force-capture")).toBe(true);
+    expect(hasCliFlag(args, "--restart-server")).toBe(false);
   });
 });

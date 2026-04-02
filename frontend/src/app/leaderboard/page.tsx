@@ -4,11 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { getLeaderboard, type LeaderboardEntry } from "@/lib/api";
-
 export default function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     getLeaderboard(50)
       .then(setEntries)

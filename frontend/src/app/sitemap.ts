@@ -1,14 +1,44 @@
 import type { MetadataRoute } from "next";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+const API_BASE = "https://beta-api.unbrowse.ai/v1";
+
+interface DynamicPost {
+  slug: string;
+  title: string;
+  description: string;
+  published_at?: string;
+}
+
+async function fetchDynamicBlogSlugs(): Promise<DynamicPost[]> {
+  try {
+    const res = await fetch(`${API_BASE}/blog/posts`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { posts: DynamicPost[] };
+    return data.posts ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://www.unbrowse.ai";
 
-  return [
+  const dynamicPosts = await fetchDynamicBlogSlugs();
+
+  const staticEntries: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 1.0,
+    },
+    {
+      url: `${baseUrl}/blog`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.9,
     },
     {
       url: `${baseUrl}/internal-apis-are-all-you-need`,
@@ -64,5 +94,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.8,
     },
+    {
+      url: `${baseUrl}/top-domains-to-mine`,
+      lastModified: new Date("2026-04-02"),
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
   ];
+
+  const dynamicEntries: MetadataRoute.Sitemap = dynamicPosts.map((post) => ({
+    url: `${baseUrl}/blog/${post.slug}`,
+    lastModified: post.published_at ? new Date(post.published_at) : new Date(),
+    changeFrequency: "weekly",
+    priority: 0.8,
+  }));
+
+  return [...staticEntries, ...dynamicEntries];
 }

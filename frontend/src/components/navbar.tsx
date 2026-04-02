@@ -110,6 +110,8 @@ export function Navbar() {
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-surface/95 backdrop-blur-lg">
           <div className="px-6 py-4 space-y-1">
+            <MobileNavLink href="/blog" onClick={() => setMobileOpen(false)}>Blog</MobileNavLink>
+            <MobileNavLink href="/papers" onClick={() => setMobileOpen(false)}>Papers</MobileNavLink>
             <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>Registry</MobileNavLink>
             <MobileNavLink href="/leaderboard" onClick={() => setMobileOpen(false)}>Leaderboard</MobileNavLink>
             <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>View By Wallet</MobileNavLink>

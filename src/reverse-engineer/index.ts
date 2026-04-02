@@ -55,6 +55,19 @@ const STRIP_HEADER_PREFIXES = [
   "x-firebase-",      // Firebase auth headers
 ];
 
+// Browser-captured headers that are not secrets themselves, but are still
+// required to replay authenticated requests after publish-time header redaction.
+const REPLAY_HEADER_PREFIXES = [
+  "x-li-",
+];
+const REPLAY_HEADER_EXACT = new Set([
+  "accept",
+  "csrf-token",
+  "origin",
+  "x-requested-with",
+  "x-restli-protocol-version",
+]);
+
 // Headers known to be safe (non-sensitive) — used by the catch-all filter below
 const SAFE_HEADERS = new Set([
   "accept", "accept-encoding", "accept-language", "cache-control",
@@ -395,8 +408,8 @@ function inferCsrfPlan(req: RawRequest, parsedBody?: unknown): CsrfPlan | undefi
     Object.entries(req.request_headers).map(([key, value]) => [key.toLowerCase(), value]),
   );
   const cookies = parseCookieHeader(headers["cookie"]);
-  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf)$/i.test(name));
-  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
+  const csrfCookieNames = Object.keys(cookies).filter((name) => /^(ct0|csrf_token|_csrf|csrftoken|xsrf-token|_xsrf|jsessionid)$/i.test(name));
+  const headerName = ["x-csrf-token", "x-xsrf-token", "x-csrftoken", "csrf-token"].find((name) => typeof headers[name] === "string" && headers[name].length > 0);
   if (headerName && csrfCookieNames.length > 0) {
     return {
       source: "cookie",
@@ -968,6 +981,15 @@ function isSensitiveHeader(name: string): boolean {
   return false;
 }
 
+function isReplayCriticalHeader(name: string, value: string): boolean {
+  const lower = name.toLowerCase();
+  if (REPLAY_HEADER_EXACT.has(lower)) {
+    if (lower !== "accept") return true;
+    return /application\/vnd\./i.test(value);
+  }
+  return REPLAY_HEADER_PREFIXES.some((prefix) => lower.startsWith(prefix));
+}
+
 function sanitizeHeaders(headers: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(headers ?? {}).filter(([k]) => {
@@ -989,7 +1011,7 @@ export function extractAuthHeaders(requests: RawRequest[]): Record<string, strin
     for (const [k, v] of Object.entries(req.request_headers)) {
       const lower = k.toLowerCase();
       if (lower === "cookie" || lower === "content-length" || lower === "host") continue;
-      if (isSensitiveHeader(k) && !authHeaders[lower]) {
+      if ((isSensitiveHeader(k) || isReplayCriticalHeader(k, v)) && !authHeaders[lower]) {
         authHeaders[lower] = v;
       }
     }

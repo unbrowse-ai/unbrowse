@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "id": "github-search-repositories",
+      "intent": "search repositories",
+      "url": "https://github.com/search?q=openai&type=repositories",
+      "expected_fields": ["full_name", "description", "stargazers_count"]
+    },
+    {
+      "id": "mdn-search-docs",
+      "intent": "search docs",
+      "url": "https://developer.mozilla.org/en-US/search?q=fetch",
+      "expected_fields": ["title", "url", "summary"]
+    },
+    {
+      "id": "npm-package-info",
+      "intent": "get package info",
+      "url": "https://www.npmjs.com/package/openai",
+      "expected_fields": ["name", "version", "description"]
+    },
+    {
+      "id": "rubygems-package-info",
+      "intent": "get package info",
+      "url": "https://rubygems.org/gems/rails",
+      "expected_fields": ["name", "version", "description"]
+    },
+    {
+      "id": "pubdev-package-info",
+      "intent": "get package info",
+      "url": "https://pub.dev/packages/http",
+      "expected_fields": ["name", "version", "description"]
+    }
+  ]
+}
