@@ -1,3 +1,5 @@
+import { PgKV } from "./pg-kv.js";
+
 /**
  * EmergentDB qdkv adapter — drop-in replacement for Cloudflare KV.
  *
@@ -342,12 +344,30 @@ function safeJson(s: string): unknown {
   try { return JSON.parse(s); } catch { return null; }
 }
 
-export function skillsKV(env: { EMERGENTDB_API_KEY: string; ENVIRONMENT?: string }): EdbKV {
+type KVEnv = {
+  DATABASE_URL?: string;
+  EMERGENTDB_API_KEY?: string;
+  ENVIRONMENT?: string;
+};
+
+export function skillsKV(env: KVEnv): PgKV | EdbKV {
   const ns = env.ENVIRONMENT === "staging" ? "staging-skills-v2" : "skills";
+  if (env.DATABASE_URL?.trim()) {
+    return new PgKV(env.DATABASE_URL, ns);
+  }
+  if (!env.EMERGENTDB_API_KEY?.trim()) {
+    throw new Error("EMERGENTDB_API_KEY is required when DATABASE_URL is unset");
+  }
   return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }
 
-export function statsKV(env: { EMERGENTDB_API_KEY: string; ENVIRONMENT?: string }): EdbKV {
+export function statsKV(env: KVEnv): PgKV | EdbKV {
   const ns = env.ENVIRONMENT === "staging" ? "staging-stats" : "stats";
+  if (env.DATABASE_URL?.trim()) {
+    return new PgKV(env.DATABASE_URL, ns);
+  }
+  if (!env.EMERGENTDB_API_KEY?.trim()) {
+    throw new Error("EMERGENTDB_API_KEY is required when DATABASE_URL is unset");
+  }
   return new EdbKV(env.EMERGENTDB_API_KEY, ns);
 }
