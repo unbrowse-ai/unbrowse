@@ -73,6 +73,9 @@
 * add investor-facing analytics coverage: `/v1/analytics/growth`, `/v1/analytics/usage`, `/v1/analytics/network`, `/v1/analytics/economics`, plus session/adoption/pricing ingestion so cohort retention, new-user growth, skill reuse, external adoption, and path-to-$100k math are API-trackable
 ### Bug Fixes
 
+* **openclaw/plugin**: resolve the bundled Unbrowse CLI from the installed package `bin` entry instead of guessing `bin/unbrowse.js`, bump the plugin dependency to `unbrowse@^2.10.2`, and add execution-path regression coverage so the OpenClaw plugin can actually launch the packaged runtime again
+* **openclaw/plugin**: add tarball-level packaging coverage for `unbrowse-openclaw` so published npm releases keep the installer `bin/` + `scripts/` entrypoints and the README `npx unbrowse-openclaw install --restart` flow stays real
+* **openclaw/plugin**: switch the installer off `openclaw plugins install` and onto a managed extension-dir write plus `plugins.load.paths` rewrite, so current OpenClaw builds stop blocking the plugin's legitimate `child_process` usage during npm/npx installs
 * **ci/release**: fix main-branch release metadata parsing so npm package name/version resolve correctly in GitHub Actions, fail fast if those outputs are empty, and treat duplicate-version npm publishes as idempotent no-ops instead of blocking deploy + skill sync
 * **tests/graph-api**: bound live graph API requests with explicit fetch timeouts, remove the extra retry fallthrough, and make fixture publishing best-effort so the backend integration suite stops timing out in `beforeAll` during CI reruns
 * **docs/frontend**: ground quickstart/API/deployment docs against the current repo and point public docs links at `docs.unbrowse.ai`
