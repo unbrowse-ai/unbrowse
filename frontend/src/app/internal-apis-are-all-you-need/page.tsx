@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 const PAPER_TITLE = "Internal APIs Are All You Need";
-const PAPER_SUBTITLE = "A Shared Route Graph for Autonomous Web Agents";
+const PAPER_SUBTITLE =
+  "Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent Architectures";
 const CANONICAL_PATH = "/internal-apis-are-all-you-need";
 const PAPER_PDF_URL = "/papers/internal-apis-are-all-you-need.pdf";
-const PUBLISHED_AT = "2026-03-23";
-const MODIFIED_AT = "2026-03-25";
+const ARXIV_URL = "https://arxiv.org/abs/2604.00694";
+const PUBLISHED_AT = "2026-04-01";
+const MODIFIED_AT = "2026-04-01";
 const PAPER_AUTHORS = [
   {
     name: "Lewis Tham",
@@ -18,35 +20,40 @@ const PAPER_AUTHORS = [
     affiliation: "School of Computing, National University of Singapore",
     email: "ngarcia@nus.edu.sg",
   },
+  {
+    name: "Jungpil Hahn",
+    affiliation: "School of Computing, National University of Singapore",
+    email: "jungpil@nus.edu.sg",
+  },
 ];
 
-const abstract = `Autonomous web agents repeatedly pay a discovery tax: opening sites, inspecting DOMs, and reverse-engineering callable routes. Internal APIs Are All You Need introduces Unbrowse, a shared route graph that converts browser-based route discovery into a collectively maintained, usage-priced index of callable web interfaces. Routes are learned passively from real browsing traffic and reused as cached API calls, making agents faster, cheaper, and less brittle than browser automation.`;
+const abstract = `Autonomous agents increasingly interact with the web, yet most websites remain designed for human browsers. Internal APIs Are All You Need presents Unbrowse, a shared route graph that transforms browser-based route discovery into a collectively maintained index of callable first-party interfaces, making direct API reuse faster and less brittle than browser-first automation.`;
 
 const highlights = [
-  "Introduces the discovery tax as the core bottleneck for autonomous web agents",
-  "Frames internal APIs as the machine-native substrate behind human web interfaces",
-  "Presents a shared route graph learned passively from real browsing traffic",
-  "Benchmarks 94 live domains with 3.6× mean and 5.4× median speedup over Playwright",
-  "Shows 90–96% per-task cost reduction for warmed-cache execution",
-  "Defines a voluntary three-path execution model: local cache, shared graph, or browser fallback",
+  "Argues that the web's first-party internal APIs, not browser UIs, are the real machine-native interface layer",
+  "Presents a shared route graph learned passively from real browsing traffic and reused via direct API calls",
+  "Benchmarks equivalent information-retrieval tasks across 94 domains with 3.6× mean and 5.4× median speedup over Playwright",
+  "Reports fully warmed cached execution at 950 ms on average versus 3,404 ms for browser automation",
+  "Shows well-cached routes completing in under 100 ms on the same host",
+  "Defines a voluntary three-path model: local cache, shared graph, or browser fallback",
 ];
 
 const sections = [
   {
     title: "Why this paper matters",
-    body: "Most web-capable agents still waste time rediscovering the same website workflows over and over. This paper argues that the web's internal APIs already form the real machine-native interface layer. Unbrowse turns that repeated private reverse engineering into a shared route graph, so agents can call cached routes directly instead of browsing human interfaces by default.",
+    body: "Most web-capable agents still pay a discovery tax every time they touch a site: open the page, inspect the DOM, infer the request flow, retry when the UI changes. The paper argues that this is the wrong default. Modern sites already expose callable first-party interfaces behind their UIs; the missing layer is shared discovery and reuse.",
   },
   {
     title: "Core claim",
-    body: "Internal APIs are all you need because modern websites already expose callable backend interfaces behind their UIs. The bottleneck is not the absence of interfaces. It is the absence of shared memory, routing, and maintenance around them.",
+    body: "Internal APIs are all you need because the bottleneck is not interface existence. It is the repeated private cost of rediscovering those interfaces agent by agent. Unbrowse turns that redundant work into a shared route graph with a clean outside option when the graph is not good enough.",
   },
   {
     title: "What Unbrowse adds",
-    body: "Unbrowse passively indexes callable web interfaces from real traffic, keeps execution local, and gives agents a voluntary outside option: use the shared graph only when its route fee is lower than the expected cost of rediscovery. That keeps adoption disciplined by real product economics rather than speculation.",
+    body: "Unbrowse passively indexes callable web interfaces from real traffic, serves cached routes through direct API execution, and falls back to live browser capture only when needed. The paper also sketches the route-economy layer around this graph: search fees, one-time skill installation fees, optional site-owner execution fees, and delta-based contributor attribution via x402.",
   },
   {
     title: "Main empirical result",
-    body: "Across 94 domains, warmed-cache execution averaged 950 ms versus 3,404 ms for Playwright browser automation, with a 3.6× mean speedup, 5.4× median speedup, and 90–96% cost reduction per task. Cold-start discovery averaged 12.4 seconds and typically amortised within 3–5 reuses.",
+    body: "Across 94 domains, fully warmed cached execution averaged 950 ms versus 3,404 ms for Playwright browser automation, with a 3.6× mean speedup and 5.4× median speedup. The paper also reports well-cached routes finishing in under 100 ms and frames cold-start discovery as an upfront cost that amortises across reuse.",
   },
 ];
 
@@ -118,6 +125,7 @@ export default function InternalApisPaperPage() {
     url: `https://www.unbrowse.ai${CANONICAL_PATH}`,
     sameAs: [
       `https://www.unbrowse.ai${PAPER_PDF_URL}`,
+      ARXIV_URL,
       "https://github.com/unbrowse-ai/unbrowse",
       "https://github.com/unbrowse-ai/unbrowse-bench",
     ],
@@ -181,6 +189,14 @@ export default function InternalApisPaperPage() {
               Download PDF
             </a>
             <a
+              href={ARXIV_URL}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-5 py-3 font-medium text-text-primary hover:border-orange-500/30 hover:bg-orange-50/40 transition-colors"
+            >
+              Read on arXiv
+            </a>
+            <a
               href="https://github.com/unbrowse-ai/unbrowse"
               target="_blank"
               rel="noopener"
@@ -224,7 +240,7 @@ export default function InternalApisPaperPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-semibold tracking-tight mb-4">Read the full paper</h2>
           <p className="text-base sm:text-lg leading-8 text-text-secondary mb-4">
-            The full paper covers the shared route graph architecture, discovery tax, the three-path execution model, route-level economics, quality proofing, benchmark methodology, and architectural implications for the agentic web.
+            The full paper covers the discovery tax, shared route graph architecture, the three-path execution model, route-level economics, quality proofing, benchmark methodology, and the broader case against browser-first agent architectures.
           </p>
           <a
             href={PAPER_PDF_URL}

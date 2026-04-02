@@ -1246,6 +1246,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- docs: sync the canonical repo whitepaper to the April 1 arXiv draft and refresh the paper landing page metadata, authors, subtitle, and abstract
 - fix: replace placeholder Kuri/capture TODO suites with real live-browser end-to-end coverage and promote deterministic CLI/P0-P1 regression checks into the default test lane
 - fix: repair backend live route/test wiring and add bounded rate-limit retries so `bun run test:all` completes green against the current live graph backend
 - docs: add canonical `test:e2e:truth` and `test:claims` lanes so user-visible behavior has an explicit live/e2e gate separate from unit coverage
