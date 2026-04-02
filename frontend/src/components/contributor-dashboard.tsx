@@ -113,6 +113,9 @@ export function ContributorDashboard({
               <BreakdownRow label="Attribution credits" value={formatUsd(dashboard.economics.attribution_earned_usd)} />
               <BreakdownRow label="Graph fees" value={formatUsd(dashboard.economics.graph_fees_paid_usd)} />
               <BreakdownRow label="Paid execution" value={formatUsd(dashboard.economics.paid_execution_usd)} />
+              <BreakdownRow label="Actual run cost" value={formatUsdNullable(dashboard.savings.actual_cost_usd)} />
+              <BreakdownRow label="Browser baseline" value={formatUsdNullable(dashboard.savings.baseline_cost_usd)} />
+              <BreakdownRow label="Speedup" value={formatRatio(dashboard.savings.speedup_ratio)} />
               <BreakdownRow label="Contributor ID" value={dashboard.profile.agent_id} mono />
             </Panel>
 
@@ -208,6 +211,10 @@ function formatUsdNullable(value: number | null | undefined, fallback = "Not eno
 
 function formatHours(value: number | null | undefined, fallback = "0.0000h"): string {
   return value == null ? fallback : `${value.toFixed(4)}h`;
+}
+
+function formatRatio(value: number | null | undefined, fallback = "Not enough data yet"): string {
+  return value == null ? fallback : `${value.toFixed(2)}x`;
 }
 
 function formatInt(value: number | undefined): string {

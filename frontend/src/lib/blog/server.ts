@@ -75,7 +75,14 @@ export const listAllBlogPosts = cache(async () => {
     href: `/blog/${p.slug}`,
   }));
 
-  const all = [...legacyItems, ...dynamicItems];
+  const all: Array<(typeof legacyItems)[number] | (typeof dynamicItems)[number]> = [...legacyItems];
+
+  // Legacy static pages remain canonical when the same slug also exists in the API.
+  for (const item of dynamicItems) {
+    if (!all.some((existing) => existing.slug === item.slug)) {
+      all.push(item);
+    }
+  }
 
   // Sort newest first
   all.sort((a, b) => {

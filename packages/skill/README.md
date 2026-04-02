@@ -6,6 +6,8 @@ Turn any website into a reusable API interface for agents. Unbrowse captures net
 
 One agent learns a site once. Every later agent gets the fast path.
 
+Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, but with route learning, reuse, and browser fallback built in.
+
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
 ## Quick start
@@ -81,6 +83,15 @@ unbrowse search --intent "get stock prices"
 ## Help shape the next eval
 
 If you tried Unbrowse on a site or API and could not get it to work, add it to [Discussion #53](https://github.com/unbrowse-ai/unbrowse/discussions/53). We use that thread to collect missing or broken targets so we can turn them into requirements for the next eval pass.
+
+## Docs
+
+The synced skill repo also carries the longer-form docs set:
+
+- [Whitepaper companion index](./docs/whitepaper/README.md)
+- [For Technical Readers](./docs/whitepaper/for-technical-readers.md)
+- [For Investors](./docs/whitepaper/for-investors.md)
+- [Analytics API](./docs/analytics-api.md)
 
 ## How it works
 
