@@ -31,8 +31,10 @@ export function Navbar() {
 
         {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-1">
+            <NavLink href="/blog">Blog</NavLink>
+            <NavLink href="/papers">Papers</NavLink>
             <NavLink href="/search">Registry</NavLink>
-            <NavLink href="/leaderboard">Leaderboard</NavLink>
+            <NavLink href="/miners">Miners</NavLink>
             <a
               href="https://discord.gg/VWugEeFNsG"
               target="_blank"
@@ -133,8 +135,9 @@ export function Navbar() {
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-surface/95 backdrop-blur-lg">
           <div className="px-6 py-4 space-y-1">
+            <MobileNavLink href="/blog" onClick={() => setMobileOpen(false)}>Blog</MobileNavLink>
+            <MobileNavLink href="/papers" onClick={() => setMobileOpen(false)}>Papers</MobileNavLink>
             <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>Registry</MobileNavLink>
-            <MobileNavLink href="/leaderboard" onClick={() => setMobileOpen(false)}>Leaderboard</MobileNavLink>
             <a
               href="https://discord.gg/VWugEeFNsG"
               target="_blank"
