@@ -62,6 +62,16 @@ After consent, the CLI handles startup automatically. If the browser engine is m
 
 The backend still uses an opaque internal agent id. The email is just the user-facing registration identity for lower-friction setup.
 
+## Docs
+
+Use the skill for the core loop. Use these docs when you need deeper mechanics or repo workflows:
+
+- [Quickstart](./docs/guides/quickstart.md) — install/run path, first-use flow
+- [API notes](./docs/api.md) — route-level behavior and contracts
+- [Codex eval harness](./docs/codex-eval-harness.md) — how product-truth evals run
+- [Deployment](./docs/deployment.md) — runtime/deploy shape
+- [Releasing](./docs/RELEASING.md) — release checklist
+
 ## Core Workflow
 
 ### Step 1: Resolve — check if a cached skill exists
