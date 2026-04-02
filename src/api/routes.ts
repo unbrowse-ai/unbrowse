@@ -373,20 +373,45 @@ export async function registerRoutes(app: FastifyInstance) {
     };
     if (!reviews?.length) return reply.code(400).send({ error: "endpoints[] required" });
 
-    const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
+    let skill = getRecentLocalSkill(skill_id, clientScope);
+    if (!skill) {
+      for (const [, entry] of domainSkillCache) {
+        if (entry.skillId === skill_id && entry.localSkillPath) {
+          try { skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8")); } catch {}
+          break;
+        }
+      }
+    }
+    if (!skill) skill = await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
 
     const updated = mergeAgentReview(skill.endpoints, reviews);
     skill.endpoints = updated;
     skill.updated_at = new Date().toISOString();
 
-    // Re-publish with agent-reviewed metadata
+    // Update local caches so the next resolve sees reviewed metadata immediately
+    try { cachePublishedSkill(skill); } catch { /* best-effort */ }
+    const domain = skill.domain;
+    if (domain) {
+      const revCacheKey = buildResolveCacheKey(domain, skill.intent_signature ?? `browse ${domain}`, undefined);
+      const revScopedKey = scopedCacheKey(clientScope, revCacheKey);
+      writeSkillSnapshot(revScopedKey, skill);
+      const revDomainKey = getDomainReuseKey(domain);
+      if (revDomainKey) {
+        domainSkillCache.set(revDomainKey, {
+          skillId: skill.skill_id,
+          localSkillPath: snapshotPathForCacheKey(revScopedKey),
+          ts: Date.now(),
+        });
+        persistDomainCache();
+      }
+    }
+
+    // Also publish to marketplace so all agents benefit
     try {
       await publishSkill(skill);
-      return reply.send({ ok: true, endpoints_updated: reviews.length });
-    } catch (err) {
-      return reply.code(500).send({ error: (err as Error).message });
-    }
+    } catch { /* marketplace publish is best-effort */ }
+    return reply.send({ ok: true, endpoints_updated: reviews.length });
   });
   // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
   app.post("/v1/skills/:skill_id/chunk", async (req, reply) => {

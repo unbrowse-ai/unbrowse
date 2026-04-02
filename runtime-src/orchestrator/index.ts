@@ -43,14 +43,71 @@ const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT
 
 /** Flat map of top-level property names → types from a ResponseSchema.
  *  Gives agents enough shape to pick --path targets without full schema bloat. */
-function summarizeSchema(schema: ResponseSchema): Record<string, string> | null {
-  if (schema.properties) {
-    return Object.fromEntries(Object.entries(schema.properties).map(([k, v]) => [k, v.type]));
+/** Recursive schema tree limited to `maxDepth` levels.
+ *  Gives agents the response shape they need to pick --path/--extract targets. */
+function summarizeSchema(schema: ResponseSchema, maxDepth = 3): Record<string, unknown> | null {
+  function walk(s: ResponseSchema, depth: number): unknown {
+    if (depth <= 0) return s.type;
+    if (s.type === "array" && s.items) {
+      const inner = walk(s.items, depth - 1);
+      return inner && typeof inner === "object" ? [inner] : [`${s.items.type ?? "unknown"}`];
+    }
+    if (s.properties) {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(s.properties)) {
+        out[k] = walk(v, depth - 1);
+      }
+      return out;
+    }
+    return s.type;
   }
-  if (schema.type === "array" && schema.items?.properties) {
-    return Object.fromEntries(Object.entries(schema.items.properties).map(([k, v]) => [k, v.type]));
-  }
+  if (schema.properties) return walk(schema, maxDepth) as Record<string, unknown>;
+  if (schema.type === "array" && schema.items) return { "[]": walk(schema.items, maxDepth - 1) } as Record<string, unknown>;
   return null;
+}
+
+/** Extract a compact map of leaf key→value pairs from a sample response.
+ *  Digs into the first array item at each level, stops at maxLeaves.
+ *  Gives agents concrete examples of extractable data. */
+/** Extract a compact map of leaf key→value pairs from a sample response.
+ *  Digs into the first array item at each level, stops at maxLeaves.
+ *  Skips metadata noise to surface actual data fields agents care about. */
+function extractSampleValues(sample: unknown, maxLeaves = 12): Record<string, unknown> | null {
+  if (sample == null) return null;
+  const SKIP_KEYS = new Set([
+    "__typename", "entryType", "itemType", "clientEventInfo", "feedbackInfo",
+    "controllerData", "injectionType", "sortIndex", "cursor", "cursorType",
+    "displayTreatment", "socialContext", "promotedMetadata", "feedbackKeys",
+    "tweetDisplayType", "element", "component", "details",
+  ]);
+  const out: Record<string, unknown> = {};
+  let count = 0;
+  function walk(obj: unknown, path: string, depth: number): void {
+    if (count >= maxLeaves || depth > 10) return;
+    if (obj == null) return;
+    if (Array.isArray(obj)) {
+      if (obj.length > 0) walk(obj[0], path + "[]", depth + 1);
+      return;
+    }
+    if (typeof obj === "object") {
+      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+        if (count >= maxLeaves) break;
+        if (SKIP_KEYS.has(k)) continue;
+        const p = path ? `${path}.${k}` : k;
+        if (v != null && typeof v === "object") {
+          walk(v, p, depth + 1);
+        } else if (v != null && v !== "" && v !== 0 && v !== false) {
+          out[p] = typeof v === "string" && (v as string).length > 80
+            ? (v as string).slice(0, 77) + "..."
+            : v;
+          count++;
+        }
+      }
+      return;
+    }
+  }
+  walk(sample, "", 0);
+  return count > 0 ? out : null;
 }
 const BROWSER_CAPTURE_SKILL_ID = "browser-capture";
 
@@ -2072,6 +2129,15 @@ export async function resolveAndExecute(
           schema_summary: r.endpoint.response_schema
             ? summarizeSchema(r.endpoint.response_schema)
             : null,
+          input_params: r.endpoint.semantic?.requires?.map((b) => ({
+            key: b.key,
+            type: b.type ?? b.semantic_type,
+            required: b.required ?? false,
+            example: b.example_value,
+          })) ?? [],
+          description_in: r.endpoint.semantic?.description_in,
+          example_fields: r.endpoint.semantic?.example_fields?.slice(0, 12),
+          sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
           dom_extraction: !!r.endpoint.dom_extraction,
           trigger_url: r.endpoint.trigger_url,
         })),
