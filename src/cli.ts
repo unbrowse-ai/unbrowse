@@ -85,6 +85,21 @@ function info(msg: string): void {
   process.stderr.write(`[unbrowse] ${msg}\n`);
 }
 
+function resolveResultError(result: Record<string, unknown>): string | undefined {
+  return (result.result as Record<string, unknown> | undefined)?.error as string | undefined
+    ?? result.error as string | undefined;
+}
+
+function resolveLoginUrl(result: Record<string, unknown>, fallbackUrl?: string): string {
+  return (result.result as Record<string, unknown> | undefined)?.login_url as string
+    ?? fallbackUrl
+    ?? "";
+}
+
+function hasIndexingFallback(result: Record<string, unknown>): boolean {
+  return (result.result as Record<string, unknown> | undefined)?.indexing_fallback_available === true;
+}
+
 async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
   let done = false;
   const timer = setTimeout(() => {
@@ -174,30 +189,63 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
 
   const startedAt = Date.now();
-  let result = await withPendingNotice(
-    api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
-    "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back.",
-  );
+  async function resolveOnce(message = "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back."): Promise<Record<string, unknown>> {
+    return withPendingNotice(
+      api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+      message,
+    );
+  }
 
-  // Auto-handle auth: if site requires login, trigger interactive login and retry
-  const resultError = (result.result as Record<string, unknown>)?.error
-    ?? (result as Record<string, unknown>).error;
-  if (resultError === "auth_required") {
-    const loginUrl = (result.result as Record<string, unknown>)?.login_url as string
-      ?? url ?? "";
-    if (loginUrl) {
-      info("Site requires authentication. Opening browser for login...");
-      try {
-        await api("POST", "/v1/auth/login", { url: loginUrl });
+  let result = await resolveOnce();
+  let attemptedForceCapture = !!body.force_capture;
+  let attemptedCookieImport = false;
+  let attemptedInteractiveLogin = false;
+
+  while (true) {
+    const resultError = resolveResultError(result);
+    if (resultError === "payment_required" && hasIndexingFallback(result) && url && !attemptedForceCapture) {
+      attemptedForceCapture = true;
+      body.force_capture = true;
+      info("Marketplace search is paid here. Falling back to free live capture on the exact URL...");
+      result = await resolveOnce("Running free live capture...");
+      continue;
+    }
+
+    if (resultError === "auth_required") {
+      const loginUrl = resolveLoginUrl(result, url);
+      if (!loginUrl) break;
+
+      if (!attemptedCookieImport) {
+        attemptedCookieImport = true;
+        info("Site requires authentication. Trying browser cookie import first...");
+        const stealResult = await api("POST", "/v1/auth/steal", { url: loginUrl }) as Record<string, unknown>;
+        const cookiesStored = typeof stealResult.cookies_stored === "number"
+          ? stealResult.cookies_stored
+          : Number(stealResult.cookies_stored ?? 0);
+        if (stealResult.success === true && cookiesStored > 0) {
+          info(`Imported ${cookiesStored} browser cookies. Retrying...`);
+          result = await resolveOnce("Retrying after browser cookie import...");
+          continue;
+        }
+      }
+
+      if (!attemptedInteractiveLogin) {
+        attemptedInteractiveLogin = true;
+        info("Site requires authentication. Opening browser for login...");
+        const loginResult = await api("POST", "/v1/auth/login", { url: loginUrl }) as Record<string, unknown>;
+        if (loginResult.error || loginResult.success === false) {
+          const message = typeof loginResult.error === "string"
+            ? loginResult.error
+            : "interactive login did not produce a reusable session";
+          die(`Login failed: ${message}. Run: unbrowse login --url "${loginUrl}"`);
+        }
         info("Login complete. Retrying...");
-        result = await withPendingNotice(
-          api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
-          "Retrying after login...",
-        );
-      } catch (err) {
-        die(`Login failed: ${(err as Error).message}. Run: unbrowse login --url "${loginUrl}"`);
+        result = await resolveOnce("Retrying after login...");
+        continue;
       }
     }
+
+    break;
   }
 
   // When agent explicitly picked an endpoint but resolve deferred, execute it directly

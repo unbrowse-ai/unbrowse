@@ -125,8 +125,15 @@ export interface DashboardData {
     paid_execution_usd: number;
   };
   savings: {
+    baseline_time_ms: number | null;
+    actual_time_ms: number | null;
     time_saved_ms: number | null;
     time_saved_hours: number | null;
+    speedup_ratio: number | null;
+    baseline_cost_uc: number | null;
+    baseline_cost_usd: number | null;
+    actual_cost_uc: number | null;
+    actual_cost_usd: number | null;
     cost_saved_uc: number | null;
     cost_saved_usd: number | null;
   };

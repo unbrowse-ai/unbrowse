@@ -11,6 +11,8 @@ import { getDefaultLoginConfig } from "../runtime/supervisor.js";
 const LOGIN_TIMEOUT_MS = 300_000;
 const POLL_INTERVAL_MS = 2_000;
 const MIN_WAIT_MS = 15_000;
+const LOGIN_PATHS = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/i;
+const CLOUDFLARE_TEXT = /just a moment|attention required|verify you are human|cloudflare/i;
 
 /**
  * Returns the persistent profile directory for a given domain.
@@ -38,6 +40,45 @@ export interface StoredAuthBundle {
   headers: Record<string, string>;
   source_keys: string[];
   source_meta?: BrowserAuthSourceMeta | null;
+}
+
+export type InteractiveLoginAssessment =
+  | { status: "pending"; reason: string }
+  | { status: "authenticated"; reason: string }
+  | { status: "blocked"; reason: string };
+
+export function assessInteractiveLoginState(input: {
+  currentUrl: string;
+  targetDomain: string;
+  initialCookieCount: number;
+  currentCookieCount: number;
+  hasCloudflareChallenge?: boolean;
+  pageText?: string;
+}): InteractiveLoginAssessment {
+  let parsed: URL;
+  try {
+    parsed = new URL(input.currentUrl);
+  } catch {
+    return { status: "pending", reason: "invalid_url" };
+  }
+
+  const currentDomain = parsed.hostname.toLowerCase();
+  const targetNorm = input.targetDomain.toLowerCase();
+  const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith(`.${targetNorm}`);
+  if (!isOnTarget) return { status: "pending", reason: "off_target_domain" };
+
+  if (input.hasCloudflareChallenge) return { status: "blocked", reason: "cloudflare_challenge" };
+  if (input.pageText && CLOUDFLARE_TEXT.test(input.pageText)) return { status: "blocked", reason: "cloudflare_text" };
+  if (LOGIN_PATHS.test(parsed.pathname)) return { status: "pending", reason: "still_on_login_path" };
+
+  if (input.currentCookieCount > input.initialCookieCount) {
+    return { status: "authenticated", reason: "new_cookies_on_target" };
+  }
+  if (input.currentCookieCount > 0) {
+    return { status: "authenticated", reason: "cookies_present_on_target" };
+  }
+
+  return { status: "pending", reason: "no_session_cookies" };
 }
 
 export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | undefined): boolean {
@@ -95,6 +136,7 @@ export async function interactiveLogin(
 
     // Wait for user to complete login — detect via cookie changes + URL change
     let loggedIn = false;
+    let blockedReason: string | null = null;
     let lastLoggedUrl = "";
     const effectiveTimeout = loginConfig.interactive ? LOGIN_TIMEOUT_MS : loginConfig.timeout_ms;
     while (Date.now() - startTime < effectiveTimeout) {
@@ -103,9 +145,6 @@ export async function interactiveLogin(
 
       try {
         const currentUrl = await kuri.getCurrentUrl(tabId);
-        const currentDomain = new URL(currentUrl).hostname.toLowerCase();
-        const targetNorm = targetDomain.toLowerCase();
-
         if (currentUrl !== lastLoggedUrl) {
           log("auth", `navigated to: ${currentUrl}`);
           lastLoggedUrl = currentUrl;
@@ -113,25 +152,28 @@ export async function interactiveLogin(
 
         if (elapsed < MIN_WAIT_MS) continue;
 
-        const isOnTarget = currentDomain === targetNorm || currentDomain.endsWith("." + targetNorm);
-        if (isOnTarget) {
-          const isStillLogin = /\/(login|signin|sign-in|sso|auth|oauth|uas\/login|checkpoint)/.test(new URL(currentUrl).pathname);
+        const currentCookies = await kuri.getCookies(tabId);
+        const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
+        const hasCloudflareChallenge = await kuri.hasCloudflareChallenge(tabId).catch(() => false);
+        const pageText = hasCloudflareChallenge ? await kuri.getText(tabId).catch(() => "") : "";
+        const assessment = assessInteractiveLoginState({
+          currentUrl,
+          targetDomain,
+          initialCookieCount,
+          currentCookieCount,
+          hasCloudflareChallenge,
+          pageText,
+        });
 
-          const currentCookies = await kuri.getCookies(tabId);
-          const currentCookieCount = currentCookies.filter((c) => isDomainMatch(c.domain, targetDomain)).length;
-          const gotNewCookies = currentCookieCount > initialCookieCount;
+        if (assessment.status === "authenticated") {
+          loggedIn = true;
+          log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount}; ${assessment.reason})`);
+          break;
+        }
 
-          if (!isStillLogin && gotNewCookies) {
-            loggedIn = true;
-            log("auth", `login complete — ${currentUrl} (cookies: ${initialCookieCount} → ${currentCookieCount})`);
-            break;
-          }
-
-          if (!isStillLogin && currentCookieCount > 0) {
-            loggedIn = true;
-            log("auth", `already logged in — ${currentUrl} (${currentCookieCount} cookies present)`);
-            break;
-          }
+        if (assessment.status === "blocked") {
+          blockedReason = assessment.reason;
+          log("auth", `login blocked — ${currentUrl} (${assessment.reason})`);
         }
       } catch { /* page navigating */ }
     }
@@ -139,7 +181,10 @@ export async function interactiveLogin(
     if (!loggedIn) {
       log("auth", `login wait ended after ${Math.round((Date.now() - startTime) / 1000)}s — fallback: ${loginConfig.fallback_strategy}`);
       if (loginConfig.fallback_strategy === "fail") {
-        return { success: false, domain: targetDomain, cookies_stored: 0, error: "Login timed out (fallback: fail)" };
+        const error = blockedReason
+          ? `Login blocked (${blockedReason})`
+          : "Login timed out (fallback: fail)";
+        return { success: false, domain: targetDomain, cookies_stored: 0, error };
       }
       if (loginConfig.fallback_strategy === "skip") {
         log("auth", `skipping cookie capture per fallback_strategy`);

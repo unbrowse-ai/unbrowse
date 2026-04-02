@@ -95,13 +95,26 @@ describe("dashboard and leaderboard routes", () => {
 
     const body = await res.json() as {
       economics: { spent_usd: number; total_earned_usd: number; platform_fees_paid_usd: number };
-      savings: { time_saved_ms: number | null; cost_saved_uc: number | null };
+      savings: {
+        baseline_time_ms: number | null;
+        actual_time_ms: number | null;
+        speedup_ratio: number | null;
+        baseline_cost_uc: number | null;
+        actual_cost_uc: number | null;
+        time_saved_ms: number | null;
+        cost_saved_uc: number | null;
+      };
       rank: { position: number | null };
     };
 
     expect(body.economics.spent_usd).toBe(0);
     expect(body.economics.total_earned_usd).toBe(0);
     expect(body.economics.platform_fees_paid_usd).toBe(0);
+    expect(body.savings.baseline_time_ms).toBeNull();
+    expect(body.savings.actual_time_ms).toBeNull();
+    expect(body.savings.speedup_ratio).toBeNull();
+    expect(body.savings.baseline_cost_uc).toBeNull();
+    expect(body.savings.actual_cost_uc).toBeNull();
     expect(body.savings.time_saved_ms).toBeNull();
     expect(body.savings.cost_saved_uc).toBeNull();
     expect(body.rank.position).toBeNull();
@@ -268,8 +281,15 @@ describe("dashboard and leaderboard routes", () => {
         skill_spend_usd: number;
       };
       savings: {
+        baseline_time_ms: number | null;
+        actual_time_ms: number | null;
         time_saved_ms: number | null;
         time_saved_hours: number | null;
+        speedup_ratio: number | null;
+        baseline_cost_uc: number | null;
+        baseline_cost_usd: number | null;
+        actual_cost_uc: number | null;
+        actual_cost_usd: number | null;
         cost_saved_uc: number | null;
         cost_saved_usd: number | null;
       };
@@ -285,8 +305,15 @@ describe("dashboard and leaderboard routes", () => {
     expect(body.economics.attribution_earned_usd).toBe(0.00017);
     expect(body.economics.total_earned_usd).toBe(0.00337);
     expect(body.economics.platform_fees_paid_usd).toBe(0.002);
+    expect(body.savings.baseline_time_ms).toBe(5000);
+    expect(body.savings.actual_time_ms).toBe(225);
     expect(body.savings.time_saved_ms).toBe(4775);
     expect(body.savings.time_saved_hours).toBeCloseTo(0.0013, 4);
+    expect(body.savings.speedup_ratio).toBeCloseTo(22.2222, 4);
+    expect(body.savings.baseline_cost_uc).toBeNull();
+    expect(body.savings.baseline_cost_usd).toBeNull();
+    expect(body.savings.actual_cost_uc).toBe(1000);
+    expect(body.savings.actual_cost_usd).toBe(0.001);
     expect(body.savings.cost_saved_uc).toBe(2500);
     expect(body.savings.cost_saved_usd).toBe(0.0025);
     expect(body.activity).toEqual({
@@ -407,10 +434,23 @@ describe("dashboard and leaderboard routes", () => {
     }), env);
     expect(dashRes.status).toBe(200);
     const body = await dashRes.json() as {
-      savings: { time_saved_ms: number | null; cost_saved_uc: number | null };
+      savings: {
+        baseline_time_ms: number | null;
+        actual_time_ms: number | null;
+        speedup_ratio: number | null;
+        baseline_cost_uc: number | null;
+        actual_cost_uc: number | null;
+        time_saved_ms: number | null;
+        cost_saved_uc: number | null;
+      };
       economics: { paid_execution_usd: number };
     };
 
+    expect(body.savings.baseline_time_ms).toBe(8400);
+    expect(body.savings.actual_time_ms).toBe(500);
+    expect(body.savings.speedup_ratio).toBe(16.8);
+    expect(body.savings.baseline_cost_uc).toBeNull();
+    expect(body.savings.actual_cost_uc).toBeNull();
     expect(body.savings.time_saved_ms).toBe(9000);
     expect(body.savings.cost_saved_uc).toBe(3500);
     expect(body.economics.paid_execution_usd).toBe(0.005);
