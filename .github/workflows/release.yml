@@ -39,8 +39,14 @@ jobs:
       - name: Read package metadata
         id: pkg
         run: |
-          echo "name=$(node -p 'require(\"./packages/skill/package.json\").name')" >> "$GITHUB_OUTPUT"
-          echo "version=$(node -p 'require(\"./packages/skill/package.json\").version')" >> "$GITHUB_OUTPUT"
+          PKG_NAME="$(node -p 'require("./packages/skill/package.json").name')"
+          PKG_VERSION="$(node -p 'require("./packages/skill/package.json").version')"
+          if [ -z "$PKG_NAME" ] || [ -z "$PKG_VERSION" ]; then
+            echo "::error::Failed to read package metadata from packages/skill/package.json."
+            exit 1
+          fi
+          echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Resolve npm token
         id: npm-auth
@@ -73,6 +79,10 @@ jobs:
         run: |
           PKG_NAME="${{ steps.pkg.outputs.name }}"
           PKG_VERSION="${{ steps.pkg.outputs.version }}"
+          if [ -z "$PKG_NAME" ] || [ -z "$PKG_VERSION" ]; then
+            echo "::error::Package metadata outputs are empty; refusing to publish."
+            exit 1
+          fi
           if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
             echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published; skipping npm publish."
             echo "skip_publish=1" >> "$GITHUB_OUTPUT"
@@ -83,18 +93,33 @@ jobs:
         if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
         working-directory: packages/skill
         run: |
+          PUBLISH_LOG="$(mktemp)"
+          set +e
           if [ "${{ runner.environment }}" = "self-hosted" ]; then
-            npm publish
+            npm publish 2>&1 | tee "$PUBLISH_LOG"
+            STATUS=${PIPESTATUS[0]}
           else
-            npm publish --provenance
+            npm publish --provenance 2>&1 | tee "$PUBLISH_LOG"
+            STATUS=${PIPESTATUS[0]}
           fi
+          set -e
+          if [ "$STATUS" -eq 0 ]; then
+            echo "published=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -qi "previously published versions" "$PUBLISH_LOG"; then
+            echo "::notice::Package version already exists on npm; treating publish as a no-op."
+            echo "duplicate_version=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$STATUS"
 
       - name: Mark publish result
         id: publish-result
         if: always()
         run: |
           PUBLISHED=0
-          if [ "${{ steps.npm-auth.outputs.skip_publish }}" != "1" ] && [ "${{ steps.version-check.outputs.skip_publish }}" != "1" ]; then
+          if [ "${{ steps.npm-publish.outputs.published }}" = "1" ]; then
             PUBLISHED=1
           fi
           echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
