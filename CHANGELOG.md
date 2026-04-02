@@ -8,6 +8,7 @@
 * **cli**: implement `--path`, `--extract`, `--limit`, `--schema` post-processing in `execute` — flags were documented but never wired; now support nested array drilling (`data.items[].nested[].field`), field aliasing (`alias:deep.path`), null-row filtering, and item limiting
 * **cli**: auto-wrap large responses (>2KB) with `extraction_hints` including schema tree and byte count when no extraction flags are given
 * **cli**: add `unbrowse review` command — agents can push reviewed descriptions, action/resource kinds, and examples back to endpoint metadata via `POST /v1/skills/:id/review`
+* **cli**: add `unbrowse publish` command — two-phase agent-driven publish: Phase 1 returns endpoints with `schema_summary`, `sample_values`, `input_params` and `_fill_description` placeholder; Phase 2 merges agent descriptions, updates local caches, and publishes to marketplace
 
 ### Bug Fixes
 
@@ -15,6 +16,7 @@
 * **review**: fix review route to update all local caches (domain snapshot + domain cache + published skill cache) so reviewed metadata is visible on next resolve without requiring marketplace round-trip
 * **execute**: return `endpoint_not_found` error with available endpoints list when agent-specified endpoint_id doesn't exist in skill — previously silently fell through to `selectBestEndpoint` and executed the wrong endpoint
 * **execute**: apply agent's params to trigger URL during trigger-and-intercept execution — previously replayed the original captured URL ignoring new search terms, causing search endpoints to return stale/unfiltered results
+* **payments/tests**: add backend route coverage for the x402 skill gate so paid skill reads now prove the real `402` header handshake and proof-accepted retry path
 
 ### Features
 * **#218**: wire DAG planner to backend EmergentDB graph — dag-advisor now queries the backend graph (fetchChain) first for cross-session intelligence with local planner fallback; publishEdgesToBackend fixed to use correct URL (beta-api.unbrowse.ai) and send Authorization headers; planner.ts stub replaced with real delegation to dag-feedback

@@ -166,6 +166,33 @@ Resolve returns `available_endpoints` sorted by score. Each endpoint includes sc
 | `dom_extraction` | `true` = extracted from page HTML. `false` = real API call |
 | `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM |
 
+
+### Step 6: Publish — describe endpoints and publish to marketplace
+
+After you have used a skill and reviewed its endpoints, publish it so other agents can find and use it. This is a two-phase command:
+
+**Phase 1 — Collect endpoints needing descriptions:**
+```bash
+unbrowse publish --skill {skill_id} --pretty
+```
+Returns each endpoint with `schema_summary`, `sample_values`, `input_params`, and a `_fill_description` placeholder. Read these to understand what each endpoint does.
+
+**Phase 2 — Describe and publish:**
+```bash
+unbrowse publish --skill {skill_id} --endpoints '[{
+  "endpoint_id": "{endpoint_id}",
+  "description": "Search Singapore court judgments by keywords, filtered by court and year",
+  "action_kind": "search",
+  "resource_kind": "judgment"
+}]'
+```
+Merges your descriptions into the skill, updates local caches, and publishes to the marketplace so all agents benefit.
+
+**When to publish:**
+- After the first successful execute + review cycle on a new domain
+- When you've improved endpoint descriptions based on actual usage
+- After discovering new endpoints via browse sessions
+
 ### When resolve returns direct data
 
 For simple sites with one clear endpoint, resolve may return data directly in `result` without a deferred list. In that case, skip Step 2 — the data is already there.

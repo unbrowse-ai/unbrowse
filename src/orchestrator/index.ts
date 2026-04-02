@@ -40,7 +40,7 @@ const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT
  *  Gives agents enough shape to pick --path targets without full schema bloat. */
 /** Recursive schema tree limited to `maxDepth` levels.
  *  Gives agents the response shape they need to pick --path/--extract targets. */
-function summarizeSchema(schema: ResponseSchema, maxDepth = 3): Record<string, unknown> | null {
+export function summarizeSchema(schema: ResponseSchema, maxDepth = 3): Record<string, unknown> | null {
   function walk(s: ResponseSchema, depth: number): unknown {
     if (depth <= 0) return s.type;
     if (s.type === "array" && s.items) {
@@ -67,7 +67,7 @@ function summarizeSchema(schema: ResponseSchema, maxDepth = 3): Record<string, u
 /** Extract a compact map of leaf key→value pairs from a sample response.
  *  Digs into the first array item at each level, stops at maxLeaves.
  *  Skips metadata noise to surface actual data fields agents care about. */
-function extractSampleValues(sample: unknown, maxLeaves = 12): Record<string, unknown> | null {
+export function extractSampleValues(sample: unknown, maxLeaves = 12): Record<string, unknown> | null {
   if (sample == null) return null;
   const SKIP_KEYS = new Set([
     "__typename", "entryType", "itemType", "clientEventInfo", "feedbackInfo",
