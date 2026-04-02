@@ -50,6 +50,7 @@ export interface WsMessage {
 
 export interface OperationBinding {
   key: string;
+  description?: string;
   type?: string;
   semantic_type?: string;
   required?: boolean;
@@ -281,6 +282,7 @@ export interface DiscoveryCandidate {
 
 export interface ResponseSchema {
   type: string;
+  description?: string;
   properties?: Record<string, ResponseSchema>;
   items?: ResponseSchema;
   required?: string[];
