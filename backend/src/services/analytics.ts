@@ -168,6 +168,7 @@ export interface ActivationFunnel {
   discovered_skill: number;    // discovered at least 1 skill
   repeat_user: number;         // 5+ executions
   power_user: number;          // 20+ executions
+  data_quality_warnings: string[];
   rates: {
     registration_to_first_exec: number;
     first_exec_to_discovery: number;
@@ -182,9 +183,23 @@ export async function getActivation(env: Env): Promise<ActivationFunnel> {
   const total = profiles.length;
   const recoveredProfiles = profiles.filter((p) => p.profile_origin === "recovered").length;
   const executedOnce = profiles.filter(p => p.total_executions >= 1).length;
-  const discoveredSkill = profiles.filter(p => p.skills_discovered.length >= 1).length;
-  const repeatUser = profiles.filter(p => p.total_executions >= 5).length;
-  const powerUser = profiles.filter(p => p.total_executions >= 20).length;
+  const discoveredSkillRaw = profiles.filter(p => p.skills_discovered.length >= 1).length;
+  const repeatUserRaw = profiles.filter(p => p.total_executions >= 5).length;
+  const powerUserRaw = profiles.filter(p => p.total_executions >= 20).length;
+  const discoveredSkill = Math.min(discoveredSkillRaw, executedOnce);
+  const repeatUser = Math.min(repeatUserRaw, discoveredSkill);
+  const powerUser = Math.min(powerUserRaw, repeatUser);
+  const dataQualityWarnings: string[] = [];
+
+  if (discoveredSkillRaw > executedOnce) {
+    dataQualityWarnings.push("raw_discovered_skill_exceeded_executed_once");
+  }
+  if (repeatUserRaw > discoveredSkill) {
+    dataQualityWarnings.push("raw_repeat_user_exceeded_discovered_skill");
+  }
+  if (powerUserRaw > repeatUser) {
+    dataQualityWarnings.push("raw_power_user_exceeded_repeat_user");
+  }
 
   return {
     total_registered: total,
@@ -193,6 +208,7 @@ export async function getActivation(env: Env): Promise<ActivationFunnel> {
     discovered_skill: discoveredSkill,
     repeat_user: repeatUser,
     power_user: powerUser,
+    data_quality_warnings: dataQualityWarnings,
     rates: {
       registration_to_first_exec: total > 0 ? Math.round((executedOnce / total) * 100) / 100 : 0,
       first_exec_to_discovery: executedOnce > 0 ? Math.round((discoveredSkill / executedOnce) * 100) / 100 : 0,

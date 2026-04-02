@@ -174,4 +174,25 @@ describe("analytics telemetry", () => {
     expect(health.total_agents).toBe(2);
     expect(health.recovered_profiles).toBe(1);
   });
+
+  it("clamps activation stages when discovery data outruns execution telemetry", async () => {
+    await seedAgent({
+      agent_id: "agent-clamped",
+      name: "agent-clamped",
+      created_at: isoDaysAgo(1),
+      profile_origin: "registered",
+      skills_discovered: ["skill-a"],
+      total_executions: 0,
+      total_feedback_given: 0,
+      tos_accepted_version: "2026-01-01",
+      tos_accepted_at: isoDaysAgo(1),
+      activity_dates: [],
+    });
+
+    const activation = await getActivation(env);
+    expect(activation.executed_once).toBe(0);
+    expect(activation.discovered_skill).toBe(0);
+    expect(activation.rates.first_exec_to_discovery).toBe(0);
+    expect(activation.data_quality_warnings).toContain("raw_discovered_skill_exceeded_executed_once");
+  });
 });
