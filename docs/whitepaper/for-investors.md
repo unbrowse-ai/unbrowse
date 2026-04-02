@@ -8,16 +8,9 @@ Unbrowse is an execution layer for AI agents that turns brittle browser work int
 
 The shortest category line is:
 
-Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents.
+Unbrowse is a drop-in browser for agents.
 
 That works because buyers already understand the browser slot in the stack. The difference is that Unbrowse does not stop at replaying the page. It learns and reuses the machine-callable route underneath the page.
-
-Publicly, the sharp version is:
-
-- drop-in replacement for browser automation in agent stacks
-- roughly ~30x faster on the API-native path
-- roughly ~90% cheaper than repeating the browser loop
-- turns repeated browser work into reusable route assets instead of pure execution cost
 
 ## The Right Comparison
 
@@ -198,9 +191,7 @@ That sequencing is healthier than pretending the economic layer already exists.
 
 Lead with:
 
-- drop-in replacement for browser automation in agent stacks
-- ~30x faster on the API-native path
-- ~90% cheaper than repeated browser execution
+- drop-in browser for agents
 - execution layer for agents
 - browser rediscovery tax
 - reusable route knowledge

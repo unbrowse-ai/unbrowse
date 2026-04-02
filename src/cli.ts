@@ -85,6 +85,21 @@ function info(msg: string): void {
   process.stderr.write(`[unbrowse] ${msg}\n`);
 }
 
+function resolveResultError(result: Record<string, unknown>): string | undefined {
+  return (result.result as Record<string, unknown> | undefined)?.error as string | undefined
+    ?? result.error as string | undefined;
+}
+
+function resolveLoginUrl(result: Record<string, unknown>, fallbackUrl?: string): string {
+  return (result.result as Record<string, unknown> | undefined)?.login_url as string
+    ?? fallbackUrl
+    ?? "";
+}
+
+function hasIndexingFallback(result: Record<string, unknown>): boolean {
+  return (result.result as Record<string, unknown> | undefined)?.indexing_fallback_available === true;
+}
+
 async function withPendingNotice<T>(promise: Promise<T>, message: string, delayMs = 3_000): Promise<T> {
   let done = false;
   const timer = setTimeout(() => {
@@ -174,30 +189,63 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   }
 
   const startedAt = Date.now();
-  let result = await withPendingNotice(
-    api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
-    "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back.",
-  );
+  async function resolveOnce(message = "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back."): Promise<Record<string, unknown>> {
+    return withPendingNotice(
+      api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+      message,
+    );
+  }
 
-  // Auto-handle auth: if site requires login, trigger interactive login and retry
-  const resultError = (result.result as Record<string, unknown>)?.error
-    ?? (result as Record<string, unknown>).error;
-  if (resultError === "auth_required") {
-    const loginUrl = (result.result as Record<string, unknown>)?.login_url as string
-      ?? url ?? "";
-    if (loginUrl) {
-      info("Site requires authentication. Opening browser for login...");
-      try {
-        await api("POST", "/v1/auth/login", { url: loginUrl });
+  let result = await resolveOnce();
+  let attemptedForceCapture = !!body.force_capture;
+  let attemptedCookieImport = false;
+  let attemptedInteractiveLogin = false;
+
+  while (true) {
+    const resultError = resolveResultError(result);
+    if (resultError === "payment_required" && hasIndexingFallback(result) && url && !attemptedForceCapture) {
+      attemptedForceCapture = true;
+      body.force_capture = true;
+      info("Marketplace search is paid here. Falling back to free live capture on the exact URL...");
+      result = await resolveOnce("Running free live capture...");
+      continue;
+    }
+
+    if (resultError === "auth_required") {
+      const loginUrl = resolveLoginUrl(result, url);
+      if (!loginUrl) break;
+
+      if (!attemptedCookieImport) {
+        attemptedCookieImport = true;
+        info("Site requires authentication. Trying browser cookie import first...");
+        const stealResult = await api("POST", "/v1/auth/steal", { url: loginUrl }) as Record<string, unknown>;
+        const cookiesStored = typeof stealResult.cookies_stored === "number"
+          ? stealResult.cookies_stored
+          : Number(stealResult.cookies_stored ?? 0);
+        if (stealResult.success === true && cookiesStored > 0) {
+          info(`Imported ${cookiesStored} browser cookies. Retrying...`);
+          result = await resolveOnce("Retrying after browser cookie import...");
+          continue;
+        }
+      }
+
+      if (!attemptedInteractiveLogin) {
+        attemptedInteractiveLogin = true;
+        info("Site requires authentication. Opening browser for login...");
+        const loginResult = await api("POST", "/v1/auth/login", { url: loginUrl }) as Record<string, unknown>;
+        if (loginResult.error || loginResult.success === false) {
+          const message = typeof loginResult.error === "string"
+            ? loginResult.error
+            : "interactive login did not produce a reusable session";
+          die(`Login failed: ${message}. Run: unbrowse login --url "${loginUrl}"`);
+        }
         info("Login complete. Retrying...");
-        result = await withPendingNotice(
-          api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
-          "Retrying after login...",
-        );
-      } catch (err) {
-        die(`Login failed: ${(err as Error).message}. Run: unbrowse login --url "${loginUrl}"`);
+        result = await resolveOnce("Retrying after login...");
+        continue;
       }
     }
+
+    break;
   }
 
   // When agent explicitly picked an endpoint but resolve deferred, execute it directly
@@ -229,9 +277,18 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   const resultObj = result.result as Record<string, unknown> | undefined;
   if (resultObj?.status === "browse_session_open") {
     info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
+    info(`Preferred flow: snap -> click/fill/eval -> submit -> sync -> close.`);
     info(`Use these commands to get your data:`);
-    const commands = resultObj.commands as string[] ?? ["unbrowse snap --filter interactive", "unbrowse click <ref>", "unbrowse close"];
+    const commands = resultObj.commands as string[] ?? [
+      "unbrowse snap --filter interactive",
+      "unbrowse click <ref>",
+      "unbrowse fill <ref> <value>",
+      "unbrowse submit --wait-for \"/next-step\"",
+      "unbrowse sync",
+      "unbrowse close",
+    ];
     for (const cmd of commands) info(`  ${cmd}`);
+    info(`For JS-heavy forms: prefer real date/time clicks first, inspect hidden inputs with eval when needed, then submit.`);
     info(`All traffic is being passively captured. Run "unbrowse close" when done.`);
     output(slimTrace(result), !!flags.pretty);
     return;
@@ -568,7 +625,8 @@ export const CLI_REFERENCE = {
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
-    { name: "go", usage: '<url>', desc: "Navigate browser to URL (passive indexing)" },
+    { name: "go", usage: '<url>', desc: "Open a live Kuri browser tab for capture-first workflows" },
+    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows" },
     { name: "snap", usage: "[--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "<ref>", desc: "Click element by ref (e.g. e5)" },
     { name: "fill", usage: "<ref> <value>", desc: "Fill input by ref" },
@@ -583,6 +641,7 @@ export const CLI_REFERENCE = {
     { name: "eval", usage: "<expression>", desc: "Evaluate JavaScript" },
     { name: "back", usage: "", desc: "Navigate back" },
     { name: "forward", usage: "", desc: "Navigate forward" },
+    { name: "sync", usage: "", desc: "Flush the current step's captured traffic into route cache without closing tab" },
     { name: "close", usage: "", desc: "Close browse session, flush + index traffic" },
   ],
   globalFlags: [
@@ -606,6 +665,10 @@ export const CLI_REFERENCE = {
     "unbrowse setup",
     'unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
+    'unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"',
+    'unbrowse snap --filter interactive',
+    'unbrowse submit --wait-for "/time-selection.html"',
+    'unbrowse sync',
     "unbrowse execute --skill abc --endpoint def --pretty",
     "unbrowse execute --skill abc --endpoint def --schema --pretty",
     'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
@@ -647,6 +710,24 @@ function printHelp(): void {
   for (const e of r.examples) {
     lines.push(`  ${e}`);
   }
+
+  lines.push(
+    "",
+    "Browser workflow:",
+    "  1. go -> open the live tab you want to work in",
+    "  2. snap -> inspect refs and confirm the page state",
+    "  3. click/fill/eval -> set real page state",
+    "  4. submit -> prefer DOM submit; auto-falls back to same-origin rehydrate",
+    "  5. sync -> flush captured routes after a successful step",
+    "  6. close -> finish capture + indexing",
+  );
+
+  lines.push(
+    "",
+    "JS-heavy forms:",
+    "  Prefer real calendar/time clicks before submit.",
+    "  If the UI is flaky, inspect hidden inputs/cookies with eval, then submit the real form.",
+  );
 
   lines.push("");
   process.stderr.write(lines.join("\n"));
@@ -851,6 +932,18 @@ async function cmdGo(args: string[], flags: Record<string, string | boolean>): P
   output(await api("POST", "/v1/browse/go", { url }), !!flags.pretty);
 }
 
+async function cmdSubmit(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags["form-selector"] === "string") body.form_selector = flags["form-selector"];
+  if (typeof flags["submit-selector"] === "string") body.submit_selector = flags["submit-selector"];
+  if (typeof flags["wait-for"] === "string") body.wait_for = flags["wait-for"];
+  if (typeof flags["timeout-ms"] === "string") body.timeout_ms = Number(flags["timeout-ms"]);
+  if (flags["same-origin-fetch-fallback"] !== undefined) {
+    body.same_origin_fetch_fallback = flags["same-origin-fetch-fallback"] !== "false";
+  }
+  output(await api("POST", "/v1/browse/submit", body), !!flags.pretty);
+}
+
 async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
   const filter = flags.filter as string | undefined;
   const result = await api("POST", "/v1/browse/snap", { filter }) as { snapshot?: string };
@@ -938,6 +1031,10 @@ async function cmdForward(): Promise<void> {
   output(await api("POST", "/v1/browse/forward"), false);
 }
 
+async function cmdSync(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/sync"), !!flags.pretty);
+}
+
 async function cmdClose(): Promise<void> {
   output(await api("POST", "/v1/browse/close"), false);
 }
@@ -1021,8 +1118,8 @@ async function main(): Promise<void> {
     "health", "setup", "resolve", "execute", "exec",
     "feedback", "fb", "review", "publish", "login", "skills", "skill", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
-    "go", "snap", "click", "fill", "type", "press", "select", "scroll",
-    "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "close",
+    "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
+    "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
     "connect-chrome",
   ]);
 
@@ -1062,6 +1159,7 @@ async function main(): Promise<void> {
     case "sessions": return cmdSessions(flags);
     // Browse commands — Kuri browser actions with passive indexing
     case "go": return cmdGo(args, flags);
+    case "submit": return cmdSubmit(flags);
     case "snap": return cmdSnap(flags);
     case "click": return cmdClick(args);
     case "fill": return cmdFill(args);
@@ -1076,6 +1174,7 @@ async function main(): Promise<void> {
     case "eval": return cmdEval(args, flags);
     case "back": return cmdBack();
     case "forward": return cmdForward();
+    case "sync": return cmdSync(flags);
     case "close": return cmdClose();
     case "connect-chrome": return cmdConnectChrome();
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);

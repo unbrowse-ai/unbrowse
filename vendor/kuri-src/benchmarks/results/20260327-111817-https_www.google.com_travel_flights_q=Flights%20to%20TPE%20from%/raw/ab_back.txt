@@ -1,5 +1,0 @@
-✗ page.goBack: Timeout 10000ms exceeded.
-Call log:
-[2m  - waiting for navigation until "load"[22m
-[2m    - navigated to "https://example.com/"[22m
-
