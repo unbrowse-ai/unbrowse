@@ -897,8 +897,23 @@ export async function registerRoutes(app: FastifyInstance) {
       try { domain = new URL(session.url).hostname; } catch { domain = session.domain; }
       const rawEndpoints = extractEndpoints(allRequests, undefined, { pageUrl: session.url, finalUrl: session.url });
       if (rawEndpoints.length > 0) {
+        // Merge with ALL known endpoints for this domain (local skill + domain cache snapshot)
         const existingSkill = findExistingSkillForDomain(domain);
-        const mergedEps = existingSkill ? mergeEndpoints(existingSkill.endpoints, rawEndpoints) : rawEndpoints;
+        let allExisting = existingSkill?.endpoints ?? [];
+        // Also check domain cache snapshot for additional endpoints from prior captures
+        const domainKey = getDomainReuseKey(session.url ?? domain);
+        if (domainKey) {
+          const cached = domainSkillCache.get(domainKey);
+          if (cached?.localSkillPath) {
+            try {
+              const snapshot = JSON.parse(require("fs").readFileSync(cached.localSkillPath, "utf-8"));
+              if (snapshot?.endpoints?.length > 0) {
+                allExisting = mergeEndpoints(allExisting, snapshot.endpoints);
+              }
+            } catch { /* snapshot read failed */ }
+          }
+        }
+        const mergedEps = allExisting.length > 0 ? mergeEndpoints(allExisting, rawEndpoints) : rawEndpoints;
         if (!existingSkill || mergedEps.length >= existingSkill.endpoints.length) {
           for (const ep of mergedEps) { if (!ep.description) ep.description = generateLocalDescription(ep); }
           const quickSkill: SkillManifest = {
