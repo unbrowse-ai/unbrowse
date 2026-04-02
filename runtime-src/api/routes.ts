@@ -76,11 +76,16 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
         await storeCredential(authKey, JSON.stringify({ headers: capturedAuthHeaders }));
       }
 
-      // 3. Merge with existing skill for this domain (prevents duplicates)
+      // 3. Merge with existing skill for this domain (never reduce endpoint count)
       const existingSkill = findExistingSkillForDomain(domain, intent);
       const mergedEndpoints = existingSkill
         ? mergeEndpoints(existingSkill.endpoints, rawEndpoints)
         : rawEndpoints;
+      // Guard: if passive capture found fewer endpoints than what exists, keep the richer set
+      if (existingSkill && mergedEndpoints.length < existingSkill.endpoints.length) {
+        console.log(`[passive-index] ${domain}: skipping — would reduce ${existingSkill.endpoints.length} → ${mergedEndpoints.length} endpoints`);
+        return;
+      }
 
       // 4. Generate descriptions for endpoints without them (enables BM25 ranking)
       for (const ep of mergedEndpoints) {

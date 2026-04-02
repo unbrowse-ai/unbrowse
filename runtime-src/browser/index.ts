@@ -81,11 +81,15 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
         await storeCredential(`${domain}-session`, JSON.stringify({ headers: capturedAuthHeaders }));
       }
 
-      // Merge with existing skill
+      // Merge with existing skill (never reduce endpoint count)
       const existingSkill = findExistingSkillForDomain(domain, intent);
       const mergedEndpoints = existingSkill
         ? mergeEndpoints(existingSkill.endpoints, rawEndpoints)
         : rawEndpoints;
+      if (existingSkill && mergedEndpoints.length < existingSkill.endpoints.length) {
+        console.log(`[passive-index] ${domain}: skipping — would reduce endpoints`);
+        return;
+      }
 
       // Generate descriptions
       for (const ep of mergedEndpoints) {

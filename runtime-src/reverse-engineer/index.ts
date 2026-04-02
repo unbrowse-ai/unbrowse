@@ -616,8 +616,23 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       continue;
     }
     if (!hasAdmissibleParsedBody(req.response_body)) {
-      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
-      continue;
+      // GraphQL POST endpoints may have large/truncated response bodies — admit them
+      // if the request body contains an operationName (signals valid GraphQL query)
+      const isGraphqlPost = req.method === "POST" && /graphql/i.test(req.url) && req.request_body;
+      let graphqlOpName: string | undefined;
+      if (isGraphqlPost) {
+        try {
+          const body = JSON.parse(req.request_body!);
+          graphqlOpName = body.operationName ?? body.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
+        } catch { /* not JSON */ }
+      }
+      if (!isGraphqlPost || !graphqlOpName) {
+        traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
+        continue;
+      }
+      // Inject a synthetic response body so downstream processing works
+      req.response_body = JSON.stringify({ data: { __typename: graphqlOpName } });
+      req.response_headers = { ...req.response_headers, "content-type": "application/json" };
     }
     // #227: Reject React Server Components wire format payloads — they are framework
     // rendering wire format, not data APIs. Use the proper RSC parser instead of
