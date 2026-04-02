@@ -130,6 +130,7 @@ describe("analytics API routes", () => {
         session_id: "sess-1",
         started_at: isoDaysAgo(1),
         completed_at: isoDaysAgo(1),
+        trace_version: "test-trace@123",
         api_calls: 4,
         discovery_queries: 1,
         cached_skill_calls: 1,
@@ -166,6 +167,9 @@ describe("analytics API routes", () => {
     expect(dashboard).toHaveProperty("usage");
     expect(dashboard).toHaveProperty("funnel");
     expect(dashboard).toHaveProperty("economics");
+    expect((dashboard.usage as { version_breakdown_30d?: unknown[] }).version_breakdown_30d?.[0]).toMatchObject({
+      trace_version: "test-trace@123",
+    });
   });
 
   it("serves all analytics read routes and enforces admin-only writes", async () => {
