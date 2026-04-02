@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env } from "./types.js";
-import { bearerAuth } from "./middleware/auth.js";
 import { skillRoutes, publicSkillRoutes } from "./routes/skills.js";
 import { searchRoutes } from "./routes/search.js";
 import { statsRoutes, publicStatsRoutes, publicValidateRoutes } from "./routes/stats.js";
@@ -48,12 +47,7 @@ app.route("/v1", publicDashboardRoutes);
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
 
-// Protected routes (writes only) -- bearerAuth is applied to the specific
-// paths used by write routes, not via use("*") which would intercept all /v1/*
-// requests including public ones like /agents/register.
-skillRoutes.use("/skills", bearerAuth);
-skillRoutes.use("/skills/*", bearerAuth);
-statsRoutes.use("/stats/*", bearerAuth);
+// Protected routes use inline route-level auth so public GET routes stay open.
 app.route("/v1", skillRoutes);
 app.route("/v1", statsRoutes);
 app.route("/v1", dashboardRoutes);

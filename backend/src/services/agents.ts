@@ -104,7 +104,8 @@ function useLocalAdminRegistration(env: Env): boolean {
 export async function registerAgent(
   env: Env,
   name: string,
-  tosVersion: string
+  tosVersion: string,
+  wallet?: { wallet_address?: string; wallet_provider?: string },
 ): Promise<{ agent_id: string; api_key: string }> {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
@@ -121,6 +122,8 @@ export async function registerAgent(
     agent_id: data.keyId,
     name: trimmed,
     created_at: new Date().toISOString(),
+    wallet_address: wallet?.wallet_address?.trim() || undefined,
+    wallet_provider: wallet?.wallet_provider?.trim() || undefined,
     profile_origin: "registered",
     skills_discovered: [],
     total_executions: 0,
@@ -132,6 +135,36 @@ export async function registerAgent(
   await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));
 
   return { agent_id: data.keyId, api_key: data.key };
+}
+
+export async function updateAgentWallet(
+  env: Env,
+  agentId: string,
+  wallet: { wallet_address?: string; wallet_provider?: string },
+): Promise<AgentProfile> {
+  if (agentId === "__admin__") {
+    return {
+      agent_id: "__admin__",
+      name: "admin",
+      created_at: "",
+      wallet_address: wallet.wallet_address?.trim() || undefined,
+      wallet_provider: wallet.wallet_provider?.trim() || undefined,
+      skills_discovered: [],
+      total_executions: 0,
+      total_feedback_given: 0,
+      tos_accepted_version: CURRENT_TOS_VERSION,
+      tos_accepted_at: new Date().toISOString(),
+      activity_dates: [],
+    };
+  }
+
+  return await queueAgentWrite(agentId, async () => {
+    const profile = await ensureAgentProfile(env, agentId);
+    profile.wallet_address = wallet.wallet_address?.trim() || undefined;
+    profile.wallet_provider = wallet.wallet_provider?.trim() || undefined;
+    await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
+    return profile;
+  });
 }
 
 export async function acceptTos(env: Env, agentId: string, tosVersion: string): Promise<void> {

@@ -4,6 +4,7 @@ import { homedir, hostname } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
 import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
+import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
 
@@ -70,6 +71,8 @@ interface UnbrowseConfig {
   registered_at: string;
   tos_accepted_version: string | null;
   tos_accepted_at: string | null;
+  wallet_address?: string;
+  wallet_provider?: string;
 }
 
 type ApiKeySource = "env" | "config";
@@ -114,6 +117,23 @@ export function buildDefaultAgentName(): string {
 export function resolveAgentName(preferredEmail: string | undefined, fallbackName: string): string {
   const normalized = normalizeAgentEmail(preferredEmail ?? "");
   return isValidAgentEmail(normalized) ? normalized : fallbackName;
+}
+
+function getLocalWalletContext(): { wallet_address?: string; wallet_provider?: string } {
+  const lobsterWallet = process.env.LOBSTER_WALLET_ADDRESS?.trim();
+  if (lobsterWallet) {
+    return { wallet_address: lobsterWallet, wallet_provider: "lobster.cash" };
+  }
+
+  const genericWallet = process.env.AGENT_WALLET_ADDRESS?.trim();
+  if (genericWallet) {
+    return {
+      wallet_address: genericWallet,
+      wallet_provider: process.env.AGENT_WALLET_PROVIDER?.trim() || undefined,
+    };
+  }
+
+  return {};
 }
 
 export function getApiKey(): string {
@@ -392,6 +412,13 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
       console.log("[unbrowse] Restored saved registration.");
     }
     await checkTosStatus();
+    try {
+      const profile = await getMyProfile();
+      const wallet = getLocalWalletContext();
+      if (wallet.wallet_address && profile.wallet_address !== wallet.wallet_address) {
+        await syncAgentWallet(wallet);
+      }
+    } catch { /* non-fatal */ }
     return;
   }
 
@@ -418,8 +445,9 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   console.log(`Registering as "${name}"...`);
 
   try {
+    const wallet = getLocalWalletContext();
     const { agent_id, api_key } = await api<{ agent_id: string; api_key: string }>(
-      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version }
+      "POST", "/v1/agents/register", { name, tos_version: tosInfo.version, ...wallet }
     );
 
     process.env.UNBROWSE_API_KEY = api_key;
@@ -430,6 +458,7 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
       registered_at: new Date().toISOString(),
       tos_accepted_version: tosInfo.version,
       tos_accepted_at: new Date().toISOString(),
+      ...wallet,
     });
 
     console.log(`Registered as ${name}. API key saved to ~/.unbrowse/config.json`);
@@ -606,7 +635,29 @@ export async function publishSkill(
     } as SkillManifest & { warnings: string[] };
   }
   if (LOCAL_ONLY) throw new Error("local-only mode");
-  return api("POST", "/v1/skills", draft, { timeoutMs: PUBLISH_TIMEOUT_MS });
+  const wallet = getLocalWalletContext();
+  const published = await api<SkillManifest & { warnings: string[] }>("POST", "/v1/skills", {
+    ...draft,
+    ...(wallet.wallet_address ? wallet : {}),
+  }, { timeoutMs: PUBLISH_TIMEOUT_MS });
+
+  const cascade = await ensureCascadeSplitForSkill(published).catch((err) => ({
+    warning: `cascade_split_failed:${(err as Error).message}`,
+  }));
+  const warnings = [...(published.warnings ?? [])];
+  if (cascade.warning) warnings.push(cascade.warning);
+
+  if (cascade.split_config && cascade.split_config !== published.split_config) {
+    const updated = await api<SkillManifest>("PATCH", `/v1/skills/${published.skill_id}`, {
+      split_config: cascade.split_config,
+    });
+    return {
+      ...updated,
+      warnings,
+    };
+  }
+
+  return { ...published, warnings };
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
@@ -784,7 +835,7 @@ export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): 
 export async function recordTransaction(params: {
   transaction_id: string;
   consumer_id: string;
-  creator_id: string;
+  creator_id?: string;
   skill_id: string;
   endpoint_id?: string;
   price_usd: number;
@@ -967,11 +1018,23 @@ export async function verifyMarketplaceDiscovery(
 
 // --- Agent Registration ---
 
-export async function registerAgent(name: string): Promise<{ agent_id: string; api_key: string }> {
-  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name });
+export async function registerAgent(
+  name: string,
+  wallet: { wallet_address?: string; wallet_provider?: string } = getLocalWalletContext(),
+): Promise<{ agent_id: string; api_key: string }> {
+  return api<{ agent_id: string; api_key: string }>("POST", "/v1/agents/register", { name, ...wallet });
 }
 
-export async function getAgent(agentId: string): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number } | null> {
+export async function getAgent(agentId: string): Promise<{
+  agent_id: string;
+  name: string;
+  created_at: string;
+  wallet_address?: string | null;
+  wallet_provider?: string | null;
+  skills_discovered: string[];
+  total_executions: number;
+  total_feedback_given: number;
+} | null> {
   try {
     return await api("GET", `/v1/agents/${agentId}`);
   } catch {
@@ -979,8 +1042,25 @@ export async function getAgent(agentId: string): Promise<{ agent_id: string; nam
   }
 }
 
-export async function getMyProfile(): Promise<{ agent_id: string; name: string; created_at: string; skills_discovered: string[]; total_executions: number; total_feedback_given: number }> {
+export async function getMyProfile(): Promise<{
+  agent_id: string;
+  name: string;
+  created_at: string;
+  wallet_address?: string | null;
+  wallet_provider?: string | null;
+  skills_discovered: string[];
+  total_executions: number;
+  total_feedback_given: number;
+}> {
   return api("GET", "/v1/agents/me", undefined);
+}
+
+export async function syncAgentWallet(wallet = getLocalWalletContext()): Promise<void> {
+  if (!wallet.wallet_address) return;
+  await api("POST", "/v1/agents/wallet", wallet);
+  const config = loadConfig();
+  if (!config) return;
+  saveConfig({ ...config, ...wallet });
 }
 
 
@@ -1038,4 +1118,8 @@ export async function getCreatorEarnings(agentId: string): Promise<{
 /** Set the base price for a skill (requires auth as skill owner). */
 export async function setSkillPrice(skillId: string, priceUsd: number): Promise<unknown> {
   return api("PATCH", `/v1/skills/${skillId}`, { base_price_usd: priceUsd });
+}
+
+export async function setSkillSplitConfig(skillId: string, splitConfig: string | null): Promise<unknown> {
+  return api("PATCH", `/v1/skills/${skillId}`, { split_config: splitConfig });
 }

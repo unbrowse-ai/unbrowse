@@ -61,7 +61,7 @@ describe("search route x402 gating", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("returns PAYMENT-REQUIRED on production search without proof", async () => {
+  it("returns PAYMENT-REQUIRED when payments are enabled", async () => {
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -85,17 +85,53 @@ describe("search route x402 gating", () => {
     expect(terms?.accepts.every((entry) => entry.payTo === BASE_ENV.PAYMENT_RECIPIENT)).toBe(true);
   });
 
-  it("keeps staging search free", async () => {
+  it("allows staging search to advertise mainnet terms when X402_NETWORK_MODE=mainnet", async () => {
     const res = await searchRoutes.request("http://localhost/search", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ intent: "search packages", k: 5 }),
-    }, { ...BASE_ENV, ENVIRONMENT: "staging" });
+    }, { ...BASE_ENV, ENVIRONMENT: "staging", X402_NETWORK_MODE: "mainnet" });
+
+    const header = res.headers.get("PAYMENT-REQUIRED");
+    const terms = header
+      ? JSON.parse(Buffer.from(header, "base64").toString("utf8")) as {
+          accepts: Array<Record<string, unknown>>;
+        }
+      : null;
+
+    expect(res.status).toBe(402);
+    expect(terms?.accepts.map((entry) => entry.network).sort()).toEqual([
+      "eip155:8453",
+      "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    ]);
+  });
+
+  it("keeps staging search free when payments are disabled", async () => {
+    const res = await searchRoutes.request("http://localhost/search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ intent: "search packages", k: 5 }),
+    }, { ...BASE_ENV, ENVIRONMENT: "staging", PAYMENTS_ENABLED: "false" });
 
     const body = await res.json() as Record<string, unknown>;
 
     expect(res.status).toBe(200);
     expect(body.results).toEqual([]);
-    expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBe("1000");
+    expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBeNull();
+  });
+
+  it("disables search payments entirely when PAYMENTS_ENABLED=false", async () => {
+    const res = await searchRoutes.request("http://localhost/search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ intent: "search packages", k: 5 }),
+    }, { ...BASE_ENV, PAYMENTS_ENABLED: "false" });
+
+    const body = await res.json() as Record<string, unknown>;
+
+    expect(res.status).toBe(200);
+    expect(body.results).toEqual([]);
+    expect(res.headers.get("PAYMENT-REQUIRED")).toBeNull();
+    expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBeNull();
   });
 });

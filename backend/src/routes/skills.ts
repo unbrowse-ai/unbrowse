@@ -1,14 +1,15 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
+import { bearerAuth } from "../middleware/auth.js";
 import { publishSkill, getSkill, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
 import { validateSkillManifest } from "../services/validator.js";
-import { addSkillDiscovered } from "../services/agents.js";
+import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
 import { computeRoutePrice } from "../services/pricing.js";
 import { getStats } from "../services/scoring.js";
-import { x402Response, verifyX402Proof, buildSkillPaymentTerms } from "../middleware/x402-gate.js";
+import { x402Response, verifyX402Proof, buildSkillPaymentTerms, paymentsEnabled, x402UseTestnet } from "../middleware/x402-gate.js";
 import { skillsKV } from "../services/kv.js";
-import { mergeContributor } from "../services/splits.js";
+import { getAgentWallet, mergeContributor, resolveSkillPaymentRecipient, syncSkillSplitConfig } from "../services/splits.js";
 
 // Public read routes -- no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -33,22 +34,19 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
   const priceResult = computeRoutePrice(skill, statsArr);
 
   // Free skills (price=0 or below floor) skip the gate
-  if (priceResult.price_usd > 0) {
+  if (priceResult.price_usd > 0 && paymentsEnabled(c.env)) {
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const legacyProofHeader = c.req.header("X-Payment-Proof");
 
     if (!paymentHeader && !legacyProofHeader) {
       // No proof provided -- return 402 with payment terms
-      // Route to split_config address if contributors exist, otherwise platform wallet
-      const recipient = skill.split_config
-        ?? c.env.PAYMENT_RECIPIENT
-        ?? "0x0000000000000000000000000000000000000000";
+      const recipient = resolveSkillPaymentRecipient(skill, c.env);
       const terms = await buildSkillPaymentTerms(
         priceResult.price_usd,
         skill.skill_id,
         recipient,
         c.req.url,
-        { testnet: c.env.ENVIRONMENT !== "production" },
+        { testnet: x402UseTestnet(c.env) },
       );
       return x402Response(c, terms);
     }
@@ -96,15 +94,20 @@ skillRoutes.use("/skills", agentRateLimit({ limit: 30, window: 60, prefix: "publ
 skillRoutes.use("/skills/:id/endpoints/:eid", agentRateLimit({ limit: 60, window: 60, prefix: "ep-update" }));
 
 // POST /v1/skills -- publish/update
-skillRoutes.post("/skills", async (c) => {
-  const body = await c.req.json();
+skillRoutes.post("/skills", bearerAuth, async (c) => {
+  const body = await c.req.json<Record<string, unknown> & {
+    indexer_id?: string;
+    endpoints?: unknown[];
+    wallet_address?: string;
+    wallet_provider?: string;
+  }>();
   const validation = validateSkillManifest(body);
   if (!validation.valid) {
     return c.json({ error: "Validation failed", details: validation.hardErrors }, 422);
   }
   let skill;
   try {
-    skill = await publishSkill(c.env, body);
+    skill = await publishSkill(c.env, body as Parameters<typeof publishSkill>[1]);
   } catch (err) {
     console.error("[publish] error:", (err as Error).message, (err as Error).stack);
     return c.json({ error: "Failed to publish skill" }, 500);
@@ -113,20 +116,39 @@ skillRoutes.post("/skills", async (c) => {
   // Track agent contribution and merge into contributors list
   const agentId = c.get("agent_id");
   if (agentId) {
-    c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));
+    try {
+      c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));
+    } catch {
+      void addSkillDiscovered(c.env, agentId, skill.skill_id);
+    }
 
     // Merge this agent as a contributor with their endpoint count
     const indexerId = body.indexer_id ?? agentId;
     const endpointsAdded = body.endpoints?.length ?? 0;
     const existing = await getSkill(c.env, skill.skill_id);
+    const publishWalletAddress = typeof body.wallet_address === "string" ? body.wallet_address.trim() : undefined;
+    const publishWalletProvider = typeof body.wallet_provider === "string" ? body.wallet_provider.trim() : undefined;
+    let profile = await getAgent(c.env, indexerId);
+    if (indexerId === agentId && publishWalletAddress) {
+      try {
+        profile = await updateAgentWallet(c.env, agentId, {
+          wallet_address: publishWalletAddress,
+          wallet_provider: publishWalletProvider,
+        });
+      } catch (err) {
+        console.warn(`[publish] wallet sync skipped for ${agentId}: ${(err as Error).message}`);
+      }
+    }
+    const wallet = getAgentWallet(profile) as { wallet_address?: string };
     const contributors = mergeContributor(
       existing?.contributors ?? [],
       indexerId,
       endpointsAdded,
+      wallet.wallet_address,
     );
     // Persist updated contributors
     const kv = skillsKV(c.env);
-    const updated = { ...skill, contributors };
+    const updated = syncSkillSplitConfig({ ...skill, contributors });
     await kv.put(`skill:${skill.skill_id}`, JSON.stringify(updated));
     skill = updated;
   }
@@ -139,9 +161,9 @@ skillRoutes.post("/skills", async (c) => {
 });
 
 // PATCH /v1/skills/:id -- update skill metadata (e.g. base_price_usd)
-skillRoutes.patch("/skills/:id", async (c) => {
+skillRoutes.patch("/skills/:id", bearerAuth, async (c) => {
   const skillId = c.req.param("id");
-  const body = await c.req.json<{ base_price_usd?: number }>();
+  const body = await c.req.json<{ base_price_usd?: number; split_config?: string | null }>();
 
   const skill = await getSkill(c.env, skillId);
   if (!skill) return c.json({ error: "Skill not found" }, 404);
@@ -154,6 +176,15 @@ skillRoutes.patch("/skills/:id", async (c) => {
     skill.base_price_usd = body.base_price_usd;
   }
 
+  if (body.split_config !== undefined) {
+    const splitConfig = body.split_config?.trim();
+    if (body.split_config !== null && !splitConfig) {
+      return c.json({ error: "split_config must be a non-empty string or null" }, 400);
+    }
+    if (splitConfig) skill.split_config = splitConfig;
+    else delete skill.split_config;
+  }
+
   skill.updated_at = new Date().toISOString();
   const kv = skillsKV(c.env);
   await kv.put(`skill:${skillId}`, JSON.stringify(skill));
@@ -161,7 +192,7 @@ skillRoutes.patch("/skills/:id", async (c) => {
 });
 
 // PATCH /v1/skills/:id/endpoints/:eid -- update endpoint score/status/schema
-skillRoutes.patch("/skills/:id/endpoints/:eid", async (c) => {
+skillRoutes.patch("/skills/:id/endpoints/:eid", bearerAuth, async (c) => {
   const { score, status, response_schema } = await c.req.json<{ score?: number; status?: string; response_schema?: import("../types.js").ResponseSchema }>();
   if (score != null || status) {
     await updateEndpointScore(c.env, c.req.param("id"), c.req.param("eid"), score ?? 0, status as any);
