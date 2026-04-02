@@ -45,6 +45,11 @@ export type ReviewQueueCandidate = {
   cli?: string[];
 };
 
+export function hasCliFlag(args: Set<string>, flag: string): boolean {
+  const normalized = flag.startsWith("--") ? flag : `--${flag}`;
+  return args.has(normalized);
+}
+
 const TRACKING_OR_ADTECH = /\b(doubleverify|optable|liadm|privacymanager|crwdcntrl|demdex|teads|rubicon|pubmatic|adnxs|taboola|outbrain|adsystem|adserver|adtech|tracking|telemetry|analytics|beacon|pixel|impression|click[-_]?tracking|consent|witness|targeting|identify)\b/i;
 
 function endpointDescription(endpoint: DeferredEndpoint): string {

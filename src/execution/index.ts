@@ -574,6 +574,21 @@ export function buildStructuredReplayHeaders(
   return headers;
 }
 
+function normalizeReplayHeaders(
+  ...bags: Array<Record<string, string> | undefined>
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const bag of bags) {
+    for (const [key, value] of Object.entries(bag ?? {})) {
+      if (typeof value !== "string") continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      normalized[key.toLowerCase()] = trimmed;
+    }
+  }
+  return normalized;
+}
+
 function shouldFallbackToBrowserReplay(
   data: unknown,
   endpoint: EndpointDescriptor,
@@ -1886,14 +1901,17 @@ export async function executeEndpoint(
   const hasStructuredReplay = structuredReplayUrl !== url;
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
+    const endpointHeaders = normalizeReplayHeaders(endpoint.headers_template);
+    const sessionHeaders = normalizeReplayHeaders(authHeaders);
+
     // Default accept to JSON, but never overwrite the endpoint's own accept header
     // (e.g. LinkedIn uses "application/vnd.linkedin.normalized+json+2.1")
-    const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpoint.headers_template?.["accept"])
+    const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpointHeaders["accept"] && !sessionHeaders["accept"])
       ? { "accept": "application/json" } : {};
     const headers: Record<string, string> = {
       ...defaultAccept,
-      ...endpoint.headers_template,
-      ...authHeaders,
+      ...endpointHeaders,
+      ...sessionHeaders,
     };
     // Strip browser-only headers that cause issues server-side
     delete headers["sec-ch-ua"];
@@ -1918,7 +1936,7 @@ export async function executeEndpoint(
         /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf)$/i.test(c.name)
       );
       if (csrfCookie) {
-        const v = csrfCookie.value.startsWith(') && csrfCookie.value.endsWith(') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
+        const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
         headers["x-csrf-token"] = v;
         headers["x-xsrf-token"] = v;
       }
@@ -1931,7 +1949,7 @@ export async function executeEndpoint(
       if (csrfCookie) {
         const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
         if (endpoint.csrf_plan.source === "cookie" || endpoint.csrf_plan.source === "header") {
-          headers[endpoint.csrf_plan.param_name.toLowerCase()] ??= v;
+          headers[endpoint.csrf_plan.param_name.toLowerCase()] = v;
         } else if (endpoint.csrf_plan.source === "form" && body && typeof body === "object" && !Array.isArray(body)) {
           (body as Record<string, unknown>)[endpoint.csrf_plan.param_name] ??= v;
         }
