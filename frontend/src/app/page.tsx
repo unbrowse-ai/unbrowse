@@ -10,10 +10,7 @@ import { HeroCTA } from "@/components/hero-cta";
 import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
-const SHOW_ALL_INSTALL_OPTIONS = true;
-const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? "For CLI-first hosts, start with npx unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. The package pulls in the local Unbrowse runtime automatically. On older OpenClaw builds you may be asked once to trust the plugin. If you prefer a global install, use npm install -g unbrowse or npm install -g unbrowse-openclaw depending on the host. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths."
-  : "Start with npx unbrowse setup for the CLI host path. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.";
+const DOCS_URL = "https://docs.unbrowse.ai";
 
 const faqJsonLd = {
   "@context": "https://schema.org",
@@ -114,7 +111,7 @@ export default function Home() {
           <p>Older OpenClaw builds may ask once to trust the plugin.</p>
           <p>Community: https://discord.gg/VWugEeFNsG</p>
           <p>Usage: unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</p>
-          <p>Full documentation: https://www.unbrowse.ai/skill.md</p>
+          <p>Full documentation: https://docs.unbrowse.ai</p>
       </section>
 
       {/* ═══ Hero ═══ */}
@@ -213,6 +210,8 @@ export default function Home() {
               </div>
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-text-muted">
                 <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Join Discord</a>
+                <span className="text-border-strong">·</span>
+                <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Docs</a>
                 <span className="text-border-strong">·</span>
                 <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Read Paper</a>
                 <span className="text-border-strong">·</span>
@@ -434,7 +433,9 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-text-secondary font-mono pt-8">
-              <a href="/skill.md" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> skill.md</a>
+              <a href={DOCS_URL} target="_blank" rel="noopener" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> Docs</a>
+              <span className="hidden sm:block text-border-strong">•</span>
+              <a href="/skill.md" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> Agent contract</a>
               <span className="hidden sm:block text-border-strong">•</span>
               <a href="/llms.txt" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> llms.txt</a>
               <span className="hidden sm:block text-border-strong">•</span>
@@ -543,6 +544,7 @@ export default function Home() {
            <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm font-medium">
              <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">GitHub</a>
              <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Discord</a>
+             <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Docs</a>
              <Link href="/search" className="hover:text-text-primary transition-colors">Registry</Link>
              <Link href="/dashboard" className="hover:text-text-primary transition-colors">View by wallet</Link>
              <Link href="/terms" className="hover:text-text-primary transition-colors">Terms</Link>
