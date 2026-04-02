@@ -288,6 +288,14 @@ When Lewis asks about GTM, growth, marketing, or content — run these checks an
 4. Check which account x-cli is authed as before posting (currently @unbrowse, NOT @getFoundry)
 5. **NEVER use x-cli to post tweets** — always use Typefully (`/typefully` skill) for proper scheduling, analytics, and queue management. x-cli is READ-ONLY (search, metrics, monitoring).
 
+### Blog Publisher
+- Skill: `/blog-publisher`
+- API key: `BLOG_PUBLISH_KEY=6A3Q4N_lAdWQUtTs1biZzqZGl4BlPJVau8wB8dLn5W4`
+- Backend endpoint: `POST https://beta-api.unbrowse.ai/v1/blog/publish` (secured by above key in `Authorization: Bearer` header)
+- Accepts: `{ slug, title, description, keywords[], content (markdown), deploy: bool }`
+- Generates Next.js page from template, updates sitemap, optionally triggers deploy
+- Content Factory remote agent drafts to `.content-queue/`, then blog-publisher publishes
+
 ### Traction Dashboard (always check first)
 1. Hit `https://launch.unbrowse.ai/api/traction` for: stars, npm downloads, WAU, keys, verifications, retention
 2. Hit `https://beta-api.unbrowse.ai/v1/stats/summary` for: marketplace endpoints, executions, agents, hit rate

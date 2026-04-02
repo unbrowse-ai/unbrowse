@@ -9,6 +9,7 @@
   "scripts": {
     "prepare": "husky",
     "submodules:init": "bash scripts/ensure-submodules.sh",
+    "openclaw:install": "bash scripts/install-openclaw-unbrowse.sh",
     "test": "bun test tests/path-params.test.ts tests/utils.test.ts evals/quality-gate.test.ts",
     "test:cli": "bun test tests/cli-e2e.test.ts",
     "test:p0-p1": "bun scripts/p0-p1-test-runner.ts",
