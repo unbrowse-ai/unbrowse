@@ -12,7 +12,7 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
-import { generateLocalDescription } from "../orchestrator/index.js";
+import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
@@ -122,8 +122,25 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
         intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
       };
 
-      // 8. Cache locally for immediate reuse
+      // 8. Cache locally for immediate reuse — write to BOTH the published skill cache
+      // AND the domain skill snapshot so resolveAndExecute finds it on next call
       try { cachePublishedSkill(skill); } catch { /* best-effort */ }
+
+      // Write domain skill snapshot (keyed by resolve cache key)
+      const bgCacheKey = buildResolveCacheKey(domain, intent, pageUrl);
+      const bgScopedKey = scopedCacheKey("global", bgCacheKey);
+      writeSkillSnapshot(bgScopedKey, skill);
+
+      // Update domain-level reuse cache
+      const bgDomainKey = getDomainReuseKey(pageUrl ?? domain);
+      if (bgDomainKey) {
+        domainSkillCache.set(bgDomainKey, {
+          skillId: skill.skill_id,
+          localSkillPath: snapshotPathForCacheKey(bgScopedKey),
+          ts: Date.now(),
+        });
+        persistDomainCache();
+      }
 
       // 9. Queue background index (graph building, validation, marketplace publish)
       const cacheKey = `passive:${domain}:${Date.now()}`;
@@ -697,13 +714,15 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } catch { /* non-fatal */ }
     }
+    // Inject interceptor BEFORE navigation (scriptInject persists across page loads)
+    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
 
     await kuri.navigate(session.tabId, url);
     const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
     session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
     session.domain = profileName(session.url);
 
-    // Restart HAR + inject fetch/XHR interceptor for full API capture
+    // Restart HAR + re-inject interceptor (evaluate for current page context)
     await kuri.harStart(session.tabId).catch(() => {});
     await kuri.evaluate(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     session.harActive = true;
@@ -871,7 +890,48 @@ export async function registerRoutes(app: FastifyInstance) {
       if (!seen.has(key)) { seen.add(key); allRequests.push(r); }
     }
 
-    // Run full passive indexing pipeline on merged data
+    // Quick synchronous cache write: extract endpoints and cache immediately
+    // so the next resolve finds them. Full enrichment runs async after.
+    {
+      let domain: string;
+      try { domain = new URL(session.url).hostname; } catch { domain = session.domain; }
+      const rawEndpoints = extractEndpoints(allRequests, undefined, { pageUrl: session.url, finalUrl: session.url });
+      if (rawEndpoints.length > 0) {
+        const existingSkill = findExistingSkillForDomain(domain);
+        const mergedEps = existingSkill ? mergeEndpoints(existingSkill.endpoints, rawEndpoints) : rawEndpoints;
+        if (!existingSkill || mergedEps.length >= existingSkill.endpoints.length) {
+          for (const ep of mergedEps) { if (!ep.description) ep.description = generateLocalDescription(ep); }
+          const quickSkill: SkillManifest = {
+            skill_id: existingSkill?.skill_id ?? nanoid(),
+            version: "1.0.0", schema_version: "1",
+            lifecycle: "active" as const, execution_type: "http" as const,
+            created_at: existingSkill?.created_at ?? new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            name: domain, intent_signature: `browse ${domain}`, domain,
+            description: `API skill for ${domain}`, owner_type: "agent" as const,
+            endpoints: mergedEps,
+            intents: Array.from(new Set([...(existingSkill?.intents ?? []), `browse ${domain}`])),
+          };
+          // Write snapshot + domain cache synchronously
+          const cacheKey = buildResolveCacheKey(domain, `browse ${domain}`, session.url);
+          const scopedKey = scopedCacheKey("global", cacheKey);
+          writeSkillSnapshot(scopedKey, quickSkill);
+          const domainKey = getDomainReuseKey(session.url ?? domain);
+          if (domainKey) {
+            domainSkillCache.set(domainKey, {
+              skillId: quickSkill.skill_id,
+              localSkillPath: snapshotPathForCacheKey(scopedKey),
+              ts: Date.now(),
+            });
+            persistDomainCache();
+          }
+          try { cachePublishedSkill(quickSkill); } catch { /* best-effort */ }
+          console.log(`[passive-index] ${domain}: ${mergedEps.length} endpoints cached synchronously`);
+        }
+      }
+    }
+
+    // Run full async enrichment pipeline (agent augmentation, graph, marketplace publish)
     passiveIndexFromRequests(allRequests, session.url);
     await kuri.closeTab(session.tabId).catch(() => {});
     browseSessions.delete("default");
