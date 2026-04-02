@@ -9,6 +9,8 @@ metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "
 
 Kuri is the agent's browser — a 464 KB Zig-native CDP broker with ~3ms cold start. Unbrowse is the intelligence layer that runs on top: it watches what Kuri does, learns the internal APIs (shadow APIs) that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
 
+The clean category line is: Unbrowse is a drop-in browser for agents.
+
 **How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
 
 **Three execution paths:**
@@ -61,6 +63,15 @@ If not running, the CLI auto-starts the server. First time requires ToS acceptan
 After consent, the CLI handles startup automatically. If the browser engine is missing, the CLI installs it on first capture.
 
 The backend still uses an opaque internal agent id. The email is just the user-facing registration identity for lower-friction setup.
+
+## Docs
+
+Use the skill for the core loop. Use the docs when you need the public product and market context:
+
+- [Whitepaper companion](./docs/whitepaper/README.md) — current map of the paper and companion docs
+- [For Technical Readers](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, and product boundary
+- [For Investors](./docs/whitepaper/for-investors.md) — market framing and roadmap boundary
+- [Analytics API](./docs/analytics-api.md) — canonical investor/product metrics surfaces
 
 ## Core Workflow
 
