@@ -141,21 +141,14 @@ unbrowse feedback \
 | `skill` | `<id>` | Get skill details |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-
-### Browse commands (Kuri browser with passive indexing)
-
-Every action passively captures network traffic and indexes discovered API routes for future reuse.
-
-| Command | Usage | Description |
-|---------|-------|-------------|
-| `go` | `<url>` | Navigate browser to URL (flushes prior HAR + indexes) |
+| `go` | `<url>` | Navigate browser to URL (passive indexing) |
 | `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `<ref>` | Click element by ref (e.g. e5) |
 | `fill` | `<ref> <value>` | Fill input by ref |
 | `type` | `<text>` | Type text with key events |
 | `press` | `<key>` | Press key (Enter, Tab, Escape) |
 | `select` | `<ref> <value>` | Select option by ref |
-| `scroll` | `[up\|down\|left\|right]` | Scroll the page |
+| `scroll` | `[up|down|left|right]` | Scroll the page |
 | `screenshot` |  | Capture screenshot (base64 PNG) |
 | `text` |  | Get page text content |
 | `markdown` |  | Get page as Markdown |
@@ -163,20 +156,8 @@ Every action passively captures network traffic and indexes discovered API route
 | `eval` | `<expression>` | Evaluate JavaScript |
 | `back` |  | Navigate back |
 | `forward` |  | Navigate forward |
-| `close` |  | Close session, flush + index all traffic |
+| `close` |  | Close browse session, flush + index traffic |
 
-**Browse workflow example:**
-```bash
-unbrowse go "https://example.com"         # navigate (HAR starts)
-unbrowse snap                              # get a11y tree with @eN refs
-unbrowse click e5                          # click a button
-unbrowse fill e3 "search query"            # fill an input
-unbrowse press Enter                       # submit
-unbrowse snap                              # see results
-unbrowse close                             # flush HAR, index APIs for reuse
-```
-
-Every XHR/fetch triggered by these actions is captured. On `close` (or next `go`), the captured traffic is processed through the route extraction pipeline and published to the shared graph. Next agent hitting this domain gets cached API data instead of browser automation.
 ### Global flags
 
 | Flag | Description |
