@@ -34,32 +34,35 @@ publicSkillRoutes.get("/skills/:id", async (c) => {
 
   // Free skills (price=0 or below floor) skip the gate
   if (priceResult.price_usd > 0) {
-    const proofHeader = c.req.header("X-Payment-Proof");
+    const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
+    const legacyProofHeader = c.req.header("X-Payment-Proof");
 
-    if (!proofHeader) {
+    if (!paymentHeader && !legacyProofHeader) {
       // No proof provided -- return 402 with payment terms
       // Route to split_config address if contributors exist, otherwise platform wallet
       const recipient = skill.split_config
         ?? c.env.PAYMENT_RECIPIENT
         ?? "0x0000000000000000000000000000000000000000";
-      const resource = new URL(c.req.url).pathname;
-      const terms = buildSkillPaymentTerms(
+      const terms = await buildSkillPaymentTerms(
         priceResult.price_usd,
         skill.skill_id,
         recipient,
-        resource,
+        c.req.url,
         { testnet: c.env.ENVIRONMENT !== "production" },
       );
       return x402Response(c, terms);
     }
 
     // Proof provided -- verify via Corbits facilitator
-    const { valid, degraded } = await verifyX402Proof(proofHeader);
+    const { valid, degraded, settlementHeader } = await verifyX402Proof(paymentHeader ?? legacyProofHeader!);
     if (!valid) {
       return c.json({ error: "Payment proof invalid or rejected" }, 403);
     }
     if (degraded) {
       console.warn(`[x402] facilitator down -- allowed degraded access for skill ${skill.skill_id}`);
+    }
+    if (settlementHeader) {
+      c.header("PAYMENT-RESPONSE", settlementHeader);
     }
   }
 

@@ -12,6 +12,22 @@ const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
 const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
 
+function decodeBase64Json(value: string): unknown {
+  try {
+    if (typeof globalThis !== "undefined" && typeof globalThis.atob === "function") {
+      const binary = globalThis.atob(value);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return JSON.parse(new TextDecoder("utf-8").decode(bytes));
+    }
+    return JSON.parse(Buffer.from(value, "base64").toString("utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
 function scopedSkillKey(skillId: string, scopeId?: string): string {
   return scopeId ? `${scopeId}:${skillId}` : skillId;
 }
@@ -229,8 +245,13 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
 
   // Handle x402 payment required — surface payment terms to the caller
   if (res.status === 402) {
-    const paymentTerms = res.headers.get("X-Payment-Required");
-    const terms = paymentTerms ? JSON.parse(paymentTerms) : (data as Record<string, unknown>).terms;
+    const paymentRequired = res.headers.get("PAYMENT-REQUIRED");
+    const legacyPaymentTerms = res.headers.get("X-Payment-Required");
+    const terms = paymentRequired
+      ? decodeBase64Json(paymentRequired)
+      : legacyPaymentTerms
+        ? JSON.parse(legacyPaymentTerms)
+        : (data as Record<string, unknown>).terms;
     const err = new Error(`Payment required: ${(data as Record<string, unknown>).error ?? "This skill requires payment"}`);
     (err as Error & { x402: boolean; terms: unknown; status: number }).x402 = true;
     (err as Error & { terms: unknown }).terms = terms;

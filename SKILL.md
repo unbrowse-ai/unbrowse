@@ -145,6 +145,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
+| `publish` | `--skill ID [--endpoints '[...]']` | Describe + publish skill to marketplace (two-phase) |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
