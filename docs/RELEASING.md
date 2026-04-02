@@ -46,7 +46,7 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 
 ## CI checks before release
 
-`test.yml` now runs on `rach/restart-base` pull requests and pushes, and verifies:
+`test.yml` now runs on `main` pull requests and pushes, and verifies:
 
 - `SKILL.md` is in sync with `src/cli.ts`
 - `packages/skill` passes `npm pack --dry-run`
@@ -54,7 +54,7 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 
 The CLI E2E job runs `bun run cli -- setup --no-start` first so CI verifies the vendored Kuri binary is discoverable before it exercises the CLI path.
 
-Branch protection should require the workflow checks on `rach/restart-base` before merge.
+Branch protection should require the workflow checks on `main` before merge.
 
 That catches broken package layouts before a release tag is pushed.
 
