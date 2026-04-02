@@ -94,11 +94,10 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
         }
       }
 
-      // 5. Agent-based semantic augmentation (action_kind, resource_kind, provides/requires)
-      let enrichedEndpoints = mergedEndpoints;
-      try {
-        enrichedEndpoints = await augmentEndpointsWithAgent(mergedEndpoints);
-      } catch { /* agent augmentation is best-effort */ }
+      // 5. Skip LLM-based augmentation — the calling agent IS the LLM.
+      // Endpoint descriptions come from generateLocalDescription (heuristic).
+      // The agent reviews endpoints in the deferral response and picks the right one.
+      const enrichedEndpoints = mergedEndpoints;
 
       // 6. Build operation dependency graph
       const operationGraph = buildSkillOperationGraph(enrichedEndpoints);

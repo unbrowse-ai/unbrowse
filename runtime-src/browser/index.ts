@@ -96,9 +96,8 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
         if (!ep.description) ep.description = generateLocalDescription(ep);
       }
 
-      // Agent semantic augmentation
-      let enrichedEndpoints = mergedEndpoints;
-      try { enrichedEndpoints = await augmentEndpointsWithAgent(mergedEndpoints); } catch { /* best-effort */ }
+      // No LLM augmentation — the calling agent IS the LLM
+      const enrichedEndpoints = mergedEndpoints;
 
       // Build operation graph
       const operationGraph = buildSkillOperationGraph(enrichedEndpoints);

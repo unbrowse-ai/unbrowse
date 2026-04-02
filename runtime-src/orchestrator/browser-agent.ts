@@ -325,9 +325,7 @@ export async function agenticBrowserResolve(
       if (!ep.description) ep.description = generateLocalDescription(ep);
     }
 
-    // Agent semantic augmentation
-    let enrichedEndpoints = mergedEndpoints;
-    try { enrichedEndpoints = await augmentEndpointsWithAgent(mergedEndpoints); } catch { /* best-effort */ }
+    const enrichedEndpoints = mergedEndpoints;
 
     // Build operation graph
     const operationGraph = buildSkillOperationGraph(enrichedEndpoints);
