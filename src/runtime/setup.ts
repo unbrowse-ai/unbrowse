@@ -221,10 +221,10 @@ export async function runSetup(options?: {
     ...finalWalletCheck,
     lobster_installed: lobsterInstalled,
     message: finalWalletCheck.configured
-      ? `Wallet configured (${finalWalletCheck.provider})`
+      ? `Wallet configured (${finalWalletCheck.provider}). This address is the contributor truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used for paid-route spending.`
       : lobsterInstalled
-        ? "lobster.cash installed but wallet not paired. Run: lobstercash setup"
-        : "No wallet configured. Install lobster.cash for paid marketplace skills, or use indexing mode for free.",
+        ? "lobster.cash installed but wallet not paired. Pair it now so this wallet address becomes your contributor payout target and your paid-route spending wallet. Run: lobstercash setup"
+        : "No wallet configured. Install/pair a wallet so your contributor payouts have a destination address and premium-route spending can clear automatically. Without it you stay in free indexing mode only.",
     install_hint: finalWalletCheck.configured
       ? undefined
       : lobsterInstalled

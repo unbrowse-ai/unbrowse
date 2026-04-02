@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { INSTALL_CMD_GENERIC } from "@/lib/install-command";
 
 export function HeroCTA() {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText("npx unbrowse setup");
+    await navigator.clipboard.writeText(INSTALL_CMD_GENERIC);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -20,7 +21,7 @@ export function HeroCTA() {
                  shadow-[0_0_24px_rgba(255,109,0,0.3)] hover:shadow-[0_0_32px_rgba(255,109,0,0.5)]
                  transition-all cursor-pointer hover:bg-orange-600 active:scale-[0.98]"
     >
-      <code className="text-white/90 font-mono text-sm sm:text-base">npx unbrowse setup</code>
+      <code className="text-white/90 font-mono text-sm sm:text-base">git clone ... && ./setup</code>
       <span className="h-4 w-px bg-white/30" />
       {copied ? (
         <span className="flex items-center gap-1 text-xs uppercase tracking-wider text-white/90">

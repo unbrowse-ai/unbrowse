@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { INSTALL_CMD_GENERIC, UPGRADE_CMD_GENERIC } from "@/lib/install-command";
 
 const SKILL_MD = `---
 name: unbrowse
 description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
-install: npx unbrowse setup
+install: ${INSTALL_CMD_GENERIC}
 homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
 ---
@@ -15,14 +16,15 @@ repository: https://github.com/unbrowse-ai/unbrowse
 ## Install
 
 \`\`\`bash
-npx unbrowse setup
+${INSTALL_CMD_GENERIC}
 \`\`\`
 
-For repeat use, install globally:
+This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and lobster.cash wallet detection when present. If a wallet is configured, that address is synced onto your agent profile and becomes the destination for contributor payouts when your routes earn.
+
+Upgrade an existing clone in place:
 
 \`\`\`bash
-npm install -g unbrowse
-unbrowse setup
+${UPGRADE_CMD_GENERIC}
 \`\`\`
 
 If your agent host uses skills, add the Unbrowse skill too:
@@ -52,7 +54,7 @@ Skills published by live capture become available to all agents on the network.
 Run full setup instantly:
 
 \`\`\`bash
-npx unbrowse setup
+${INSTALL_CMD_GENERIC}
 \`\`\`
 
 If your agent host uses skills, add the Unbrowse skill:

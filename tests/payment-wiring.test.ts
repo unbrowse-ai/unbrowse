@@ -4,6 +4,7 @@ import {
   resolveUnpaidAccess,
   interpretPaymentResult,
 } from "../src/payments/index.js";
+import { getLocalWalletContext } from "../src/client/index.js";
 import { checkWalletConfigured } from "../src/payments/wallet.js";
 import type { PaymentGateResult } from "../src/payments/index.js";
 
@@ -121,6 +122,16 @@ describe("checkWalletConfigured", () => {
     process.env.AGENT_WALLET_ADDRESS = "generic-addr";
     const result = checkWalletConfigured();
     expect(result.provider).toBe("lobster.cash");
+  });
+
+  test("exports generic wallet context for payout sync and payment proof", () => {
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    process.env.AGENT_WALLET_ADDRESS = "0xfeedface";
+    process.env.AGENT_WALLET_PROVIDER = "custom-wallet";
+    expect(getLocalWalletContext()).toEqual({
+      wallet_address: "0xfeedface",
+      wallet_provider: "custom-wallet",
+    });
   });
 });
 
