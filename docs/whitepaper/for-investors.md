@@ -2,6 +2,28 @@
 
 This page explains Unbrowse as a product and market wedge, without blurring shipped product and roadmap.
 
+## Positioning In One Sentence
+
+Unbrowse is an execution layer for AI agents that turns brittle browser work into reusable, maintained routes.
+
+The shortest category line is:
+
+Unbrowse is a drop-in browser for agents.
+
+That works because buyers already understand the browser slot in the stack. The difference is that Unbrowse does not stop at replaying the page. It learns and reuses the machine-callable route underneath the page.
+
+## The Right Comparison
+
+Do not frame Unbrowse as "scraping, but better."
+
+The right comparison is:
+
+- browser automation
+- one-off site integrations
+- repeated manual rediscovery of the same web workflow
+
+Teams are switching from slow, flaky browser execution and bespoke glue code to reusable execution knowledge.
+
 ## The Core Story
 
 The AI agent wave is real.
@@ -18,6 +40,17 @@ The product thesis is simple:
 - those workflows usually live behind browser UIs, not clean public APIs
 - if you can learn the request layer once and reuse it later, the economics improve fast
 
+## The Struggling Moment
+
+The demand moment is simple:
+
+- an agent can reason about a task
+- the team tries to execute it through a browser
+- latency spikes, costs stack up, auth gets brittle, selectors break
+- the team realizes they are paying the same discovery tax over and over again
+
+That is the moment Unbrowse is built for.
+
 ## What The Wedge Is Today
 
 Unbrowse today is a local-first capability layer for web execution.
@@ -30,6 +63,20 @@ It can:
 - preserve browser-bound auth behavior when sites require it
 
 That is the wedge because it turns a repeated cost center, rediscovering the same site workflow, into a reusable asset.
+
+## What Customers Are Actually Buying
+
+Customers are not buying "access to websites."
+
+They are buying:
+
+- lower execution cost
+- faster time to action
+- less brittle automation
+- maintained route knowledge
+- reuse of work they would otherwise repeat themselves
+
+That makes the pitch cleaner and more defensible than broad claims about owning the whole web.
 
 ## Why The Product Can Compound
 
@@ -47,6 +94,24 @@ So the product improves with reuse, not only with bigger models.
 That matters strategically because model quality alone does not remove the web-execution bottleneck.
 
 Infrastructure does.
+
+## Why This Is Different From Browser Automation
+
+Browser automation replays the human surface.
+
+Unbrowse learns the machine-callable route underneath the surface, remembers it, and reuses it later.
+
+That is not a small optimization. It is a different execution primitive.
+
+Useful shorthand:
+
+- browser automation = repeat the work
+- Unbrowse = learn once, reuse later
+
+Another useful shorthand:
+
+- browser for humans = render, click, scrape
+- browser for agents = resolve, execute, reuse
 
 ## The "Mining The Web" Angle
 
@@ -121,6 +186,24 @@ In other words:
 - then price the network
 
 That sequencing is healthier than pretending the economic layer already exists.
+
+## Messaging Guardrails
+
+Lead with:
+
+- drop-in browser for agents
+- execution layer for agents
+- browser rediscovery tax
+- reusable route knowledge
+- faster, cheaper, more reliable than repeated browser execution
+
+Avoid leading with:
+
+- protocol
+- token
+- toll booth
+- control point
+- "we index the whole web"
 
 ## Suggested Reading Order
 

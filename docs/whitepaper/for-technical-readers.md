@@ -4,6 +4,26 @@ This page is the fastest way to understand the Unbrowse product that exists in t
 
 It is intentionally stricter than the whitepaper.
 
+## Positioning Snapshot
+
+Unbrowse is not best understood as a generic browser wrapper.
+
+It is a reusable execution layer that learns routes from real browser traffic, then reuses those routes with ranking, verification, and fallback logic.
+
+The clean category shorthand is:
+
+Unbrowse is a drop-in browser for agents.
+
+That does not mean "the browser disappears everywhere." It means agent workflows can keep a browser-shaped interface while Unbrowse swaps repeated UI replay for route resolution and execution whenever it can.
+
+The closest alternatives are:
+
+- Playwright / Puppeteer-style browser automation
+- custom one-off API reverse engineering
+- teams building and maintaining their own private route cache
+
+The useful category label is "execution infrastructure for agent access to the web."
+
 ## The Technical Thesis
 
 Unbrowse is a local-first web capability layer for agents.
@@ -30,6 +50,20 @@ The codebase currently ships:
 
 That means the system already supports both first-run learning and later-run reuse.
 
+## What A Skill Actually Is
+
+A skill is not just a saved URL.
+
+In practice it is a complete execution plan with:
+
+- route and schema knowledge
+- auth assumptions
+- refresh or replay behavior
+- reliability state
+- fallback paths when direct replay is weak
+
+That matters because the moat is not raw endpoint discovery alone. It is maintained execution knowledge.
+
 ## The Real Execution Loop
 
 The practical flow today is:
@@ -50,6 +84,22 @@ Depending on the site and task, Unbrowse can use:
 - DOM extraction fallback
 
 That distinction matters because "network-level execution" is directionally right, but browser-bound state is still necessary on stricter sites.
+
+## What To Say, What To Avoid
+
+Say:
+
+- drop-in browser for agents
+- learn once, reuse later
+- shared route memory
+- maintained execution knowledge
+- browser fallback when needed
+
+Avoid:
+
+- "this replaces the browser everywhere today"
+- "this is just scraping"
+- "this is only a route registry"
 
 ## What Is Real Product Truth
 
