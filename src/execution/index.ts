@@ -1880,15 +1880,15 @@ export async function executeEndpoint(
       headers["cookie"] = cookieStr;
 
       // CSRF token auto-detection (bird pattern): many sites require CSRF tokens
-      // as both a cookie AND a header. Detect common patterns and replay them.
-      if (!headers["x-csrf-token"] && !headers["x-xsrf-token"]) {
-        const csrfCookie = cookies.find((c) =>
-          /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf)$/i.test(c.name)
-        );
-        if (csrfCookie) {
-          const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
-          headers["x-csrf-token"] = v;
-        }
+      // as both a cookie AND a header. The cookie value is always fresher than
+      // any stored vault header, so it ALWAYS overrides.
+      const csrfCookie = cookies.find((c) =>
+        /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf)$/i.test(c.name)
+      );
+      if (csrfCookie) {
+        const v = csrfCookie.value.startsWith(') && csrfCookie.value.endsWith(') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
+        headers["x-csrf-token"] = v;
+        headers["x-xsrf-token"] = v;
       }
     }
 
