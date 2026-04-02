@@ -86,6 +86,8 @@ export interface OptimizationFunnel {
   window_days: number;
   cohort_start: string;
   cohort_end: string;
+  recovered_profiles_excluded: number;
+  data_quality_warnings: string[];
   stages: FunnelStage[];
 }
 
@@ -136,6 +138,12 @@ function daysAgo(days: number): Date {
   now.setUTCDate(now.getUTCDate() - days);
   now.setUTCHours(0, 0, 0, 0);
   return now;
+}
+
+function addDays(date: string, days: number): string {
+  const next = new Date(`${date}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + days);
+  return dateKey(next);
 }
 
 function safeRatio(numerator: number, denominator: number): number {
@@ -215,15 +223,9 @@ function buildTrend(points: Map<string, number>, days: number): TrendPoint[] {
   return trend;
 }
 
-function last30Sessions(sessions: StoredSessionSummary[]): StoredSessionSummary[] {
-  const cutoff = dateKey(daysAgo(30));
+function recentSessionsForWindow(sessions: StoredSessionSummary[], days: number): StoredSessionSummary[] {
+  const cutoff = dateKey(daysAgo(days));
   return sessions.filter((session) => dateKey(session.started_at) >= cutoff);
-}
-
-function addDays(date: string, days: number): string {
-  const next = new Date(`${date}T00:00:00.000Z`);
-  next.setUTCDate(next.getUTCDate() + days);
-  return dateKey(next);
 }
 
 function buildSessionIndex(sessions: StoredSessionSummary[]): Map<string, StoredSessionSummary[]> {
@@ -247,7 +249,7 @@ export async function recordSessionSummary(
   const normalized: StoredSessionSummary = {
     ...session,
     agent_id: agentId,
-    trace_version: session.trace_version,
+    trace_version: session.trace_version ?? "unknown",
     api_calls: Math.max(0, session.api_calls ?? 0),
     discovery_queries: Math.max(0, session.discovery_queries ?? 0),
     cached_skill_calls: Math.max(0, session.cached_skill_calls ?? 0),
@@ -298,7 +300,8 @@ export async function getGrowthMetrics(env: Env, days = 30): Promise<GrowthMetri
 
   const dailyNewUsers = buildTrend(newUsersByDay, days);
   const last7 = dailyNewUsers.slice(-7).reduce((sum, point) => sum + point.value, 0);
-  const prior7 = dailyNewUsers.slice(Math.max(0, dailyNewUsers.length - 14), Math.max(0, dailyNewUsers.length - 7))
+  const prior7 = dailyNewUsers
+    .slice(Math.max(0, dailyNewUsers.length - 14), Math.max(0, dailyNewUsers.length - 7))
     .reduce((sum, point) => sum + point.value, 0);
 
   return {
@@ -314,19 +317,25 @@ export async function getGrowthMetrics(env: Env, days = 30): Promise<GrowthMetri
 
 export async function getUsageMetrics(env: Env): Promise<UsageMetrics> {
   const [profiles, sessions] = await Promise.all([loadProfiles(env), loadSessions(env)]);
-  const recentSessions = last30Sessions(sessions);
+  const recentSessions = recentSessionsForWindow(sessions, 30);
   const totalApiCalls = recentSessions.reduce((sum, session) => sum + Math.max(0, session.api_calls), 0);
   const sessionAgents = new Set(recentSessions.map((session) => session.agent_id));
   const engagedProfiles = profiles.filter((profile) => profile.total_executions > 0);
-  const repeatUsers = engagedProfiles.filter((profile) => normalizeActivityDates(profile.activity_dates).length >= 2 || profile.total_executions >= 2);
+  const repeatUsers = engagedProfiles.filter((profile) =>
+    normalizeActivityDates(profile.activity_dates).length >= 2 || profile.total_executions >= 2,
+  );
   const churnCutoff = dateKey(daysAgo(30));
 
-  const postAgents = new Set(recentSessions
-    .filter((session) => session.browser_mode === "replaced")
-    .map((session) => session.agent_id));
-  const preAgents = new Set(recentSessions
-    .filter((session) => session.browser_mode !== "replaced")
-    .map((session) => session.agent_id));
+  const postAgents = new Set(
+    recentSessions
+      .filter((session) => session.browser_mode === "replaced")
+      .map((session) => session.agent_id),
+  );
+  const preAgents = new Set(
+    recentSessions
+      .filter((session) => session.browser_mode !== "replaced")
+      .map((session) => session.agent_id),
+  );
 
   const churnRateFor = (agentIds: Set<string>): number | null => {
     if (agentIds.size === 0) return null;
@@ -348,6 +357,7 @@ export async function getUsageMetrics(env: Env): Promise<UsageMetrics> {
     entry.agents.add(session.agent_id);
     versionMap.set(traceVersion, entry);
   }
+
   const version_breakdown_30d = [...versionMap.entries()]
     .map(([trace_version, entry]) => ({
       trace_version,
@@ -375,80 +385,123 @@ export async function getOptimizationFunnel(env: Env, days = 30): Promise<Optimi
   const cohortEnd = dateKey(new Date());
   const cohortProfiles = profiles.filter((profile) => {
     const created = dateKey(profile.created_at);
-    return created >= cohortStart && created <= cohortEnd;
+    return created >= cohortStart && created <= cohortEnd && profile.profile_origin !== "recovered";
   });
+  const recoveredProfilesExcluded = profiles.filter((profile) => {
+    const created = dateKey(profile.created_at);
+    return created >= cohortStart && created <= cohortEnd && profile.profile_origin === "recovered";
+  }).length;
   const sessionsByAgent = buildSessionIndex(sessions);
+  const dataQualityWarnings: string[] = [];
 
-  const activated = cohortProfiles.filter((profile) => profile.total_executions > 0);
-  const aha = cohortProfiles.filter((profile) => {
+  const activated = cohortProfiles.filter((profile) => {
+    const agentSessions = sessionsByAgent.get(profile.agent_id) ?? [];
+    return profile.total_executions > 0 || agentSessions.length > 0;
+  });
+  const aha = activated.filter((profile) => {
     const agentSessions = sessionsByAgent.get(profile.agent_id) ?? [];
     return agentSessions.some((session) =>
-      session.api_calls >= 3 || (session.cached_skill_calls ?? 0) >= 1,
+      session.api_calls >= 1 ||
+      (session.cached_skill_calls ?? 0) >= 1 ||
+      (session.fresh_index_calls ?? 0) >= 1,
     );
   });
-  const repeat = cohortProfiles.filter((profile) => {
+  const repeat = aha.filter((profile) => {
     const agentSessions = sessionsByAgent.get(profile.agent_id) ?? [];
     return agentSessions.length >= 2 || normalizeActivityDates(profile.activity_dates).length >= 2;
   });
 
-  const retained7Eligible = cohortProfiles.filter((profile) => {
-    const created = dateKey(profile.created_at);
-    return addDays(created, 7) <= cohortEnd;
-  });
-  const retained30Eligible = cohortProfiles.filter((profile) => {
-    const created = dateKey(profile.created_at);
-    return addDays(created, 30) <= cohortEnd;
-  });
+  if (activated.some((profile) => (sessionsByAgent.get(profile.agent_id) ?? []).length === 0)) {
+    dataQualityWarnings.push("missing_session_coverage_for_some_activated_users");
+  }
+  if (recoveredProfilesExcluded > 0) {
+    dataQualityWarnings.push("recovered_profiles_excluded_from_canonical_funnel");
+  }
 
-  const retainedD7 = retained7Eligible.filter((profile) => {
+  const retainedD7Eligible = repeat.filter((profile) => addDays(dateKey(profile.created_at), 7) <= cohortEnd);
+  const retainedD7 = retainedD7Eligible.filter((profile) => {
     const target = addDays(dateKey(profile.created_at), 7);
     return normalizeActivityDates(profile.activity_dates).some((day) => day >= target);
   });
-  const retainedD30 = retained30Eligible.filter((profile) => {
+
+  const retainedD30Eligible = retainedD7.filter((profile) => addDays(dateKey(profile.created_at), 30) <= cohortEnd);
+  const retainedD30 = retainedD30Eligible.filter((profile) => {
     const target = addDays(dateKey(profile.created_at), 30);
     return normalizeActivityDates(profile.activity_dates).some((day) => day >= target);
   });
 
-  const counts = {
-    registered: cohortProfiles.length,
-    activated: activated.length,
-    aha: aha.length,
-    repeat: repeat.length,
-    retained_d7: retainedD7.length,
-    retained_d30: retainedD30.length,
-  };
-  const eligible = {
-    registered: cohortProfiles.length,
-    activated: cohortProfiles.length,
-    aha: cohortProfiles.length,
-    repeat: cohortProfiles.length,
-    retained_d7: retained7Eligible.length,
-    retained_d30: retained30Eligible.length,
-  };
-
+  const registeredCount = cohortProfiles.length;
   const stages: FunnelStage[] = [
-    { key: "registered", label: "Registered", users: counts.registered, eligible_users: eligible.registered, conversion_from_previous: 1, conversion_from_cohort: 1 },
-    { key: "activated", label: "Activated", users: counts.activated, eligible_users: eligible.activated, conversion_from_previous: safeRatio(counts.activated, counts.registered), conversion_from_cohort: safeRatio(counts.activated, counts.registered) },
-    { key: "aha", label: "Aha", users: counts.aha, eligible_users: eligible.aha, conversion_from_previous: safeRatio(counts.aha, counts.activated), conversion_from_cohort: safeRatio(counts.aha, counts.registered) },
-    { key: "repeat", label: "Repeat", users: counts.repeat, eligible_users: eligible.repeat, conversion_from_previous: safeRatio(counts.repeat, counts.aha), conversion_from_cohort: safeRatio(counts.repeat, counts.registered) },
-    { key: "retained_d7", label: "Retained D7", users: counts.retained_d7, eligible_users: eligible.retained_d7, conversion_from_previous: safeRatio(counts.retained_d7, counts.repeat), conversion_from_cohort: safeRatio(counts.retained_d7, eligible.retained_d7) },
-    { key: "retained_d30", label: "Retained D30", users: counts.retained_d30, eligible_users: eligible.retained_d30, conversion_from_previous: safeRatio(counts.retained_d30, counts.retained_d7), conversion_from_cohort: safeRatio(counts.retained_d30, eligible.retained_d30) },
+    {
+      key: "registered",
+      label: "Registered",
+      users: registeredCount,
+      eligible_users: registeredCount,
+      conversion_from_previous: 1,
+      conversion_from_cohort: 1,
+    },
+    {
+      key: "activated",
+      label: "Activated",
+      users: activated.length,
+      eligible_users: registeredCount,
+      conversion_from_previous: safeRatio(activated.length, registeredCount),
+      conversion_from_cohort: safeRatio(activated.length, registeredCount),
+    },
+    {
+      key: "aha",
+      label: "Aha",
+      users: aha.length,
+      eligible_users: activated.length,
+      conversion_from_previous: safeRatio(aha.length, activated.length),
+      conversion_from_cohort: safeRatio(aha.length, registeredCount),
+    },
+    {
+      key: "repeat",
+      label: "Repeat",
+      users: repeat.length,
+      eligible_users: aha.length,
+      conversion_from_previous: safeRatio(repeat.length, aha.length),
+      conversion_from_cohort: safeRatio(repeat.length, registeredCount),
+    },
+    {
+      key: "retained_d7",
+      label: "Retained D7",
+      users: retainedD7.length,
+      eligible_users: retainedD7Eligible.length,
+      conversion_from_previous: safeRatio(retainedD7.length, retainedD7Eligible.length),
+      conversion_from_cohort: safeRatio(retainedD7.length, registeredCount),
+    },
+    {
+      key: "retained_d30",
+      label: "Retained D30",
+      users: retainedD30.length,
+      eligible_users: retainedD30Eligible.length,
+      conversion_from_previous: safeRatio(retainedD30.length, retainedD30Eligible.length),
+      conversion_from_cohort: safeRatio(retainedD30.length, registeredCount),
+    },
   ];
 
   return {
     window_days: days,
     cohort_start: cohortStart,
     cohort_end: cohortEnd,
+    recovered_profiles_excluded: recoveredProfilesExcluded,
+    data_quality_warnings: dataQualityWarnings,
     stages,
   };
 }
 
 export async function getNetworkHealthMetrics(env: Env): Promise<NetworkHealthMetrics> {
-  const [skills, perf] = await Promise.all([loadActiveSkills(env), getPerf(env)]);
+  const [skills, perf, sessions] = await Promise.all([loadActiveSkills(env), getPerf(env), loadSessions(env)]);
+  const recentSessions = recentSessionsForWindow(sessions, 30);
   const domainSet = new Set(skills.map((skill) => skill.domain).filter(Boolean));
-  const indexedSkillCalls = perf.marketplace_hits;
-  const routeCacheCalls = perf.cache_hits;
-  const freshIndexCalls = perf.live_captures;
+  const sessionCachedSkillCalls = recentSessions.reduce((sum, session) => sum + Math.max(0, session.cached_skill_calls ?? 0), 0);
+  const sessionFreshIndexCalls = recentSessions.reduce((sum, session) => sum + Math.max(0, session.fresh_index_calls ?? 0), 0);
+  const hasSessionCoverage = recentSessions.length > 0;
+  const indexedSkillCalls = hasSessionCoverage ? sessionCachedSkillCalls : perf.marketplace_hits;
+  const routeCacheCalls = hasSessionCoverage ? 0 : perf.cache_hits;
+  const freshIndexCalls = hasSessionCoverage ? sessionFreshIndexCalls : perf.live_captures;
   const reuseDenominator = indexedSkillCalls + routeCacheCalls + freshIndexCalls;
 
   return {
@@ -470,7 +523,7 @@ export async function getUnitEconomicsMetrics(env: Env): Promise<UnitEconomicsMe
     loadSessions(env),
   ]);
   const savings = computeSavings(perf);
-  const recentSessions = last30Sessions(sessions);
+  const recentSessions = recentSessionsForWindow(sessions, 30);
   const routeCalls30d = recentSessions.reduce((sum, session) => sum + Math.max(0, session.api_calls), 0);
   const sessionDiscoveryQueries30d = recentSessions.reduce((sum, session) => sum + Math.max(0, session.discovery_queries ?? 0), 0);
   const discoveryQueries30d = sessionDiscoveryQueries30d > 0

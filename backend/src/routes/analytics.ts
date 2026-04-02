@@ -65,7 +65,6 @@ analyticsRoutes.get("/analytics/usage", async (c) => {
   return c.json(usage);
 });
 
-// Canonical investor/product funnel to optimize against.
 analyticsRoutes.get("/analytics/funnel", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 90);
   const funnel = await getOptimizationFunnel(c.env, days);
@@ -157,7 +156,7 @@ analyticsRoutes.post("/analytics/adoption", async (c) => {
 });
 
 analyticsRoutes.get("/analytics/dashboard", async (c) => {
-  const [growth, engagement, usage, funnel, activation, network, economics, agentHealth, bottleneck] = await Promise.all([
+  const [growth, engagement, usage, funnel, activation, network, economics, pricing, agentHealth, bottleneck] = await Promise.all([
     getGrowthMetrics(c.env),
     getEngagement(c.env),
     getUsageMetrics(c.env),
@@ -165,6 +164,7 @@ analyticsRoutes.get("/analytics/dashboard", async (c) => {
     getActivation(c.env),
     getNetworkHealthMetrics(c.env),
     getUnitEconomicsMetrics(c.env),
+    getRevenuePricing(c.env),
     getAgentHealth(c.env),
     getBottleneckMetrics(c.env),
   ]);
@@ -177,6 +177,7 @@ analyticsRoutes.get("/analytics/dashboard", async (c) => {
     activation,
     network,
     economics,
+    pricing,
     agent_health: agentHealth,
     bottleneck,
   });
@@ -196,7 +197,6 @@ analyticsRoutes.get("/analytics/install", async (c) => {
   return c.json(summary);
 });
 
-// Legacy first-run/install funnel kept on a dedicated path.
 analyticsRoutes.get("/analytics/install-funnel", async (c) => {
   const days = Math.min(parseInt(c.req.query("days") ?? "90", 10), 180);
   const summary = await getFunnelSummary(c.env, days);

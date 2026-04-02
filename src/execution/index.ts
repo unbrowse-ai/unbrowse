@@ -6,6 +6,7 @@ import { publishSkill, mergeEndpoints } from "../marketplace/index.js";
 import { updateEndpointScore } from "../marketplace/index.js";
 import { getCredential, storeCredential, deleteCredential } from "../vault/index.js";
 import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/index.js";
+import { resolvePreExecutionAuth } from "../auth/dependency-runtime.js";
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";

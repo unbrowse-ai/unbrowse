@@ -5,7 +5,7 @@ import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.
 import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, injectInterceptor, type RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
-import type { SkillManifest } from "../types/index.js";
+import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
@@ -14,24 +14,59 @@ import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index
 import { storeCredential } from "../vault/index.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
-import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
+import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordAnalyticsSession, recordExecution, recordFeedback, recordDiagnostics, getApiKey, getRecentLocalSkill } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
-import type { ProjectionOptions } from "../types/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { mergeAgentReview } from "../indexer/index.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
-import { buildAnalyticsSessionPayload } from "../analytics-session.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
+
+type AnalyticsSessionResult = {
+  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version">;
+  timing?: Pick<OrchestrationTiming, "source">;
+  source?: OrchestratorResult["source"];
+};
+
+export function buildAnalyticsSessionPayload(
+  result: AnalyticsSessionResult,
+  opts: {
+    browser_mode: AnalyticsSessionPayload["browser_mode"];
+    discovery_queries: number;
+    cached_skill_calls?: number;
+    fresh_index_calls?: number;
+  },
+): AnalyticsSessionPayload {
+  const source = result.timing?.source ?? result.source;
+  const apiCalls = result.trace.endpoint_id ? 1 : 0;
+  const cachedSkillCalls = opts.cached_skill_calls ?? (
+    apiCalls > 0 && source !== "live-capture" && source !== "first-pass" ? 1 : 0
+  );
+  const freshIndexCalls = opts.fresh_index_calls ?? (
+    apiCalls > 0 && (source === "live-capture" || source === "first-pass") ? 1 : 0
+  );
+
+  return {
+    session_id: result.trace.trace_id,
+    started_at: result.trace.started_at,
+    completed_at: result.trace.completed_at,
+    trace_version: result.trace.trace_version ?? TRACE_VERSION,
+    api_calls: apiCalls,
+    discovery_queries: opts.discovery_queries,
+    cached_skill_calls: cachedSkillCalls,
+    fresh_index_calls: freshIndexCalls,
+    browser_mode: opts.browser_mode ?? "unknown",
+  };
+}
 
 
 /** Convert Kuri HAR entries to RawRequest format */
@@ -289,15 +324,6 @@ export async function registerRoutes(app: FastifyInstance) {
       ? req.headers["x-unbrowse-client-id"].trim()
       : req.id;
 
-  const recordSessionFromTrace = (
-    reqId: string,
-    startedAt: string,
-    source: "marketplace" | "live-capture" | "dom-fallback" | "route-cache" | "first-pass",
-    trace: { completed_at: string; network_events?: Array<unknown> },
-  ) => {
-    recordAnalyticsSession(buildAnalyticsSessionPayload(reqId, startedAt, source, trace)).catch(() => {});
-  };
-
   // Auth gate: block all routes except /health when no API key is configured
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health" || req.url === "/v1/stats") return;
@@ -315,7 +341,6 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const startedAt = new Date().toISOString();
     const { intent, params, context, projection, confirm_unsafe, dry_run, force_capture } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
@@ -328,7 +353,6 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
       const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture, client_scope: clientScope });
-      recordSessionFromTrace(req.id, startedAt, result.timing.source, result.trace);
 
       // Surface timing breakdown
       const res = result as unknown as Record<string, unknown>;
@@ -342,6 +366,11 @@ export async function registerRoutes(app: FastifyInstance) {
       if (innerResult?.available_endpoints && !res.available_endpoints) {
         res.available_endpoints = innerResult.available_endpoints;
       }
+
+      await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
+        browser_mode: "replaced",
+        discovery_queries: 1,
+      })).catch(() => {});
 
       return reply.send(result);
     } catch (err) {
@@ -543,7 +572,6 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/skills/:skill_id/execute
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const startedAt = new Date().toISOString();
     const { skill_id } = req.params as { skill_id: string };
     const { params, projection, confirm_unsafe, dry_run, intent, context_url } = req.body as {
       params?: Record<string, unknown>;
@@ -576,11 +604,9 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
-      saveTelemetry(execResult.trace, skill, intent);
       if (execResult.trace.endpoint_id) {
         recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
       }
-      recordSessionFromTrace(req.id, startedAt, "marketplace", execResult.trace);
       if (execResult.trace.success) {
         promoteExplicitExecution(
           clientScope,
@@ -613,11 +639,13 @@ export async function registerRoutes(app: FastifyInstance) {
             { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
-          saveTelemetry(freshResult.trace, skill, intent);
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
             recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
           }
-          recordSessionFromTrace(req.id, startedAt, freshResult.timing.source, freshResult.trace);
+          await recordAnalyticsSession(buildAnalyticsSessionPayload(freshResult, {
+            browser_mode: "manual",
+            discovery_queries: 1,
+          })).catch(() => {});
           return reply.send({
             ...freshResult,
             _recovery: {
@@ -630,6 +658,13 @@ export async function registerRoutes(app: FastifyInstance) {
           // Recovery failed — return original 404 with guidance
         }
       }
+
+      await recordAnalyticsSession(buildAnalyticsSessionPayload(execResult, {
+        browser_mode: "manual",
+        discovery_queries: 0,
+        cached_skill_calls: execResult.trace.endpoint_id ? 1 : 0,
+        fresh_index_calls: 0,
+      })).catch(() => {});
 
       return reply.send(execResult);
     } catch (err) {

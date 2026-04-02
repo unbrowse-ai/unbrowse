@@ -726,6 +726,18 @@ export interface ExecutionPayload {
   indexer_id?: string;
 }
 
+export interface AnalyticsSessionPayload {
+  session_id: string;
+  started_at: string;
+  completed_at?: string;
+  trace_version?: string;
+  api_calls: number;
+  discovery_queries?: number;
+  cached_skill_calls?: number;
+  fresh_index_calls?: number;
+  browser_mode?: "default" | "replaced" | "manual" | "unknown";
+}
+
 /**
  * Build the POST body for /v1/stats/execution.
  * Pure function — no I/O, fully testable.
@@ -761,6 +773,11 @@ export async function recordExecution(
   if (LOCAL_ONLY) return;
   const payload = buildExecutionPayload(skillId, endpointId, trace, skill);
   await api("POST", "/v1/stats/execution", payload);
+}
+
+export async function recordAnalyticsSession(payload: AnalyticsSessionPayload): Promise<void> {
+  if (LOCAL_ONLY) return;
+  await api("POST", "/v1/analytics/sessions", payload);
 }
 
 /** Record a payment transaction for a paid skill execution. Fire-and-forget. */
