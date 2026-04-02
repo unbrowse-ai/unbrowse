@@ -29,8 +29,8 @@ export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: 
 analyticsRoutes.use("/analytics/*", bearerAuth);
 
 function setAnalyticsHeaders(c: { header(name: string, value: string): void }): void {
-  c.header("Cache-Control", "public, max-age=300");
-  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Cache-Control", "private, no-store");
+  c.header("Vary", "Authorization");
 }
 
 analyticsRoutes.get("/analytics/engagement", async (c) => {

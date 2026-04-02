@@ -71,7 +71,6 @@ Use the skill for the core loop. Use the docs when you need product context or r
 - [Whitepaper companion](./docs/whitepaper/README.md) — current map of the paper and companion docs
 - [For Technical Readers](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, and product boundary
 - [For Investors](./docs/whitepaper/for-investors.md) — market framing and roadmap boundary
-- [Analytics API](./docs/analytics-api.md) — canonical investor/product metrics surfaces
 - [Quickstart](./docs/guides/quickstart.md) — install/run path, first-use flow
 - [API notes](./docs/api.md) — route-level behavior and contracts
 - [Codex eval harness](./docs/codex-eval-harness.md) — how product-truth evals run

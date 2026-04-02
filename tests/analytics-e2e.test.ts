@@ -227,19 +227,21 @@ describe("analytics e2e", () => {
       }
 
       const auth = { Authorization: "Bearer admin" };
-      const [usage, funnel, network, economics, dashboard] = await Promise.all([
-        fetch(`http://127.0.0.1:${backendPort}/v1/analytics/usage`, { headers: auth }).then((res) => res.json()),
+      const usageResponse = await fetch(`http://127.0.0.1:${backendPort}/v1/analytics/usage`, { headers: auth });
+      expect(usageResponse.headers.get("cache-control")).toBe("private, no-store");
+      expect(usageResponse.headers.get("vary")).toBe("Authorization");
+      const usage = await usageResponse.json() as {
+        total_sessions_30d: number;
+        unique_agents_30d: number;
+        api_calls_per_session: number;
+        version_breakdown_30d: Array<{ trace_version: string }>;
+      };
+      const [funnel, network, economics, dashboard] = await Promise.all([
         fetch(`http://127.0.0.1:${backendPort}/v1/analytics/funnel?days=30`, { headers: auth }).then((res) => res.json()),
         fetch(`http://127.0.0.1:${backendPort}/v1/analytics/network`, { headers: auth }).then((res) => res.json()),
         fetch(`http://127.0.0.1:${backendPort}/v1/analytics/economics`, { headers: auth }).then((res) => res.json()),
         fetch(`http://127.0.0.1:${backendPort}/v1/analytics/dashboard`, { headers: auth }).then((res) => res.json()),
       ]) as [
-        {
-          total_sessions_30d: number;
-          unique_agents_30d: number;
-          api_calls_per_session: number;
-          version_breakdown_30d: Array<{ trace_version: string }>;
-        },
         {
           recovered_profiles_excluded: number;
           stages: Array<{ key: string; users: number }>;

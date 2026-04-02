@@ -62,9 +62,11 @@
 
 ### Bug Fixes
 
+* **analytics/security**: stop advertising authenticated analytics responses as publicly cacheable, add `Vary: Authorization`, remove user-facing analytics docs links, and pin the private header contract in end-to-end coverage
 * **github/docs**: update PR helpers and validation docs to treat `main` as the canonical base branch after the branch rename, so release/merge instructions stop pointing at the dead `rach/restart-base` branch
 * **install**: add a deterministic repo-native `./setup` bootstrap, switch the npm wrapper fallback to the stable Node launcher, and keep the standalone CLI package manifest pinned to the runtime payment deps (`bs58`, `@solana/kit`, `@cascade-fyi/splits-sdk`) so the public install path no longer depends on a healthy GitHub release asset plus a lucky npm fallback
 * **payments/wallets**: treat the configured wallet address as the single contributor/payment truth across setup, agent wallet sync, 402 error payloads, and transaction proof wiring, including generic agent-wallet providers instead of hardcoding lobster-only labels
+* **skills**: add a repo-local `internal-analytics` skill with a deterministic fetch helper so agents can pull private analytics without treating the surface as public docs
 ## fix: mirror Claude skills into Codex installs
 
 - `scripts/sync-skill.sh` now routes local skill linking through a shared helper so the active Claude/Codex `unbrowse` links resolve to the current monorepo checkout instead of drifting to stale worktrees or copied skill dirs.

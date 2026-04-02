@@ -96,7 +96,6 @@ The synced skill repo also carries the longer-form docs set:
 - [Whitepaper companion index](./docs/whitepaper/README.md)
 - [For Technical Readers](./docs/whitepaper/for-technical-readers.md)
 - [For Investors](./docs/whitepaper/for-investors.md)
-- [Analytics API](./docs/analytics-api.md)
 
 ## How it works
 
