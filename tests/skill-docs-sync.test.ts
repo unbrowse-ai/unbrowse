@@ -24,15 +24,21 @@ describe("skill docs sync", () => {
     const rootReadme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
     const skillReadme = readFileSync(path.join(repoRoot, "packages", "skill", "README.md"), "utf8");
     const skillDoc = readFileSync(path.join(repoRoot, "SKILL.md"), "utf8");
+    const packageSkillDoc = readFileSync(path.join(repoRoot, "packages", "skill", "SKILL.md"), "utf8");
     const networkLayer = readFileSync(path.join(repoRoot, "docs", "whitepaper", "network-layer.md"), "utf8");
 
     expect(rootReadme).toContain("./docs/whitepaper/README.md");
     expect(rootReadme).toContain("./docs/whitepaper/for-investors.md");
+    expect(rootReadme).toContain("drop-in browser for agents");
     expect(rootReadme).not.toContain("internal-cathedral");
     expect(skillReadme).toContain("./docs/whitepaper/for-technical-readers.md");
+    expect(skillReadme).toContain("drop-in browser for agents");
     expect(skillReadme).not.toContain("internal-cathedral");
     expect(skillDoc).toContain("./docs/whitepaper/for-investors.md");
+    expect(skillDoc).toContain("drop-in browser for agents");
     expect(skillDoc).not.toContain("internal-cathedral");
+    expect(packageSkillDoc).toContain("drop-in browser for agents");
+    expect(packageSkillDoc).not.toContain("internal-cathedral");
     expect(networkLayer.toLowerCase()).not.toContain("cathedral");
   });
 });
