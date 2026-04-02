@@ -1,7 +1,6 @@
 import { createHash } from "crypto";
 import { readFileSync, readdirSync } from "fs";
 import { dirname, join } from "path";
-import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 
 // Deterministic version hash of all src/*.ts files.
@@ -40,11 +39,7 @@ function computeCodeHash(): string {
 }
 
 function getGitSha(): string {
-  try {
-    return execSync("git rev-parse --short HEAD", { encoding: "utf-8", cwd: MODULE_DIR }).trim();
-  } catch {
-    return "unknown";
-  }
+  return "unknown";
 }
 
 /** 12-char hex hash of all source file contents */
