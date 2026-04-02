@@ -9,7 +9,7 @@ metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "
 
 Kuri is the agent's browser — a 464 KB Zig-native CDP broker with ~3ms cold start. Unbrowse is the intelligence layer that runs on top: it watches what Kuri does, learns the internal APIs (shadow APIs) that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
 
-The clean category line is: Unbrowse is a drop-in browser for agents.
+The clean category line is: Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents.
 
 **How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
 
@@ -20,7 +20,7 @@ The clean category line is: Unbrowse is a drop-in browser for agents.
 
 Every method except `goto()` proxies directly to Kuri — snapshots, ref-based actions, DOM queries, HAR recording, cookies, screenshots. The full Kuri API surface is available. Unbrowse is the second-class citizen here: it indexes in the background and provides a faster path when one exists.
 
-**Performance:** 3.6x mean speedup, 5.4x median over Playwright across 94 live domains. 18 domains completed in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
+**Performance:** On the API-native path, the product is positioned as roughly ~30x faster and ~90% cheaper than repeated browser execution. In the current published benchmark set, Unbrowse shows 3.6x mean speedup and 5.4x median over Playwright across 94 live domains, with 18 domains completing in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
 
 **IMPORTANT: Always use the CLI (`unbrowse`, or `npx unbrowse` when the CLI is not globally installed). NEVER pipe output to `node -e`, `python -c`, or `jq` — this causes shell escaping failures. Use `--path`, `--extract`, and `--limit` flags instead.**
 

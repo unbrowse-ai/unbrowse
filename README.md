@@ -6,7 +6,7 @@ Turn any website into a reusable API interface for agents. Unbrowse captures net
 
 One agent learns a site once. Every later agent gets the fast path.
 
-Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, but with route learning, reuse, and browser fallback built in.
+Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
