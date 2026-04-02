@@ -544,10 +544,94 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 7. If `auth_required`, use `login` then retry
 8. Always `--dry-run` before mutations
 9. **Always submit feedback — but after presenting results to the user, not before**
-10. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
-   ```bash
-   gh issue create --repo unbrowse-ai/unbrowse \
-     --title "bug: {short description}" \
-     --body "## What happened\n{description}\n\n## Expected\n{what should have happened}\n\n## Context\n- Skill: {skill_id}\n- Endpoint: {endpoint_id}\n- Domain: {domain}\n- Error: {error message or status code}"
-   ```
-   Categories: `bug:` (broken/wrong data), `perf:` (slow), `auth:` (login/cookie issues), `feat:` (missing capability)
+10. **File issues when things break** — see "Reporting Issues" section below
+
+## Reporting Issues
+
+When Unbrowse fails on a site, file a GitHub issue so the team can fix it. This is **mandatory** when:
+- A site returns empty data after browse + index + resolve + execute
+- Auth/cookies fail (HTTP 400/401/403 after cookie injection)
+- Resolve returns `browse_session_open` for a site that should have cached endpoints
+- Execute returns wrong or stale data consistently
+- A site that previously worked stops working
+
+### How to file
+
+```bash
+gh issue create --repo unbrowse-ai/unbrowse \
+  --title "{category}: {domain} — {short description}" \
+  --label "{category}" \
+  --body "$(cat <<'ISSUE'
+## What happened
+{Describe what you tried and what went wrong}
+
+## Steps to reproduce
+1. `unbrowse go {url}`
+2. `unbrowse snap` — {what you saw}
+3. `unbrowse close`
+4. `unbrowse resolve --intent "{intent}" --url "{url}"`
+5. Result: {what happened — empty data, wrong endpoint, error, etc.}
+
+## Expected
+{What should have happened}
+
+## Context
+- **Domain**: {domain}
+- **Intent**: {intent}
+- **Skill ID**: {skill_id or "none — no skill created"}
+- **Endpoint ID**: {endpoint_id or "none"}
+- **Error**: {error message, HTTP status code, or "empty result"}
+- **Unbrowse version**: {run `unbrowse health` and include trace_version}
+- **Cookies injected**: {yes/no, count if shown in go response}
+
+## Trace
+```json
+{Paste the trace object from the resolve or execute response}
+```
+ISSUE
+)"
+```
+
+### Issue categories
+
+| Prefix | Label | When to use |
+|--------|-------|-------------|
+| `bug:` | `bug` | Broken functionality, wrong data, crashes |
+| `site:` | `site-support` | Site doesn't index properly, needs custom handling (SPA, GraphQL POST, anti-bot) |
+| `auth:` | `auth` | Cookie injection fails, login doesn't persist, gated content not accessible |
+| `perf:` | `performance` | Resolve or execute is slow (>10s for cached, >60s for first capture) |
+| `feat:` | `enhancement` | Missing capability the agent needs |
+
+### Site support requests
+
+When a site consistently fails to index (no endpoints captured, only DOM fallback, wrong URL templates), file with `site:` prefix. Include:
+- The site URL and what you were trying to do
+- Whether the site is a SPA (React/Vue/Angular), server-rendered, or hybrid
+- Whether it uses GraphQL, REST, or form POSTs
+- Any anti-bot detection you observed (CAPTCHAs, Cloudflare challenge pages)
+- What cookies/auth the site requires (if known)
+
+Example:
+```bash
+gh issue create --repo unbrowse-ai/unbrowse \
+  --title "site: linkedin.com — Voyager API not captured during browse" \
+  --label "site-support" \
+  --body "## What happened
+Browse session on linkedin.com/feed captures zero API endpoints.
+The Voyager GraphQL API uses POST with large JSON bodies that
+extractEndpoints filters out.
+
+## Steps to reproduce
+1. unbrowse go https://www.linkedin.com/feed
+2. unbrowse close
+3. unbrowse resolve --intent 'get feed posts' --url https://www.linkedin.com/feed
+4. Result: only DOM extraction endpoint, no Voyager API
+
+## Context
+- Domain: linkedin.com
+- SPA: Yes (React)
+- API type: GraphQL POST to /voyager/api/graphql
+- Auth: li_at cookie + csrf-token header from JSESSIONID
+- Anti-bot: None observed with cookie injection
+- Unbrowse version: 2.9.1"
+```
