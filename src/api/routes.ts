@@ -845,6 +845,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
 
     // Inject cookies: try Kuri auth profile first, fall back to Chrome SQLite extraction
+    let cookiesInjected = 0;
     if (newDomain && newDomain !== session.domain) {
       await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
 
@@ -855,6 +856,7 @@ export async function registerRoutes(app: FastifyInstance) {
           for (const c of browserCookies) {
             await kuri.setCookie(session.tabId, c).catch(() => {});
           }
+          cookiesInjected = browserCookies.length;
         }
       } catch { /* non-fatal */ }
     }
@@ -872,7 +874,7 @@ export async function registerRoutes(app: FastifyInstance) {
     // Re-inject interceptor via evaluate for current page context
     await injectInterceptor(session.tabId); // chunked injection for current page
 
-    return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain });
+    return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain, ...(cookiesInjected > 0 ? { cookies_injected: cookiesInjected } : {}) });
   });
 
   // POST /v1/browse/snap — a11y snapshot
