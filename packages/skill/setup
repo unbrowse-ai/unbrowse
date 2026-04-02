@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+HOST="auto"
+NO_START=0
+SKIP_BROWSER=0
+DRY_RUN=0
+NON_INTERACTIVE=0
+ACCEPT_TOS=0
+SKIP_WALLET_SETUP=0
+AGENT_EMAIL=""
+
+usage() {
+  cat <<'EOF'
+Usage: ./setup [--host auto|codex|claude|off] [--no-start] [--skip-browser] [--accept-tos] [--agent-email you@example.com] [--skip-wallet-setup] [--non-interactive] [--dry-run]
+
+Deterministic bootstrap for the standalone skill repo:
+- installs package deps with Bun
+- prebuilds the packaged CLI runtime
+- installs a stable `unbrowse` shim
+- optionally links this clone into a supported host skill directory
+- runs `unbrowse setup`
+
+First-run behavior:
+- prompts for ToS acceptance unless --accept-tos or UNBROWSE_TOS_ACCEPTED=1
+- prompts for agent email/API-key registration unless --agent-email or UNBROWSE_AGENT_EMAIL is set
+- auto-detects lobster.cash wallet context unless --skip-wallet-setup
+EOF
+}
+
+log() {
+  printf '[setup] %s\n' "$*"
+}
+
+fail() {
+  printf '[setup] %s\n' "$*" >&2
+  exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host)
+      [[ $# -ge 2 ]] || fail "missing value for --host"
+      HOST="$2"
+      shift 2
+      ;;
+    --no-start)
+      NO_START=1
+      shift
+      ;;
+    --skip-browser)
+      SKIP_BROWSER=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=1
+      shift
+      ;;
+    --accept-tos)
+      ACCEPT_TOS=1
+      shift
+      ;;
+    --skip-wallet-setup)
+      SKIP_WALLET_SETUP=1
+      shift
+      ;;
+    --agent-email)
+      [[ $# -ge 2 ]] || fail "missing value for --agent-email"
+      AGENT_EMAIL="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown argument: $1"
+      ;;
+  esac
+done
+
+case "$HOST" in
+  auto|codex|claude|off) ;;
+  *) fail "unsupported host: $HOST" ;;
+esac
+
+require_bin() {
+  command -v "$1" >/dev/null 2>&1 || fail "missing required binary: $1"
+}
+
+resolve_host() {
+  if [[ "$HOST" != "auto" ]]; then
+    printf '%s\n' "$HOST"
+    return
+  fi
+
+  case "$ROOT_DIR" in
+    "$CODEX_HOME_DIR"/skills/*) printf 'codex\n'; return ;;
+    "$HOME"/.claude/skills/*) printf 'claude\n'; return ;;
+  esac
+
+  if [[ -d "$CODEX_HOME_DIR" ]]; then
+    printf 'codex\n'
+    return
+  fi
+
+  if [[ -d "$HOME/.claude" ]]; then
+    printf 'claude\n'
+    return
+  fi
+
+  printf 'off\n'
+}
+
+TARGET_HOST="$(resolve_host)"
+
+target_skill_dir() {
+  case "$1" in
+    codex) printf '%s\n' "$CODEX_HOME_DIR/skills/unbrowse" ;;
+    claude) printf '%s\n' "$HOME/.claude/skills/unbrowse" ;;
+    off) printf '\n' ;;
+    *) fail "cannot resolve skill dir for host: $1" ;;
+  esac
+}
+
+TARGET_SKILL_DIR="$(target_skill_dir "$TARGET_HOST")"
+
+pick_shim_dir() {
+  local dir
+  IFS=':' read -r -a path_parts <<< "${PATH:-}"
+  for dir in "${path_parts[@]}"; do
+    [[ -n "$dir" ]] || continue
+    [[ -d "$dir" ]] || continue
+    [[ -w "$dir" ]] || continue
+    case "$dir" in
+      "$HOME"/*)
+        printf '%s\n' "$dir"
+        return
+        ;;
+    esac
+  done
+
+  printf '%s\n' "${UNBROWSE_BIN_DIR:-$HOME/.local/bin}"
+}
+
+SHIM_DIR="$(pick_shim_dir)"
+SHIM_PATH="$SHIM_DIR/unbrowse"
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  log "repo root: $ROOT_DIR"
+  log "host: $TARGET_HOST"
+  [[ -n "$TARGET_SKILL_DIR" ]] && log "skill dir: $TARGET_SKILL_DIR"
+  log "shim path: $SHIM_PATH"
+  [[ "$ACCEPT_TOS" -eq 1 ]] && log "tos: accepted via flag"
+  [[ -n "$AGENT_EMAIL" ]] && log "agent email: $AGENT_EMAIL"
+  [[ "$SKIP_WALLET_SETUP" -eq 1 ]] && log "wallet setup: skipped"
+  [[ "$NON_INTERACTIVE" -eq 1 ]] && log "mode: non-interactive"
+  exit 0
+fi
+
+require_bin bun
+require_bin node
+
+log "installing package dependencies"
+(cd "$ROOT_DIR" && bun install --frozen-lockfile >/dev/null 2>&1 || bun install >/dev/null)
+
+log "building packaged CLI runtime"
+(cd "$ROOT_DIR" && node scripts/prepare-pack.mjs >/dev/null)
+
+if [[ -n "$TARGET_SKILL_DIR" ]]; then
+  mkdir -p "$(dirname "$TARGET_SKILL_DIR")"
+  if [[ -e "$TARGET_SKILL_DIR" ]]; then
+    CURRENT_TARGET="$(cd "$TARGET_SKILL_DIR" && pwd -P)"
+    if [[ "$CURRENT_TARGET" != "$ROOT_DIR" ]]; then
+      fail "target skill dir already exists and points elsewhere: $TARGET_SKILL_DIR"
+    fi
+  else
+    ln -s "$ROOT_DIR" "$TARGET_SKILL_DIR"
+    log "linked skill dir: $TARGET_SKILL_DIR"
+  fi
+fi
+
+mkdir -p "$SHIM_DIR"
+cat > "$SHIM_PATH" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export UNBROWSE_PACKAGE_ROOT="$ROOT_DIR"
+exec node "$ROOT_DIR/bin/unbrowse-wrapper.mjs" "\$@"
+EOF
+chmod +x "$SHIM_PATH"
+log "installed shim: $SHIM_PATH"
+
+case ":${PATH:-}:" in
+  *":$SHIM_DIR:"*) ;;
+  *)
+    log "add to PATH if needed: export PATH=\"$SHIM_DIR:\$PATH\""
+    ;;
+esac
+
+CLI_ARGS=(setup)
+if [[ "$SKIP_BROWSER" -eq 1 ]]; then
+  CLI_ARGS+=(--skip-browser)
+fi
+if [[ "$NO_START" -eq 1 ]]; then
+  CLI_ARGS+=(--no-start)
+fi
+
+if [[ "$ACCEPT_TOS" -eq 1 ]]; then
+  export UNBROWSE_TOS_ACCEPTED=1
+fi
+if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
+  export UNBROWSE_NON_INTERACTIVE=1
+fi
+if [[ "$SKIP_WALLET_SETUP" -eq 1 ]]; then
+  export UNBROWSE_SKIP_WALLET_SETUP=1
+fi
+if [[ -n "$AGENT_EMAIL" ]]; then
+  export UNBROWSE_AGENT_EMAIL="$AGENT_EMAIL"
+fi
+
+log "running first-time bootstrap (ToS, registration, wallet detection)"
+"$SHIM_PATH" "${CLI_ARGS[@]}"
