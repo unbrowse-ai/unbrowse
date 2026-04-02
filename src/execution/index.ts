@@ -1528,8 +1528,6 @@ async function executeDomExtractionEndpoint(
   cookies: Array<{ name: string; value: string; domain: string }>,
 ): Promise<{ data: unknown; status: number; trace_id: string }> {
   // SSR fast-path: try plain HTTP fetch before browser
-
-  // SSR fast-path: try plain HTTP fetch before browser
   const ssrResult = await tryHttpFetch(url, authHeaders, cookies);
   if (ssrResult) {
     const ssrExtracted = extractFromDOMWithHint(ssrResult.html, intent, endpoint.dom_extraction);
@@ -1552,6 +1550,34 @@ async function executeDomExtractionEndpoint(
     console.log(`[ssr-fast] miss, falling back to browser`);
   }
 
+  // Browser fallback — captures both intercepted API requests AND page HTML
+  const captured = await captureSession(url, authHeaders, cookies, intent);
+
+  // Check intercepted requests first — if the site's JS made API calls,
+  // those have the actual filtered data (not the initial HTML page load)
+  if (captured.requests.length > 0) {
+    const { extractEndpoints: extractEps } = await import("../reverse-engineer/index.js");
+    const apiEndpoints = extractEps(captured.requests, undefined, { pageUrl: url, finalUrl: captured.final_url });
+    const jsonEndpoints = apiEndpoints.filter(ep => ep.response_schema && !ep.dom_extraction);
+    if (jsonEndpoints.length > 0) {
+      // Found real API responses — return the best one's data
+      const best = jsonEndpoints[0];
+      const matchingReq = captured.requests.find(r =>
+        r.url.includes(best.url_template.split("?")[0].split("{")[0]) &&
+        r.response_body && r.response_status >= 200 && r.response_status < 400
+      );
+      if (matchingReq?.response_body) {
+        try {
+          const data = JSON.parse(matchingReq.response_body);
+          console.log(`[dom-exec] found API response from browser capture: ${matchingReq.url.substring(0, 80)}`);
+          return { data, status: matchingReq.response_status, trace_id: nanoid() };
+        } catch { /* not JSON, fall through to DOM extraction */ }
+      }
+    }
+  }
+
+  // Fall back to DOM extraction from rendered HTML
+  const html = captured.html ?? "";
   // Browser fallback
   const captured = await captureSession(url, authHeaders, cookies, intent);
   const html = captured.html ?? "";
