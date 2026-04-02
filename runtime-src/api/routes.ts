@@ -6,6 +6,7 @@ import type { RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { SkillManifest } from "../types/index.js";
+import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
@@ -564,15 +565,20 @@ export async function registerRoutes(app: FastifyInstance) {
   // per-session tab + HAR state so every action the agent takes through
   // the CLI is passively captured and indexed.
 
-  const browseSessions = new Map<string, { tabId: string; url: string; harActive: boolean }>();
+  const browseSessions = new Map<string, { tabId: string; url: string; harActive: boolean; domain: string }>();
 
-  async function getOrCreateBrowseSession(): Promise<{ tabId: string; url: string; harActive: boolean }> {
+  /** Extract registrable domain for auth profile naming */
+  function profileName(url: string): string {
+    try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "unknown"; }
+  }
+
+  async function getOrCreateBrowseSession(): Promise<{ tabId: string; url: string; harActive: boolean; domain: string }> {
     const existing = browseSessions.get("default");
     if (existing) return existing;
     await kuri.start().catch(() => {});
     const tabId = await kuri.newTab();
     await kuri.harStart(tabId).catch(() => {});
-    const session = { tabId, url: "about:blank", harActive: true };
+    const session = { tabId, url: "about:blank", harActive: true, domain: "" };
     browseSessions.set("default", session);
     return session;
   }
@@ -582,6 +588,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const { url } = req.body as { url: string };
     if (!url) return reply.code(400).send({ error: "url required" });
     const session = await getOrCreateBrowseSession();
+    const newDomain = profileName(url);
 
     // Flush prior HAR entries before navigating
     if (session.harActive && session.url !== "about:blank") {
@@ -592,15 +599,36 @@ export async function registerRoutes(app: FastifyInstance) {
       session.harActive = false;
     }
 
+    // Auto-save auth profile for the old domain before leaving
+    if (session.domain && session.domain !== newDomain) {
+      await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+    }
+
+    // Inject cookies: try Kuri auth profile first, fall back to Chrome SQLite extraction
+    if (newDomain && newDomain !== session.domain) {
+      await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
+
+      // Also inject cookies from the user's real Chrome/Firefox browser
+      try {
+        const { cookies: browserCookies } = extractBrowserCookies(newDomain);
+        if (browserCookies.length > 0) {
+          for (const c of browserCookies) {
+            await kuri.setCookie(session.tabId, c).catch(() => {});
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
     await kuri.navigate(session.tabId, url);
     const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
     session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
+    session.domain = profileName(session.url);
 
     // Restart HAR
     await kuri.harStart(session.tabId).catch(() => {});
     session.harActive = true;
 
-    return reply.send({ ok: true, url: session.url, tab_id: session.tabId });
+    return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain });
   });
 
   // POST /v1/browse/snap — a11y snapshot
@@ -715,10 +743,16 @@ export async function registerRoutes(app: FastifyInstance) {
     return reply.send({ ok: true });
   });
 
-  // POST /v1/browse/close — close session, flush HAR, index
+  // POST /v1/browse/close — close session, flush HAR, index, save auth
   app.post("/v1/browse/close", async (_req, reply) => {
     const session = browseSessions.get("default");
     if (!session) return reply.send({ ok: true, message: "no active session" });
+
+    // Save auth profile for the current domain before closing
+    if (session.domain) {
+      await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
+    }
+
     if (session.harActive) {
       try {
         const { entries } = await kuri.harStop(session.tabId);
@@ -727,7 +761,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     await kuri.closeTab(session.tabId).catch(() => {});
     browseSessions.delete("default");
-    return reply.send({ ok: true, indexed: true });
+    return reply.send({ ok: true, indexed: true, auth_saved: session.domain || null });
   });
 }
 
