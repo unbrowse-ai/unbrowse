@@ -13,6 +13,7 @@
 * **frontend/economics**: add explicit `/login`, `/dashboard`, and `/leaderboard` surfaces for agent-key auth, economics visibility, and public contribution ranking
 ### Bug Fixes
 
+* **ci/backend**: restore the shared telemetry type exports used by analytics routes, make the x402 gate Worker-safe without Node `Buffer`, mark the live graph-edge test truly opt-in again, and stop npm `prepack` from deleting tracked Kuri binaries before CI package validation
 * **openclaw plugin**: restore the repo `ensure-submodules` helper, add the missing `print-trusted-install` CLI path for the OpenClaw Unbrowse plugin, ship a one-shot installer plus published `npx unbrowse-openclaw install` package entrypoint, point frontend/install docs at the npm plugin flow, and clean up the plugin install/allowlist docs so the Unbrowse-first browser replacement flow is actually usable
 * **review**: fix skill lookup in review route to check domain cache (same as GET route) — previously returned 404 for skills only in domain snapshots
 * **review**: fix review route to update all local caches (domain snapshot + domain cache + published skill cache) so reviewed metadata is visible on next resolve without requiring marketplace round-trip
