@@ -4,3 +4,5 @@ packed-src/
 runtime-src/
 vendor/kuri/
 .env
+*.tgz
+traces/
