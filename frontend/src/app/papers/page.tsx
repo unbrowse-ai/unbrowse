@@ -13,10 +13,11 @@ export const metadata: Metadata = {
 const papers = [
   {
     title: "Internal APIs Are All You Need",
-    subtitle: "A Shared Route Graph for Autonomous Web Agents",
+    subtitle:
+      "Shadow APIs, Shared Discovery, and the Case Against Browser-First Agent Architectures",
     href: "/internal-apis-are-all-you-need",
     description:
-      "The Unbrowse paper arguing that internal web APIs are the machine-native substrate for autonomous agents, and that shared route graphs convert repeated browser rediscovery into collective memory.",
+      "The Unbrowse paper arguing that first-party internal APIs are the real machine-native web layer, and that shared route graphs turn repeated browser rediscovery into collective memory.",
   },
 ];
 
