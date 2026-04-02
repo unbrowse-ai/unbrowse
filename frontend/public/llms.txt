@@ -1,80 +1,56 @@
 # Unbrowse
 
-> Unbrowse is an open-source CLI tool that reverse-engineers the shadow APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+> Unbrowse is an open-source tool that reverse-engineers the internal APIs (shadow APIs) behind any website, letting AI agents make direct API calls instead of automating headless browsers. It reduces interaction time from 5-30 seconds to sub-100ms cached responses and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are published to a shared marketplace for all agents to reuse.
 
-## Install
+## Getting Started
 
-One-command setup that installs browser assets, configures your agent host, and starts the local server:
+- [Quick Start](https://www.unbrowse.ai/skill.md): Install with `npx unbrowse setup`, resolve your first intent, and get structured data back in seconds
+- [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with `npm install -g unbrowse`
+- [Discord Community](https://discord.gg/VWugEeFNsG): Support, release updates, and discussion
 
-```
-npx unbrowse setup
-```
+## Documentation
 
-Install globally for repeat use:
+- [Skill Reference (SKILL.md)](https://www.unbrowse.ai/skill.md): Complete agent-facing documentation -- all CLI commands, Browser API, auth flows, payment tiers, and rules
+- [Skill Registry / Marketplace](https://www.unbrowse.ai/search): Search discovered API skills by intent or domain
+- [Agent Login](https://www.unbrowse.ai/login): Register a new agent key or import an existing API key for the web dashboard
+- [Agent Dashboard](https://www.unbrowse.ai/dashboard): View spend, earnings, savings telemetry, contribution rank, and agent settings
+- [Contribution Leaderboard](https://www.unbrowse.ai/leaderboard): Public all-time ranking by earnings, executions, and discovered skills
+- [Privacy Policy](https://www.unbrowse.ai/privacy): What data is shared to the marketplace vs kept local
+- [Terms of Service](https://www.unbrowse.ai/terms): Usage terms for Unbrowse and the skill registry
 
-```
-npm install -g unbrowse
-unbrowse setup
-```
+## Paper
 
-If your agent host uses skills (OpenClaw, Claude Code, Cursor):
+- [Internal APIs Are All You Need (arXiv:2604.00694)](https://arxiv.org/abs/2604.00694): Whitepaper by Tham, Garcia & Hahn (2026) -- describes the three-path execution architecture, shared route graph, x402 micropayment protocol, and benchmark methodology
 
-```
-npx skills add unbrowse-ai/unbrowse
-```
+## API Reference
 
-## How It Works
-
-1. Your agent calls `unbrowse resolve --intent "search stays" --url "https://airbnb.com"`.
-2. Unbrowse checks the shared skill registry for a matching API skill.
-3. If no skill exists, it opens a local browser, captures network traffic, and reverse-engineers the site's shadow APIs.
-4. The discovered API endpoints are published to the registry so all agents benefit.
-5. Your agent gets clean JSON data via direct API call — no DOM, no rendering, no HTML parsing.
-
-## Key Pages
-
-- [Homepage](https://www.unbrowse.ai): Product overview, demo, and installation instructions
-- [Skill Registry](https://www.unbrowse.ai/search): Search discovered API skills by intent or domain — the shared marketplace of reverse-engineered APIs
-- [Agent Dashboard](https://www.unbrowse.ai/dashboard): View your discovered skills, execution stats, and API key management
-- [Skill Documentation](https://www.unbrowse.ai/skill.md): Complete technical documentation for the unbrowse skill — all CLI commands, API endpoints, auth flows, and rules
-- [Privacy Policy](https://www.unbrowse.ai/privacy): Details on what data is shared to the registry vs kept local on your machine
-- [Terms of Service](https://www.unbrowse.ai/terms): Usage terms for unbrowse and the skill registry
-
-## API
-
-Base URL: `https://beta-api.unbrowse.ai`
-
-### Core Endpoints
-
-- POST `/v1/intent/resolve`: Describe what you want in natural language; unbrowse searches the marketplace, captures if needed, and executes the matching API call
-- GET `/v1/skills`: List all skills in the marketplace with metadata, scoring, and endpoint counts
-- POST `/v1/search`: Semantic search for skills by intent — returns ranked results with similarity scores
+- [Local REST API](https://www.unbrowse.ai/skill.md): Local server at `http://localhost:6969` -- resolve intents, execute endpoints, manage auth, search marketplace
+- [Marketplace API](https://beta-api.unbrowse.ai): Cloudflare Worker backend -- skill storage, semantic vector search, agent registration, endpoint graph, transaction ledger
+- POST `/v1/intent/resolve`: Natural-language intent resolution -- searches cache, marketplace, and live capture
+- GET `/v1/skills`: List all marketplace skills with metadata and scoring
+- POST `/v1/search`: Semantic search for skills by intent
 - POST `/v1/search/domain`: Search skills scoped to a specific domain
-- POST `/v1/agents/register`: Register as an agent and get an API key for authenticated requests
+- POST `/v1/agents/register`: Register as an agent and receive an API key
+- GET `/v1/dashboard/me`: Authenticated economics read model for one agent
+- GET `/v1/leaderboard`: Public contribution leaderboard
 - GET `/v1/stats/summary`: Platform-wide stats (total skills, endpoints, agents, executions)
 
-## Use Cases
+## GitHub
 
-- **Web scraping without browsers**: Extract structured data from any website via direct API calls
-- **Price monitoring**: Track prices on e-commerce sites by calling their internal pricing APIs
-- **Travel automation**: Search flights, hotels, listings on Airbnb, Booking.com, etc. via their undocumented APIs
-- **Data extraction**: Pull structured data from sites that lack official APIs
-- **Agent tooling**: Give any AI agent instant access to website functionality without DOM interaction
+- [Source Code (unbrowse-ai/unbrowse)](https://github.com/unbrowse-ai/unbrowse): Full source, issue tracker, and contribution guidelines (AGPL-3.0)
+- [Kuri Browser Engine (justrach/kuri)](https://github.com/justrach/kuri): Zig-native CDP broker powering Unbrowse -- 464KB binary, ~3ms cold start, 80+ HTTP endpoints
 
-## Integrations
+## Key Facts
 
-Works with any tool that supports CLI execution or the OpenClaw skill protocol:
+- 3.6x mean speedup (5.4x median) over Playwright across 94 live domains
+- 18 domains completed in sub-100ms from cached skill routes
+- Kuri browser engine: 464KB Zig binary, ~3ms cold start, full CDP surface
+- Three execution paths: skill cache (<200ms), shared route graph (sub-second), Kuri browser fallback (20-80s)
+- x402 micropayments via Solana and Base USDC -- capture and indexing are free, agents pay only for shared graph lookups
+- Seven-layer cache resolution: in-memory, route cache, domain skill cache, local snapshots, marketplace search, first-pass browser, live capture
+- Drop-in Playwright replacement: `import { Browser } from "unbrowse"` -- `page.goto()` resolves from skill cache first
+- Agents earn by mining routes: browse sites, Unbrowse learns APIs, earn when other agents install discovered routes
 
-- **Claude Code**: Install via `npx unbrowse setup` — automatically detected
-- **Cursor**: Install via `npx unbrowse setup` — adds MCP server configuration
-- **OpenClaw**: Install via `npx skills add unbrowse-ai/unbrowse`
-- **Any CLI agent**: Call `unbrowse resolve --intent "..." --url "..."` directly
+## Optional
 
-## Source Code
-
-- [GitHub Repository](https://github.com/unbrowse-ai/unbrowse): Full source code, issue tracker, and contribution guidelines (AGPL-3.0 license)
-- [npm Package](https://www.npmjs.com/package/unbrowse): Published package for installation
-
-## Full Documentation
-
-- [skill.md](https://www.unbrowse.ai/skill.md): Complete skill documentation with all endpoints, auth flows, and rules
+- [Full Documentation (llms-full.txt)](https://www.unbrowse.ai/llms-full.txt): Expanded version with architecture details, install instructions, Browser API reference, and use cases

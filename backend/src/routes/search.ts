@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
@@ -22,7 +22,7 @@ function shouldRequireSearchPayment(env: Env): boolean {
 }
 
 async function requireSearchPayment(
-  c: Parameters<typeof searchRoutes.post>[1] extends (arg: infer T) => any ? T : never,
+  c: Context<{ Bindings: Env }>,
   routeLabel: string,
 ): Promise<Response | null> {
   if (!shouldRequireSearchPayment(c.env)) return null;
@@ -68,6 +68,7 @@ searchRoutes.post("/search", async (c) => {
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntent(c.env, intent, k ?? 5);
     chargeSearchFee(c.env, agentId);
+    c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     return c.json({ results });
   } catch (err) {
     console.error("[search] global search failed:", (err as Error).message);
@@ -85,6 +86,7 @@ searchRoutes.post("/search/domain", async (c) => {
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentInDomain(c.env, intent, domain, k ?? 5);
     chargeSearchFee(c.env, agentId);
+    c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     return c.json({ results });
   } catch (err) {
     console.error("[search] domain search failed:", (err as Error).message);
@@ -107,6 +109,7 @@ searchRoutes.post("/search/resolve", async (c) => {
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
     chargeSearchFee(c.env, agentId);
+    c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     return c.json(results);
   } catch (err) {
     console.error("[search] resolve search failed:", (err as Error).message);

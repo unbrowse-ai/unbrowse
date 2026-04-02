@@ -2284,7 +2284,7 @@ export async function executeEndpoint(
   recordExecution(skill.skill_id, endpoint.endpoint_id, trace, skill).catch(() => {});
 
   // Record transaction if this was a paid execution (fire-and-forget)
-  if (trace.success && skill.indexer_id && skill.base_price_usd && skill.base_price_usd > 0) {
+  if (trace.success && options?.payment_verified === true && skill.indexer_id && skill.base_price_usd && skill.base_price_usd > 0) {
     const consumerConfig = (() => {
       try { return JSON.parse(require("fs").readFileSync(require("os").homedir() + "/.unbrowse/config.json", "utf-8")); }
       catch { return {}; }

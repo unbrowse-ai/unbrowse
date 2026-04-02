@@ -194,7 +194,91 @@ When Lewis starts a conversation about pipeline, fundraising, or sprint progress
 - **Connectors**: ping monthly for intros, update them on progress when there's news
 - **"Keep us posted"**: re-engage when there's a concrete trigger (lead closes, traction spike, paper published)
 
-## GTM Execution Protocol
+## GTM Execution Protocol — 100x Flywheel
+
+The flywheel: **Discovery → Install → Use (=Mine) → Earn → Retain → Share → More Discovery**
+Every layer below feeds this. If an action doesn't feed the flywheel, don't do it.
+
+### Layer 0: AI Search Visibility (GEO) — HIGHEST LEVERAGE, LOWEST EFFORT
+Unbrowse is a tool for AI agents but is invisible to AI search. Fix this first.
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `geo-crawlers` | Unblock AI crawlers (GPTBot, ClaudeBot, etc.) in robots.txt | **P0 — DO FIRST** |
+| `geo-llmstxt` | Fix llms.txt for AI consumption | P0 |
+| `geo-citability` | Make content citable by AI (definition blocks, FAQ, stats) | P1 |
+| `geo-schema` | Add structured data (Organization, SoftwareApplication, ScholarlyArticle) | P1 |
+| `geo-brand-mentions` | Build brand presence on platforms AI cites (Reddit, GitHub, Wikipedia) | P1 |
+| `geo-platform-optimizer` | Optimize for Google AI Overviews, Perplexity, ChatGPT search | P1 |
+| `geo-content` | E-E-A-T content quality for AI citability | P2 |
+| `geo-technical` | Technical SEO foundations (SSR, Core Web Vitals, crawlability) | P2 |
+| `geo-audit` | Full audit — run monthly to track score improvement from 35/100 baseline | P2 |
+| `geo-report` / `geo-report-pdf` | Generate client-facing reports (useful for investor updates) | P3 |
+
+### Layer 1: Traditional SEO — Organic Search Discovery
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `seo-audit` | Full traditional SEO audit | P1 |
+| `programmatic-seo` | Create pages at scale for long-tail keywords ("unbrowse vs playwright", "AI agent browser", etc.) | P1 |
+| `schema-markup` | Schema.org structured data for rich snippets | P2 |
+
+### Layer 2: Paid Acquisition
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `paid-ads` | X Ads, Google Ads, LinkedIn Ads — strategy, copy, targeting | P1 |
+Target keywords: "browser automation alternative", "playwright alternative for AI", "AI agent web tool", "MCP browser"
+
+### Layer 3: Content & Social (Awareness → Install)
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `unbrowse-typefully-campaigns` | Plan + schedule X campaigns (USE THIS for posting, not x-cli) | P0 |
+| `tweet-writer` | Optimize individual tweets | P1 |
+| `x-virality` | X algorithm optimization | P1 |
+| `create-viral-content` | Auto-activated on content generation | auto |
+| `twitter-thread-creation` | Thread structure + hooks | P1 |
+| `hacker-news-strategy` | HN timing, title, comment strategy | P1 |
+| `product-hunt-launch` | PH launch optimization | P2 (after traction) |
+| `content-strategy` | Long-term content planning | P2 |
+| `content-marketing` | Content marketing strategy | P2 |
+| `content-calendar` | Schedule + track across platforms | P2 |
+| `social-content` | Platform-optimized posts (LinkedIn, X, Reddit) | P1 |
+| `social-selling-content-generator` | 30+ LinkedIn posts for dev audience | P2 |
+| `reddit` / `reddapi` | Search + engage Reddit threads | P1 |
+| `hackernews` | Search + engage HN | P1 |
+
+### Layer 4: Email Campaigns (Direct → Install)
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `resend-ab-test` | Tournament-style email AB testing (8 variants ready) | P0 |
+| `resend-cli` | Send emails, manage contacts | P0 |
+| `resend` | Resend API integration | P0 |
+| `email-sequence` | Drip campaign design | P1 |
+| `cold-outreach` | Cold email to dev communities | P2 |
+
+### Layer 5: Landing Page & Onboarding (Visit → Install → First Value)
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `page-cro` | Landing page conversion optimization | P1 |
+| `signup-flow-cro` | Install/signup flow optimization | P1 |
+| `onboarding-cro` | Post-install activation optimization | P1 |
+| `user-onboarding` | Design onboarding flows | P2 |
+| `analytics-tracking` | Set up funnel tracking (install → resolve → mine → earn) | P1 |
+
+### Layer 6: Retention & Growth Loops (Use → Earn → Share → More Users)
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `referral-program` | Design referral/invite mechanics (earn more when you invite) | P1 |
+| `designing-growth-loops` | Self-reinforcing growth mechanisms | P1 |
+| `free-tool-strategy` | Free tools that pull developers in | P2 |
+| `community-building` | Community growth tactics | P2 |
+| `retention-engagement` | Retention improvement tactics | P1 |
+| `measuring-product-market-fit` | PMF assessment and tracking | P2 |
+
+### Layer 7: Developer Ecosystem (Integrations = Distribution)
+| Skill | What it does | Priority |
+|-------|-------------|----------|
+| `gtm-developer-ecosystem` | Developer-led adoption programs | P1 |
+| `launch-strategy` | Cross-channel launch planning | P2 |
+| `marketing-ideas` | Campaign brainstorming | P3 |
 
 When Lewis asks about GTM, growth, marketing, or content — run these checks and take action:
 

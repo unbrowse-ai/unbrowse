@@ -96,5 +96,6 @@ describe("search route x402 gating", () => {
 
     expect(res.status).toBe(200);
     expect(body.results).toEqual([]);
+    expect(res.headers.get("X-Unbrowse-Cost-Uc")).toBe("1000");
   });
 });

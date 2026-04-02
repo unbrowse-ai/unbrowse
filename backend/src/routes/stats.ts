@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import type { Env, OrchestrationTiming } from "../types.js";
+import { bearerAuth } from "../middleware/auth.js";
 import { recordExecution, recordFeedback } from "../services/scoring.js";
-import { recordPerf, getPerf } from "../services/perf.js";
+import { recordPerf, getPerf, recordAgentPerf } from "../services/perf.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { recordAgentExecution, recordAgentFeedback, countAgents } from "../services/agents.js";
 import { rateLimit, agentRateLimit } from "../middleware/rate-limit.js";
@@ -98,12 +99,32 @@ statsRoutes.use("/stats/feedback", agentRateLimit({ limit: 60, window: 60, prefi
 
 // POST /v1/stats/perf — record orchestration timing
 statsRoutes.use("/stats/perf", agentRateLimit({ limit: 120, window: 60, prefix: "perf" }));
-statsRoutes.post("/stats/perf", async (c) => {
+statsRoutes.post("/stats/perf", bearerAuth, async (c) => {
   const timing = await c.req.json<OrchestrationTiming>();
   if (!timing || typeof timing.total_ms !== "number") {
     return c.json({ error: "invalid timing data" }, 400);
   }
+  const integerFields = [
+    "baseline_total_ms",
+    "actual_total_ms",
+    "time_saved_ms",
+    "baseline_cost_uc",
+    "actual_cost_uc",
+    "cost_saved_uc",
+    "paid_search_uc",
+    "paid_execution_uc",
+  ] as const;
+  for (const field of integerFields) {
+    const value = timing[field];
+    if (value != null && (!Number.isInteger(value) || value < 0)) {
+      return c.json({ error: `${field} must be a non-negative integer` }, 400);
+    }
+  }
   await recordPerf(c.env, timing);
+  const agentId = c.get("agent_id");
+  if (agentId && agentId !== "__admin__") {
+    await recordAgentPerf(c.env, agentId, timing);
+  }
   return c.json({ ok: true });
 });
 

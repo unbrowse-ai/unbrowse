@@ -223,6 +223,14 @@ export interface OrchestrationTiming {
   response_bytes: number;
   time_saved_pct: number;
   tokens_saved_pct: number;
+  baseline_total_ms?: number;
+  actual_total_ms?: number;
+  time_saved_ms?: number;
+  baseline_cost_uc?: number;
+  actual_cost_uc?: number;
+  cost_saved_uc?: number;
+  paid_search_uc?: number;
+  paid_execution_uc?: number;
 }
 
 export interface PerfStats {
