@@ -6,7 +6,7 @@ import { Terminal, Copy, Check } from "lucide-react";
 const tabs = [
     {
       id: "claude",
-      label: "Claude Code / OpenClaw",
+      label: "Claude Code",
       code: `# Full setup in one command
 npx unbrowse setup
 
@@ -23,6 +23,22 @@ npx skills add unbrowse-ai/unbrowse
 
 # Use it
 unbrowse resolve --intent "get events" --url "https://lu.ma"`,
+    },
+    {
+      id: "openclaw",
+      label: "OpenClaw",
+      code: `# Install the published browser-replacement plugin
+npx unbrowse-openclaw install --restart
+
+# Or install globally for repeat use
+npm install -g unbrowse-openclaw
+unbrowse-openclaw install --restart
+
+# Fallback routing instead of hard browser blocking
+unbrowse-openclaw install --mode fallback --restart
+
+# Use a named OpenClaw profile
+unbrowse-openclaw install --profile work --restart`,
     },
     {
       id: "cursor",

@@ -84,10 +84,10 @@ npm install -g unbrowse
 unbrowse setup
 ```
 
-### Skill-based install (OpenClaw, Claude Code, Cursor)
+### OpenClaw browser-replacement install
 
 ```
-npx skills add unbrowse-ai/unbrowse
+npx unbrowse-openclaw install --restart
 ```
 
 ### Upgrading
@@ -300,7 +300,7 @@ Works with any tool that supports CLI execution or the OpenClaw skill protocol:
 - **Cursor** -- install via `npx unbrowse setup`, adds MCP server configuration
 - **Codex** -- install via `npx unbrowse setup`
 - **Windsurf** -- install via `npx unbrowse setup`
-- **OpenClaw** -- install via `npx skills add unbrowse-ai/unbrowse`
+- **OpenClaw** -- install via `npx unbrowse-openclaw install --restart`
 - **Any CLI agent** -- call `unbrowse resolve --intent "..." --url "..."` directly
 
 ## Route Quality and Lifecycle
