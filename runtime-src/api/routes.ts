@@ -12,7 +12,7 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
-import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey } from "../orchestrator/index.js";
+import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
@@ -714,18 +714,19 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } catch { /* non-fatal */ }
     }
-    // Inject interceptor BEFORE navigation (scriptInject persists across page loads)
+    // Start capture BEFORE navigation so all initial API calls are recorded
+    await kuri.networkEnable(session.tabId).catch(() => {});
+    await kuri.harStart(session.tabId).catch(() => {});
     await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    session.harActive = true;
 
     await kuri.navigate(session.tabId, url);
     const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
     session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
     session.domain = profileName(session.url);
 
-    // Restart HAR + re-inject interceptor (evaluate for current page context)
-    await kuri.harStart(session.tabId).catch(() => {});
+    // Re-inject interceptor via evaluate for current page context
     await kuri.evaluate(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
-    session.harActive = true;
 
     return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain });
   });
@@ -926,6 +927,8 @@ export async function registerRoutes(app: FastifyInstance) {
             persistDomainCache();
           }
           try { cachePublishedSkill(quickSkill); } catch { /* best-effort */ }
+          // Invalidate stale route cache entries so resolve finds the fresh skill
+          invalidateRouteCacheForDomain(domain);
           console.log(`[passive-index] ${domain}: ${mergedEps.length} endpoints cached synchronously`);
         }
       }
