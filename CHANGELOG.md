@@ -40,6 +40,11 @@
 * **resolve**: enrich `available_endpoints` with depth-limited `schema_summary` (3-level recursive tree), `input_params` (key/type/required/example), `description_in`, and `example_fields` — agents can now pick endpoints and build extraction paths from the resolve response alone without needing separate schema calls
 * **cli**: implement `--path`, `--extract`, `--limit`, `--schema` post-processing in `execute` — flags were documented but never wired; now support nested array drilling (`data.items[].nested[].field`), field aliasing (`alias:deep.path`), null-row filtering, and item limiting
 * **cli**: auto-wrap large responses (>2KB) with `extraction_hints` including schema tree and byte count when no extraction flags are given
+
+### Bug Fixes
+
+* **install**: add a deterministic repo-native `./setup` bootstrap, switch the npm wrapper fallback to the stable Node launcher, and keep the standalone CLI package manifest pinned to the runtime payment deps (`bs58`, `@solana/kit`, `@cascade-fyi/splits-sdk`) so the public install path no longer depends on a healthy GitHub release asset plus a lucky npm fallback
+* **payments/wallets**: treat the configured wallet address as the single contributor/payment truth across setup, agent wallet sync, 402 error payloads, and transaction proof wiring, including generic agent-wallet providers instead of hardcoding lobster-only labels
 ## fix: mirror Claude skills into Codex installs
 
 - `scripts/sync-skill.sh` now routes local skill linking through a shared helper so the active Claude/Codex `unbrowse` links resolve to the current monorepo checkout instead of drifting to stale worktrees or copied skill dirs.

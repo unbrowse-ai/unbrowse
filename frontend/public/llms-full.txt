@@ -72,10 +72,11 @@ When an agent asks for something, Unbrowse checks seven layers before touching t
 ### Fastest setup (one command)
 
 ```
-npx unbrowse setup
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
 ```
 
-This downloads the CLI, verifies the bundled Kuri runtime, registers the Open Code `/unbrowse` command when detected, and starts the local server.
+This installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and starts the local server.
 
 ### Global install for daily use
 
@@ -299,11 +300,11 @@ Built-in sign-in URL detection for: Google (Calendar, Drive, Gmail), Microsoft/O
 
 Works with any tool that supports CLI execution or the OpenClaw skill protocol:
 
-- **Claude Code** -- install via `npx unbrowse setup`, automatically detected
-- **Open Code** -- install via `npx unbrowse setup`, registers `/unbrowse` command
-- **Cursor** -- install via `npx unbrowse setup`, adds MCP server configuration
-- **Codex** -- install via `npx unbrowse setup`
-- **Windsurf** -- install via `npx unbrowse setup`
+- **Claude Code** -- install via `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.claude/skills/unbrowse && cd ~/.claude/skills/unbrowse && ./setup --host claude`
+- **Open Code** -- install via `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host off`
+- **Cursor** -- install via `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host off`
+- **Codex** -- install via `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.codex/skills/unbrowse && cd ~/.codex/skills/unbrowse && ./setup --host codex`
+- **Windsurf** -- install via `git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse && cd ~/unbrowse && ./setup --host off`
 - **OpenClaw** -- install via `npx unbrowse-openclaw install --restart`
 - **Any CLI agent** -- call `unbrowse resolve --intent "..." --url "..."` directly
 

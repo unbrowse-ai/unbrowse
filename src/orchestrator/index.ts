@@ -1,4 +1,4 @@
-import { cachePublishedSkill, isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import { cachePublishedSkill, getLocalWalletContext, isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
@@ -2518,6 +2518,7 @@ export async function resolveAndExecute(
           if (source === "marketplace" && skill.base_price_usd && skill.base_price_usd > 0) {
             try {
               const walletCheck = checkWalletConfigured();
+              const wallet = getLocalWalletContext();
               const paymentResult = await checkPaymentRequirement(
                 skill.skill_id,
                 candidate.endpoint.endpoint_id,
@@ -2541,7 +2542,8 @@ export async function resolveAndExecute(
                       payment_status: paymentResult.status,
                       message: paymentResult.message,
                       next_step: paymentResult.next_step,
-                      wallet_provider: "lobster.cash",
+                      wallet_provider: wallet.wallet_provider ?? "lobster.cash",
+                      wallet_address: wallet.wallet_address,
                       indexing_fallback_available: true,
                     },
                     trace: execOut.trace,
@@ -3002,7 +3004,8 @@ export async function resolveAndExecute(
           result: {
             error: "payment_required",
             payment_status: "payment_required",
-            wallet_provider: "lobster.cash",
+            wallet_provider: getLocalWalletContext().wallet_provider ?? "lobster.cash",
+            wallet_address: getLocalWalletContext().wallet_address,
             message: "Marketplace search requires payment before shared graph results are returned.",
             next_step: "Pay the Tier 3 search fee, or re-run with force capture for free local discovery.",
             indexing_fallback_available: true,

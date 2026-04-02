@@ -13,13 +13,16 @@ Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, 
 ## Quick start
 
 ```bash
-# Fastest full setup
-npx unbrowse setup
+# Deterministic setup from a repo clone
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, lets you register with an email-shaped display identity, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and then runs the real first-time bootstrap: ToS acceptance, agent registration + API-key caching, and lobster.cash wallet detection when present.
 
-For daily use:
+If a wallet is configured, that wallet address is synced onto your agent profile and becomes the destination for contributor payouts when your routes earn.
+
+For repeat npm use after a healthy publish:
 
 ```bash
 npm install -g unbrowse
@@ -36,11 +39,12 @@ npx skills add unbrowse-ai/unbrowse
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
-If you installed the CLI globally:
+If you installed from a repo clone:
 
 ```bash
-npm install -g unbrowse@latest
-unbrowse setup
+cd ~/unbrowse
+git pull --ff-only
+./setup --host off
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
@@ -51,7 +55,7 @@ npx skills add unbrowse-ai/unbrowse
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
 
-Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
 
 Works with Claude Code, Open Code, Cursor, Codex, Windsurf, and any agent host that can call a local CLI or skill.
 

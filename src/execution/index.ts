@@ -10,7 +10,7 @@ import { resolvePreExecutionAuth } from "../auth/dependency-runtime.js";
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -1683,9 +1683,9 @@ export async function executeEndpoint(
 
   // Payment gate — check if marketplace skill requires payment before executing
   if (!skill.skill_id.startsWith("local:") && skill.execution_type === "http" && skill.owner_type !== "agent") {
-    const walletAddr = process.env.LOBSTER_WALLET_ADDRESS;
+    const wallet = getLocalWalletContext();
     const gate = await checkPaymentRequirement(skill.skill_id, endpoint.endpoint_id, {
-      wallet_configured: !!walletAddr,
+      wallet_configured: !!wallet.wallet_address,
     });
     if (gate.status === "payment_required" || gate.status === "wallet_not_configured" || gate.status === "insufficient_balance") {
       const trace: ExecutionTrace = stampTrace({
@@ -1705,7 +1705,8 @@ export async function executeEndpoint(
           price_usd: gate.requirement?.amount,
           payment_status: gate.status,
           message: gate.message,
-          wallet_provider: "lobster.cash",
+          wallet_provider: wallet.wallet_provider ?? "lobster.cash",
+          wallet_address: wallet.wallet_address,
           indexing_fallback_available: true,
         },
       };
@@ -2334,6 +2335,7 @@ export async function executeEndpoint(
       catch { return {}; }
     })();
     if (consumerConfig.agent_id) {
+      const wallet = getLocalWalletContext();
       recordTransaction({
         transaction_id: trace.trace_id,
         consumer_id: consumerConfig.agent_id,
@@ -2341,7 +2343,7 @@ export async function executeEndpoint(
         skill_id: skill.skill_id,
         endpoint_id: endpoint.endpoint_id,
         price_usd: skill.base_price_usd,
-        payment_proof: process.env.LOBSTER_WALLET_ADDRESS ? `wallet:${process.env.LOBSTER_WALLET_ADDRESS}` : undefined,
+        payment_proof: wallet.wallet_address ? `wallet:${wallet.wallet_address}` : undefined,
       }).catch(() => {});
     }
   }
