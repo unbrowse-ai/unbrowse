@@ -58,4 +58,4 @@ Omit empty sections. No emojis. No file paths or function names.
 
 - Only create PRs and issues — do not push directly to main
 - Protect `rach/restart-base` with required checks before merge. Minimum repo checks: `Repo Sanity`, `Unit Tests`, `Quality Gate`, `Backend Tests`, `Typecheck Backend`, `Package CLI`, `CLI E2E`.
-- Secrets needed for releases: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SKILL_REPO_TOKEN`
+- Secrets needed for releases: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SKILL_REPO_TOKEN`, `DATABASE_URL`
