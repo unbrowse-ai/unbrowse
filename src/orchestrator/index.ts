@@ -1,4 +1,5 @@
 import { searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
@@ -117,6 +118,26 @@ const routeCacheFlushTimer = setInterval(() => {
     writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(entries), "utf-8");
   } catch { /* best effort */ }
 }, 5_000);
+
+/** Invalidate stale route cache entries for a domain and flush to disk immediately */
+export function invalidateRouteCacheForDomain(domain: string): void {
+  let deleted = 0;
+  for (const [k] of skillRouteCache) {
+    if (k.includes(`:${domain}:`) || k.includes(`:${domain.replace(/^www\./, "")}:`)) {
+      skillRouteCache.delete(k);
+      deleted++;
+    }
+  }
+  if (deleted > 0) {
+    // Flush immediately (not debounced) so other processes see the change
+    try {
+      const dir = dirname(ROUTE_CACHE_FILE);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(Object.fromEntries(skillRouteCache)), "utf-8");
+    } catch { /* best effort */ }
+    console.log(`[route-cache] invalidated ${deleted} stale entries for ${domain}`);
+  }
+}
 routeCacheFlushTimer.unref?.();
 
 // Load route cache from disk on startup
@@ -3089,6 +3110,42 @@ export async function resolveAndExecute(
     }
   } // end !forceCapture
 
+  // 1.4 Direct JSON fetch: if URL looks like a raw API endpoint, try fetching directly
+  if (context?.url && (
+    /\.(json|xml)(\?|$)|\/api\/|\/v\d+\//.test(context.url) ||
+    /[?&]format=(j\d*|json)\b/i.test(context.url) ||
+    /^https?:\/\/api\./i.test(context.url)
+  )) {
+    try {
+      const directRes = await fetch(context.url, {
+        headers: { "Accept": "application/json", "User-Agent": "unbrowse/1.0" },
+        signal: AbortSignal.timeout(5000),
+        redirect: "follow",
+      });
+      const ct = directRes.headers.get("content-type") ?? "";
+      if (directRes.ok && (ct.includes("json") || ct.includes("+json"))) {
+        const data = await directRes.json();
+        const trace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "direct-fetch",
+          endpoint_id: "direct-fetch",
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+        };
+        const t = finalize("direct-fetch", data, "direct-fetch", undefined as any, trace);
+        console.log(`[direct-fetch] ${context.url} returned JSON directly — skipping browser`);
+        return {
+          result: data,
+          trace,
+          source: "direct-fetch" as any,
+          skill: undefined as any,
+          timing: t,
+        };
+      }
+    } catch { /* not a direct JSON API — continue to browser */ }
+  }
+
   // 1.5 First-pass browser action: lightweight 8s attempt before full capture
   if (context?.url && !forceCapture) {
     const firstPassResult = await tryFirstPassBrowserAction(
@@ -3126,7 +3183,67 @@ export async function resolveAndExecute(
         timing: t,
       };
     }
-    console.log(`[first-pass] miss (${firstPassResult.intentClass}/${firstPassResult.actionTaken}) — falling through to live capture`);
+    console.log(`[first-pass] miss (${firstPassResult.intentClass}/${firstPassResult.actionTaken}) — opening browse session for agent`);
+
+    // Phase 4: Browse session handoff — open a browser session with auth,
+    // interceptor, and HAR, then tell the calling agent to drive it.
+    // The agent uses snap/click/fill/close. All traffic is passively indexed.
+    if (firstPassResult.tabId && context?.url) {
+      const tabId = firstPassResult.tabId;
+      const domain = new URL(context.url).hostname.replace(/^www\./, "");
+
+      // Inject cookies from user Chrome + interceptor for full capture
+      try {
+        const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+        const { cookies } = extractBrowserCookies(domain);
+        for (const c of cookies) await kuri.setCookie(tabId, c).catch(() => {});
+      } catch { /* non-fatal */ }
+      await kuri.evaluate(tabId, (await import("../capture/index.js")).INTERCEPTOR_SCRIPT).catch(() => {});
+      await kuri.harStart(tabId).catch(() => {});
+
+      // Register this as an active browse session on the server
+      // so snap/click/fill/close commands work against it
+      try {
+        const routesModule = await import("../api/routes.js");
+        if (typeof routesModule.registerBrowseSession === "function") {
+          routesModule.registerBrowseSession(tabId, context.url, domain);
+        }
+      } catch { /* routes module may not expose this yet */ }
+
+      const fpNow = new Date().toISOString();
+      const trace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: "browse-session",
+        endpoint_id: "",
+        started_at: fpNow,
+        completed_at: fpNow,
+        success: true,
+      };
+      const t = finalize("browse-session", null, "browse-session", undefined as any, trace);
+      return {
+        result: {
+          status: "browse_session_open",
+          tab_id: tabId,
+          url: context.url,
+          domain,
+          message: `No cached API for this intent. Browser session open with auth on ${domain}. Use unbrowse snap/click/fill to achieve your intent. All traffic is being passively captured and indexed — run unbrowse close when done.`,
+          next_step: "unbrowse snap --filter interactive",
+          commands: [
+            "unbrowse snap --filter interactive",
+            "unbrowse click <ref>",
+            "unbrowse fill <ref> <value>",
+            "unbrowse press Enter",
+            "unbrowse scroll",
+            "unbrowse text",
+            "unbrowse close",
+          ],
+        },
+        trace,
+        source: "browse-session" as any,
+        skill: undefined as any,
+        timing: t,
+      };
+    }
   }
   // 2. No match (or force_capture) — invoke browser-capture skill
   if (!context?.url) {
@@ -3599,15 +3716,20 @@ export function generateLocalDescription(ep: import("../types/index.js").Endpoin
   let id = "";
   try {
     const u = new URL(ep.url_template);
-    // GraphQL: extract queryId name
-    const qid = u.searchParams.get("queryId") ?? "";
-    const match = qid.match(/^([a-zA-Z]+)\./);
-    if (match) id = match[1];
-    // REST: last meaningful path segment
+    // GraphQL: extract operation name from path (/graphql/HASH/OperationName)
+    const graphqlMatch = u.pathname.match(/\/graphql\/\w+\/(\w+)/);
+    if (graphqlMatch) id = graphqlMatch[1];
+    // GraphQL: queryId param
+    if (!id) {
+      const qid = u.searchParams.get("queryId") ?? "";
+      const qidMatch = qid.match(/^([a-zA-Z]+)\./);
+      if (qidMatch) id = qidMatch[1];
+    }
+    // REST: last meaningful path segment (skip hashes, {params}, version prefixes)
     if (!id) {
       const segs = u.pathname
         .split("/")
-        .filter((s) => s.length > 1 && !s.startsWith("{") && !/^v\d+$/.test(s));
+        .filter((s) => s.length > 1 && !s.startsWith("{") && !/^v\d+$/.test(s) && !/^[a-zA-Z0-9_-]{20,}$/.test(s));
       id = segs[segs.length - 1] ?? u.pathname;
     }
   } catch {
