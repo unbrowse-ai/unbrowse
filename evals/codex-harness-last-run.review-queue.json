@@ -10,7 +10,7 @@
       "intent": "search beat saber maps",
       "url": "https://beatsaver.com/?q=camellia",
       "collector_reason": "agent_select_endpoint",
-      "preferred_endpoint_id": "r6gwLf-YzKRRR-TzBbpuQ",
+      "preferred_endpoint_id": "Dh65JhM9cM_ROAOp6fvBN",
       "local_signal": {
         "verdict": "fail",
         "reason": "deferral_payload"
@@ -18,8 +18,36 @@
       "candidates": [
         {
           "rank": 1,
+          "endpoint_id": "Dh65JhM9cM_ROAOp6fvBN",
+          "score": 484.6,
+          "description": "Search Beat Saber maps by keyword",
+          "url": "https://beatsaver.com/api/search/text/0?q={q}",
+          "trigger_url": "https://beatsaver.com/?q=anime",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "9hqtGxQWUUpNisstbpn6m",
+            "--endpoint",
+            "Dh65JhM9cM_ROAOp6fvBN",
+            "--intent",
+            "search beat saber maps",
+            "--url",
+            "https://beatsaver.com/?q=camellia",
+            "--raw"
+          ]
+        },
+        {
+          "rank": 2,
           "endpoint_id": "r6gwLf-YzKRRR-TzBbpuQ",
-          "score": 458.9,
+          "score": 475.3,
           "description": "Search Beat Saber maps (page 1) by keyword with metadata, stats, and download links",
           "url": "https://beatsaver.com/api/search/text/1?q={q}",
           "trigger_url": "https://beatsaver.com/?q=anime",
@@ -37,34 +65,6 @@
             "9hqtGxQWUUpNisstbpn6m",
             "--endpoint",
             "r6gwLf-YzKRRR-TzBbpuQ",
-            "--intent",
-            "search beat saber maps",
-            "--url",
-            "https://beatsaver.com/?q=camellia",
-            "--raw"
-          ]
-        },
-        {
-          "rank": 2,
-          "endpoint_id": "Dh65JhM9cM_ROAOp6fvBN",
-          "score": 456,
-          "description": "Search Beat Saber custom maps by song name, artist, or mapper. Returns map metadata with BPM, duration, difficulty ratings, and download stats",
-          "url": "https://beatsaver.com/api/search/text/0?q={q}",
-          "trigger_url": "https://beatsaver.com/?q=anime",
-          "signals": [
-            "schema",
-            "templated_url",
-            "trigger_url",
-            "api_like"
-          ],
-          "cli": [
-            "bun",
-            "src/cli.ts",
-            "execute",
-            "--skill",
-            "9hqtGxQWUUpNisstbpn6m",
-            "--endpoint",
-            "Dh65JhM9cM_ROAOp6fvBN",
             "--intent",
             "search beat saber maps",
             "--url",
@@ -116,7 +116,7 @@
         {
           "rank": 1,
           "endpoint_id": "HVi-Tt6jrGjQj-ZDso6wA",
-          "score": 352.6,
+          "score": 356.8,
           "description": "List all NUS modules for the current academic year with module code and title",
           "url": "https://api.nusmods.com/v2/2025-2026/moduleList.json",
           "trigger_url": "https://nusmods.com/courses/IS4246/smart-systems-and-ai-governance",
@@ -213,8 +213,8 @@
         {
           "rank": 1,
           "endpoint_id": "6Yak6y08ycXG79AU8uYKs",
-          "score": 381.7,
-          "description": "HN front page stories — returns title, link, points, author. Sorted by rank. DOM extraction from repeated story rows.",
+          "score": 255,
+          "description": "Page content from news.ycombinator.com",
           "url": "https://news.ycombinator.com/",
           "trigger_url": "https://news.ycombinator.com/",
           "signals": [
@@ -272,51 +272,111 @@
       "id": "wikipedia-search",
       "intent": "search articles about quantum computing",
       "url": "https://en.wikipedia.org/w/index.php?search=quantum+computing",
-      "collector_reason": "agent_review_direct_result",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "AjcVp3lLPU6RaJD2d_PMm",
       "local_signal": {
         "verdict": "fail",
-        "reason": "message_only"
+        "reason": "deferral_payload"
       },
-      "direct_result": {
-        "status": "browse_session_open",
-        "tab_id": "8FC12711C7112F2A98268196D614924D",
-        "url": "https://en.wikipedia.org/w/index.php?search=quantum+computing",
-        "domain": "en.wikipedia.org",
-        "message": "No cached API for this intent. Browser session open with auth on en.wikipedia.org. Use unbrowse snap/click/fill to achieve your intent. All traffic is being passively captured and indexed — run unbrowse close when done.",
-        "next_step": "unbrowse snap --filter interactive",
-        "commands": [
-          "unbrowse snap --filter interactive",
-          "unbrowse click <ref>",
-          "unbrowse fill <ref> <value>",
-          "unbrowse press Enter"
-        ]
-      },
-      "candidates": []
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "AjcVp3lLPU6RaJD2d_PMm",
+          "score": 663,
+          "description": "Captured search form artifact for search articles about quantum computing",
+          "url": "https://en.wikipedia.org/wiki/Quantum_computing",
+          "trigger_url": "https://en.wikipedia.org/wiki/Quantum_computing",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "page_artifact_risk"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "odhnlW07u9ByRMmi97HKm",
+            "--endpoint",
+            "AjcVp3lLPU6RaJD2d_PMm",
+            "--intent",
+            "search articles about quantum computing",
+            "--url",
+            "https://en.wikipedia.org/w/index.php?search=quantum+computing",
+            "--raw"
+          ]
+        }
+      ]
     },
     {
       "id": "crates-io-search",
       "intent": "search rust crates",
       "url": "https://crates.io/search?q=serde",
-      "collector_reason": "agent_review_direct_result",
+      "collector_reason": "agent_select_endpoint",
+      "preferred_endpoint_id": "TUeNIKllPzYm_TGf8mVIU",
       "local_signal": {
         "verdict": "fail",
-        "reason": "message_only"
+        "reason": "deferral_payload"
       },
-      "direct_result": {
-        "status": "browse_session_open",
-        "tab_id": "A6517AA11C33AC8B38D8250927501A4F",
-        "url": "https://crates.io/search?q=serde",
-        "domain": "crates.io",
-        "message": "No cached API for this intent. Browser session open with auth on crates.io. Use unbrowse snap/click/fill to achieve your intent. All traffic is being passively captured and indexed — run unbrowse close when done.",
-        "next_step": "unbrowse snap --filter interactive",
-        "commands": [
-          "unbrowse snap --filter interactive",
-          "unbrowse click <ref>",
-          "unbrowse fill <ref> <value>",
-          "unbrowse press Enter"
-        ]
-      },
-      "candidates": []
+      "candidates": [
+        {
+          "rank": 1,
+          "endpoint_id": "TUeNIKllPzYm_TGf8mVIU",
+          "score": 76.3,
+          "description": "Returns resource details",
+          "url": "https://crates.io/api/v1/crates?page={page}&per_page={per_page}&q={q}",
+          "trigger_url": "https://crates.io/search?q=serde",
+          "signals": [
+            "schema",
+            "templated_url",
+            "trigger_url",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "ikjbesNLQlS_fQIJAnkU_",
+            "--endpoint",
+            "TUeNIKllPzYm_TGf8mVIU",
+            "--intent",
+            "search rust crates",
+            "--url",
+            "https://crates.io/search?q=serde",
+            "--raw"
+          ]
+        },
+        {
+          "rank": 2,
+          "endpoint_id": "V-J5PBpANNSBGXmQvyU9w",
+          "score": 43.4,
+          "description": "Returns resource details",
+          "url": "https://crates.io/api/v1/site_metadata",
+          "trigger_url": "https://crates.io/search?q=serde",
+          "signals": [
+            "schema",
+            "concrete_url",
+            "trigger_url",
+            "api_like"
+          ],
+          "cli": [
+            "bun",
+            "src/cli.ts",
+            "execute",
+            "--skill",
+            "ikjbesNLQlS_fQIJAnkU_",
+            "--endpoint",
+            "V-J5PBpANNSBGXmQvyU9w",
+            "--intent",
+            "search rust crates",
+            "--url",
+            "https://crates.io/search?q=serde",
+            "--raw"
+          ]
+        }
+      ]
     }
   ]
 }

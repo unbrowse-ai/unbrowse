@@ -11,6 +11,8 @@ Unbrowse — API-native agent browser powered by Kuri. Discovers internal APIs (
 Baselines (Apr 2): 611 stars, 5.4K npm downloads, 819 keys, 197 WAU, 88 executions, 3 marketplace endpoints.
 
 Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-optimize by running new use cases, identifying where too many steps are needed, and fixing the pipeline so fewer steps are required next time.
+
+**Stickiness strategy:** Make Unbrowse the default browser for every agent via plugin + MCP. If Unbrowse is the MCP server agents call for ANY web task, it becomes infrastructure — not a tool you choose, but the layer everything routes through. Priority: OpenClaw plugin (exists v0.7.13), Claude MCP server (exists), LangChain/CrewAI integrations (code written).
 ## Architecture
 
 - **Kuri is the primary browser** (Zig-native CDP broker, 464KB, ~3ms cold start). Unbrowse is the intelligence layer on top.
@@ -44,6 +46,18 @@ Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-
 - When touching Kuri discovery, packaging, runtime paths, or `packages/skill`, run `bash scripts/check-packaged-kuri.sh`.
 
 ## Codex Eval Harness
+
+### Agent Eval (manual, agent-driven)
+
+- Skill: `/unbrowse-eval` — the agent browses each site, indexes, resolves, executes, and verifies
+- Cases: `evals/codex-cases.popular-sites.json`
+- Results: `evals/unbrowse-eval-last-run.json`
+- Programmatic shortlist (resolve-only): `bun run eval:agent`
+- Add cases: `/unbrowse-eval --add` or edit the JSON directly
+- Each case runs from a fresh state (kill unbrowse/kuri between cases)
+- The eval set should grow over time — add sites you test manually
+
+### Codex Eval (programmatic, resolve-only)
 
 - Refresh the local npm package first for manual smoke checks:
   - `cd packages/skill && npm pack`
@@ -187,8 +201,8 @@ When Lewis asks about GTM, growth, marketing, or content — run these checks an
 ### Pre-Post Checklist (ALWAYS do before posting to any platform)
 1. Search the platform for recent posts from the same account — `x-cli tweet search "from:unbrowse" --max 10`
 2. Check for duplicate hooks, repeated phrasing, or same links already shared
-3. If a hook was already used, write a fresh angle — never repeat the same opening line
 4. Check which account x-cli is authed as before posting (currently @unbrowse, NOT @getFoundry)
+5. **NEVER use x-cli to post tweets** — always use Typefully (`/typefully` skill) for proper scheduling, analytics, and queue management. x-cli is READ-ONLY (search, metrics, monitoring).
 
 ### Traction Dashboard (always check first)
 1. Hit `https://launch.unbrowse.ai/api/traction` for: stars, npm downloads, WAU, keys, verifications, retention
