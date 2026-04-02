@@ -410,7 +410,21 @@ export async function registerRoutes(app: FastifyInstance) {
       intent?: string;
       context_url?: string;
     };
-    const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
+    // Check local caches first: recent skills → domain snapshots → marketplace
+    let skill = getRecentLocalSkill(skill_id, clientScope);
+    if (!skill) {
+      // Check domain snapshot cache — passively indexed skills live here
+      const { findExistingSkillForDomain: findLocal } = await import("../client/index.js");
+      for (const [, entry] of domainSkillCache) {
+        if (entry.skillId === skill_id && entry.localSkillPath) {
+          try {
+            skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8"));
+          } catch { /* snapshot read failed */ }
+          break;
+        }
+      }
+    }
+    if (!skill) skill = await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     const execParams = {
       ...(params ?? {}),
