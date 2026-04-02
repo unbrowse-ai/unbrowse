@@ -183,11 +183,11 @@ async function fetchStats() {
 
   const externalCalls: Promise<unknown>[] = [
     npmPoint("unbrowse", "last-month"),
-    npmPoint("@getfoundry/unbrowse-openclaw", "last-month"),
+    npmPoint("unbrowse-openclaw", "last-month"),
     npmPoint("unbrowse", "1970-01-01:2099-12-31"),
-    npmPoint("@getfoundry/unbrowse-openclaw", "1970-01-01:2099-12-31"),
+    npmPoint("unbrowse-openclaw", "1970-01-01:2099-12-31"),
     npmRange("unbrowse"),
-    npmRange("@getfoundry/unbrowse-openclaw"),
+    npmRange("unbrowse-openclaw"),
     fetch("https://api.github.com/repos/anthropic-ai/unbrowse", {
       headers: { "User-Agent": "unbrowse-stats" },
     }).then(r => r.json() as Promise<Record<string, unknown>>),

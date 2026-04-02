@@ -6,6 +6,7 @@
 
 - [Quick Start](https://www.unbrowse.ai/skill.md): Install with `npx unbrowse setup`, resolve your first intent, and get structured data back in seconds
 - [npm Package](https://www.npmjs.com/package/unbrowse): Install globally with `npm install -g unbrowse`
+- [OpenClaw Plugin](https://www.npmjs.com/package/unbrowse-openclaw): Install OpenClaw browser replacement with `npx unbrowse-openclaw install --restart`
 - [Discord Community](https://discord.gg/VWugEeFNsG): Support, release updates, and discussion
 
 ## Documentation
