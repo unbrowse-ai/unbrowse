@@ -41,6 +41,7 @@ The npm publish step is idempotent. If the tagged version is already on npm, the
 - `CLOUDFLARE_ACCOUNT_ID`
 - `NPM_TOKEN` or `NPM_PUBLISH_TOKEN`
 - `SKILL_REPO_TOKEN`
+- `DATABASE_URL`
 
 Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync secrets are missing.
 

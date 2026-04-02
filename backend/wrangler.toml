@@ -25,6 +25,7 @@ zone_id = "73934a4d815fde770167414fc3ead04b"
 # Secrets (set via `wrangler secret put`):
 # - API_KEY
 # - UNKEY_ROOT_KEY
+# - DATABASE_URL
 # - EMERGENTDB_API_KEY
 # - NEBIUS_API_KEY
 
