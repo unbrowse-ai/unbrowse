@@ -50,6 +50,7 @@ export interface DashboardPayload {
 export interface LeaderboardEntry {
   agent_id: string;
   name: string;
+  wallet_address?: string;
   created_at: string;
   contribution_score: number;
   creator_earned_usd: number;
@@ -137,6 +138,7 @@ async function buildAgentEntry(env: Env, profile: AgentProfile): Promise<Leaderb
   return {
     agent_id: profile.agent_id,
     name: profile.name,
+    wallet_address: profile.wallet_address,
     created_at: profile.created_at,
     contribution_score: 0,
     creator_earned_usd: creatorEarnedUsd,

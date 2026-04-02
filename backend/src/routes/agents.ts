@@ -59,7 +59,7 @@ publicAgentRoutes.post("/agents/register", async (c) => {
   }
 });
 
-// POST /v1/agents/wallet — sync payout wallet for existing authenticated agent
+// POST /v1/agents/wallet — claim payout wallet for existing authenticated agent
 publicAgentRoutes.post("/agents/wallet", bearerAuthNoTos, async (c) => {
   const agentId = c.get("agent_id");
   const { wallet_address, wallet_provider } = await c.req.json<{
@@ -68,9 +68,12 @@ publicAgentRoutes.post("/agents/wallet", bearerAuthNoTos, async (c) => {
   }>();
 
   try {
-    const profile = await updateAgentWallet(c.env, agentId, { wallet_address, wallet_provider });
-    return c.json(profile);
+    const result = await updateAgentWallet(c.env, agentId, { wallet_address, wallet_provider });
+    return c.json({ ok: true, status: result.status });
   } catch (err) {
+    if ((err as Error).message === "wallet_already_claimed") {
+      return c.json({ error: "wallet_already_claimed" }, 409);
+    }
     return c.json({ error: (err as Error).message }, 400);
   }
 });
