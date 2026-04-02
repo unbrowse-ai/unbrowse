@@ -156,6 +156,7 @@ describe("fundraising metrics", () => {
       session_id: "s1",
       started_at: isoDaysAgo(1),
       completed_at: isoDaysAgo(1),
+      trace_version: "v2@aaa111",
       api_calls: 6,
       discovery_queries: 2,
       cached_skill_calls: 5,
@@ -166,6 +167,7 @@ describe("fundraising metrics", () => {
       session_id: "s2",
       started_at: isoDaysAgo(5),
       completed_at: isoDaysAgo(5),
+      trace_version: "v1@zzz999",
       api_calls: 2,
       discovery_queries: 1,
       cached_skill_calls: 0,
@@ -176,6 +178,7 @@ describe("fundraising metrics", () => {
       session_id: "s3",
       started_at: isoDaysAgo(0),
       completed_at: isoDaysAgo(0),
+      trace_version: "v2@aaa111",
       api_calls: 1,
       discovery_queries: 0,
       cached_skill_calls: 1,
@@ -250,6 +253,12 @@ describe("fundraising metrics", () => {
     expect(usage.api_calls_per_session).toBe(3);
     expect(usage.repeat_usage_rate).toBe(1);
     expect(usage.churn_post_default_browser_replacement).toBe(0);
+    expect(usage.version_breakdown_30d[0]).toEqual({
+      trace_version: "v2@aaa111",
+      sessions: 2,
+      agents: 1,
+      api_calls: 7,
+    });
 
     expect(funnel.stages[0]?.users).toBe(2);
     expect(funnel.stages[1]?.users).toBe(2);

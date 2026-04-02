@@ -834,6 +834,7 @@ export async function recordAnalyticsSession(session: {
   session_id: string;
   started_at: string;
   completed_at?: string;
+  trace_version?: string;
   api_calls: number;
   discovery_queries?: number;
   cached_skill_calls?: number;

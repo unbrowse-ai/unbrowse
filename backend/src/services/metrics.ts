@@ -15,6 +15,7 @@ export interface AnalyticsSessionSummary {
   session_id: string;
   started_at: string;
   completed_at?: string;
+  trace_version?: string;
   api_calls: number;
   discovery_queries?: number;
   cached_skill_calls?: number;
@@ -64,6 +65,12 @@ export interface UsageMetrics {
   repeat_usage_rate: number;
   churn_pre_default_browser_replacement: number | null;
   churn_post_default_browser_replacement: number | null;
+  version_breakdown_30d: Array<{
+    trace_version: string;
+    sessions: number;
+    agents: number;
+    api_calls: number;
+  }>;
 }
 
 export interface FunnelStage {
@@ -240,6 +247,7 @@ export async function recordSessionSummary(
   const normalized: StoredSessionSummary = {
     ...session,
     agent_id: agentId,
+    trace_version: session.trace_version,
     api_calls: Math.max(0, session.api_calls ?? 0),
     discovery_queries: Math.max(0, session.discovery_queries ?? 0),
     cached_skill_calls: Math.max(0, session.cached_skill_calls ?? 0),
@@ -331,6 +339,24 @@ export async function getUsageMetrics(env: Env): Promise<UsageMetrics> {
     return safeRatio(churned, relevantProfiles.length);
   };
 
+  const versionMap = new Map<string, { sessions: number; api_calls: number; agents: Set<string> }>();
+  for (const session of recentSessions) {
+    const traceVersion = session.trace_version ?? "unknown";
+    const entry = versionMap.get(traceVersion) ?? { sessions: 0, api_calls: 0, agents: new Set<string>() };
+    entry.sessions++;
+    entry.api_calls += Math.max(0, session.api_calls);
+    entry.agents.add(session.agent_id);
+    versionMap.set(traceVersion, entry);
+  }
+  const version_breakdown_30d = [...versionMap.entries()]
+    .map(([trace_version, entry]) => ({
+      trace_version,
+      sessions: entry.sessions,
+      agents: entry.agents.size,
+      api_calls: entry.api_calls,
+    }))
+    .sort((a, b) => b.sessions - a.sessions || a.trace_version.localeCompare(b.trace_version));
+
   return {
     total_sessions_30d: recentSessions.length,
     unique_agents_30d: sessionAgents.size,
@@ -339,6 +365,7 @@ export async function getUsageMetrics(env: Env): Promise<UsageMetrics> {
     repeat_usage_rate: safeRatio(repeatUsers.length, engagedProfiles.length),
     churn_pre_default_browser_replacement: churnRateFor(preAgents),
     churn_post_default_browser_replacement: churnRateFor(postAgents),
+    version_breakdown_30d,
   };
 }
 

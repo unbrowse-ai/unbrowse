@@ -114,6 +114,7 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     session_id: string;
     started_at: string;
     completed_at?: string;
+    trace_version?: string;
     api_calls?: number;
     discovery_queries?: number;
     cached_skill_calls?: number;
@@ -128,6 +129,7 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     session_id: body.session_id,
     started_at: body.started_at,
     completed_at: body.completed_at,
+    trace_version: body.trace_version,
     api_calls: body.api_calls ?? 0,
     discovery_queries: body.discovery_queries,
     cached_skill_calls: body.cached_skill_calls,
