@@ -1737,6 +1737,7 @@ export async function resolveAndExecute(
     response_bytes: 0,
     time_saved_pct: 0,
     tokens_saved_pct: 0,
+    actual_total_ms: 0,
     trace_version: TRACE_VERSION,
   };
   const decisionTrace: Record<string, unknown> = {
@@ -1781,6 +1782,7 @@ export async function resolveAndExecute(
     trace?: ExecutionTrace,
   ): OrchestrationTiming {
     timing.total_ms = Date.now() - t0;
+    timing.actual_total_ms = timing.total_ms;
     timing.source = source;
     timing.skill_id = skillId;
 
@@ -1793,6 +1795,10 @@ export async function resolveAndExecute(
     const cost = skill?.discovery_cost;
     const baselineTokens = cost?.capture_tokens ?? DEFAULT_CAPTURE_TOKENS;
     const baselineMs = cost?.capture_ms ?? DEFAULT_CAPTURE_MS;
+    const paidSearchUc = timing.paid_search_uc ?? 0;
+    const paidExecutionUc = timing.paid_execution_uc ?? 0;
+    const totalActualCostUc = paidSearchUc + paidExecutionUc;
+    if (totalActualCostUc > 0) timing.actual_cost_uc = totalActualCostUc;
 
     // Token savings: marketplace/cache returns structured data, skipping full-page browsing
     if (source === "marketplace" || source === "route-cache" || source === "first-pass") {
@@ -1803,6 +1809,10 @@ export async function resolveAndExecute(
         baselineMs > 0
           ? Math.round((Math.max(0, baselineMs - timing.total_ms) / baselineMs) * 100)
           : 0;
+    }
+    if (cost?.capture_ms != null) {
+      timing.baseline_total_ms = cost.capture_ms;
+      timing.time_saved_ms = Math.max(0, cost.capture_ms - timing.total_ms);
     }
 
     // Stamp trace with token metrics so they persist in trace files
@@ -2935,6 +2945,7 @@ export async function resolveAndExecute(
       domain_results: SearchResult[];
       global_results: SearchResult[];
       skipped_global: boolean;
+      actual_cost_uc?: number;
     };
     try {
       searchResponse = await Promise.race([
@@ -2944,7 +2955,7 @@ export async function resolveAndExecute(
           MARKETPLACE_DOMAIN_SEARCH_K,
           MARKETPLACE_GLOBAL_SEARCH_K,
         ),
-        new Promise<{ domain_results: SearchResult[]; global_results: SearchResult[]; skipped_global: boolean }>((resolve) =>
+        new Promise<{ domain_results: SearchResult[]; global_results: SearchResult[]; skipped_global: boolean; actual_cost_uc?: number }>((resolve) =>
           setTimeout(() => {
             console.log(`[marketplace] timeout after ${MARKETPLACE_TIMEOUT_MS}ms — falling through to browser`);
             resolve({ domain_results: [], global_results: [], skipped_global: true });
@@ -2985,6 +2996,9 @@ export async function resolveAndExecute(
         global_results: [] as SearchResult[],
         skipped_global: false,
       };
+    }
+    if (typeof searchResponse.actual_cost_uc === "number" && searchResponse.actual_cost_uc > 0) {
+      timing.paid_search_uc = searchResponse.actual_cost_uc;
     }
     const { domain_results: domainResults, global_results: globalResults } = searchResponse;
     timing.search_ms = Date.now() - ts0;

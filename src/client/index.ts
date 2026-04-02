@@ -211,7 +211,12 @@ async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource }
   return null;
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean; timeoutMs?: number }): Promise<T> {
+async function apiRequest<T = unknown>(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { noAuth?: boolean; timeoutMs?: number },
+): Promise<{ data: T; headers: Headers }> {
   const key = opts?.noAuth ? "" : getApiKey();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
@@ -268,6 +273,11 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
     const msg = errData.details?.length ? `${errData.error}: ${errData.details.join("; ")}` : errData.error ?? `API HTTP ${res.status}`;
     throw new Error(msg);
   }
+  return { data: data as T, headers: res.headers };
+}
+
+async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean; timeoutMs?: number }): Promise<T> {
+  const { data } = await apiRequest<T>(method, path, body, opts);
   return data;
 }
 
@@ -669,10 +679,11 @@ export async function searchIntentResolve(
   domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   skipped_global: boolean;
+  actual_cost_uc?: number;
 }> {
   if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
   try {
-    return await api<{
+    const { data, headers } = await apiRequest<{
       domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
       global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
       skipped_global: boolean;
@@ -682,6 +693,11 @@ export async function searchIntentResolve(
       domain_k: domainK,
       global_k: globalK,
     });
+    const actualCostHeader = headers.get("X-Unbrowse-Cost-Uc");
+    const actualCostUc = actualCostHeader && /^\d+$/.test(actualCostHeader)
+      ? Number(actualCostHeader)
+      : undefined;
+    return actualCostUc != null ? { ...data, actual_cost_uc: actualCostUc } : data;
   } catch (err) {
     if (isX402Error(err)) throw err;
     const [domain_results, global_results] = await Promise.all([

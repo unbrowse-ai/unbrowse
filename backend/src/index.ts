@@ -15,6 +15,7 @@ import { telemetryRoutes } from "./routes/telemetry.js";
 import { feeRoutes } from "./routes/fees.js";
 import { transactionRoutes } from "./routes/transactions.js";
 import { attributionRoutes } from "./routes/attribution.js";
+import { publicDashboardRoutes, dashboardRoutes } from "./routes/dashboard.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -42,6 +43,7 @@ app.route("/v1", feeRoutes);
 app.route("/v1", telemetryRoutes);
 app.route("/v1", transactionRoutes);
 app.route("/v1", attributionRoutes);
+app.route("/v1", publicDashboardRoutes);
 
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
@@ -54,5 +56,6 @@ skillRoutes.use("/skills/*", bearerAuth);
 statsRoutes.use("/stats/*", bearerAuth);
 app.route("/v1", skillRoutes);
 app.route("/v1", statsRoutes);
+app.route("/v1", dashboardRoutes);
 
 export default app;

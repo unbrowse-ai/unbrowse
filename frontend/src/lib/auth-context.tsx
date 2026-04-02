@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import { registerAgent, verifyAgentApiKey } from "@/lib/api";
 
 interface AuthState {
   apiKey: string | null;
@@ -10,14 +18,13 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   register: (name: string, tosVersion: string) => Promise<{ agent_id: string; api_key: string }>;
+  loginWithApiKey: (apiKey: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
-
 const STORAGE_KEY = "unbrowse_auth";
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
+const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ apiKey: null, agentId: null, agentName: null });
@@ -25,8 +32,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setState(JSON.parse(stored));
-    } catch { /* ignore */ }
+      if (stored) setState(JSON.parse(stored) as AuthState);
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   }, []);
 
   const persist = useCallback((next: AuthState) => {
@@ -39,18 +48,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (name: string, tosVersion: string) => {
-    const res = await fetch(`${API_URL}/v1/agents/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, tos_version: tosVersion }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string };
-      throw new Error(data.error ?? `HTTP ${res.status}`);
-    }
-    const data = await res.json() as { agent_id: string; api_key: string };
+    const data = await registerAgent(name, tosVersion);
     persist({ apiKey: data.api_key, agentId: data.agent_id, agentName: name });
     return data;
+  }, [persist]);
+
+  const loginWithApiKey = useCallback(async (apiKey: string) => {
+    const trimmed = apiKey.trim();
+    if (!trimmed) throw new Error("API key is required");
+    const profile = await verifyAgentApiKey(trimmed);
+    persist({
+      apiKey: trimmed,
+      agentId: profile.agent_id,
+      agentName: profile.name,
+    });
   }, [persist]);
 
   const logout = useCallback(() => {
@@ -58,7 +69,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [persist]);
 
   return (
-    <AuthContext.Provider value={{ ...state, register, logout, isAuthenticated: !!state.apiKey }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        register,
+        loginWithApiKey,
+        logout,
+        isAuthenticated: !!state.apiKey,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

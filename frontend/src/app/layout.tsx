@@ -93,16 +93,22 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "Organization",
               name: "Unbrowse",
-              legalName: "Unbrowse AI Pte. Ltd.",
+              legalName: "Unbrowse AI PTE. LTD.",
               url: "https://www.unbrowse.ai",
               logo: "https://www.unbrowse.ai/logo.png",
               description:
                 "Unbrowse reverse-engineers any website into reusable API skills for AI agents. 100x faster than headless browsers, 40x fewer tokens.",
+              foundingDate: "2026",
+              foundingLocation: {
+                "@type": "Place",
+                name: "Singapore",
+              },
               sameAs: [
                 "https://github.com/unbrowse-ai",
                 "https://github.com/unbrowse-ai/unbrowse",
                 "https://x.com/getFoundry",
                 "https://www.npmjs.com/package/unbrowse",
+                "https://arxiv.org/abs/2604.00694",
               ],
             }),
           }}
@@ -118,7 +124,7 @@ export default function RootLayout({
                 "Reverse-engineer any website into reusable API skills for AI agents. Auto-discovers undocumented website APIs and converts them to clean, direct API calls.",
               url: "https://www.unbrowse.ai",
               applicationCategory: "DeveloperApplication",
-              operatingSystem: "macOS, Linux, Windows",
+              operatingSystem: "Cross-platform (macOS, Linux, Windows)",
               softwareVersion: "1.1.2",
               downloadUrl: "https://www.npmjs.com/package/unbrowse",
               codeRepository: "https://github.com/unbrowse-ai/unbrowse",
@@ -130,7 +136,7 @@ export default function RootLayout({
               },
               author: {
                 "@type": "Organization",
-                name: "Unbrowse",
+                name: "Unbrowse AI PTE. LTD.",
                 url: "https://www.unbrowse.ai",
               },
               featureList: [
@@ -141,6 +147,85 @@ export default function RootLayout({
                 "Works with Claude Code, Cursor, OpenClaw, and Windsurf",
               ],
               programmingLanguage: "TypeScript",
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "ScholarlyArticle",
+              headline: "Internal APIs Are All You Need",
+              name: "Internal APIs Are All You Need",
+              description:
+                "Research paper demonstrating that internal website APIs can replace headless browser automation for AI agents, achieving 100x speedup and 40x token reduction.",
+              url: "https://arxiv.org/abs/2604.00694",
+              author: [
+                {
+                  "@type": "Person",
+                  name: "Lewis Tham",
+                },
+                {
+                  "@type": "Person",
+                  name: "Nicholas Mac Gregor Garcia",
+                },
+                {
+                  "@type": "Person",
+                  name: "Jungpil Hahn",
+                },
+              ],
+              publisher: {
+                "@type": "Organization",
+                name: "arXiv",
+                url: "https://arxiv.org",
+              },
+              datePublished: "2026",
+              isAccessibleForFree: true,
+              sameAs: "https://arxiv.org/abs/2604.00694",
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: [
+                {
+                  "@type": "Question",
+                  name: "What is Unbrowse?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Unbrowse is an open-source tool that reverse-engineers any website into reusable API skills for AI agents. Instead of slow headless browser automation, Unbrowse discovers the internal APIs websites already use and lets agents call them directly — 100x faster and using 40x fewer tokens.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "How does Unbrowse work?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Unbrowse passively captures network traffic while you browse, identifies the internal APIs (fetch/XHR calls) that power each page, reverse-engineers their schemas and authentication, and publishes them as reusable skills. AI agents can then call these APIs directly instead of automating a browser.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "Which AI coding agents work with Unbrowse?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Unbrowse works with all major AI coding agents including Claude Code, Cursor, OpenClaw, and Windsurf. It installs as a single npm package and integrates via a CLI that any agent can call.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "Is Unbrowse free to use?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Yes, Unbrowse is free and open-source. Install it with 'npm install -g unbrowse' and start discovering APIs immediately. The shared skill marketplace lets you benefit from APIs discovered by the community.",
+                  },
+                },
+              ],
             }),
           }}
         />

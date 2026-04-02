@@ -36,4 +36,22 @@ describe("client search x402 propagation", () => {
     expect(isX402Error(caught)).toBe(true);
     expect((caught as { status?: number }).status).toBe(402);
   });
+
+  it("returns actual_cost_uc when the backend reports billed search cost", async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({
+        domain_results: [],
+        global_results: [],
+        skipped_global: false,
+      }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "X-Unbrowse-Cost-Uc": "1000",
+        },
+      })) as typeof globalThis.fetch;
+
+    const result = await searchIntentResolve("search packages", "npmjs.com", 5, 10);
+    expect(result.actual_cost_uc).toBe(1000);
+  });
 });

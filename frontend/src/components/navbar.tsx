@@ -32,6 +32,7 @@ export function Navbar() {
         {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-1">
             <NavLink href="/search">Registry</NavLink>
+            <NavLink href="/leaderboard">Leaderboard</NavLink>
             <a
               href="https://discord.gg/VWugEeFNsG"
               target="_blank"
@@ -41,7 +42,7 @@ export function Navbar() {
             >
               Discord
             </a>
-            {isAuthenticated && <NavLink href="/dashboard">Dashboard</NavLink>}
+            {isAuthenticated ? <NavLink href="/dashboard">Dashboard</NavLink> : <NavLink href="/login">Login</NavLink>}
 
             <div className="w-px h-5 bg-border mx-3" />
 
@@ -133,6 +134,7 @@ export function Navbar() {
         <div className="md:hidden border-t border-border bg-surface/95 backdrop-blur-lg">
           <div className="px-6 py-4 space-y-1">
             <MobileNavLink href="/search" onClick={() => setMobileOpen(false)}>Registry</MobileNavLink>
+            <MobileNavLink href="/leaderboard" onClick={() => setMobileOpen(false)}>Leaderboard</MobileNavLink>
             <a
               href="https://discord.gg/VWugEeFNsG"
               target="_blank"
@@ -143,7 +145,9 @@ export function Navbar() {
             >
               Discord
             </a>
-            {isAuthenticated && <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</MobileNavLink>}
+            {isAuthenticated
+              ? <MobileNavLink href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</MobileNavLink>
+              : <MobileNavLink href="/login" onClick={() => setMobileOpen(false)}>Login</MobileNavLink>}
           </div>
         </div>
       )}
