@@ -132,21 +132,26 @@ unbrowse feedback \
 
 **Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
 
-### Step 5: Review — improve endpoint metadata (optional)
+### Step 5: Review — augment endpoint descriptions (MANDATORY on first use)
 
-If the endpoint description is generic or wrong, push better metadata back:
+After the first successful execute on a domain, read the returned data and push proper descriptions back. The heuristic-generated descriptions are generic ("Returns results with data, home"). You are the LLM — describe what each endpoint actually does and what each parameter means:
 
 ```bash
 unbrowse review --skill {skill_id} --endpoints '[{
   "endpoint_id": "{endpoint_id}",
-  "description": "Returns timeline tweets with author, text, and engagement metrics",
-  "action_kind": "timeline",
-  "resource_kind": "tweet"
+  "description": "Search Singapore court judgments by keywords, filtered by court and year, sorted by relevance",
+  "action_kind": "search",
+  "resource_kind": "judgment"
 }]'
 ```
 
-### Picking the right endpoint from resolve
+This makes future resolves immediately useful — agents see "Search court judgments by keywords" instead of "Captured search form artifact for browse www.elitigation.sg".
 
+**What to describe:**
+- What the endpoint returns (e.g. "timeline tweets with author, text, engagement metrics")
+- What the key parameters control (e.g. "SearchPhrase filters by keyword, Filter selects court level")
+- The action type (search, list, detail, timeline, create)
+- The resource type (judgment, tweet, post, event, product)
 Resolve returns `available_endpoints` sorted by score. Each endpoint includes schema, sample values, and input params. Look at:
 
 | Field | What to check |
