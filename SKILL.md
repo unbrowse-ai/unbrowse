@@ -152,6 +152,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url>` | Navigate browser to URL (passive indexing) |
+| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form; fall back to same-origin fetch + rehydrate |
 | `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `<ref>` | Click element by ref (e.g. e5) |
 | `fill` | `<ref> <value>` | Fill input by ref |
@@ -166,6 +167,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `eval` | `<expression>` | Evaluate JavaScript |
 | `back` |  | Navigate back |
 | `forward` |  | Navigate forward |
+| `sync` |  | Flush current browse traffic into route cache without closing tab |
 | `close` |  | Close browse session, flush + index traffic |
 
 ### Global flags
