@@ -10,7 +10,7 @@ import { resolvePreExecutionAuth } from "../auth/dependency-runtime.js";
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
+import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, getLocalWalletContext, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
 import type { EndpointDescriptor, ExecutionOptions, ExecutionTrace, ProjectionOptions, SkillManifest } from "../types/index.js";
@@ -37,6 +37,7 @@ import {
   generateLocalDescription,
 } from "../orchestrator/index.js";
 import { checkPaymentRequirement } from "../payments/index.js";
+import { isAllowedByRobots } from "./robots.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
@@ -572,6 +573,21 @@ export function buildStructuredReplayHeaders(
     return headers;
   }
   return headers;
+}
+
+function normalizeReplayHeaders(
+  ...bags: Array<Record<string, string> | undefined>
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const bag of bags) {
+    for (const [key, value] of Object.entries(bag ?? {})) {
+      if (typeof value !== "string") continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      normalized[key.toLowerCase()] = trimmed;
+    }
+  }
+  return normalized;
 }
 
 function shouldFallbackToBrowserReplay(
@@ -1667,9 +1683,9 @@ export async function executeEndpoint(
 
   // Payment gate — check if marketplace skill requires payment before executing
   if (!skill.skill_id.startsWith("local:") && skill.execution_type === "http" && skill.owner_type !== "agent") {
-    const walletAddr = process.env.LOBSTER_WALLET_ADDRESS;
+    const wallet = getLocalWalletContext();
     const gate = await checkPaymentRequirement(skill.skill_id, endpoint.endpoint_id, {
-      wallet_configured: !!walletAddr,
+      wallet_configured: !!wallet.wallet_address,
     });
     if (gate.status === "payment_required" || gate.status === "wallet_not_configured" || gate.status === "insufficient_balance") {
       const trace: ExecutionTrace = stampTrace({
@@ -1689,7 +1705,8 @@ export async function executeEndpoint(
           price_usd: gate.requirement?.amount,
           payment_status: gate.status,
           message: gate.message,
-          wallet_provider: "lobster.cash",
+          wallet_provider: wallet.wallet_provider ?? "lobster.cash",
+          wallet_address: wallet.wallet_address,
           indexing_fallback_available: true,
         },
       };
@@ -1882,18 +1899,45 @@ export async function executeEndpoint(
     }
   }
 
+
+  // robots.txt compliance gate — block disallowed paths before any network call.
+  if (!options?.skip_robots_check) {
+    const allowed = await isAllowedByRobots(url);
+    if (!allowed) {
+      const traceId = nanoid();
+      log("exec", `robots.txt blocked ${url}`);
+      return {
+        trace: stampTrace({
+          trace_id: traceId,
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "robots_txt_disallowed",
+        }),
+        result: {
+          error: "robots_txt_disallowed",
+          message: `robots.txt disallows access to ${url} for the Unbrowse user-agent.`,
+        },
+      };
+    }
+  }
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
 
   const serverFetch = async (): Promise<{ data: unknown; status: number; trace_id: string }> => {
+    const endpointHeaders = normalizeReplayHeaders(endpoint.headers_template);
+    const sessionHeaders = normalizeReplayHeaders(authHeaders);
+
     // Default accept to JSON, but never overwrite the endpoint's own accept header
     // (e.g. LinkedIn uses "application/vnd.linkedin.normalized+json+2.1")
-    const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpoint.headers_template?.["accept"])
+    const defaultAccept: Record<string, string> = (!endpoint.dom_extraction && !endpointHeaders["accept"] && !sessionHeaders["accept"])
       ? { "accept": "application/json" } : {};
     const headers: Record<string, string> = {
       ...defaultAccept,
-      ...endpoint.headers_template,
-      ...authHeaders,
+      ...endpointHeaders,
+      ...sessionHeaders,
     };
     // Strip browser-only headers that cause issues server-side
     delete headers["sec-ch-ua"];
@@ -1918,7 +1962,7 @@ export async function executeEndpoint(
         /^(ct0|csrf_token|_csrf|csrftoken|XSRF-TOKEN|_xsrf)$/i.test(c.name)
       );
       if (csrfCookie) {
-        const v = csrfCookie.value.startsWith(') && csrfCookie.value.endsWith(') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
+        const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
         headers["x-csrf-token"] = v;
         headers["x-xsrf-token"] = v;
       }
@@ -1931,7 +1975,7 @@ export async function executeEndpoint(
       if (csrfCookie) {
         const v = csrfCookie.value.startsWith('"') && csrfCookie.value.endsWith('"') ? csrfCookie.value.slice(1, -1) : csrfCookie.value;
         if (endpoint.csrf_plan.source === "cookie" || endpoint.csrf_plan.source === "header") {
-          headers[endpoint.csrf_plan.param_name.toLowerCase()] ??= v;
+          headers[endpoint.csrf_plan.param_name.toLowerCase()] = v;
         } else if (endpoint.csrf_plan.source === "form" && body && typeof body === "object" && !Array.isArray(body)) {
           (body as Record<string, unknown>)[endpoint.csrf_plan.param_name] ??= v;
         }
@@ -2291,6 +2335,7 @@ export async function executeEndpoint(
       catch { return {}; }
     })();
     if (consumerConfig.agent_id) {
+      const wallet = getLocalWalletContext();
       recordTransaction({
         transaction_id: trace.trace_id,
         consumer_id: consumerConfig.agent_id,
@@ -2298,7 +2343,7 @@ export async function executeEndpoint(
         skill_id: skill.skill_id,
         endpoint_id: endpoint.endpoint_id,
         price_usd: skill.base_price_usd,
-        payment_proof: process.env.LOBSTER_WALLET_ADDRESS ? `wallet:${process.env.LOBSTER_WALLET_ADDRESS}` : undefined,
+        payment_proof: wallet.wallet_address ? `wallet:${wallet.wallet_address}` : undefined,
       }).catch(() => {});
     }
   }

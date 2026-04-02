@@ -24,14 +24,27 @@ Do not bump or publish only from `packages/skill/`.
 - canonical path is still `bun run release`, which keeps `package.json`, `packages/skill/package.json`, and `version.json` in sync before the tag-triggered workflow publishes the CLI.
 - `release-it` is configured with `npm.ignoreVersion=true` because `@release-it/bumper` already owns the version bump across all three files. That avoids the duplicate `npm version` pass that can otherwise fail with `Version not changed`.
 
+## Main-branch GitHub Actions
+
+Pushing to `main` runs `.github/workflows/release.yml`, which now:
+
+1. Publishes the CLI from `packages/skill/` to npm if the current version is not already published.
+2. Deploys the backend worker.
+3. Deploys the frontend.
+4. Syncs the external skill repo on `unbrowse-ai/unbrowse` `stable`.
+5. Creates the matching tag + GitHub Release in `unbrowse-ai/unbrowse` if that version does not already exist.
+
+Pushing `v*` tags still runs the same workflow, which remains safe for explicit release tags and reruns.
+
 ## Tag-triggered GitHub Actions
 
-Pushing `v*` tags runs `.github/workflows/release.yml`, which now:
+Tag pushes reuse `.github/workflows/release.yml`, which:
 
 1. Publishes the CLI from `packages/skill/` to npm.
 2. Deploys the backend worker.
 3. Deploys the frontend.
 4. Syncs the external skill repo.
+5. Creates or reuses the matching tag + GitHub Release in `unbrowse-ai/unbrowse`.
 
 The npm publish step is idempotent. If the tagged version is already on npm, the workflow skips publish instead of failing on reruns.
 
@@ -41,12 +54,13 @@ The npm publish step is idempotent. If the tagged version is already on npm, the
 - `CLOUDFLARE_ACCOUNT_ID`
 - `NPM_TOKEN` or `NPM_PUBLISH_TOKEN`
 - `SKILL_REPO_TOKEN`
+- `DATABASE_URL`
 
 Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync secrets are missing.
 
 ## CI checks before release
 
-`test.yml` now runs on `rach/restart-base` pull requests and pushes, and verifies:
+`test.yml` now runs on `main` pull requests and pushes, and verifies:
 
 - `SKILL.md` is in sync with `src/cli.ts`
 - `packages/skill` passes `npm pack --dry-run`
@@ -54,7 +68,7 @@ Canonical releases on `unbrowse-ai/unbrowse` fail fast if the npm or skill-sync 
 
 The CLI E2E job runs `bun run cli -- setup --no-start` first so CI verifies the vendored Kuri binary is discoverable before it exercises the CLI path.
 
-Branch protection should require the workflow checks on `rach/restart-base` before merge.
+Branch protection should require the workflow checks on `main` before merge.
 
 That catches broken package layouts before a release tag is pushed.
 
