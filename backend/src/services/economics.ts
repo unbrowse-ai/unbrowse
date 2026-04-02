@@ -30,8 +30,15 @@ export interface DashboardPayload {
     paid_execution_usd: number;
   };
   savings: {
+    baseline_time_ms: number | null;
+    actual_time_ms: number | null;
     time_saved_ms: number | null;
     time_saved_hours: number | null;
+    speedup_ratio: number | null;
+    baseline_cost_uc: number | null;
+    baseline_cost_usd: number | null;
+    actual_cost_uc: number | null;
+    actual_cost_usd: number | null;
     cost_saved_uc: number | null;
     cost_saved_usd: number | null;
   };
@@ -218,6 +225,10 @@ export async function buildDashboard(env: Env, agentId: string): Promise<Dashboa
     .slice(0, 8);
 
   const rankIndex = leaderboard.findIndex((entry) => entry.agent_id === agentId);
+  const baselineTimeMs = perf && perf.total_baseline_ms > 0 ? perf.total_baseline_ms : null;
+  const actualTimeMs = perf && perf.total_actual_ms > 0 ? perf.total_actual_ms : null;
+  const baselineCostUc = perf && perf.total_baseline_cost_uc > 0 ? perf.total_baseline_cost_uc : null;
+  const actualCostUc = perf && perf.total_actual_cost_uc > 0 ? perf.total_actual_cost_uc : null;
 
   return {
     profile,
@@ -232,8 +243,18 @@ export async function buildDashboard(env: Env, agentId: string): Promise<Dashboa
       paid_execution_usd: toUsdFromUc(perf?.total_paid_execution_uc ?? 0),
     },
     savings: {
+      baseline_time_ms: baselineTimeMs,
+      actual_time_ms: actualTimeMs,
       time_saved_ms: perf?.time_saved_events ? perf.total_time_saved_ms : null,
       time_saved_hours: perf?.time_saved_events ? round4(perf.total_time_saved_ms / 3_600_000) : null,
+      speedup_ratio:
+        baselineTimeMs != null && actualTimeMs != null && actualTimeMs > 0
+          ? round4(baselineTimeMs / actualTimeMs)
+          : null,
+      baseline_cost_uc: baselineCostUc,
+      baseline_cost_usd: baselineCostUc != null ? toUsdFromUc(baselineCostUc) : null,
+      actual_cost_uc: actualCostUc,
+      actual_cost_usd: actualCostUc != null ? toUsdFromUc(actualCostUc) : null,
       cost_saved_uc: perf?.cost_saved_events ? perf.total_cost_saved_uc : null,
       cost_saved_usd: perf?.cost_saved_events ? toUsdFromUc(perf.total_cost_saved_uc) : null,
     },
