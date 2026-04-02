@@ -131,10 +131,10 @@ skillRoutes.post("/skills", bearerAuth, async (c) => {
     let profile = await getAgent(c.env, indexerId);
     if (indexerId === agentId && publishWalletAddress) {
       try {
-        profile = await updateAgentWallet(c.env, agentId, {
+        profile = (await updateAgentWallet(c.env, agentId, {
           wallet_address: publishWalletAddress,
           wallet_provider: publishWalletProvider,
-        });
+        })).profile;
       } catch (err) {
         console.warn(`[publish] wallet sync skipped for ${agentId}: ${(err as Error).message}`);
       }

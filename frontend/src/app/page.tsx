@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { Constellation } from "@/components/constellation";
 import { ChatDemo } from "@/components/chat-demo";
-import { ApiKeyGenerator } from "@/components/api-key-generator";
 import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
@@ -391,10 +390,10 @@ export default function Home() {
                 After Install
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-text-primary">
-                Register, verify, and <span className="text-orange-500">start using it.</span>
+                Verify, explore, and <span className="text-orange-500">view contributors.</span>
               </h2>
                 <p className="text-text-secondary text-lg max-w-xl mx-auto leading-relaxed">
-                  Once the CLI is installed, grab your key, verify the local server, and jump into the docs and community.
+                  Once the CLI is installed, verify the local server, open the wallet dashboard, and jump into the docs and community.
                 </p>
             </div>
 
@@ -409,7 +408,23 @@ export default function Home() {
               after each release.
             </div>
 
-            <ApiKeyGenerator />
+            <div className="rounded-2xl border border-border bg-surface px-6 py-6 sm:px-8">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-500">Public contributor view</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-text-primary">Open any contributor by wallet.</h3>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
+                    Paste a wallet to see earnings, spending, savings, time saved, and leaderboard rank. No login flow on the website.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-5 py-3 font-semibold text-white transition-colors hover:bg-orange-600"
+                >
+                  View by wallet
+                </Link>
+              </div>
+            </div>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-text-secondary font-mono pt-8">
               <a href="/skill.md" className="flex items-center gap-1.5 hover:text-text-primary transition-colors"><ChevronRight className="w-4 h-4"/> skill.md</a>
@@ -481,7 +496,7 @@ export default function Home() {
              <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">GitHub</a>
              <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Discord</a>
              <Link href="/search" className="hover:text-text-primary transition-colors">Registry</Link>
-             <Link href="/dashboard" className="hover:text-text-primary transition-colors">Dashboard</Link>
+             <Link href="/dashboard" className="hover:text-text-primary transition-colors">View by wallet</Link>
              <Link href="/terms" className="hover:text-text-primary transition-colors">Terms</Link>
              <Link href="/privacy" className="hover:text-text-primary transition-colors">Privacy</Link>
              <a href="https://x.com/getFoundry" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors flex items-center gap-1.5">

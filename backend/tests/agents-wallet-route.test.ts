@@ -42,7 +42,7 @@ function createMockFetch(store: Map<string, string>) {
   };
 }
 
-describe("agents wallet sync route", () => {
+describe("agents wallet claim route", () => {
   const store = new Map<string, string>();
   const originalFetch = globalThis.fetch;
 
@@ -55,7 +55,7 @@ describe("agents wallet sync route", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("persists payout wallet on the authenticated agent profile", async () => {
+  it("claims a wallet, stores it on the agent, and writes the lookup index", async () => {
     const res = await app.fetch(new Request("http://local.test/v1/agents/wallet", {
       method: "POST",
       headers: {
@@ -69,13 +69,12 @@ describe("agents wallet sync route", () => {
     }), env);
 
     expect(res.status).toBe(200);
-    const body = await res.json() as { agent_id: string; wallet_address?: string; wallet_provider?: string };
-    expect(body.agent_id).toBe("staging_alpha123");
-    expect(body.wallet_address).toBe("So1anaWallet11111111111111111111111111111111");
-    expect(body.wallet_provider).toBe("lobster.cash");
+    const body = await res.json() as { ok: boolean; status: string };
+    expect(body).toEqual({ ok: true, status: "claimed" });
 
-    const stored = await statsKV(env).get(`agent:${body.agent_id}`, "json") as { wallet_address?: string; wallet_provider?: string } | null;
+    const stored = await statsKV(env).get("agent:staging_alpha123", "json") as { wallet_address?: string; wallet_provider?: string } | null;
     expect(stored?.wallet_address).toBe("So1anaWallet11111111111111111111111111111111");
     expect(stored?.wallet_provider).toBe("lobster.cash");
+    expect(await statsKV(env).get("wallet:So1anaWallet11111111111111111111111111111111")).toBe("staging_alpha123");
   });
 });

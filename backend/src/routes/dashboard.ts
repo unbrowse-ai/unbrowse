@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { buildDashboard, buildLeaderboard } from "../services/economics.js";
 import { bearerAuth } from "../middleware/auth.js";
+import { getAgentIdByWallet } from "../services/agents.js";
 
 export const publicDashboardRoutes = new Hono<{ Bindings: Env }>();
 export const dashboardRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
@@ -11,6 +12,15 @@ publicDashboardRoutes.get("/leaderboard", async (c) => {
   const entries = await buildLeaderboard(c.env, limit);
   c.header("Cache-Control", "public, max-age=30");
   return c.json({ entries });
+});
+
+publicDashboardRoutes.get("/dashboard/wallet/:walletAddress", async (c) => {
+  const agentId = await getAgentIdByWallet(c.env, c.req.param("walletAddress"));
+  if (!agentId) return c.json({ error: "wallet_not_found" }, 404);
+
+  const dashboard = await buildDashboard(c.env, agentId);
+  if (!dashboard) return c.json({ error: "Agent profile not found" }, 404);
+  return c.json(dashboard);
 });
 
 dashboardRoutes.get("/dashboard/me", bearerAuth, async (c) => {
