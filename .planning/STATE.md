@@ -105,10 +105,18 @@
 
 ---
 
+## Quick Tasks Completed
+
+| Date | Task | Files |
+|------|------|-------|
+| 2026-04-02 | Enrich available_endpoints with deep schema + input params; implement CLI --path/--extract/--limit/--schema | orchestrator/index.ts, cli.ts |
+
+---
+
 ## Session Continuity
 
 **To resume**: Read `.planning/ROADMAP.md` for current phase goals and success criteria. Read `.planning/STATE.md` (this file) for current position and blockers. Check git log on `rach/restart-base` for recent progress.
 
-**Last session**: 2026-04-01T13:05:00Z -- Completed 06-02-PLAN.md (transaction ledger and creator/consumer visibility)
+**Last session**: 2026-04-02 -- Enriched resolve endpoint metadata + implemented CLI post-processing
 
 **Next action**: Phase 6 complete. Begin Phase 7 planning if applicable.

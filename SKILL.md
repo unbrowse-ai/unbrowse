@@ -141,9 +141,10 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 |---------|-------|-------------|
 | `health` |  | Server health check |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → find skill + execute |
+| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
+| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
@@ -172,6 +173,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 |------|-------------|
 | `--pretty` | Indented JSON output |
 | `--no-auto-start` | Don't auto-start server |
+| `--raw` | Return raw response data (skip server-side projection) |
 | `--skip-browser` | setup: skip browser-engine install |
 | `--opencode auto|global|project|off` | setup: install /unbrowse command for Open Code |
 
@@ -179,7 +181,10 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 
 | Flag | Description |
 |------|-------------|
-| `--execute` | Auto-pick best endpoint and return data (resolve only) |
+| `--schema` | Show response schema + extraction hints only (no data) |
+| `--path "data.items[]"` | Drill into result before extract/output |
+| `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
+| `--limit N` | Cap array output to N items |
 | `--endpoint-id ID` | Pick a specific endpoint |
 | `--dry-run` | Preview mutations |
 | `--force-capture` | Bypass caches, re-capture |
