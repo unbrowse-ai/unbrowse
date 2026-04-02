@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "2.9.1",
+  "version": "2.10.2",
   "description": "Reverse-engineer any website into reusable API skills. Zero-dep single binary with embedded browser engine.",
   "type": "module",
   "bin": {
@@ -23,11 +23,14 @@
     "dev": "bun --watch src/index.ts"
   },
   "dependencies": {
-    "fastify": "^5.7.4",
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@cascade-fyi/splits-sdk": "^0.11.1",
+    "@solana/kit": "^6.6.0",
+    "bs58": "^6.0.0",
     "cheerio": "^1.2.0",
     "dotenv": "^17.3.1",
+    "fastify": "^5.7.4",
     "nanoid": "^5.1.6",
     "tsx": "^4.20.6",
     "ws": "^8.19.0"
