@@ -120,7 +120,6 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     cached_skill_calls?: number;
     fresh_index_calls?: number;
     browser_mode?: "default" | "replaced" | "manual" | "unknown";
-    trace_version?: string;
   }>();
   if (!body.session_id || !body.started_at) {
     return c.json({ error: "session_id and started_at required" }, 400);
@@ -135,7 +134,6 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     cached_skill_calls: body.cached_skill_calls,
     fresh_index_calls: body.fresh_index_calls,
     browser_mode: body.browser_mode,
-    trace_version: body.trace_version,
   });
   return c.json({ ok: true });
 });
