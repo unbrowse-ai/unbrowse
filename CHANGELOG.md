@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.10.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.9.1...v2.10.0) (2026-04-02)
+
+### Features
+
+* publish openclaw npm install flow ([ab1257f](https://github.com/unbrowse-ai/unbrowse-dev/commit/ab1257f1ff2c180d7bb07a390a7270555ffe896e))
+* publish openclaw npm install flow ([#260](https://github.com/unbrowse-ai/unbrowse-dev/issues/260)) ([2e6a252](https://github.com/unbrowse-ai/unbrowse-dev/commit/2e6a2520393a5f2bf9e0ed5e9a5e1c34b14973a8))
+* restore canonical analytics surface ([#262](https://github.com/unbrowse-ai/unbrowse-dev/issues/262)) ([78f83c8](https://github.com/unbrowse-ai/unbrowse-dev/commit/78f83c827b3d9292da16b5eaebf98cc6b63b8b2d))
+* ship wallet-first dashboard on restart-base ([#265](https://github.com/unbrowse-ai/unbrowse-dev/issues/265)) ([a673969](https://github.com/unbrowse-ai/unbrowse-dev/commit/a67396913f90b87acf705e60b9042c94cfe34610))
+* track analytics sessions by trace version ([5954238](https://github.com/unbrowse-ai/unbrowse-dev/commit/595423886b426a3032fb683e83b4e4bd102d3931))
+
+### Bug Fixes
+
+* ship worker payments and lobster x402 e2e ([#263](https://github.com/unbrowse-ai/unbrowse-dev/issues/263)) ([d3ec78f](https://github.com/unbrowse-ai/unbrowse-dev/commit/d3ec78fa049378bb9066f55f707ed608dc560daf))
+* unblock openclaw install PR ([422096b](https://github.com/unbrowse-ai/unbrowse-dev/commit/422096b734ebd926a136286a221be2c4a0be71c2))
+
 ## [Unreleased]
 
 ### Features
