@@ -178,6 +178,9 @@ export class Page {
 
     // Cache miss or resolve failure — navigate via Kuri directly.
     if (this._tabId) {
+      const newDomain = new URL(url).hostname.replace(/^www\./, "");
+      const oldDomain = this._url !== "about:blank" ? (() => { try { return new URL(this._url).hostname.replace(/^www\./, ""); } catch { return ""; } })() : "";
+
       // Flush any prior HAR entries before navigating to a new page
       if (this._harActive && this._url !== "about:blank") {
         try {
@@ -185,6 +188,14 @@ export class Page {
           passiveIndexHar(entries, this._url);
         } catch { /* non-fatal */ }
         this._harActive = false;
+      }
+
+      // Auto-save auth profile for old domain, load for new domain
+      if (oldDomain && oldDomain !== newDomain) {
+        await kuri.authProfileSave(this._tabId, oldDomain).catch(() => {});
+      }
+      if (newDomain && newDomain !== oldDomain) {
+        await kuri.authProfileLoad(this._tabId, newDomain).catch(() => {});
       }
 
       await kuri.navigate(this._tabId, url);
@@ -505,9 +516,17 @@ export class Page {
 
   // ── Lifecycle ───────────────────────────────────────────────────────
 
-  /** Close this page. Stops passive HAR recording and indexes captured traffic. */
+  /** Close this page. Saves auth profile, stops HAR, indexes captured traffic. */
   async close(): Promise<void> {
     if (this._tabId && !this._closed) {
+      // Save auth profile for current domain before closing
+      if (this._url !== "about:blank") {
+        try {
+          const domain = new URL(this._url).hostname.replace(/^www\./, "");
+          await kuri.authProfileSave(this._tabId, domain);
+        } catch { /* non-fatal */ }
+      }
+
       // Stop HAR and passively index any captured API traffic
       if (this._harActive) {
         try {
