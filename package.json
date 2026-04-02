@@ -44,6 +44,7 @@
     "preset:testing": "bun scripts/profile.ts use testing",
     "preset:show": "bun scripts/profile.ts show",
     "preset:clear": "bun scripts/profile.ts clear",
+    "check:skill-docs": "bun test tests/skill-docs-sync.test.ts",
     "sync:skill-md": "bun scripts/sync-skill-md.ts",
     "check:skill-md": "bun scripts/sync-skill-md.ts --check",
     "pack:cli": "npm pack --dry-run --workspace packages/skill",

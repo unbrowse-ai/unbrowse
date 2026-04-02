@@ -3,6 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
+const yamlSafeSkillDocs = [
+  path.join(repoRoot, "SKILL.md"),
+  path.join(repoRoot, "packages", "skill", "SKILL.md"),
+  path.join(repoRoot, "skills", "worktree-issue-fix", "SKILL.md"),
+];
 
 describe("skill docs sync", () => {
   it("copies the root docs tree into the standalone skill repo during sync", () => {
@@ -58,5 +63,15 @@ describe("skill docs sync", () => {
     expect(skill).toContain("./docs/guides/quickstart.md");
     expect(skill).toContain("./docs/codex-eval-harness.md");
     expect(skill).toContain("./docs/RELEASING.md");
+  });
+
+  it("keeps skill frontmatter YAML-safe for skills.sh discovery", () => {
+    for (const skillPath of yamlSafeSkillDocs) {
+      const skill = readFileSync(skillPath, "utf8");
+      const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/m)?.[1] ?? "";
+
+      expect(frontmatter).toMatch(/(?:^|\n)name:\s+.+/);
+      expect(frontmatter).toMatch(/(?:^|\n)description:\s*[>|'"]/);
+    }
   });
 });

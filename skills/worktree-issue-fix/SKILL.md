@@ -1,6 +1,13 @@
 ---
 name: worktree-capability-loop
-description: Repo-local capability expansion workflow for the current git worktree. Use when asked to fix GitHub issues, add more product capabilities, or tighten regressions in this repo with gh CLI and Codex. Primary mode is a read-only harness document that Codex reads and performs manually: gather context, expand the eval set on the fly from issue URLs or capability asks, spawn subagents to judge whether real cases work, and rerun a Codex cold/warm regression suite before handoff.
+description: >-
+  Repo-local capability expansion workflow for the current git worktree. Use
+  when asked to fix GitHub issues, add more product capabilities, or tighten
+  regressions in this repo with gh CLI and Codex. Primary mode is a read-only
+  harness document that Codex reads and performs manually: gather context,
+  expand the eval set on the fly from issue URLs or capability asks, spawn
+  subagents to judge whether real cases work, and rerun a Codex cold/warm
+  regression suite before handoff.
 user-invocable: true
 ---
 

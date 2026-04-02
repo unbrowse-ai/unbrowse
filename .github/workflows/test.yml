@@ -83,6 +83,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun scripts/sync-skill-md.ts --check
         name: Check SKILL.md sync
+      - run: bun run check:skill-docs
+        name: Check skill docs and YAML frontmatter
       - run: npm pack --dry-run
         name: Validate npm package
         working-directory: packages/skill
