@@ -9,7 +9,6 @@ import { getStoredAuth, getAuthCookies, refreshAuthFromBrowser } from "../auth/i
 import { authRuntime } from "../auth/runtime.js";
 import { applyProjection, inferSchema } from "../transform/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
-import { generateExtractionHints } from "../transform/schema-hints.js";
 import { recordExecution, recordTransaction, cachePublishedSkill, findExistingSkillForDomain, updateEndpointSchema } from "../client/index.js";
 import { validateManifest } from "../client/index.js";
 import { withRetry, isRetryableStatus } from "./retry.js";
@@ -191,10 +190,6 @@ export interface ExecutionResult {
   trace: ExecutionTrace;
   result: unknown;
   learned_skill?: SkillManifest;
-  /** Inferred JSON schema of the endpoint's response, for agent-side extraction */
-  response_schema?: import("../types/index.js").ResponseSchema;
-  /** Ready-to-use extraction hints derived from response_schema */
-  extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
 }
 
 export function projectResultForIntent(data: unknown, intent?: string): unknown {
@@ -220,7 +215,9 @@ function sanitizeNavigationQueryParams(url: URL): URL {
 }
 
 function restoreTemplatePlaceholderEncoding(url: string): string {
-  return url.replace(/%7B/gi, "{").replace(/%7D/gi, "}");
+  // Only restore template placeholders like {variable_name}, not arbitrary JSON braces.
+  // Template placeholders: %7Bword_chars%7D (no spaces, no quotes, no colons inside)
+  return url.replace(/%7B(\w+)%7D/gi, "{$1}");
 }
 
 function compactSchemaSample(value: unknown, depth = 0): unknown {
@@ -1494,6 +1491,16 @@ async function tryHttpFetch(
   }
 }
 
+/** When extraction returns "multiple" candidates, pick the best one's data to avoid duplicates */
+function flattenExtracted(data: unknown): unknown {
+  if (!Array.isArray(data)) return data;
+  const first = data[0];
+  if (first && typeof first === "object" && "type" in first && "data" in first && "relevance_score" in first) {
+    return data.reduce((best: any, cur: any) => (cur.relevance_score ?? 0) > (best.relevance_score ?? 0) ? cur : best).data;
+  }
+  return data;
+}
+
 async function executeDomExtractionEndpoint(
   endpoint: EndpointDescriptor,
   url: string,
@@ -1501,6 +1508,8 @@ async function executeDomExtractionEndpoint(
   authHeaders: Record<string, string>,
   cookies: Array<{ name: string; value: string; domain: string }>,
 ): Promise<{ data: unknown; status: number; trace_id: string }> {
+  // SSR fast-path: try plain HTTP fetch before browser
+
   // SSR fast-path: try plain HTTP fetch before browser
   const ssrResult = await tryHttpFetch(url, authHeaders, cookies);
   if (ssrResult) {
@@ -1512,16 +1521,7 @@ async function executeDomExtractionEndpoint(
         if (ssrSemantic.verdict !== "fail") {
           console.log(`[ssr-fast] hit — extracted via HTTP fetch`);
           return {
-            data: {
-              data: ssrExtracted.data,
-              _extraction: {
-                method: ssrExtracted.extraction_method,
-                confidence: ssrExtracted.confidence,
-                source: "ssr-fast",
-                final_url: ssrResult.final_url,
-                ...(ssrExtracted.selector ? { selector: ssrExtracted.selector } : {}),
-              },
-            },
+            data: flattenExtracted(ssrExtracted.data),
             status: 200,
             trace_id: nanoid(),
           };
@@ -1561,16 +1561,7 @@ async function executeDomExtractionEndpoint(
       };
     }
     return {
-      data: {
-        data: extracted.data,
-        _extraction: {
-          method: extracted.extraction_method,
-          confidence: extracted.confidence,
-          source: "rendered-dom",
-          final_url: captured.final_url,
-          ...(extracted.selector ? { selector: extracted.selector } : {}),
-        },
-      },
+      data: flattenExtracted(extracted.data),
       status: 200,
       trace_id: nanoid(),
     };
@@ -1620,8 +1611,6 @@ export async function executeEndpoint(
       }
       return {
         trace, result: resultData,
-        ...(endpoint.response_schema ? { response_schema: endpoint.response_schema } : {}),
-        ...(endpoint.response_schema ? { extraction_hints: generateExtractionHints(endpoint.response_schema, skill.intent_signature) ?? undefined } : {}),
       };
     } catch (err) {
       const trace: ExecutionTrace = stampTrace({
@@ -1911,6 +1900,7 @@ export async function executeEndpoint(
 
     for (const replayUrl of replayUrls) {
       const replayHeaders = buildStructuredReplayHeaders(url, replayUrl, headers);
+      log("exec", `server-fetch: ${endpoint.method} ${replayUrl.substring(0, 80)} csrf=${replayHeaders["x-csrf-token"]?.substring(0, 10)}... cookies=${(replayHeaders["cookie"]?.length ?? 0)}chars`);
       const res = await fetch(replayUrl, {
         method: endpoint.method,
         headers: replayHeaders,
@@ -2020,7 +2010,9 @@ export async function executeEndpoint(
       try {
         result = await serverFetch();
         if (result.status >= 200 && result.status < 400) {
-          if (shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
+          // For API endpoints, trust the server response — no fallback to browser
+          const isApiEndpoint = /\/(api|graphql)\b/i.test(endpoint.url_template) || /\.(json)(\?|$)/.test(endpoint.url_template);
+          if (!isApiEndpoint && shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
             strategy = "browser";
           } else {
@@ -2244,14 +2236,8 @@ export async function executeEndpoint(
     resultData = projectResultForIntent(data, effectiveIntent);
   }
 
-  const rawResultShape = resultData === data;
-
   return {
     trace, result: resultData,
-    ...(endpoint.response_schema && rawResultShape ? { response_schema: endpoint.response_schema } : {}),
-    ...(endpoint.response_schema && rawResultShape
-      ? { extraction_hints: generateExtractionHints(endpoint.response_schema, effectiveIntent) ?? undefined }
-      : {}),
   };
 }
 

@@ -342,7 +342,17 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/v1/skills/:skill_id", async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const skill = getRecentLocalSkill(skill_id, clientScope) ?? await getSkill(skill_id, clientScope);
+    // Check local caches: recent skills → domain snapshots → marketplace
+    let skill = getRecentLocalSkill(skill_id, clientScope);
+    if (!skill) {
+      for (const [, entry] of domainSkillCache) {
+        if (entry.skillId === skill_id && entry.localSkillPath) {
+          try { skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8")); } catch {}
+          break;
+        }
+      }
+    }
+    if (!skill) skill = await getSkill(skill_id, clientScope);
     if (!skill) return reply.code(404).send({ error: "Skill not found" });
     return reply.send(skill);
   });

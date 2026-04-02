@@ -106,220 +106,9 @@ function normalizeSetupScope(value: string | boolean | undefined): SetupScope {
 }
 
 // ---------------------------------------------------------------------------
-// Path resolution — drill into nested structures with [] array expansion
+// Slim output — keep only essential trace metadata + result
 // ---------------------------------------------------------------------------
 
-/** Build entityUrn → object index for normalized APIs (LinkedIn, Facebook, etc.) */
-function buildEntityIndex(items: unknown[]): Map<string, unknown> {
-  const index = new Map<string, unknown>();
-  for (const item of items) {
-    if (item != null && typeof item === "object") {
-      const urn = (item as Record<string, unknown>).entityUrn;
-      if (typeof urn === "string") index.set(urn, item);
-    }
-  }
-  return index;
-}
-
-/** Detect if an object contains a normalized entity array and build the index.
- *  Searches all top-level and one-level-nested arrays for entityUrn-keyed items,
- *  picking the largest qualifying array. Works for any normalized API shape. */
-function detectEntityIndex(data: unknown): Map<string, unknown> | null {
-  if (data == null || typeof data !== "object") return null;
-
-  let best: unknown[] | null = null;
-
-  const check = (arr: unknown[]) => {
-    if (arr.length < 2) return;
-    const sample = arr.slice(0, 10);
-    const withUrn = sample.filter(
-      (i) => i != null && typeof i === "object" && typeof (i as Record<string, unknown>).entityUrn === "string"
-    ).length;
-    if (withUrn >= sample.length * 0.5 && (!best || arr.length > best.length)) {
-      best = arr;
-    }
-  };
-
-  const obj = data as Record<string, unknown>;
-  for (const val of Object.values(obj)) {
-    if (Array.isArray(val)) {
-      check(val);
-    } else if (val != null && typeof val === "object" && !Array.isArray(val)) {
-      // One level deep: { data: { included: [...] } }, { response: { entities: [...] } }, etc.
-      for (const nested of Object.values(val as Record<string, unknown>)) {
-        if (Array.isArray(nested)) check(nested);
-      }
-    }
-  }
-
-  return best ? buildEntityIndex(best) : null;
-}
-
-/** Resolve a dot-path like "data.items[].name" against an object.
- *  When entityIndex is provided, transparently follows *-prefixed URN references. */
-function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unknown> | null): unknown {
-  if (!path || obj == null) return obj;
-  const segments = path.split(".");
-  let cur: unknown = obj;
-  for (let i = 0; i < segments.length; i++) {
-    if (cur == null) return undefined;
-    const seg = segments[i];
-    if (seg.endsWith("[]")) {
-      const key = seg.slice(0, -2);
-      const arr = key ? (cur as Record<string, unknown>)[key] : cur;
-      if (!Array.isArray(arr)) return undefined;
-      const remaining = segments.slice(i + 1).join(".");
-      if (!remaining) return arr;
-      return arr.flatMap((item) => {
-        const v = resolvePath(item, remaining, entityIndex);
-        return v === undefined ? [] : Array.isArray(v) ? v : [v];
-      });
-    }
-    // Handle numeric array indexing: key[0], key[1], etc.
-    const indexMatch = seg.match(/^(.+?)\[(\d+)\]$/);
-    if (indexMatch) {
-      const key = indexMatch[1];
-      const idx = parseInt(indexMatch[2], 10);
-      const arr = key ? (cur as Record<string, unknown>)[key] : cur;
-      if (!Array.isArray(arr) || idx >= arr.length) return undefined;
-      cur = arr[idx];
-      continue;
-    }
-    const rec = cur as Record<string, unknown>;
-    let val = rec[seg];
-
-    // URN reference resolution: if direct lookup fails (or is null), check for "*key" reference.
-    // Normalized APIs (LinkedIn Voyager, Facebook Graph) set inline fields to null when
-    // the value is stored as a URN reference: e.g. socialDetail: null + *socialDetail: "urn:li:..."
-    if (val == null && entityIndex) {
-      const ref = rec[`*${seg}`];
-      if (typeof ref === "string") {
-        val = entityIndex.get(ref);
-      }
-    }
-
-    cur = val;
-  }
-  return cur;
-}
-
-/** Apply --extract fields to data. Each field is "alias:deep.path" or just "field".
- *  When processing arrays, rows where ALL extracted fields are null/undefined/empty are dropped.
- *  This handles decorator-pattern APIs (e.g. LinkedIn included[]) where heterogeneous
- *  item types coexist and only some items match the requested fields. */
-function extractFields(data: unknown, fields: string[], entityIndex?: Map<string, unknown> | null): unknown {
-  if (data == null) return data;
-
-  function mapItem(item: unknown): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const f of fields) {
-      const colonIdx = f.indexOf(":");
-      const alias = colonIdx >= 0 ? f.slice(0, colonIdx) : f.split(".").pop()!;
-      const path = colonIdx >= 0 ? f.slice(colonIdx + 1) : f;
-      const resolved = resolvePath(item, path, entityIndex ?? undefined) ?? [];
-      // Unwrap single-element arrays to scalar values
-      out[alias] = Array.isArray(resolved)
-        ? resolved.length === 0
-          ? null
-          : resolved.length === 1
-            ? resolved[0]
-            : resolved
-        : resolved;
-    }
-    return out;
-  }
-
-  /** Check if a value is "present" (non-null, non-empty) */
-  function hasValue(v: unknown): boolean {
-    if (v == null) return false;
-    if (Array.isArray(v)) return v.length > 0;
-    return true;
-  }
-
-  if (Array.isArray(data)) {
-    return data.map(mapItem).filter((row) => Object.values(row).some(hasValue));
-  }
-  return mapItem(data);
-}
-
-function hasMeaningfulValue(value: unknown): boolean {
-  if (value == null) return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  if (typeof value === "number" || typeof value === "boolean") return true;
-  if (Array.isArray(value)) return value.some((item) => hasMeaningfulValue(item));
-  if (typeof value === "object") return Object.values(value as Record<string, unknown>).some((item) => hasMeaningfulValue(item));
-  return false;
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value);
-}
-
-function isScalarLike(value: unknown): boolean {
-  if (value == null) return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  if (typeof value === "number" || typeof value === "boolean") return true;
-  if (Array.isArray(value)) {
-    return value.length > 0 && value.every((item) => item == null || typeof item === "string" || typeof item === "number" || typeof item === "boolean");
-  }
-  return false;
-}
-
-function looksStructuredForDirectOutput(value: unknown): boolean {
-  if (Array.isArray(value)) {
-    const sample = value.filter(isPlainRecord).slice(0, 3);
-    if (sample.length === 0) return false;
-    const simpleRows = sample.filter((row) => {
-      const keys = Object.keys(row);
-      const scalarFields = Object.values(row).filter(isScalarLike).length;
-      return keys.length > 0 && keys.length <= 20 && scalarFields >= 2;
-    });
-    return simpleRows.length >= Math.ceil(sample.length / 2);
-  }
-
-  if (!isPlainRecord(value)) return false;
-  const keys = Object.keys(value);
-  if (keys.length === 0 || keys.length > 20) return false;
-  const scalarFields = Object.values(value).filter(isScalarLike).length;
-  return scalarFields >= 2;
-}
-
-/** Apply --path, --extract, --limit to a result object. */
-function applyTransforms(result: unknown, flags: Record<string, string | boolean>): unknown {
-  let data = result;
-
-  // Build entity index from the full response before drilling into it
-  const entityIndex = detectEntityIndex(result);
-
-  // --path: drill into nested structure
-  const pathFlag = flags.path as string | undefined;
-  if (pathFlag) {
-    data = resolvePath(data, pathFlag, entityIndex);
-    if (data === undefined) {
-      // Path didn't match — warn so the user knows to fix it
-      process.stderr.write(`[unbrowse] warning: --path "${pathFlag}" resolved to undefined. Check path against response structure.\n`);
-      return [];
-    }
-  }
-
-  // --extract: pick specific fields (with entity index for URN resolution)
-  const extractFlag = flags.extract as string | undefined;
-  if (extractFlag) {
-    const fields = extractFlag.split(",").map((f) => f.trim());
-    data = extractFields(data, fields, entityIndex);
-  }
-
-  // --limit: cap array output
-  const limitFlag = flags.limit as string | undefined;
-  if (limitFlag && Array.isArray(data)) {
-    data = data.slice(0, Number(limitFlag));
-  }
-
-  return data;
-}
-
-/** Slim down output when transforms are applied — keep only essential trace metadata
- *  and drop the response_schema (it's noise once extraction is done). */
 function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   const trace = obj.trace as Record<string, unknown> | undefined;
   const out: Record<string, unknown> = {
@@ -335,100 +124,13 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
         }
       : undefined,
   };
-  // Carry over result (even if empty array — don't silently drop it)
   if ("result" in obj) out.result = obj.result;
+  if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
+  if (obj.source) out.source = obj.source;
+  if (obj.skill) out.skill = obj.skill;
   return out;
 }
 
-/** When a response is large and has extraction_hints, replace the full result
- *  with a compact summary + the hints so agents know how to extract. */
-function wrapWithHints(obj: Record<string, unknown>): Record<string, unknown> {
-  const hints = obj.extraction_hints as { path: string; fields: string[]; item_field_count: number; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
-  if (!hints) return obj;
-
-  const resultStr = JSON.stringify(obj.result ?? "");
-  // Only wrap when response is large enough that raw output would overwhelm context
-  if (resultStr.length < 2000) return obj;
-
-  const trace = obj.trace as Record<string, unknown> | undefined;
-
-  return {
-    trace: trace
-      ? {
-          trace_id: trace.trace_id,
-          skill_id: trace.skill_id,
-          endpoint_id: trace.endpoint_id,
-          success: trace.success,
-          status_code: trace.status_code,
-        }
-      : undefined,
-    _response_too_large: `${resultStr.length} bytes — use extraction flags below to get structured data`,
-    extraction_hints: hints,
-  };
-}
-
-/** When --schema is used, return only the schema tree + extraction hints */
-function schemaOnly(obj: Record<string, unknown>): Record<string, unknown> {
-  const trace = obj.trace as Record<string, unknown> | undefined;
-  return {
-    trace: trace
-      ? { trace_id: trace.trace_id, skill_id: trace.skill_id, endpoint_id: trace.endpoint_id, success: trace.success }
-      : undefined,
-    extraction_hints: obj.extraction_hints ?? null,
-    response_schema: obj.response_schema ?? null,
-  };
-}
-
-/** Auto-extract when hints have high confidence, otherwise wrap with hints.
- *  This is the "right first try" path — agents get clean data without a second call. */
-function autoExtractOrWrap(obj: Record<string, unknown>): Record<string, unknown> {
-  const hints = obj.extraction_hints as { path: string; fields: string[]; confidence: string; cli_args?: string; schema_tree?: Record<string, string> } | undefined;
-  const resultStr = JSON.stringify(obj.result ?? "");
-
-  // Small responses: return as-is
-  if (resultStr.length < 2000) return obj;
-
-  // Server-side intent projection can already return clean rows while raw endpoint
-  // hints still describe the pre-projection payload. Preserve the structured rows.
-  if (looksStructuredForDirectOutput(obj.result)) {
-    return slimTrace({ ...obj, extraction_hints: undefined, response_schema: undefined });
-  }
-
-  // No hints: can't auto-extract, return as-is (raw will be big but we have no better option)
-  if (!hints) return obj;
-
-  // High confidence only: medium confidence still too error-prone for first-try correctness.
-  if (hints.confidence === "high") {
-    const syntheticFlags: Record<string, string | boolean> = {};
-    if (hints.path) syntheticFlags.path = hints.path;
-    if (hints.fields.length > 0) syntheticFlags.extract = hints.fields.join(",");
-    syntheticFlags.limit = "20";
-
-    const extracted = applyTransforms(obj.result, syntheticFlags);
-    if (!hasMeaningfulValue(extracted)) return wrapWithHints(obj);
-    const slimmed = slimTrace({ ...obj, result: extracted });
-
-    // Include the hints so the agent knows what was auto-applied and can adjust
-    (slimmed as Record<string, unknown>)._auto_extracted = {
-      applied: hints.cli_args,
-      confidence: hints.confidence,
-      all_fields: hints.schema_tree,
-      note: "Auto-extracted using response_schema. Add/remove fields with --extract, change array with --path, or use --raw for full response.",
-    };
-    return slimmed;
-  }
-
-  // Low confidence: wrap with hints, let agent decide
-  return wrapWithHints(obj);
-}
-
-// ---------------------------------------------------------------------------
-// Server lifecycle
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------
 
 async function cmdHealth(flags: Record<string, string | boolean>): Promise<void> {
   output(await api("GET", "/health"), !!flags.pretty);
@@ -442,6 +144,8 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
   const url = flags.url as string | undefined;
   const domain = flags.domain as string | undefined;
   const explicitEndpointId = flags["endpoint-id"] as string | undefined;
+  const autoExecute = !!flags.execute;
+  const extraParams = flags.params ? JSON.parse(flags.params as string) : {};
 
   if (url) {
     body.params = { url };
@@ -454,13 +158,20 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     body.params = { ...(body.params as Record<string, unknown> ?? {}), endpoint_id: explicitEndpointId };
   }
   if (flags.params) {
-    body.params = { ...(body.params as Record<string, unknown> ?? {}), ...JSON.parse(flags.params as string) };
+    body.params = { ...(body.params as Record<string, unknown> ?? {}), ...extraParams };
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  // Always get raw data — agent handles extraction via --path/--extract
-  const hasTransforms = !!(flags.path || flags.extract);
   body.projection = { raw: true };
+
+  function execBody(endpointId: string): Record<string, unknown> {
+    return { params: { endpoint_id: endpointId, ...extraParams }, intent, projection: { raw: true } };
+  }
+
+  function resolveSkillId(): string | undefined {
+    return (result.skill as Record<string, unknown>)?.skill_id as string
+      ?? (result as Record<string, unknown>).skill_id as string;
+  }
 
   const startedAt = Date.now();
   let result = await withPendingNotice(
@@ -491,21 +202,30 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
 
   // When agent explicitly picked an endpoint but resolve deferred, execute it directly
   if (explicitEndpointId && result.available_endpoints) {
-    const skillId = (result.skill as Record<string, unknown>)?.skill_id as string
-      ?? (result as Record<string, unknown>).skill_id as string;
+    const skillId = resolveSkillId();
     if (skillId) {
-      const execBody: Record<string, unknown> = {
-        params: { endpoint_id: explicitEndpointId, ...(flags.params ? JSON.parse(flags.params as string) : {}) },
-        intent,
-        projection: { raw: true },
-      };
       result = await withPendingNotice(
-        api("POST", `/v1/skills/${skillId}/execute`, execBody) as Promise<Record<string, unknown>>,
+        api("POST", `/v1/skills/${skillId}/execute`, execBody(explicitEndpointId)) as Promise<Record<string, unknown>>,
         "Executing selected endpoint...",
       );
     }
   }
-  // Browse session handoff: print instructions instead of trying to extract data
+
+  // --execute: auto-pick best endpoint and return data in one step
+  if (autoExecute && result.available_endpoints && !result.result) {
+    const endpoints = result.available_endpoints as Array<Record<string, unknown>>;
+    const skillId = resolveSkillId();
+    if (skillId && endpoints.length > 0) {
+      const bestEndpoint = endpoints[0];
+      info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
+      result = await withPendingNotice(
+        api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
+        "Executing best endpoint...",
+      );
+    }
+  }
+
+  // Browse session handoff
   const resultObj = result.result as Record<string, unknown> | undefined;
   if (resultObj?.status === "browse_session_open") {
     info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
@@ -521,18 +241,8 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     info("Live capture finished. Future runs against this site should be much faster.");
   }
 
-  // --schema: return only schema + extraction hints (no data)
-  if (flags.schema) {
-    output(schemaOnly(result), !!flags.pretty);
-    return;
-  }
+  result = slimTrace(result);
 
-  // --path / --extract / --limit: transform .result in-place
-  if (hasTransforms && result.result != null) {
-    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  }
-
-  // Append CLI hint for feedback
   const skill = result.skill as Record<string, unknown> | undefined;
   const trace = result.trace as Record<string, unknown> | undefined;
   if (skill?.skill_id && trace) {
@@ -560,8 +270,6 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
   if (flags.intent) body.intent = flags.intent;
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
-  // Always get raw data — agent handles extraction via --path/--extract
-  const hasTransforms = !!(flags.path || flags.extract);
   body.projection = { raw: true };
 
   let result = await withPendingNotice(
@@ -569,16 +277,8 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     "Still working. This endpoint may require browser replay or first-time auth/capture setup.",
   );
 
-  // --schema: return only schema + extraction hints (no data)
-  if (flags.schema) {
-    output(schemaOnly(result), !!flags.pretty);
-    return;
-  }
-
-  // --path / --extract / --limit: transform .result in-place
-  if (hasTransforms && result.result != null) {
-    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  }
+  // Strip metadata bloat
+  result = slimTrace(result);
 
   output(result, !!flags.pretty);
 }
@@ -691,7 +391,7 @@ export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
-    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 search/capture/execute" },
+    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 find skill + execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
@@ -719,15 +419,11 @@ export const CLI_REFERENCE = {
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
     { flag: "--no-auto-start", desc: "Don't auto-start server" },
-    { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
     { flag: "--skip-browser", desc: "setup: skip browser-engine install" },
     { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
-    { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
-    { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
-    { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
-    { flag: "--limit N", desc: "Cap array output to N items" },
+    { flag: "--execute", desc: "Auto-pick best endpoint and return data (resolve only)" },
     { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
     { flag: "--dry-run", desc: "Preview mutations" },
     { flag: "--force-capture", desc: "Bypass caches, re-capture" },
@@ -735,10 +431,9 @@ export const CLI_REFERENCE = {
   ],
   examples: [
     "unbrowse setup",
+    'unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
     "unbrowse execute --skill abc --endpoint def --pretty",
-    'unbrowse execute --skill abc --endpoint def --extract "user,text,likes" --limit 10',
-    'unbrowse execute --skill abc --endpoint def --path "data.included[]" --extract "name:actor.name,text:commentary.text" --limit 20',
     "unbrowse feedback --skill abc --endpoint def --rating 5",
   ],
 };
@@ -893,8 +588,7 @@ async function cmdSiteTask(pack: SitePack, taskName: string, flags: Record<strin
   }
   if (flags["dry-run"]) body.dry_run = true;
   if (flags["force-capture"]) body.force_capture = true;
-  const hasTransforms = !!(flags.path || flags.extract);
-  if (flags.raw || hasTransforms) body.projection = { raw: true };
+  body.projection = { raw: true };
 
   const startedAt = Date.now();
   let result = await withPendingNotice(
@@ -910,16 +604,8 @@ async function cmdSiteTask(pack: SitePack, taskName: string, flags: Record<strin
     process.exit(2);
   }
 
-  if (flags.schema) {
-    output(schemaOnly(result), !!flags.pretty);
-    return;
-  }
-
-  if (hasTransforms && result.result != null) {
-    result = slimTrace({ ...result, result: applyTransforms(result.result, flags) });
-  } else if (!flags.raw && result.result != null) {
-    result = autoExtractOrWrap(result);
-  }
+  // Strip metadata bloat
+  result = slimTrace(result);
 
   const deps = buildDepsMetadata(pack, taskName);
   (result as Record<string, unknown>)._deps = deps;
@@ -955,13 +641,9 @@ async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<stri
         context: { url: taskDef.url },
       };
       if (flags["force-capture"]) body.force_capture = true;
-      const hasTransforms = !!(flags.path || flags.extract);
-      if (flags.raw || hasTransforms) body.projection = { raw: true };
-      let res = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
-      if (!flags.raw && res.result != null) {
-        res = autoExtractOrWrap(res);
-      }
-      return { task, result: res };
+      body.projection = { raw: true };
+      const res = await api("POST", "/v1/intent/resolve", body) as Record<string, unknown>;
+      return { task, result: slimTrace(res) };
     });
 
     const waveResult = await Promise.all(promises);
@@ -1081,6 +763,60 @@ async function cmdForward(): Promise<void> {
 async function cmdClose(): Promise<void> {
   output(await api("POST", "/v1/browse/close"), false);
 }
+
+async function cmdConnectChrome(): Promise<void> {
+  const { execSync, spawn: spawnProc } = require("child_process");
+  
+  // Check if Chrome already has CDP
+  try {
+    const res = await fetch("http://127.0.0.1:9222/json/version", { signal: AbortSignal.timeout(1000) });
+    if (res.ok) {
+      const data = await res.json() as { "User-Agent"?: string };
+      if (!data["User-Agent"]?.includes("Headless")) {
+        console.log("Your Chrome is already connected with CDP on port 9222.");
+        console.log("Browse commands will use your real browser with all your sessions.");
+        return;
+      }
+    }
+  } catch { /* not running */ }
+
+  // Kill any Kuri-managed Chrome
+  try { execSync("pkill -f kuri/chrome-profile", { stdio: "ignore" }); } catch {}
+
+  // Quit Chrome fully — can't add debugging port to running instance
+  console.log("Quitting Chrome to relaunch with remote debugging...");
+  if (process.platform === "darwin") {
+    try { execSync('osascript -e "quit app \\"Google Chrome\\""', { stdio: "ignore", timeout: 5000 }); } catch {}
+  } else {
+    try { execSync("pkill -f chrome", { stdio: "ignore" }); } catch {}
+  }
+  await new Promise(r => setTimeout(r, 2000));
+
+  console.log("Launching Chrome with remote debugging on port 9222...");
+  if (process.platform === "darwin") {
+    spawnProc("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", 
+      ["--remote-debugging-port=9222", "--no-first-run", "--no-default-browser-check"],
+      { stdio: "ignore", detached: true }).unref();
+  } else {
+    spawnProc("google-chrome", ["--remote-debugging-port=9222"], { stdio: "ignore", detached: true }).unref();
+  }
+
+  // Wait for CDP
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch("http://127.0.0.1:9222/json/version", { signal: AbortSignal.timeout(500) });
+      if (res.ok) {
+        console.log("Connected. Your real Chrome is now available for browse commands.");
+        console.log("All your logged-in sessions (LinkedIn, X, etc.) will work.");
+        console.log('Run: unbrowse go "https://linkedin.com/feed/"');
+        return;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 500));
+  }
+  console.error("Could not connect to Chrome. Make sure all Chrome windows are closed and try again.");
+}
 async function main(): Promise<void> {
   const { command, args, flags } = parseArgs(process.argv);
   const noAutoStart = !!flags["no-auto-start"];
@@ -1100,6 +836,7 @@ async function main(): Promise<void> {
   if (command === "stop") { cmdStop(flags); return; }
   if (command === "restart") return cmdRestart(flags);
   if (command === "upgrade" || command === "update") return cmdUpgrade(flags);
+  if (command === "connect-chrome") return cmdConnectChrome();
 
   // --- Shortcut resolution: unbrowse <site> [task] [flags] ---
   const KNOWN_COMMANDS = new Set([
@@ -1108,6 +845,7 @@ async function main(): Promise<void> {
     "status", "stop", "restart", "upgrade", "update",
     "go", "snap", "click", "fill", "type", "press", "select", "scroll",
     "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "close",
+    "connect-chrome",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -1159,6 +897,7 @@ async function main(): Promise<void> {
     case "back": return cmdBack();
     case "forward": return cmdForward();
     case "close": return cmdClose();
+    case "connect-chrome": return cmdConnectChrome();
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }

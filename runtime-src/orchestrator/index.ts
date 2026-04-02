@@ -161,8 +161,6 @@ const routeResultCache = new Map<
     endpointId?: string;
     result: unknown;
     trace: ExecutionTrace;
-    response_schema?: ResponseSchema;
-    extraction_hints?: OrchestratorResult["extraction_hints"];
     expires: number;
   }
 >();
@@ -445,16 +443,12 @@ function promoteResultSnapshot(
   endpointId: string | undefined,
   result: unknown,
   trace: ExecutionTrace,
-  response_schema?: ResponseSchema,
-  extraction_hints?: OrchestratorResult["extraction_hints"],
 ): void {
   routeResultCache.set(cacheKey, {
     skill,
     endpointId,
     result,
     trace,
-    response_schema,
-    extraction_hints,
     expires: Date.now() + ROUTE_CACHE_TTL,
   });
 }
@@ -465,8 +459,6 @@ function buildCachedResultResponse(
     endpointId?: string;
     result: unknown;
     trace: ExecutionTrace;
-    response_schema?: ResponseSchema;
-    extraction_hints?: OrchestratorResult["extraction_hints"];
   },
   source: "marketplace" | "live-capture",
   timing: OrchestrationTiming,
@@ -485,8 +477,6 @@ function buildCachedResultResponse(
     source,
     skill: cached.skill,
     timing,
-    response_schema: cached.response_schema,
-    extraction_hints: cached.extraction_hints,
   };
 }
 
@@ -874,8 +864,6 @@ export interface OrchestratorResult {
   source: "marketplace" | "live-capture" | "dom-fallback" | "first-pass";
   skill: SkillManifest;
   timing: OrchestrationTiming;
-  response_schema?: ResponseSchema;
-  extraction_hints?: import("../transform/schema-hints.js").ExtractionHint;
 }
 
 type AutoExecDecision = {
@@ -2576,8 +2564,6 @@ export async function resolveAndExecute(
             candidate.endpoint.endpoint_id,
             execOut.result,
             execOut.trace,
-            execOut.response_schema,
-            execOut.extraction_hints,
           );
           // --- Store successful execution trace for future RAG retrieval ---
           try {
@@ -2670,8 +2656,6 @@ export async function resolveAndExecute(
             source,
             skill,
             timing: finalize(source, execOut.result, skill.skill_id, skill, execOut.trace),
-            response_schema: execOut.response_schema,
-            extraction_hints: execOut.extraction_hints,
           };
         }
         (decisionTrace.autoexec_attempts as unknown[]).push({
@@ -2903,8 +2887,6 @@ export async function resolveAndExecute(
               params.endpoint_id ?? cached.entry.endpointId,
               execOut.result,
               execOut.trace,
-              execOut.response_schema,
-              execOut.extraction_hints,
             );
             return {
               result: execOut.result,
@@ -2912,8 +2894,6 @@ export async function resolveAndExecute(
               source: "marketplace",
               skill,
               timing: finalize("route-cache", execOut.result, cached.entry.skillId, skill, execOut.trace),
-              response_schema: execOut.response_schema,
-              extraction_hints: execOut.extraction_hints,
             };
           }
         } catch {
@@ -3068,8 +3048,6 @@ export async function resolveAndExecute(
             winner.trace.endpoint_id,
             winner.result,
             winner.trace,
-            winner.response_schema,
-            winner.extraction_hints,
           );
           return {
             result: winner.result,
@@ -3083,8 +3061,6 @@ export async function resolveAndExecute(
               winner.candidate.skill,
               winner.trace,
             ),
-            response_schema: winner.response_schema,
-            extraction_hints: winner.extraction_hints,
           };
         } catch (err) {
           console.log(
@@ -3274,8 +3250,6 @@ export async function resolveAndExecute(
             params.endpoint_id ?? domainHit.endpointId,
             execOut.result,
             execOut.trace,
-            execOut.response_schema,
-            execOut.extraction_hints,
           );
           return {
             result: execOut.result,
@@ -3289,9 +3263,7 @@ export async function resolveAndExecute(
               domainHit.skill,
               execOut.trace,
             ),
-            response_schema: execOut.response_schema,
-              extraction_hints: execOut.extraction_hints,
-            };
+          };
         }
         invalidateResolveCacheEntries([cacheKey], requestedDomainCacheKey ? [requestedDomainCacheKey] : []);
       }
@@ -3612,8 +3584,6 @@ export async function resolveAndExecute(
             learned_skill,
             execOut.trace,
           ),
-          response_schema: execOut.response_schema,
-          extraction_hints: execOut.extraction_hints,
         },
         parityBaseline,
       );
@@ -3625,8 +3595,6 @@ export async function resolveAndExecute(
         execOut.trace.endpoint_id,
         execOut.result,
         execOut.trace,
-        execOut.response_schema,
-        execOut.extraction_hints,
       );
     }
     return {
@@ -3641,8 +3609,6 @@ export async function resolveAndExecute(
         learned_skill,
         execOut.trace,
       ),
-      response_schema: execOut.response_schema,
-      extraction_hints: execOut.extraction_hints,
     };
   }
   const deferred = await buildDeferralWithAutoExec(
