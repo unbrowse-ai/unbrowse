@@ -142,6 +142,12 @@ export async function interactiveLogin(
     await storeCredential(vaultKey, JSON.stringify({ cookies: storableCookies }));
     log("auth", `stored ${storableCookies.length} cookies under ${vaultKey}`);
 
+    // Also save as Kuri auth profile so browse commands (go/snap/click) have auth
+    try {
+      await kuri.authProfileSave(tabId, targetDomain.replace(/^www\./, ""));
+      log("auth", `saved Kuri auth profile for ${targetDomain}`);
+    } catch { /* non-fatal — Kuri auth profile save is best-effort */ }
+
     return { success: true, domain: targetDomain, cookies_stored: storableCookies.length };
   } finally {
     // Restore headless setting so subsequent captures run headless
