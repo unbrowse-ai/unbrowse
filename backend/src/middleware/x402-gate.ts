@@ -1,100 +1,240 @@
 /**
- * x402 payment gating middleware — issue #33
+ * x402 payment gating middleware — lobster.cash / Corbits compatible path.
  *
- * Implements the HTTP 402 Payment Required flow via Corbits facilitator.
- * Supports both Solana and Base chains with USDC settlement.
- *
- * Flow:
- *   1. Client requests a gated resource
- *   2. Server returns HTTP 402 with X-Payment-Required header containing payment terms
- *   3. Client pays via Corbits facilitator
- *   4. Client retries with X-Payment-Proof header
- *   5. Server verifies proof via facilitator and returns the resource
- *
- * Graceful degradation: if Corbits is unreachable, log the error and allow
- * the request through — never block the entire system on facilitator downtime.
+ * Core boundary:
+ * - this service describes payment requirements and validates settlement
+ * - lobster.cash owns wallet provisioning, signing, and transaction execution
  */
 
 import type { Context } from "hono";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const CORBITS_FACILITATOR_URL = "https://facilitator.corbits.dev";
 const VERIFY_TIMEOUT_MS = 5_000;
+const SUPPORTED_CACHE_TTL_MS = 5 * 60_000;
+const X402_TIMEOUT_SECONDS = 300;
+const X402_VERSION = 2 as const;
 
-// ─── Supported chains ─────────────────────────────────────────────────────────
+let supportedKindsCache:
+  | {
+    expiresAt: number;
+    kinds: Array<{
+      x402Version: number;
+      scheme: string;
+      network: string;
+      extra?: Record<string, unknown>;
+    }>;
+  }
+  | null = null;
 
 export interface ChainConfig {
   network: string;
-  asset: string;
-  /** Production network name */
+  mainnetAsset: string;
+  testnetAsset: string;
   mainnet: string;
-  /** Test network name */
   testnet: string;
 }
 
 export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
   solana: {
     network: "solana",
-    asset: "USDC",
-    mainnet: "solana-mainnet",
-    testnet: "solana-devnet",
+    mainnetAsset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    testnetAsset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    mainnet: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    testnet: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
   },
   base: {
     network: "base",
-    asset: "USDC",
-    mainnet: "base-mainnet",
-    testnet: "base-sepolia",
+    mainnetAsset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    testnetAsset: "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+    mainnet: "eip155:8453",
+    testnet: "eip155:84532",
   },
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface X402Terms {
-  /** Payment amount as a string (to avoid floating-point issues in JSON). */
+export interface X402PaymentRequirementV2 {
+  scheme: string;
+  network: string;
   amount: string;
-  /** Currency code, e.g. "USDC". */
-  currency: string;
-  /** Blockchain network, e.g. "solana-devnet" or "base-sepolia". */
-  chain: string;
-  /** Corbits facilitator endpoint for payment processing. */
-  facilitator: string;
-  /** Recipient wallet address for the payment. */
-  recipient: string;
-  /** The resource URI the payment unlocks. */
-  resource: string;
-  /** Optional human-readable memo / description. */
-  memo?: string;
+  asset: string;
+  payTo: string;
+  maxTimeoutSeconds: number;
+  extra?: Record<string, unknown>;
 }
 
-export interface X402MultiChainTerms {
-  /** All accepted payment options — agents can pay on any supported chain. */
-  accepts: X402Terms[];
+export interface X402PaymentRequiredV2 {
+  x402Version: typeof X402_VERSION;
+  error?: string;
+  resource: {
+    url: string;
+    description?: string;
+    mimeType?: string;
+  };
+  accepts: X402PaymentRequirementV2[];
 }
 
-// ─── 402 response helper ──────────────────────────────────────────────────────
+interface X402PaymentPayloadV2 {
+  x402Version: 2;
+  accepted: X402PaymentRequirementV2;
+  payload: Record<string, unknown>;
+  resource?: {
+    url: string;
+    description?: string;
+    mimeType?: string;
+  };
+  extensions?: Record<string, unknown>;
+}
 
-/**
- * Return an HTTP 402 response with x402-compliant payment terms.
- * Includes payment options for ALL supported chains.
- */
-export function x402Response(c: Context, terms: X402Terms | X402MultiChainTerms) {
-  const body = "accepts" in terms
-    ? { error: "Payment Required", ...terms }
-    : { error: "Payment Required", terms };
+function safeBase64Encode(data: string): string {
+  if (typeof globalThis !== "undefined" && typeof globalThis.btoa === "function") {
+    const bytes = new TextEncoder().encode(data);
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
+    return globalThis.btoa(binary);
+  }
+  return Buffer.from(data, "utf8").toString("base64");
+}
 
-  return c.json(body, 402, {
+function safeBase64Decode(data: string): string {
+  if (typeof globalThis !== "undefined" && typeof globalThis.atob === "function") {
+    const binary = globalThis.atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+  return Buffer.from(data, "base64").toString("utf8");
+}
+
+function encodeBase64Json(value: unknown): string {
+  return safeBase64Encode(JSON.stringify(value));
+}
+
+function decodeBase64Json<T>(value: string): T {
+  return JSON.parse(safeBase64Decode(value)) as T;
+}
+
+async function fetchSupportedKinds(): Promise<Array<{
+  x402Version: number;
+  scheme: string;
+  network: string;
+  extra?: Record<string, unknown>;
+}>> {
+  if (supportedKindsCache && supportedKindsCache.expiresAt > Date.now()) {
+    return supportedKindsCache.kinds;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${CORBITS_FACILITATOR_URL}/supported`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`supported returned ${res.status}`);
+    }
+
+    const body = await res.json() as {
+      kinds?: Array<{
+        x402Version: number;
+        scheme: string;
+        network: string;
+        extra?: Record<string, unknown>;
+      }>;
+    };
+
+    supportedKindsCache = {
+      expiresAt: Date.now() + SUPPORTED_CACHE_TTL_MS,
+      kinds: body.kinds ?? [],
+    };
+    return supportedKindsCache.kinds;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function getSupportedKindExtra(
+  x402Version: number,
+  scheme: string,
+  network: string,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    const kinds = await fetchSupportedKinds();
+    return kinds.find((kind) =>
+      kind.x402Version === x402Version
+      && kind.scheme === scheme
+      && kind.network === network
+    )?.extra;
+  } catch (err) {
+    console.warn(`[x402] failed to load facilitator supported kinds: ${(err as Error).message}`);
+    return undefined;
+  }
+}
+
+export function x402Response(c: Context, terms: X402PaymentRequiredV2) {
+  return c.json(terms, 402, {
+    "PAYMENT-REQUIRED": encodeBase64Json(terms),
     "X-Payment-Required": JSON.stringify(terms),
   });
 }
 
-// ─── Proof verification ───────────────────────────────────────────────────────
+async function settlePaymentPayload(
+  paymentPayload: X402PaymentPayloadV2,
+): Promise<{ valid: boolean; degraded: boolean; transaction?: string; settlementHeader?: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${CORBITS_FACILITATOR_URL}/settle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        x402Version: paymentPayload.x402Version,
+        paymentPayload,
+        paymentRequirements: paymentPayload.accepted,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+
+    const body = await res.json() as Record<string, unknown>;
+    if (!res.ok) {
+      return { valid: false, degraded: false };
+    }
+
+    return {
+      valid: !!body.success,
+      degraded: false,
+      transaction: (body.transaction ?? body.txHash) as string | undefined,
+      settlementHeader: encodeBase64Json(body),
+    };
+  } catch (err) {
+    console.error("[x402] facilitator settlement failed, degrading gracefully:", (err as Error).message);
+    return { valid: true, degraded: true };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
- * Verify a payment proof string via the Corbits facilitator.
- * Tries /settle first (x402 standard), falls back to /verify (legacy).
+ * Verify a lobster-compatible PAYMENT-SIGNATURE header, or fall back to the
+ * old X-Payment-Proof verification path.
  */
-export async function verifyX402Proof(proof: string): Promise<{ valid: boolean; degraded: boolean; transaction?: string }> {
+export async function verifyX402Proof(
+  proof: string,
+): Promise<{ valid: boolean; degraded: boolean; transaction?: string; settlementHeader?: string }> {
+  try {
+    const paymentPayload = decodeBase64Json<X402PaymentPayloadV2>(proof);
+    if (paymentPayload?.x402Version === 2 && paymentPayload.accepted) {
+      return await settlePaymentPayload(paymentPayload);
+    }
+  } catch {
+    // not a PAYMENT-SIGNATURE payload
+  }
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
@@ -117,7 +257,6 @@ export async function verifyX402Proof(proof: string): Promise<{ valid: boolean; 
       };
     }
 
-    // Try legacy /verify endpoint
     const res2 = await fetch(`${CORBITS_FACILITATOR_URL}/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,62 +265,78 @@ export async function verifyX402Proof(proof: string): Promise<{ valid: boolean; 
 
     return { valid: res2.ok, degraded: false };
   } catch (err) {
-    // Facilitator unreachable — graceful degradation: allow the request
     console.error("[x402] facilitator verification failed, degrading gracefully:", (err as Error).message);
     return { valid: true, degraded: true };
   }
 }
 
-// ─── Payment terms builder ────────────────────────────────────────────────────
-
 /**
  * Build x402 payment terms for a skill access request.
- * Returns multi-chain terms so agents can pay on Solana OR Base.
+ *
+ * Docs-aligned defaults:
+ * - Corbits facilitator
+ * - USDC settlement
+ * - Solana / Base networks that lobster.cash can actually pay on
  */
-export function buildSkillPaymentTerms(
+export async function buildSkillPaymentTerms(
   priceUsd: number,
   skillId: string,
   recipient: string,
   resource: string,
   options?: {
-    /** Additional per-chain recipients (e.g. different address for Base vs Solana) */
     recipients?: Record<string, string>;
-    /** Force a specific chain instead of offering all */
     chain?: string;
-    /** Use testnet networks */
     testnet?: boolean;
   },
-): X402MultiChainTerms {
-  const amount = priceUsd.toFixed(6);
-  const memo = `Skill access: ${skillId}`;
-  const useTestnet = options?.testnet ?? true; // Default to testnet for safety
+): Promise<X402PaymentRequiredV2> {
+  const amount = String(Math.max(1, Math.round(priceUsd * 1_000_000)));
+  const useTestnet = options?.testnet ?? true;
+  const scheme = "exact";
+
+  const buildRequirement = async (
+    chainName: string,
+    config: ChainConfig,
+  ): Promise<X402PaymentRequirementV2> => {
+    const network = useTestnet ? config.testnet : config.mainnet;
+    const asset = useTestnet ? config.testnetAsset : config.mainnetAsset;
+    return {
+      scheme,
+      network,
+      amount,
+      asset,
+      payTo: options?.recipients?.[chainName] ?? recipient,
+      maxTimeoutSeconds: X402_TIMEOUT_SECONDS,
+      extra: await getSupportedKindExtra(X402_VERSION, scheme, network),
+    };
+  };
 
   if (options?.chain) {
     const chainConfig = SUPPORTED_CHAINS[options.chain];
     if (!chainConfig) throw new Error(`Unsupported chain: ${options.chain}`);
     return {
-      accepts: [{
-        amount,
-        currency: chainConfig.asset,
-        chain: useTestnet ? chainConfig.testnet : chainConfig.mainnet,
-        facilitator: CORBITS_FACILITATOR_URL,
-        recipient: options?.recipients?.[options.chain] ?? recipient,
-        resource,
-        memo,
-      }],
+      x402Version: X402_VERSION,
+      error: "Payment Required",
+      resource: {
+        url: resource,
+        description: `Skill access: ${skillId}`,
+        mimeType: "application/json",
+      },
+      accepts: [await buildRequirement(options.chain, chainConfig)],
     };
   }
 
-  // Offer ALL supported chains
+  const accepts = await Promise.all(
+    Object.entries(SUPPORTED_CHAINS).map(([chainName, config]) => buildRequirement(chainName, config)),
+  );
+
   return {
-    accepts: Object.entries(SUPPORTED_CHAINS).map(([chainName, config]) => ({
-      amount,
-      currency: config.asset,
-      chain: useTestnet ? config.testnet : config.mainnet,
-      facilitator: CORBITS_FACILITATOR_URL,
-      recipient: options?.recipients?.[chainName] ?? recipient,
-      resource,
-      memo,
-    })),
+    x402Version: X402_VERSION,
+    error: "Payment Required",
+    resource: {
+      url: resource,
+      description: `Skill access: ${skillId}`,
+      mimeType: "application/json",
+    },
+    accepts,
   };
 }
