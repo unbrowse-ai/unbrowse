@@ -113,6 +113,26 @@ For DeFi builders accustomed to token models, this might seem like a limitation.
 
 ---
 
+## FAQ
+
+### What is proof of indexing?
+
+Proof of indexing is Unbrowse's incentive mechanism for building a shared route graph for AI agents. Contributors browse real websites, Unbrowse discovers the callable API routes behind those sessions, and contributors earn USDC when agents resolve those routes from the shared index.
+
+### Why not just use browser automation or scraping?
+
+Because browser automation repeats the same discovery work every time. It launches a browser, renders pixels, parses DOM, and reconstructs structure on every session. Proof of indexing turns that repeated cost into a reusable asset: once a route is discovered, future agents can call it directly.
+
+### Why pay contributors in USDC instead of a token?
+
+USDC keeps the mechanism tied to usage instead of speculation. Contributors earn stable dollars, agents pay stable dollars, and the network only grows when routes are useful enough to get real traffic. No governance token, no liquidity mining, no fake yield.
+
+### How do contributors earn more?
+
+By indexing valuable domains early, keeping routes current, and maintaining high-quality coverage on workflows agents actually query. The upside comes from useful route volume, not from hoarding a token or spinning up more hardware.
+
+---
+
 ## Start mining the agentic web
 
 ```bash

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getBlogPost } from "@/lib/blog/server";
 import { renderBlogMarkdown } from "@/lib/blog/markdown";
 import { ArticleShell } from "@/components/blog/article-shell";
+import { LEGACY_BLOG_POSTS } from "@/lib/blog/legacy-posts";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -14,6 +15,17 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const legacyPost = LEGACY_BLOG_POSTS.find((post) => post.slug === slug);
+  if (legacyPost) {
+    return {
+      title: `${legacyPost.title} | Unbrowse Blog`,
+      description: legacyPost.description,
+      alternates: {
+        canonical: `https://www.unbrowse.ai${legacyPost.canonicalPath}`,
+      },
+    };
+  }
+
   const post = await getBlogPost(slug);
   if (!post) return {};
 
@@ -57,6 +69,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
+  const legacyPost = LEGACY_BLOG_POSTS.find((post) => post.slug === slug);
+  if (legacyPost) permanentRedirect(legacyPost.canonicalPath);
+
   const post = await getBlogPost(slug);
   if (!post) notFound();
 
