@@ -393,7 +393,15 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // Apply --limit
     const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
 
-    output({ trace: result.trace, data: limited, count: limited.length }, !!flags.pretty);
+    const trace = result.trace as Record<string, unknown> | undefined;
+    const out: Record<string, unknown> = { trace: result.trace, data: limited, count: limited.length };
+
+    // Prompt agent to review when this is likely a first-time execute
+    if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
+      out._review_hint = `After presenting results, improve this endpoint's description: unbrowse review --skill ${trace.skill_id} --endpoints '[{"endpoint_id":"${trace.endpoint_id}","description":"DESCRIBE WHAT THIS RETURNS","action_kind":"ACTION","resource_kind":"RESOURCE"}]'`;
+    }
+
+    output(out, !!flags.pretty);
     return;
   }
 
