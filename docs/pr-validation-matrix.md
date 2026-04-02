@@ -1,6 +1,6 @@
 # PR Validation Matrix
 
-Use this to validate the merged `rach/restart-base` stack end-to-end.
+Use this to validate the merged `main` stack end-to-end.
 
 Focus order:
 
