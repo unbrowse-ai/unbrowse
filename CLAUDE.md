@@ -2,8 +2,29 @@
 
 ## Project
 
-Unbrowse — reverse-engineer any website into reusable API skills. Monorepo with bun workspaces.
+Unbrowse — API-native agent browser powered by Kuri. Discovers internal APIs (shadow APIs) from real browsing traffic and progressively replaces browser calls with cached API routes. Monorepo with bun workspaces.
 
+## North Star
+
+Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-optimize by running new use cases, identifying where too many steps are needed, and fixing the pipeline so fewer steps are required next time. Every manual `go → snap → click → close` sequence should eventually become a single `resolve` call.
+
+## Architecture
+
+- **Kuri is the primary browser** (Zig-native CDP broker, 464KB, ~3ms cold start). Unbrowse is the intelligence layer on top.
+- **`HEADLESS=false`** is required when spawning Kuri — enables stealth extension (anti-bot) + `--user-data-dir` for persistent Chrome profile.
+- **Cookie injection**: on `go`/`goto`, cookies are extracted from user's real Chrome/Firefox SQLite DB and injected into Kuri's tab via `setCookie`. Kuri auth profiles (Keychain) are loaded/saved per domain automatically.
+- **Passive capture**: HAR recording + fetch/XHR interceptor (`INTERCEPTOR_SCRIPT`) run on every browse session. On `close` or navigation, captured traffic goes through the full enrichment pipeline.
+- **Full enrichment pipeline** (same for passive and explicit capture): `extractEndpoints` → `extractAuthHeaders` → `storeCredential` → `mergeEndpoints` (with existing domain skill) → `generateLocalDescription` → `augmentEndpointsWithAgent` (LLM semantic metadata) → `buildSkillOperationGraph` → `cachePublishedSkill` → `queueBackgroundIndex` (marketplace publish).
+- **Resolve pipeline**: route cache → marketplace → first-pass browser (8s) → browse session handoff (agent drives) → live capture fallback.
+- **Browse session handoff**: on resolve miss, if first-pass has a tab, Unbrowse opens a browser session with auth/interceptor and returns `{ status: "browse_session_open", next_step: "unbrowse snap" }`. The calling agent drives the browser; Unbrowse indexes passively.
+- **Sync to public repo**: `bash scripts/sync-skill.sh` or manual rsync to `~/Projects/unbrowse-skill` + push to `unbrowse-ai/unbrowse` stable branch.
+
+## Known Issues to Fix
+
+- **Endpoint routing picks wrong template match** — e.g. Reddit r/singularity resolve executed r/programming endpoint instead. URL template params need better semantic matching, and skill/endpoint descriptions should be reverse-engineered by the LLM to capture what each endpoint actually does (subreddit name, query params, etc.).
+- **Kuri HAR misses async fetch/XHR** — HAR recording via CDP doesn't capture all requests on SPAs. The JS interceptor (`INTERCEPTOR_SCRIPT`) catches what HAR misses. Both sources must be merged on close.
+- **Stale marketplace skills** — old skills with non-functional endpoints still rank high in resolve. Need staleness detection + auto-deprecation.
+- **X.com timeline API not captured passively** — X's GraphQL HomeTimeline uses POST with massive JSON body that `extractEndpoints` filters out. Need to handle GraphQL POST endpoints with `operationName` extraction.
 ## Structure
 
 - `src/` — shared skill engine (capture, reverse-engineer, execute)
@@ -101,7 +122,7 @@ Omit empty sections. No emojis. No file paths or function names.
 - Only create PRs and issues — do not push directly to main
 - Secrets needed for releases: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SKILL_REPO_TOKEN`
 
-## Footguns — Do Not Repeat
+- **`src/kuri/client.ts` is now extended by Unbrowse** — auth profile methods, `HEADLESS=false`, cookie injection. Coordinate with Kuri submodule on `adding-extensions` branch when updating.
 - **Never edit `src/kuri/client.ts`** unless explicitly asked. Kuri is a separately maintained Zig binary; its Node client wrapper is fragile and tightly coupled.
 - **Always kill the running unbrowse server** after `npm i -g` before testing. The old process keeps serving stale code. Run: `pkill -9 -f 'unbrowse|kuri'; sleep 2` then retry.
 - **Guard HAR entry iteration**. Kuri HAR entries may have `undefined` headers/response fields. Always use `entry.request.headers ?? []`, never bare `entry.request.headers`.

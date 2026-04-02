@@ -13,6 +13,8 @@ export interface FirstPassResult {
   miniSkill?: SkillManifest;
   result?: unknown;
   timeMs: number;
+  /** Tab ID kept alive on miss for Phase 4 agentic loop to reuse */
+  tabId?: string;
 }
 
 interface FirstPassOptions {
@@ -279,7 +281,10 @@ export async function tryFirstPassBrowserAction(
       // non-fatal — HAR collection failed
     }
 
-    await cleanupTab(tabId, createdFreshTab);
+    // On hit: cleanup tab. On miss: keep tab alive for Phase 4 agentic loop.
+    if (filterJsonApiEntries(harEntries).length > 0) {
+      await cleanupTab(tabId, createdFreshTab);
+    }
 
     // Filter to JSON API responses only
     const jsonEntries = filterJsonApiEntries(harEntries);
@@ -289,7 +294,6 @@ export async function tryFirstPassBrowserAction(
     let miniSkill: SkillManifest | undefined;
 
     if (hit) {
-      // Parse the first JSON response as the result
       try {
         const firstEntry = jsonEntries[0];
         const text = firstEntry?.response.content?.text;
@@ -308,6 +312,7 @@ export async function tryFirstPassBrowserAction(
       actionTaken,
       intentClass,
       timeMs: Date.now() - t0,
+      tabId: hit ? undefined : tabId,  // keep tab alive on miss
     };
   } catch (err) {
     // On any error, cleanup and return miss — never throw

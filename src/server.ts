@@ -61,14 +61,8 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
     // no orphans
   }
 
-  // Pre-start Kuri (Zig-native CDP broker — replaces agent-browser/Playwright)
-  try {
-    await kuri.start();
-    const h = await kuri.health();
-    console.log(`[startup] Kuri ready — ${h.tabs ?? 0} tabs`);
-  } catch (err) {
-    console.warn(`[startup] WARNING: Kuri not available. Capture will start it on demand. ${err instanceof Error ? err.message : err}`);
-  }
+  // Kuri starts on demand when browse/capture commands need it.
+  // No eager start — avoids launching Chrome on every server restart.
 
   await ensureRegistered();
 
