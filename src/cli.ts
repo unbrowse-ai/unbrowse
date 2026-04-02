@@ -175,6 +175,16 @@ function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unkno
         return v === undefined ? [] : Array.isArray(v) ? v : [v];
       });
     }
+    // Handle numeric array indexing: key[0], key[1], etc.
+    const indexMatch = seg.match(/^(.+?)\[(\d+)\]$/);
+    if (indexMatch) {
+      const key = indexMatch[1];
+      const idx = parseInt(indexMatch[2], 10);
+      const arr = key ? (cur as Record<string, unknown>)[key] : cur;
+      if (!Array.isArray(arr) || idx >= arr.length) return undefined;
+      cur = arr[idx];
+      continue;
+    }
     const rec = cur as Record<string, unknown>;
     let val = rec[seg];
 
@@ -458,6 +468,27 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     "Still working. First-time capture/indexing for a site can take 20-80s. Waiting is usually better than falling back.",
   );
 
+  // Auto-handle auth: if site requires login, trigger interactive login and retry
+  const resultError = (result.result as Record<string, unknown>)?.error
+    ?? (result as Record<string, unknown>).error;
+  if (resultError === "auth_required") {
+    const loginUrl = (result.result as Record<string, unknown>)?.login_url as string
+      ?? url ?? "";
+    if (loginUrl) {
+      info("Site requires authentication. Opening browser for login...");
+      try {
+        await api("POST", "/v1/auth/login", { url: loginUrl });
+        info("Login complete. Retrying...");
+        result = await withPendingNotice(
+          api("POST", "/v1/intent/resolve", body) as Promise<Record<string, unknown>>,
+          "Retrying after login...",
+        );
+      } catch (err) {
+        die(`Login failed: ${(err as Error).message}. Run: unbrowse login --url "${loginUrl}"`);
+      }
+    }
+  }
+
   // When agent explicitly picked an endpoint but resolve deferred, execute it directly
   if (explicitEndpointId && result.available_endpoints) {
     const skillId = (result.skill as Record<string, unknown>)?.skill_id as string
@@ -473,6 +504,17 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         "Executing selected endpoint...",
       );
     }
+  }
+  // Browse session handoff: print instructions instead of trying to extract data
+  const resultObj = result.result as Record<string, unknown> | undefined;
+  if (resultObj?.status === "browse_session_open") {
+    info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
+    info(`Use these commands to get your data:`);
+    const commands = resultObj.commands as string[] ?? ["unbrowse snap --filter interactive", "unbrowse click <ref>", "unbrowse close"];
+    for (const cmd of commands) info(`  ${cmd}`);
+    info(`All traffic is being passively captured. Run "unbrowse close" when done.`);
+    output(slimTrace(result), !!flags.pretty);
+    return;
   }
 
   if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
@@ -657,6 +699,22 @@ export const CLI_REFERENCE = {
     { name: "skill", usage: "<id>", desc: "Get skill details" },
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
+    { name: "go", usage: '<url>', desc: "Navigate browser to URL (passive indexing)" },
+    { name: "snap", usage: "[--filter interactive]", desc: "A11y snapshot with @eN refs" },
+    { name: "click", usage: "<ref>", desc: "Click element by ref (e.g. e5)" },
+    { name: "fill", usage: "<ref> <value>", desc: "Fill input by ref" },
+    { name: "type", usage: "<text>", desc: "Type text with key events" },
+    { name: "press", usage: "<key>", desc: "Press key (Enter, Tab, Escape)" },
+    { name: "select", usage: "<ref> <value>", desc: "Select option by ref" },
+    { name: "scroll", usage: "[up|down|left|right]", desc: "Scroll the page" },
+    { name: "screenshot", usage: "", desc: "Capture screenshot (base64 PNG)" },
+    { name: "text", usage: "", desc: "Get page text content" },
+    { name: "markdown", usage: "", desc: "Get page as Markdown" },
+    { name: "cookies", usage: "", desc: "Get page cookies" },
+    { name: "eval", usage: "<expression>", desc: "Evaluate JavaScript" },
+    { name: "back", usage: "", desc: "Navigate back" },
+    { name: "forward", usage: "", desc: "Navigate forward" },
+    { name: "close", usage: "", desc: "Close browse session, flush + index traffic" },
   ],
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
@@ -922,6 +980,107 @@ async function cmdSiteBatch(pack: SitePack, batchArg: string, flags: Record<stri
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Browse commands — Kuri browser actions with passive indexing via server
+// ---------------------------------------------------------------------------
+
+async function cmdGo(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const url = args[0] ?? flags.url as string;
+  if (!url) die("Usage: unbrowse go <url>");
+  output(await api("POST", "/v1/browse/go", { url }), !!flags.pretty);
+}
+
+async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
+  const filter = flags.filter as string | undefined;
+  const result = await api("POST", "/v1/browse/snap", { filter }) as { snapshot?: string };
+  if (result.snapshot && !flags.pretty) {
+    console.log(result.snapshot);
+  } else {
+    output(result, !!flags.pretty);
+  }
+}
+
+async function cmdClick(args: string[]): Promise<void> {
+  const ref = args[0];
+  if (!ref) die("Usage: unbrowse click <ref>");
+  output(await api("POST", "/v1/browse/click", { ref }), false);
+}
+
+async function cmdFill(args: string[]): Promise<void> {
+  const ref = args[0];
+  const value = args.slice(1).join(" ");
+  if (!ref || !value) die("Usage: unbrowse fill <ref> <value>");
+  output(await api("POST", "/v1/browse/fill", { ref, value }), false);
+}
+
+async function cmdType(args: string[]): Promise<void> {
+  const text = args.join(" ");
+  if (!text) die("Usage: unbrowse type <text>");
+  output(await api("POST", "/v1/browse/type", { text }), false);
+}
+
+async function cmdPress(args: string[]): Promise<void> {
+  const key = args[0];
+  if (!key) die("Usage: unbrowse press <key>");
+  output(await api("POST", "/v1/browse/press", { key }), false);
+}
+
+async function cmdSelect(args: string[]): Promise<void> {
+  const ref = args[0];
+  const value = args.slice(1).join(" ");
+  if (!ref || !value) die("Usage: unbrowse select <ref> <value>");
+  output(await api("POST", "/v1/browse/select", { ref, value }), false);
+}
+
+async function cmdScroll(args: string[]): Promise<void> {
+  const direction = args[0] ?? "down";
+  output(await api("POST", "/v1/browse/scroll", { direction }), false);
+}
+
+async function cmdScreenshot(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("GET", "/v1/browse/screenshot"), !!flags.pretty);
+}
+
+async function cmdText(flags: Record<string, string | boolean>): Promise<void> {
+  const result = await api("GET", "/v1/browse/text") as { text?: string };
+  if (result.text && !flags.pretty) {
+    console.log(result.text);
+  } else {
+    output(result, !!flags.pretty);
+  }
+}
+
+async function cmdMarkdown(flags: Record<string, string | boolean>): Promise<void> {
+  const result = await api("GET", "/v1/browse/markdown") as { markdown?: string };
+  if (result.markdown && !flags.pretty) {
+    console.log(result.markdown);
+  } else {
+    output(result, !!flags.pretty);
+  }
+}
+
+async function cmdCookies(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("GET", "/v1/browse/cookies"), !!flags.pretty);
+}
+
+async function cmdEval(args: string[], flags: Record<string, string | boolean>): Promise<void> {
+  const expression = args.join(" ");
+  if (!expression) die("Usage: unbrowse eval <expression>");
+  output(await api("POST", "/v1/browse/eval", { expression }), !!flags.pretty);
+}
+
+async function cmdBack(): Promise<void> {
+  output(await api("POST", "/v1/browse/back"), false);
+}
+
+async function cmdForward(): Promise<void> {
+  output(await api("POST", "/v1/browse/forward"), false);
+}
+
+async function cmdClose(): Promise<void> {
+  output(await api("POST", "/v1/browse/close"), false);
+}
 async function main(): Promise<void> {
   const { command, args, flags } = parseArgs(process.argv);
   const noAutoStart = !!flags["no-auto-start"];
@@ -947,6 +1106,8 @@ async function main(): Promise<void> {
     "health", "setup", "resolve", "execute", "exec",
     "feedback", "fb", "login", "skills", "skill", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
+    "go", "snap", "click", "fill", "type", "press", "select", "scroll",
+    "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "close",
   ]);
 
   if (!KNOWN_COMMANDS.has(command)) {
@@ -981,6 +1142,23 @@ async function main(): Promise<void> {
     case "skill": return cmdSkill(args, flags);
     case "search": return cmdSearch(flags);
     case "sessions": return cmdSessions(flags);
+    // Browse commands — Kuri browser actions with passive indexing
+    case "go": return cmdGo(args, flags);
+    case "snap": return cmdSnap(flags);
+    case "click": return cmdClick(args);
+    case "fill": return cmdFill(args);
+    case "type": return cmdType(args);
+    case "press": return cmdPress(args);
+    case "select": return cmdSelect(args);
+    case "scroll": return cmdScroll(args);
+    case "screenshot": return cmdScreenshot(flags);
+    case "text": return cmdText(flags);
+    case "markdown": return cmdMarkdown(flags);
+    case "cookies": return cmdCookies(flags);
+    case "eval": return cmdEval(args, flags);
+    case "back": return cmdBack();
+    case "forward": return cmdForward();
+    case "close": return cmdClose();
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
   }
 }
