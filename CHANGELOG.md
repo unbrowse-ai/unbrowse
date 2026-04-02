@@ -56,6 +56,8 @@
 ### Bug Fixes
 
 * **openclaw/plugin**: resolve the bundled Unbrowse CLI from the installed package `bin` entry instead of guessing `bin/unbrowse.js`, bump the plugin dependency to `unbrowse@^2.10.2`, and add execution-path regression coverage so the OpenClaw plugin can actually launch the packaged runtime again
+* **openclaw/plugin**: add tarball-level packaging coverage for `unbrowse-openclaw` so published npm releases keep the installer `bin/` + `scripts/` entrypoints and the README `npx unbrowse-openclaw install --restart` flow stays real
+* **openclaw/plugin**: switch the installer off `openclaw plugins install` and onto a managed extension-dir write plus `plugins.load.paths` rewrite, so current OpenClaw builds stop blocking the plugin's legitimate `child_process` usage during npm/npx installs
 * **ci/backend**: force Wrangler v3 backend deploys with KV bindings onto the legacy worker upload path so canonical release jobs stop failing on Cloudflare `/versions` permission checks
 * **frontend/openclaw**: clarify the public OpenClaw install flow around `npx unbrowse-openclaw install --restart`, note that the plugin package pulls in the local Unbrowse runtime automatically, and call out the one-time trust prompt older OpenClaw builds may show
 * **auth/replay**: persist LinkedIn replay-critical headers (`accept`, `csrf-token`, `x-li-*`, `x-restli-protocol-version`) alongside sensitive auth headers, infer `csrf-token` refresh from `JSESSIONID`, and drop blank publish-sanitized header values at execute time so sanitized skills still replay authenticated Voyager requests correctly
