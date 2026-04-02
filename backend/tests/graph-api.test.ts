@@ -49,6 +49,7 @@ function loadApiKey(): string {
 const API_URL = process.env.GRAPH_TEST_API_URL ?? "https://beta-api.unbrowse.ai";
 const API_KEY = loadApiKey();
 const TIMEOUT = 120_000;
+const REQUEST_TIMEOUT = 15_000;
 
 // Graph API tests hit a live backend with rate limits (30 req/60s).
 // Increase the default timeout to accommodate retries on rate-limited responses.
@@ -92,29 +93,42 @@ async function retryOnRateLimit(fn: () => Promise<ApiResult>, maxRetries = 4): P
       return { status: 0, data: { error: (err as Error).message } };
     }
   }
-  return fn();
+  return { status: 0, data: { error: "retry limit exhausted" } };
 }
 
-async function post(path: string, body: unknown): Promise<ApiResult> {
+async function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function post(path: string, body: unknown, maxRetries = 4): Promise<ApiResult> {
   return retryOnRateLimit(async () => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetchWithTimeout(`${API_URL}${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
     return { status: res.status, data: await safeJson(res) };
-  });
+  }, maxRetries);
 }
 
-async function get(path: string): Promise<ApiResult> {
+async function get(path: string, maxRetries = 4): Promise<ApiResult> {
   return retryOnRateLimit(async () => {
     const headers: Record<string, string> = {};
     if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
-    const res = await fetch(`${API_URL}${path}`, { headers });
+    const res = await fetchWithTimeout(`${API_URL}${path}`, { headers });
     return { status: res.status, data: await safeJson(res) };
-  });
+  }, maxRetries);
 }
 
 // ─── Fixtures ────────────────────────────────────────────────
@@ -220,14 +234,15 @@ const REDDIT_SKILL = {
 
 describe("Graph API — Index & Search", () => {
   beforeAll(async () => {
-    // Publish both skills (indexes endpoints via Graph API batch_insert)
-    // This may fail due to rate limiting — search tests below tolerate empty results.
-    const [yahoo, reddit] = await Promise.all([
-      post("/v1/skills", YAHOO_SKILL),
-      post("/v1/skills", REDDIT_SKILL),
-    ]);
-    console.log(`  yahoo index_status: ${(yahoo.data as any).index_status ?? yahoo.data.error ?? "unknown"}`);
-    console.log(`  reddit index_status: ${(reddit.data as any).index_status ?? reddit.data.error ?? "unknown"}`);
+    // Best-effort fixture publish only. Search tests below tolerate cold/missing index state.
+    // Keep setup bounded so a transient live API stall does not burn the whole suite timeout.
+    for (const [label, skill] of [
+      ["yahoo", YAHOO_SKILL],
+      ["reddit", REDDIT_SKILL],
+    ] as const) {
+      const result = await post("/v1/skills", skill, 1);
+      console.log(`  ${label} index_status: ${(result.data as any).index_status ?? result.data.error ?? "unknown"}`);
+    }
   });
 
   it("searches Yahoo Finance domain for stock quote", async () => {
