@@ -118,6 +118,26 @@ const routeCacheFlushTimer = setInterval(() => {
     writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(entries), "utf-8");
   } catch { /* best effort */ }
 }, 5_000);
+
+/** Invalidate stale route cache entries for a domain and flush to disk immediately */
+export function invalidateRouteCacheForDomain(domain: string): void {
+  let deleted = 0;
+  for (const [k] of skillRouteCache) {
+    if (k.includes(`:${domain}:`) || k.includes(`:${domain.replace(/^www\./, "")}:`)) {
+      skillRouteCache.delete(k);
+      deleted++;
+    }
+  }
+  if (deleted > 0) {
+    // Flush immediately (not debounced) so other processes see the change
+    try {
+      const dir = dirname(ROUTE_CACHE_FILE);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(ROUTE_CACHE_FILE, JSON.stringify(Object.fromEntries(skillRouteCache)), "utf-8");
+    } catch { /* best effort */ }
+    console.log(`[route-cache] invalidated ${deleted} stale entries for ${domain}`);
+  }
+}
 routeCacheFlushTimer.unref?.();
 
 // Load route cache from disk on startup
