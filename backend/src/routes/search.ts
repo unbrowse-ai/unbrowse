@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../services/discovery.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { recordGraphFee } from "../services/fees.js";
+import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
+import { buildSkillPaymentTerms, verifyX402Proof, x402Response } from "../middleware/x402-gate.js";
 
 /** Extract agent_id from Authorization header (Bearer token) if present. */
 function extractAgentId(authHeader: string | undefined | null): string {
@@ -14,6 +15,40 @@ function extractAgentId(authHeader: string | undefined | null): string {
 /** Record a search fee in the background — never blocks or fails the response. */
 function chargeSearchFee(env: Env, agentId: string): void {
   recordGraphFee(env, agentId, "search").catch(() => { /* fee recording must not break the API */ });
+}
+
+function shouldRequireSearchPayment(env: Env): boolean {
+  return env.ENVIRONMENT === "production";
+}
+
+async function requireSearchPayment(
+  c: Parameters<typeof searchRoutes.post>[1] extends (arg: infer T) => any ? T : never,
+  routeLabel: string,
+): Promise<Response | null> {
+  if (!shouldRequireSearchPayment(c.env)) return null;
+
+  const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
+  const legacyProofHeader = c.req.header("X-Payment-Proof");
+  if (!paymentHeader && !legacyProofHeader) {
+    const recipient = c.env.PAYMENT_RECIPIENT ?? "0x0000000000000000000000000000000000000000";
+    const priceUsd = GRAPH_OPERATION_COST_UC.search / 1_000_000;
+    const terms = await buildSkillPaymentTerms(
+      priceUsd,
+      `graph-search:${routeLabel}`,
+      recipient,
+      c.req.url,
+      { testnet: c.env.ENVIRONMENT !== "production" },
+    );
+    return x402Response(c, terms);
+  }
+
+  const { valid, degraded, settlementHeader } = await verifyX402Proof(paymentHeader ?? legacyProofHeader!);
+  if (!valid) return c.json({ error: "Payment proof invalid or rejected" }, 403);
+  if (degraded) {
+    console.warn(`[x402] facilitator down -- allowed degraded access for graph search ${routeLabel}`);
+  }
+  if (settlementHeader) c.header("PAYMENT-RESPONSE", settlementHeader);
+  return null;
 }
 
 export const searchRoutes = new Hono<{ Bindings: Env }>();
@@ -28,6 +63,8 @@ searchRoutes.post("/search", async (c) => {
   const { intent, k } = await c.req.json<{ intent: string; k?: number }>();
   if (!intent) return c.json({ error: "intent required" }, 400);
   try {
+    const gate = await requireSearchPayment(c, "search");
+    if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntent(c.env, intent, k ?? 5);
     chargeSearchFee(c.env, agentId);
@@ -43,6 +80,8 @@ searchRoutes.post("/search/domain", async (c) => {
   const { intent, domain, k } = await c.req.json<{ intent: string; domain: string; k?: number }>();
   if (!intent || !domain) return c.json({ error: "intent and domain required" }, 400);
   try {
+    const gate = await requireSearchPayment(c, "search-domain");
+    if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentInDomain(c.env, intent, domain, k ?? 5);
     chargeSearchFee(c.env, agentId);
@@ -63,6 +102,8 @@ searchRoutes.post("/search/resolve", async (c) => {
   }>();
   if (!intent) return c.json({ error: "intent required" }, 400);
   try {
+    const gate = await requireSearchPayment(c, "search-resolve");
+    if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
     const results = await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
     chargeSearchFee(c.env, agentId);

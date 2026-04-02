@@ -6,8 +6,11 @@ Unbrowse — API-native agent browser powered by Kuri. Discovers internal APIs (
 
 ## North Star
 
-Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-optimize by running new use cases, identifying where too many steps are needed, and fixing the pipeline so fewer steps are required next time. Every manual `go → snap → click → close` sequence should eventually become a single `resolve` call.
+100x traction in one month (Apr 2 — May 2 2026). Every action should be evaluated against this. If it doesn't drive installs, usage, or retention — don't do it.
 
+Baselines (Apr 2): 611 stars, 5.4K npm downloads, 819 keys, 197 WAU, 88 executions, 3 marketplace endpoints.
+
+Reduce the number of steps to achieve any goal with Unbrowse. Continuously self-optimize by running new use cases, identifying where too many steps are needed, and fixing the pipeline so fewer steps are required next time.
 ## Architecture
 
 - **Kuri is the primary browser** (Zig-native CDP broker, 464KB, ~3ms cold start). Unbrowse is the intelligence layer on top.
@@ -140,3 +143,171 @@ Omit empty sections. No emojis. No file paths or function names.
 - **Run tests after every code change**. Use `bun test <file>` for targeted runs. All graph/DAG tests: `bun test tests/graph-*.test.ts tests/dag-*.test.ts`. Sanitization: `bun test tests/sanitize-for-publish.test.ts`.
 - **Tests must hit real code paths** — no mocks, no stubs, no fake HTTP responses. If a test needs a network call, gate it behind an env var for CI, don't mock it.
 - **Bug fix protocol**: when a bug is reported, write a failing test FIRST that reproduces it, then fix the code and verify the test passes.
+
+## Session Start Protocol
+
+When Lewis starts a conversation about pipeline, fundraising, or sprint progress, proactively run these checks:
+
+### Pipeline Watchdog
+1. Read memory `project_fundraise_status_apr1.md` for last-known pipeline state
+2. Check Gmail (via `gws gmail`) for recent investor emails — look for replies to SAFEs, lead candidates, and follow-on threads
+3. Query Telegram (via `telegram-query` skill) for DM activity from key investor chat IDs listed in `reference_investor_contacts.md`
+4. Cross-reference: flag anyone who's been silent >5 days, anyone where Lewis owes a response, any SAFEs unsigned >3 days
+5. Update memory with any new signals found
+
+### Sprint Tracker
+1. Pull Linear issues for "20x Traction Sprint (Apr 1-14)" — show status (backlog/in-progress/done)
+2. Check traction API (`https://launch.unbrowse.ai/api/traction`) and stats API (`https://beta-api.unbrowse.ai/v1/stats/summary`) for current metrics
+3. Compare against sprint targets in `project_20x_sprint.md`
+4. Flag overdue issues and blockers
+
+### Content & Marketing Pulse
+1. Check Typefully (via `typefully` skill) for scheduled/published posts
+2. Check X engagement on recent @getFoundry and @lekt8_ posts
+3. Compare against content plan in Linear (GET-12 through GET-17)
+4. Flag content that's drafted but not posted
+
+### Nascent GP Prep (active until Apr 10 2026)
+1. Track days until Nascent GP meeting (Apr 10, 9am PST)
+2. Ensure deck, demo, team intros are ready
+3. Pull Granola notes from Jack meeting (`not_TDTFi83iGBdbZD`) for talking points
+4. Flag any DD materials Jack's team has requested
+
+### Key investor follow-up cadences
+- **SAFEs sent**: nudge after 3 days, escalate after 7
+- **Post-meeting silence**: follow up after 3 days, nudge again at 7, flag at 14
+- **DD in progress**: check in weekly, send any requested materials within 24h
+- **Connectors**: ping monthly for intros, update them on progress when there's news
+- **"Keep us posted"**: re-engage when there's a concrete trigger (lead closes, traction spike, paper published)
+
+## GTM Execution Protocol
+
+When Lewis asks about GTM, growth, marketing, or content — run these checks and take action:
+
+### Pre-Post Checklist (ALWAYS do before posting to any platform)
+1. Search the platform for recent posts from the same account — `x-cli tweet search "from:unbrowse" --max 10`
+2. Check for duplicate hooks, repeated phrasing, or same links already shared
+3. If a hook was already used, write a fresh angle — never repeat the same opening line
+4. Check which account x-cli is authed as before posting (currently @unbrowse, NOT @getFoundry)
+
+### Traction Dashboard (always check first)
+1. Hit `https://launch.unbrowse.ai/api/traction` for: stars, npm downloads, WAU, keys, verifications, retention
+2. Hit `https://beta-api.unbrowse.ai/v1/stats/summary` for: marketplace endpoints, executions, agents, hit rate
+3. Compare against sprint targets in memory `project_20x_sprint.md`
+4. Report delta since last check
+
+### Remote Agents (auto-running, check their output)
+1. **Daily Traction Snapshot** — commits `DAILY_TRACTION.md` at 9am SGT
+2. **Content Factory** — drafts to `.content-queue/YYYY-MM-DD.md` at 7am SGT
+3. **Competitor Intel** — `.intel/YYYY-MM-DD.md` Mon+Thu 1pm SGT
+
+### Supply-Side Growth (the flywheel)
+The marketplace fills itself via monetary incentive. Users mine by using Unbrowse — every resolve indexes routes, they earn x402 micropayments. DON'T manually seed — drive users who seed organically.
+1. **Email campaigns** drive installs → users use Unbrowse → routes get indexed → marketplace fills
+2. **Earnings visibility** (GET-10) is the retention hook — users see "$X earned" and keep mining
+3. **First mover bonus**: 2x reward rate for first indexer of a domain
+4. Mining quickstart doc: `/Users/lekt9/Downloads/_sorted/content/mining_quickstart.md`
+
+### Email Campaigns (Resend)
+Already built and ready to fire:
+- **Resend API key**: in memory `reference_resend_api_key.md`
+- **OpenClaw stargazer emails**: 234 collected, audience ID `b14d5358-0c7e-422f-89d0-49fefc77c483`
+- **Unbrowse stargazer emails**: 118 collected
+- **8 AB test variants** ready: `/Users/lekt9/Downloads/_sorted/outreach/openclaw_campaign_variants.json`
+  - Best hooks: "cosplay", "mcp-hallucination", "scraped-you", "browser-tax"
+- **AB test engine**: `python3 ~/.claude/skills/resend-ab-test/scripts/ab-send.py tournament`
+- **Stargazer collection script**: `/Users/lekt9/Downloads/_sorted/outreach/` (needs GITHUB_TOKEN for more)
+- Skills: `resend-ab-test`, `resend-cli`, `resend`
+- Fire when: earnings visibility is live (GET-10) so users who arrive can see the mining incentive
+
+### X/Twitter — Organic + Paid
+**Organic:**
+- Post 2-3x/day from @getFoundry (product, benchmarks, demos)
+- Post 1x/day from @lekt8_ (founder POV, hot takes)
+- Use `x-cli` for posting: `x-cli tweet post "text"`
+- Monitor: `x-cli me tweets --limit 10`
+- Each morning: review `.content-queue/` drafts, tweak, post
+- Skills: `tweet-writer`, `x-virality`, `create-viral-content`, `twitter-thread-creation`
+
+**Paid (X Ads):**
+- Use `paid-ads` skill for campaign strategy, targeting, ad copy
+- Target audiences: AI agent developers, MCP users, "browser automation" interest, Playwright/Puppeteer users
+- Ad angles: "3.6x faster than Playwright", "your agent is browsing — mine calls the API", paper credibility
+- Landing page: unbrowse.ai with paper link + `npx unbrowse setup`
+- Retarget: website visitors, GitHub stargazers (custom audience from email list)
+- Budget: TBD — start small ($50-100/day), optimize for installs
+- Use `unbrowse-typefully-campaigns` for campaign planning + scheduling
+
+### Content Pipeline
+1. Check Linear GET-12 through GET-17 for status
+2. Check `.content-queue/` for Content Factory drafts
+3. Existing drafts at `/Users/lekt9/Downloads/_sorted/content/`:
+   - `paper_drop_x_thread.md` — X thread for paper launch
+   - `email_openclaw_stars.md` — email campaigns (2 audiences)
+   - `mining_quickstart.md` — how mining works
+   - `clawhub_submission.md` — OpenClaw skill directory listing
+   - `product_hunt_listing.md` — PH copy
+4. Use `x-cli` to check engagement on recent posts
+5. Flag: drafted but not posted, posted but low engagement
+
+### Skill Toolbox
+| Skill | When to use |
+|-------|------------|
+| `unbrowse-growth-os` | Full GTM operating system — sprint playbook |
+| `unbrowse-typefully-campaigns` | Plan + schedule X campaigns |
+| `paid-ads` | X Ads, Google Ads, LinkedIn Ads strategy + copy |
+| `resend-ab-test` | Tournament-style email AB testing |
+| `resend-cli` | Send emails, manage contacts |
+| `tweet-writer` | Optimize individual tweets |
+| `x-virality` | Apply X algorithm logic for spread |
+| `create-viral-content` | Auto-activated on content generation |
+| `twitter-thread-creation` | Thread structure + hooks |
+| `hacker-news-strategy` | HN timing, title, comment strategy |
+| `product-hunt-launch` | PH launch optimization |
+| `launch-strategy` | Cross-channel launch planning |
+| `content-strategy` | Long-term content planning |
+| `content-calendar` | Schedule + track across platforms |
+| `content-marketing` | Content marketing strategy |
+| `social-content` | Platform-optimized posts (LinkedIn, X, Reddit) |
+| `social-selling-content-generator` | 30+ LinkedIn posts for prospects |
+| `reddit` | Search Reddit for engagement threads |
+| `hackernews` | Search HN stories + comments |
+| `referral-program` | Design referral/invite mechanics |
+| `gtm-developer-ecosystem` | Developer-led adoption programs |
+| `community-building` | Community growth tactics |
+| `marketing-ideas` | Campaign brainstorming |
+| `designing-growth-loops` | Self-reinforcing growth mechanisms |
+| `measuring-product-market-fit` | PMF assessment |
+
+### Distribution Channels (ranked by impact)
+1. **Resend email campaigns** — 352 stargazer emails ready, 8 AB variants, fire when GET-10 ships
+2. **OpenClaw** (344K stars) — clawhub listing + plugin already built (v0.7.13)
+3. **arXiv paper** — PUBLISHED: https://arxiv.org/abs/2604.00694
+4. **X Ads** — paid amplification of best-performing organic posts
+5. **HackerNews** — draft ready, use `hacker-news-strategy` for timing
+6. **LangChain PR** — code written at `/Users/lekt9/Downloads/_sorted/integrations/langchain/`
+7. **CrewAI PR** — code written at `/Users/lekt9/Downloads/_sorted/integrations/crewai/`
+8. **Product Hunt** — copy ready, launch after HN traction
+9. **Community** — mtnDAO, hackathon builders, agent Discords
+10. **Reddit** — r/MachineLearning, r/LocalLLaMA, r/selfhosted, r/webdev
+11. **LinkedIn** — use `social-selling-content-generator` for dev audience
+12. **Podcast circuit** — MCG done, pitch more AI/dev podcasts
+13. **Newsletter sponsorships** — Ben's Bites, The Rundown, AI newsletters
+
+### Growth Flywheel
+```
+Email/ads drive installs → users resolve (= mine) → routes indexed → x402 earnings visible
+    ↓                                                                         ↓
+More endpoints → higher hit rate → faster resolves → more agents attracted → more mining
+```
+The flywheel is monetary: users earn by using the product. Supply creates demand.
+
+### Weekly GTM Review (every Monday)
+1. Pull full traction metrics + compare week-over-week
+2. Read `.intel/` for competitive intel + content angles
+3. Check Resend dashboard for email campaign performance
+4. Review X Ads performance (if running)
+5. Update sprint memory with actuals
+6. Adjust channel mix based on what's converting
+7. Draft investor update if metrics moved
+8. Plan content calendar for the week

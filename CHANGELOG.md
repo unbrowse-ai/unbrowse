@@ -17,6 +17,7 @@
 * **execute**: return `endpoint_not_found` error with available endpoints list when agent-specified endpoint_id doesn't exist in skill — previously silently fell through to `selectBestEndpoint` and executed the wrong endpoint
 * **execute**: apply agent's params to trigger URL during trigger-and-intercept execution — previously replayed the original captured URL ignoring new search terms, causing search endpoints to return stale/unfiltered results
 * **resolve**: skip the first-pass browser fast-path for canonical replay pages like npm/PyPI package search and package detail URLs, so deterministic structured fetches run before flaky browser handoff
+* **payments/search**: make production cloud search routes return x402 `402 PAYMENT-REQUIRED` terms for Tier 3 graph lookups, and propagate those payment-required errors through the runtime instead of silently downgrading to empty marketplace results
 * **payments/tests**: add backend route coverage for the x402 skill gate so paid skill reads now prove the real `402` header handshake and proof-accepted retry path
 * **payments**: align the backend x402 gate with lobster.cash and Corbits by emitting `PAYMENT-REQUIRED` v2 terms, settling `PAYMENT-SIGNATURE` retries through the facilitator, and preserving the older `X-Payment-Proof` fallback for legacy clients
 
