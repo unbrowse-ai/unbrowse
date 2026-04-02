@@ -2,9 +2,10 @@ name: Lint
 
 on:
   pull_request:
-    branches: [rach/restart-base]
+    branches: [main]
   push:
-    branches: [rach/restart-base]
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   repo-sanity:
