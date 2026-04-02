@@ -4,6 +4,7 @@ const ANALYTICS_TEST_RUN = process.env.ANALYTICS_TEST_RUN === "1";
 const API_URL = process.env.ANALYTICS_TEST_API_URL ?? "https://beta-api.unbrowse.ai";
 const API_KEY = process.env.ANALYTICS_TEST_API_KEY ?? "";
 const liveDescribe = ANALYTICS_TEST_RUN ? describe : describe.skip;
+const TIMEOUT_MS = 20_000;
 
 async function request(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
@@ -39,5 +40,5 @@ liveDescribe("analytics API — live smoke", () => {
     const funnel = await request("/v1/analytics/funnel");
     expect(funnel.status).toBe(200);
     expect(Array.isArray(funnel.data.stages)).toBe(true);
-  });
+  }, TIMEOUT_MS);
 });
