@@ -66,12 +66,17 @@ The backend still uses an opaque internal agent id. The email is just the user-f
 
 ## Docs
 
-Use the skill for the core loop. Use the docs when you need the public product and market context:
+Use the skill for the core loop. Use the docs when you need product context or repo mechanics:
 
 - [Whitepaper companion](./docs/whitepaper/README.md) — current map of the paper and companion docs
 - [For Technical Readers](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, and product boundary
 - [For Investors](./docs/whitepaper/for-investors.md) — market framing and roadmap boundary
 - [Analytics API](./docs/analytics-api.md) — canonical investor/product metrics surfaces
+- [Quickstart](./docs/guides/quickstart.md) — install/run path, first-use flow
+- [API notes](./docs/api.md) — route-level behavior and contracts
+- [Codex eval harness](./docs/codex-eval-harness.md) — how product-truth evals run
+- [Deployment](./docs/deployment.md) — runtime/deploy shape
+- [Releasing](./docs/RELEASING.md) — release checklist
 
 ## Core Workflow
 
@@ -162,7 +167,8 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `skill` | `<id>` | Get skill details |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-| `go` | `<url>` | Navigate browser to URL (passive indexing) |
+| `go` | `<url>` | Open a live Kuri browser tab for capture-first workflows |
+| `submit` | `[--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows |
 | `snap` | `[--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `<ref>` | Click element by ref (e.g. e5) |
 | `fill` | `<ref> <value>` | Fill input by ref |
@@ -177,6 +183,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `eval` | `<expression>` | Evaluate JavaScript |
 | `back` |  | Navigate back |
 | `forward` |  | Navigate forward |
+| `sync` |  | Flush the current step's captured traffic into route cache without closing tab |
 | `close` |  | Close browse session, flush + index traffic |
 
 ### Global flags
@@ -233,6 +240,49 @@ unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 
 **How to pick:** Match `action_kind` to your intent (`timeline`, `list`, `detail`, `search`). Prefer `dom_extraction: false` (real API) over `true` (page scrape). Check the `url` for recognizable API paths (e.g. `HomeTimeline`, `UserTweets`).
 
+### Browser-first workflow for JS-heavy sites
+
+When a cached API is missing or the site is clearly a multi-step UI flow, stay inside Unbrowse's browser path instead of falling out to curl or ad-hoc scraping.
+
+```bash
+# 1. open the real page
+unbrowse go "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html"
+
+# 2. inspect the live state
+unbrowse snap --filter interactive
+
+# 3. interact until the page state is correct
+unbrowse click e12
+unbrowse fill e18 "Lewis"
+unbrowse eval 'document.querySelector("input[name=selectedDate]").value'
+
+# 4. submit the actual page form
+unbrowse submit --wait-for "/time-selection.html"
+
+# 5. persist the captured step without closing the tab
+unbrowse sync
+
+# 6. finish capture when the flow is done
+unbrowse close
+```
+
+Preferred order:
+- `go` to the exact page you need
+- `snap` to confirm refs and visible state
+- `click` / `fill` / `select` for normal controls
+- `eval` only when you need to inspect or set hidden state the page already depends on
+- `submit` for the real form transition
+- `sync` after a successful step that revealed useful network traffic
+- `close` once the run is complete
+
+### JS-heavy forms: what worked best
+
+- Prefer real page clicks for date and time pickers before trying to patch hidden fields.
+- If the UI is flaky, inspect hidden inputs, cookies, or selected values with `eval`, then submit the real form.
+- Use `submit` instead of hand-rolled fetches first. It already prefers DOM submit and falls back to same-origin HTML rehydrate when navigation stalls.
+- Use `sync` after important transitions so the route graph learns the working request chain before the tab is closed.
+- Do not switch to external browser tools or raw HTTP unless the user explicitly authorizes fallback.
+
 ### Domain skills have many endpoints — use search or description matching
 
 After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endpoints. Filter by intent:
@@ -267,6 +317,9 @@ unbrowse skills                                    # List all skills
 unbrowse skill {id}                                # Get skill details
 unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
+unbrowse go "https://example.com/form"             # Open a live capture tab
+unbrowse submit --wait-for "/next-step"            # Submit current form with recovery
+unbrowse sync                                      # Flush current step into route cache
 unbrowse health                                    # Server health check
 ```
 

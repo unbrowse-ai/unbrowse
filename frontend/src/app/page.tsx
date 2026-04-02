@@ -6,9 +6,10 @@ import { InstallInstructions } from "@/components/install-instructions";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
-import { ArrowRight, Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
+import { HeroCTA } from "@/components/hero-cta";
+import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
-const WHITEPAPER_URL = "/internal-apis-are-all-you-need";
+const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
   ? "For CLI-first hosts, start with npx unbrowse setup. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. The package pulls in the local Unbrowse runtime automatically. On older OpenClaw builds you may be asked once to trust the plugin. If you prefer a global install, use npm install -g unbrowse or npm install -g unbrowse-openclaw depending on the host. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, and OpenClaw all have direct wiring paths."
@@ -74,6 +75,22 @@ const faqJsonLd = {
         text: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, that knowledge is published to the registry so every other agent can use it instantly — no need to re-discover the same endpoints.",
       },
     },
+    {
+      "@type": "Question",
+      name: "What if the website's API changes?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Unbrowse handles API changes automatically. When a cached skill fails, Unbrowse re-browses the site, re-discovers the updated endpoints, and publishes a new version to the registry. Your agent code doesn't need to change — the skill layer absorbs the breakage. This is fundamentally more resilient than Playwright or Puppeteer scripts, which break on any DOM change and require manual selector updates.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How does Unbrowse compare to Playwright or Puppeteer?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Playwright and Puppeteer automate a browser by clicking through the DOM — they are slow (5-30s per page), fragile (break on any UI change), and expensive (8,000+ tokens per action). Unbrowse reverse-engineers the internal APIs behind the frontend, so your agent makes direct HTTP calls — 3.6x faster on average across 94 benchmarked domains (peer-reviewed, arXiv 2604.00694). When APIs change, Unbrowse re-discovers them automatically. Playwright scripts require manual selector fixes.",
+      },
+    },
   ],
 };
 
@@ -119,7 +136,7 @@ export default function Home() {
               <Github className="w-4 h-4" />
               <span>100% Free & Open Source</span>
               <span className="h-3 w-px bg-orange-500/20 mx-1" />
-              <span className="flex items-center gap-1">Star on GitHub <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" /></span>
+              <span className="flex items-center gap-1">611+ stars on GitHub <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" /></span>
             </a>
             
                            <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
@@ -129,9 +146,30 @@ export default function Home() {
                          </h1>
 
                           <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-                           A drop-in replacement for browser automation for AI agents.
-                           Log in, search, book, and submit through direct API calls instead of driving a flaky browser.
-                         </p>
+                            The fastest way for AI agents to turn any website into a reusable API.
+                            3.6x faster than Playwright. arXiv-published.
+                          </p>
+
+            {/* ═══ Trust Bar ═══ */}
+            <div className="animate-fade-up stagger-2 mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs sm:text-sm text-text-muted font-medium">
+              <span className="flex items-center gap-1.5"><Github className="w-3.5 h-3.5" /> 611+ GitHub stars</span>
+              <span className="hidden sm:inline text-border-strong">|</span>
+              <span>5.4K npm downloads</span>
+              <span className="hidden sm:inline text-border-strong">|</span>
+              <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">arXiv paper with NUS</a>
+              <span className="hidden sm:inline text-border-strong">|</span>
+              <span>94 domains benchmarked</span>
+              <span className="hidden sm:inline text-border-strong">|</span>
+              <a href="https://www.nvidia.com/en-us/startups/" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">NVIDIA Inception</a>
+            </div>
+
+            {/* ═══ What is Unbrowse — Definition Block (moved above install) ═══ */}
+            <div className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-3xl text-center">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-text-primary">What is Unbrowse?</h2>
+              <p className="text-text-secondary text-base sm:text-lg leading-relaxed">
+                Unbrowse is an open-source drop-in replacement for browser automation when you want API-native access to the web. It reverse-engineers the internal APIs behind any website so AI agents can make direct API calls instead of driving headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+              </p>
+            </div>
 
             <div id="install" className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-4xl text-left">
               <div className="rounded-2xl border border-border bg-surface shadow-sm overflow-hidden">
@@ -159,48 +197,27 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CTA Buttons */}
-            <div className="animate-fade-up stagger-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mt-10">
-              <Link
-                href="#install"
-                className="group flex items-center justify-center gap-2 px-6 py-3 bg-orange-500
-                           text-white font-medium rounded-lg text-base w-full sm:w-auto
-                           hover:bg-orange-600 shadow-[0_0_24px_rgba(255,109,0,0.3)] hover:shadow-[0_0_32px_rgba(255,109,0,0.5)] active:scale-[0.98]
-                           transition-all cursor-pointer"
-              >
-                Get Started <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <Link
-                href="#demo"
-                className="flex items-center justify-center gap-2 px-6 py-3
-                           bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
-                           hover:border-orange-500/40 hover:bg-orange-50/50
-                           active:scale-[0.98] transition-all cursor-pointer"
-              >
-                See Demo
-              </Link>
-              <a
-                href="https://discord.gg/VWugEeFNsG"
-                target="_blank"
-                rel="noopener"
-                className="flex items-center justify-center gap-2 px-6 py-3
-                           bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
-                           hover:border-orange-500/40 hover:bg-orange-50/50
-                           active:scale-[0.98] transition-all cursor-pointer"
-              >
-                Join Discord
-              </a>
-              <a
-                href={WHITEPAPER_URL}
-                target="_blank"
-                rel="noopener"
-                className="flex items-center justify-center gap-2 px-6 py-3
-                           bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
-                           hover:border-orange-500/40 hover:bg-orange-50/50
-                           active:scale-[0.98] transition-all cursor-pointer"
-              >
-                Read Paper
-              </a>
+            {/* CTA — Single dominant action */}
+            <div className="animate-fade-up stagger-4 flex flex-col items-center gap-6 mt-10">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                <HeroCTA />
+                <Link
+                  href="#demo"
+                  className="flex items-center justify-center gap-2 px-6 py-3.5
+                             bg-surface border-2 border-orange-500/20 text-text-primary font-medium rounded-lg text-base w-full sm:w-auto
+                             hover:border-orange-500/40 hover:bg-orange-50/50
+                             active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  See Demo
+                </Link>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-text-muted">
+                <a href="https://discord.gg/VWugEeFNsG" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Join Discord</a>
+                <span className="text-border-strong">·</span>
+                <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Read Paper</a>
+                <span className="text-border-strong">·</span>
+                <a href="https://github.com/unbrowse-ai/unbrowse" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">GitHub</a>
+              </div>
             </div>
 
               {/* Supported Agents */}
@@ -216,16 +233,6 @@ export default function Home() {
 
           </div>
       </section>
-
-       {/* ═══ What is Unbrowse — Definition Block ═══ */}
-       <section className="relative py-12 sm:py-16 bg-surface-sunken border-t border-border">
-         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6 text-text-primary">What is Unbrowse?</h2>
-           <p className="text-text-secondary text-base sm:text-lg leading-relaxed">
-             Unbrowse is an open-source drop-in replacement for browser automation when you want API-native access to the web. It reverse-engineers the internal APIs behind any website so AI agents can make direct API calls instead of driving headless browsers. It reduces page interaction time from 5–30 seconds to 50–200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
-           </p>
-         </div>
-       </section>
 
        {/* ═══ 3-Panel Visual — THE showstopper ═══ */}
        <ThreePanelVisual />
@@ -472,6 +479,47 @@ export default function Home() {
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>
                <p className="text-text-secondary leading-relaxed">The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website&apos;s API, that knowledge is published to the registry so every other agent can use it instantly — no need to re-discover the same endpoints.</p>
              </div>
+             <div>
+               <h3 className="text-lg font-semibold mb-2 text-text-primary">What if the website&apos;s API changes?</h3>
+               <p className="text-text-secondary leading-relaxed">Unbrowse handles API changes automatically. When a cached skill fails, Unbrowse re-browses the site, re-discovers the updated endpoints, and publishes a new version to the registry. Your agent code doesn&apos;t need to change — the skill layer absorbs the breakage. This is fundamentally more resilient than Playwright or Puppeteer scripts, which break on any DOM change and require manual selector updates.</p>
+             </div>
+             <div>
+               <h3 className="text-lg font-semibold mb-2 text-text-primary">How does Unbrowse compare to Playwright or Puppeteer?</h3>
+               <p className="text-text-secondary leading-relaxed">Playwright and Puppeteer automate a browser by clicking through the DOM — they are slow (5-30s per page), fragile (break on any UI change), and expensive (8,000+ tokens per action). Unbrowse reverse-engineers the internal APIs behind the frontend, so your agent makes direct HTTP calls — 3.6x faster on average across 94 benchmarked domains (<a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="text-orange-600 hover:text-orange-700 underline">peer-reviewed, arXiv 2604.00694</a>). When APIs change, Unbrowse re-discovers them automatically. Playwright scripts require manual selector fixes.</p>
+             </div>
+           </div>
+         </div>
+       </section>
+
+       {/* ═══ Learn More — Blog & Comparison Links ═══ */}
+       <section className="relative py-12 sm:py-16 border-t border-border bg-surface-sunken">
+         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-8 text-text-primary">Go Deeper</h2>
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+             <Link
+               href="/blog"
+               className="group flex flex-col items-center gap-3 p-6 rounded-2xl border border-border bg-surface hover:border-orange-500/30 transition-colors"
+             >
+               <span className="text-lg font-semibold text-text-primary group-hover:text-orange-600 transition-colors">Blog</span>
+               <span className="text-sm text-text-secondary leading-relaxed">Technical deep-dives, launch notes, and the thinking behind Unbrowse.</span>
+               <span className="text-sm font-medium text-orange-600 flex items-center gap-1">Read posts <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" /></span>
+             </Link>
+             <Link
+               href="/compare/playwright"
+               className="group flex flex-col items-center gap-3 p-6 rounded-2xl border border-border bg-surface hover:border-orange-500/30 transition-colors"
+             >
+               <span className="text-lg font-semibold text-text-primary group-hover:text-orange-600 transition-colors">Unbrowse vs Playwright</span>
+               <span className="text-sm text-text-secondary leading-relaxed">Side-by-side benchmark: speed, cost, reliability across 94 domains.</span>
+               <span className="text-sm font-medium text-orange-600 flex items-center gap-1">See comparison <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" /></span>
+             </Link>
+             <Link
+               href="/mine-the-internet"
+               className="group flex flex-col items-center gap-3 p-6 rounded-2xl border border-border bg-surface hover:border-orange-500/30 transition-colors"
+             >
+               <span className="text-lg font-semibold text-text-primary group-hover:text-orange-600 transition-colors">Mine the Internet</span>
+               <span className="text-sm text-text-secondary leading-relaxed">How Unbrowse turns every website visit into a shared API skill.</span>
+               <span className="text-sm font-medium text-orange-600 flex items-center gap-1">Learn more <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" /></span>
+             </Link>
            </div>
          </div>
        </section>

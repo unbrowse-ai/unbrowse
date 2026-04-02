@@ -41,4 +41,22 @@ describe("skill docs sync", () => {
     expect(packageSkillDoc).not.toContain("internal-cathedral");
     expect(networkLayer.toLowerCase()).not.toContain("cathedral");
   });
+
+  it("surfaces the synced docs from the standalone skill README", () => {
+    const readme = readFileSync(path.join(repoRoot, "packages", "skill", "README.md"), "utf8");
+
+    expect(readme).toContain("## Docs");
+    expect(readme).toContain("./docs/guides/quickstart.md");
+    expect(readme).toContain("./docs/api.md");
+    expect(readme).toContain("./docs/RELEASING.md");
+  });
+
+  it("surfaces the synced docs from the standalone skill instructions", () => {
+    const skill = readFileSync(path.join(repoRoot, "packages", "skill", "SKILL.md"), "utf8");
+
+    expect(skill).toContain("## Docs");
+    expect(skill).toContain("./docs/guides/quickstart.md");
+    expect(skill).toContain("./docs/codex-eval-harness.md");
+    expect(skill).toContain("./docs/RELEASING.md");
+  });
 });

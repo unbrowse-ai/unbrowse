@@ -270,3 +270,31 @@ export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {
   const data = await api<{ entries: LeaderboardEntry[] }>("GET", `/v1/leaderboard?limit=${limit}`);
   return data.entries;
 }
+
+export interface DomainCoverage {
+  domain: string;
+  skills: number;
+  endpoints: number;
+  updated_at: string;
+}
+
+export interface NetworkStats {
+  total_routes: number;
+  total_skills: number;
+  total_agents: number;
+  total_executions: number;
+  total_earned_usd: number;
+  marketplace_hit_rate: number;
+  total_resolves: number;
+  total_tokens_saved: number;
+}
+
+export interface MinerStats {
+  network: NetworkStats;
+  domains: DomainCoverage[];
+  leaderboard: LeaderboardEntry[];
+}
+
+export async function getMinerStats(): Promise<MinerStats> {
+  return api<MinerStats>("GET", "/v1/miners/stats");
+}

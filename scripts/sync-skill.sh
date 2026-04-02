@@ -54,6 +54,7 @@ rsync -avL --delete \
   --exclude 'traces' \
   "$SKILL_PKG/" "$TARGET_REPO/"
 
+# Keep the standalone skill repo's docs tree in sync with the monorepo root docs.
 if [ -d "$DOCS_DIR" ]; then
   rsync -av --delete \
     --exclude '.git' \
