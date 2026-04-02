@@ -994,8 +994,83 @@ export async function registerRoutes(app: FastifyInstance) {
           invalidateRouteCacheForDomain(domain);
           console.log(`[passive-index] ${domain}: ${mergedEps.length} endpoints cached synchronously`);
         }
+        }
+      } else {
+        // No API endpoints from network traffic — create DOM extraction endpoint.
+        // Handles server-rendered sites where search is form POST returning HTML.
+        let domain: string;
+        try { domain = new URL(session.url).hostname; } catch { domain = session.domain; }
+        try {
+          const html = await kuri.getPageHtml(session.tabId);
+          if (html && typeof html === "string" && html.startsWith("<")) {
+            const { extractFromDOM } = await import("../extraction/index.js");
+            const { detectSearchForms, isStructuredSearchForm } = await import("../execution/search-forms.js");
+            const { inferSchema } = await import("../transform/index.js");
+            const { inferEndpointSemantic } = await import("../graph/index.js");
+            const { templatizeQueryParams } = await import("../execution/index.js");
+
+            const extracted = extractFromDOM(html, `browse ${domain}`);
+            const searchForms = detectSearchForms(html);
+            const validForm = searchForms.find((s: { form_selector: string; fields: unknown[] }) => isStructuredSearchForm(s));
+
+            if (extracted.data || validForm) {
+              const urlTemplate = templatizeQueryParams(session.url);
+              const ep: import("../types/index.js").EndpointDescriptor = {
+                endpoint_id: nanoid(),
+                method: "GET" as const,
+                url_template: urlTemplate,
+                idempotency: "safe" as const,
+                verification_status: "verified" as const,
+                reliability_score: extracted.confidence ?? 0.7,
+                description: validForm ? `Search form for ${domain}` : `Page content from ${domain}`,
+                response_schema: extracted.data ? inferSchema([extracted.data]) : undefined,
+                dom_extraction: {
+                  extraction_method: extracted.extraction_method ?? "repeated-elements",
+                  confidence: extracted.confidence ?? 0.7,
+                  ...(extracted.selector ? { selector: extracted.selector } : {}),
+                  ...(validForm ? { search_form: validForm } : {}),
+                },
+                trigger_url: session.url,
+              };
+              ep.semantic = inferEndpointSemantic(ep, {
+                sampleResponse: extracted.data,
+                observedAt: new Date().toISOString(),
+                sampleRequestUrl: session.url,
+              });
+
+              const existing = findExistingSkillForDomain(domain);
+              const allEps = existing ? mergeEndpoints(existing.endpoints, [ep]) : [ep];
+              for (const e of allEps) { if (!e.description) e.description = generateLocalDescription(e); }
+
+              const skill: SkillManifest = {
+                skill_id: existing?.skill_id ?? nanoid(),
+                version: "1.0.0", schema_version: "1",
+                lifecycle: "active" as const, execution_type: "http" as const,
+                created_at: existing?.created_at ?? new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                name: domain, intent_signature: `browse ${domain}`, domain,
+                description: `DOM skill for ${domain}`, owner_type: "agent" as const,
+                endpoints: allEps,
+                intents: [...new Set([...(existing?.intents ?? []), `browse ${domain}`])],
+              };
+
+              const ck = buildResolveCacheKey(domain, `browse ${domain}`, session.url);
+              const sk = scopedCacheKey("global", ck);
+              writeSkillSnapshot(sk, skill);
+              const dk = getDomainReuseKey(session.url ?? domain);
+              if (dk) {
+                domainSkillCache.set(dk, { skillId: skill.skill_id, localSkillPath: snapshotPathForCacheKey(sk), ts: Date.now() });
+                persistDomainCache();
+              }
+              try { cachePublishedSkill(skill); } catch {}
+              invalidateRouteCacheForDomain(domain);
+              console.log(`[close] ${domain}: DOM endpoint created (form=${!!validForm})`);
+            }
+          }
+        } catch (err) {
+          console.log(`[close] DOM fallback failed: ${err instanceof Error ? err.message : err}`);
+        }
       }
-    }
 
     // Run full async enrichment pipeline (agent augmentation, graph, marketplace publish)
     passiveIndexFromRequests(allRequests, session.url);
