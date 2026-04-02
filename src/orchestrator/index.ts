@@ -2992,16 +2992,132 @@ export async function resolveAndExecute(
     }
   }
 
+  // --- Fast path: URL given, no local cache → skip marketplace, go straight to browser ---
+  // Marketplace search can take 10-60s+ and blocks the agent. When we have a URL,
+  // the browser can achieve the goal via UI immediately while indexing passively.
+  // Marketplace search runs in the background to populate cache for next time.
+  if (context?.url && !agentChoseEndpoint && !forceCapture) {
+    console.log(`[fast-path] no local cache for ${requestedDomain} — skipping marketplace, going to browser`);
+
+    // Fire-and-forget: marketplace search populates cache for future resolves
+    void (async () => {
+      try {
+        const { domain_results, global_results } = await searchIntentResolve(
+          queryIntent, requestedDomain ?? undefined,
+          MARKETPLACE_DOMAIN_SEARCH_K, MARKETPLACE_GLOBAL_SEARCH_K,
+        );
+        const totalResults = domain_results.length + global_results.length;
+        if (totalResults > 0) {
+          console.log(`[fast-path:bg] marketplace found ${totalResults} candidates — will be cached for next resolve`);
+        }
+      } catch { /* marketplace down — doesn't matter, browser is working */ }
+    })();
+
+    // Jump straight to first-pass browser action (8s) then browse session handoff
+    const firstPassResult = await tryFirstPassBrowserAction(
+      intent, params, context.url,
+      { signal: options?.signal, clientScope: options?.client_scope },
+    );
+    decisionTrace.first_pass = {
+      intentClass: firstPassResult.intentClass,
+      actionTaken: firstPassResult.actionTaken,
+      hit: firstPassResult.hit,
+      interceptedCount: firstPassResult.interceptedEntries.length,
+      timeMs: firstPassResult.timeMs,
+      fast_path: true,
+    };
+    if (firstPassResult.hit && firstPassResult.miniSkill) {
+      const fpNow = new Date().toISOString();
+      const trace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: firstPassResult.miniSkill.skill_id,
+        endpoint_id: firstPassResult.miniSkill.endpoints[0]?.endpoint_id ?? "",
+        started_at: fpNow,
+        completed_at: fpNow,
+        success: true,
+        network_events: firstPassResult.interceptedEntries,
+      };
+      return {
+        result: firstPassResult.result,
+        trace,
+        source: "first-pass",
+        skill: firstPassResult.miniSkill,
+        timing: finalize("first-pass", firstPassResult.result, firstPassResult.miniSkill.skill_id, firstPassResult.miniSkill, trace),
+      };
+    }
+    console.log(`[fast-path] first-pass miss — opening browse session for agent`);
+
+    // Browse session handoff — agent drives with snap/click/fill/close
+    if (firstPassResult.tabId && context.url) {
+      const tabId = firstPassResult.tabId;
+      const domain = new URL(context.url).hostname.replace(/^www\./, "");
+      try {
+        const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+        const { cookies } = extractBrowserCookies(domain);
+        for (const c of cookies) await kuri.setCookie(tabId, c).catch(() => {});
+      } catch { /* non-fatal */ }
+      await kuri.evaluate(tabId, (await import("../capture/index.js")).INTERCEPTOR_SCRIPT).catch(() => {});
+      await kuri.harStart(tabId).catch(() => {});
+      try {
+        const routesModule = await import("../api/routes.js");
+        if (typeof routesModule.registerBrowseSession === "function") {
+          routesModule.registerBrowseSession(tabId, context.url, domain);
+        }
+      } catch { /* routes module may not expose this yet */ }
+      const fpNow = new Date().toISOString();
+      const trace: ExecutionTrace = {
+        trace_id: nanoid(),
+        skill_id: "browse-session",
+        endpoint_id: "",
+        started_at: fpNow,
+        completed_at: fpNow,
+        success: true,
+      };
+      return {
+        result: {
+          status: "browse_session_open",
+          tab_id: tabId,
+          url: context.url,
+          domain,
+          next_step: "unbrowse snap",
+          commands: [
+            "unbrowse snap --filter interactive",
+            "unbrowse click <ref>",
+            "unbrowse fill <ref> <value>",
+            "unbrowse close",
+          ],
+        },
+        trace,
+        source: "browser-action" as any,
+        skill: undefined as any,
+        timing: finalize("browser-action" as any, null, "browse-session", undefined as any, trace),
+      };
+    }
+  }
+
+
+  // --- Marketplace search with hard timeout ---
+  // When a URL is available, cap marketplace search at 5s. Beyond that, browser is faster.
+  const MARKETPLACE_TIMEOUT_MS = context?.url ? 5_000 : 30_000;
+
   if (!forceCapture) {
-    // 1. Search marketplace — single remote call, shared embedding, conditional global fallback
+    // 1. Search marketplace — single remote call, capped by timeout when URL available
     const ts0 = Date.now();
     type SearchResult = { id: number; score: number; metadata: Record<string, unknown> };
-    const { domain_results: domainResults, global_results: globalResults } = await searchIntentResolve(
-      queryIntent,
-      requestedDomain ?? undefined,
-      MARKETPLACE_DOMAIN_SEARCH_K,
-      MARKETPLACE_GLOBAL_SEARCH_K,
-    ).catch(() => ({
+    const { domain_results: domainResults, global_results: globalResults } = await Promise.race([
+      searchIntentResolve(
+        queryIntent,
+        requestedDomain ?? undefined,
+        MARKETPLACE_DOMAIN_SEARCH_K,
+        MARKETPLACE_GLOBAL_SEARCH_K,
+      ),
+      new Promise<{ domain_results: SearchResult[]; global_results: SearchResult[]; skipped_global: boolean }>((resolve) =>
+        setTimeout(() => {
+          console.log(`[marketplace] timeout after ${MARKETPLACE_TIMEOUT_MS}ms — falling through to browser`);
+          resolve({ domain_results: [], global_results: [], skipped_global: true });
+        }, MARKETPLACE_TIMEOUT_MS),
+      ),
+    ]).catch(() => ({
       domain_results: [] as SearchResult[],
       global_results: [] as SearchResult[],
       skipped_global: false,

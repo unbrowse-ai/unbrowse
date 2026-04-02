@@ -13,6 +13,8 @@
 
 * **review**: fix skill lookup in review route to check domain cache (same as GET route) — previously returned 404 for skills only in domain snapshots
 * **review**: fix review route to update all local caches (domain snapshot + domain cache + published skill cache) so reviewed metadata is visible on next resolve without requiring marketplace round-trip
+* **execute**: return `endpoint_not_found` error with available endpoints list when agent-specified endpoint_id doesn't exist in skill — previously silently fell through to `selectBestEndpoint` and executed the wrong endpoint
+* **execute**: apply agent's params to trigger URL during trigger-and-intercept execution — previously replayed the original captured URL ignoring new search terms, causing search endpoints to return stale/unfiltered results
 
 ### Features
 * **#218**: wire DAG planner to backend EmergentDB graph — dag-advisor now queries the backend graph (fetchChain) first for cross-session intelligence with local planner fallback; publishEdgesToBackend fixed to use correct URL (beta-api.unbrowse.ai) and send Authorization headers; planner.ts stub replaced with real delegation to dag-feedback

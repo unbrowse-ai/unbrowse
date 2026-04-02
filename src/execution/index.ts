@@ -946,13 +946,32 @@ export async function executeSkill(
     return executeBrowserCapture(skill, params, options);
   }
 
-  // Allow targeting a specific endpoint by ID
+  // Allow targeting a specific endpoint by ID — never silently fall back
   if (params.endpoint_id) {
     const target = skill.endpoints.find((e) => e.endpoint_id === params.endpoint_id);
     if (target) {
       const { endpoint_id: _, ...cleanParams } = params;
       return executeEndpoint(skill, target, cleanParams, projection, options);
     }
+    // Agent explicitly chose this endpoint — don't silently swap to a different one
+    log("exec", `endpoint ${params.endpoint_id} not found in skill ${skill.skill_id} (${skill.endpoints.length} endpoints: ${skill.endpoints.map(e => e.endpoint_id).join(", ")})`);
+    const trace: ExecutionTrace = {
+      trace_id: nanoid(),
+      skill_id: skill.skill_id,
+      endpoint_id: String(params.endpoint_id),
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: `endpoint_not_found: ${params.endpoint_id} not in skill ${skill.skill_id}`,
+    };
+    return {
+      trace,
+      result: {
+        error: "endpoint_not_found",
+        message: `Endpoint ${params.endpoint_id} not found in skill ${skill.skill_id}. Available: ${skill.endpoints.map(e => `${e.endpoint_id} (${e.description?.slice(0, 50)})`).join(", ")}`,
+        available_endpoints: skill.endpoints.map(e => ({ endpoint_id: e.endpoint_id, description: e.description })),
+      },
+    };
   }
 
   // Use the caller's intent for ranking when available, fall back to skill's original intent
@@ -1969,7 +1988,20 @@ export async function executeEndpoint(
       if (result.status >= 200 && result.status < 400 && !shouldFallbackToBrowserReplay(result.data, endpoint, options?.intent ?? skill.intent_signature, options?.contextUrl)) {
         strategy = "server";
       } else if (endpoint.trigger_url && isSafe) {
-        result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+        // Build trigger URL with agent's params applied — don't replay original captured search
+        let triggerUrl = endpoint.trigger_url;
+        if (Object.keys(mergedParams).length > 0) {
+          try {
+            const tu = new URL(endpoint.trigger_url);
+            for (const [k, v] of Object.entries(mergedParams)) {
+              if (v != null && !reservedMetaParams.has(k)) {
+                tu.searchParams.set(k, String(v));
+              }
+            }
+            triggerUrl = tu.toString();
+          } catch { /* keep original trigger_url */ }
+        }
+        result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
         strategy = "trigger-intercept";
       } else {
         result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
@@ -1986,8 +2018,18 @@ export async function executeEndpoint(
       }
     } else if (endpointStrategy === "trigger-intercept" && endpoint.trigger_url && isSafe) {
       // Proven: this endpoint needs trigger-intercept
-      log("exec", `using learned strategy trigger-intercept via ${endpoint.trigger_url}`);
-      result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+      let triggerUrl = endpoint.trigger_url;
+      if (Object.keys(mergedParams).length > 0) {
+        try {
+          const tu = new URL(endpoint.trigger_url);
+          for (const [k, v] of Object.entries(mergedParams)) {
+            if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
+          }
+          triggerUrl = tu.toString();
+        } catch { /* keep original */ }
+      }
+      log("exec", `using learned strategy trigger-intercept via ${triggerUrl}`);
+      result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
       strategy = "trigger-intercept";
     } else if (endpointStrategy === "browser") {
       if (shouldIgnoreLearnedBrowserStrategy(endpoint, url)) {
@@ -2021,7 +2063,17 @@ export async function executeEndpoint(
         } else {
           log("exec", `server fetch returned ${result.status}, falling back`);
           if (endpoint.trigger_url && isSafe) {
-            result = await triggerAndIntercept(endpoint.trigger_url, endpoint.url_template, cookies, authHeaders);
+            let triggerUrl = endpoint.trigger_url;
+            if (Object.keys(mergedParams).length > 0) {
+              try {
+                const tu = new URL(endpoint.trigger_url);
+                for (const [k, v] of Object.entries(mergedParams)) {
+                  if (v != null && !reservedMetaParams.has(k)) tu.searchParams.set(k, String(v));
+                }
+                triggerUrl = tu.toString();
+              } catch { /* keep original */ }
+            }
+            result = await triggerAndIntercept(triggerUrl, endpoint.url_template, cookies, authHeaders);
             strategy = "trigger-intercept";
           } else {
             result = await withRetry(browserCall, (r) => isRetryableStatus(r.status));
