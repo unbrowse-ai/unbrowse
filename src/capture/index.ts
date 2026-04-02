@@ -351,7 +351,7 @@ export const INTERCEPTOR_SCRIPT = `(function() {
   if (window.__unbrowse_interceptor_installed) return;
   window.__unbrowse_interceptor_installed = true;
   window.__unbrowse_intercepted = [];
-  var MAX_BODY = 512 * 1024;
+  var MAX_BODY = 2 * 1024 * 1024;
   var MAX_JS_BODY = 2 * 1024 * 1024;
   var MAX_ENTRIES = 500;
 
@@ -375,9 +375,10 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       if (window.__unbrowse_intercepted.length >= MAX_ENTRIES) return response;
       var ct = response.headers.get('content-type') || '';
       var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
-                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
-                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
+      var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
+                   ct.indexOf('text/plain') !== -1 ||
+                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
+                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1;
       if (!isJs && !isData) return response;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return response;
       var clone = response.clone();
@@ -424,9 +425,10 @@ export const INTERCEPTOR_SCRIPT = `(function() {
       var ct = xhr.getResponseHeader('content-type') || '';
       var url = xhr.__unbrowse_url || '';
       var isJs = ct.indexOf('javascript') !== -1 || /\\.js(\\?|$)/.test(url);
-      var isData = ct.indexOf('application/json') !== -1 || ct.indexOf('+json') !== -1 ||
-                   ct.indexOf('application/x-protobuf') !== -1 || ct.indexOf('text/plain') !== -1 ||
-                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1;
+      var isData = ct.indexOf('json') !== -1 || ct.indexOf('application/x-protobuf') !== -1 ||
+                   ct.indexOf('text/plain') !== -1 ||
+                   url.indexOf('batchexecute') !== -1 || url.indexOf('/api/') !== -1 ||
+                   url.indexOf('graphql') !== -1 || url.indexOf('voyager') !== -1;
       if (!isJs && !isData) return;
       if (/\\.(css|woff2?|png|jpg|svg|ico)(\\?|$)/.test(url)) return;
       var respBody = xhr.responseText || '';
