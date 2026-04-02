@@ -16,7 +16,7 @@ export function buildAnalyticsSessionPayload(
   sessionId: string,
   startedAt: string,
   source: OrchestrationTiming["source"],
-  trace: Pick<ExecutionTrace, "completed_at" | "network_events">,
+  trace: Pick<ExecutionTrace, "completed_at" | "network_events" | "trace_version">,
 ): AnalyticsSessionPayload {
   const cacheLike = source === "marketplace" || source === "route-cache" || source === "first-pass";
   return {

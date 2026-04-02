@@ -20,6 +20,9 @@ Track the fundraising dashboard from the Worker API.
 - `GET /v1/analytics/funnel`
   - canonical optimize-against funnel
   - `registered -> activated -> aha -> repeat -> retained_d7 -> retained_d30`
+- `GET /v1/analytics/install-funnel`
+  - legacy first-run install/setup funnel
+  - install, registration, first resolve, abandonment, failure buckets
 - `GET /v1/analytics/network`
   - indexed skills/endpoints
   - unique indexed domains
@@ -37,7 +40,7 @@ Track the fundraising dashboard from the Worker API.
 - `POST /v1/analytics/sessions`
   - authenticated agent/session summary
   - send `session_id`, `started_at`, `api_calls`
-  - optional: `discovery_queries`, `cached_skill_calls`, `fresh_index_calls`, `browser_mode`
+  - optional: `discovery_queries`, `cached_skill_calls`, `fresh_index_calls`, `browser_mode`, `trace_version`
 - `POST /v1/analytics/adoption`
   - admin-only external snapshots
   - metrics: `npm_installs`, `github_stars`, `cli_installs`
