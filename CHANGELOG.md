@@ -46,6 +46,7 @@
 * add investor-facing analytics coverage: `/v1/analytics/growth`, `/v1/analytics/usage`, `/v1/analytics/network`, `/v1/analytics/economics`, plus session/adoption/pricing ingestion so cohort retention, new-user growth, skill reuse, external adoption, and path-to-$100k math are API-trackable
 ### Bug Fixes
 
+* **docs/frontend**: ground quickstart/API/deployment docs against the current repo and point public docs links at `docs.unbrowse.ai`
 * **auth/replay**: persist LinkedIn replay-critical headers (`accept`, `csrf-token`, `x-li-*`, `x-restli-protocol-version`) alongside sensitive auth headers, infer `csrf-token` refresh from `JSESSIONID`, and drop blank publish-sanitized header values at execute time so sanitized skills still replay authenticated Voyager requests correctly
 * **ci/regressions**: add GitHub issue regression coverage for #69/#70/#71 plus Codex eval-contract tests to the default test path and CI unit job so HAR ownership/header regressions stop slipping past automation
 * **eval/flags**: fix Codex harness boolean flag parsing so `--benchmark`, `--force-capture`, `--restart-server`, and `--require-dag` actually take effect instead of silently no-oping
