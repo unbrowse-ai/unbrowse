@@ -46,6 +46,14 @@ function recoveredAgentName(agentId: string): string {
   return `recovered-${agentId.slice(-8)}`;
 }
 
+function walletLookupKey(walletAddress: string): string {
+  return `wallet:${walletAddress}`;
+}
+
+export function normalizeWalletAddress(walletAddress: string): string {
+  return walletAddress.trim();
+}
+
 export async function ensureAgentProfile(
   env: Env,
   agentId: string,
@@ -104,11 +112,20 @@ function useLocalAdminRegistration(env: Env): boolean {
 export async function registerAgent(
   env: Env,
   name: string,
-  tosVersion: string
+  tosVersion: string,
+  wallet?: { wallet_address?: string; wallet_provider?: string },
 ): Promise<{ agent_id: string; api_key: string }> {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length < 2 || trimmed.length > 64) {
     throw new Error("Name must be 2-64 characters");
+  }
+
+  const normalizedWallet = normalizeWalletAddress(wallet?.wallet_address ?? "");
+  if (normalizedWallet) {
+    const claimedBy = await getAgentIdByWallet(env, normalizedWallet);
+    if (claimedBy) {
+      throw new Error("wallet_already_claimed");
+    }
   }
 
   if (useLocalAdminRegistration(env)) {
@@ -121,6 +138,8 @@ export async function registerAgent(
     agent_id: data.keyId,
     name: trimmed,
     created_at: new Date().toISOString(),
+    wallet_address: normalizedWallet || undefined,
+    wallet_provider: wallet?.wallet_provider?.trim() || undefined,
     profile_origin: "registered",
     skills_discovered: [],
     total_executions: 0,
@@ -130,8 +149,76 @@ export async function registerAgent(
     activity_dates: [],
   };
   await statsKV(env).put(`agent:${data.keyId}`, JSON.stringify(profile));
+  if (normalizedWallet) {
+    await statsKV(env).put(walletLookupKey(normalizedWallet), data.keyId);
+  }
 
   return { agent_id: data.keyId, api_key: data.key };
+}
+
+export async function getAgentIdByWallet(env: Env, walletAddress: string): Promise<string | null> {
+  const normalized = normalizeWalletAddress(walletAddress);
+  if (!normalized) return null;
+  return await statsKV(env).get(walletLookupKey(normalized)) as string | null;
+}
+
+export async function updateAgentWallet(
+  env: Env,
+  agentId: string,
+  wallet: { wallet_address?: string; wallet_provider?: string },
+): Promise<{ profile: AgentProfile; status: "claimed" | "already_claimed" }> {
+  const normalizedWallet = normalizeWalletAddress(wallet.wallet_address ?? "");
+  if (!normalizedWallet) {
+    throw new Error("wallet_address is required");
+  }
+
+  if (agentId === "__admin__") {
+    return {
+      profile: {
+        agent_id: "__admin__",
+        name: "admin",
+        created_at: "",
+        wallet_address: normalizedWallet,
+        wallet_provider: wallet.wallet_provider?.trim() || undefined,
+        skills_discovered: [],
+        total_executions: 0,
+        total_feedback_given: 0,
+        tos_accepted_version: CURRENT_TOS_VERSION,
+        tos_accepted_at: new Date().toISOString(),
+        activity_dates: [],
+      },
+      status: "already_claimed",
+    };
+  }
+
+  return await queueAgentWrite(agentId, async () => {
+    const profile = await ensureAgentProfile(env, agentId);
+    const existingWallet = normalizeWalletAddress(profile.wallet_address ?? "");
+    const indexedAgentId = await getAgentIdByWallet(env, normalizedWallet);
+
+    if (indexedAgentId && indexedAgentId !== agentId) {
+      throw new Error("wallet_already_claimed");
+    }
+    if (existingWallet && existingWallet !== normalizedWallet) {
+      throw new Error("wallet_already_claimed");
+    }
+
+    const status: "claimed" | "already_claimed" =
+      existingWallet === normalizedWallet || indexedAgentId === agentId ? "already_claimed" : "claimed";
+
+    if (!existingWallet) {
+      profile.wallet_address = normalizedWallet;
+    }
+    if (wallet.wallet_provider?.trim()) {
+      profile.wallet_provider = wallet.wallet_provider.trim();
+    }
+
+    await statsKV(env).put(`agent:${agentId}`, JSON.stringify(profile));
+    if (!indexedAgentId) {
+      await statsKV(env).put(walletLookupKey(normalizedWallet), agentId);
+    }
+    return { profile, status };
+  });
 }
 
 export async function acceptTos(env: Env, agentId: string, tosVersion: string): Promise<void> {

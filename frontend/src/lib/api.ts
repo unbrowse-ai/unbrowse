@@ -36,6 +36,8 @@ export interface AgentProfile {
   agent_id: string;
   name: string;
   created_at: string;
+  wallet_address?: string | null;
+  wallet_provider?: string | null;
   skills_discovered: string[];
   total_executions: number;
   total_feedback_given: number;
@@ -143,6 +145,7 @@ export interface DashboardData {
 export interface LeaderboardEntry {
   agent_id: string;
   name: string;
+  wallet_address?: string;
   created_at: string;
   contribution_score: number;
   creator_earned_usd: number;
@@ -257,6 +260,10 @@ export async function getMyProfile(): Promise<AgentProfile> {
 
 export async function getMyDashboard(): Promise<DashboardData> {
   return authApi<DashboardData>("GET", "/v1/dashboard/me");
+}
+
+export async function getDashboardByWallet(walletAddress: string): Promise<DashboardData> {
+  return api<DashboardData>("GET", `/v1/dashboard/wallet/${encodeURIComponent(walletAddress.trim())}`);
 }
 
 export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {

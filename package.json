@@ -1,6 +1,6 @@
 {
   "name": "unbrowse-monorepo",
-  "version": "2.9.1",
+  "version": "2.10.2",
   "workspaces": [
     "packages/*",
     "backend",
@@ -58,9 +58,13 @@
     "release": "release-it"
   },
   "dependencies": {
+    "@cascade-fyi/splits-sdk": "^0.11.1",
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@solana-program/compute-budget": "^0.15.0",
+    "@solana/kit": "^6.6.0",
     "@solana/web3.js": "1",
+    "bs58": "^6.0.0",
     "cheerio": "^1.2.0",
     "dotenv": "^17.3.1",
     "ethers": "6",

@@ -30,6 +30,11 @@ unbrowse resolve --intent "get events" --url "https://lu.ma"`,
       code: `# Install the published browser-replacement plugin
 npx unbrowse-openclaw install --restart
 
+# The package pulls in the local Unbrowse runtime automatically
+
+# Older OpenClaw builds may ask once to trust the plugin
+# Type y and press enter if prompted
+
 # Or install globally for repeat use
 npm install -g unbrowse-openclaw
 unbrowse-openclaw install --restart

@@ -6,8 +6,14 @@ export interface Env {
   NEBIUS_API_KEY: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
+  PAYMENTS_ENABLED?: string;
+  X402_NETWORK_MODE?: string;
   /** Wallet address that receives x402 skill-access payments. */
   PAYMENT_RECIPIENT?: string;
+  CASCADE_PLATFORM_WALLET?: string;
+  CASCADE_SIGNER_SECRET_KEY?: string;
+  CASCADE_RPC_URL?: string;
+  CASCADE_RPC_WS_URL?: string;
 }
 
 // --- Agent identity ---
@@ -16,6 +22,8 @@ export interface AgentProfile {
   agent_id: string;       // Unkey keyId
   name: string;
   created_at: string;
+  wallet_address?: string;
+  wallet_provider?: string;
   profile_origin?: "registered" | "recovered";
   recovered_at?: string;
   skills_discovered: string[];

@@ -14,6 +14,10 @@ import {
 } from "../src/services/scoring.js";
 import { rescoreWithComposite } from "../src/services/discovery.js";
 
+function isPaidSearchResponse(status: number, data: Record<string, unknown>): boolean {
+  return status === 402 && data.error === "Payment Required";
+}
+
 describe("#221 composite search score wiring", () => {
   // Unit: rescoreWithComposite applies the formula to search results
   it("rescores results using metadata reliability, freshness, and verification", () => {
@@ -92,23 +96,29 @@ describe("#221 composite search score wiring", () => {
         k: 5,
       }),
     });
-    expect(res.ok).toBe(true);
+    const data = (await res.json()) as Record<string, unknown> & {
+      results?: Array<{ id: number | string; score: number; metadata?: Record<string, unknown> }>;
+    };
+    expect([200, 402]).toContain(res.status);
+    if (isPaidSearchResponse(res.status, data)) {
+      return;
+    }
 
-    const data = (await res.json()) as { results: Array<{ id: number | string; score: number; metadata?: Record<string, unknown> }> };
-    if (data.results.length < 2) return; // skip if no results (not our bug)
+    const results = data.results ?? [];
+    if (results.length < 2) return; // skip if no results (not our bug)
 
     // Composite scores should be in [0, 1] and ordered descending
-    for (let i = 1; i < data.results.length; i++) {
-      expect(data.results[i - 1].score).toBeGreaterThanOrEqual(data.results[i].score);
+    for (let i = 1; i < results.length; i++) {
+      expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
     }
 
     // Scores should differ from pure vector similarity (which tends to cluster)
     // The composite formula adds reliability/freshness/verification variation
-    const scores = data.results.map((r) => r.score);
+    const scores = results.map((r) => r.score);
     const allIdentical = scores.every((s) => Math.abs(s - scores[0]) < 0.001);
     // If there are multiple results, at least some score differentiation is expected
     // (pure vector often returns identical clusters)
-    if (data.results.length >= 3) {
+    if (results.length >= 3) {
       // This is a soft check — composite scoring should add at least some variation
       console.log(`  scores: ${scores.map((s) => s.toFixed(4)).join(", ")}`);
     }

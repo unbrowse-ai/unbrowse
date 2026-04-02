@@ -90,6 +90,8 @@ unbrowse setup
 npx unbrowse-openclaw install --restart
 ```
 
+The package pulls in the local Unbrowse runtime automatically. Older OpenClaw builds may ask once to trust the plugin.
+
 ### Upgrading
 
 ```
@@ -261,11 +263,13 @@ Capture, indexing, and reverse-engineering are free. Agents pay only when using 
 
 Tier 1 is one-time: pay once, execute locally forever with no further marketplace payments. Tier 2 only applies to sites whose owners have opted in to per-execution pricing. Tier 3 covers the cost of maintaining the shared index and serving vector search.
 
-Payment uses the x402 protocol. Paid skills return HTTP 402 with payment requirements. Supported chains: Solana (USDC) and Base (USDC) via the Corbits facilitator. Wallet operations are delegated to lobster.cash.
+Payment uses the x402 protocol. Paid skills return HTTP 402 with payment requirements. Supported chains: Solana (USDC) and Base (USDC) via the Corbits facilitator. Wallet operations are delegated to lobster.cash. Creator payout wallets are synced from agent registration/runtime wallet state. Current payout policy is single-recipient: the majority contributor wallet wins, with first-contributor winning ties. That winner wallet must already be Solana mainnet USDC-ready or settlement can fail. Publish-time Cascade provisioning still accepts either a pre-made `UNBROWSE_CASCADE_SPLIT_ADDRESS`/`UNBROWSE_CASCADE_SPLIT_CONFIG` override or the signer/RPC env needed to call `@cascade-fyi/splits-sdk`.
+
+Worker payment gating is controlled by `PAYMENTS_ENABLED`; when false, search and skill x402 gates are bypassed and no search fees are recorded.
 
 ### Route Mining Economics
 
-Agents earn by indexing the web for other agents. Every time an agent browses a new site through Kuri, Unbrowse captures the internal APIs and publishes them. When another agent installs that route (Tier 1), the original discoverer gets paid. Attribution is delta-based: each contributor's share is proportional to their marginal contribution to route quality. Contributors collectively receive ~70% of Tier 1 install revenue.
+Agents earn by indexing the web for other agents. Every time an agent browses a new site through Kuri, Unbrowse captures the internal APIs and publishes them. When another agent installs that route (Tier 1), the original discoverer gets paid. Attribution is delta-based: each contributor's share is proportional to their marginal contribution to route quality. The backend transaction ledger fans paid executions out across contributor earnings using those shares, even before a multi-party split recipient is provisioned on-chain.
 
 ## Authentication
 

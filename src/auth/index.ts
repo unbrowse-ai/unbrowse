@@ -27,6 +27,29 @@ export interface LoginResult {
   error?: string;
 }
 
+export interface BrowserAuthSourceMeta {
+  family?: string;
+  userDataDir?: string;
+  cookieDbPath?: string;
+}
+
+export interface StoredAuthBundle {
+  cookies: AuthCookie[];
+  headers: Record<string, string>;
+  source_keys: string[];
+  source_meta?: BrowserAuthSourceMeta | null;
+}
+
+export function storedAuthNeedsBrowserRefresh(bundle: StoredAuthBundle | null | undefined): boolean {
+  if (!bundle) return true;
+  if (bundle.cookies.length === 0 && Object.keys(bundle.headers).length === 0) return true;
+  const sourceMeta = bundle.source_meta;
+  if (!sourceMeta) return true;
+  if (sourceMeta.family === "chromium" && !sourceMeta.userDataDir && !sourceMeta.cookieDbPath) {
+    return true;
+  }
+  return false;
+}
 /**
  * Open a visible browser for the user to complete login.
  * Uses Kuri to manage the browser tab, polls for login completion via cookies.
@@ -225,6 +248,17 @@ function filterExpired(cookies: AuthCookie[]): AuthCookie[] {
 export async function getStoredAuth(
   domain: string
 ): Promise<AuthCookie[] | null> {
+  const bundle = await getStoredAuthBundle(domain);
+  return bundle?.cookies?.length ? bundle.cookies : null;
+}
+
+/**
+ * Retrieve the stored auth bundle for a domain from the vault.
+ * Preserves headers/source metadata while filtering expired cookies.
+ */
+export async function getStoredAuthBundle(
+  domain: string
+): Promise<StoredAuthBundle | null> {
   const regDomain = getRegistrableDomain(domain);
   const keysToTry = [`auth:${regDomain}`];
   if (domain !== regDomain) keysToTry.push(`auth:${domain}`);
@@ -233,12 +267,10 @@ export async function getStoredAuth(
     const stored = await getCredential(key);
     if (!stored) continue;
     try {
-      const parsed = JSON.parse(stored) as { cookies?: AuthCookie[] };
-      const cookies = parsed.cookies;
-      if (!cookies || cookies.length === 0) continue;
-
+      const parsed = JSON.parse(stored) as Partial<StoredAuthBundle> & { cookies?: AuthCookie[] };
+      const cookies = parsed.cookies ?? [];
       const valid = filterExpired(cookies);
-      if (valid.length === 0) {
+      if (cookies.length > 0 && valid.length === 0 && Object.keys(parsed.headers ?? {}).length === 0) {
         log("auth", `all ${cookies.length} cookies for ${domain} (key: ${key}) are expired — deleting`);
         await deleteCredential(key);
         continue;
@@ -246,11 +278,17 @@ export async function getStoredAuth(
       if (valid.length < cookies.length) {
         log("auth", `filtered ${cookies.length - valid.length} expired cookies for ${domain}`);
       }
-      return valid;
+      return {
+        cookies: valid,
+        headers: parsed.headers ?? {},
+        source_keys: parsed.source_keys ?? [],
+        source_meta: parsed.source_meta ?? null,
+      };
     } catch {
       continue;
     }
   }
+
   return null;
 }
 

@@ -130,7 +130,7 @@ statsRoutes.post("/stats/perf", bearerAuth, async (c) => {
 
 // POST /v1/stats/diagnostics — agent-reported speed/accuracy diagnostics
 statsRoutes.use("/stats/diagnostics", agentRateLimit({ limit: 120, window: 60, prefix: "diagnostics" }));
-statsRoutes.post("/stats/diagnostics", async (c) => {
+statsRoutes.post("/stats/diagnostics", bearerAuth, async (c) => {
   const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
@@ -155,7 +155,7 @@ statsRoutes.post("/stats/diagnostics", async (c) => {
 });
 
 // POST /v1/stats/execution — record execution + recompute score + Tier 1 attribution
-statsRoutes.post("/stats/execution", async (c) => {
+statsRoutes.post("/stats/execution", bearerAuth, async (c) => {
   const body = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
@@ -208,7 +208,7 @@ statsRoutes.post("/stats/execution", async (c) => {
 });
 
 // POST /v1/stats/feedback — record feedback + recompute score
-statsRoutes.post("/stats/feedback", async (c) => {
+statsRoutes.post("/stats/feedback", bearerAuth, async (c) => {
   const { skill_id, endpoint_id, rating } = await c.req.json<{
     skill_id: string;
     endpoint_id: string;
@@ -227,7 +227,7 @@ statsRoutes.post("/stats/feedback", async (c) => {
 });
 
 // GET /v1/stats/fees — aggregate graph fee summary (admin)
-statsRoutes.get("/stats/fees", async (c) => {
+statsRoutes.get("/stats/fees", bearerAuth, async (c) => {
   try {
     const summary = await getFeesSummary(c.env);
     return c.json(summary);
@@ -238,7 +238,7 @@ statsRoutes.get("/stats/fees", async (c) => {
 });
 
 // GET /v1/stats/fees/:agentId — per-agent fee ledger (admin)
-statsRoutes.get("/stats/fees/:agentId", async (c) => {
+statsRoutes.get("/stats/fees/:agentId", bearerAuth, async (c) => {
   const agentId = c.req.param("agentId");
   try {
     const ledger = await getAgentFeeLedger(c.env, agentId);
@@ -251,7 +251,7 @@ statsRoutes.get("/stats/fees/:agentId", async (c) => {
 });
 
 // GET /v1/stats/attribution — aggregate Tier 1 attribution summary (admin)
-statsRoutes.get("/stats/attribution", async (c) => {
+statsRoutes.get("/stats/attribution", bearerAuth, async (c) => {
   try {
     const summary = await getAttributionSummary(c.env);
     return c.json(summary);
@@ -262,7 +262,7 @@ statsRoutes.get("/stats/attribution", async (c) => {
 });
 
 // GET /v1/stats/attribution/:indexerId — per-indexer attribution ledger (admin)
-statsRoutes.get("/stats/attribution/:indexerId", async (c) => {
+statsRoutes.get("/stats/attribution/:indexerId", bearerAuth, async (c) => {
   const indexerId = c.req.param("indexerId");
   try {
     const ledger = await getIndexerLedger(c.env, indexerId);

@@ -5,7 +5,7 @@ import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.
 import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, injectInterceptor, type RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
-import type { SkillManifest } from "../types/index.js";
+import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
 import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
@@ -14,14 +14,13 @@ import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index
 import { storeCredential } from "../vault/index.js";
 import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
-import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
+import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
-import type { ProjectionOptions } from "../types/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { mergeAgentReview } from "../indexer/index.js";
@@ -34,6 +33,43 @@ import { submitBrowseForm } from "./browse-submit.js";
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
+
+type AnalyticsSessionResult = {
+  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version">;
+  timing?: Pick<OrchestrationTiming, "source">;
+  source?: OrchestratorResult["source"];
+};
+
+export function buildAnalyticsSessionPayload(
+  result: AnalyticsSessionResult,
+  opts: {
+    browser_mode: AnalyticsSessionPayload["browser_mode"];
+    discovery_queries: number;
+    cached_skill_calls?: number;
+    fresh_index_calls?: number;
+  },
+): AnalyticsSessionPayload {
+  const source = result.timing?.source ?? result.source;
+  const apiCalls = result.trace.endpoint_id ? 1 : 0;
+  const cachedSkillCalls = opts.cached_skill_calls ?? (
+    apiCalls > 0 && source !== "live-capture" && source !== "first-pass" ? 1 : 0
+  );
+  const freshIndexCalls = opts.fresh_index_calls ?? (
+    apiCalls > 0 && (source === "live-capture" || source === "first-pass") ? 1 : 0
+  );
+
+  return {
+    session_id: result.trace.trace_id,
+    started_at: result.trace.started_at,
+    completed_at: result.trace.completed_at,
+    trace_version: result.trace.trace_version ?? TRACE_VERSION,
+    api_calls: apiCalls,
+    discovery_queries: opts.discovery_queries,
+    cached_skill_calls: cachedSkillCalls,
+    fresh_index_calls: freshIndexCalls,
+    browser_mode: opts.browser_mode ?? "unknown",
+  };
+}
 
 
 /** Process HAR entries into routes and queue for background indexing */
@@ -318,6 +354,11 @@ export async function registerRoutes(app: FastifyInstance) {
         res.available_endpoints = innerResult.available_endpoints;
       }
 
+      await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
+        browser_mode: "replaced",
+        discovery_queries: 1,
+      })).catch(() => {});
+
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
@@ -588,6 +629,10 @@ export async function registerRoutes(app: FastifyInstance) {
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
             recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
           }
+          await recordAnalyticsSession(buildAnalyticsSessionPayload(freshResult, {
+            browser_mode: "manual",
+            discovery_queries: 1,
+          })).catch(() => {});
           return reply.send({
             ...freshResult,
             _recovery: {
@@ -600,6 +645,13 @@ export async function registerRoutes(app: FastifyInstance) {
           // Recovery failed — return original 404 with guidance
         }
       }
+
+      await recordAnalyticsSession(buildAnalyticsSessionPayload(execResult, {
+        browser_mode: "manual",
+        discovery_queries: 0,
+        cached_skill_calls: execResult.trace.endpoint_id ? 1 : 0,
+        fresh_index_calls: 0,
+      })).catch(() => {});
 
       return reply.send(execResult);
     } catch (err) {

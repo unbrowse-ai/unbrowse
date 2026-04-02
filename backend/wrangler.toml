@@ -1,9 +1,16 @@
 name = "unbrowse-backend"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+# Wrangler v3 routes module workers with KV bindings through the newer
+# /versions API, which currently rejects our CI token without KV write perms.
+# `first_party_worker` disables that code path in Wrangler v3 and keeps deploys
+# on the legacy PUT /workers/scripts/:name endpoint instead.
+first_party_worker = true
 
 [vars]
 ENVIRONMENT = "production"
+PAYMENTS_ENABLED = "true"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
 [[kv_namespaces]]
@@ -30,6 +37,14 @@ name = "unbrowse-backend-staging"
 workers_dev = true
 routes = []
 
+[[env.staging.kv_namespaces]]
+binding = "STATS_KV"
+id = "1d315d7cda1742b785cf5d23c892c5d7"
+preview_id = "edcbdb23e34c4244bf8cf28eb404d069"
+
 [env.staging.vars]
 ENVIRONMENT = "staging"
+PAYMENTS_ENABLED = "true"
+X402_NETWORK_MODE = "mainnet"
+PAYMENT_RECIPIENT = "7xKpQ9Lm2Rn3Wp4Ys5Zt6Au7Bv8Cw9Dx1Ey2Fz3mNq"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
