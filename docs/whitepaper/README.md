@@ -2,10 +2,10 @@
 
 Implementation-aware companion docs for the Unbrowse whitepaper.
 
-- Authors: Lewis Tham, Nicholas Mac Gregor Garcia
+- Authors: Lewis Tham, Nicholas Mac Gregor Garcia, Jungpil Hahn
 - Canonical PDF: <a href="./unbrowse-whitepaper.pdf" target="_blank" rel="noopener noreferrer">unbrowse-whitepaper.pdf</a>
 - Status: official paper plus implementation-aware companion docs
-- Codebase snapshot used for this companion: March 23, 2026
+- Canonical paper draft synced here: April 1, 2026
 
 > Important
 > The PDF mixes shipped product behavior, research results, and forward-looking economic design.
@@ -84,7 +84,7 @@ Read [Coming Soon](./coming-soon.md) if you care about the route economy, x402, 
 ```bibtex
 @misc{tham2026internal,
   title = {Internal APIs Are All You Need},
-  author = {Lewis Tham and Nicholas Mac Gregor Garcia},
+  author = {Lewis Tham and Nicholas Mac Gregor Garcia and Jungpil Hahn},
   year = {2026},
   note = {Official Unbrowse whitepaper with implementation-aware companion docs}
 }
