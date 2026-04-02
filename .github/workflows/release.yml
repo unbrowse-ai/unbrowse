@@ -2,7 +2,13 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -11,6 +17,10 @@ jobs:
   publish-cli:
     name: Publish CLI (npm)
     runs-on: self-hosted
+    outputs:
+      package_name: ${{ steps.pkg.outputs.name }}
+      package_version: ${{ steps.pkg.outputs.version }}
+      published: ${{ steps.publish-result.outputs.published }}
     permissions:
       contents: read
       id-token: write
@@ -25,6 +35,12 @@ jobs:
         with:
           bun-version: "1.3.1"
       - run: bun install --frozen-lockfile
+
+      - name: Read package metadata
+        id: pkg
+        run: |
+          echo "name=$(node -p 'require(\"./packages/skill/package.json\").name')" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p 'require(\"./packages/skill/package.json\").version')" >> "$GITHUB_OUTPUT"
 
       - name: Resolve npm token
         id: npm-auth
@@ -55,14 +71,15 @@ jobs:
         if: steps.npm-auth.outputs.skip_publish != '1'
         id: version-check
         run: |
-          PKG_NAME="$(node -p "require('./packages/skill/package.json').name")"
-          PKG_VERSION="$(node -p "require('./packages/skill/package.json').version")"
+          PKG_NAME="${{ steps.pkg.outputs.name }}"
+          PKG_VERSION="${{ steps.pkg.outputs.version }}"
           if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
             echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published; skipping npm publish."
             echo "skip_publish=1" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish CLI to npm
+        id: npm-publish
         if: steps.npm-auth.outputs.skip_publish != '1' && steps.version-check.outputs.skip_publish != '1'
         working-directory: packages/skill
         run: |
@@ -71,6 +88,16 @@ jobs:
           else
             npm publish --provenance
           fi
+
+      - name: Mark publish result
+        id: publish-result
+        if: always()
+        run: |
+          PUBLISHED=0
+          if [ "${{ steps.npm-auth.outputs.skip_publish }}" != "1" ] && [ "${{ steps.version-check.outputs.skip_publish }}" != "1" ]; then
+            PUBLISHED=1
+          fi
+          echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
 
   deploy-backend:
     name: Deploy Backend (CF Worker)
@@ -147,6 +174,7 @@ jobs:
         with:
           repository: unbrowse-ai/unbrowse
           token: ${{ secrets.SKILL_REPO_TOKEN }}
+          ref: stable
           path: _skill-repo
 
       - name: Sync and push
@@ -154,7 +182,85 @@ jobs:
         env:
           CI: "true"
           UNBROWSE_SKILL_REPO: ${{ github.workspace }}/_skill-repo
+          UNBROWSE_SKILL_REPO_BRANCH: stable
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          bash scripts/sync-skill.sh "chore: release ${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            MSG="chore: release ${GITHUB_REF_NAME}"
+          else
+            MSG="chore: sync main ${GITHUB_SHA}"
+          fi
+          bash scripts/sync-skill.sh "$MSG"
+
+  release-skill-repo:
+    name: Release Skill Repo
+    runs-on: self-hosted
+    needs: [publish-cli, sync-skill]
+    if: needs.sync-skill.result == 'success'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve skill repo token
+        id: skill-auth
+        env:
+          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          if [ -n "$SKILL_REPO_TOKEN" ]; then
+            echo "skip_release=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REPOSITORY" = "unbrowse-ai/unbrowse" ]; then
+            echo "::error::Missing SKILL_REPO_TOKEN for canonical release."
+            exit 1
+          fi
+          echo "::notice::Skipping skill repo release; no SKILL_REPO_TOKEN configured for $GITHUB_REPOSITORY."
+          echo "skip_release=1" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Checkout skill repo
+        if: steps.skill-auth.outputs.skip_release != '1'
+        uses: actions/checkout@v4
+        with:
+          repository: unbrowse-ai/unbrowse
+          token: ${{ secrets.SKILL_REPO_TOKEN }}
+          ref: stable
+          path: _skill-repo
+
+      - name: Create and push release tag
+        if: steps.skill-auth.outputs.skip_release != '1'
+        env:
+          GH_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          TAG="v${{ needs.publish-cli.outputs.package_version }}"
+          cd _skill-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}$"; then
+            echo "::notice::Skill repo tag ${TAG} already exists."
+            exit 0
+          fi
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
+      - name: Create GitHub release in skill repo
+        if: steps.skill-auth.outputs.skip_release != '1'
+        env:
+          GH_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          TAG="v${{ needs.publish-cli.outputs.package_version }}"
+          if gh release view "${TAG}" --repo unbrowse-ai/unbrowse >/dev/null 2>&1; then
+            echo "::notice::Skill repo release ${TAG} already exists."
+            exit 0
+          fi
+          if [ -f .release-notes.md ]; then
+            gh release create "${TAG}" \
+              --repo unbrowse-ai/unbrowse \
+              --title "${TAG}" \
+              --notes-file .release-notes.md
+          else
+            gh release create "${TAG}" \
+              --repo unbrowse-ai/unbrowse \
+              --title "${TAG}" \
+              --notes "Release ${TAG} from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          fi
