@@ -9,49 +9,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MONO_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILL_PKG="$MONO_ROOT/packages/skill"
+DOCS_DIR="$MONO_ROOT/docs"
 TARGET_REPO="${UNBROWSE_SKILL_REPO:-$HOME/Projects/unbrowse-skill}"
 KURI_SUBMODULE="$MONO_ROOT/submodules/kuri"
 
 # --------------------------------------------------------------------------
-# 1. Install / update Claude Code local skill
+# 1. Install / update Claude + Codex local skill links
 # --------------------------------------------------------------------------
 
-CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
-AGENTS_SKILLS_DIR="$HOME/.agents/skills"
-
-echo "=== Installing Claude Code skill ==="
-
-# Ensure directories exist
-mkdir -p "$CLAUDE_SKILLS_DIR" "$AGENTS_SKILLS_DIR"
-
-# Create symlink in ~/.agents/skills/ → monorepo root (if not already pointing here)
-if [ -L "$AGENTS_SKILLS_DIR/unbrowse" ]; then
-  CURRENT_TARGET="$(readlink "$AGENTS_SKILLS_DIR/unbrowse")"
-  if [ "$CURRENT_TARGET" != "$MONO_ROOT" ]; then
-    echo "Updating ~/.agents/skills/unbrowse → $MONO_ROOT (was $CURRENT_TARGET)"
-    rm "$AGENTS_SKILLS_DIR/unbrowse"
-    ln -s "$MONO_ROOT" "$AGENTS_SKILLS_DIR/unbrowse"
-  else
-    echo "~/.agents/skills/unbrowse already points to $MONO_ROOT"
-  fi
-elif [ -e "$AGENTS_SKILLS_DIR/unbrowse" ]; then
-  echo "Warning: ~/.agents/skills/unbrowse exists but is not a symlink. Skipping."
-else
-  echo "Creating ~/.agents/skills/unbrowse → $MONO_ROOT"
-  ln -s "$MONO_ROOT" "$AGENTS_SKILLS_DIR/unbrowse"
-fi
-
-# Create symlink in ~/.claude/skills/ → ~/.agents/skills/unbrowse (Claude Code convention)
-if [ -L "$CLAUDE_SKILLS_DIR/unbrowse" ]; then
-  echo "~/.claude/skills/unbrowse already exists"
-elif [ -e "$CLAUDE_SKILLS_DIR/unbrowse" ]; then
-  echo "Warning: ~/.claude/skills/unbrowse exists but is not a symlink. Skipping."
-else
-  echo "Creating ~/.claude/skills/unbrowse → ../../.agents/skills/unbrowse"
-  ln -s "../../.agents/skills/unbrowse" "$CLAUDE_SKILLS_DIR/unbrowse"
-fi
-
-echo "Claude Code skill installed."
+echo "=== Syncing Claude + Codex skill links ==="
+bun "$SCRIPT_DIR/sync-skill-links.ts"
+echo "Claude + Codex skill links ready."
 echo ""
 
 # --------------------------------------------------------------------------
@@ -85,6 +53,12 @@ rsync -avL --delete \
   --exclude '.env' \
   --exclude 'traces' \
   "$SKILL_PKG/" "$TARGET_REPO/"
+
+if [ -d "$DOCS_DIR" ]; then
+  rsync -av --delete \
+    --exclude '.git' \
+    "$DOCS_DIR/" "$TARGET_REPO/docs/"
+fi
 
 if [ -d "$KURI_SUBMODULE" ]; then
   mkdir -p "$TARGET_REPO/vendor"
