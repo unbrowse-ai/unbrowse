@@ -616,8 +616,39 @@ export function extractEndpoints(requests: RawRequest[], wsMessages?: CapturedWs
       continue;
     }
     if (!hasAdmissibleParsedBody(req.response_body)) {
-      traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
-      continue;
+      // API endpoints may have large/truncated/missing response bodies.
+      // Admit them anyway if the URL pattern is clearly an API endpoint.
+      const urlPath = (() => { try { return new URL(req.url).pathname; } catch { return ""; } })();
+      const isApiUrl = /\/(api|graphql)\b/i.test(urlPath) || /\.(json)(\?|$)/.test(req.url);
+
+      // For GraphQL: extract operationName from request body or URL
+      let graphqlOpName: string | undefined;
+      if (/graphql/i.test(req.url)) {
+        if (req.request_body) {
+          try {
+            const body = JSON.parse(req.request_body);
+            graphqlOpName = body.operationName ?? body.query?.match(/(?:query|mutation)\s+(\w+)/)?.[1];
+          } catch { /* not JSON */ }
+        }
+        // Also try extracting from URL query (GET GraphQL endpoints encode operationName in URL)
+        if (!graphqlOpName) {
+          const urlMatch = req.url.match(/\/graphql\/\w+\/(\w+)/);
+          if (urlMatch) graphqlOpName = urlMatch[1];
+        }
+      }
+
+      // For .json endpoints: use the last path segment as description
+      const jsonEndpointName = /\.(json)(\?|$)/.test(req.url) ? urlPath.split("/").pop()?.replace(".json", "") : undefined;
+
+      if (!isApiUrl) {
+        traceRows.push({ url: req.url, method: req.method, score, kept: false, reason: "body_not_json_or_html" });
+        continue;
+      }
+
+      // Inject a synthetic response body so downstream processing works
+      const syntheticName = graphqlOpName ?? jsonEndpointName ?? "api_endpoint";
+      req.response_body = JSON.stringify({ data: { __typename: syntheticName } });
+      req.response_headers = { ...req.response_headers, "content-type": "application/json" };
     }
     // #227: Reject React Server Components wire format payloads — they are framework
     // rendering wire format, not data APIs. Use the proper RSC parser instead of
@@ -1093,6 +1124,25 @@ function templatizePathSegments(
         tSegments[i] = `{${paramName}}`;
         pathParams[paramName] = oSeg;
         continue;
+      }
+
+      // Pattern 3: Context-diff — endpoint URL segment differs from page URL at same position.
+      // If the page URL has a different value at this position, this segment is likely an entity
+      // that should be parameterized. e.g. page=/r/singularity/ endpoint=/r/programming/.json
+      if (context?.pageUrl) {
+        try {
+          const contextSegments = new URL(context.pageUrl).pathname.split("/");
+          const contextSeg = contextSegments[i];
+          if (contextSeg && contextSeg !== tSeg &&
+              !contextSeg.includes(".") &&
+              contextSeg.length >= 2 && contextSeg.length <= 40 &&
+              !/^(api|v\d+|www|en|es|fr|de|latest|search|i)$/i.test(contextSeg)) {
+            const paramName = inferParamName(tSegments, i, "slug", usedNames);
+            tSegments[i] = `{${paramName}}`;
+            pathParams[paramName] = contextSeg; // use context URL value as default
+            continue;
+          }
+        } catch { /* skip */ }
       }
     }
 

@@ -347,7 +347,7 @@ export function hasUsefulCapturedResponses(
  * Inject a fetch/XHR interceptor into the page to capture request/response data.
  * Returns captured entries via __unbrowse_intercepted global.
  */
-const INTERCEPTOR_SCRIPT = `(function() {
+export const INTERCEPTOR_SCRIPT = `(function() {
   if (window.__unbrowse_interceptor_installed) return;
   window.__unbrowse_interceptor_installed = true;
   window.__unbrowse_intercepted = [];
@@ -452,7 +452,7 @@ const INTERCEPTOR_SCRIPT = `(function() {
 /**
  * Collect intercepted requests from the page.
  */
-async function collectInterceptedRequests(tabId: string): Promise<Array<{
+export async function collectInterceptedRequests(tabId: string): Promise<Array<{
   url: string;
   method: string;
   request_headers: Record<string, string>;
