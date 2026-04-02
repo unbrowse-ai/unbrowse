@@ -495,6 +495,17 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       );
     }
   }
+  // Browse session handoff: print instructions instead of trying to extract data
+  const resultObj = result.result as Record<string, unknown> | undefined;
+  if (resultObj?.status === "browse_session_open") {
+    info(`No cached API. Browser session open on ${resultObj.domain ?? resultObj.url}.`);
+    info(`Use these commands to get your data:`);
+    const commands = resultObj.commands as string[] ?? ["unbrowse snap --filter interactive", "unbrowse click <ref>", "unbrowse close"];
+    for (const cmd of commands) info(`  ${cmd}`);
+    info(`All traffic is being passively captured. Run "unbrowse close" when done.`);
+    output(slimTrace(result), !!flags.pretty);
+    return;
+  }
 
   if (Date.now() - startedAt > 3_000 && result.source === "live-capture") {
     info("Live capture finished. Future runs against this site should be much faster.");
