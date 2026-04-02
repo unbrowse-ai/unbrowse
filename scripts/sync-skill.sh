@@ -9,6 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MONO_ROOT="$(dirname "$SCRIPT_DIR")"
 SKILL_PKG="$MONO_ROOT/packages/skill"
+DOCS_DIR="$MONO_ROOT/docs"
 TARGET_REPO="${UNBROWSE_SKILL_REPO:-$HOME/Projects/unbrowse-skill}"
 KURI_SUBMODULE="$MONO_ROOT/submodules/kuri"
 
@@ -85,6 +86,13 @@ rsync -avL --delete \
   --exclude '.env' \
   --exclude 'traces' \
   "$SKILL_PKG/" "$TARGET_REPO/"
+
+# Keep the standalone skill repo's docs tree in sync with the monorepo root docs.
+if [ -d "$DOCS_DIR" ]; then
+  rsync -av --delete \
+    --exclude '.git' \
+    "$DOCS_DIR/" "$TARGET_REPO/docs/"
+fi
 
 if [ -d "$KURI_SUBMODULE" ]; then
   mkdir -p "$TARGET_REPO/vendor"
