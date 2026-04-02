@@ -1,2 +1,0 @@
-Missing arguments for: get text
-Usage: agent-browser get text <selector>

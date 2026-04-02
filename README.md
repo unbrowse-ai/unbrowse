@@ -6,20 +6,23 @@ Turn any website into a reusable API interface for agents. Unbrowse captures net
 
 One agent learns a site once. Every later agent gets the fast path.
 
-Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents: on the API-native path it is typically ~30x faster, ~90% cheaper, and turns repeated browser work into reusable route assets.
+Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, but with route learning, reuse, and browser fallback built in.
 
 > Security note: capture and execution stay local by default. Credentials stay on your machine. Learned API contracts are published to the shared marketplace only after capture. See [SKILL.md](./SKILL.md) for the full agent-facing API reference and tool-policy guidance.
 
 ## Quick start
 
 ```bash
-# Fastest full setup
-npx unbrowse setup
+# Deterministic setup from a repo clone
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, lets you register with an email-shaped display identity, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and then runs the real first-time bootstrap: ToS acceptance, agent registration + API-key caching, and lobster.cash wallet detection when present.
 
-For daily use:
+If a wallet is configured, that wallet address is synced onto your agent profile and becomes the destination for contributor payouts when your routes earn.
+
+For repeat npm use after a healthy publish:
 
 ```bash
 npm install -g unbrowse
@@ -36,11 +39,12 @@ npx skills add unbrowse-ai/unbrowse
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
-If you installed the CLI globally:
+If you installed from a repo clone:
 
 ```bash
-npm install -g unbrowse@latest
-unbrowse setup
+cd ~/unbrowse
+git pull --ff-only
+./setup --host off
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
@@ -50,6 +54,9 @@ npx skills add unbrowse-ai/unbrowse
 ```
 
 Need help or want release updates? Join the Discord: [discord.gg/VWugEeFNsG](https://discord.gg/VWugEeFNsG)
+
+Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
+Canonical docs: [docs.unbrowse.ai](https://docs.unbrowse.ai)
 
 Every CLI command auto-starts the local server on `http://localhost:6969` by default. Override with `UNBROWSE_URL`, `PORT`, or `HOST`. On first startup it auto-registers as an agent with the marketplace and caches credentials in `~/.unbrowse/config.json`. `unbrowse setup` now prompts for an email-shaped identity first; headless setups can provide `UNBROWSE_AGENT_EMAIL`.
 
@@ -167,6 +174,16 @@ See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, s
 | GET    | `/v1/skills`             | List all marketplace skills                    |
 | GET    | `/v1/stats/summary`      | Platform stats                                 |
 | GET    | `/health`                | Health check                                   |
+
+## Docs
+
+The standalone skill repo also carries the core repo docs:
+
+- [Quickstart guide](./docs/guides/quickstart.md)
+- [API notes](./docs/api.md)
+- [Codex eval harness](./docs/codex-eval-harness.md)
+- [Deployment notes](./docs/deployment.md)
+- [Release checklist](./docs/RELEASING.md)
 
 ## Configuration
 

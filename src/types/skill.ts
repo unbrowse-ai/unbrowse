@@ -330,6 +330,8 @@ export interface ExecutionOptions {
   client_scope?: string;
   /** Set only when the caller has already completed payment verification for a paid run */
   payment_verified?: boolean;
+  /** Skip robots.txt compliance check (e.g. for testing or trusted internal domains) */
+  skip_robots_check?: boolean;
 }
 
 export interface ValidationResult {

@@ -1,4 +1,4 @@
-import { isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import { cachePublishedSkill, getLocalWalletContext, isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
@@ -15,6 +15,7 @@ import { storeExecutionTrace, findTracesByIntent } from "../graph/trace-store.js
 import { queuePassiveSkillPublish } from "./passive-publish.js";
 import { getPrefetchTargets, executePrefetch } from "../capture/prefetch.js";
 import { tryFirstPassBrowserAction } from "./first-pass-action.js";
+import { computeTimingEconomics } from "./timing-economics.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
 import type {
@@ -610,6 +611,34 @@ function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
   } catch {
     return false;
   }
+}
+
+function buildLocalCanonicalReplaySkill(
+  intent: string,
+  contextUrl: string,
+): SkillManifest | undefined {
+  const endpoint = buildCanonicalDocumentEndpoint(contextUrl, intent, false);
+  if (!endpoint) return undefined;
+  const domain = new URL(contextUrl).hostname.replace(/^www\./, "");
+  const now = new Date().toISOString();
+  const skill: SkillManifest = {
+    skill_id: `canonical-${createHash("sha1").update(contextUrl).digest("hex").slice(0, 12)}`,
+    version: "1.0.0",
+    schema_version: "1",
+    name: `Canonical replay for ${domain}`,
+    intent_signature: intent,
+    intents: [intent],
+    domain,
+    description: `Deterministic structured replay for ${contextUrl}`,
+    owner_type: "agent",
+    execution_type: "http",
+    endpoints: [endpoint],
+    lifecycle: "active",
+    created_at: now,
+    updated_at: now,
+  };
+  cachePublishedSkill(skill);
+  return skill;
 }
 
 export function isCachedSkillRelevantForIntent(
@@ -1750,11 +1779,6 @@ export async function resolveAndExecute(
   const queryIntent = selectSearchTermsForExecution(intent) ?? extractSearchTermsFromIntent(intent) ?? intent;
   if (queryIntent !== intent) decisionTrace.query_intent = queryIntent;
 
-  // Fallback baselines when a skill has no discovery_cost (old skills / first capture)
-  const DEFAULT_CAPTURE_MS = 22_000;
-  const DEFAULT_CAPTURE_TOKENS = 30_000;
-  const CHARS_PER_TOKEN = 4;
-
   // When the agent explicitly passes endpoint_id, execute directly — they already chose.
   const agentChoseEndpoint = !!params.endpoint_id;
 
@@ -1786,44 +1810,33 @@ export async function resolveAndExecute(
     timing.source = source;
     timing.skill_id = skillId;
 
-    // Measure response size
-    const resultStr = typeof result === "string" ? result : JSON.stringify(result ?? "");
-    timing.response_bytes = resultStr.length;
-    const responseTokens = Math.ceil(resultStr.length / CHARS_PER_TOKEN);
-
-    // Use real discovery cost from the skill when available, fall back to estimates
-    const cost = skill?.discovery_cost;
-    const baselineTokens = cost?.capture_tokens ?? DEFAULT_CAPTURE_TOKENS;
-    const baselineMs = cost?.capture_ms ?? DEFAULT_CAPTURE_MS;
-    const paidSearchUc = timing.paid_search_uc ?? 0;
-    const paidExecutionUc = timing.paid_execution_uc ?? 0;
-    const totalActualCostUc = paidSearchUc + paidExecutionUc;
-    if (totalActualCostUc > 0) timing.actual_cost_uc = totalActualCostUc;
-
-    // Token savings: marketplace/cache returns structured data, skipping full-page browsing
-    if (source === "marketplace" || source === "route-cache" || source === "first-pass") {
-      timing.tokens_saved = Math.max(0, baselineTokens - responseTokens);
-      timing.tokens_saved_pct =
-        baselineTokens > 0 ? Math.round((timing.tokens_saved / baselineTokens) * 100) : 0;
-      timing.time_saved_pct =
-        baselineMs > 0
-          ? Math.round((Math.max(0, baselineMs - timing.total_ms) / baselineMs) * 100)
-          : 0;
-    }
-    if (cost?.capture_ms != null) {
-      timing.baseline_total_ms = cost.capture_ms;
-      timing.time_saved_ms = Math.max(0, cost.capture_ms - timing.total_ms);
-    }
+    const economics = computeTimingEconomics({
+      source,
+      totalMs: timing.total_ms,
+      result,
+      skill,
+      paidSearchUc: timing.paid_search_uc ?? 0,
+      paidExecutionUc: timing.paid_execution_uc ?? 0,
+    });
+    timing.response_bytes = economics.response_bytes;
+    timing.tokens_saved = economics.tokens_saved;
+    timing.tokens_saved_pct = economics.tokens_saved_pct;
+    timing.time_saved_pct = economics.time_saved_pct;
+    timing.actual_cost_uc = economics.actual_cost_uc;
+    if (economics.baseline_total_ms != null) timing.baseline_total_ms = economics.baseline_total_ms;
+    if (economics.time_saved_ms != null) timing.time_saved_ms = economics.time_saved_ms;
+    if (economics.baseline_cost_uc != null) timing.baseline_cost_uc = economics.baseline_cost_uc;
+    if (economics.cost_saved_uc != null) timing.cost_saved_uc = economics.cost_saved_uc;
 
     // Stamp trace with token metrics so they persist in trace files
     if (trace) {
-      trace.tokens_used = responseTokens;
+      trace.tokens_used = economics.response_tokens;
       trace.tokens_saved = timing.tokens_saved;
       trace.tokens_saved_pct = timing.tokens_saved_pct;
     }
 
     console.log(
-      `[perf] ${source}: ${timing.total_ms}ms (time_saved=${timing.time_saved_pct}% tokens_saved=${timing.tokens_saved_pct}%${cost ? " [real baseline]" : " [estimated]"})`,
+      `[perf] ${source}: ${timing.total_ms}ms (time_saved=${timing.time_saved_pct}% tokens_saved=${timing.tokens_saved_pct}%${economics.baseline_source === "real" ? " [real baseline]" : economics.baseline_source === "estimated" ? " [estimated]" : ""})`,
     );
 
     // Lifecycle attribution: aggregate per-phase durations for observability
@@ -2505,6 +2518,7 @@ export async function resolveAndExecute(
           if (source === "marketplace" && skill.base_price_usd && skill.base_price_usd > 0) {
             try {
               const walletCheck = checkWalletConfigured();
+              const wallet = getLocalWalletContext();
               const paymentResult = await checkPaymentRequirement(
                 skill.skill_id,
                 candidate.endpoint.endpoint_id,
@@ -2528,7 +2542,8 @@ export async function resolveAndExecute(
                       payment_status: paymentResult.status,
                       message: paymentResult.message,
                       next_step: paymentResult.next_step,
-                      wallet_provider: "lobster.cash",
+                      wallet_provider: wallet.wallet_provider ?? "lobster.cash",
+                      wallet_address: wallet.wallet_address,
                       indexing_fallback_available: true,
                     },
                     trace: execOut.trace,
@@ -2964,6 +2979,17 @@ export async function resolveAndExecute(
       ]);
     } catch (err) {
       if (isX402Error(err)) {
+        const localCanonicalSkill =
+          context?.url && !isSearchLikeIntent(queryIntent, context.url)
+            ? buildLocalCanonicalReplaySkill(queryIntent, context.url)
+            : undefined;
+        if (localCanonicalSkill) {
+          const deferred = await buildDeferralWithAutoExec(localCanonicalSkill, "marketplace", {
+            local_canonical_replay: true,
+            payment_bypass: "canonical-detail-page",
+          });
+          return deferred.orchestratorResult;
+        }
         const trace: ExecutionTrace = {
           trace_id: nanoid(),
           skill_id: "marketplace-search",
@@ -2978,7 +3004,8 @@ export async function resolveAndExecute(
           result: {
             error: "payment_required",
             payment_status: "payment_required",
-            wallet_provider: "lobster.cash",
+            wallet_provider: getLocalWalletContext().wallet_provider ?? "lobster.cash",
+            wallet_address: getLocalWalletContext().wallet_address,
             message: "Marketplace search requires payment before shared graph results are returned.",
             next_step: "Pay the Tier 3 search fee, or re-run with force capture for free local discovery.",
             indexing_fallback_available: true,
