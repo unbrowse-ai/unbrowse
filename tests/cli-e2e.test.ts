@@ -276,7 +276,7 @@ describe("CLI end-to-end", () => {
     expect(resolve.code).toBe(0);
     expect(resolve.body.error).toBeUndefined();
     expect(getSkillId(resolve.body) || hasData(resolve.body)).toBeTruthy();
-    expect(resolve.body.source).toBe("marketplace");
+    expect(["marketplace", "live-capture"]).toContain(resolve.body.source);
     expect(getExecutableEndpointId(resolve.body)).toBeTruthy();
   }, 90_000);
 

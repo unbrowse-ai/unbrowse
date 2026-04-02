@@ -37,6 +37,7 @@ import {
   generateLocalDescription,
 } from "../orchestrator/index.js";
 import { checkPaymentRequirement } from "../payments/index.js";
+import { isAllowedByRobots } from "./robots.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
 function stampTrace(trace: ExecutionTrace): ExecutionTrace {
   trace.trace_version = TRACE_VERSION;
@@ -1897,6 +1898,30 @@ export async function executeEndpoint(
     }
   }
 
+
+  // robots.txt compliance gate — block disallowed paths before any network call.
+  if (!options?.skip_robots_check) {
+    const allowed = await isAllowedByRobots(url);
+    if (!allowed) {
+      const traceId = nanoid();
+      log("exec", `robots.txt blocked ${url}`);
+      return {
+        trace: stampTrace({
+          trace_id: traceId,
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "robots_txt_disallowed",
+        }),
+        result: {
+          error: "robots_txt_disallowed",
+          message: `robots.txt disallows access to ${url} for the Unbrowse user-agent.`,
+        },
+      };
+    }
+  }
   const structuredReplayUrl = isSafe ? deriveStructuredDataReplayUrl(url) : url;
   const hasStructuredReplay = structuredReplayUrl !== url;
 
