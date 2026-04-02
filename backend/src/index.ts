@@ -29,7 +29,7 @@ app.use("*", cors({
   maxAge: 86400,
 }));
 
-// Public routes (reads, search, validation, agent registration, issues list)
+// Route registration. Some routers keep public reads and protected writes inline.
 app.route("/", healthRoutes);
 app.route("/v1", publicStatsRoutes);
 app.route("/v1", searchRoutes);
@@ -51,7 +51,7 @@ app.route("/v1", blogRoutes);
 // Issue routes with inline auth (POST/PATCH require auth, GET is public above)
 app.route("/v1", issueRoutes);
 
-// Protected routes use inline route-level auth so public GET routes stay open.
+// Additional protected routes use inline route-level auth so public GET routes stay open.
 app.route("/v1", skillRoutes);
 app.route("/v1", statsRoutes);
 app.route("/v1", dashboardRoutes);

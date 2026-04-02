@@ -82,7 +82,6 @@ Long-form docs live under [`docs/`](./docs/), including the restored whitepaper 
 - [`docs/whitepaper/README.md`](./docs/whitepaper/README.md) - public companion index
 - [`docs/whitepaper/for-technical-readers.md`](./docs/whitepaper/for-technical-readers.md) - architecture, eval truth, and product boundary
 - [`docs/whitepaper/for-investors.md`](./docs/whitepaper/for-investors.md) - market and business framing
-- [`docs/analytics-api.md`](./docs/analytics-api.md) - canonical investor/product analytics surface
 
 ## What setup does
 

@@ -32,8 +32,6 @@ The normal product path is local-first. CLI commands hit the local server, and t
 | `POST` | `/v1/feedback` | Feedback loop for skill/endpoint quality |
 | `GET` | `/v1/stats/summary` | Marketplace summary stats |
 
-Analytics-specific surfaces are documented separately in [docs/analytics-api.md](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/analytics-api.md).
-
 ## Canonical resolve flow
 
 `POST /v1/intent/resolve` is the product-truth entrypoint. In the current repo it can:
@@ -98,5 +96,4 @@ Agent registration happens through the local runtime on first startup if no save
 ## Related docs
 
 - [Quickstart](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/guides/quickstart.md)
-- [Analytics API](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/analytics-api.md)
 - [Codex eval harness](/Users/lekt9/.codex/worktrees/c99f/unbrowse/docs/codex-eval-harness.md)
