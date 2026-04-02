@@ -50,6 +50,7 @@ export interface WsMessage {
 
 export interface OperationBinding {
   key: string;
+  description?: string;
   type?: string;
   semantic_type?: string;
   required?: boolean;
@@ -281,6 +282,7 @@ export interface DiscoveryCandidate {
 
 export interface ResponseSchema {
   type: string;
+  description?: string;
   properties?: Record<string, ResponseSchema>;
   items?: ResponseSchema;
   required?: string[];
@@ -326,6 +328,8 @@ export interface ExecutionOptions {
   force_capture?: boolean;
   /** Request/client namespace for isolating local server state across concurrent CLI users */
   client_scope?: string;
+  /** Set only when the caller has already completed payment verification for a paid run */
+  payment_verified?: boolean;
 }
 
 export interface ValidationResult {
@@ -353,6 +357,22 @@ export interface OrchestrationTiming {
   time_saved_pct: number;
   /** Percentage token saved vs estimated full-page browsing cost */
   tokens_saved_pct: number;
+  /** Real capture baseline in ms when known */
+  baseline_total_ms?: number;
+  /** Actual runtime latency in ms for this resolve */
+  actual_total_ms?: number;
+  /** Real time saved in ms when baseline is known */
+  time_saved_ms?: number;
+  /** Real baseline cost in micro-cents when known */
+  baseline_cost_uc?: number;
+  /** Real amount charged for this run in micro-cents */
+  actual_cost_uc?: number;
+  /** Real cost saved in micro-cents when baseline is known */
+  cost_saved_uc?: number;
+  /** Tier 3 search fee charged during this resolve */
+  paid_search_uc?: number;
+  /** Paid execution fee charged during this resolve */
+  paid_execution_uc?: number;
   /** Code version hash + git SHA — tracks which code produced this timing */
   trace_version?: string;
 }

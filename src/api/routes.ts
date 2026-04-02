@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, type RawRequest } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, injectInterceptor, type RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { SkillManifest } from "../types/index.js";
@@ -12,11 +12,11 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
-import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain } from "../orchestrator/index.js";
+import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill } from "../execution/index.js";
+import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
@@ -407,11 +407,107 @@ export async function registerRoutes(app: FastifyInstance) {
       }
     }
 
-    // Also publish to marketplace so all agents benefit
-    try {
-      await publishSkill(skill);
-    } catch { /* marketplace publish is best-effort */ }
+    // Also publish to marketplace so all agents benefit — then re-cache
+    // locally since publishSkill merges backend fields that may overwrite
+    try { await publishSkill(skill); } catch {}
+    try { cachePublishedSkill(skill); } catch {}
     return reply.send({ ok: true, endpoints_updated: reviews.length });
+  });
+
+  // POST /v1/skills/:skill_id/publish — two-phase agent-driven publish
+  // Phase 1 (no endpoints body): return endpoints needing descriptions
+  // Phase 2 (with endpoints): merge descriptions, update caches, publish to marketplace
+  app.post("/v1/skills/:skill_id/publish", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const { skill_id } = req.params as { skill_id: string };
+    const { endpoints: reviews } = (req.body as {
+      endpoints?: Array<{
+        endpoint_id: string;
+        description?: string;
+        action_kind?: string;
+        resource_kind?: string;
+      }>;
+    }) ?? {};
+
+    // Load skill from local caches → marketplace
+    let skill = getRecentLocalSkill(skill_id, clientScope);
+    if (!skill) {
+      for (const [, entry] of domainSkillCache) {
+        if (entry.skillId === skill_id && entry.localSkillPath) {
+          try { skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8")); } catch {}
+          break;
+        }
+      }
+    }
+    if (!skill) skill = await getSkill(skill_id, clientScope);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    // Phase 2: merge descriptions + publish
+    if (reviews?.length) {
+      const updated = mergeAgentReview(skill.endpoints, reviews);
+      skill.endpoints = updated;
+      skill.updated_at = new Date().toISOString();
+
+      // Update local caches
+      try { cachePublishedSkill(skill); } catch {}
+      const domain = skill.domain;
+      if (domain) {
+        const ck = buildResolveCacheKey(domain, skill.intent_signature ?? `browse ${domain}`, undefined);
+        const sk = scopedCacheKey(clientScope, ck);
+        writeSkillSnapshot(sk, skill);
+        const dk = getDomainReuseKey(domain);
+        if (dk) {
+          domainSkillCache.set(dk, {
+            skillId: skill.skill_id,
+            localSkillPath: snapshotPathForCacheKey(sk),
+            ts: Date.now(),
+          });
+          persistDomainCache();
+        }
+      }
+
+      // Publish to marketplace — then re-cache locally since publishSkill
+      // merges backend fields that may overwrite our updated endpoints
+      try { await publishSkill(skill); } catch {}
+      try { cachePublishedSkill(skill); } catch {}
+      return reply.send({
+        ok: true,
+        skill_id: skill.skill_id,
+        endpoints_updated: reviews.length,
+        published: true,
+      });
+    }
+
+    // Phase 1: return endpoints needing descriptions
+    const ranked = rankEndpoints(skill.endpoints, skill.intent_signature, skill.domain);
+    const endpoints_to_describe = ranked.map((r) => ({
+      endpoint_id: r.endpoint.endpoint_id,
+      method: r.endpoint.method,
+      url: r.endpoint.url_template.length > 120
+        ? r.endpoint.url_template.slice(0, 120) + "..."
+        : r.endpoint.url_template,
+      current_description: r.endpoint.description ?? "",
+      schema_summary: r.endpoint.response_schema
+        ? summarizeSchema(r.endpoint.response_schema)
+        : null,
+      sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
+      input_params: r.endpoint.semantic?.requires?.map((b) => ({
+        key: b.key,
+        type: b.type ?? b.semantic_type,
+        required: b.required ?? false,
+        example: b.example_value,
+      })) ?? [],
+      dom_extraction: !!r.endpoint.dom_extraction,
+      _fill_description: "DESCRIBE THIS ENDPOINT — what it returns, key params, action type",
+    }));
+
+    return reply.send({
+      skill_id: skill.skill_id,
+      domain: skill.domain,
+      endpoint_count: skill.endpoints.length,
+      endpoints_to_describe,
+      _next_step: `Fill each endpoint's description, then call: unbrowse publish --skill ${skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+    });
   });
   // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
   app.post("/v1/skills/:skill_id/chunk", async (req, reply) => {
@@ -721,7 +817,7 @@ export async function registerRoutes(app: FastifyInstance) {
     await kuri.start().catch(() => {});
     const tabId = await kuri.newTab();
     await kuri.harStart(tabId).catch(() => {});
-    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    await injectInterceptor(tabId);
     const session = { tabId, url: "about:blank", harActive: true, domain: "" };
     browseSessions.set("default", session);
     return session;
@@ -749,6 +845,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
 
     // Inject cookies: try Kuri auth profile first, fall back to Chrome SQLite extraction
+    let cookiesInjected = 0;
     if (newDomain && newDomain !== session.domain) {
       await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
 
@@ -759,13 +856,14 @@ export async function registerRoutes(app: FastifyInstance) {
           for (const c of browserCookies) {
             await kuri.setCookie(session.tabId, c).catch(() => {});
           }
+          cookiesInjected = browserCookies.length;
         }
       } catch { /* non-fatal */ }
     }
     // Start capture BEFORE navigation so all initial API calls are recorded
     await kuri.networkEnable(session.tabId).catch(() => {});
     await kuri.harStart(session.tabId).catch(() => {});
-    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {}); // persistent for future navs
     session.harActive = true;
 
     await kuri.navigate(session.tabId, url);
@@ -774,9 +872,9 @@ export async function registerRoutes(app: FastifyInstance) {
     session.domain = profileName(session.url);
 
     // Re-inject interceptor via evaluate for current page context
-    await kuri.evaluate(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    await injectInterceptor(session.tabId); // chunked injection for current page
 
-    return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain });
+    return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain, ...(cookiesInjected > 0 ? { cookies_injected: cookiesInjected } : {}) });
   });
 
   // POST /v1/browse/snap — a11y snapshot
@@ -993,6 +1091,81 @@ export async function registerRoutes(app: FastifyInstance) {
           // Invalidate stale route cache entries so resolve finds the fresh skill
           invalidateRouteCacheForDomain(domain);
           console.log(`[passive-index] ${domain}: ${mergedEps.length} endpoints cached synchronously`);
+        }
+      } else {
+        // No API endpoints from network traffic — create DOM extraction endpoint.
+        // Handles server-rendered sites where search is form POST returning HTML.
+        let domain: string;
+        try { domain = new URL(session.url).hostname; } catch { domain = session.domain; }
+        try {
+          const html = await kuri.getPageHtml(session.tabId);
+          if (html && typeof html === "string" && html.startsWith("<")) {
+            const { extractFromDOM } = await import("../extraction/index.js");
+            const { detectSearchForms, isStructuredSearchForm } = await import("../execution/search-forms.js");
+            const { inferSchema } = await import("../transform/index.js");
+            const { inferEndpointSemantic } = await import("../graph/index.js");
+            const { templatizeQueryParams } = await import("../execution/index.js");
+
+            const extracted = extractFromDOM(html, `browse ${domain}`);
+            const searchForms = detectSearchForms(html);
+            const validForm = searchForms.find((s: { form_selector: string; fields: unknown[] }) => isStructuredSearchForm(s));
+
+            if (extracted.data || validForm) {
+              const urlTemplate = templatizeQueryParams(session.url);
+              const ep: import("../types/index.js").EndpointDescriptor = {
+                endpoint_id: nanoid(),
+                method: "GET" as const,
+                url_template: urlTemplate,
+                idempotency: "safe" as const,
+                verification_status: "verified" as const,
+                reliability_score: extracted.confidence ?? 0.7,
+                description: validForm ? `Search form for ${domain}` : `Page content from ${domain}`,
+                response_schema: extracted.data ? inferSchema([extracted.data]) : undefined,
+                dom_extraction: {
+                  extraction_method: extracted.extraction_method ?? "repeated-elements",
+                  confidence: extracted.confidence ?? 0.7,
+                  ...(extracted.selector ? { selector: extracted.selector } : {}),
+                  ...(validForm ? { search_form: validForm } : {}),
+                },
+                trigger_url: session.url,
+              };
+              ep.semantic = inferEndpointSemantic(ep, {
+                sampleResponse: extracted.data,
+                observedAt: new Date().toISOString(),
+                sampleRequestUrl: session.url,
+              });
+
+              const existing = findExistingSkillForDomain(domain);
+              const allEps = existing ? mergeEndpoints(existing.endpoints, [ep]) : [ep];
+              for (const e of allEps) { if (!e.description) e.description = generateLocalDescription(e); }
+
+              const skill: SkillManifest = {
+                skill_id: existing?.skill_id ?? nanoid(),
+                version: "1.0.0", schema_version: "1",
+                lifecycle: "active" as const, execution_type: "http" as const,
+                created_at: existing?.created_at ?? new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                name: domain, intent_signature: `browse ${domain}`, domain,
+                description: `DOM skill for ${domain}`, owner_type: "agent" as const,
+                endpoints: allEps,
+                intents: [...new Set([...(existing?.intents ?? []), `browse ${domain}`])],
+              };
+
+              const ck = buildResolveCacheKey(domain, `browse ${domain}`, session.url);
+              const sk = scopedCacheKey("global", ck);
+              writeSkillSnapshot(sk, skill);
+              const dk = getDomainReuseKey(session.url ?? domain);
+              if (dk) {
+                domainSkillCache.set(dk, { skillId: skill.skill_id, localSkillPath: snapshotPathForCacheKey(sk), ts: Date.now() });
+                persistDomainCache();
+              }
+              try { cachePublishedSkill(skill); } catch {}
+              invalidateRouteCacheForDomain(domain);
+              console.log(`[close] ${domain}: DOM endpoint created (form=${!!validForm})`);
+            }
+          }
+        } catch (err) {
+          console.log(`[close] DOM fallback failed: ${err instanceof Error ? err.message : err}`);
         }
       }
     }

@@ -1,1 +1,0 @@
-✗ Element "@e1" is blocked by another element (likely a modal or overlay). Try dismissing any modals/cookie banners first.

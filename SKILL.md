@@ -64,7 +64,7 @@ The backend still uses an opaque internal agent id. The email is just the user-f
 
 ## Core Workflow
 
-### Step 1: Resolve — find what endpoints exist
+### Step 1: Resolve — check if a cached skill exists
 
 ```bash
 unbrowse resolve \
@@ -73,16 +73,33 @@ unbrowse resolve \
   --pretty
 ```
 
-Resolve searches the skill cache, shared route graph, and (on miss) captures live traffic. It returns a ranked list of `available_endpoints`, each with:
+Resolve checks the local skill cache. If a skill exists for this domain, it returns `available_endpoints` with:
 - `description` — what the endpoint returns
 - `schema_summary` — nested response structure (3 levels deep)
 - `sample_values` — concrete leaf key→value pairs from captured data
 - `input_params` — required/optional parameters with types and examples
 - `example_fields` — dot-paths showing extractable fields
 
-Use these to pick the right endpoint and build your `--path`/`--extract` flags without trial-and-error.
+**Got endpoints?** Pick one and go to Step 2.
 
-**For multi-endpoint domains (X, LinkedIn, Reddit, etc.), resolve always returns a deferred list.** You must pick an endpoint and execute separately.
+**Got `browse_session_open` or no endpoints?** The site hasn't been indexed yet. Go to Step 1b.
+
+### Step 1b: Browse to index — only when no cached skill exists
+
+When resolve has no cached data, browse the site to build the index:
+
+```bash
+unbrowse go https://www.example.com
+unbrowse snap                          # see what's on page
+unbrowse fill e3 "search query"        # fill a search box
+unbrowse press Enter                   # submit
+unbrowse snap                          # see results
+unbrowse close                         # indexes all captured traffic + page DOM
+```
+
+All traffic (API calls, page HTML, search forms) is passively captured. `close` triggers indexing — it creates skill endpoints from both intercepted API calls AND DOM extraction from the page HTML. Server-rendered sites (no JSON APIs) get DOM endpoints with templatized URLs so search params work on re-execute.
+
+After `close`, go back to Step 1 — resolve will now find the cached skill.
 
 ### Step 2: Execute — call the endpoint with extraction
 
@@ -96,8 +113,6 @@ unbrowse execute \
 ```
 
 Use `--path` to drill into nested response structures, `--extract` to pick fields (supports aliases: `alias:deep.path`), and `--limit` to cap results. Without these flags, large responses auto-wrap with `extraction_hints` showing the schema tree.
-
-Pass the `skill_id` and `endpoint_id` from the resolve response.
 
 ### Step 3: Present results to the user
 
@@ -117,23 +132,26 @@ unbrowse feedback \
 
 **Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
 
-### Step 5: Review — improve endpoint metadata (optional)
+### Step 5: Review — augment endpoint descriptions (MANDATORY on first use)
 
-If the endpoint description is generic or wrong, push better metadata back so future resolves are more useful:
+After the first successful execute on a domain, read the returned data and push proper descriptions back. The heuristic-generated descriptions are generic ("Returns results with data, home"). You are the LLM — describe what each endpoint actually does and what each parameter means:
 
 ```bash
 unbrowse review --skill {skill_id} --endpoints '[{
   "endpoint_id": "{endpoint_id}",
-  "description": "Returns timeline tweets with author, text, and engagement metrics",
-  "action_kind": "timeline",
-  "resource_kind": "tweet"
+  "description": "Search Singapore court judgments by keywords, filtered by court and year, sorted by relevance",
+  "action_kind": "search",
+  "resource_kind": "judgment"
 }]'
 ```
 
-This updates the local skill cache and publishes to the marketplace. The calling agent IS the LLM — no external API needed.
+This makes future resolves immediately useful — agents see "Search court judgments by keywords" instead of "Captured search form artifact for browse www.elitigation.sg".
 
-### Picking the right endpoint from resolve
-
+**What to describe:**
+- What the endpoint returns (e.g. "timeline tweets with author, text, engagement metrics")
+- What the key parameters control (e.g. "SearchPhrase filters by keyword, Filter selects court level")
+- The action type (search, list, detail, timeline, create)
+- The resource type (judgment, tweet, post, event, product)
 Resolve returns `available_endpoints` sorted by score. Each endpoint includes schema, sample values, and input params. Look at:
 
 | Field | What to check |
@@ -145,16 +163,35 @@ Resolve returns `available_endpoints` sorted by score. Each endpoint includes sc
 | `example_fields` | Dot-paths you can use with `--path` and `--extract` |
 | `action_kind` | `timeline`, `list`, `detail`, `search` — match your intent |
 | `url` | The actual API URL — look for GraphQL operation names, REST paths |
-| `dom_extraction` | `true` = scraped from page HTML (slower, less reliable). `false` = real API call |
-| `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM scrapes |
+| `dom_extraction` | `true` = extracted from page HTML. `false` = real API call |
+| `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM |
 
-**Example: X timeline.** Resolve for `x.com/home` returns ~7 endpoints. The right one is:
-- `action_kind: "timeline"`, `resource_kind: "post"`
-- URL contains `HomeTimeline`
-- `dom_extraction: false` (real GraphQL API, not a page scrape)
 
-Ignore the DOM extraction endpoint even if it has a higher score — it's a stale page artifact, not your live timeline.
+### Step 6: Publish — describe endpoints and publish to marketplace
 
+After you have used a skill, publish it so other agents can find and use it.
+
+**If you already know what the endpoints do** (you just executed them and saw the data), publish directly:
+```bash
+unbrowse publish --skill {skill_id} --endpoints '[{
+  "endpoint_id": "{endpoint_id}",
+  "description": "Search Singapore court judgments by keywords, filtered by court and year",
+  "action_kind": "search",
+  "resource_kind": "judgment"
+}]'
+```
+This merges your descriptions into the skill, updates local caches, and publishes to the marketplace.
+
+**If you need to inspect endpoints first** (unfamiliar skill, or you want to see schema/samples before describing):
+```bash
+unbrowse publish --skill {skill_id} --pretty
+```
+Returns each endpoint with `schema_summary`, `sample_values`, `input_params`, and a `_fill_description` placeholder. Read these, then call publish again with `--endpoints` to submit descriptions.
+
+**When to publish:**
+- After the first successful execute + review cycle on a new domain
+- When you've improved endpoint descriptions based on actual usage
+- After discovering new endpoints via browse sessions
 ### When resolve returns direct data
 
 For simple sites with one clear endpoint, resolve may return data directly in `result` without a deferred list. In that case, skip Step 2 — the data is already there.
@@ -507,10 +544,94 @@ For cases where the CLI doesn't cover your needs, the raw REST API is at `http:/
 7. If `auth_required`, use `login` then retry
 8. Always `--dry-run` before mutations
 9. **Always submit feedback — but after presenting results to the user, not before**
-10. **Report bugs and issues on GitHub** — when something breaks, is slow, or behaves unexpectedly, file an issue:
-   ```bash
-   gh issue create --repo unbrowse-ai/unbrowse \
-     --title "bug: {short description}" \
-     --body "## What happened\n{description}\n\n## Expected\n{what should have happened}\n\n## Context\n- Skill: {skill_id}\n- Endpoint: {endpoint_id}\n- Domain: {domain}\n- Error: {error message or status code}"
-   ```
-   Categories: `bug:` (broken/wrong data), `perf:` (slow), `auth:` (login/cookie issues), `feat:` (missing capability)
+10. **File issues when things break** — see "Reporting Issues" section below
+
+## Reporting Issues
+
+When Unbrowse fails on a site, file a GitHub issue so the team can fix it. This is **mandatory** when:
+- A site returns empty data after browse + index + resolve + execute
+- Auth/cookies fail (HTTP 400/401/403 after cookie injection)
+- Resolve returns `browse_session_open` for a site that should have cached endpoints
+- Execute returns wrong or stale data consistently
+- A site that previously worked stops working
+
+### How to file
+
+```bash
+gh issue create --repo unbrowse-ai/unbrowse \
+  --title "{category}: {domain} — {short description}" \
+  --label "{category}" \
+  --body "$(cat <<'ISSUE'
+## What happened
+{Describe what you tried and what went wrong}
+
+## Steps to reproduce
+1. `unbrowse go {url}`
+2. `unbrowse snap` — {what you saw}
+3. `unbrowse close`
+4. `unbrowse resolve --intent "{intent}" --url "{url}"`
+5. Result: {what happened — empty data, wrong endpoint, error, etc.}
+
+## Expected
+{What should have happened}
+
+## Context
+- **Domain**: {domain}
+- **Intent**: {intent}
+- **Skill ID**: {skill_id or "none — no skill created"}
+- **Endpoint ID**: {endpoint_id or "none"}
+- **Error**: {error message, HTTP status code, or "empty result"}
+- **Unbrowse version**: {run `unbrowse health` and include trace_version}
+- **Cookies injected**: {yes/no, count if shown in go response}
+
+## Trace
+```json
+{Paste the trace object from the resolve or execute response}
+```
+ISSUE
+)"
+```
+
+### Issue categories
+
+| Prefix | Label | When to use |
+|--------|-------|-------------|
+| `bug:` | `bug` | Broken functionality, wrong data, crashes |
+| `site:` | `site-support` | Site doesn't index properly, needs custom handling (SPA, GraphQL POST, anti-bot) |
+| `auth:` | `auth` | Cookie injection fails, login doesn't persist, gated content not accessible |
+| `perf:` | `performance` | Resolve or execute is slow (>10s for cached, >60s for first capture) |
+| `feat:` | `enhancement` | Missing capability the agent needs |
+
+### Site support requests
+
+When a site consistently fails to index (no endpoints captured, only DOM fallback, wrong URL templates), file with `site:` prefix. Include:
+- The site URL and what you were trying to do
+- Whether the site is a SPA (React/Vue/Angular), server-rendered, or hybrid
+- Whether it uses GraphQL, REST, or form POSTs
+- Any anti-bot detection you observed (CAPTCHAs, Cloudflare challenge pages)
+- What cookies/auth the site requires (if known)
+
+Example:
+```bash
+gh issue create --repo unbrowse-ai/unbrowse \
+  --title "site: linkedin.com — Voyager API not captured during browse" \
+  --label "site-support" \
+  --body "## What happened
+Browse session on linkedin.com/feed captures zero API endpoints.
+The Voyager GraphQL API uses POST with large JSON bodies that
+extractEndpoints filters out.
+
+## Steps to reproduce
+1. unbrowse go https://www.linkedin.com/feed
+2. unbrowse close
+3. unbrowse resolve --intent 'get feed posts' --url https://www.linkedin.com/feed
+4. Result: only DOM extraction endpoint, no Voyager API
+
+## Context
+- Domain: linkedin.com
+- SPA: Yes (React)
+- API type: GraphQL POST to /voyager/api/graphql
+- Auth: li_at cookie + csrf-token header from JSESSIONID
+- Anti-bot: None observed with cookie injection
+- Unbrowse version: 2.9.1"
+```

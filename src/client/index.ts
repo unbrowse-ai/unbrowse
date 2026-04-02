@@ -12,6 +12,26 @@ const PROFILE_NAME = sanitizeProfileName(process.env.UNBROWSE_PROFILE ?? "");
 const recentLocalSkills = new Map<string, SkillManifest>();
 const LOCAL_ONLY = process.env.UNBROWSE_LOCAL_ONLY === "1";
 
+function decodeBase64Json(value: string): unknown {
+  try {
+    if (typeof globalThis !== "undefined" && typeof globalThis.atob === "function") {
+      const binary = globalThis.atob(value);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return JSON.parse(new TextDecoder("utf-8").decode(bytes));
+    }
+    return JSON.parse(Buffer.from(value, "base64").toString("utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+export function isX402Error(err: unknown): err is Error & { x402: true; terms?: unknown; status?: number } {
+  return !!err && typeof err === "object" && (err as { x402?: unknown }).x402 === true;
+}
+
 function scopedSkillKey(skillId: string, scopeId?: string): string {
   return scopeId ? `${scopeId}:${skillId}` : skillId;
 }
@@ -128,6 +148,7 @@ export function getAgentId(): string | null {
 }
 
 const API_TIMEOUT_MS = parseInt(process.env.UNBROWSE_API_TIMEOUT ?? "8000", 10);
+const PUBLISH_TIMEOUT_MS = parseInt(process.env.UNBROWSE_PUBLISH_TIMEOUT ?? "30000", 10);
 
 async function validateApiKey(key: string): Promise<ApiKeyValidationResult> {
   const controller = new AbortController();
@@ -190,10 +211,15 @@ async function findUsableApiKey(): Promise<{ key: string; source: ApiKeySource }
   return null;
 }
 
-async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean }): Promise<T> {
+async function apiRequest<T = unknown>(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { noAuth?: boolean; timeoutMs?: number },
+): Promise<{ data: T; headers: Headers }> {
   const key = opts?.noAuth ? "" : getApiKey();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? API_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
@@ -228,8 +254,13 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
 
   // Handle x402 payment required — surface payment terms to the caller
   if (res.status === 402) {
-    const paymentTerms = res.headers.get("X-Payment-Required");
-    const terms = paymentTerms ? JSON.parse(paymentTerms) : (data as Record<string, unknown>).terms;
+    const paymentRequired = res.headers.get("PAYMENT-REQUIRED");
+    const legacyPaymentTerms = res.headers.get("X-Payment-Required");
+    const terms = paymentRequired
+      ? decodeBase64Json(paymentRequired)
+      : legacyPaymentTerms
+        ? JSON.parse(legacyPaymentTerms)
+        : (data as Record<string, unknown>).terms;
     const err = new Error(`Payment required: ${(data as Record<string, unknown>).error ?? "This skill requires payment"}`);
     (err as Error & { x402: boolean; terms: unknown; status: number }).x402 = true;
     (err as Error & { terms: unknown }).terms = terms;
@@ -242,6 +273,11 @@ async function api<T = unknown>(method: string, path: string, body?: unknown, op
     const msg = errData.details?.length ? `${errData.error}: ${errData.details.join("; ")}` : errData.error ?? `API HTTP ${res.status}`;
     throw new Error(msg);
   }
+  return { data: data as T, headers: res.headers };
+}
+
+async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: { noAuth?: boolean; timeoutMs?: number }): Promise<T> {
+  const { data } = await apiRequest<T>(method, path, body, opts);
   return data;
 }
 
@@ -570,7 +606,7 @@ export async function publishSkill(
     } as SkillManifest & { warnings: string[] };
   }
   if (LOCAL_ONLY) throw new Error("local-only mode");
-  return api("POST", "/v1/skills", draft);
+  return api("POST", "/v1/skills", draft, { timeoutMs: PUBLISH_TIMEOUT_MS });
 }
 
 export async function deprecateSkill(skillId: string): Promise<void> {
@@ -643,10 +679,11 @@ export async function searchIntentResolve(
   domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
   skipped_global: boolean;
+  actual_cost_uc?: number;
 }> {
   if (LOCAL_ONLY) return { domain_results: [], global_results: [], skipped_global: false };
   try {
-    return await api<{
+    const { data, headers } = await apiRequest<{
       domain_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
       global_results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
       skipped_global: boolean;
@@ -656,12 +693,24 @@ export async function searchIntentResolve(
       domain_k: domainK,
       global_k: globalK,
     });
-  } catch {
+    const actualCostHeader = headers.get("X-Unbrowse-Cost-Uc");
+    const actualCostUc = actualCostHeader && /^\d+$/.test(actualCostHeader)
+      ? Number(actualCostHeader)
+      : undefined;
+    return actualCostUc != null ? { ...data, actual_cost_uc: actualCostUc } : data;
+  } catch (err) {
+    if (isX402Error(err)) throw err;
     const [domain_results, global_results] = await Promise.all([
       domain
-        ? searchIntentInDomain(intent, domain, domainK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>)
+        ? searchIntentInDomain(intent, domain, domainK).catch((fallbackErr) => {
+            if (isX402Error(fallbackErr)) throw fallbackErr;
+            return [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+          })
         : Promise.resolve([] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
-      searchIntent(intent, globalK).catch(() => [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>),
+      searchIntent(intent, globalK).catch((fallbackErr) => {
+        if (isX402Error(fallbackErr)) throw fallbackErr;
+        return [] as Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+      }),
     ]);
     return { domain_results, global_results, skipped_global: false };
   }
