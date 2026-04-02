@@ -61,6 +61,15 @@ git submodule update --init --recursive
 
 This pulls the tracked Kuri source into `submodules/kuri` from [justrach/kuri](https://github.com/justrach/kuri.git). `npm pack --workspace packages/skill` then bundles platform-specific Kuri binaries from that source into the published CLI package.
 
+## Docs
+
+Long-form docs live under [`docs/`](./docs/), including the restored whitepaper companion set:
+
+- [`docs/whitepaper/README.md`](./docs/whitepaper/README.md) - public companion index
+- [`docs/whitepaper/for-technical-readers.md`](./docs/whitepaper/for-technical-readers.md) - architecture, eval truth, and product boundary
+- [`docs/whitepaper/for-investors.md`](./docs/whitepaper/for-investors.md) - market and business framing
+- [`docs/analytics-api.md`](./docs/analytics-api.md) - canonical investor/product analytics surface
+
 ## What setup does
 
 - Checks local prerequisites for the npm/npx flow.
