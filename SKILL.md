@@ -64,51 +64,24 @@ The backend still uses an opaque internal agent id. The email is just the user-f
 
 ## Core Workflow
 
-### Step 1: Resolve an intent
+### Step 1: Resolve and execute in one call
 
 ```bash
 unbrowse resolve \
-  --intent "get feed posts" \
-  --url "https://www.linkedin.com/feed/" \
-  --pretty
+  --intent "top hacker news stories" \
+  --url "https://news.ycombinator.com" \
+  --execute --pretty
 ```
 
-This returns `available_endpoints` — a ranked list of discovered internal API endpoints, scored by composite ranking (40% semantic similarity, 30% reliability, 15% freshness, 15% verification status). Pick the right one by URL pattern (e.g., `MainFeed` for feed, `HomeTimeline` for tweets).
+`--execute` auto-picks the best endpoint and returns structured data directly. No second call needed.
 
-### Step 2: Execute with extraction
+Without `--execute`, resolve returns `available_endpoints` — a ranked list of discovered API endpoints. Use this when you need to inspect what's available before executing.
 
-Use `--extract` to get the fields you need. For well-known domains, use the known extraction patterns from the Examples section — don't wait for auto-extraction to guess.
-
-```bash
-unbrowse execute \
-  --skill {skill_id} \
-  --endpoint {endpoint_id} \
-  --path "data.events[]" \
-  --extract "name,url,start_at,price" \
-  --limit 10 --pretty
-
-# See full schema without data
-unbrowse execute \
-  --skill {skill_id} \
-  --endpoint {endpoint_id} \
-  --schema --pretty
-
-# Get raw unprocessed response
-unbrowse execute \
-  --skill {skill_id} \
-  --endpoint {endpoint_id} \
-  --raw --pretty
-```
-
-**`--path` + `--extract` + `--limit` replace ALL piping to jq/node/python.**
-
-**Auto-extraction caveat:** The CLI may auto-extract on first try, but for normalized APIs (LinkedIn Voyager, Facebook Graph) with mixed-type `included[]` arrays, auto-extraction often picks up the wrong fields. Always validate auto-extracted results — if you see mostly nulls or just metadata, ignore it and extract manually with known field patterns.
-
-### Step 3: Present results to the user
+### Step 2: Present results to the user
 
 Show the user their data first. Do not block on feedback before returning information.
 
-### Step 4: Submit feedback (MANDATORY — but after presenting results)
+### Step 3: Submit feedback (MANDATORY — but after presenting results)
 
 Submit feedback after you've shown the user their results. This can run in parallel with your response.
 
@@ -133,7 +106,7 @@ unbrowse feedback \
 |---------|-------|-------------|
 | `health` |  | Server health check |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
+| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → find skill + execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `login` | `--url "..."` | Interactive browser login |
@@ -164,7 +137,6 @@ unbrowse feedback \
 |------|-------------|
 | `--pretty` | Indented JSON output |
 | `--no-auto-start` | Don't auto-start server |
-| `--raw` | Return raw response data (skip server-side projection) |
 | `--skip-browser` | setup: skip browser-engine install |
 | `--opencode auto|global|project|off` | setup: install /unbrowse command for Open Code |
 
@@ -172,129 +144,67 @@ unbrowse feedback \
 
 | Flag | Description |
 |------|-------------|
-| `--schema` | Show response schema + extraction hints only (no data) |
-| `--path "data.items[]"` | Drill into result before extract/output |
-| `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
-| `--limit N` | Cap array output to N items |
+| `--execute` | Auto-pick best endpoint and return data (resolve only) |
 | `--endpoint-id ID` | Pick a specific endpoint |
 | `--dry-run` | Preview mutations |
 | `--force-capture` | Bypass caches, re-capture |
 | `--params '{...}'` | Extra params as JSON |
 <!-- CLI_REFERENCE_END -->
 
-When `--path`/`--extract` are used, trace metadata is slimmed automatically (1MB raw -> 1.5KB output typical).
-
-When NO extraction flags are used on a large response (>2KB), the CLI auto-wraps the result with `extraction_hints` instead of dumping raw data. This prevents context window bloat and tells you exactly how to extract. Use `--raw` to override this and get the full response.
-
 ### Examples
 
 ```bash
-# Step 1: resolve — auto-executes and returns hints for complex responses
-unbrowse resolve --intent "get events" --url "https://lu.ma" --pretty
-# Response includes extraction_hints.cli_args = "--path \"data.events[]\" --extract \"name,url,start_at,city\" --limit 10"
+# One-step: resolve + execute, get data back directly
+unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute --pretty
 
-# Step 2: use the hints directly
-unbrowse execute --skill {id} --endpoint {id} \
-  --path "data.events[]" --extract "name,url,start_at,city" --limit 10 --pretty
+# Two-step: resolve first to see available endpoints, then execute
+unbrowse resolve --intent "get timeline" --url "https://x.com" --pretty
+unbrowse execute --skill {id} --endpoint {id} --pretty
 
-# If you need to see the schema first
-unbrowse execute --skill {id} --endpoint {id} --schema --pretty
-
-# X timeline — extract tweets with user, text, likes
-unbrowse execute --skill {id} --endpoint {id} \
-  --path "data.home.home_timeline_urt.instructions[].entries[].content.itemContent.tweet_results.result" \
-  --extract "user:core.user_results.result.legacy.screen_name,text:legacy.full_text,likes:legacy.favorite_count" \
-  --limit 20 --pretty
-
-# LinkedIn feed — extract posts from included[] (chained URN resolution)
-unbrowse execute --skill {id} --endpoint {id} \
-  --path "included[]" \
-  --extract "author:actor.name.text,text:commentary.text.text,likes:socialDetail.totalSocialActivityCounts.numLikes,comments:socialDetail.totalSocialActivityCounts.numComments" \
-  --limit 20 --pretty
-
-# Simple case — just limit results
-unbrowse execute --skill {id} --endpoint {id} --limit 10 --pretty
+# Submit feedback after presenting results
+unbrowse feedback --skill {id} --endpoint {id} --rating 5
 ```
 
 ## Best Practices
 
-### Minimize round-trips — one CLI call, not five curl + jq pipes
+### Minimize round-trips — resolve --execute is your default
 
-Bad (5 steps):
+Bad (3 steps):
 ```bash
-curl ... /v1/intent/resolve | jq .skill.skill_id    # Step 1: resolve
-curl ... /v1/skills/{id}/execute | jq .              # Step 2: execute
-curl ... | jq '.result.included[]'                   # Step 3: drill in
-curl ... | jq 'select(.commentary)'                  # Step 4: filter
-curl ... | jq '{author, text, likes}'                # Step 5: extract
+unbrowse resolve --intent "..." --url "..."   # Step 1: get endpoints
+# manually pick endpoint_id from output
+unbrowse execute --skill {id} --endpoint {id} # Step 2: execute
+# parse JSON yourself
 ```
 
 Good (1 step):
 ```bash
-unbrowse execute --skill {id} --endpoint {id} \
-  --path "included[]" \
-  --extract "text:commentary.text.text,author:actor.title.text,likes:numLikes,comments:numComments" \
-  --limit 10 --pretty
+unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute --pretty
 ```
 
-### Know the endpoint ID before executing
+### When to use two-step resolve + execute
 
-On first resolve for a domain, you'll get `available_endpoints`. Scan descriptions and URLs to pick the right one — don't blindly execute the top-ranked result.
-
-Common patterns:
-- LinkedIn feed: look for `voyagerFeedDashMainFeed` in the URL
-- Twitter timeline: look for `HomeTimeline` in the URL
-- Luma events: look for `/home/get-events` in the URL
-- Notifications: look for `/notifications/list` in the URL
-
-Once you know the endpoint ID, pass it with `--endpoint` on every subsequent call.
+Use the two-step flow when:
+- A domain has many endpoints and you need to pick the right one by description/URL
+- You need to pass `--endpoint-id` to target a specific endpoint
+- The resolve response returned `available_endpoints` and you want to inspect them first
 
 ### Domain skills have many endpoints — use search or description matching
 
-After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endpoints. Don't scroll through all of them — filter by intent:
+After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endpoints. Filter by intent:
 
 ```bash
-# Search finds the best endpoint by embedding similarity
 unbrowse search --intent "get my notifications" --domain "www.linkedin.com"
 ```
 
 Or filter `available_endpoints` by URL/description pattern in the resolve response.
 
-### Mixed-type arrays and normalized APIs
-
-Many APIs return heterogeneous arrays — posts, profiles, media, and metadata objects all mixed together (e.g. `included[]`, `data[]`, `entries[]`). When you `--extract` fields, **rows where all extracted fields are null are automatically dropped**, so only objects that match your field selection survive. You don't need to filter by type.
-
-Some APIs (LinkedIn Voyager, Facebook Graph) use **normalized entity references** — objects reference each other via `*fieldName` URN keys instead of nesting data inline. The CLI auto-resolves these chains when `entityUrn`-keyed arrays are detected:
-
-```bash
-# Direct field: commentary.text.text → walks into nested object
-# URN chain: socialDetail.totalSocialActivityCounts.numLikes
-#   → socialDetail is inline, but totalSocialActivityCounts is a *URN reference
-#   → CLI resolves *totalSocialActivityCounts → looks up entity by URN → gets .numLikes
-```
-
-You don't need to know if a field is inline or URN-referenced — just use the dot path and the CLI resolves it automatically. If a field doesn't resolve, check `--schema` output for `*fieldName` patterns indicating URN references.
-
-### Large responses — trust extraction_hints
-
-When a response is >2KB and no `--path`/`--extract` is given, the CLI returns `extraction_hints` instead of dumping raw JSON. Read `extraction_hints.cli_args` and paste it directly:
-
-```bash
-# Response says: extraction_hints.cli_args = "--path \"entries[]\" --extract \"name,start_at,url\" --limit 10"
-unbrowse execute --skill {id} --endpoint {id} \
-  --path "entries[]" --extract "name,start_at,url" --limit 10 --pretty
-```
-
 ### Why the CLI over curl + jq
 
-The CLI handles things that break with raw curl:
-- **Shell escaping** — zsh escapes `!=` to `\!=` which breaks jq filters
-- **URN resolution** — chained entity references resolved automatically across normalized arrays
-- **Null-row filtering** — mixed-type arrays filtered to only objects matching your `--extract` fields
-- **Auto-extraction** — large responses wrapped with hints instead of dumping 500KB of JSON
-- **Auth injection** — cookies loaded from vault automatically
+- **One-step data** — resolve + execute in a single call with `--execute`
+- **Auth injection** — cookies loaded from your browser automatically
 - **Server auto-start** — boots the server if not running
-
+- **Structured output** — DOM extraction returns clean JSON arrays, not raw HTML
 ## Authentication
 
 **Automatic.** Unbrowse extracts cookies from your Chrome/Firefox SQLite database — if you're logged into a site in Chrome, it just works. For Chromium-family apps and Electron shells, the raw API also supports importing from a custom cookie DB path or user-data dir via `/v1/auth/steal`.
