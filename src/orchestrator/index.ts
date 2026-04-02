@@ -1,4 +1,4 @@
-import { isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import { cachePublishedSkill, isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
 import * as kuri from "../kuri/client.js";
 import { emitRouteTrace, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
@@ -610,6 +610,34 @@ function isSearchLikeIntent(intent?: string, contextUrl?: string): boolean {
   } catch {
     return false;
   }
+}
+
+function buildLocalCanonicalReplaySkill(
+  intent: string,
+  contextUrl: string,
+): SkillManifest | undefined {
+  const endpoint = buildCanonicalDocumentEndpoint(contextUrl, intent, false);
+  if (!endpoint) return undefined;
+  const domain = new URL(contextUrl).hostname.replace(/^www\./, "");
+  const now = new Date().toISOString();
+  const skill: SkillManifest = {
+    skill_id: `canonical-${createHash("sha1").update(contextUrl).digest("hex").slice(0, 12)}`,
+    version: "1.0.0",
+    schema_version: "1",
+    name: `Canonical replay for ${domain}`,
+    intent_signature: intent,
+    intents: [intent],
+    domain,
+    description: `Deterministic structured replay for ${contextUrl}`,
+    owner_type: "agent",
+    execution_type: "http",
+    endpoints: [endpoint],
+    lifecycle: "active",
+    created_at: now,
+    updated_at: now,
+  };
+  cachePublishedSkill(skill);
+  return skill;
 }
 
 export function isCachedSkillRelevantForIntent(
@@ -2964,6 +2992,17 @@ export async function resolveAndExecute(
       ]);
     } catch (err) {
       if (isX402Error(err)) {
+        const localCanonicalSkill =
+          context?.url && !isSearchLikeIntent(queryIntent, context.url)
+            ? buildLocalCanonicalReplaySkill(queryIntent, context.url)
+            : undefined;
+        if (localCanonicalSkill) {
+          const deferred = await buildDeferralWithAutoExec(localCanonicalSkill, "marketplace", {
+            local_canonical_replay: true,
+            payment_bypass: "canonical-detail-page",
+          });
+          return deferred.orchestratorResult;
+        }
         const trace: ExecutionTrace = {
           trace_id: nanoid(),
           skill_id: "marketplace-search",
