@@ -73,21 +73,31 @@ unbrowse resolve \
   --pretty
 ```
 
-Resolve searches the skill cache, shared route graph, and (on miss) captures live traffic. It returns a ranked list of `available_endpoints` with descriptions, URLs, and scores. Pick the right one by matching `action_kind`, `description`, or URL pattern.
+Resolve searches the skill cache, shared route graph, and (on miss) captures live traffic. It returns a ranked list of `available_endpoints`, each with:
+- `description` — what the endpoint returns
+- `schema_summary` — nested response structure (3 levels deep)
+- `sample_values` — concrete leaf key→value pairs from captured data
+- `input_params` — required/optional parameters with types and examples
+- `example_fields` — dot-paths showing extractable fields
+
+Use these to pick the right endpoint and build your `--path`/`--extract` flags without trial-and-error.
 
 **For multi-endpoint domains (X, LinkedIn, Reddit, etc.), resolve always returns a deferred list.** You must pick an endpoint and execute separately.
 
-### Step 2: Execute — call the endpoint
+### Step 2: Execute — call the endpoint with extraction
 
 ```bash
 unbrowse execute \
   --skill {skill_id} \
   --endpoint {endpoint_id} \
-  --intent "get my X timeline" \
-  --pretty
+  --path "data.items[]" \
+  --extract "name,url,created_at" \
+  --limit 10 --pretty
 ```
 
-Pass the `skill_id` and `endpoint_id` from the resolve response. The `--intent` is optional but helps with parameter binding.
+Use `--path` to drill into nested response structures, `--extract` to pick fields (supports aliases: `alias:deep.path`), and `--limit` to cap results. Without these flags, large responses auto-wrap with `extraction_hints` showing the schema tree.
+
+Pass the `skill_id` and `endpoint_id` from the resolve response.
 
 ### Step 3: Present results to the user
 
@@ -107,14 +117,33 @@ unbrowse feedback \
 
 **Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
 
+### Step 5: Review — improve endpoint metadata (optional)
+
+If the endpoint description is generic or wrong, push better metadata back so future resolves are more useful:
+
+```bash
+unbrowse review --skill {skill_id} --endpoints '[{
+  "endpoint_id": "{endpoint_id}",
+  "description": "Returns timeline tweets with author, text, and engagement metrics",
+  "action_kind": "timeline",
+  "resource_kind": "tweet"
+}]'
+```
+
+This updates the local skill cache and publishes to the marketplace. The calling agent IS the LLM — no external API needed.
+
 ### Picking the right endpoint from resolve
 
-Resolve returns `available_endpoints` sorted by score. Look at these fields to pick:
+Resolve returns `available_endpoints` sorted by score. Each endpoint includes schema, sample values, and input params. Look at:
 
 | Field | What to check |
 |-------|---------------|
-| `action_kind` | `timeline`, `list`, `detail`, `search` — match your intent |
 | `description` | Human-readable summary of what the endpoint returns |
+| `schema_summary` | Nested response structure — shows what data is available at each level |
+| `sample_values` | Concrete example values from captured data — see actual field contents |
+| `input_params` | What parameters the endpoint needs (key, type, required, example) |
+| `example_fields` | Dot-paths you can use with `--path` and `--extract` |
+| `action_kind` | `timeline`, `list`, `detail`, `search` — match your intent |
 | `url` | The actual API URL — look for GraphQL operation names, REST paths |
 | `dom_extraction` | `true` = scraped from page HTML (slower, less reliable). `false` = real API call |
 | `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM scrapes |
@@ -141,9 +170,10 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 |---------|-------|-------------|
 | `health` |  | Server health check |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
-| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → find skill + execute |
+| `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
+| `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
@@ -172,6 +202,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 |------|-------------|
 | `--pretty` | Indented JSON output |
 | `--no-auto-start` | Don't auto-start server |
+| `--raw` | Return raw response data (skip server-side projection) |
 | `--skip-browser` | setup: skip browser-engine install |
 | `--opencode auto|global|project|off` | setup: install /unbrowse command for Open Code |
 
@@ -179,7 +210,10 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 
 | Flag | Description |
 |------|-------------|
-| `--execute` | Auto-pick best endpoint and return data (resolve only) |
+| `--schema` | Show response schema + extraction hints only (no data) |
+| `--path "data.items[]"` | Drill into result before extract/output |
+| `--extract "field1,alias:deep.path.to.val"` | Pick specific fields (no piping needed) |
+| `--limit N` | Cap array output to N items |
 | `--endpoint-id ID` | Pick a specific endpoint |
 | `--dry-run` | Preview mutations |
 | `--force-capture` | Bypass caches, re-capture |
@@ -199,6 +233,32 @@ unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5
 ```
 
+
+
+### First-time domains — browse to index
+
+When resolve has no cached skill for a domain, it either:
+1. **Auto-captures** — opens a Kuri browser session, navigates, captures traffic, indexes, and returns endpoints (20-80s, transparent)
+2. **Returns `browse_session_open`** — the site needs interaction (login, search, navigation) before APIs appear
+
+If you get `browse_session_open`, drive the browser with Kuri primitives:
+
+```bash
+# Browser is already open on the site. Navigate, interact, build up the index:
+unbrowse snap                          # See what's on page (a11y snapshot with @eN refs)
+unbrowse click e5                      # Click element by ref
+unbrowse fill e3 "search query"        # Fill input
+unbrowse press Enter                   # Submit
+unbrowse snap                          # See results
+unbrowse close                         # Close session — flushes all captured traffic to indexer
+```
+
+All traffic is passively captured during the browse session. After `close`, the captured APIs are indexed and available for future `resolve` calls. The next time you (or any agent) resolves the same domain, it hits the cache in <200ms instead of browsing again.
+
+**If auth is needed**, the CLI detects `auth_required` and auto-opens a login window:
+```bash
+unbrowse login --url "https://example.com/login"
+```
 
 ## Best Practices
 
