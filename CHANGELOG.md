@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.11.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.10.2...v2.11.0) (2026-04-02)
+
+### Features
+
+* **#100:** implement robots.txt directive checking before route execution ([d920e7e](https://github.com/unbrowse-ai/unbrowse-dev/commit/d920e7e87058a3ea645e24b0f4441b44d8442867)), closes [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100) [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100)
+
+### Bug Fixes
+
+* harden browse submit recovery ([652f03b](https://github.com/unbrowse-ai/unbrowse-dev/commit/652f03b8146744fbfac4f0e70faee3798754db71))
+* harden main release workflow reruns ([f80cd5d](https://github.com/unbrowse-ai/unbrowse-dev/commit/f80cd5d3a5ada81fa285ca59e302c26aa47bb02d))
+* publish runtime deps in npm package ([9659770](https://github.com/unbrowse-ai/unbrowse-dev/commit/96597707c161a2de9f1424bbb622e0be203e7fbf))
+* seed canonical replay after x402 detail search ([6524063](https://github.com/unbrowse-ai/unbrowse-dev/commit/6524063b3ee9f77f7fb8a1e187291bb7ec72066b))
+
 ## [2.10.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.10.1...v2.10.2) (2026-04-02)
 
 ### Bug Fixes
@@ -40,6 +53,11 @@
 * **resolve**: enrich `available_endpoints` with depth-limited `schema_summary` (3-level recursive tree), `input_params` (key/type/required/example), `description_in`, and `example_fields` — agents can now pick endpoints and build extraction paths from the resolve response alone without needing separate schema calls
 * **cli**: implement `--path`, `--extract`, `--limit`, `--schema` post-processing in `execute` — flags were documented but never wired; now support nested array drilling (`data.items[].nested[].field`), field aliasing (`alias:deep.path`), null-row filtering, and item limiting
 * **cli**: auto-wrap large responses (>2KB) with `extraction_hints` including schema tree and byte count when no extraction flags are given
+
+### Bug Fixes
+
+* **install**: add a deterministic repo-native `./setup` bootstrap, switch the npm wrapper fallback to the stable Node launcher, and keep the standalone CLI package manifest pinned to the runtime payment deps (`bs58`, `@solana/kit`, `@cascade-fyi/splits-sdk`) so the public install path no longer depends on a healthy GitHub release asset plus a lucky npm fallback
+* **payments/wallets**: treat the configured wallet address as the single contributor/payment truth across setup, agent wallet sync, 402 error payloads, and transaction proof wiring, including generic agent-wallet providers instead of hardcoding lobster-only labels
 ## fix: mirror Claude skills into Codex installs
 
 - `scripts/sync-skill.sh` now routes local skill linking through a shared helper so the active Claude/Codex `unbrowse` links resolve to the current monorepo checkout instead of drifting to stale worktrees or copied skill dirs.
@@ -58,6 +76,9 @@
 * **openclaw/plugin**: resolve the bundled Unbrowse CLI from the installed package `bin` entry instead of guessing `bin/unbrowse.js`, bump the plugin dependency to `unbrowse@^2.10.2`, and add execution-path regression coverage so the OpenClaw plugin can actually launch the packaged runtime again
 * **openclaw/plugin**: add tarball-level packaging coverage for `unbrowse-openclaw` so published npm releases keep the installer `bin/` + `scripts/` entrypoints and the README `npx unbrowse-openclaw install --restart` flow stays real
 * **openclaw/plugin**: switch the installer off `openclaw plugins install` and onto a managed extension-dir write plus `plugins.load.paths` rewrite, so current OpenClaw builds stop blocking the plugin's legitimate `child_process` usage during npm/npx installs
+* **ci/release**: fix main-branch release metadata parsing so npm package name/version resolve correctly in GitHub Actions, fail fast if those outputs are empty, and treat duplicate-version npm publishes as idempotent no-ops instead of blocking deploy + skill sync
+* **tests/graph-api**: bound live graph API requests with explicit fetch timeouts, remove the extra retry fallthrough, and make fixture publishing best-effort so the backend integration suite stops timing out in `beforeAll` during CI reruns
+* **docs/frontend**: ground quickstart/API/deployment docs against the current repo and point public docs links at `docs.unbrowse.ai`
 * **ci/backend**: force Wrangler v3 backend deploys with KV bindings onto the legacy worker upload path so canonical release jobs stop failing on Cloudflare `/versions` permission checks
 * **frontend/openclaw**: clarify the public OpenClaw install flow around `npx unbrowse-openclaw install --restart`, note that the plugin package pulls in the local Unbrowse runtime automatically, and call out the one-time trust prompt older OpenClaw builds may show
 * **auth/replay**: persist LinkedIn replay-critical headers (`accept`, `csrf-token`, `x-li-*`, `x-restli-protocol-version`) alongside sensitive auth headers, infer `csrf-token` refresh from `JSESSIONID`, and drop blank publish-sanitized header values at execute time so sanitized skills still replay authenticated Voyager requests correctly
@@ -1248,6 +1269,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- docs: sync the canonical repo whitepaper to the April 1 arXiv draft and refresh the paper landing page metadata, authors, subtitle, and abstract
 - fix: replace placeholder Kuri/capture TODO suites with real live-browser end-to-end coverage and promote deterministic CLI/P0-P1 regression checks into the default test lane
 - fix: repair backend live route/test wiring and add bounded rate-limit retries so `bun run test:all` completes green against the current live graph backend
 - docs: add canonical `test:e2e:truth` and `test:claims` lanes so user-visible behavior has an explicit live/e2e gate separate from unit coverage

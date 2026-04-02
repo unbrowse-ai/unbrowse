@@ -119,7 +119,7 @@ export function resolveAgentName(preferredEmail: string | undefined, fallbackNam
   return isValidAgentEmail(normalized) ? normalized : fallbackName;
 }
 
-function getLocalWalletContext(): { wallet_address?: string; wallet_provider?: string } {
+export function getLocalWalletContext(): { wallet_address?: string; wallet_provider?: string } {
   const lobsterWallet = process.env.LOBSTER_WALLET_ADDRESS?.trim();
   if (lobsterWallet) {
     return { wallet_address: lobsterWallet, wallet_provider: "lobster.cash" };

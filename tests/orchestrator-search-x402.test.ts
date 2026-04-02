@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { domainSkillCache, resolveAndExecute } from "../src/orchestrator/index.js";
 
 const originalFetch = globalThis.fetch;
+const originalEnv = { ...process.env };
 
 function encodeBase64Json(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
@@ -12,10 +13,13 @@ function encodeBase64Json(value: unknown): string {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  process.env = { ...originalEnv };
 });
 
 describe("orchestrator search x402 propagation", () => {
   it("returns payment_required when marketplace search is x402-gated", async () => {
+    process.env.AGENT_WALLET_ADDRESS = "0xfeedface";
+    process.env.AGENT_WALLET_PROVIDER = "custom-wallet";
     const snapshotDir = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
     const backupDir = join(tmpdir(), `unbrowse-skill-snapshots-${Date.now()}`);
     const hadSnapshots = existsSync(snapshotDir);
@@ -53,6 +57,8 @@ describe("orchestrator search x402 propagation", () => {
       expect(out.trace.status_code).toBe(402);
       expect((out.result as Record<string, unknown>).error).toBe("payment_required");
       expect((out.result as Record<string, unknown>).tier).toBe("tier3");
+      expect((out.result as Record<string, unknown>).wallet_provider).toBe("custom-wallet");
+      expect((out.result as Record<string, unknown>).wallet_address).toBe("0xfeedface");
     } finally {
       rmSync(snapshotDir, { recursive: true, force: true });
       if (hadSnapshots) renameSync(backupDir, snapshotDir);
