@@ -64,7 +64,7 @@ The backend still uses an opaque internal agent id. The email is just the user-f
 
 ## Core Workflow
 
-### Step 1: Resolve — find what endpoints exist
+### Step 1: Resolve — check if a cached skill exists
 
 ```bash
 unbrowse resolve \
@@ -73,16 +73,33 @@ unbrowse resolve \
   --pretty
 ```
 
-Resolve searches the skill cache, shared route graph, and (on miss) captures live traffic. It returns a ranked list of `available_endpoints`, each with:
+Resolve checks the local skill cache. If a skill exists for this domain, it returns `available_endpoints` with:
 - `description` — what the endpoint returns
 - `schema_summary` — nested response structure (3 levels deep)
 - `sample_values` — concrete leaf key→value pairs from captured data
 - `input_params` — required/optional parameters with types and examples
 - `example_fields` — dot-paths showing extractable fields
 
-Use these to pick the right endpoint and build your `--path`/`--extract` flags without trial-and-error.
+**Got endpoints?** Pick one and go to Step 2.
 
-**For multi-endpoint domains (X, LinkedIn, Reddit, etc.), resolve always returns a deferred list.** You must pick an endpoint and execute separately.
+**Got `browse_session_open` or no endpoints?** The site hasn't been indexed yet. Go to Step 1b.
+
+### Step 1b: Browse to index — only when no cached skill exists
+
+When resolve has no cached data, browse the site to build the index:
+
+```bash
+unbrowse go https://www.example.com
+unbrowse snap                          # see what's on page
+unbrowse fill e3 "search query"        # fill a search box
+unbrowse press Enter                   # submit
+unbrowse snap                          # see results
+unbrowse close                         # indexes all captured traffic + page DOM
+```
+
+All traffic (API calls, page HTML, search forms) is passively captured. `close` triggers indexing — it creates skill endpoints from both intercepted API calls AND DOM extraction from the page HTML. Server-rendered sites (no JSON APIs) get DOM endpoints with templatized URLs so search params work on re-execute.
+
+After `close`, go back to Step 1 — resolve will now find the cached skill.
 
 ### Step 2: Execute — call the endpoint with extraction
 
@@ -96,8 +113,6 @@ unbrowse execute \
 ```
 
 Use `--path` to drill into nested response structures, `--extract` to pick fields (supports aliases: `alias:deep.path`), and `--limit` to cap results. Without these flags, large responses auto-wrap with `extraction_hints` showing the schema tree.
-
-Pass the `skill_id` and `endpoint_id` from the resolve response.
 
 ### Step 3: Present results to the user
 
@@ -119,7 +134,7 @@ unbrowse feedback \
 
 ### Step 5: Review — improve endpoint metadata (optional)
 
-If the endpoint description is generic or wrong, push better metadata back so future resolves are more useful:
+If the endpoint description is generic or wrong, push better metadata back:
 
 ```bash
 unbrowse review --skill {skill_id} --endpoints '[{
@@ -129,8 +144,6 @@ unbrowse review --skill {skill_id} --endpoints '[{
   "resource_kind": "tweet"
 }]'
 ```
-
-This updates the local skill cache and publishes to the marketplace. The calling agent IS the LLM — no external API needed.
 
 ### Picking the right endpoint from resolve
 
@@ -145,15 +158,8 @@ Resolve returns `available_endpoints` sorted by score. Each endpoint includes sc
 | `example_fields` | Dot-paths you can use with `--path` and `--extract` |
 | `action_kind` | `timeline`, `list`, `detail`, `search` — match your intent |
 | `url` | The actual API URL — look for GraphQL operation names, REST paths |
-| `dom_extraction` | `true` = scraped from page HTML (slower, less reliable). `false` = real API call |
-| `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM scrapes |
-
-**Example: X timeline.** Resolve for `x.com/home` returns ~7 endpoints. The right one is:
-- `action_kind: "timeline"`, `resource_kind: "post"`
-- URL contains `HomeTimeline`
-- `dom_extraction: false` (real GraphQL API, not a page scrape)
-
-Ignore the DOM extraction endpoint even if it has a higher score — it's a stale page artifact, not your live timeline.
+| `dom_extraction` | `true` = extracted from page HTML. `false` = real API call |
+| `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM |
 
 ### When resolve returns direct data
 
