@@ -38,7 +38,7 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`.
 Current jobs:
 
 1. publish CLI from `packages/skill/` to npm
-2. deploy backend with `cd backend && bun run deploy`
+2. deploy backend with `cd backend && bun run deploy:ci`
 3. deploy frontend with `cd frontend && bun run deploy`
 4. sync the standalone skill repo
 
@@ -51,7 +51,12 @@ cd backend
 bun install --frozen-lockfile
 bun run dev
 bun run deploy
+bun run deploy:ci
 ```
+
+`bun run deploy:ci` uses `backend/wrangler.ci.toml` and preserves the existing
+`STATS_KV` binding so GitHub Actions can deploy without requesting KV write
+scope on every release run.
 
 Frontend:
 

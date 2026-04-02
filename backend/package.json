@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:ci": "wrangler deploy --config wrangler.ci.toml",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

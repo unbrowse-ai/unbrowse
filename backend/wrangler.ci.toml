@@ -1,0 +1,24 @@
+name = "unbrowse-backend"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+first_party_worker = true
+
+# CI deploys with a token that can update Worker code and routes but cannot
+# re-authorize KV namespace bindings. Preserve the already-attached namespace
+# instead of re-sending its namespace_id on every release deploy.
+[unsafe.metadata]
+keep_bindings = ["kv_namespace"]
+
+[[unsafe.bindings]]
+name = "STATS_KV"
+type = "inherit"
+
+[vars]
+ENVIRONMENT = "production"
+PAYMENTS_ENABLED = "true"
+UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
+
+[[routes]]
+pattern = "beta-api.unbrowse.ai/*"
+zone_id = "73934a4d815fde770167414fc3ead04b"
