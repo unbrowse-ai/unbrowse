@@ -77,3 +77,4 @@ tmp/
 .release-announcement.json
 .gstack/
 codedb.snapshot
+.kuri/
