@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { INSTALL_CMD_GENERIC, UPGRADE_CMD_GENERIC } from "@/lib/install-command";
 
 const SKILL_MD = `---
 name: unbrowse
-description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by later agents.
-install: npx unbrowse setup
+description: Analyze any website's network traffic and turn it into reusable API skills backed by a shared marketplace. Skills discovered by any agent are published, scored, and reusable by all agents.
+install: ${INSTALL_CMD_GENERIC}
 homepage: https://www.unbrowse.ai
 repository: https://github.com/unbrowse-ai/unbrowse
 ---
@@ -29,14 +30,15 @@ Current product path:
 ## Install
 
 \`\`\`bash
-npx unbrowse setup
+${INSTALL_CMD_GENERIC}
 \`\`\`
 
-Repeat-use install:
+This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and lobster.cash wallet detection when present. If a wallet is configured, that address is synced onto your agent profile and becomes the destination for contributor payouts when your routes earn.
+
+Upgrade an existing clone in place:
 
 \`\`\`bash
-npm install -g unbrowse
-unbrowse setup
+${UPGRADE_CMD_GENERIC}
 \`\`\`
 
 If your host uses skills:
@@ -56,9 +58,8 @@ npx skills add unbrowse-ai/unbrowse
 Headless runs can preseed:
 
 \`\`\`bash
-export UNBROWSE_NON_INTERACTIVE=1
-export UNBROWSE_TOS_ACCEPTED=1
-export UNBROWSE_AGENT_EMAIL=agent@example.com
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off --accept-tos --agent-email agent@example.com --skip-wallet-setup --non-interactive
 \`\`\`
 
 ## Core commands

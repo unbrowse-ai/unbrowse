@@ -11,17 +11,26 @@ Unbrowse is a drop-in browser for agents: same browser-shaped job in the stack, 
 ## Quick start
 
 ```bash
-# Fastest full setup
-npx unbrowse setup
+# Deterministic setup from a repo clone
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host off
 ```
 
-`npx unbrowse setup` downloads the CLI on demand, verifies the bundled Kuri runtime, registers the Open Code `/unbrowse` command when Open Code is detected, and starts the local server.
+`./setup` installs repo dependencies, prebuilds the packaged CLI runtime, installs a stable `unbrowse` shim, and runs `unbrowse setup` without depending on npm release assets. That first-run path includes ToS acceptance, agent registration + API-key caching, and lobster.cash wallet detection when present.
 
-For daily use:
+If a wallet is configured, that wallet address becomes the contributor truth: it is synced onto your agent profile, used as the destination for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
+
+Headless/CI-friendly bootstrap:
 
 ```bash
-npm install -g unbrowse
-unbrowse setup
+cd ~/unbrowse && ./setup --host off --accept-tos --agent-email you@example.com --skip-wallet-setup
+```
+
+For agent hosts with a skill directory:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/.codex/skills/unbrowse
+cd ~/.codex/skills/unbrowse && ./setup --host codex
 ```
 
 If your agent host uses skills:
@@ -34,11 +43,12 @@ npx skills add unbrowse-ai/unbrowse
 
 Unbrowse no longer self-updates at runtime. If you already have Unbrowse installed, upgrade to the latest version after each release or the new flow may not work on your machine.
 
-If you installed the CLI globally:
+If you installed from a repo clone:
 
 ```bash
-npm install -g unbrowse@latest
-unbrowse setup
+cd ~/unbrowse
+git pull --ff-only
+./setup --host off
 ```
 
 If your agent host uses skills, rerun its skill install/update command too:
