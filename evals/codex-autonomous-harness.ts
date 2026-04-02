@@ -12,6 +12,7 @@ import {
   buildAgentExecuteCliArgs,
   compactForArtifact,
   fallbackEndpointOrder,
+  hasCliFlag,
   normalizeHarnessCases,
   pickFreeformFollowUpUrl,
   type DeferredEndpoint,
@@ -165,7 +166,7 @@ const argv = process.argv.slice(
 );
 const args = new Set(argv);
 const getArg = (flag: string) => argv.find((_, i) => argv[i - 1] === `--${flag}`) ?? "";
-const hasFlag = (flag: string) => args.has(`--${flag}`);
+const hasFlag = (flag: string) => hasCliFlag(args, flag);
 const forceCapture = hasFlag("--force-capture") || process.env.UNBROWSE_FORCE_CAPTURE === "1";
 const restartServer = hasFlag("--restart-server");
 const maxRounds = Math.max(1, Number(getArg("max-rounds") || "6") || 6);
