@@ -3090,6 +3090,38 @@ export async function resolveAndExecute(
     }
   } // end !forceCapture
 
+  // 1.4 Direct JSON fetch: if URL looks like a raw API endpoint, try fetching directly
+  if (context?.url && /\.(json|xml)(\?|$)|\/api\/|\/v\d+\//.test(context.url)) {
+    try {
+      const directRes = await fetch(context.url, {
+        headers: { "Accept": "application/json", "User-Agent": "unbrowse/1.0" },
+        signal: AbortSignal.timeout(5000),
+        redirect: "follow",
+      });
+      const ct = directRes.headers.get("content-type") ?? "";
+      if (directRes.ok && (ct.includes("json") || ct.includes("+json"))) {
+        const data = await directRes.json();
+        const trace: ExecutionTrace = {
+          trace_id: nanoid(),
+          skill_id: "direct-fetch",
+          endpoint_id: "direct-fetch",
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          success: true,
+        };
+        const t = finalize("direct-fetch", data, "direct-fetch", undefined as any, trace);
+        console.log(`[direct-fetch] ${context.url} returned JSON directly — skipping browser`);
+        return {
+          result: data,
+          trace,
+          source: "direct-fetch" as any,
+          skill: undefined as any,
+          timing: t,
+        };
+      }
+    } catch { /* not a direct JSON API — continue to browser */ }
+  }
+
   // 1.5 First-pass browser action: lightweight 8s attempt before full capture
   if (context?.url && !forceCapture) {
     const firstPassResult = await tryFirstPassBrowserAction(
