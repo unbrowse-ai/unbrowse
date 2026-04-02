@@ -157,6 +157,16 @@ See [SKILL.md](./SKILL.md) for the full API reference including all endpoints, s
 | GET    | `/v1/stats/summary`      | Platform stats                                 |
 | GET    | `/health`                | Health check                                   |
 
+## Docs
+
+The standalone skill repo also carries the core repo docs:
+
+- [Quickstart guide](./docs/guides/quickstart.md)
+- [API notes](./docs/api.md)
+- [Codex eval harness](./docs/codex-eval-harness.md)
+- [Deployment notes](./docs/deployment.md)
+- [Release checklist](./docs/RELEASING.md)
+
 ## Configuration
 
 ### Runtime directories

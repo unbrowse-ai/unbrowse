@@ -1,0 +1,14 @@
+{
+  "name": "kuri-agent",
+  "version": "0.3.0",
+  "description": "Agentic Chrome CLI — compact a11y snapshots, security testing, CDP automation. Written in Zig.",
+  "keywords": ["browser", "automation", "agent", "cdp", "accessibility", "llm", "ai"],
+  "homepage": "https://github.com/justrach/kuri",
+  "repository": { "type": "git", "url": "https://github.com/justrach/kuri.git" },
+  "license": "MIT",
+  "bin": { "kuri-agent": "bin/kuri-agent.js" },
+  "scripts": {
+    "postinstall": "node bin/install.js"
+  },
+  "engines": { "node": ">=18" }
+}
