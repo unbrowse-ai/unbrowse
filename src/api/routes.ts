@@ -12,11 +12,11 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
-import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain } from "../orchestrator/index.js";
+import { generateLocalDescription, writeSkillSnapshot, buildResolveCacheKey, getDomainReuseKey, domainSkillCache, persistDomainCache, scopedCacheKey, snapshotPathForCacheKey, invalidateRouteCacheForDomain, summarizeSchema, extractSampleValues } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
-import { executeSkill } from "../execution/index.js";
+import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { storeCredential } from "../vault/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
@@ -412,6 +412,100 @@ export async function registerRoutes(app: FastifyInstance) {
       await publishSkill(skill);
     } catch { /* marketplace publish is best-effort */ }
     return reply.send({ ok: true, endpoints_updated: reviews.length });
+  });
+
+  // POST /v1/skills/:skill_id/publish — two-phase agent-driven publish
+  // Phase 1 (no endpoints body): return endpoints needing descriptions
+  // Phase 2 (with endpoints): merge descriptions, update caches, publish to marketplace
+  app.post("/v1/skills/:skill_id/publish", async (req, reply) => {
+    const clientScope = clientScopeFor(req);
+    const { skill_id } = req.params as { skill_id: string };
+    const { endpoints: reviews } = (req.body as {
+      endpoints?: Array<{
+        endpoint_id: string;
+        description?: string;
+        action_kind?: string;
+        resource_kind?: string;
+      }>;
+    }) ?? {};
+
+    // Load skill from local caches → marketplace
+    let skill = getRecentLocalSkill(skill_id, clientScope);
+    if (!skill) {
+      for (const [, entry] of domainSkillCache) {
+        if (entry.skillId === skill_id && entry.localSkillPath) {
+          try { skill = JSON.parse(require("fs").readFileSync(entry.localSkillPath, "utf-8")); } catch {}
+          break;
+        }
+      }
+    }
+    if (!skill) skill = await getSkill(skill_id, clientScope);
+    if (!skill) return reply.code(404).send({ error: "Skill not found" });
+
+    // Phase 2: merge descriptions + publish
+    if (reviews?.length) {
+      const updated = mergeAgentReview(skill.endpoints, reviews);
+      skill.endpoints = updated;
+      skill.updated_at = new Date().toISOString();
+
+      // Update local caches
+      try { cachePublishedSkill(skill); } catch {}
+      const domain = skill.domain;
+      if (domain) {
+        const ck = buildResolveCacheKey(domain, skill.intent_signature ?? `browse ${domain}`, undefined);
+        const sk = scopedCacheKey(clientScope, ck);
+        writeSkillSnapshot(sk, skill);
+        const dk = getDomainReuseKey(domain);
+        if (dk) {
+          domainSkillCache.set(dk, {
+            skillId: skill.skill_id,
+            localSkillPath: snapshotPathForCacheKey(sk),
+            ts: Date.now(),
+          });
+          persistDomainCache();
+        }
+      }
+
+      // Publish to marketplace
+      try { await publishSkill(skill); } catch {}
+      return reply.send({
+        ok: true,
+        skill_id: skill.skill_id,
+        endpoints_updated: reviews.length,
+        published: true,
+      });
+    }
+
+    // Phase 1: return endpoints needing descriptions
+    const ranked = rankEndpoints(skill.endpoints, skill.intent_signature, skill.domain);
+    const endpoints_to_describe = ranked.map((r) => ({
+      endpoint_id: r.endpoint.endpoint_id,
+      method: r.endpoint.method,
+      url: r.endpoint.url_template.length > 120
+        ? r.endpoint.url_template.slice(0, 120) + "..."
+        : r.endpoint.url_template,
+      current_description: r.endpoint.description ?? "",
+      schema_summary: r.endpoint.response_schema
+        ? summarizeSchema(r.endpoint.response_schema)
+        : null,
+      sample_values: extractSampleValues(r.endpoint.semantic?.example_response_compact),
+      input_params: r.endpoint.semantic?.requires?.map((b) => ({
+        key: b.key,
+        type: b.type ?? b.semantic_type,
+        required: b.required ?? false,
+        example: b.example_value,
+      })) ?? [],
+      dom_extraction: !!r.endpoint.dom_extraction,
+      _fill_description: "DESCRIBE THIS ENDPOINT — what it returns, key params, action type",
+    }));
+
+    return reply.send({
+      skill_id: skill.skill_id,
+      domain: skill.domain,
+      endpoint_count: skill.endpoints.length,
+      endpoints_to_describe,
+      _next_step: `Fill each endpoint's description, then call: unbrowse publish --skill ${skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+    });
   });
   // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
   app.post("/v1/skills/:skill_id/chunk", async (req, reply) => {
