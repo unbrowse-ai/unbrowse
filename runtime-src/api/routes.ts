@@ -1,12 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
-import type { RawRequest } from "../capture/index.js";
+import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
+import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, type RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { SkillManifest } from "../types/index.js";
 import { extractBrowserCookies } from "../auth/browser-cookies.js";
+import { mergeEndpoints } from "../marketplace/index.js";
+import { buildSkillOperationGraph } from "../graph/index.js";
+import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
+import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
+import { storeCredential } from "../vault/index.js";
+import { generateLocalDescription } from "../orchestrator/index.js";
 import { TRACE_VERSION, CODE_HASH, GIT_SHA } from "../version.js";
 import { promoteExplicitExecution, resolveAndExecute } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
@@ -45,30 +51,89 @@ function harEntriesToRawRequests(entries: KuriHarEntry[]): RawRequest[] {
 }
 
 /** Process HAR entries into routes and queue for background indexing */
-function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
-  if (entries.length === 0) return;
-  const requests = harEntriesToRawRequests(entries);
+/** Full passive indexing pipeline — same enrichment as explicit capture */
+function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void {
   if (requests.length === 0) return;
+
   let domain: string;
   try { domain = new URL(pageUrl).hostname; } catch { return; }
-  const endpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
-  if (endpoints.length === 0) return;
-  const skill: SkillManifest = {
-    skill_id: nanoid(),
-    version: "1.0.0",
-    schema_version: "1",
-    lifecycle: "active" as const,
-    execution_type: "http" as const,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    name: domain,
-    intent_signature: `browse ${domain}`,
-    domain,
-    description: `Passively indexed API routes for ${domain}`,
-    owner_type: "agent" as const,
-    endpoints,
-  };
-  queueBackgroundIndex({ skill, domain, intent: `browse ${domain}`, contextUrl: pageUrl, cacheKey: `passive:${domain}:${Date.now()}` });
+  const intent = `browse ${domain}`;
+
+  // Fire-and-forget — full pipeline runs async
+  void (async () => {
+    try {
+      // 1. Extract endpoints from captured traffic
+      const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
+      if (rawEndpoints.length === 0) {
+        console.log(`[passive-index] ${domain}: 0 endpoints from ${requests.length} requests`);
+        return;
+      }
+
+      // 2. Extract and store auth credentials (cookies + sensitive headers)
+      const capturedAuthHeaders = extractAuthHeaders(requests);
+      if (Object.keys(capturedAuthHeaders).length > 0) {
+        const authKey = `${domain}-session`;
+        await storeCredential(authKey, JSON.stringify({ headers: capturedAuthHeaders }));
+      }
+
+      // 3. Merge with existing skill for this domain (prevents duplicates)
+      const existingSkill = findExistingSkillForDomain(domain, intent);
+      const mergedEndpoints = existingSkill
+        ? mergeEndpoints(existingSkill.endpoints, rawEndpoints)
+        : rawEndpoints;
+
+      // 4. Generate descriptions for endpoints without them (enables BM25 ranking)
+      for (const ep of mergedEndpoints) {
+        if (!ep.description) {
+          ep.description = generateLocalDescription(ep);
+        }
+      }
+
+      // 5. Agent-based semantic augmentation (action_kind, resource_kind, provides/requires)
+      let enrichedEndpoints = mergedEndpoints;
+      try {
+        enrichedEndpoints = await augmentEndpointsWithAgent(mergedEndpoints);
+      } catch { /* agent augmentation is best-effort */ }
+
+      // 6. Build operation dependency graph
+      const operationGraph = buildSkillOperationGraph(enrichedEndpoints);
+
+      // 7. Assemble full skill manifest
+      const skill: SkillManifest = {
+        skill_id: existingSkill?.skill_id ?? nanoid(),
+        version: "1.0.0",
+        schema_version: "1",
+        lifecycle: "active" as const,
+        execution_type: "http" as const,
+        created_at: existingSkill?.created_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        name: domain,
+        intent_signature: intent,
+        domain,
+        description: `API skill for ${domain}`,
+        owner_type: "agent" as const,
+        endpoints: enrichedEndpoints,
+        operation_graph: operationGraph,
+        intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
+      };
+
+      // 8. Cache locally for immediate reuse
+      try { cachePublishedSkill(skill); } catch { /* best-effort */ }
+
+      // 9. Queue background index (graph building, validation, marketplace publish)
+      const cacheKey = `passive:${domain}:${Date.now()}`;
+      queueBackgroundIndex({ skill, domain, intent, contextUrl: pageUrl, cacheKey });
+
+      console.log(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed from ${requests.length} requests`);
+    } catch (err) {
+      console.error(`[passive-index] ${domain} failed: ${err instanceof Error ? err.message : err}`);
+    }
+  })();
+}
+
+/** Convenience wrapper: convert HAR entries and run passive indexing */
+function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
+  passiveIndexFromRequests(harEntriesToRawRequests(entries), pageUrl);
 }
 // ── /v1/stats cache ──────────────────────────────────────────────────
 let statsCache: { data: unknown; ts: number } | null = null;
@@ -578,6 +643,7 @@ export async function registerRoutes(app: FastifyInstance) {
     await kuri.start().catch(() => {});
     const tabId = await kuri.newTab();
     await kuri.harStart(tabId).catch(() => {});
+    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     const session = { tabId, url: "about:blank", harActive: true, domain: "" };
     browseSessions.set("default", session);
     return session;
@@ -624,8 +690,9 @@ export async function registerRoutes(app: FastifyInstance) {
     session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
     session.domain = profileName(session.url);
 
-    // Restart HAR
+    // Restart HAR + inject fetch/XHR interceptor for full API capture
     await kuri.harStart(session.tabId).catch(() => {});
+    await kuri.evaluate(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     session.harActive = true;
 
     return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain });
@@ -753,12 +820,46 @@ export async function registerRoutes(app: FastifyInstance) {
       await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
     }
 
+    // Collect intercepted fetch/XHR requests (has response bodies HAR misses)
+    let intercepted: RawRequest[] = [];
+    try {
+      const raw = await collectInterceptedRequests(session.tabId);
+      intercepted = raw.map(r => ({
+        url: r.url,
+        method: r.method,
+        request_headers: r.request_headers ?? {},
+        request_body: r.request_body,
+        response_status: r.response_status,
+        response_headers: r.response_headers ?? {},
+        response_body: r.response_body,
+        timestamp: r.timestamp,
+      }));
+    } catch { /* non-fatal */ }
+
+    // Also collect HAR entries
+    let harEntries: KuriHarEntry[] = [];
     if (session.harActive) {
       try {
         const { entries } = await kuri.harStop(session.tabId);
-        passiveIndexHar(entries, session.url);
+        harEntries = entries;
       } catch { /* non-fatal */ }
     }
+
+    // Merge: intercepted requests (better bodies) + HAR entries, deduplicated
+    const harRequests = harEntriesToRawRequests(harEntries);
+    const seen = new Set<string>();
+    const allRequests: RawRequest[] = [];
+    for (const r of intercepted) {
+      const key = `${r.method}:${r.url}`;
+      if (!seen.has(key)) { seen.add(key); allRequests.push(r); }
+    }
+    for (const r of harRequests) {
+      const key = `${r.method}:${r.url}`;
+      if (!seen.has(key)) { seen.add(key); allRequests.push(r); }
+    }
+
+    // Run full passive indexing pipeline on merged data
+    passiveIndexFromRequests(allRequests, session.url);
     await kuri.closeTab(session.tabId).catch(() => {});
     browseSessions.delete("default");
     return reply.send({ ok: true, indexed: true, auth_saved: session.domain || null });

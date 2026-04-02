@@ -1,9 +1,15 @@
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { resolveAndExecute } from "../orchestrator/index.js";
-import { extractEndpoints } from "../reverse-engineer/index.js";
+import { generateLocalDescription } from "../orchestrator/index.js";
+import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
 import type { RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
+import { mergeEndpoints } from "../marketplace/index.js";
+import { buildSkillOperationGraph } from "../graph/index.js";
+import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
+import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
+import { storeCredential } from "../vault/index.js";
 import { UnbrowseResponse, type BrowserLaunchOptions, type GotoOptions, type SkillResolutionResult } from "./types.js";
 import type { SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
@@ -54,46 +60,70 @@ function harEntriesToRawRequests(entries: KuriHarEntry[]): RawRequest[] {
 }
 
 /** Process captured HAR entries into routes and queue for background indexing */
+/** Full passive indexing pipeline — same enrichment as explicit capture */
 function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
   if (entries.length === 0) return;
-
   const requests = harEntriesToRawRequests(entries);
   if (requests.length === 0) return;
 
   let domain: string;
   try { domain = new URL(pageUrl).hostname; } catch { return; }
+  const intent = `browse ${domain}`;
 
-  const endpoints = extractEndpoints(requests, undefined, {
-    pageUrl,
-    finalUrl: pageUrl,
-  });
+  void (async () => {
+    try {
+      const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
+      if (rawEndpoints.length === 0) return;
 
-  if (endpoints.length === 0) return;
+      // Store auth credentials
+      const capturedAuthHeaders = extractAuthHeaders(requests);
+      if (Object.keys(capturedAuthHeaders).length > 0) {
+        await storeCredential(`${domain}-session`, JSON.stringify({ headers: capturedAuthHeaders }));
+      }
 
-  const skill: SkillManifest = {
-    skill_id: nanoid(),
-    version: "1.0.0",
-    schema_version: "1",
-    lifecycle: "active" as const,
-    execution_type: "http" as const,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    name: domain,
-    intent_signature: `browse ${domain}`,
-    domain,
-    description: `Passively indexed API routes for ${domain}`,
-    owner_type: "agent" as const,
-    endpoints,
-  };
+      // Merge with existing skill
+      const existingSkill = findExistingSkillForDomain(domain, intent);
+      const mergedEndpoints = existingSkill
+        ? mergeEndpoints(existingSkill.endpoints, rawEndpoints)
+        : rawEndpoints;
 
-  const cacheKey = `passive:${domain}:${Date.now()}`;
-  queueBackgroundIndex({
-    skill,
-    domain,
-    intent: `browse ${domain}`,
-    contextUrl: pageUrl,
-    cacheKey,
-  });
+      // Generate descriptions
+      for (const ep of mergedEndpoints) {
+        if (!ep.description) ep.description = generateLocalDescription(ep);
+      }
+
+      // Agent semantic augmentation
+      let enrichedEndpoints = mergedEndpoints;
+      try { enrichedEndpoints = await augmentEndpointsWithAgent(mergedEndpoints); } catch { /* best-effort */ }
+
+      // Build operation graph
+      const operationGraph = buildSkillOperationGraph(enrichedEndpoints);
+
+      const skill: SkillManifest = {
+        skill_id: existingSkill?.skill_id ?? nanoid(),
+        version: "1.0.0",
+        schema_version: "1",
+        lifecycle: "active" as const,
+        execution_type: "http" as const,
+        created_at: existingSkill?.created_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        name: domain,
+        intent_signature: intent,
+        domain,
+        description: `API skill for ${domain}`,
+        owner_type: "agent" as const,
+        endpoints: enrichedEndpoints,
+        operation_graph: operationGraph,
+        intents: Array.from(new Set([...(existingSkill?.intents ?? []), intent])),
+      };
+
+      try { cachePublishedSkill(skill); } catch { /* best-effort */ }
+      queueBackgroundIndex({ skill, domain, intent, contextUrl: pageUrl, cacheKey: `passive:${domain}:${Date.now()}` });
+      console.log(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed`);
+    } catch (err) {
+      console.error(`[passive-index] ${domain} failed: ${err instanceof Error ? err.message : err}`);
+    }
+  })();
 }
 
 
