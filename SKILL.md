@@ -1,6 +1,14 @@
 ---
 name: unbrowse
-description: API-native agent browser powered by Kuri (Zig-native CDP, 464KB, ~3ms cold start). Unbrowse is the intelligence layer — learns internal APIs (shadow APIs) from real browsing traffic and progressively replaces browser calls with cached API routes (<200ms). Three paths: skill cache, shared route graph, or Kuri browser fallback. 3.6x mean speedup over Playwright across 94 domains. Full Kuri API surface exposed (snapshots, ref-based actions, HAR, cookies, DOM, screenshots). Free to capture and index; agents earn from mining routes for other agents.
+description: >-
+  API-native agent browser powered by Kuri (Zig-native CDP, 464KB, ~3ms cold
+  start). Unbrowse is the intelligence layer — learns internal APIs (shadow
+  APIs) from real browsing traffic and progressively replaces browser calls with
+  cached API routes (<200ms). Three paths: skill cache, shared route graph, or
+  Kuri browser fallback. 3.6x mean speedup over Playwright across 94 domains.
+  Full Kuri API surface exposed (snapshots, ref-based actions, HAR, cookies,
+  DOM, screenshots). Free to capture and index; agents earn from mining routes
+  for other agents.
 user-invocable: true
 metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "npm", "kind": "node", "package": "unbrowse", "bins": ["unbrowse"]}], "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
 ---
