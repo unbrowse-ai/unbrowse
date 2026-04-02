@@ -1,0 +1,100 @@
+{
+  "date": "2026-03-27",
+  "url": "https://vercel.com",
+  "kuri_branch": "feature/debug-mode-freeze-hud",
+  "kuri_commit": "9d05461",
+  "agent_browser_version": "agent-browser 0.9.1",
+  "lightpanda_version": "1.0.0-nightly",
+  "baseline_tokens": 2107,
+  "snapshots": {
+    "kuri snap (compact)": {
+      "bytes": 6849,
+      "tokens": 2107,
+      "vs_kuri": 1.0
+    },
+    "kuri snap --interactive": {
+      "bytes": 2450,
+      "tokens": 949,
+      "vs_kuri": 0.45
+    },
+    "kuri snap --json": {
+      "bytes": 67009,
+      "tokens": 19294,
+      "vs_kuri": 9.157
+    },
+    "agent-browser snapshot": {
+      "bytes": 16191,
+      "tokens": 4694,
+      "vs_kuri": 2.228
+    },
+    "agent-browser snapshot -i": {
+      "bytes": 3316,
+      "tokens": 1209,
+      "vs_kuri": 0.574
+    },
+    "lightpanda semantic_tree": {
+      "bytes": 727189,
+      "tokens": 262682,
+      "vs_kuri": 124.671
+    },
+    "lightpanda semantic_tree_text": {
+      "bytes": 11868,
+      "tokens": 3660,
+      "vs_kuri": 1.737
+    }
+  },
+  "actions": {
+    "kuri go": {
+      "bytes": 2597,
+      "tokens": 990
+    },
+    "kuri click": {
+      "bytes": 2690,
+      "tokens": 1011
+    },
+    "kuri back": {
+      "bytes": 12,
+      "tokens": 5
+    },
+    "kuri scroll": {
+      "bytes": 2570,
+      "tokens": 982
+    },
+    "kuri eval": {
+      "bytes": 68,
+      "tokens": 16
+    },
+    "agent-browser go": {
+      "bytes": 94,
+      "tokens": 25
+    },
+    "agent-browser click": {
+      "bytes": 125,
+      "tokens": 29
+    },
+    "agent-browser back": {
+      "bytes": 154,
+      "tokens": 49
+    },
+    "agent-browser scroll": {
+      "bytes": 9,
+      "tokens": 4
+    },
+    "agent-browser eval": {
+      "bytes": 70,
+      "tokens": 17
+    }
+  },
+  "workflow": {
+    "raw": {
+      "kuri_agent_tokens": 3915,
+      "agent_browser_tokens": 2489,
+      "kuri_savings_pct": -57.3
+    },
+    "normalized_page_state": {
+      "kuri_agent_tokens": 1914,
+      "agent_browser_tokens": 2435,
+      "kuri_savings_pct": 21.4
+    }
+  }
+}

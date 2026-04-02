@@ -9,15 +9,30 @@ const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const distDir = path.join(packageRoot, "dist");
 const sourceDir = path.join(packageRoot, "src");
 const runtimeSourceDir = path.join(packageRoot, "runtime-src");
+const vendorKuriDir = path.join(packageRoot, "vendor", "kuri");
+const binaryName = process.platform === "win32" ? "kuri.exe" : "kuri";
+const supportedTargets = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"];
+
+function hasVendoredKuriBinaries() {
+  return supportedTargets.every((target) => {
+    try {
+      readFileSync(path.join(vendorKuriDir, target, binaryName));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
 
 rmSync(distDir, { recursive: true, force: true });
 rmSync(runtimeSourceDir, { recursive: true, force: true });
-rmSync(path.join(packageRoot, "vendor", "kuri"), { recursive: true, force: true });
 
-execFileSync(process.execPath, [path.join(packageRoot, "scripts", "build-kuri-binaries.mjs")], {
-  cwd: packageRoot,
-  stdio: "inherit",
-});
+if (process.env.UNBROWSE_REBUILD_KURI === "1" || !hasVendoredKuriBinaries()) {
+  execFileSync(process.execPath, [path.join(packageRoot, "scripts", "build-kuri-binaries.mjs")], {
+    cwd: packageRoot,
+    stdio: "inherit",
+  });
+}
 
 const sharedArgs = ["build", "--target", "node", "--format", "esm", "--packages", "external"];
 

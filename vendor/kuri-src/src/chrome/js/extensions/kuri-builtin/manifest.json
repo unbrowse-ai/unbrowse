@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Kuri Agent Bridge",
+  "version": "1.0.0",
+  "description": "Built-in extension for Kuri browser automation — stealth, agent comms, network observation.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "webRequest",
+    "cookies",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

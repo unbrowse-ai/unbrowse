@@ -1,0 +1,718 @@
+[e0] RootWebArea "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights"
+[e1] none "type"
+[e2] generic
+[e3] generic
+[e4] generic
+[e5] none "type"
+[e6] generic
+[e7] generic
+[e8] generic
+[e9] banner
+[e10] none "type"
+[e11] generic
+[e12] none "type"
+[e13] generic
+[e14] generic
+[e15] generic
+[e16] none "type"
+[e17] generic
+[e18] none "type"
+[e19] none "type"
+[e20] none "type"
+[e21] none "type"
+[e22] button "Main menu"
+[e23] generic
+[e24] none "type"
+[e25] none "type"
+[e26] none "type"
+[e27] generic
+[e28] none "type"
+[e29] none "type"
+[e30] generic
+[e31] none "type"
+[e32] generic
+[e33] generic
+[e34] generic
+[e35] image
+[e36] generic
+[e37] button "Skip to main content"
+[e38] button "Accessibility feedback"
+[e39] none "type"
+[e40] none "type"
+[e41] generic
+[e42] generic
+[e43] link "Sign in"
+[e44] generic
+[e45] generic
+[e46] main
+[e47] generic
+[e48] link "Google"
+[e49] generic
+[e50] generic
+[e51] none "type"
+[e52] StaticText "Skip to main content"
+[e53] generic
+[e54] generic
+[e55] none "type"
+[e56] StaticText "Accessibility feedback"
+[e57] generic
+[e58] none "type"
+[e59] generic
+[e60] generic
+[e61] StaticText "Sign in"
+[e62] generic
+[e63] search "Flight"
+[e64] none "type"
+[e65] generic
+[e66] contentinfo
+[e67] none "type"
+[e68] none "type"
+[e69] InlineTextBox "Skip to main content"
+[e70] InlineTextBox "Accessibility feedback"
+[e71] button "Change appearance"
+[e72] button "Google apps"
+[e73] StaticText "  "
+[e74] InlineTextBox "Sign in"
+[e75] StaticText "Flights"
+[e76] generic
+[e77] generic
+[e78] none "type"
+[e79] none "type"
+[e80] none "type"
+[e81] none "type"
+[e82] heading "Flexible? Discover the best flight deals with AI"
+[e83] generic
+[e84] none "type"
+[e85] button "Explore deals"
+[e86] heading "Find and book cheap flights worldwide and track prices"
+[e87] generic
+[e88] generic
+[e89] generic
+[e90] generic
+[e91] heading "Search more flights"
+[e92] generic
+[e93] none "type"
+[e94] none "type"
+[e95] button "Language\u200b\u00b7English (United States)"
+[e96] button "Location\u200b\u00b7Singapore"
+[e97] button "Currency SGD"
+[e98] none "type"
+[e99] paragraph
+[e100] paragraph
+[e101] paragraph
+[e102] none "type"
+[e103] link "About Google Travel"
+[e104] link "Privacy"
+[e105] link "Terms"
+[e106] link "Join user studies"
+[e107] link "Feedback"
+[e108] link "Help Center"
+[e109] none "type"
+[e110] generic
+[e111] generic
+[e112] generic
+[e113] image
+[e114] none "type"
+[e115] generic
+[e116] image
+[e117] generic
+[e118] InlineTextBox "Flights"
+[e119] none "type"
+[e120] generic
+[e121] none "type"
+[e122] generic
+[e123] none "type"
+[e124] generic
+[e125] generic
+[e126] StaticText "Flexible? Discover the best flight deals with AI"
+[e127] StaticText "Describe your ideal trip, and let Google Flights find the best deals f"
+[e128] generic
+[e129] generic
+[e130] image
+[e131] none "type"
+[e132] StaticText "Explore deals"
+[e133] StaticText "Find and book cheap flights worldwide and track prices"
+[e134] generic
+[e135] none "type"
+[e136] list
+[e137] generic
+[e138] heading "Useful tools to help you find the best airline tickets"
+[e139] generic
+[e140] heading "Popular flight destinations from Singapore"
+[e141] generic
+[e142] none "type"
+[e143] heading "Frequently asked questions"
+[e144] group "Frequently asked questions"
+[e145] StaticText "Search more flights"
+[e146] heading "Find cheap flights on popular routes"
+[e147] generic
+[e148] generic
+[e149] generic
+[e150] image
+[e151] none "type"
+[e152] StaticText "Language"
+[e153] StaticText "\u200b"
+[e154] none "type"
+[e155] none "type"
+[e156] StaticText "\u00b7"
+[e157] InlineTextBox "\u00b7"
+[e158] StaticText "English (United States)"
+[e159] generic
+[e160] generic
+[e161] image
+[e162] none "type"
+[e163] StaticText "Location"
+[e164] StaticText "\u200b"
+[e165] none "type"
+[e166] none "type"
+[e167] StaticText "\u00b7"
+[e168] InlineTextBox "\u00b7"
+[e169] StaticText "Singapore"
+[e170] generic
+[e171] generic
+[e172] image
+[e173] none "type"
+[e174] none "type"
+[e175] none "type"
+[e176] StaticText "Current language and currency options applied: English (United States)"
+[e177] StaticText "Displayed currencies may differ from the currencies used to purchase f"
+[e178] link "Learn more about currencies"
+[e179] StaticText "Prices are final prices and include all taxes and fees, including paym"
+[e180] StaticText "About"
+[e181] StaticText "Privacy"
+[e182] StaticText "Terms"
+[e183] StaticText "Join user studies"
+[e184] StaticText "Feedback"
+[e185] StaticText "Help Center"
+[e186] none "type"
+[e187] none "type"
+[e188] none "type"
+[e189] none "type"
+[e190] generic
+[e191] none "type"
+[e192] none "type"
+[e193] none "type"
+[e194] none "type"
+[e195] generic
+[e196] StaticText "  "
+[e197] none "type"
+[e198] generic
+[e199] generic
+[e200] none "type"
+[e201] generic
+[e202] generic
+[e203] generic
+[e204] generic
+[e205] generic
+[e206] button "Explore destinations"
+[e207] InlineTextBox "Flexible? Discover the best flight deals with AI"
+[e208] InlineTextBox "Describe your ideal trip, and let Google Flights find the best deals f"
+[e209] InlineTextBox "Explore deals"
+[e210] InlineTextBox "Find and book cheap flights worldwide and track prices"
+[e211] heading "Find cheap flights from Singapore to anywhere"
+[e212] button "Learn more about this section"
+[e213] none "type"
+[e214] none "type"
+[e215] listitem
+[e216] listitem
+[e217] listitem
+[e218] button "Explore more destinations from Singapore"
+[e219] generic
+[e220] StaticText "Useful tools to help you find the best airline tickets"
+[e221] none "type"
+[e222] button "Find the cheapest days to fly The Date grid and Price graph make it ea"
+[e223] button "Know when to book with price insights Price history and trend data sho"
+[e224] button "Track flight prices for a trip Not ready to book yet? Observe price ch"
+[e225] button "Explore the best flight deals with AI Describe your ideal trip and let"
+[e226] none "type"
+[e227] generic
+[e228] generic
+[e229] none "type"
+[e230] StaticText "Popular flight destinations from Singapore"
+[e231] generic
+[e232] none "type"
+[e233] none "type"
+[e234] none "type"
+[e235] none "type"
+[e236] none "type"
+[e237] none "type"
+[e238] StaticText "Frequently asked questions"
+[e239] generic
+[e240] generic
+[e241] generic
+[e242] generic
+[e243] generic
+[e244] generic
+[e245] InlineTextBox "Search more flights"
+[e246] StaticText "Find cheap flights on popular routes"
+[e247] none "type"
+[e248] tablist
+[e249] none "type"
+[e250] tabpanel "Flights from cities in Singapore"
+[e251] none "type"
+[e252] InlineTextBox "Language"
+[e253] InlineTextBox "\u200b"
+[e254] InlineTextBox "\u00b7"
+[e255] InlineTextBox "English (United States)"
+[e256] InlineTextBox "Location"
+[e257] InlineTextBox "\u200b"
+[e258] InlineTextBox "\u00b7"
+[e259] InlineTextBox "Singapore"
+[e260] InlineTextBox "Current language and currency options applied: English (United States)"
+[e261] InlineTextBox "Displayed currencies may differ from the currencies used to purchase f"
+[e262] generic
+[e263] StaticText "Learn more"
+[e264] InlineTextBox "Prices are final prices and include all taxes and fees, including paym"
+[e265] InlineTextBox "payment method (which may differ depending on the provider). Additiona"
+[e266] InlineTextBox "payment, luggage, meals, WLAN or other additional services. Prices, av"
+[e267] InlineTextBox "based on the latest information received from our partners. This infor"
+[e268] InlineTextBox "period of less than 24 hours. Additional conditions may also be applie"
+[e269] InlineTextBox "prices and conditions with the services providers before booking."
+[e270] InlineTextBox "About"
+[e271] InlineTextBox "Privacy"
+[e272] InlineTextBox "Terms"
+[e273] InlineTextBox "Join user studies"
+[e274] InlineTextBox "Feedback"
+[e275] InlineTextBox "Help Center"
+[e276] button "International sites"
+[e277] button "Explore flights"
+[e278] generic
+[e279] generic
+[e280] generic
+[e281] none "type"
+[e282] generic
+[e283] button "Swap origin and destination."
+[e284] none "type"
+[e285] generic
+[e286] none "type"
+[e287] none "type"
+[e288] none "type"
+[e289] none "type"
+[e290] generic
+[e291] none "type"
+[e292] none "type"
+[e293] none "type"
+[e294] none "type"
+[e295] none "type"
+[e296] none "type"
+[e297] none "type"
+[e298] none "type"
+[e299] none "type"
+[e300] generic
+[e301] generic
+[e302] none "type"
+[e303] StaticText "Explore"
+[e304] StaticText "Find cheap flights from Singapore to anywhere"
+[e305] none "type"
+[e306] generic
+[e307] button "Find flights from Singapore (SIN) to Denpasar (DPS) from SGD\u00a0163."
+[e308] button "Find flights from Singapore (SIN) to Hong Kong (HKG) from SGD\u00a0318"
+[e309] button "Find flights from Singapore (SIN) to Sydney (SYD) from SGD\u00a0400. O"
+[e310] none "type"
+[e311] none "type"
+[e312] none "type"
+[e313] none "type"
+[e314] none "type"
+[e315] none "type"
+[e316] InlineTextBox "Useful tools to help you find the best airline tickets"
+[e317] none "type"
+[e318] image
+[e319] none "type"
+[e320] generic
+[e321] generic
+[e322] none "type"
+[e323] image
+[e324] none "type"
+[e325] generic
+[e326] generic
+[e327] none "type"
+[e328] image
+[e329] none "type"
+[e330] generic
+[e331] generic
+[e332] none "type"
+[e333] image
+[e334] none "type"
+[e335] generic
+[e336] generic
+[e337] StaticText "Insightful tools help you choose your trip dates"
+[e338] StaticText "If your travel plans are flexible, use the form above to start searchi"
+[e339] StaticText "Date grid"
+[e340] StaticText " and "
+[e341] StaticText "Price graph"
+[e342] StaticText " options on the "
+[e343] StaticText "Search"
+[e344] StaticText " page to find the cheapest days to fly and book your tickets."
+[e345] InlineTextBox "Popular flight destinations from Singapore"
+[e346] generic
+[e347] InlineTextBox "Frequently asked questions"
+[e348] generic
+[e349] generic
+[e350] generic
+[e351] generic
+[e352] generic
+[e353] generic
+[e354] InlineTextBox "Find cheap flights on popular routes"
+[e355] none "type"
+[e356] none "type"
+[e357] none "type"
+[e358] none "type"
+[e359] tab "Flights from cities in Singapore"
+[e360] none "type"
+[e361] tab "International flights from Singapore"
+[e362] none "type"
+[e363] link "Flights from Singapore"
+[e364] StaticText "  "
+[e365] InlineTextBox "Learn more"
+[e366] generic
+[e367] generic
+[e368] image
+[e369] none "type"
+[e370] generic
+[e371] generic
+[e372] image
+[e373] none "type"
+[e374] generic
+[e375] none "type"
+[e376] generic
+[e377] none "type"
+[e378] none "type"
+[e379] none "type"
+[e380] none "type"
+[e381] none "type"
+[e382] none "type"
+[e383] none "type"
+[e384] none "type"
+[e385] none "type"
+[e386] none "type"
+[e387] none "type"
+[e388] none "type"
+[e389] none "type"
+[e390] none "type"
+[e391] none "type"
+[e392] none "type"
+[e393] generic
+[e394] none "type"
+[e395] none "type"
+[e396] generic
+[e397] none "type"
+[e398] none "type"
+[e399] none "type"
+[e400] none "type"
+[e401] none "type"
+[e402] none "type"
+[e403] generic
+[e404] image
+[e405] none "type"
+[e406] none "type"
+[e407] generic
+[e408] none "type"
+[e409] none "type"
+[e410] none "type"
+[e411] none "type"
+[e412] generic
+[e413] none "type"
+[e414] generic
+[e415] none "type"
+[e416] none "type"
+[e417] InlineTextBox "Explore"
+[e418] InlineTextBox "Find cheap flights from Singapore to anywhere"
+[e419] none "type"
+[e420] none "type"
+[e421] StaticText "Singapore"
+[e422] image
+[e423] none "type"
+[e424] StaticText "Denpasar"
+[e425] none "type"
+[e426] generic
+[e427] generic
+[e428] none "type"
+[e429] generic
+[e430] none "type"
+[e431] none "type"
+[e432] StaticText "Singapore"
+[e433] image
+[e434] none "type"
+[e435] StaticText "Hong Kong"
+[e436] none "type"
+[e437] generic
+[e438] generic
+[e439] none "type"
+[e440] generic
+[e441] none "type"
+[e442] none "type"
+[e443] StaticText "Singapore"
+[e444] image
+[e445] none "type"
+[e446] StaticText "Sydney"
+[e447] none "type"
+[e448] generic
+[e449] generic
+[e450] none "type"
+[e451] generic
+[e452] StaticText "Find the cheapest days to fly"
+[e453] StaticText "The Date grid and Price graph make it easy to find the best flight dea"
+[e454] StaticText "Know when to book with price insights"
+[e455] StaticText "Price history and trend data show you the best time to book your airli"
+[e456] StaticText "Track flight prices for a trip"
+[e457] StaticText "Not ready to book yet? Observe price changes for a route or flight and"
+[e458] none "type"
+[e459] none "type"
+[e460] none "type"
+[e461] StaticText "Explore the best flight deals with AI"
+[e462] StaticText "Describe your ideal trip and let Google Flights find you the best deal"
+[e463] InlineTextBox "Insightful tools help you "
+[e464] InlineTextBox "choose your trip dates"
+[e465] InlineTextBox "If your travel plans are flexible, use the form "
+[e466] InlineTextBox "above to start searching for a specific trip. "
+[e467] InlineTextBox "Then, play around with the "
+[e468] InlineTextBox "Date grid"
+[e469] InlineTextBox " and "
+[e470] InlineTextBox "Price "
+[e471] InlineTextBox "graph"
+[e472] InlineTextBox " options on the "
+[e473] InlineTextBox "Search"
+[e474] InlineTextBox " page to find the "
+[e475] InlineTextBox "cheapest days to fly and book your tickets."
+[e476] none "type"
+[e477] link "City image for London London"
+[e478] none "type"
+[e479] link "City image for Tokyo Tokyo"
+[e480] none "type"
+[e481] link "City image for Bangkok Bangkok"
+[e482] none "type"
+[e483] link "City image for Federal Territory of Kuala Lumpur Federal Territory of "
+[e484] none "type"
+[e485] link "City image for Shanghai Shanghai"
+[e486] none "type"
+[e487] link "City image for Taipei City Taipei City"
+[e488] none "type"
+[e489] link "City image for Seoul Seoul"
+[e490] none "type"
+[e491] link "City image for New York New York"
+[e492] none "type"
+[e493] link "City image for Hong Kong Hong Kong"
+[e494] none "type"
+[e495] link "City image for Melbourne Melbourne"
+[e496] none "type"
+[e497] generic
+[e498] none "type"
+[e499] generic
+[e500] none "type"
+[e501] generic
+[e502] none "type"
+[e503] generic
+[e504] none "type"
+[e505] generic
+[e506] none "type"
+[e507] generic
+[e508] none "type"
+[e509] none "type"
+[e510] StaticText "Flights from cities in Singapore"
+[e511] none "type"
+[e512] none "type"
+[e513] none "type"
+[e514] none "type"
+[e515] none "type"
+[e516] none "type"
+[e517] StaticText "International flights from Singapore"
+[e518] none "type"
+[e519] none "type"
+[e520] none "type"
+[e521] none "type"
+[e522] StaticText "Flights from Singapore"
+[e523] combobox "Change ticket type. Round trip"
+[e524] button "1 passenger, change number of passengers."
+[e525] combobox "Change seating class. Economy"
+[e526] combobox "Where from?"
+[e527] generic
+[e528] image
+[e529] generic
+[e530] combobox "Where to? "
+[e531] image
+[e532] generic
+[e533] generic
+[e534] textbox "Departure"
+[e535] generic
+[e536] textbox "Return"
+[e537] generic
+[e538] InlineTextBox "Singapore"
+[e539] InlineTextBox "Denpasar"
+[e540] StaticText "Apr 18 \u2014 Apr 24"
+[e541] none "type"
+[e542] none "type"
+[e543] StaticText "Nonstop"
+[e544] StaticText "from "
+[e545] StaticText "SGD\u00a0163"
+[e546] InlineTextBox "Singapore"
+[e547] InlineTextBox "Hong Kong"
+[e548] StaticText "Jun 25 \u2014 Jul 2"
+[e549] none "type"
+[e550] none "type"
+[e551] StaticText "Nonstop"
+[e552] StaticText "from "
+[e553] StaticText "SGD\u00a0318"
+[e554] InlineTextBox "Singapore"
+[e555] InlineTextBox "Sydney"
+[e556] StaticText "May 15 \u2014 May 21"
+[e557] none "type"
+[e558] none "type"
+[e559] StaticText "Nonstop"
+[e560] StaticText "from "
+[e561] StaticText "SGD\u00a0400"
+[e562] InlineTextBox "Find the cheapest days to "
+[e563] InlineTextBox "fly"
+[e564] InlineTextBox "The Date grid and Price graph "
+[e565] InlineTextBox "make it easy to find the best "
+[e566] InlineTextBox "flight deals"
+[e567] InlineTextBox "Know when to book with "
+[e568] InlineTextBox "price insights"
+[e569] InlineTextBox "Price history and trend data "
+[e570] InlineTextBox "show you the best time to "
+[e571] InlineTextBox "book your airline ticket to get "
+[e572] InlineTextBox "the cheapest price for your "
+[e573] InlineTextBox "flight"
+[e574] InlineTextBox "Track flight prices for a "
+[e575] InlineTextBox "trip"
+[e576] InlineTextBox "Not ready to book yet? "
+[e577] InlineTextBox "Observe price changes for a "
+[e578] InlineTextBox "route or flight and get notified "
+[e579] InlineTextBox "when prices drop."
+[e580] InlineTextBox "Explore the best flight "
+[e581] InlineTextBox "deals with AI"
+[e582] InlineTextBox "Describe your ideal trip and let "
+[e583] InlineTextBox "Google Flights find you the "
+[e584] InlineTextBox "best deals"
+[e585] generic
+[e586] none "type"
+[e587] StaticText "London"
+[e588] generic
+[e589] none "type"
+[e590] StaticText "Tokyo"
+[e591] generic
+[e592] none "type"
+[e593] StaticText "Bangkok"
+[e594] generic
+[e595] none "type"
+[e596] StaticText "Federal Territory of Kuala Lumpur"
+[e597] generic
+[e598] none "type"
+[e599] StaticText "Shanghai"
+[e600] generic
+[e601] none "type"
+[e602] StaticText "Taipei City"
+[e603] generic
+[e604] none "type"
+[e605] StaticText "Seoul"
+[e606] generic
+[e607] none "type"
+[e608] StaticText "New York"
+[e609] generic
+[e610] none "type"
+[e611] StaticText "Hong Kong"
+[e612] generic
+[e613] none "type"
+[e614] StaticText "Melbourne"
+[e615] button "What are some good flight destinations from Singapore?"
+[e616] button "How can I find last-minute flight deals?"
+[e617] button "How can I find cheap flights for a weekend getaway?"
+[e618] button "How can I find flight deals if my travel plans are flexible?"
+[e619] button "How can I find cheap flights to anywhere?"
+[e620] button "How can I get flight alerts for my trip?"
+[e621] InlineTextBox "Flights from cities in Singapore"
+[e622] InlineTextBox "International flights from Singapore"
+[e623] InlineTextBox "Flights from Singapore"
+[e624] none "type"
+[e625] none "type"
+[e626] none "type"
+[e627] none "type"
+[e628] none "type"
+[e629] none "type"
+[e630] none "type"
+[e631] generic
+[e632] generic
+[e633] generic
+[e634] none "type"
+[e635] image
+[e636] none "type"
+[e637] StaticText "1"
+[e638] image
+[e639] generic
+[e640] none "type"
+[e641] none "type"
+[e642] none "type"
+[e643] none "type"
+[e644] none "type"
+[e645] none "type"
+[e646] none "type"
+[e647] generic
+[e648] generic
+[e649] none
+[e650] generic
+[e651] image
+[e652] none
+[e653] generic
+[e654] none
+[e655] generic
+[e656] InlineTextBox "Apr 18 \u2014 Apr 24"
+[e657] InlineTextBox "Nonstop"
+[e658] InlineTextBox "from "
+[e659] InlineTextBox "SGD\u00a0163"
+[e660] InlineTextBox "Jun 25 \u2014 Jul 2"
+[e661] InlineTextBox "Nonstop"
+[e662] InlineTextBox "from "
+[e663] InlineTextBox "SGD\u00a0318"
+[e664] InlineTextBox "May 15 \u2014 May 21"
+[e665] InlineTextBox "Nonstop"
+[e666] InlineTextBox "from "
+[e667] InlineTextBox "SGD\u00a0400"
+[e668] image "City image for London"
+[e669] InlineTextBox "London"
+[e670] image "City image for Tokyo"
+[e671] InlineTextBox "Tokyo"
+[e672] image "City image for Bangkok"
+[e673] InlineTextBox "Bangkok"
+[e674] image "City image for Federal Territory of Kuala Lumpur"
+[e675] InlineTextBox "Federal "
+[e676] InlineTextBox "Territory of "
+[e677] InlineTextBox "Kuala Lumpur"
+[e678] image "City image for Shanghai"
+[e679] InlineTextBox "Shanghai"
+[e680] image "City image for Taipei City"
+[e681] InlineTextBox "Taipei City"
+[e682] image "City image for Seoul"
+[e683] InlineTextBox "Seoul"
+[e684] image "City image for New York"
+[e685] InlineTextBox "New York"
+[e686] image "City image for Hong Kong"
+[e687] InlineTextBox "Hong Kong"
+[e688] image "City image for Melbourne"
+[e689] InlineTextBox "Melbourne"
+[e690] generic
+[e691] generic
+[e692] image
+[e693] none "type"
+[e694] generic
+[e695] generic
+[e696] image
+[e697] none "type"
+[e698] generic
+[e699] generic
+[e700] image
+[e701] none "type"
+[e702] generic
+[e703] generic
+[e704] image
+[e705] none "type"
+[e706] generic
+[e707] generic
+[e708] image
+[e709] none "type"
+[e710] generic
+[e711] generic
+[e712] image
+[e713] none "type"
+[e714] InlineTextBox "1"
+[e715] StaticText "Singapore"
+[e716] InlineTextBox "Singapore"
+
