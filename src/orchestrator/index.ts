@@ -2817,11 +2817,13 @@ export async function resolveAndExecute(
     }
   }
 
+  const shouldBypassBrowserFirstPass = shouldBypassLiveCaptureQueue(context?.url);
+
   // --- Fast path: URL given, no local cache → skip marketplace, go straight to browser ---
   // Marketplace search can take 10-60s+ and blocks the agent. When we have a URL,
   // the browser can achieve the goal via UI immediately while indexing passively.
   // Marketplace search runs in the background to populate cache for next time.
-  if (context?.url && !agentChoseEndpoint && !forceCapture) {
+  if (context?.url && !agentChoseEndpoint && !forceCapture && !shouldBypassBrowserFirstPass) {
     console.log(`[fast-path] no local cache for ${requestedDomain} — skipping marketplace, going to browser`);
 
     // Fire-and-forget: marketplace search populates cache for future resolves
@@ -3130,7 +3132,7 @@ export async function resolveAndExecute(
   }
 
   // 1.5 First-pass browser action: lightweight 8s attempt before full capture
-  if (context?.url && !forceCapture) {
+  if (context?.url && !forceCapture && !shouldBypassBrowserFirstPass) {
     const firstPassResult = await tryFirstPassBrowserAction(
       intent, params, context.url,
       { signal: options?.signal, clientScope: options?.client_scope },
@@ -3287,7 +3289,7 @@ export async function resolveAndExecute(
   }
 
   // In-flight capture queue: wait for the same domain capture instead of failing.
-  const bypassLiveCaptureQueue = shouldBypassLiveCaptureQueue(context?.url);
+  const bypassLiveCaptureQueue = shouldBypassBrowserFirstPass;
   const captureLockKey = scopedCacheKey(clientScope, captureDomain);
   let learned_skill: SkillManifest | undefined;
   let trace: import("../types/index.js").ExecutionTrace;
