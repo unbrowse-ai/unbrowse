@@ -2298,7 +2298,7 @@ export async function executeEndpoint(
  * e.g. /search?q=books&page=1 → /search?q={q}&page={page}
  * Path stays untouched — only query string is templatized.
  */
-function templatizeQueryParams(url: string): string {
+export function templatizeQueryParams(url: string): string {
   try {
     const u = sanitizeNavigationQueryParams(new URL(url));
     if (u.search.length <= 1) return url; // no query params
