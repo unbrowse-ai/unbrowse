@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as kuri from "../src/kuri/client.js";
@@ -66,4 +66,68 @@ describe("kuri client", () => {
     // Should retry 3 times (4 attempts total) and throw a descriptive error
     await expect(kuri.start(7798)).rejects.toThrow(/failed to start after 4 attempts/i);
   }, 30_000);
+
+  it("coalesces concurrent start calls into one spawn loop", async () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-lock-"));
+    tmpDirs.push(tmpDir);
+    const fakeBin = path.join(tmpDir, "kuri");
+    const counterFile = path.join(tmpDir, "counter.txt");
+    writeFileSync(counterFile, "0\n");
+    writeFileSync(fakeBin, `#!/bin/sh
+count="$(cat "${counterFile}")"
+count=$((count + 1))
+echo "$count" > "${counterFile}"
+exit 1
+`);
+    chmodSync(fakeBin, 0o755);
+    process.env.KURI_BIN = fakeBin;
+
+    const results = await Promise.allSettled([
+      kuri.start(7797),
+      kuri.start(7797),
+    ]);
+
+    expect(results.every((result) => result.status === "rejected")).toBe(true);
+    expect(Number(readFileSync(counterFile, "utf8").trim())).toBe(4);
+  }, 30_000);
+
+  it("extracts plugin loaders from html datasets", () => {
+    const html = `
+      <div data-load-plugins="ticketing.js calendar.js"></div>
+      <section data-load-plugins="calendar.js, upsell.js"></section>
+    `;
+
+    expect(kuri.extractLoadPluginsFromHtml(html)).toEqual([
+      "ticketing.js",
+      "calendar.js",
+      "upsell.js",
+    ]);
+  });
+
+  it("parses plugin rehydrate no-op responses safely", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      result: {
+        result: {
+          type: "string",
+          value: JSON.stringify({
+            attempted: false,
+            loaded: false,
+            nooped: true,
+            reason: "missing_wrs_require",
+            modules: ["ticketing.js"],
+          }),
+        },
+      },
+    }))) as typeof fetch;
+
+    try {
+      const result = await kuri.bestEffortRehydratePlugins("tab-1");
+      expect(result.nooped).toBe(true);
+      expect(result.reason).toBe("missing_wrs_require");
+      expect(result.modules).toEqual(["ticketing.js"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

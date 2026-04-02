@@ -569,6 +569,7 @@ export const CLI_REFERENCE = {
     { name: "search", usage: '--intent "..." [--domain "..."]', desc: "Search marketplace" },
     { name: "sessions", usage: '--domain "..." [--limit N]', desc: "Debug session logs" },
     { name: "go", usage: '<url>', desc: "Navigate browser to URL (passive indexing)" },
+    { name: "submit", usage: "[--form-selector sel] [--submit-selector sel] [--wait-for hint]", desc: "Submit current form; fall back to same-origin fetch + rehydrate" },
     { name: "snap", usage: "[--filter interactive]", desc: "A11y snapshot with @eN refs" },
     { name: "click", usage: "<ref>", desc: "Click element by ref (e.g. e5)" },
     { name: "fill", usage: "<ref> <value>", desc: "Fill input by ref" },
@@ -583,6 +584,7 @@ export const CLI_REFERENCE = {
     { name: "eval", usage: "<expression>", desc: "Evaluate JavaScript" },
     { name: "back", usage: "", desc: "Navigate back" },
     { name: "forward", usage: "", desc: "Navigate forward" },
+    { name: "sync", usage: "", desc: "Flush current browse traffic into route cache without closing tab" },
     { name: "close", usage: "", desc: "Close browse session, flush + index traffic" },
   ],
   globalFlags: [
@@ -851,6 +853,18 @@ async function cmdGo(args: string[], flags: Record<string, string | boolean>): P
   output(await api("POST", "/v1/browse/go", { url }), !!flags.pretty);
 }
 
+async function cmdSubmit(flags: Record<string, string | boolean>): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (typeof flags["form-selector"] === "string") body.form_selector = flags["form-selector"];
+  if (typeof flags["submit-selector"] === "string") body.submit_selector = flags["submit-selector"];
+  if (typeof flags["wait-for"] === "string") body.wait_for = flags["wait-for"];
+  if (typeof flags["timeout-ms"] === "string") body.timeout_ms = Number(flags["timeout-ms"]);
+  if (flags["same-origin-fetch-fallback"] !== undefined) {
+    body.same_origin_fetch_fallback = flags["same-origin-fetch-fallback"] !== "false";
+  }
+  output(await api("POST", "/v1/browse/submit", body), !!flags.pretty);
+}
+
 async function cmdSnap(flags: Record<string, string | boolean>): Promise<void> {
   const filter = flags.filter as string | undefined;
   const result = await api("POST", "/v1/browse/snap", { filter }) as { snapshot?: string };
@@ -938,6 +952,10 @@ async function cmdForward(): Promise<void> {
   output(await api("POST", "/v1/browse/forward"), false);
 }
 
+async function cmdSync(flags: Record<string, string | boolean>): Promise<void> {
+  output(await api("POST", "/v1/browse/sync"), !!flags.pretty);
+}
+
 async function cmdClose(): Promise<void> {
   output(await api("POST", "/v1/browse/close"), false);
 }
@@ -1021,8 +1039,8 @@ async function main(): Promise<void> {
     "health", "setup", "resolve", "execute", "exec",
     "feedback", "fb", "review", "publish", "login", "skills", "skill", "search", "sessions",
     "status", "stop", "restart", "upgrade", "update",
-    "go", "snap", "click", "fill", "type", "press", "select", "scroll",
-    "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "close",
+    "go", "submit", "snap", "click", "fill", "type", "press", "select", "scroll",
+    "screenshot", "text", "markdown", "cookies", "eval", "back", "forward", "sync", "close",
     "connect-chrome",
   ]);
 
@@ -1062,6 +1080,7 @@ async function main(): Promise<void> {
     case "sessions": return cmdSessions(flags);
     // Browse commands — Kuri browser actions with passive indexing
     case "go": return cmdGo(args, flags);
+    case "submit": return cmdSubmit(flags);
     case "snap": return cmdSnap(flags);
     case "click": return cmdClick(args);
     case "fill": return cmdFill(args);
@@ -1076,6 +1095,7 @@ async function main(): Promise<void> {
     case "eval": return cmdEval(args, flags);
     case "back": return cmdBack();
     case "forward": return cmdForward();
+    case "sync": return cmdSync(flags);
     case "close": return cmdClose();
     case "connect-chrome": return cmdConnectChrome();
     default: info(`Unknown command: ${command}`); printHelp(); process.exit(1);
