@@ -12,9 +12,9 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     slug: "internal-apis-are-all-you-need",
     title: "Internal APIs Are All You Need",
     description:
-      "Autonomous web agents repeatedly pay a discovery tax: opening sites, inspecting DOMs, and reverse-engineering callable routes. Internal APIs Are All You Need introduces Unbrowse, a shared route graph that converts browser-based route discovery into a collectively maintained, usage-priced index of callable web interfaces.",
+      "Autonomous agents increasingly interact with the web, yet most websites remain designed for human browsers. Internal APIs Are All You Need presents Unbrowse, a shared route graph that transforms browser-based route discovery into a collectively maintained index of callable first-party interfaces.",
     canonicalPath: "/internal-apis-are-all-you-need",
-    published_at: "2026-03-23",
+    published_at: "2026-04-01",
     author: "Lewis Tham",
     category: "Whitepaper",
   },
@@ -24,7 +24,7 @@ export const LEGACY_BLOG_POSTS: LegacyBlogPost[] = [
     description:
       "Redirects to Internal APIs Are All You Need — the canonical paper page.",
     canonicalPath: "/shadow-apis-are-all-you-need",
-    published_at: "2026-03-23",
+    published_at: "2026-04-01",
     author: "Lewis Tham",
     category: "Whitepaper",
   },
