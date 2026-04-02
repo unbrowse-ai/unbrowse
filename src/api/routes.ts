@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import * as kuri from "../kuri/client.js";
 import type { KuriHarEntry } from "../kuri/client.js";
 import { extractEndpoints, extractAuthHeaders } from "../reverse-engineer/index.js";
-import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, type RawRequest } from "../capture/index.js";
+import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, injectInterceptor, type RawRequest } from "../capture/index.js";
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { SkillManifest } from "../types/index.js";
@@ -721,7 +721,7 @@ export async function registerRoutes(app: FastifyInstance) {
     await kuri.start().catch(() => {});
     const tabId = await kuri.newTab();
     await kuri.harStart(tabId).catch(() => {});
-    await kuri.evaluate(tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    await injectInterceptor(tabId);
     const session = { tabId, url: "about:blank", harActive: true, domain: "" };
     browseSessions.set("default", session);
     return session;
@@ -765,7 +765,7 @@ export async function registerRoutes(app: FastifyInstance) {
     // Start capture BEFORE navigation so all initial API calls are recorded
     await kuri.networkEnable(session.tabId).catch(() => {});
     await kuri.harStart(session.tabId).catch(() => {});
-    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {}); // persistent for future navs
     session.harActive = true;
 
     await kuri.navigate(session.tabId, url);
@@ -774,7 +774,7 @@ export async function registerRoutes(app: FastifyInstance) {
     session.domain = profileName(session.url);
 
     // Re-inject interceptor via evaluate for current page context
-    await kuri.evaluate(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    await injectInterceptor(session.tabId); // chunked injection for current page
 
     return reply.send({ ok: true, url: session.url, tab_id: session.tabId, auth_profile: session.domain });
   });
