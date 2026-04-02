@@ -64,24 +64,36 @@ The backend still uses an opaque internal agent id. The email is just the user-f
 
 ## Core Workflow
 
-### Step 1: Resolve and execute in one call
+### Step 1: Resolve — find what endpoints exist
 
 ```bash
 unbrowse resolve \
-  --intent "top hacker news stories" \
-  --url "https://news.ycombinator.com" \
-  --execute --pretty
+  --intent "get my X timeline" \
+  --url "https://x.com/home" \
+  --pretty
 ```
 
-`--execute` auto-picks the best endpoint and returns structured data directly. No second call needed.
+Resolve searches the skill cache, shared route graph, and (on miss) captures live traffic. It returns a ranked list of `available_endpoints` with descriptions, URLs, and scores. Pick the right one by matching `action_kind`, `description`, or URL pattern.
 
-Without `--execute`, resolve returns `available_endpoints` — a ranked list of discovered API endpoints. Use this when you need to inspect what's available before executing.
+**For multi-endpoint domains (X, LinkedIn, Reddit, etc.), resolve always returns a deferred list.** You must pick an endpoint and execute separately.
 
-### Step 2: Present results to the user
+### Step 2: Execute — call the endpoint
+
+```bash
+unbrowse execute \
+  --skill {skill_id} \
+  --endpoint {endpoint_id} \
+  --intent "get my X timeline" \
+  --pretty
+```
+
+Pass the `skill_id` and `endpoint_id` from the resolve response. The `--intent` is optional but helps with parameter binding.
+
+### Step 3: Present results to the user
 
 Show the user their data first. Do not block on feedback before returning information.
 
-### Step 3: Submit feedback (MANDATORY — but after presenting results)
+### Step 4: Submit feedback (MANDATORY — but after presenting results)
 
 Submit feedback after you've shown the user their results. This can run in parallel with your response.
 
@@ -94,6 +106,29 @@ unbrowse feedback \
 ```
 
 **Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
+
+### Picking the right endpoint from resolve
+
+Resolve returns `available_endpoints` sorted by score. Look at these fields to pick:
+
+| Field | What to check |
+|-------|---------------|
+| `action_kind` | `timeline`, `list`, `detail`, `search` — match your intent |
+| `description` | Human-readable summary of what the endpoint returns |
+| `url` | The actual API URL — look for GraphQL operation names, REST paths |
+| `dom_extraction` | `true` = scraped from page HTML (slower, less reliable). `false` = real API call |
+| `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM scrapes |
+
+**Example: X timeline.** Resolve for `x.com/home` returns ~7 endpoints. The right one is:
+- `action_kind: "timeline"`, `resource_kind: "post"`
+- URL contains `HomeTimeline`
+- `dom_extraction: false` (real GraphQL API, not a page scrape)
+
+Ignore the DOM extraction endpoint even if it has a higher score — it's a stale page artifact, not your live timeline.
+
+### When resolve returns direct data
+
+For simple sites with one clear endpoint, resolve may return data directly in `result` without a deferred list. In that case, skip Step 2 — the data is already there.
 
 <!-- CLI_REFERENCE_START -->
 ## CLI Flags
@@ -154,40 +189,32 @@ unbrowse feedback \
 ### Examples
 
 ```bash
-# One-step: resolve + execute, get data back directly
-unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute --pretty
+# Resolve: see what endpoints X.com has for timeline
+unbrowse resolve --intent "get my X timeline" --url "https://x.com/home" --pretty
 
-# Two-step: resolve first to see available endpoints, then execute
-unbrowse resolve --intent "get timeline" --url "https://x.com" --pretty
-unbrowse execute --skill {id} --endpoint {id} --pretty
+# Execute: call the HomeTimeline GraphQL endpoint
+unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 
 # Submit feedback after presenting results
-unbrowse feedback --skill {id} --endpoint {id} --rating 5
+unbrowse feedback --skill {skill_id} --endpoint {endpoint_id} --rating 5
 ```
+
 
 ## Best Practices
 
-### Minimize round-trips — resolve --execute is your default
+### Two-step resolve + execute is the standard flow
 
-Bad (3 steps):
+Most real domains (X, LinkedIn, Reddit, GitHub, etc.) have multiple endpoints. Resolve returns a deferred list — you pick the right endpoint, then execute.
+
 ```bash
-unbrowse resolve --intent "..." --url "..."   # Step 1: get endpoints
-# manually pick endpoint_id from output
-unbrowse execute --skill {id} --endpoint {id} # Step 2: execute
-# parse JSON yourself
+# Step 1: resolve — see what's available
+unbrowse resolve --intent "get my X timeline" --url "https://x.com/home" --pretty
+
+# Step 2: execute — call the endpoint you picked
+unbrowse execute --skill {skill_id} --endpoint {endpoint_id} --pretty
 ```
 
-Good (1 step):
-```bash
-unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute --pretty
-```
-
-### When to use two-step resolve + execute
-
-Use the two-step flow when:
-- A domain has many endpoints and you need to pick the right one by description/URL
-- You need to pass `--endpoint-id` to target a specific endpoint
-- The resolve response returned `available_endpoints` and you want to inspect them first
+**How to pick:** Match `action_kind` to your intent (`timeline`, `list`, `detail`, `search`). Prefer `dom_extraction: false` (real API) over `true` (page scrape). Check the `url` for recognizable API paths (e.g. `HomeTimeline`, `UserTweets`).
 
 ### Domain skills have many endpoints — use search or description matching
 
@@ -197,11 +224,10 @@ After domain convergence, a single skill (e.g. `linkedin.com`) may have 40+ endp
 unbrowse search --intent "get my notifications" --domain "www.linkedin.com"
 ```
 
-Or filter `available_endpoints` by URL/description pattern in the resolve response.
+Or filter `available_endpoints` by `action_kind`, URL pattern, or description in the resolve response.
 
 ### Why the CLI over curl + jq
 
-- **One-step data** — resolve + execute in a single call with `--execute`
 - **Auth injection** — cookies loaded from your browser automatically
 - **Server auto-start** — boots the server if not running
 - **Structured output** — DOM extraction returns clean JSON arrays, not raw HTML
