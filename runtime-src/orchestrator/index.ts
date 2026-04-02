@@ -3716,15 +3716,20 @@ export function generateLocalDescription(ep: import("../types/index.js").Endpoin
   let id = "";
   try {
     const u = new URL(ep.url_template);
-    // GraphQL: extract queryId name
-    const qid = u.searchParams.get("queryId") ?? "";
-    const match = qid.match(/^([a-zA-Z]+)\./);
-    if (match) id = match[1];
-    // REST: last meaningful path segment
+    // GraphQL: extract operation name from path (/graphql/HASH/OperationName)
+    const graphqlMatch = u.pathname.match(/\/graphql\/\w+\/(\w+)/);
+    if (graphqlMatch) id = graphqlMatch[1];
+    // GraphQL: queryId param
+    if (!id) {
+      const qid = u.searchParams.get("queryId") ?? "";
+      const qidMatch = qid.match(/^([a-zA-Z]+)\./);
+      if (qidMatch) id = qidMatch[1];
+    }
+    // REST: last meaningful path segment (skip hashes, {params}, version prefixes)
     if (!id) {
       const segs = u.pathname
         .split("/")
-        .filter((s) => s.length > 1 && !s.startsWith("{") && !/^v\d+$/.test(s));
+        .filter((s) => s.length > 1 && !s.startsWith("{") && !/^v\d+$/.test(s) && !/^[a-zA-Z0-9_-]{20,}$/.test(s));
       id = segs[segs.length - 1] ?? u.pathname;
     }
   } catch {

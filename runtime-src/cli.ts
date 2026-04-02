@@ -175,6 +175,16 @@ function resolvePath(obj: unknown, path: string, entityIndex?: Map<string, unkno
         return v === undefined ? [] : Array.isArray(v) ? v : [v];
       });
     }
+    // Handle numeric array indexing: key[0], key[1], etc.
+    const indexMatch = seg.match(/^(.+?)\[(\d+)\]$/);
+    if (indexMatch) {
+      const key = indexMatch[1];
+      const idx = parseInt(indexMatch[2], 10);
+      const arr = key ? (cur as Record<string, unknown>)[key] : cur;
+      if (!Array.isArray(arr) || idx >= arr.length) return undefined;
+      cur = arr[idx];
+      continue;
+    }
     const rec = cur as Record<string, unknown>;
     let val = rec[seg];
 
