@@ -1,0 +1,148 @@
+{
+  "trace_id": "1sZfJ8xWgKUlAg6G2a5ZU",
+  "skill_id": "A874XWVOulrnoe3IY1VMQ",
+  "endpoint_id": "3c1L5NtaONEVRtTbRcft2",
+  "started_at": "2026-02-25T06:22:34.890Z",
+  "completed_at": "2026-02-25T06:22:35.440Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": [
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "login"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "1.I'm helping my dog vibe code games (calebleak.com)783 points by cleak 13 hours ago  | hide | 221 comments2.Show HN: Moonshine Open-Weights STT models – higher accuracy than WhisperLargev3 (github.com/moonshine-ai)203 points by petewarden 8 hours ago  | hide | 37 comments3.Scheme on Java on Common Lisp (github.com/atgreen)10 points by varjag 2 hours ago  | hide | discuss4.Mercury 2: The fastest reasoning LLM, powered by diffusion (inceptionlabs.ai)161 points by fittingopposite 7 hours ago  | hide | 82 comments5.Pi – A minimal terminal coding harness (pi.dev)279 points by kristianpaul 8 hours ago  | hide | 114 comments6.Mac mini will be made at a new facility in Houston (apple.com)450 points by haunter 9 hours ago  | hide | 439 comments7.Amazon accused of widespread scheme to inflate prices across the economy (thebignewsletter.com)301 points by toomuchtodo 5 hours ago  | hide | 92 comments8.Justifying Text-Wrap: Pretty (matklad.github.io)78 points by surprisetalk 5 hours ago  | hide | 29 comments9.Hacking an old Kindle to display bus arrival times (mariannefeng.com)212 points by mengchengfeng 10 hours ago  | hide | 48 comments10.Nearby Glasses (github.com/yjeanrenaud)283 points by zingerlio 12 hours ago  | hide | 112 comments11.I pitched a roller coaster to Disneyland at age 10 in 1978 (wordglyph.xyz)429 points by wordglyph 17 hours ago  | hide | 161 comments12.Steel Bank Common Lisp (sbcl.org)182 points by tosh 11 hours ago  | hide | 68 comments13.Anthropic Drops Flagship Safety Pledge (time.com)179 points by cwwc 5 hours ago  | hide | 65 comments14.Hugging Face Skills (github.com/huggingface)150 points by armcat 12 hours ago  | hide | 43 comments15.Aesthetics of single threading (ta.fo)56 points by todsacerdoti 6 hours ago  | hide | 13 comments16.Georgian wine culture dates back, uninterrupted, approximately 8k years (wsetglobal.com)28 points by Anon84 3 hours ago  | hide | 8 comments17.Corgi Labs (YC W23) Is Hiring (ycombinator.com)5 hours ago | hide18.Show HN: Emdash – Open-source agentic development environment (github.com/generalaction)128 points by onecommit 11 hours ago  | hide | 54 comments19.Optophone (wikipedia.org)63 points by Hooke 8 hours ago  | hide | 10 comments20.Stripe valued at $159B, 2025 annual letter (stripe.com)188 points by jez 15 hours ago  | hide | 204 comments21.We installed a single turnstile to feel secure (idiallo.com)310 points by firefoxd 19 hours ago  | hide | 143 comments22.Looks like it is happening (columbia.edu)155 points by jjgreen 9 hours ago  | hide | 103 comments23.IRS Tactics Against Meta Open a New Front in the Corporate Tax Fight (nytimes.com)200 points by mitchbob 17 hours ago  | hide | 203 comments24.Show HN: Recursively apply patterns for pathfinding (pattern-pathfinder.vercel.app)20 points by seveibar 4 hours ago  | hide | 4 comments25.Ask HN: Share your productive usage of OpenClaw27 points by aavci 2 hours ago  | hide | 5 comments26.IDF killed Gaza aid workers at point blank range in 2025 massacre: Report (dropsitenews.com)1581 points by Qem 18 hours ago  | hide | 594 comments27.Why the KeePass format should be based on SQLite (mketab.org)106 points by wps 15 hours ago  | hide | 75 comments28.OpenAI, the US government and Persona built an identity surveillance machine (vmfunc.re)541 points by rzk 11 hours ago  | hide | 168 comments29.Build Your Own Forth Interpreter (codingchallenges.fyi)64 points by AlexeyBrin 10 hours ago  | hide | 20 comments30.US Military leaders meet with Anthropic to argue against Claude safeguards (theguardian.com)126 points by KnuthIsGod 6 hours ago  | hide | 50 commentsMore",
+        "login": "I'm helping my dog vibe code games (calebleak.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "1.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "I'm helping my dog vibe code games (calebleak.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "2.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Show HN: Moonshine Open-Weights STT models – higher accuracy than WhisperLargev3 (github.com/moonshine-ai)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "3.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Scheme on Java on Common Lisp (github.com/atgreen)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "4.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Mercury 2: The fastest reasoning LLM, powered by diffusion (inceptionlabs.ai)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "5.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Pi – A minimal terminal coding harness (pi.dev)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "6.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Mac mini will be made at a new facility in Houston (apple.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "7.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Amazon accused of widespread scheme to inflate prices across the economy (thebignewsletter.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "8.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Justifying Text-Wrap: Pretty (matklad.github.io)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "9.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Hacking an old Kindle to display bus arrival times (mariannefeng.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "10.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Nearby Glasses (github.com/yjeanrenaud)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "11.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "I pitched a roller coaster to Disneyland at age 10 in 1978 (wordglyph.xyz)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "12.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Steel Bank Common Lisp (sbcl.org)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "13.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Anthropic Drops Flagship Safety Pledge (time.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "14.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Hugging Face Skills (github.com/huggingface)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "15.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Aesthetics of single threading (ta.fo)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "16.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Georgian wine culture dates back, uninterrupted, approximately 8k years (wsetglobal.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "17.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Corgi Labs (YC W23) Is Hiring (ycombinator.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "18.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Show HN: Emdash – Open-source agentic development environment (github.com/generalaction)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "19.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Optophone (wikipedia.org)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "20.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Stripe valued at $159B, 2025 annual letter (stripe.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "21.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "We installed a single turnstile to feel secure (idiallo.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "22.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Looks like it is happening (columbia.edu)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "23.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "IRS Tactics Against Meta Open a New Front in the Corporate Tax Fight (nytimes.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "24.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Show HN: Recursively apply patterns for pathfinding (pattern-pathfinder.vercel.app)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "25.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Ask HN: Share your productive usage of OpenClaw"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "26.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "IDF killed Gaza aid workers at point blank range in 2025 massacre: Report (dropsitenews.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "27.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Why the KeePass format should be based on SQLite (mketab.org)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "28.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "OpenAI, the US government and Persona built an identity surveillance machine (vmfunc.re)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "29.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "Build Your Own Forth Interpreter (codingchallenges.fyi)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "30.",
+        "Hacker Newsnew | past | comments | ask | show | jobs | submit": "US Military leaders meet with Anthropic to argue against Claude safeguards (theguardian.com)"
+      },
+      {
+        "Hacker Newsnew | past | comments | ask | show | jobs | submitlogin": "Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact\nSearch:"
+      }
+    ],
+    "_extraction": {
+      "method": "table",
+      "confidence": 1,
+      "source": "html-postprocess"
+    }
+  }
+}

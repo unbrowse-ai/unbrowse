@@ -1,0 +1,50 @@
+{
+  "trace_id": "9LdI93-6i1nePEletJA-X",
+  "skill_id": "FILc9mnHbODmWbALrKPon",
+  "endpoint_id": "NWiTtDCI_hjbtsaoK1_Y7",
+  "started_at": "2026-02-23T15:36:19.959Z",
+  "completed_at": "2026-02-23T15:36:25.717Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": [
+      {
+        "type": "repeated-elements",
+        "data": [
+          {
+            "title": "Company News Feed - US",
+            "heading_1": "Company News Feed - CA",
+            "link": "/company?ticker=KKR"
+          },
+          {
+            "title": "North America Insider Sentiment Trends",
+            "image": "https://www.insidertracking.com/sites/default/files/home/us_index_chart.jpg?time=1771860985"
+          }
+        ],
+        "relevance_score": 5.2
+      },
+      {
+        "type": "table",
+        "data": [
+          {
+            "Top Filers Past 7 Days: Stocks with Officer & Director Buying or Selling": "Based on  SEC Forms 4 & 5 and  Canadian SEDI Filings."
+          }
+        ],
+        "relevance_score": 5.1
+      },
+      {
+        "type": "list",
+        "data": [
+          "Value",
+          "Volume"
+        ],
+        "relevance_score": 0.2
+      }
+    ],
+    "_extraction": {
+      "method": "multiple",
+      "confidence": 0.5249999999999999,
+      "source": "html-postprocess"
+    }
+  }
+}

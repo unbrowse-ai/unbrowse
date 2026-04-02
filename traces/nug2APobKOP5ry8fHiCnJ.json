@@ -1,0 +1,9 @@
+{
+  "trace_id": "nug2APobKOP5ry8fHiCnJ",
+  "skill_id": "gAByKwwPgRhQjcqSJs-xt",
+  "endpoint_id": "4GiIW0lNKVichEqek2rbJ",
+  "started_at": "2026-02-25T08:55:53.250Z",
+  "completed_at": "2026-02-25T08:55:53.250Z",
+  "success": false,
+  "error": "dry_run"
+}

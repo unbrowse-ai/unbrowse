@@ -1,0 +1,136 @@
+{
+  "trace_id": "5w4WxV28SFTYYhwZrttPu",
+  "skill_id": "T7VbVA37yTsYT7yMvDynr",
+  "endpoint_id": "xR-9Xf7kkBFtW0Fo3eP8z",
+  "started_at": "2026-02-23T15:46:37.540Z",
+  "completed_at": "2026-02-23T15:46:40.889Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": [
+      {
+        "type": "list",
+        "data": [
+          "Visitor\n                \n                  Free\n                \n                Explore Quiver's free-to-use features\n                Explore Quiver's free-to-use features\n              \n              \n                What's Included:\n                \n                  Live Data on:\n                  Congress Trading\n                  Insider Trading\n                  Government Contracts\n                  Corporate Lobbying\n                  CNBC Stock Picks\n                  Google Search Trends\n                  Institutional Trading\n                  Corporate Flights\n                  Inflation Forecasts\n                  Social Media Trends\n                  App Store Ratings\n                  U.S. Patents\n                  and More!",
+          "Premium\n                \n                  $\n                  25.00\n                  / month\n                \n                Billed Monthly\n                Billed $300 Yearly\n              \n              \n                1 Month Free Trial\n              \n              \n                What's Included:\n                \n                  \n                    \n                      Everything in Visitor plan\n                    \n                  \n                  \n                    \n                      Quiver Strategies\n                    \n                    Track the performance and holdings of backtested trading strategies built on Quiver's datasets\n                  \n                  \n                    \n                      Strategies Copytrading\n                    \n                    Copytrade a selection of Quiver's strategies through our partnership with Quantbase\n                  \n                  \n                    \n                      Quiver Alerts\n                    \n                    Be the first to see our newest insights and most important dataset updates\n                  \n                  \n                    \n                      \n                      Early Video Access and Exclusive Content\n                    \n                    Get early access to many of Quiver's video reports, and access to exclusive news articles and videos on the Quiver site\n                  \n                  \n                    \n                      Politician Stock Portfolios & Leaderboard\n                    \n                    Track the holdings and returns of stock portfolios held by U.S. politicians in Congress\n                  \n                  \n                    \n                      Stock Screener\n                    \n                    Screen stocks across several of our unique datasets and filters\n                  \n                  \n                    \n                      Congress Backtester\n                    \n                    Test trading strategies based off the trades made by members of Congress\n                  \n                  \n                    \n                      Institutional Backtester\n                    \n                    Test trading strategies based off trading activity by hedge funds and other institutions\n                  \n                  \n                    \n                      Stock Smart Score and Bull/Bear analysis\n                    \n                  \n                  \n                    \n                      Customizable Watchlist\n                    \n                  \n                  \n                    \n                      Exportable data samples"
+        ],
+        "relevance_score": 31.2
+      },
+      {
+        "type": "list",
+        "data": [
+          "Everything in Visitor plan",
+          "Quiver Strategies\n                    \n                    Track the performance and holdings of backtested trading strategies built on Quiver's datasets",
+          "Strategies Copytrading\n                    \n                    Copytrade a selection of Quiver's strategies through our partnership with Quantbase",
+          "Quiver Alerts\n                    \n                    Be the first to see our newest insights and most important dataset updates",
+          "Early Video Access and Exclusive Content\n                    \n                    Get early access to many of Quiver's video reports, and access to exclusive news articles and videos on the Quiver site",
+          "Politician Stock Portfolios & Leaderboard\n                    \n                    Track the holdings and returns of stock portfolios held by U.S. politicians in Congress",
+          "Stock Screener\n                    \n                    Screen stocks across several of our unique datasets and filters",
+          "Congress Backtester\n                    \n                    Test trading strategies based off the trades made by members of Congress",
+          "Institutional Backtester\n                    \n                    Test trading strategies based off trading activity by hedge funds and other institutions",
+          "Stock Smart Score and Bull/Bear analysis",
+          "Customizable Watchlist",
+          "Exportable data samples"
+        ],
+        "relevance_score": 23.2
+      },
+      {
+        "type": "list",
+        "data": [
+          "Live Data on:",
+          "Congress Trading",
+          "Insider Trading",
+          "Government Contracts",
+          "Corporate Lobbying",
+          "CNBC Stock Picks",
+          "Google Search Trends",
+          "Institutional Trading",
+          "Corporate Flights",
+          "Inflation Forecasts",
+          "Social Media Trends",
+          "App Store Ratings",
+          "U.S. Patents",
+          "and More!"
+        ],
+        "relevance_score": 10.4
+      },
+      {
+        "type": "list",
+        "data": [
+          "Congress Trade: Representative David Taylor Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Tim Moore Just Disclosed New Stock Trades",
+          "Congress Trade: Senator David McCormick Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Jake Auchincloss Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Thomas H. Kean, Jr. Just Disclosed New Stock Trades",
+          "Insider Purchase: Chairman and CEO of $DEI Buys 98,000 Shares",
+          "Congress Trade: Representative Michael Guest Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Daniel Meuser Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Rick W. Allen Just Disclosed New Stock Trades",
+          "Fund Update: BERKSHIRE HATHAWAY INC Just Disclosed New Holdings"
+        ],
+        "relevance_score": 10
+      },
+      {
+        "type": "list",
+        "data": [
+          "Congress Trade: Representative David Taylor Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Tim Moore Just Disclosed New Stock Trades",
+          "Congress Trade: Senator David McCormick Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Jake Auchincloss Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Thomas H. Kean, Jr. Just Disclosed New Stock Trades",
+          "Insider Purchase: Chairman and CEO of $DEI Buys 98,000 Shares",
+          "Congress Trade: Representative Michael Guest Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Daniel Meuser Just Disclosed New Stock Trades",
+          "Congress Trade: Representative Rick W. Allen Just Disclosed New Stock Trades",
+          "Fund Update: BERKSHIRE HATHAWAY INC Just Disclosed New Holdings"
+        ],
+        "relevance_score": 10
+      },
+      {
+        "type": "repeated-elements",
+        "data": [
+          {
+            "title": "Trade Like an Insider\n            Track the forces that move the markets",
+            "heading_1": "Trade Like an Insider",
+            "link": "../../congresstrading/politician/Nancy%20Pelosi-P000197",
+            "image": "https://www.quiverquant.com/images/P000197_congress_headshot.png",
+            "description": "Track the forces that move the markets"
+          },
+          {
+            "link": "https://www.quiverquant.com/news/Congress+Trade%3A+Representative+David+Taylor+Just+Disclosed+New+Stock+Trades",
+            "description": "Congress Trade: Representative David Taylor Just Disclosed New Stock Trades"
+          },
+          {
+            "link": "../../register",
+            "description": "Make more well-informed trading decisions with our next-generation stock research platform."
+          },
+          {
+            "title": "Monthly\n              Yearly",
+            "link": "../../register/",
+            "description": "Premium subscriptions on new accounts include a 7-day free trial (30-day trial for Yearly plans)",
+            "price": "Free"
+          },
+          {
+            "link": "../../aboutus/",
+            "description": "New accounts receive a 7-day free trial when signing up for a Premium monthly plan, and a 30-day free trial if you sign up for an annual plan. After your trial ends, you will be charged the amount listed at sign up. You can always cancel before then."
+          }
+        ],
+        "relevance_score": 8.5
+      },
+      {
+        "type": "list",
+        "data": [
+          "How does the free trial work?\n                \n              \n              New accounts receive a 7-day free trial when signing up for a Premium monthly plan, and a 30-day free trial if you sign up for an annual plan. After your trial ends, you will be charged the amount listed at sign up. You can always cancel before then.",
+          "Can I cancel my subscription at anytime?\n                \n              \n              Yes, you can cancel your subscription at any time. You will not be charged as long as you cancel before your subscription's next renewal date.",
+          "Where can I learn more about Quiver?\n                \n              \n              To learn more about the Quiver platform and how to use our data, visit the About Us and Tutorial pages."
+        ],
+        "relevance_score": 4.3
+      }
+    ],
+    "_extraction": {
+      "method": "multiple",
+      "confidence": 0.42000000000000004,
+      "source": "html-postprocess"
+    }
+  }
+}

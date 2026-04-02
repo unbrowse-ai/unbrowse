@@ -535,9 +535,10 @@ export const CLI_REFERENCE = {
   commands: [
     { name: "health", usage: "", desc: "Server health check" },
     { name: "setup", usage: "[--opencode auto|global|project|off] [--no-start]", desc: "Bootstrap browser deps + Open Code command" },
-    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent \u2192 find skill + execute" },
+    { name: "resolve", usage: '--intent "..." --url "..." [opts]', desc: "Resolve intent → search/capture/execute" },
     { name: "execute", usage: "--skill ID --endpoint ID [opts]", desc: "Execute a specific endpoint" },
     { name: "feedback", usage: "--skill ID --endpoint ID --rating N", desc: "Submit feedback (mandatory after resolve)" },
+    { name: "review", usage: "--skill ID --endpoints '[...]'", desc: "Push reviewed descriptions/metadata back to skill" },
     { name: "login", usage: '--url "..."', desc: "Interactive browser login" },
     { name: "skills", usage: "", desc: "List all skills" },
     { name: "skill", usage: "<id>", desc: "Get skill details" },
@@ -563,11 +564,15 @@ export const CLI_REFERENCE = {
   globalFlags: [
     { flag: "--pretty", desc: "Indented JSON output" },
     { flag: "--no-auto-start", desc: "Don't auto-start server" },
+    { flag: "--raw", desc: "Return raw response data (skip server-side projection)" },
     { flag: "--skip-browser", desc: "setup: skip browser-engine install" },
     { flag: "--opencode auto|global|project|off", desc: "setup: install /unbrowse command for Open Code" },
   ],
   resolveExecuteFlags: [
-    { flag: "--execute", desc: "Auto-pick best endpoint and return data (resolve only)" },
+    { flag: "--schema", desc: "Show response schema + extraction hints only (no data)" },
+    { flag: '--path "data.items[]"', desc: "Drill into result before extract/output" },
+    { flag: '--extract "field1,alias:deep.path.to.val"', desc: "Pick specific fields (no piping needed)" },
+    { flag: "--limit N", desc: "Cap array output to N items" },
     { flag: "--endpoint-id ID", desc: "Pick a specific endpoint" },
     { flag: "--dry-run", desc: "Preview mutations" },
     { flag: "--force-capture", desc: "Bypass caches, re-capture" },
@@ -578,7 +583,10 @@ export const CLI_REFERENCE = {
     'unbrowse resolve --intent "top stories" --url "https://news.ycombinator.com" --execute',
     'unbrowse resolve --intent "get timeline" --url "https://x.com"',
     "unbrowse execute --skill abc --endpoint def --pretty",
+    "unbrowse execute --skill abc --endpoint def --schema --pretty",
+    'unbrowse execute --skill abc --endpoint def --path "data.items[]" --extract "name,url" --limit 10 --pretty',
     "unbrowse feedback --skill abc --endpoint def --rating 5",
+    'unbrowse review --skill abc --endpoints \'[{"endpoint_id":"def","description":"..."}]\'',
   ],
 };
 

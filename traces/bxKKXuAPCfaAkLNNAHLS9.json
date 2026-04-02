@@ -1,0 +1,29 @@
+{
+  "trace_id": "bxKKXuAPCfaAkLNNAHLS9",
+  "skill_id": "3HPAEJZHj5NTb-KxFfbTF",
+  "endpoint_id": "Rpiu7k2JRUDxDlEUcGU6A",
+  "started_at": "2026-02-25T08:37:27.896Z",
+  "completed_at": "2026-02-25T08:37:31.580Z",
+  "success": true,
+  "status_code": 200,
+  "result": {
+    "data": [
+      {
+        "link": "/",
+        "image": "https://data-1.podcastai.com/shows/TC9emIpLQp2iTBq51ToSce/cover-f6a662de.jpg"
+      },
+      {
+        "title": "Latest Episodes",
+        "heading_1": "Follow & Subscribe",
+        "link": "/episodes",
+        "image": "/img/listen-on/apple-podcasts.svg",
+        "description": "When Will Openclaw go Mainstream? | E2252"
+      }
+    ],
+    "_extraction": {
+      "method": "repeated-elements",
+      "confidence": 0.75,
+      "source": "html-postprocess"
+    }
+  }
+}
