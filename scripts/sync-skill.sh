@@ -82,6 +82,13 @@ ls -la "$TARGET_REPO/"
 # Optionally commit, tag, and push
 MSG="${1:-chore: sync from monorepo}"
 cd "$TARGET_REPO"
+TARGET_BRANCH="${UNBROWSE_SKILL_REPO_BRANCH:-$(git branch --show-current || true)}"
+if [ -z "$TARGET_BRANCH" ]; then
+  TARGET_BRANCH="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+fi
+if [ -z "$TARGET_BRANCH" ]; then
+  TARGET_BRANCH="main"
+fi
 if git diff --quiet && git diff --staged --quiet; then
   echo ""
   echo "No changes to commit."
@@ -94,13 +101,13 @@ else
   if [ "${CI:-}" = "true" ]; then
     # Non-interactive mode for CI
     git commit -m "$MSG"
-    git push origin main
+    git push origin "HEAD:$TARGET_BRANCH"
     echo "Pushed to $(git remote get-url origin)"
   else
     read -p "Commit and push with message '$MSG'? [y/N] " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
       git commit -m "$MSG"
-      git push origin main
+      git push origin "HEAD:$TARGET_BRANCH"
       echo "Pushed to $(git remote get-url origin)"
     else
       echo "Skipped commit. Changes are staged."
