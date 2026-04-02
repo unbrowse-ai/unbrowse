@@ -1,0 +1,140 @@
+RootWebArea "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights"
+button "Main menu" @e0
+button "Skip to main content" @e1
+button "Accessibility feedback" @e2
+link "Sign in" @e3
+link "Google" @e4
+search "Flight"
+button "Change appearance" @e5
+button "Google apps" @e6
+StaticText "Flights"
+heading "Flexible? Discover the best flight deals with AI"
+button "Explore deals" @e7
+heading "Find and book cheap flights worldwide and track prices"
+heading "Search more flights"
+button "Language\u200b\u00b7English (United States)" @e8
+button "Location\u200b\u00b7Singapore" @e9
+button "Currency SGD" @e10
+link "About Google Travel" @e11
+link "Privacy" @e12
+link "Terms" @e13
+link "Join user studies" @e14
+link "Feedback" @e15
+link "Help Center" @e16
+StaticText "Describe your ideal trip, and let Google Flights find the best deals f"
+heading "Useful tools to help you find the best airline tickets"
+heading "Popular flight destinations from Singapore"
+heading "Frequently asked questions"
+group "Frequently asked questions"
+heading "Find cheap flights on popular routes"
+StaticText "Language"
+StaticText "\u200b"
+StaticText "\u00b7"
+StaticText "English (United States)"
+StaticText "Location"
+StaticText "\u200b"
+StaticText "\u00b7"
+StaticText "Singapore"
+StaticText "Current language and currency options applied: English (United States)"
+StaticText "Displayed currencies may differ from the currencies used to purchase f"
+link "Learn more about currencies" @e17
+StaticText "Prices are final prices and include all taxes and fees, including paym"
+StaticText "About"
+button "Explore destinations" @e18
+heading "Find cheap flights from Singapore to anywhere"
+button "Learn more about this section" @e19
+button "Explore more destinations from Singapore" @e20
+button "Find the cheapest days to fly The Date grid and Price graph make it ea" @e21
+button "Know when to book with price insights Price history and trend data sho" @e22
+button "Track flight prices for a trip Not ready to book yet? Observe price ch" @e23
+button "Explore the best flight deals with AI Describe your ideal trip and let" @e24
+tabpanel "Flights from cities in Singapore"
+StaticText "Learn more"
+button "International sites" @e25
+button "Explore flights" @e26
+button "Swap origin and destination." @e27
+StaticText "Explore"
+button "Find flights from Singapore (SIN) to Denpasar (DPS) from SGD\u00a0163." @e28
+button "Find flights from Singapore (SIN) to Hong Kong (HKG) from SGD\u00a0318" @e29
+button "Find flights from Singapore (SIN) to Sydney (SYD) from SGD\u00a0400. O" @e30
+StaticText "Insightful tools help you choose your trip dates"
+StaticText "If your travel plans are flexible, use the form above to start searchi"
+StaticText "Date grid"
+StaticText " and "
+StaticText "Price graph"
+StaticText " options on the "
+StaticText "Search"
+StaticText " page to find the cheapest days to fly and book your tickets."
+tab "Flights from cities in Singapore" @e31
+tab "International flights from Singapore" @e32
+link "Flights from Singapore" @e33
+StaticText "Singapore"
+StaticText "Denpasar"
+StaticText "Singapore"
+StaticText "Hong Kong"
+StaticText "Singapore"
+StaticText "Sydney"
+StaticText "Find the cheapest days to fly"
+StaticText "The Date grid and Price graph make it easy to find the best flight dea"
+StaticText "Know when to book with price insights"
+StaticText "Price history and trend data show you the best time to book your airli"
+StaticText "Track flight prices for a trip"
+StaticText "Not ready to book yet? Observe price changes for a route or flight and"
+StaticText "Explore the best flight deals with AI"
+StaticText "Describe your ideal trip and let Google Flights find you the best deal"
+link "City image for London London" @e34
+link "City image for Tokyo Tokyo" @e35
+link "City image for Bangkok Bangkok" @e36
+link "City image for Federal Territory of Kuala Lumpur Federal Territory of " @e37
+link "City image for Shanghai Shanghai" @e38
+link "City image for Taipei City Taipei City" @e39
+link "City image for Seoul Seoul" @e40
+link "City image for New York New York" @e41
+link "City image for Hong Kong Hong Kong" @e42
+link "City image for Melbourne Melbourne" @e43
+combobox "Change ticket type. Round trip" @e44
+button "1 passenger, change number of passengers." @e45
+combobox "Change seating class. Economy" @e46
+combobox "Where from?" @e47
+combobox "Where to? " @e48
+textbox "Departure" @e49
+textbox "Return" @e50
+StaticText "Apr 18 \u2014 Apr 24"
+StaticText "Nonstop"
+StaticText "from "
+StaticText "SGD\u00a0163"
+StaticText "Jun 25 \u2014 Jul 2"
+StaticText "Nonstop"
+StaticText "from "
+StaticText "SGD\u00a0318"
+StaticText "May 15 \u2014 May 21"
+StaticText "Nonstop"
+StaticText "from "
+StaticText "SGD\u00a0400"
+StaticText "London"
+StaticText "Tokyo"
+StaticText "Bangkok"
+StaticText "Federal Territory of Kuala Lumpur"
+StaticText "Shanghai"
+StaticText "Taipei City"
+StaticText "Seoul"
+StaticText "New York"
+StaticText "Hong Kong"
+StaticText "Melbourne"
+button "What are some good flight destinations from Singapore?" @e51
+button "How can I find last-minute flight deals?" @e52
+button "How can I find cheap flights for a weekend getaway?" @e53
+button "How can I find flight deals if my travel plans are flexible?" @e54
+button "How can I find cheap flights to anywhere?" @e55
+button "How can I get flight alerts for my trip?" @e56
+image "City image for London"
+image "City image for Tokyo"
+image "City image for Bangkok"
+image "City image for Federal Territory of Kuala Lumpur"
+image "City image for Shanghai"
+image "City image for Taipei City"
+image "City image for Seoul"
+image "City image for New York"
+image "City image for Hong Kong"
+image "City image for Melbourne"
+StaticText "Singapore"
