@@ -32,6 +32,7 @@ It learns the request paths underneath websites, turns successful routes into re
 - [Unbrowse In Plain English](./plain-english.md)
 - [For Technical Readers](./for-technical-readers.md)
 - [For Investors](./for-investors.md)
+- [Marketplace and Maintenance](./network-layer.md)
 - [What Is Unbrowse?](./what-is-unbrowse.md)
 - [The Problem](./the-problem.md)
 - [Mental Models](./mental-models.md)
@@ -41,6 +42,12 @@ It learns the request paths underneath websites, turns successful routes into re
 - [Paper vs Product Status](./paper-vs-product.md)
 - [Evaluation and Benchmarks](./evaluation.md)
 - [Coming Soon](./coming-soon.md)
+
+## Recommended Reading Order
+
+Start with [For Investors](./for-investors.md) or [For Technical Readers](./for-technical-readers.md) for the public/product truth.
+
+Read [Marketplace and Maintenance](./network-layer.md) for the public explanation of how shared route reuse creates freshness, validation, attribution, and maintenance requirements over time.
 
 ## What Ships Today
 

@@ -80,6 +80,15 @@ unbrowse search --intent "get stock prices"
 
 If you tried Unbrowse on a site or API and could not get it to work, add it to [Discussion #53](https://github.com/unbrowse-ai/unbrowse/discussions/53). We use that thread to collect missing or broken targets so we can turn them into requirements for the next eval pass.
 
+## Docs
+
+The synced skill repo also carries the longer-form docs set:
+
+- [Whitepaper companion index](./docs/whitepaper/README.md)
+- [For Technical Readers](./docs/whitepaper/for-technical-readers.md)
+- [For Investors](./docs/whitepaper/for-investors.md)
+- [Analytics API](./docs/analytics-api.md)
+
 ## How it works
 
 When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse captures the site, learns the APIs behind it, publishes a reusable skill, and executes that instead.

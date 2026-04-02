@@ -62,6 +62,15 @@ After consent, the CLI handles startup automatically. If the browser engine is m
 
 The backend still uses an opaque internal agent id. The email is just the user-facing registration identity for lower-friction setup.
 
+## Docs
+
+Use the skill for the core loop. Use the docs when you need the public product and market context:
+
+- [Whitepaper companion](./docs/whitepaper/README.md) — current map of the paper and companion docs
+- [For Technical Readers](./docs/whitepaper/for-technical-readers.md) — architecture, eval truth, and product boundary
+- [For Investors](./docs/whitepaper/for-investors.md) — market framing and roadmap boundary
+- [Analytics API](./docs/analytics-api.md) — canonical investor/product metrics surfaces
+
 ## Core Workflow
 
 ### Step 1: Resolve — find what endpoints exist
