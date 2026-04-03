@@ -4,6 +4,16 @@ import { searchIntent, searchIntentInDomain, searchIntentResolve } from "../serv
 import { rateLimit } from "../middleware/rate-limit.js";
 import { GRAPH_OPERATION_COST_UC, recordGraphFee } from "../services/fees.js";
 import { buildSkillPaymentTerms, searchPaymentsEnabled, verifyX402Proof, x402Response, x402UseTestnet } from "../middleware/x402-gate.js";
+import { getOrSetHttpCache } from "../services/http-cache.js";
+import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
+
+function schedule<T>(c: Context<{ Bindings: Env }>, task: Promise<T>): void {
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    void task;
+  }
+}
 
 function extractAgentId(authHeader: string | undefined | null): string {
   if (!authHeader) return "anonymous";
@@ -17,6 +27,31 @@ function chargeSearchFee(env: Env, agentId: string): void {
 
 function shouldRequireSearchPayment(env: Env): boolean {
   return searchPaymentsEnabled(env);
+}
+
+function normalizeSearchText(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function shouldCacheSearch(c: Context<{ Bindings: Env }>): boolean {
+  return !shouldRequireSearchPayment(c.env);
+}
+
+async function getCachedSearchPayload<T>(
+  c: Context<{ Bindings: Env }>,
+  key: string,
+  ttlSeconds: number,
+  load: () => Promise<T>,
+): Promise<T> {
+  const edgeCached = await getEdgeCacheJson<T>(key);
+  if (edgeCached) return edgeCached;
+  const payload = await getOrSetHttpCache(c.env, key, ttlSeconds, load);
+  schedule(c, putEdgeCacheJson(key, payload, ttlSeconds));
+  return payload;
+}
+
+function setSearchCacheHeaders(c: Context<{ Bindings: Env }>, ttlSeconds: number): void {
+  c.header("Cache-Control", buildCacheControl(ttlSeconds));
 }
 
 async function requireSearchPayment(
@@ -62,12 +97,18 @@ searchRoutes.post("/search", async (c) => {
     const gate = await requireSearchPayment(c, "search");
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
-    const results = await searchIntent(c.env, intent, k ?? 5);
+    const cacheTtlSeconds = 30;
+    const results = shouldCacheSearch(c)
+      ? await getCachedSearchPayload(c, `search:global:${normalizeSearchText(intent)}:${k ?? 5}`, cacheTtlSeconds, async () => ({
+        results: await searchIntent(c.env, intent, k ?? 5),
+      }))
+      : { results: await searchIntent(c.env, intent, k ?? 5) };
+    if (shouldCacheSearch(c)) setSearchCacheHeaders(c, cacheTtlSeconds);
     if (shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }
-    return c.json({ results });
+    return c.json(results);
   } catch (err) {
     console.error("[search] global search failed:", (err as Error).message);
     return c.json({ results: [] });
@@ -81,12 +122,18 @@ searchRoutes.post("/search/domain", async (c) => {
     const gate = await requireSearchPayment(c, "search-domain");
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
-    const results = await searchIntentInDomain(c.env, intent, domain, k ?? 5);
+    const cacheTtlSeconds = 30;
+    const results = shouldCacheSearch(c)
+      ? await getCachedSearchPayload(c, `search:domain:${domain.toLowerCase()}:${normalizeSearchText(intent)}:${k ?? 5}`, cacheTtlSeconds, async () => ({
+        results: await searchIntentInDomain(c.env, intent, domain, k ?? 5),
+      }))
+      : { results: await searchIntentInDomain(c.env, intent, domain, k ?? 5) };
+    if (shouldCacheSearch(c)) setSearchCacheHeaders(c, cacheTtlSeconds);
     if (shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));
     }
-    return c.json({ results });
+    return c.json(results);
   } catch (err) {
     console.error("[search] domain search failed:", (err as Error).message);
     return c.json({ results: [] });
@@ -105,7 +152,16 @@ searchRoutes.post("/search/resolve", async (c) => {
     const gate = await requireSearchPayment(c, "search-resolve");
     if (gate) return gate;
     const agentId = extractAgentId(c.req.header("Authorization"));
-    const results = await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
+    const cacheTtlSeconds = 30;
+    const results = shouldCacheSearch(c)
+      ? await getCachedSearchPayload(
+        c,
+        `search:resolve:${domain?.toLowerCase() ?? "all"}:${normalizeSearchText(intent)}:${domain_k ?? 5}:${global_k ?? 10}`,
+        cacheTtlSeconds,
+        async () => searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10),
+      )
+      : await searchIntentResolve(c.env, intent, domain, domain_k ?? 5, global_k ?? 10);
+    if (shouldCacheSearch(c)) setSearchCacheHeaders(c, cacheTtlSeconds);
     if (shouldRequireSearchPayment(c.env)) {
       chargeSearchFee(c.env, agentId);
       c.header("X-Unbrowse-Cost-Uc", String(GRAPH_OPERATION_COST_UC.search));

@@ -329,8 +329,13 @@ export async function listSkillCards(opts?: {
   return data.skills;
 }
 
-export async function listPopularSkills(limit = 8): Promise<PopularSkillSummary[]> {
-  const data = await api<{ skills: PopularSkillSummary[] }>("GET", `/v1/skills/popular?limit=${limit}`);
+export async function listPopularSkills(limit = 8, opts?: { revalidate?: number }): Promise<PopularSkillSummary[]> {
+  const data = await request<{ skills: PopularSkillSummary[] }>(
+    "GET",
+    `/v1/skills/popular?limit=${limit}`,
+    undefined,
+    { revalidate: opts?.revalidate ?? 300 },
+  );
   return data.skills;
 }
 

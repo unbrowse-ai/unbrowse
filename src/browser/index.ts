@@ -10,6 +10,11 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
 import { findExistingSkillForDomain, cachePublishedSkill } from "../client/index.js";
 import { storeCredential } from "../vault/index.js";
+import {
+  importBrowserCookiesIntoTab,
+  loadAuthProfileBestEffort,
+  saveAuthProfileBestEffort,
+} from "../auth/index.js";
 import { UnbrowseResponse, type BrowserLaunchOptions, type GotoOptions, type SkillResolutionResult } from "./types.js";
 import type { SkillManifest } from "../types/index.js";
 import { nanoid } from "nanoid";
@@ -87,7 +92,7 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
         ? mergeEndpoints(existingSkill.endpoints, rawEndpoints)
         : rawEndpoints;
       if (existingSkill && mergedEndpoints.length < existingSkill.endpoints.length) {
-        console.log(`[passive-index] ${domain}: skipping — would reduce endpoints`);
+        console.error(`[passive-index] ${domain}: skipping — would reduce endpoints`);
         return;
       }
 
@@ -122,7 +127,7 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
 
       try { cachePublishedSkill(skill); } catch { /* best-effort */ }
       queueBackgroundIndex({ skill, domain, intent, contextUrl: pageUrl, cacheKey: `passive:${domain}:${Date.now()}` });
-      console.log(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed`);
+      console.error(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed`);
     } catch (err) {
       console.error(`[passive-index] ${domain} failed: ${err instanceof Error ? err.message : err}`);
     }
@@ -174,6 +179,7 @@ export class Page {
    * in the background for future acceleration.
    */
   async goto(url: string, options?: GotoOptions): Promise<UnbrowseResponse> {
+    const previousUrl = this._url;
     this._url = url;
     this._skillResult = null;
     this._html = null;
@@ -212,23 +218,25 @@ export class Page {
     // Cache miss or resolve failure — navigate via Kuri directly.
     if (this._tabId) {
       const newDomain = new URL(url).hostname.replace(/^www\./, "");
-      const oldDomain = this._url !== "about:blank" ? (() => { try { return new URL(this._url).hostname.replace(/^www\./, ""); } catch { return ""; } })() : "";
+      const oldDomain = previousUrl !== "about:blank" ? (() => { try { return new URL(previousUrl).hostname.replace(/^www\./, ""); } catch { return ""; } })() : "";
 
       // Flush any prior HAR entries before navigating to a new page
-      if (this._harActive && this._url !== "about:blank") {
+      if (this._harActive && previousUrl !== "about:blank") {
         try {
           const { entries } = await kuri.harStop(this._tabId);
-          passiveIndexHar(entries, this._url);
+          passiveIndexHar(entries, previousUrl);
         } catch { /* non-fatal */ }
         this._harActive = false;
       }
 
-      // Auto-save auth profile for old domain, load for new domain
+      // Auto-save auth profile for old domain, then restore fresh browser cookies
+      // before any saved auth profile for the new domain.
       if (oldDomain && oldDomain !== newDomain) {
-        await kuri.authProfileSave(this._tabId, oldDomain).catch(() => {});
+        await saveAuthProfileBestEffort(this._tabId, oldDomain, "browser_goto");
       }
       if (newDomain && newDomain !== oldDomain) {
-        await kuri.authProfileLoad(this._tabId, newDomain).catch(() => {});
+        await importBrowserCookiesIntoTab(this._tabId, newDomain);
+        await loadAuthProfileBestEffort(this._tabId, newDomain, "browser_goto");
       }
 
       await kuri.navigate(this._tabId, url);
@@ -556,7 +564,7 @@ export class Page {
       if (this._url !== "about:blank") {
         try {
           const domain = new URL(this._url).hostname.replace(/^www\./, "");
-          await kuri.authProfileSave(this._tabId, domain);
+          await saveAuthProfileBestEffort(this._tabId, domain, "browser_close");
         } catch { /* non-fatal */ }
       }
 

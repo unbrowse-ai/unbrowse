@@ -77,8 +77,7 @@ jobs:
             CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare build
             CLOUDFLARE_ENV=staging ./node_modules/.bin/opennextjs-cloudflare deploy
           else
-            ./node_modules/.bin/opennextjs-cloudflare build
-            ./node_modules/.bin/opennextjs-cloudflare deploy
+            bun run deploy:ci
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
