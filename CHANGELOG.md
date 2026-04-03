@@ -1291,6 +1291,7 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 # Unreleased
 
 - feat: add server-owned skill provenance and staged graph promotion so first unverified publishes stay shadow-only until independently corroborated or verified
+- feat: verify signed release manifests on publish, stamp release-attestation provenance server-side, and require endpoint-level corroboration before brand-new endpoints on public skills enter the shared graph
 - build: make the npm CLI package binary-only, sync only `SKILL.md` to the standalone skill repo, and publish release assets before npm so installs can fetch the tagged native binary immediately
 - fix: materialize under-specified root eval cases into real-world intent URLs before strict judged agent-phase runs
 - fix: reuse learned skills by domain plus compatible intent instead of merging unrelated captures into one polluted skill

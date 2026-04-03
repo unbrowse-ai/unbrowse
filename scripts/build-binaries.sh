@@ -13,6 +13,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 
 mkdir -p "$DIST_DIR"
+eval "$(bun "$ROOT_DIR/scripts/build-release-manifest.ts" --shell-env)"
 
 build_target() {
   local target="$1" # e.g. darwin-arm64
@@ -22,6 +23,10 @@ build_target() {
   bun build "$ROOT_DIR/src/single-binary.ts" \
     --compile \
     --minify \
+    --define "process.env.UNBROWSE_BUILD_GIT_SHA=\"$UNBROWSE_BUILD_GIT_SHA\"" \
+    --define "process.env.UNBROWSE_BUILD_CODE_HASH=\"$UNBROWSE_BUILD_CODE_HASH\"" \
+    --define "process.env.UNBROWSE_RELEASE_MANIFEST_BASE64=\"$UNBROWSE_RELEASE_MANIFEST_BASE64\"" \
+    --define "process.env.UNBROWSE_RELEASE_MANIFEST_SIGNATURE=\"$UNBROWSE_RELEASE_MANIFEST_SIGNATURE\"" \
     --target="bun-$target" \
     --outfile "$outfile" 2>&1
 

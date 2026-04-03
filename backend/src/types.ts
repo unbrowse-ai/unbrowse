@@ -12,6 +12,7 @@ export interface Env {
   GITHUB_WEBHOOK_ALLOWED_REPOS?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
+  RELEASE_MANIFEST_SIGNING_SECRET?: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
   PAYMENTS_ENABLED?: string;
@@ -60,6 +61,9 @@ export interface SkillSubmissionProvenance {
   client_code_hash?: string;
   client_git_sha?: string;
   transport?: string;
+  release_manifest_version?: string;
+  release_manifest_verified?: boolean;
+  release_manifest_reason?: string;
 }
 
 export interface SkillTrustMetadata {
@@ -67,8 +71,20 @@ export interface SkillTrustMetadata {
   promotion_reason: string;
   submission_count: number;
   unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
   verified_ratio: number;
   last_submission_at: string;
+}
+
+export interface EndpointCorroboration {
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  last_submission_at: string;
+  submitter_agent_ids?: string[];
+  verified_release_submitter_ids?: string[];
 }
 
 export interface AuthProfile {
@@ -139,6 +155,7 @@ export interface EndpointDescriptor {
   response_schema?: ResponseSchema;
   trigger_url?: string;
   graph_visibility?: GraphVisibility;
+  corroboration?: EndpointCorroboration;
 }
 
 export interface DiscoveryCost {

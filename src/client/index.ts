@@ -4,7 +4,13 @@ import { homedir, hostname } from "os";
 import { randomBytes, createHash } from "crypto";
 import { createInterface } from "readline";
 import type { AgentSkillChunkView, EndpointStats, ExecutionTrace, OrchestrationTiming, SkillManifest, ValidationResult } from "../types/index.js";
-import { CODE_HASH, GIT_SHA, TRACE_VERSION } from "../version.js";
+import {
+  CODE_HASH,
+  GIT_SHA,
+  RELEASE_MANIFEST_BASE64,
+  RELEASE_MANIFEST_SIGNATURE,
+  TRACE_VERSION,
+} from "../version.js";
 import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
@@ -409,6 +415,12 @@ async function apiRequest<T = unknown>(
         "X-Unbrowse-Trace-Version": TRACE_VERSION,
         "X-Unbrowse-Code-Hash": CODE_HASH,
         "X-Unbrowse-Git-Sha": GIT_SHA,
+        ...(RELEASE_MANIFEST_BASE64
+          ? { "X-Unbrowse-Release-Manifest": RELEASE_MANIFEST_BASE64 }
+          : {}),
+        ...(RELEASE_MANIFEST_SIGNATURE
+          ? { "X-Unbrowse-Release-Signature": RELEASE_MANIFEST_SIGNATURE }
+          : {}),
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,

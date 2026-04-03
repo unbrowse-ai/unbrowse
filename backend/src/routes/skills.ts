@@ -113,9 +113,14 @@ skillRoutes.post("/skills", bearerAuth, async (c) => {
       client_trace_version: c.req.header("X-Unbrowse-Trace-Version") ?? undefined,
       client_code_hash: c.req.header("X-Unbrowse-Code-Hash") ?? undefined,
       client_git_sha: c.req.header("X-Unbrowse-Git-Sha") ?? undefined,
+      client_release_manifest: c.req.header("X-Unbrowse-Release-Manifest") ?? undefined,
+      client_release_signature: c.req.header("X-Unbrowse-Release-Signature") ?? undefined,
       transport: "cli",
     });
   } catch (err) {
+    if ((err as Error).message.startsWith("release_manifest_")) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
     console.error("[publish] error:", (err as Error).message, (err as Error).stack);
     return c.json({ error: "Failed to publish skill" }, 500);
   }

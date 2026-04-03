@@ -19,6 +19,9 @@ ENVIRONMENT = "production"
 PAYMENTS_ENABLED = "true"
 UNKEY_API_ID = "api_4zrwAzybN7mVTKbw"
 
+# Secrets:
+# - RELEASE_MANIFEST_SIGNING_SECRET
+
 [[routes]]
 pattern = "beta-api.unbrowse.ai/*"
 zone_id = "73934a4d815fde770167414fc3ead04b"
