@@ -50,6 +50,7 @@
 
 ### Bug Fixes
 
+* **backend/payments**: split discovery from paid manifest access with `X402_SEARCH_ENABLED`, so `/v1/search*` can stay free while paid `/v1/skills/:id` detail remains x402-gated
 * **docs/whitepaper**: sync the companion docs with the shipped x402 and Crossmint wallet flow so payment gates, wallet-linked payout routing, and current settlement behavior stop reading as “coming soon”
 * **docs/mcp**: make the public README surfaces explicitly describe Unbrowse as a stdio MCP server, document `initialize` / `tools/list` / `tools/call`, enumerate the shipped MCP tool groups, and clarify that `localhost:6969` is the runtime behind the MCP surface rather than a custom host protocol
 * **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
