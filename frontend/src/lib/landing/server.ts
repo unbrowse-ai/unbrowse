@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { fetchWithTimeout } from "@/lib/server-fetch";
 import type { LandingVariant, ResolvedLandingVariantResponse } from "./types";
 
 const API_BASE = "https://beta-api.unbrowse.ai/v1";
@@ -15,7 +16,7 @@ export const getLandingVariant = cache(
     if ([...query.keys()].length === 0) return null;
 
     try {
-      const res = await fetch(`${API_BASE}/landing/resolve?${query.toString()}`, {
+      const res = await fetchWithTimeout(`${API_BASE}/landing/resolve?${query.toString()}`, {
         cache: "no-store",
       });
       if (!res.ok) return null;
