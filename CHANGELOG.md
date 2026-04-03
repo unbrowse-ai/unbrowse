@@ -18,6 +18,7 @@
 * **skills/acquisition**: add a repo-local `unbrowse-acquisition-operator` skill that owns the `traffic -> ICP -> variant -> activation` loop, routes to existing funnel/positioning/ads/measurement skills, and keeps X research/ads scoped under one measurable acquisition experiment
 * **frontend/acquisition**: persist first-touch UTM/click-id context plus sticky landing assignment cookies, resolve homepage variants from those signals server-side, and expose acquisition-dimension rollups in analytics so landing winners can be compared by source/campaign/term instead of only raw referrer
 * **analytics/campaign-feedback**: carry attribution from landing copy into copied install commands, persist it through CLI install/funnel/session telemetry, track content-page views, and add `/v1/analytics/campaigns` so X posts, articles, ads, landing variants, installs, and first-success can be compared in one loop
+* **skills/foundry**: add a repo-local `x-campaign-feedback-operator` skill plus a Foundry preset and fabricated bundle artifacts so the X/articles/ads/landing feedback loop can be installed, routed, and shared as one operator bundle
 
 ### Tests
 
