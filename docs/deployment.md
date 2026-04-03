@@ -41,7 +41,7 @@ Detailed release choreography lives in [docs/RELEASING.md](/Users/lekt9/.codex/w
 
 ## Release workflow behavior
 
-`.github/workflows/deploy.yml` handles `main` pushes.
+`.github/workflows/deploy.yml` handles `main` and `staging` pushes.
 `.github/workflows/release.yml` handles `v*` tag pushes.
 
 Main deploy workflow:
@@ -49,6 +49,13 @@ Main deploy workflow:
 1. deploy backend with `cd backend && bun run deploy:ci`
 2. deploy frontend with `cd frontend && bun run deploy`
 3. sync the standalone skill repo
+
+Staging deploy workflow:
+
+1. deploy backend with `cd backend && ./node_modules/.bin/wrangler deploy --config wrangler.ci.toml --env staging`
+2. deploy frontend with `CLOUDFLARE_ENV=staging` so it publishes as `frontend-staging`
+3. skip skill-repo sync and any release/publish side effects
+4. if `PREVIEW_API_URL` is unset, skip the frontend staging deploy rather than pointing staging traffic at the wrong backend
 
 Tag release workflow:
 
@@ -120,7 +127,7 @@ Preview deploys also expect one of:
 - repo variable `PREVIEW_API_URL`
 - or repo secret `PREVIEW_API_URL`
 
-That value should point at the shared staging backend origin used by preview builds. Do not hardcode the staging hostname into source files.
+That value should point at the shared staging backend origin used by preview builds and `staging` branch frontend deploys. Do not hardcode the staging hostname into source files.
 
 Backend runtime secrets are documented in [backend/wrangler.toml](/Users/lekt9/.codex/worktrees/c99f/unbrowse/backend/wrangler.toml):
 

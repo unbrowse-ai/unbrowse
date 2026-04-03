@@ -33,6 +33,18 @@
 			"service": "frontend"
 		}
 	],
+	"env": {
+		"staging": {
+			"workers_dev": true,
+			"routes": [],
+			"services": [
+				{
+					"binding": "WORKER_SELF_REFERENCE",
+					"service": "frontend-staging"
+				}
+			]
+		}
+	},
 	"observability": {
 		"enabled": true
 	},

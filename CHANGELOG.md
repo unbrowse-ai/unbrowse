@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.12.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.0...v2.12.1) (2026-04-03)
+
+### Features
+
+* detect install-specific upgrade and repair commands during setup so global npm installs get the right guidance
+* smoke-test the packaged global CLI in CI and tag releases before publish
+
+### Bug Fixes
+
+* **ci/deploy**: let `staging` pushes run the repo sanity/unit/backend/CLI gates, deploy the backend to the Wrangler `staging` environment, and only deploy the `frontend-staging` worker when `PREVIEW_API_URL` is configured so integration testing does not accidentally point at the wrong backend
+* harden the npm wrapper so stale fallback installs fail with a precise reinstall command instead of silent runtime crashes
+* return the installed version from `unbrowse --version`
+* repair packaged wrapper execute bits during postinstall and fail fast on stale local-server version mismatches
+
+
+## [2.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.11.0...v2.12.0) (2026-04-03)
+
+### Bug Fixes
+
+* auto-queue browse submit publish and document public repo ([9905005](https://github.com/unbrowse-ai/unbrowse-dev/commit/9905005afa86402ac75d521381e6ca2eec1ab184))
+* preserve backend kv binding during CI release deploys ([#282](https://github.com/unbrowse-ai/unbrowse-dev/issues/282)) ([47e0c72](https://github.com/unbrowse-ai/unbrowse-dev/commit/47e0c7223a24f68e84f8ebec4b4892acb635f217))
+* restore skills.sh discovery gate ([#285](https://github.com/unbrowse-ai/unbrowse-dev/issues/285)) ([e5299f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5299f480ec2b19ca85981f6706d0edf155aaed2))
+* ship standalone repo setup and main-base docs ([#281](https://github.com/unbrowse-ai/unbrowse-dev/issues/281)) ([2c66398](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c663989fd7b31aa3a87b5fed29b71c22c088f8e))
+* simplify install setup path ([#294](https://github.com/unbrowse-ai/unbrowse-dev/issues/294)) ([98d97d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/98d97d30beaa737511f02926e5c43f3f648600b5))
+* simplify install setup path ([#295](https://github.com/unbrowse-ai/unbrowse-dev/issues/295)) ([a4c7fa9](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4c7fa94d90a412042eda4184fd66c83705aa676))
+
 ## Unreleased
 
 ### Features
@@ -35,6 +61,8 @@
 
 * **packaged/runtime**: make packaged local servers report a stable `package_version` + `code_hash` by hashing bundled `runtime-src` sources when `dist/` has no `.ts` files, stamp the pid file with the same version metadata, add an opt-out for real-browser cookie import during `browse/go`, and make browse-session recovery fail fast when the Kuri broker cannot restart instead of collapsing into opaque `fetch failed` errors, with coverage for the packaged-health contract plus duplicate-export install regression so staging-pointed CLI runs stop self-restarting into `about:blank` or inheriting stale browser carts
 * **cli/cache**: add a `cleanup-stale` sweep that re-verifies active skills, evicts stale local cache entries, and now rotates through periodic server-side batches so dead marketplace endpoints stop getting replayed
+* **browse/sessions**: isolate browse state behind per-session `session_id`s, serialize same-session browse actions, require explicit session selection when multiple sessions are live, and stop first-pass/capture flows from reusing Kuri's implicit default tab under parallel load
+* **browse/kuri**: add per-port Kuri broker clients, bind browse sessions to their originating broker, and spread browse-session traffic across a small local multi-broker pool so different sessions can issue tool calls in parallel without collapsing onto one singleton broker
 * **kuri/tests**: stop the Kuri live e2e suite from hijacking a visible Chrome session by honoring headless launch flags and running the fixture-browser tests in headless managed mode
 * **github/pr-agent**: split webhook dispatch into `repair` vs `merge` operations, ignore agent-self-failure loops, isolate runner `CODEX_HOME`, and let Codex make the merge recommendation before a final non-vibes safety gate executes the merge
 * **ci/tests**: isolate CLI end-to-end runs on a per-suite local-server port and clear backend KV index caches in popularity tests so self-hosted runners stop leaking state across jobs
@@ -63,6 +91,7 @@
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
 * clean checked-in merge markers, restore the curl install script, and add a repo blog-publish helper so the stale frontend-history branch can be absorbed without dragging its generated junk forward
 * **wallet/setup**: detect paired lobster.cash agents from local `~/.lobster/agents.json` state so `setup --no-start` and payout sync reuse an existing local wallet instead of re-entering interactive wallet setup
+* **publish/admission**: tighten marketplace publish admission so background indexing and passive publish stop shipping stale, noisy, hash-heavy endpoint variants by default
 * **backend/storage**: make Neon-backed worker KV writes transactional, clear poisoned init-cache entries after transient Neon bootstrap failures, and add regression coverage for both paths
 * split `main` deploys from tag releases so ordinary `main` pushes stop surfacing a no-op npm publish path when the current CLI version is already on npm
 * simplify the homepage install story around `curl -fsSL https://unbrowse.ai/install.sh | bash`, add `npx skills add unbrowse-ai/unbrowse` as the skills-host shortcut, and demote repo-clone setup to fallback copy

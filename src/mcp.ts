@@ -392,13 +392,26 @@ function maybePostProcessResult(result: Record<string, unknown>, args: Record<st
 }
 
 async function api(method: string, route: string, body?: unknown): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}${route}`, {
+  let target = `${BASE_URL}${route}`;
+  let requestBody = body;
+  if (method === "GET" && body && typeof body === "object") {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        params.set(key, String(value));
+      }
+    }
+    const query = params.toString();
+    if (query) target += `${target.includes("?") ? "&" : "?"}${query}`;
+    requestBody = undefined;
+  }
+  const res = await fetch(target, {
     method,
     headers: {
-      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(requestBody ? { "Content-Type": "application/json" } : {}),
       "x-unbrowse-client-id": CLIENT_ID,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: requestBody ? JSON.stringify(requestBody) : undefined,
   });
 
   const contentType = res.headers.get("content-type") || "";
@@ -714,14 +727,20 @@ const tools: ToolDefinition[] = [
     description: "Open a live browser tab for capture-first workflows.",
     inputSchema: {
       type: "object",
-      properties: { url: { type: "string", description: "Target URL to open." } },
+      properties: {
+        url: { type: "string", description: "Target URL to open." },
+        session_id: { type: "string", description: "Optional browse session id." },
+      },
       required: ["url"],
       additionalProperties: false,
     },
     annotations: { openWorldHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/go", { url: args.url }), "Live browse session opened.");
+      return successResult(await api("POST", "/v1/browse/go", {
+        url: args.url,
+        ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
+      }), "Live browse session opened.");
     },
   },
   {
@@ -729,13 +748,19 @@ const tools: ToolDefinition[] = [
     description: "Get the current accessibility snapshot with stable element refs like e12.",
     inputSchema: {
       type: "object",
-      properties: { filter: { type: "string", description: "Optional snapshot filter, e.g. interactive." } },
+      properties: {
+        filter: { type: "string", description: "Optional snapshot filter, e.g. interactive." },
+        session_id: { type: "string", description: "Optional browse session id." },
+      },
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/snap", typeof args.filter === "string" ? { filter: args.filter } : {}), "Current browse snapshot.");
+      const body: Record<string, unknown> = {};
+      if (typeof args.filter === "string") body.filter = args.filter;
+      if (typeof args.session_id === "string") body.session_id = args.session_id;
+      return successResult(await api("POST", "/v1/browse/snap", body), "Current browse snapshot.");
     },
   },
   {
@@ -743,14 +768,20 @@ const tools: ToolDefinition[] = [
     description: "Click an element in the active browse session by ref.",
     inputSchema: {
       type: "object",
-      properties: { ref: { type: "string", description: "Element ref from unbrowse_snap, e.g. e5." } },
+      properties: {
+        ref: { type: "string", description: "Element ref from unbrowse_snap, e.g. e5." },
+        session_id: { type: "string", description: "Optional browse session id." },
+      },
       required: ["ref"],
       additionalProperties: false,
     },
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/click", { ref: args.ref }), "Click sent.");
+      return successResult(await api("POST", "/v1/browse/click", {
+        ref: args.ref,
+        ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
+      }), "Click sent.");
     },
   },
   {
@@ -761,6 +792,7 @@ const tools: ToolDefinition[] = [
       properties: {
         ref: { type: "string", description: "Element ref from unbrowse_snap." },
         value: { type: "string", description: "Value to set." },
+        session_id: { type: "string", description: "Optional browse session id." },
       },
       required: ["ref", "value"],
       additionalProperties: false,
@@ -768,7 +800,11 @@ const tools: ToolDefinition[] = [
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/fill", { ref: args.ref, value: args.value }), "Field filled.");
+      return successResult(await api("POST", "/v1/browse/fill", {
+        ref: args.ref,
+        value: args.value,
+        ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
+      }), "Field filled.");
     },
   },
   {
@@ -776,14 +812,20 @@ const tools: ToolDefinition[] = [
     description: "Type text with key events in the active browse session.",
     inputSchema: {
       type: "object",
-      properties: { text: { type: "string", description: "Text to type." } },
+      properties: {
+        text: { type: "string", description: "Text to type." },
+        session_id: { type: "string", description: "Optional browse session id." },
+      },
       required: ["text"],
       additionalProperties: false,
     },
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/type", { text: args.text }), "Text typed.");
+      return successResult(await api("POST", "/v1/browse/type", {
+        text: args.text,
+        ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
+      }), "Text typed.");
     },
   },
   {
@@ -791,14 +833,20 @@ const tools: ToolDefinition[] = [
     description: "Press a key in the active browse session.",
     inputSchema: {
       type: "object",
-      properties: { key: { type: "string", description: "Keyboard key, e.g. Enter or Tab." } },
+      properties: {
+        key: { type: "string", description: "Keyboard key, e.g. Enter or Tab." },
+        session_id: { type: "string", description: "Optional browse session id." },
+      },
       required: ["key"],
       additionalProperties: false,
     },
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/press", { key: args.key }), "Key press sent.");
+      return successResult(await api("POST", "/v1/browse/press", {
+        key: args.key,
+        ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
+      }), "Key press sent.");
     },
   },
   {
@@ -809,6 +857,7 @@ const tools: ToolDefinition[] = [
       properties: {
         ref: { type: "string", description: "Element ref from unbrowse_snap." },
         value: { type: "string", description: "Option value to select." },
+        session_id: { type: "string", description: "Optional browse session id." },
       },
       required: ["ref", "value"],
       additionalProperties: false,
@@ -816,7 +865,11 @@ const tools: ToolDefinition[] = [
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/select", { ref: args.ref, value: args.value }), "Option selected.");
+      return successResult(await api("POST", "/v1/browse/select", {
+        ref: args.ref,
+        value: args.value,
+        ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
+      }), "Option selected.");
     },
   },
   {
@@ -827,6 +880,7 @@ const tools: ToolDefinition[] = [
       properties: {
         direction: { type: "string", enum: ["up", "down", "left", "right"], description: "Scroll direction." },
         amount: { type: "number", description: "Optional scroll amount." },
+        session_id: { type: "string", description: "Optional browse session id." },
       },
       additionalProperties: false,
     },
@@ -836,6 +890,7 @@ const tools: ToolDefinition[] = [
       const body: Record<string, unknown> = {};
       if (typeof args.direction === "string") body.direction = args.direction;
       if (typeof args.amount === "number") body.amount = args.amount;
+      if (typeof args.session_id === "string") body.session_id = args.session_id;
       return successResult(await api("POST", "/v1/browse/scroll", body), "Scroll applied.");
     },
   },
@@ -850,6 +905,7 @@ const tools: ToolDefinition[] = [
         wait_for: { type: "string", description: "Optional URL/path fragment to wait for after submit." },
         same_origin_fetch_fallback: { type: "boolean", description: "Enable fetch+rehydrate fallback. Default true." },
         timeout_ms: { type: "number", description: "Optional submit timeout in milliseconds." },
+        session_id: { type: "string", description: "Optional browse session id." },
       },
       additionalProperties: false,
     },
@@ -857,7 +913,7 @@ const tools: ToolDefinition[] = [
     handler: async (args) => {
       await ensureServerReady();
       const body: Record<string, unknown> = {};
-      for (const key of ["form_selector", "submit_selector", "wait_for", "same_origin_fetch_fallback", "timeout_ms"] as const) {
+      for (const key of ["form_selector", "submit_selector", "wait_for", "same_origin_fetch_fallback", "timeout_ms", "session_id"] as const) {
         if (args[key] !== undefined) body[key] = args[key];
       }
       const result = await api("POST", "/v1/browse/submit", body) as Record<string, unknown>;
@@ -868,11 +924,15 @@ const tools: ToolDefinition[] = [
   {
     name: "unbrowse_screenshot",
     description: "Capture a PNG screenshot of the current browse tab.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { session_id: { type: "string", description: "Optional browse session id." } },
+      additionalProperties: false,
+    },
     annotations: { readOnlyHint: true },
-    handler: async () => {
+    handler: async (args) => {
       await ensureServerReady();
-      const result = await api("GET", "/v1/browse/screenshot") as Record<string, unknown>;
+      const result = await api("GET", "/v1/browse/screenshot", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined) as Record<string, unknown>;
       if (typeof result.screenshot !== "string") return errorResult("screenshot data missing", result);
       return imageResult(result.screenshot, { tab_id: result.tab_id ?? null });
     },
@@ -880,31 +940,43 @@ const tools: ToolDefinition[] = [
   {
     name: "unbrowse_text",
     description: "Read the current page text from the active browse session.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { session_id: { type: "string", description: "Optional browse session id." } },
+      additionalProperties: false,
+    },
     annotations: { readOnlyHint: true },
-    handler: async () => {
+    handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("GET", "/v1/browse/text"), "Current page text.");
+      return successResult(await api("GET", "/v1/browse/text", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Current page text.");
     },
   },
   {
     name: "unbrowse_markdown",
     description: "Read the current page converted to markdown from the active browse session.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { session_id: { type: "string", description: "Optional browse session id." } },
+      additionalProperties: false,
+    },
     annotations: { readOnlyHint: true },
-    handler: async () => {
+    handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("GET", "/v1/browse/markdown"), "Current page markdown.");
+      return successResult(await api("GET", "/v1/browse/markdown", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Current page markdown.");
     },
   },
   {
     name: "unbrowse_cookies",
     description: "Inspect cookies visible to the current browse tab.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { session_id: { type: "string", description: "Optional browse session id." } },
+      additionalProperties: false,
+    },
     annotations: { readOnlyHint: true },
-    handler: async () => {
+    handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("GET", "/v1/browse/cookies"), "Current page cookies.");
+      return successResult(await api("GET", "/v1/browse/cookies", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Current page cookies.");
     },
   },
   {
@@ -912,34 +984,48 @@ const tools: ToolDefinition[] = [
     description: "Evaluate JavaScript in the active browse tab. Use sparingly; it can mutate page state.",
     inputSchema: {
       type: "object",
-      properties: { expression: { type: "string", description: "JavaScript expression to evaluate." } },
+      properties: {
+        expression: { type: "string", description: "JavaScript expression to evaluate." },
+        session_id: { type: "string", description: "Optional browse session id." },
+      },
       required: ["expression"],
       additionalProperties: false,
     },
     annotations: { destructiveHint: true },
     handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/eval", { expression: args.expression }), "JavaScript evaluation result.");
+      return successResult(await api("POST", "/v1/browse/eval", {
+        expression: args.expression,
+        ...(typeof args.session_id === "string" ? { session_id: args.session_id } : {}),
+      }), "JavaScript evaluation result.");
     },
   },
   {
     name: "unbrowse_sync",
     description: "Flush captured network traffic into the local skill cache without closing the tab.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { session_id: { type: "string", description: "Optional browse session id." } },
+      additionalProperties: false,
+    },
     annotations: { destructiveHint: true },
-    handler: async () => {
+    handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/sync"), "Browse traffic synchronized.");
+      return successResult(await api("POST", "/v1/browse/sync", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Browse traffic synchronized.");
     },
   },
   {
     name: "unbrowse_close",
     description: "Close the active browse session, flush capture, save auth, and index what was learned.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: { session_id: { type: "string", description: "Optional browse session id." } },
+      additionalProperties: false,
+    },
     annotations: { destructiveHint: true },
-    handler: async () => {
+    handler: async (args) => {
       await ensureServerReady();
-      return successResult(await api("POST", "/v1/browse/close"), "Browse session closed.");
+      return successResult(await api("POST", "/v1/browse/close", typeof args.session_id === "string" ? { session_id: args.session_id } : undefined), "Browse session closed.");
     },
   },
 ];

@@ -144,9 +144,39 @@ export async function tryFirstPassBrowserAction(
   const deadline = t0 + timeoutMs;
   const externalSignal = options?.signal;
 
+  function createAbortError(): Error {
+    const error = new Error("aborted");
+    error.name = "AbortError";
+    return error;
+  }
+
   function isAborted(): boolean {
     if (externalSignal?.aborted) return true;
     return Date.now() >= deadline;
+  }
+
+  function abortRace<T>(): Promise<T> {
+    if (isAborted()) return Promise.reject(createAbortError());
+    return new Promise<T>((_, reject) => {
+      const remaining = Math.max(0, deadline - Date.now());
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(createAbortError());
+      }, remaining);
+      const onAbort = () => {
+        cleanup();
+        reject(createAbortError());
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        externalSignal?.removeEventListener("abort", onAbort);
+      };
+      externalSignal?.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
+  async function runBounded<T>(fn: () => Promise<T>): Promise<T> {
+    return await Promise.race([fn(), abortRace<T>()]);
   }
 
   async function sleepMs(ms: number): Promise<void> {
@@ -154,14 +184,16 @@ export async function tryFirstPassBrowserAction(
     const actual = Math.min(ms, Math.max(0, remaining));
     if (actual <= 0) return;
     return new Promise<void>((resolve) => {
-      const tid = setTimeout(resolve, actual);
-      if (externalSignal) {
-        const cleanup = () => {
-          clearTimeout(tid);
-          resolve();
-        };
-        externalSignal.addEventListener("abort", cleanup, { once: true });
-      }
+      let settled = false;
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(tid);
+        externalSignal?.removeEventListener("abort", cleanup);
+        resolve();
+      };
+      const tid = setTimeout(cleanup, actual);
+      externalSignal?.addEventListener("abort", cleanup, { once: true });
     });
   }
 
@@ -174,20 +206,19 @@ export async function tryFirstPassBrowserAction(
     }
 
     // Ensure kuri is running
-    await kuri.start();
-    await kuri.discoverTabs();
+    await runBounded(() => kuri.start());
+    await runBounded(() => kuri.discoverTabs());
 
     if (isAborted()) {
       return miss("aborted-after-start", intentClass, t0);
     }
 
-    // Open a fresh tab (fall back to default)
+    // Open a fresh tab; never reuse Kuri's implicit default tab.
     try {
-      tabId = await kuri.newTab("about:blank");
+      tabId = await runBounded(() => kuri.newTab("about:blank"));
       createdFreshTab = !!tabId;
-      if (!tabId) tabId = await kuri.getDefaultTab();
     } catch {
-      tabId = await kuri.getDefaultTab();
+      tabId = undefined;
     }
 
     if (!tabId) {
@@ -200,10 +231,10 @@ export async function tryFirstPassBrowserAction(
     }
 
     // Start HAR recording before navigation to capture all requests
-    await kuri.harStart(tabId);
+    await runBounded(() => kuri.harStart(tabId));
 
     // Navigate to the target URL
-    await kuri.navigate(tabId, contextUrl);
+    await runBounded(() => kuri.navigate(tabId, contextUrl));
     await sleepMs(1_500);
 
     if (isAborted()) {
@@ -222,7 +253,7 @@ export async function tryFirstPassBrowserAction(
             ? params.q
             : intent;
       try {
-        const searchResult = await kuri.evaluate(
+        const searchResult = await runBounded(() => kuri.evaluate(
           tabId,
           `(function(){
             var sel = ${JSON.stringify(action.selector)};
@@ -239,7 +270,7 @@ export async function tryFirstPassBrowserAction(
             el.dispatchEvent(new KeyboardEvent('keyup', {key:'Enter',keyCode:13,bubbles:true}));
             return 'search-enter';
           })()`,
-        );
+        ));
         actionTaken =
           typeof searchResult === "string" ? searchResult : "search-attempted";
       } catch {
@@ -247,7 +278,7 @@ export async function tryFirstPassBrowserAction(
       }
     } else if (action.type === "click" && action.selector) {
       try {
-        const clickResult = await kuri.evaluate(
+        const clickResult = await runBounded(() => kuri.evaluate(
           tabId,
           `(function(){
             var el = document.querySelector(${JSON.stringify(action.selector)});
@@ -255,7 +286,7 @@ export async function tryFirstPassBrowserAction(
             el.click();
             return 'clicked';
           })()`,
-        );
+        ));
         actionTaken =
           typeof clickResult === "string" ? clickResult : "click-attempted";
       } catch {
@@ -275,7 +306,7 @@ export async function tryFirstPassBrowserAction(
     // Stop HAR recording and collect entries
     let harEntries: KuriHarEntry[] = [];
     try {
-      const harResult = await kuri.harStop(tabId);
+      const harResult = await runBounded(() => kuri.harStop(tabId));
       harEntries = harResult.entries ?? [];
     } catch {
       // non-fatal — HAR collection failed
@@ -312,7 +343,7 @@ export async function tryFirstPassBrowserAction(
       actionTaken,
       intentClass,
       timeMs: Date.now() - t0,
-      tabId: hit ? undefined : tabId,  // keep tab alive on miss
+      tabId: hit ? undefined : tabId, // keep tab alive on miss
     };
   } catch (err) {
     // On any error, cleanup and return miss — never throw
@@ -343,7 +374,10 @@ export async function tryFirstPassBrowserAction(
 
 async function safeHarStop(tabId: string): Promise<void> {
   try {
-    await kuri.harStop(tabId);
+    await Promise.race([
+      kuri.harStop(tabId),
+      new Promise<void>((resolve) => setTimeout(resolve, 250)),
+    ]);
   } catch {
     /* best-effort */
   }
@@ -351,11 +385,10 @@ async function safeHarStop(tabId: string): Promise<void> {
 
 async function cleanupTab(tabId: string, close: boolean): Promise<void> {
   try {
-    if (close) {
-      await kuri.closeTab(tabId);
-    } else {
-      await kuri.navigate(tabId, "about:blank");
-    }
+    await Promise.race([
+      close ? kuri.closeTab(tabId) : kuri.navigate(tabId, "about:blank"),
+      new Promise<void>((resolve) => setTimeout(resolve, 250)),
+    ]);
   } catch {
     /* best-effort */
   }
