@@ -950,6 +950,13 @@ export interface AnalyticsSessionPayload {
   cached_skill_calls?: number;
   fresh_index_calls?: number;
   browser_mode?: "default" | "replaced" | "manual" | "unknown";
+  success?: boolean;
+  source?: string;
+  time_saved_ms?: number;
+  time_saved_pct?: number;
+  tokens_saved?: number;
+  tokens_saved_pct?: number;
+  cost_saved_uc?: number;
 }
 
 /**

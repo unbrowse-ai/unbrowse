@@ -24,6 +24,7 @@ import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { mergeAgentReview } from "../indexer/index.js";
+import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { type BrowseSession, getOrCreateBrowseSession, isRecoverableBrowseFailure, withRecoveredBrowseSession } from "./browse-session.js";
@@ -35,15 +36,15 @@ const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbro
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
 
 type AnalyticsSessionResult = {
-  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version">;
-  timing?: Pick<OrchestrationTiming, "source">;
+  trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct">;
+  timing?: Pick<OrchestrationTiming, "source" | "time_saved_ms" | "time_saved_pct" | "cost_saved_uc" | "tokens_saved" | "tokens_saved_pct">;
   source?: OrchestratorResult["source"];
 };
 
 export function buildAnalyticsSessionPayload(
   result: AnalyticsSessionResult,
   opts: {
-    browser_mode: AnalyticsSessionPayload["browser_mode"];
+    browser_mode?: AnalyticsSessionPayload["browser_mode"];
     discovery_queries: number;
     cached_skill_calls?: number;
     fresh_index_calls?: number;
@@ -51,6 +52,11 @@ export function buildAnalyticsSessionPayload(
 ): AnalyticsSessionPayload {
   const source = result.timing?.source ?? result.source;
   const apiCalls = result.trace.endpoint_id ? 1 : 0;
+  const browserMode = opts.browser_mode ?? (
+    source === "live-capture" || source === "first-pass" || source === "browser-action"
+      ? "default"
+      : "replaced"
+  );
   const cachedSkillCalls = opts.cached_skill_calls ?? (
     apiCalls > 0 && source !== "live-capture" && source !== "first-pass" ? 1 : 0
   );
@@ -67,7 +73,14 @@ export function buildAnalyticsSessionPayload(
     discovery_queries: opts.discovery_queries,
     cached_skill_calls: cachedSkillCalls,
     fresh_index_calls: freshIndexCalls,
-    browser_mode: opts.browser_mode ?? "unknown",
+    browser_mode: browserMode,
+    success: result.trace.success ?? true,
+    source,
+    time_saved_ms: result.timing?.time_saved_ms,
+    time_saved_pct: result.timing?.time_saved_pct,
+    tokens_saved: result.trace.tokens_saved ?? result.timing?.tokens_saved,
+    tokens_saved_pct: result.trace.tokens_saved_pct ?? result.timing?.tokens_saved_pct,
+    cost_saved_uc: result.timing?.cost_saved_uc,
   };
 }
 
@@ -342,7 +355,11 @@ export async function registerRoutes(app: FastifyInstance) {
       const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture, client_scope: clientScope });
 
       // Surface timing breakdown
-      const res = result as unknown as Record<string, unknown>;
+      const res = attachAgentOutcomeHints({ ...result } as Record<string, unknown>, {
+        skill: result.skill,
+        endpointId: result.trace.endpoint_id,
+        timing: result.timing,
+      });
       if (result.timing) {
         res.timing = result.timing;
       }
@@ -355,11 +372,10 @@ export async function registerRoutes(app: FastifyInstance) {
       }
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
-        browser_mode: "replaced",
         discovery_queries: 1,
       })).catch(() => {});
 
-      return reply.send(result);
+      return reply.send(res);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
@@ -630,16 +646,22 @@ export async function registerRoutes(app: FastifyInstance) {
             recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
           }
           await recordAnalyticsSession(buildAnalyticsSessionPayload(freshResult, {
-            browser_mode: "manual",
             discovery_queries: 1,
           })).catch(() => {});
-          return reply.send({
+          const recovered = attachAgentOutcomeHints({
             ...freshResult,
             _recovery: {
               reason: "stale_endpoint_404",
               original_skill_id: skill_id,
               message: "Original endpoint returned 404. Auto-recovered with fresh capture.",
             },
+          } as Record<string, unknown>, {
+            skill: freshResult.skill ?? skill,
+            endpointId: freshResult.trace.endpoint_id,
+            timing: freshResult.timing,
+          });
+          return reply.send({
+            ...recovered,
           });
         } catch {
           // Recovery failed — return original 404 with guidance
@@ -647,13 +669,14 @@ export async function registerRoutes(app: FastifyInstance) {
       }
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(execResult, {
-        browser_mode: "manual",
         discovery_queries: 0,
-        cached_skill_calls: execResult.trace.endpoint_id ? 1 : 0,
-        fresh_index_calls: 0,
       })).catch(() => {});
 
-      return reply.send(execResult);
+      const response = attachAgentOutcomeHints({ ...execResult } as Record<string, unknown>, {
+        skill,
+        endpointId: execResult.trace.endpoint_id,
+      });
+      return reply.send(response);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }

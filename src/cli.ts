@@ -156,9 +156,50 @@ function slimTrace(obj: Record<string, unknown>): Record<string, unknown> {
   };
   if ("result" in obj) out.result = obj.result;
   if (obj.available_endpoints) out.available_endpoints = obj.available_endpoints;
+  if (obj.impact) out.impact = obj.impact;
+  if (obj.next_actions) out.next_actions = obj.next_actions;
   if (obj.source) out.source = obj.source;
   if (obj.skill) out.skill = obj.skill;
   return out;
+}
+
+function formatSavedDuration(ms: number): string {
+  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
+  if (ms >= 10_000) return `${Math.round(ms / 1000)}s`;
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${ms}ms`;
+}
+
+function emitImpactSummary(result: Record<string, unknown>): void {
+  const impact = result.impact as Record<string, unknown> | undefined;
+  if (!impact) return;
+
+  const timeSavedMs = typeof impact.time_saved_ms === "number" ? impact.time_saved_ms : 0;
+  const tokensSaved = typeof impact.tokens_saved === "number" ? impact.tokens_saved : 0;
+  const timeSavedPct = typeof impact.time_saved_pct === "number" ? impact.time_saved_pct : 0;
+  const tokensSavedPct = typeof impact.tokens_saved_pct === "number" ? impact.tokens_saved_pct : 0;
+  const browserAvoided = impact.browser_avoided === true;
+  if (timeSavedMs <= 0 && tokensSaved <= 0 && !browserAvoided) return;
+
+  const parts: string[] = [];
+  if (timeSavedMs > 0) parts.push(`${formatSavedDuration(timeSavedMs)} saved (${timeSavedPct}% faster)`);
+  if (tokensSaved > 0) parts.push(`${tokensSaved.toLocaleString("en-US")} tokens saved (${tokensSavedPct}% less context)`);
+  if (browserAvoided) parts.push("browser avoided");
+  info(parts.join(" • "));
+}
+
+function emitNextActionSummary(result: Record<string, unknown>): void {
+  const nextActions = Array.isArray(result.next_actions)
+    ? result.next_actions as Array<Record<string, unknown>>
+    : [];
+  if (nextActions.length === 0) return;
+  info("Likely next actions:");
+  for (const action of nextActions.slice(0, 3)) {
+    const command = typeof action.command === "string" ? action.command : "";
+    const title = typeof action.title === "string" ? action.title : (action.endpoint_id as string | undefined) ?? "next step";
+    const why = typeof action.why === "string" ? action.why : "";
+    info(`  ${command || title}${why ? `  # ${why}` : ""}`);
+  }
 }
 
 
@@ -361,6 +402,8 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     }
 
     result = slimTrace(result);
+    emitImpactSummary(result);
+    emitNextActionSummary(result);
 
     const skill = result.skill as Record<string, unknown> | undefined;
     const trace = result.trace as Record<string, unknown> | undefined;
@@ -536,6 +579,8 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
 
     // Strip metadata bloat
     result = slimTrace(result);
+    emitImpactSummary(result);
+    emitNextActionSummary(result);
 
     const pathFlag = flags.path as string | undefined;
     const extractFlag = flags.extract as string | undefined;
@@ -546,7 +591,12 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     // --schema: show response structure without data
     if (schemaFlag && !rawFlag) {
       const data = result.result;
-      output({ trace: result.trace, schema: schemaOf(data) }, !!flags.pretty);
+      output({
+        trace: result.trace,
+        schema: schemaOf(data),
+        ...(result.impact ? { impact: result.impact } : {}),
+        ...(result.next_actions ? { next_actions: result.next_actions } : {}),
+      }, !!flags.pretty);
       return;
     }
 
@@ -564,7 +614,13 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       const limited = limitFlag ? extracted.slice(0, limitFlag) : extracted;
 
       const trace = result.trace as Record<string, unknown> | undefined;
-      const out: Record<string, unknown> = { trace: result.trace, data: limited, count: limited.length };
+      const out: Record<string, unknown> = {
+        trace: result.trace,
+        data: limited,
+        count: limited.length,
+        ...(result.impact ? { impact: result.impact } : {}),
+        ...(result.next_actions ? { next_actions: result.next_actions } : {}),
+      };
 
       // Prompt agent to review when this is likely a first-time execute
       if (trace?.skill_id && trace?.endpoint_id && limited.length > 0) {
@@ -582,6 +638,8 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
         const schema = schemaOf(result.result);
         output({
           trace: result.trace,
+          ...(result.impact ? { impact: result.impact } : {}),
+          ...(result.next_actions ? { next_actions: result.next_actions } : {}),
           extraction_hints: {
             message: "Response is large. Use --path/--extract/--limit to filter, or --schema to see structure, or --raw for full response.",
             schema_tree: schema,
