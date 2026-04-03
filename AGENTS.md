@@ -19,6 +19,8 @@ Unbrowse — reverse-engineer any website into reusable API skills. Monorepo wit
 - Durable agent memory lives in `docs/agent-memory.md`. Read it before substantial work.
 - Keep `docs/agent-memory.md` self-updating: when Lewis states a durable preference, recurring correction, decision, workflow, or project fact that will matter later, append a short bullet. Skip one-off noise.
 - If a new lesson would have prevented repeated prompting, write it into `docs/agent-memory.md` before handoff.
+- When shipping new behavior, add or extend end-to-end coverage for that specific behavior on the real Unbrowse path; do not rely only on existing broad suites.
+- Telemetry and analytics storage live in this repo's backend storage path (`statsKV` / `DATABASE_URL`), not a separate module or submodule.
 - For external registry submissions, install docs, and public references, use `unbrowse-ai/unbrowse` — not `unbrowse-ai/unbrowse-dev`
 - Optimize for two things first: accuracy of the chosen endpoint/task, then time to execute the right one. Prefer clean deferral over fast wrong execution.
 - Product-behavior evals/tests must go through the real CLI/orchestrator path (`src/cli.ts`, `resolveAndExecute`). Do not treat raw `captureSession()` or other low-level capture primitives as product-truth tests unless the test is explicitly for capture internals.

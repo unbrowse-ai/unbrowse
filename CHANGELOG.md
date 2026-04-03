@@ -51,6 +51,7 @@
 
 * add MCP stdio smoke coverage for initialize, tool listing, and health tool calls
 * add routing telemetry sanitizer, idempotent backend ingest, and routing analytics regression coverage
+* add a real CLI-to-backend routing telemetry E2E that runs the live orchestrator path, verifies sanitized `routing-event:*` writes, and asserts `/v1/analytics/routing` updates from the emitted session
 * add live landing-funnel end-to-end coverage for signed token attribution, CLI telemetry propagation, analytics rollup, and daily optimizer reweighting
 
 ### Bug Fixes

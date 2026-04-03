@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
+import os from "os";
 
 /**
  * P0/P1 Issue Test Suite
@@ -33,10 +34,17 @@ interface TestResult {
 }
 
 let testResults: TestResult[] = [];
+const tempDirs: string[] = [];
 const UNBROWSE_CLI = path.join(
   process.cwd(),
   "src/cli.ts"
 );
+
+function makeTempDir(prefix: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
 
 // Load test cases from JSON
 function loadTestCases(): TestCase[] {
@@ -62,6 +70,7 @@ async function runUnbrowseTest(
   testCase: TestCase
 ): Promise<{ passed: boolean; error?: string }> {
   return new Promise((resolve) => {
+    const tempRoot = makeTempDir("unbrowse-p0-p1-");
     const args = [
       "resolve",
       "--intent",
@@ -73,6 +82,18 @@ async function runUnbrowseTest(
 
     const proc = spawn("bun", [UNBROWSE_CLI, ...args], {
       cwd: process.cwd(),
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+        UNBROWSE_CONFIG_DIR: path.join(tempRoot, "config"),
+        UNBROWSE_SKILL_CACHE_DIR: path.join(tempRoot, "skill-cache"),
+        UNBROWSE_RUN_DIR: path.join(tempRoot, "run"),
+        TRACES_DIR: path.join(tempRoot, "traces"),
+        UNBROWSE_DISABLE_AUTO_UPDATE: "1",
+        UNBROWSE_NON_INTERACTIVE: "1",
+        UNBROWSE_TOS_ACCEPTED: "1",
+        UNBROWSE_API_KEY: "",
+      },
       timeout: 60000,
     });
 
@@ -200,5 +221,9 @@ describe("P0/P1 Issue Validation Tests (integration)", () => {
     );
     fs.mkdirSync(path.dirname(resultsPath), { recursive: true });
     fs.writeFileSync(resultsPath, JSON.stringify(testResults, null, 2));
+
+    for (const dir of tempDirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
