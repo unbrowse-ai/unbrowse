@@ -142,8 +142,9 @@ jobs:
         run: |
           API_URL="${PREVIEW_API_URL_VAR:-${PREVIEW_API_URL_SECRET:-}}"
           if [ -z "$API_URL" ]; then
-            echo "::error::Missing PREVIEW_API_URL repo variable or secret."
-            exit 1
+            echo "::notice::Skipping preview deploy; missing PREVIEW_API_URL repo variable or secret."
+            echo "skip_preview=1" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "::add-mask::$API_URL"
           echo "preview_api_url=$API_URL" >> "$GITHUB_OUTPUT"
@@ -151,6 +152,7 @@ jobs:
 
       - name: Build frontend for preview
         id: build
+        if: ${{ steps.api-url.outputs.skip_preview != '1' }}
         working-directory: frontend
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api-url.outputs.preview_api_url }}
@@ -158,6 +160,7 @@ jobs:
 
       - name: Upload Cloudflare preview version
         id: upload
+        if: ${{ steps.api-url.outputs.skip_preview != '1' }}
         working-directory: frontend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -170,7 +173,7 @@ jobs:
 
       - name: Parse Wrangler preview output
         id: parse
-        if: ${{ steps.upload.outcome == 'success' }}
+        if: ${{ steps.api-url.outputs.skip_preview != '1' && steps.upload.outcome == 'success' }}
         env:
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-preview-output.jsonl
         run: |
@@ -210,6 +213,7 @@ jobs:
           PREVIEW_MARKER: "<!-- codex-preview-environment -->"
           PR_NUMBER: ${{ needs.context.outputs.pr_number }}
           HEAD_SHA: ${{ needs.context.outputs.head_sha }}
+          SKIP_PREVIEW: ${{ steps.api-url.outputs.skip_preview }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
           PREVIEW_API_URL: ${{ steps.api-url.outputs.preview_api_url }}
@@ -227,9 +231,19 @@ jobs:
             const previewUrl = process.env.PREVIEW_URL || "";
             const previewApiUrl = process.env.PREVIEW_API_URL || "";
             const versionId = process.env.VERSION_ID || "";
+            const previewSkipped = process.env.SKIP_PREVIEW === "1";
 
             let body;
-            if (buildOutcome === "success" && uploadOutcome === "success") {
+            if (previewSkipped) {
+              body = [
+                marker,
+                "## Preview Environment",
+                "",
+                "Preview skipped because `PREVIEW_API_URL` is not configured for this repository.",
+                "",
+                "Set the repo variable or secret, then rerun the `Preview` workflow.",
+              ].join("\n");
+            } else if (buildOutcome === "success" && uploadOutcome === "success") {
               const stableUrl = previewAliasUrl || previewUrl;
               const commitUrl = previewUrl || previewAliasUrl;
               body = [
