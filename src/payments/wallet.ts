@@ -1,3 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 /**
  * Wallet precheck — lobster.cash compatible.
  *
@@ -12,6 +16,72 @@ export type WalletCheckResult = {
   provider?: string;
 };
 
+type WalletContext = {
+  wallet_address?: string;
+  wallet_provider?: string;
+};
+
+type LobsterAgentRecord = {
+  walletAddress?: unknown;
+  wallet_address?: unknown;
+  authorizedWallets?: {
+    solana?: unknown;
+    [key: string]: unknown;
+  };
+};
+
+type LobsterAgentsFile = {
+  activeAgentId?: unknown;
+  agents?: Record<string, LobsterAgentRecord> | LobsterAgentRecord[];
+};
+
+function asNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function getLobsterWalletFromLocalConfig(): string | undefined {
+  const agentsPath = join(process.env.HOME || homedir(), ".lobster", "agents.json");
+  if (!existsSync(agentsPath)) return undefined;
+
+  try {
+    const raw = JSON.parse(readFileSync(agentsPath, "utf8")) as LobsterAgentsFile;
+    const activeAgentId = asNonEmptyString(raw.activeAgentId);
+    const activeAgent = Array.isArray(raw.agents)
+      ? raw.agents.find((agent) => asNonEmptyString((agent as { id?: unknown }).id) === activeAgentId)
+      : activeAgentId
+        ? raw.agents?.[activeAgentId]
+        : undefined;
+
+    return asNonEmptyString(activeAgent?.authorizedWallets?.solana)
+      ?? asNonEmptyString(activeAgent?.walletAddress)
+      ?? asNonEmptyString(activeAgent?.wallet_address);
+  } catch {
+    return undefined;
+  }
+}
+
+export function getWalletContext(): WalletContext {
+  const lobsterWallet = asNonEmptyString(process.env.LOBSTER_WALLET_ADDRESS);
+  if (lobsterWallet) {
+    return { wallet_address: lobsterWallet, wallet_provider: "lobster.cash" };
+  }
+
+  const genericWallet = asNonEmptyString(process.env.AGENT_WALLET_ADDRESS);
+  if (genericWallet) {
+    return {
+      wallet_address: genericWallet,
+      wallet_provider: asNonEmptyString(process.env.AGENT_WALLET_PROVIDER),
+    };
+  }
+
+  const localLobsterWallet = getLobsterWalletFromLocalConfig();
+  if (localLobsterWallet) {
+    return { wallet_address: localLobsterWallet, wallet_provider: "lobster.cash" };
+  }
+
+  return {};
+}
+
 /**
  * Check if the agent has a wallet configured.
  *
@@ -19,15 +89,10 @@ export type WalletCheckResult = {
  * Does NOT create or modify wallet state.
  */
 export function checkWalletConfigured(): WalletCheckResult {
-  // lobster.cash plugin sets these when wallet is paired
-  if (process.env.LOBSTER_WALLET_ADDRESS) {
-    return { configured: true, provider: "lobster.cash" };
-  }
-
-  // Generic wallet context (other providers)
-  if (process.env.AGENT_WALLET_ADDRESS) {
-    return { configured: true, provider: process.env.AGENT_WALLET_PROVIDER ?? "unknown" };
-  }
-
-  return { configured: false };
+  const wallet = getWalletContext();
+  if (!wallet.wallet_address) return { configured: false };
+  return {
+    configured: true,
+    provider: wallet.wallet_provider ?? "unknown",
+  };
 }

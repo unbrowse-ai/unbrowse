@@ -1,4 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   checkPaymentRequirement,
   resolveUnpaidAccess,
@@ -88,12 +91,20 @@ describe("checkPaymentRequirement", () => {
 
 describe("checkWalletConfigured", () => {
   const origEnv = { ...process.env };
+  const originalHome = process.env.HOME;
+
+  function setEmptyHome(): void {
+    process.env.HOME = mkdtempSync(path.join(os.tmpdir(), "unbrowse-wallet-home-"));
+  }
 
   afterEach(() => {
     process.env = { ...origEnv };
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
   });
 
   test("returns configured=false when no wallet env vars set", () => {
+    setEmptyHome();
     delete process.env.LOBSTER_WALLET_ADDRESS;
     delete process.env.AGENT_WALLET_ADDRESS;
     const result = checkWalletConfigured();
@@ -102,6 +113,7 @@ describe("checkWalletConfigured", () => {
   });
 
   test("detects lobster.cash wallet", () => {
+    setEmptyHome();
     process.env.LOBSTER_WALLET_ADDRESS = "So11111111111111111111111111111111111111112";
     const result = checkWalletConfigured();
     expect(result.configured).toBe(true);
@@ -109,6 +121,7 @@ describe("checkWalletConfigured", () => {
   });
 
   test("detects generic agent wallet", () => {
+    setEmptyHome();
     delete process.env.LOBSTER_WALLET_ADDRESS;
     process.env.AGENT_WALLET_ADDRESS = "0xdeadbeef";
     process.env.AGENT_WALLET_PROVIDER = "custom-wallet";
@@ -118,6 +131,7 @@ describe("checkWalletConfigured", () => {
   });
 
   test("lobster.cash takes priority over generic wallet", () => {
+    setEmptyHome();
     process.env.LOBSTER_WALLET_ADDRESS = "lobster-addr";
     process.env.AGENT_WALLET_ADDRESS = "generic-addr";
     const result = checkWalletConfigured();
@@ -125,12 +139,43 @@ describe("checkWalletConfigured", () => {
   });
 
   test("exports generic wallet context for payout sync and payment proof", () => {
+    setEmptyHome();
     delete process.env.LOBSTER_WALLET_ADDRESS;
     process.env.AGENT_WALLET_ADDRESS = "0xfeedface";
     process.env.AGENT_WALLET_PROVIDER = "custom-wallet";
     expect(getLocalWalletContext()).toEqual({
       wallet_address: "0xfeedface",
       wallet_provider: "custom-wallet",
+    });
+  });
+
+  test("detects lobster.cash wallet from local agent config", () => {
+    delete process.env.LOBSTER_WALLET_ADDRESS;
+    delete process.env.AGENT_WALLET_ADDRESS;
+    delete process.env.AGENT_WALLET_PROVIDER;
+
+    const homeDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-lobster-"));
+    process.env.HOME = homeDir;
+    const lobsterDir = path.join(homeDir, ".lobster");
+    mkdirSync(lobsterDir, { recursive: true });
+    writeFileSync(path.join(lobsterDir, "agents.json"), JSON.stringify({
+      activeAgentId: "agent-1",
+      agents: {
+        "agent-1": {
+          authorizedWallets: {
+            solana: "So11111111111111111111111111111111111111112",
+          },
+        },
+      },
+    }));
+
+    expect(checkWalletConfigured()).toEqual({
+      configured: true,
+      provider: "lobster.cash",
+    });
+    expect(getLocalWalletContext()).toEqual({
+      wallet_address: "So11111111111111111111111111111111111111112",
+      wallet_provider: "lobster.cash",
     });
   });
 });
@@ -258,12 +303,16 @@ describe("interpretPaymentResult", () => {
 
 describe("payment gate integration", () => {
   const origEnv = { ...process.env };
+  const originalHome = process.env.HOME;
 
   afterEach(() => {
     process.env = { ...origEnv };
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
   });
 
   test("full flow: no wallet -> wallet_not_configured -> indexing_fallback", async () => {
+    process.env.HOME = mkdtempSync(path.join(os.tmpdir(), "unbrowse-wallet-home-"));
     delete process.env.LOBSTER_WALLET_ADDRESS;
     delete process.env.AGENT_WALLET_ADDRESS;
     delete process.env.UNBROWSE_SKIP_PAYMENT;

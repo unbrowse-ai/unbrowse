@@ -13,6 +13,7 @@ import type {
   ValidationResult,
 } from "../types/index.js";
 import { ensureCascadeSplitForSkill } from "../payments/cascade.js";
+import { getWalletContext } from "../payments/wallet.js";
 import { attributeLifecycle } from "../runtime/lifecycle.js";
 import type { LifecycleEvent } from "../runtime/lifecycle.js";
 import { detectHostEnvironment } from "../runtime/browser-host.js";
@@ -92,8 +93,6 @@ interface InstallTelemetryState {
   install_id: string;
   first_seen_at: string;
   cli_first_seen_reported_at?: string;
-  landing_token?: string;
-  landing_token_seen_at?: string;
 }
 
 type TelemetryHostType = "cli" | "codex" | "openclaw" | "mcp" | "native" | "unknown";
@@ -151,18 +150,10 @@ function createInstallTelemetryState(): InstallTelemetryState {
 
 function getOrCreateInstallTelemetryState(): InstallTelemetryState {
   const existing = loadInstallTelemetryState();
-  const state = existing?.install_id ? existing : createInstallTelemetryState();
-  const landingToken = process.env.UNBROWSE_LANDING_TOKEN?.trim();
-  if (landingToken && state.landing_token !== landingToken) {
-    state.landing_token = landingToken;
-    state.landing_token_seen_at = new Date().toISOString();
-    saveInstallTelemetryState(state);
-    return state;
-  }
-  if (!existing?.install_id) {
-    saveInstallTelemetryState(state);
-  }
-  return state;
+  if (existing?.install_id) return existing;
+  const created = createInstallTelemetryState();
+  saveInstallTelemetryState(created);
+  return created;
 }
 
 export function getInstallId(): string {
@@ -212,7 +203,6 @@ export async function ensureCliInstallTracked(hostType = detectTelemetryHostType
   const createdAt = new Date().toISOString();
   const ok = await postTelemetry("/v1/telemetry/install", {
     install_id: state.install_id,
-    landing_token: state.landing_token,
     source: "cli-first-seen",
     host_type: hostType,
     skill: "unbrowse",
@@ -243,7 +233,6 @@ export async function recordInstallTelemetryEvent(
   const createdAt = options?.createdAt ?? new Date().toISOString();
   await postTelemetry("/v1/telemetry/install", {
     install_id: getInstallId(),
-    landing_token: getOrCreateInstallTelemetryState().landing_token,
     source,
     host_type: options?.hostType ?? detectTelemetryHostType(),
     skill: options?.skill ?? "unbrowse",
@@ -268,7 +257,6 @@ export async function recordFunnelTelemetryEvent(
   await postTelemetry("/v1/telemetry/events", {
     install_id: getInstallId(),
     session_id: options?.sessionId,
-    landing_token: getOrCreateInstallTelemetryState().landing_token,
     name,
     source: options?.source ?? "cli",
     host_type: options?.hostType ?? detectTelemetryHostType(),
@@ -297,20 +285,7 @@ export function resolveAgentName(preferredEmail: string | undefined, fallbackNam
 }
 
 export function getLocalWalletContext(): { wallet_address?: string; wallet_provider?: string } {
-  const lobsterWallet = process.env.LOBSTER_WALLET_ADDRESS?.trim();
-  if (lobsterWallet) {
-    return { wallet_address: lobsterWallet, wallet_provider: "lobster.cash" };
-  }
-
-  const genericWallet = process.env.AGENT_WALLET_ADDRESS?.trim();
-  if (genericWallet) {
-    return {
-      wallet_address: genericWallet,
-      wallet_provider: process.env.AGENT_WALLET_PROVIDER?.trim() || undefined,
-    };
-  }
-
-  return {};
+  return getWalletContext();
 }
 
 export function getApiKey(): string {
@@ -539,7 +514,8 @@ async function promptAgentEmail(defaultName: string): Promise<string> {
   }
 }
 
-async function checkTosStatus(): Promise<void> {
+async function checkTosStatus(options?: { exitOnFailure?: boolean }): Promise<boolean> {
+  const exitOnFailure = options?.exitOnFailure ?? true;
   const config = loadConfig();
 
   let tosInfo: { version: string; summary: string; url: string };
@@ -548,11 +524,11 @@ async function checkTosStatus(): Promise<void> {
   } catch {
     // Offline — allow usage with whatever ToS was previously accepted.
     // Backend will enforce on next actual API call anyway.
-    return;
+    return true;
   }
 
   if (config?.tos_accepted_version === tosInfo.version) {
-    return; // Already accepted current version
+    return true; // Already accepted current version
   }
 
   // Need re-acceptance
@@ -560,7 +536,8 @@ async function checkTosStatus(): Promise<void> {
   const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
   if (!accepted) {
     console.log("You must accept the updated Terms of Service to continue using Unbrowse.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
+    return false;
   }
 
   // Call accept-tos endpoint
@@ -578,17 +555,20 @@ async function checkTosStatus(): Promise<void> {
     console.warn(`Failed to record ToS acceptance: ${(err as Error).message}`);
     // Don't block — backend will enforce on next call
   }
+  return true;
 }
 
 /** Auto-register with the backend if no API key is configured. Persists to ~/.unbrowse/config.json. */
-export async function ensureRegistered(options?: { promptForEmail?: boolean }): Promise<void> {
+export async function ensureRegistered(options?: { promptForEmail?: boolean; exitOnFailure?: boolean }): Promise<void> {
   if (LOCAL_ONLY) return;
+  const exitOnFailure = options?.exitOnFailure ?? true;
   const usableKey = await findUsableApiKey();
   if (usableKey) {
     if (usableKey.source === "config") {
       console.log("[unbrowse] Restored saved registration.");
     }
-    await checkTosStatus();
+    const accepted = await checkTosStatus({ exitOnFailure });
+    if (!accepted) return;
     try {
       const profile = await getMyProfile();
       const wallet = getLocalWalletContext();
@@ -613,7 +593,8 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   const accepted = await promptTosAcceptance(tosInfo.summary, tosInfo.url);
   if (!accepted) {
     console.log("You must accept the Terms of Service to use Unbrowse.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
+    return;
   }
 
   // Step 3: Register with ToS version
@@ -649,8 +630,38 @@ export async function ensureRegistered(options?: { promptForEmail?: boolean }): 
   } catch (err) {
     console.warn(`Registration failed: ${(err as Error).message}`);
     console.warn("Set UNBROWSE_API_KEY manually or try again.");
-    process.exit(1);
+    if (exitOnFailure) process.exit(1);
   }
+}
+
+let backgroundRegistrationPromise: Promise<void> | null = null;
+
+export function startBackgroundRegistration(options?: { promptForEmail?: boolean }): Promise<void> {
+  if (LOCAL_ONLY) return Promise.resolve();
+  if (backgroundRegistrationPromise) return backgroundRegistrationPromise;
+  backgroundRegistrationPromise = ensureRegistered({
+    promptForEmail: options?.promptForEmail,
+    exitOnFailure: false,
+  })
+    .catch((err) => {
+      console.warn(`[unbrowse] Background registration failed: ${(err as Error).message}`);
+    })
+    .finally(() => {
+      backgroundRegistrationPromise = null;
+    });
+  return backgroundRegistrationPromise;
+}
+
+export async function waitForBackgroundRegistration(timeoutMs = 0): Promise<void> {
+  if (!backgroundRegistrationPromise) return;
+  if (timeoutMs <= 0) {
+    await backgroundRegistrationPromise;
+    return;
+  }
+  await Promise.race([
+    backgroundRegistrationPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 // --- Skill CRUD ---
@@ -980,13 +991,6 @@ export interface AnalyticsSessionPayload {
   cached_skill_calls?: number;
   fresh_index_calls?: number;
   browser_mode?: "default" | "replaced" | "manual" | "unknown";
-  success?: boolean;
-  source?: string;
-  time_saved_ms?: number;
-  time_saved_pct?: number;
-  tokens_saved?: number;
-  tokens_saved_pct?: number;
-  cost_saved_uc?: number;
 }
 
 /**
@@ -1099,6 +1103,23 @@ export async function recordOrchestrationPerf(timing: OrchestrationTiming): Prom
   }
   const phaseTotals = Object.fromEntries(attributeLifecycle(events));
   await api("POST", "/v1/stats/perf", { ...timing, phase_totals_ms: phaseTotals });
+}
+
+// --- Analytics Sessions ---
+
+export async function recordAnalyticsSession(session: {
+  session_id: string;
+  started_at: string;
+  completed_at?: string;
+  trace_version?: string;
+  api_calls: number;
+  discovery_queries?: number;
+  cached_skill_calls?: number;
+  fresh_index_calls?: number;
+  browser_mode?: "default" | "replaced" | "manual" | "unknown";
+}): Promise<void> {
+  if (LOCAL_ONLY) return;
+  await api("POST", "/v1/analytics/sessions", session);
 }
 
 // --- Validation ---

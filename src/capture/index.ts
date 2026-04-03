@@ -1067,19 +1067,23 @@ export async function captureSession(
     log("capture", `captured ${jsBundleBodies.size} JS bundles for route scanning`);
 
     const responseBodyCount = responseBodies.size;
+    const capturedRequestUrls = requests.map((request) => request.url);
+    const hasUsefulResponseBodies = hasUsefulCapturedResponses(responseBodies.keys(), url, intent);
+    const hasUsefulCapturedRequests = hasUsefulCapturedResponses(capturedRequestUrls, url, intent);
+    const hasRichCapturedTraffic = requests.length >= 25;
     if (
       isBlockedAppShell(html) &&
       responseBodyCount < 10 &&
-      !hasUsefulCapturedResponses(responseBodies.keys(), url, intent)
+      !hasUsefulResponseBodies &&
+      !hasUsefulCapturedRequests &&
+      !hasRichCapturedTraffic
     ) {
-      // On ephemeral retry, surface a structured auth/block instead of throwing a
-      // generic "failed without returning" error after the second pass.
-      if (options?.forceEphemeral) {
-        const cloudflareBlocked = !!html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html);
-        throw Object.assign(new Error(cloudflareBlocked ? "cloudflare_waf_block" : "blocked_app_shell"), {
+      // On ephemeral retry, if still blocked by Cloudflare WAF, throw auth_required
+      // so the caller can surface a login prompt instead of retrying forever
+      if (options?.forceEphemeral && html && /Cloudflare|cf\.errors\.css|cf-error-details/i.test(html)) {
+        throw Object.assign(new Error("cloudflare_waf_block"), {
           code: "auth_required",
-          login_url: final_url || url,
-          ...(cloudflareBlocked ? { reason: "cloudflare_waf" } : { reason: "blocked_app_shell" }),
+          login_url: url,
         });
       }
       retryFreshTab = true;
