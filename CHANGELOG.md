@@ -9,6 +9,7 @@
 
 ### Bug Fixes
 
+* **ci/deploy**: let `staging` pushes run the repo sanity/unit/backend/CLI gates, deploy the backend to the Wrangler `staging` environment, and only deploy the `frontend-staging` worker when `PREVIEW_API_URL` is configured so integration testing does not accidentally point at the wrong backend
 * harden the npm wrapper so stale fallback installs fail with a precise reinstall command instead of silent runtime crashes
 * return the installed version from `unbrowse --version`
 * repair packaged wrapper execute bits during postinstall and fail fast on stale local-server version mismatches
