@@ -1,14 +1,24 @@
 import Link from "next/link";
 import Image from "next/image";
+import { cookies, headers } from "next/headers";
 import { ChatDemo } from "@/components/chat-demo";
 import { AcquisitionTracker } from "@/components/acquisition-tracker";
 import { InstallInstructions } from "@/components/install-instructions";
+import { LandingAssignmentSync } from "@/components/landing-assignment-sync";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { HeroCTA } from "@/components/hero-cta";
 import { IcpPaths } from "@/components/icp-paths";
+import {
+  FIRST_TOUCH_COOKIE,
+  LANDING_ASSIGNMENT_COOKIE,
+  parseAcquisitionContext,
+  parseLandingAssignment,
+  VISITOR_ID_COOKIE,
+} from "@/lib/acquisition/context";
 import { mergeLandingCopy } from "@/lib/landing/default-copy";
+import { buildLandingRequestContext } from "@/lib/landing/request-context";
 import {
   INSTALL_CMD_GENERIC,
   INSTALL_CMD_MCP,
@@ -117,11 +127,28 @@ export default async function Home({
   searchParams: Promise<{ icp?: string | string[]; variant_id?: string | string[]; experiment_id?: string | string[]; seed?: string | string[] }>;
 }) {
   const params = await searchParams;
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+  const firstTouch = parseAcquisitionContext(cookieStore.get(FIRST_TOUCH_COOKIE)?.value);
+  const assignment = parseLandingAssignment(cookieStore.get(LANDING_ASSIGNMENT_COOKIE)?.value);
+  const visitorId = headerStore.get("x-unbrowse-visitor-id") ?? cookieStore.get(VISITOR_ID_COOKIE)?.value;
+  const landingRequest = buildLandingRequestContext({
+    searchParams: {
+      icp: pickQueryValue(params.icp),
+      variantId: pickQueryValue(params.variant_id),
+      experimentId: pickQueryValue(params.experiment_id),
+      seed: pickQueryValue(params.seed),
+    },
+    visitorId: visitorId ?? undefined,
+    inferredIcp: headerStore.get("x-unbrowse-inferred-icp") ?? undefined,
+    firstTouch,
+    assignment,
+  });
   const selectedVariant = await getLandingVariant({
-    icp: pickQueryValue(params.icp),
-    variantId: pickQueryValue(params.variant_id),
-    experimentId: pickQueryValue(params.experiment_id),
-    seed: pickQueryValue(params.seed),
+    icp: landingRequest.icp,
+    variantId: landingRequest.variantId,
+    experimentId: landingRequest.experimentId,
+    seed: landingRequest.seed,
   });
   const landingCopy = mergeLandingCopy(selectedVariant);
 
@@ -133,6 +160,7 @@ export default async function Home({
       data-landing-experiment-id={landingCopy.experimentId}
       className="relative selection:bg-orange-500/30 overflow-x-hidden"
     >
+      <LandingAssignmentSync />
       <AcquisitionTracker />
       <script
         type="application/ld+json"

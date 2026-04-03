@@ -1,5 +1,6 @@
 import type {
   AcquisitionClickSummary,
+  AcquisitionDimensionSummary,
   AcquisitionReferrerSummary,
   AcquisitionSectionSummary,
   AcquisitionSummary,
@@ -19,6 +20,14 @@ type SessionState = {
   install_command_copied: boolean;
   sections_viewed: Set<string>;
   icp_paths_clicked: Set<string>;
+  acquisition_dimensions: {
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_content?: string;
+    utm_term?: string;
+    inferred_icp?: string;
+  };
 };
 
 type AcquisitionFilter = {
@@ -47,6 +56,28 @@ function normalizeReferrer(value: string | null | undefined): string {
   } catch {
     return "direct";
   }
+}
+
+function assignDimension(
+  state: SessionState,
+  key: keyof SessionState["acquisition_dimensions"],
+  raw: unknown,
+): void {
+  if (state.acquisition_dimensions[key]) return;
+  if (typeof raw !== "string") return;
+  const cleaned = raw.trim();
+  if (!cleaned) return;
+  state.acquisition_dimensions[key] = cleaned.slice(0, 160);
+}
+
+function collectDimensions(state: SessionState, properties?: Record<string, unknown>): void {
+  if (!properties) return;
+  assignDimension(state, "utm_source", properties.utm_source);
+  assignDimension(state, "utm_medium", properties.utm_medium);
+  assignDimension(state, "utm_campaign", properties.utm_campaign);
+  assignDimension(state, "utm_content", properties.utm_content);
+  assignDimension(state, "utm_term", properties.utm_term);
+  assignDimension(state, "inferred_icp", properties.inferred_icp);
 }
 
 async function loadWebEvents(env: Env, days: number): Promise<WebTelemetryEvent[]> {
@@ -100,8 +131,10 @@ export async function getAcquisitionSummary(env: Env, days = 30): Promise<Acquis
       install_command_copied: false,
       sections_viewed: new Set<string>(),
       icp_paths_clicked: new Set<string>(),
+      acquisition_dimensions: {},
     };
     state.referrer = state.referrer === "direct" ? normalizeReferrer(event.referrer) : state.referrer;
+    collectDimensions(state, event.properties);
     switch (event.name) {
       case "landing_page_viewed":
         state.landing_viewed = true;
@@ -179,6 +212,14 @@ export async function getAcquisitionSummary(env: Env, days = 30): Promise<Acquis
     top_referrers: topReferrers,
     sections,
     icp_paths: icpPaths,
+    dimensions: {
+      utm_source: summarizeDimensions(sessions, landingSessions, "utm_source"),
+      utm_medium: summarizeDimensions(sessions, landingSessions, "utm_medium"),
+      utm_campaign: summarizeDimensions(sessions, landingSessions, "utm_campaign"),
+      utm_content: summarizeDimensions(sessions, landingSessions, "utm_content"),
+      utm_term: summarizeDimensions(sessions, landingSessions, "utm_term"),
+      inferred_icp: summarizeDimensions(sessions, landingSessions, "inferred_icp"),
+    },
   };
 }
 
@@ -236,6 +277,32 @@ function summarizeClickTargets(sessions: Map<string, SessionState>, landingSessi
     .sort((a, b) => b.sessions - a.sessions || a.target_id.localeCompare(b.target_id));
 }
 
+function summarizeDimensions(
+  sessions: Map<string, SessionState>,
+  landingSessions: number,
+  key: keyof SessionState["acquisition_dimensions"],
+): AcquisitionDimensionSummary[] {
+  const counts = new Map<string, { sessions: number; copies: number }>();
+  for (const state of sessions.values()) {
+    const value = state.acquisition_dimensions[key];
+    if (!value) continue;
+    const bucket = counts.get(value) ?? { sessions: 0, copies: 0 };
+    bucket.sessions += 1;
+    if (state.install_command_copied) bucket.copies += 1;
+    counts.set(value, bucket);
+  }
+
+  return Array.from(counts.entries())
+    .map(([value, bucket]) => ({
+      value,
+      sessions: bucket.sessions,
+      share_of_landing: rate(bucket.sessions, landingSessions),
+      install_copy_rate_after_view: rate(bucket.copies, bucket.sessions),
+    }))
+    .sort((a, b) => b.sessions - a.sessions || a.value.localeCompare(b.value))
+    .slice(0, 10);
+}
+
 export async function getFilteredAcquisitionSummary(
   env: Env,
   args: { days?: number; filters?: AcquisitionFilter } = {},
@@ -261,8 +328,10 @@ export async function getFilteredAcquisitionSummary(
       install_command_copied: false,
       sections_viewed: new Set<string>(),
       icp_paths_clicked: new Set<string>(),
+      acquisition_dimensions: {},
     };
     state.referrer = state.referrer === "direct" ? normalizeReferrer(event.referrer) : state.referrer;
+    collectDimensions(state, event.properties);
     switch (event.name) {
       case "landing_page_viewed":
         state.landing_viewed = true;
@@ -334,5 +403,13 @@ export async function getFilteredAcquisitionSummary(
     top_referrers: topReferrers,
     sections: summarizeSections(sessions, landingSessions),
     icp_paths: summarizeClickTargets(sessions, landingSessions),
+    dimensions: {
+      utm_source: summarizeDimensions(sessions, landingSessions, "utm_source"),
+      utm_medium: summarizeDimensions(sessions, landingSessions, "utm_medium"),
+      utm_campaign: summarizeDimensions(sessions, landingSessions, "utm_campaign"),
+      utm_content: summarizeDimensions(sessions, landingSessions, "utm_content"),
+      utm_term: summarizeDimensions(sessions, landingSessions, "utm_term"),
+      inferred_icp: summarizeDimensions(sessions, landingSessions, "inferred_icp"),
+    },
   };
 }

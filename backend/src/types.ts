@@ -463,6 +463,13 @@ export interface AcquisitionClickSummary {
   click_through_rate_from_landing: number;
 }
 
+export interface AcquisitionDimensionSummary {
+  value: string;
+  sessions: number;
+  share_of_landing: number;
+  install_copy_rate_after_view: number;
+}
+
 export interface AcquisitionSummary {
   generated_at: string;
   window_days: number;
@@ -489,6 +496,14 @@ export interface AcquisitionSummary {
   top_referrers: AcquisitionReferrerSummary[];
   sections: AcquisitionSectionSummary[];
   icp_paths: AcquisitionClickSummary[];
+  dimensions: {
+    utm_source: AcquisitionDimensionSummary[];
+    utm_medium: AcquisitionDimensionSummary[];
+    utm_campaign: AcquisitionDimensionSummary[];
+    utm_content: AcquisitionDimensionSummary[];
+    utm_term: AcquisitionDimensionSummary[];
+    inferred_icp: AcquisitionDimensionSummary[];
+  };
 }
 
 export type LandingVariantStatus = "draft" | "active" | "archived";
