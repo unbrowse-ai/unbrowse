@@ -102,6 +102,15 @@ exit 1
     expect(third.getPort()).toBe(7812);
   });
 
+  it("drops a cached broker client after stop so the next lookup gets a fresh state object", async () => {
+    const first = kuri.getKuriClient(7813);
+    await first.stop();
+    const second = kuri.getKuriClient(7813);
+
+    expect(second).not.toBe(first);
+    expect(second.getPort()).toBe(7813);
+  });
+
   it("runs independent start loops for different broker ports", async () => {
     const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-multiport-"));
     tmpDirs.push(tmpDir);
@@ -117,16 +126,17 @@ exit 1
     chmodSync(fakeBin, 0o755);
     process.env.KURI_BIN = fakeBin;
 
-    const clientA = kuri.getKuriClient(7813);
-    const clientB = kuri.getKuriClient(7814);
+    const basePort = 43000 + (process.pid % 1000);
+    const clientA = kuri.getKuriClient(basePort);
+    const clientB = kuri.getKuriClient(basePort + 1);
     const results = await Promise.allSettled([
       clientA.start(),
       clientB.start(),
     ]);
 
     expect(results.every((result) => result.status === "rejected")).toBe(true);
-    expect(Number(readFileSync(path.join(tmpDir, "counter-7813.txt"), "utf8").trim())).toBe(4);
-    expect(Number(readFileSync(path.join(tmpDir, "counter-7814.txt"), "utf8").trim())).toBe(4);
+    expect(Number(readFileSync(path.join(tmpDir, `counter-${basePort}.txt`), "utf8").trim())).toBe(4);
+    expect(Number(readFileSync(path.join(tmpDir, `counter-${basePort + 1}.txt`), "utf8").trim())).toBe(4);
 
     await Promise.allSettled([clientA.stop(), clientB.stop()]);
   }, 30_000);
@@ -151,6 +161,26 @@ exit 1
       headless: false,
       attachToExistingChrome: true,
     });
+  });
+
+  it("reuses a surviving managed Chrome even when ambient CDP attach is disabled", () => {
+    expect(kuri.shouldReuseManagedChrome(
+      { headless: true, attachToExistingChrome: false },
+      { cdpPort: 9224, managedChrome: true },
+      true,
+    )).toBe(true);
+
+    expect(kuri.shouldReuseManagedChrome(
+      { headless: true, attachToExistingChrome: false },
+      { cdpPort: 9224, managedChrome: false },
+      true,
+    )).toBe(false);
+
+    expect(kuri.shouldReuseManagedChrome(
+      { headless: false, attachToExistingChrome: true },
+      { cdpPort: 9224, managedChrome: true },
+      true,
+    )).toBe(false);
   });
 
   it("extracts plugin loaders from html datasets", () => {

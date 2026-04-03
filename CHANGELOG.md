@@ -61,6 +61,9 @@
 ### Bug Fixes
 
 * **browse/sessions**: stop strict browse sessions from dying after successful submits or transient post-navigation CDP churn by retrying liveness checks, only expiring sessions when the tab is truly gone, and surfacing recoverable follow-up browser errors as retryable failures instead of fake `session_expired` drops
+* **browse/sessions**: rebind successful submit flows onto replacement tabs that already reached the hinted next-step pathname, so packaged staging runs keep the same session alive when Mandai swaps the underlying browser target between steps
+* **browse/submit**: resolve filename-style wait hints like `/tickets-selection.html` and `/add-ons-selection.html` relative to the current ticketing workflow directory instead of the site root, so packaged Mandai submit recovery keeps the session pinned to the real next step
+* **browse/kuri**: when a managed Kuri broker dies after submit but its headless Chrome instance is still alive, restart Kuri onto that surviving managed CDP port instead of launching a fresh browser and orphaning the live workflow tab
 * **packaged/kuri**: stop the skill pack/build path from silently shipping stale vendored Kuri binaries by failing fast on broken `submodules/kuri` checkouts, rebuilding when the vendored manifest source SHA drifts from `justrach/kuri` `adding-extensions`, stamping packaged Kuri artifacts with source/hash metadata, and wiring a dedicated baked-Kuri guard into `prepack`, root pack/publish scripts, and CI/release so stale vendor drift fails before tarball or npm publish
 * **packaged/runtime**: make packaged local servers report a stable `package_version` + `code_hash` by hashing bundled `runtime-src` sources when `dist/` has no `.ts` files, stamp the pid file with the same version metadata, add an opt-out for real-browser cookie import during `browse/go`, and make browse-session recovery fail fast when the Kuri broker cannot restart instead of collapsing into opaque `fetch failed` errors, with coverage for the packaged-health contract plus duplicate-export install regression so staging-pointed CLI runs stop self-restarting into `about:blank` or inheriting stale browser carts
 * **cli/cache**: add a `cleanup-stale` sweep that re-verifies active skills, evicts stale local cache entries, and now rotates through periodic server-side batches so dead marketplace endpoints stop getting replayed
@@ -1386,6 +1389,14 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- fix: strict browse-session liveness now retries through transient empty tab discovery after submit/navigation churn instead of expiring the session immediately
+- fix: strict browse-session checks now prefer the freshly selected broker client for the session port, avoiding stale cached client objects after broker churn
+- fix: URL-targeted browse submits no longer treat same-page HTML/filter churn as success, so parks-selection style flows fall back to the real same-origin transition path instead of fabricating the next step URL
+- debug: Kuri broker exit logs now include child pid, signal, broker port, and CDP port to make real crash-vs-kill diagnosis observable in staging/package repros
+- fix: dead Kuri broker clients are now evicted from the per-port cache on stop/exit so later requests can build a fresh restartable client state
+- fix: Kuri startup/tab creation now waits for CDP readiness and retries raw Chrome tab creation instead of failing immediately during broker churn
+- fix: browse routes now preserve per-session broker client affinity so restart paths can keep the session-owned browser state instead of drifting to a different broker client
+- fix: successful submit no longer flushes/restarts capture mid-step; capture stays live until explicit `sync` or `close`, reducing session churn from step transitions
 - docs: sync the canonical repo whitepaper to the April 1 arXiv draft and refresh the paper landing page metadata, authors, subtitle, and abstract
 - fix: replace placeholder Kuri/capture TODO suites with real live-browser end-to-end coverage and promote deterministic CLI/P0-P1 regression checks into the default test lane
 - fix: repair backend live route/test wiring and add bounded rate-limit retries so `bun run test:all` completes green against the current live graph backend

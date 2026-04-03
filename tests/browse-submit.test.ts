@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { BrowseSession, BrowseSessionClient } from "../src/api/browse-session.js";
 import { withRecoveredBrowseSession } from "../src/api/browse-session.js";
-import { hasMeaningfulPageChange, submitBrowseForm, type BrowseSubmitClient } from "../src/api/browse-submit.js";
+import { hasMeaningfulPageChange, resolveSubmitWaitHint, submitBrowseForm, type BrowseSubmitClient } from "../src/api/browse-submit.js";
 
 function makeSubmitClient(overrides: Partial<BrowseSubmitClient> = {}): BrowseSubmitClient {
   return {
@@ -31,6 +31,24 @@ describe("browse submit", () => {
     expect(hasMeaningfulPageChange("<html><body>same</body></html>", "<html><body>same</body></html>")).toBe(false);
   });
 
+  it("resolves filename wait hints relative to the current workflow directory", () => {
+    expect(resolveSubmitWaitHint(
+      "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html",
+      "/tickets-selection.html",
+    )).toBe("https://www.mandai.com/en/ticketing/admission-and-rides/tickets-selection.html");
+    expect(resolveSubmitWaitHint(
+      "https://www.mandai.com/en/ticketing/admission-and-rides/date-selection.html",
+      "/add-ons-selection.html",
+    )).toBe("https://www.mandai.com/en/ticketing/admission-and-rides/add-ons-selection.html");
+  });
+
+  it("keeps multi-segment wait hints root-relative", () => {
+    expect(resolveSubmitWaitHint(
+      "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html",
+      "/en/account/login.html",
+    )).toBe("https://www.mandai.com/en/account/login.html");
+  });
+
   it("falls back to same-origin html rehydrate when DOM submit stalls", async () => {
     const session: BrowseSession = {
       sessionId: "sess-1",
@@ -39,7 +57,6 @@ describe("browse submit", () => {
       harActive: true,
       domain: "example.com",
     };
-    const events: string[] = [];
     let evalCount = 0;
 
     const result = await submitBrowseForm(
@@ -60,18 +77,15 @@ describe("browse submit", () => {
           getPageHtml: async () => "<html><body>step-1</body></html>",
         }),
         session,
-        flushCapture: async (activeSession) => {
-          events.push(`flush:${activeSession.tabId}`);
-          return {
-            indexed: true,
-            mode: "http",
-            skill_id: "skill-1",
-            endpoint_count: 2,
-            request_count: 1,
-            background_publish_queued: true,
-          };
-        },
-        restartCapture: async (activeSession) => { events.push(`restart:${activeSession.tabId}`); },
+        flushCapture: async () => ({
+          indexed: true,
+          mode: "http",
+          skill_id: "skill-1",
+          endpoint_count: 2,
+          request_count: 1,
+          background_publish_queued: true,
+        }),
+        restartCapture: async () => {},
         rehydratePlugins: async () => ({ attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] }),
       },
       { timeoutMs: 20 },
@@ -82,19 +96,11 @@ describe("browse submit", () => {
     expect(result.fallback_used).toBe(true);
     expect(result.same_origin_html_rehydrated).toBe(true);
     expect(result.url).toBe("https://example.com/review");
-    expect(result.capture_sync).toEqual({
-      indexed: true,
-      mode: "http",
-      skill_id: "skill-1",
-      endpoint_count: 2,
-      request_count: 1,
-      background_publish_queued: true,
-    });
-    expect(events).toEqual(["flush:tab-1", "restart:tab-1"]);
+    expect(result.capture_sync).toBeNull();
     expect(session.url).toBe("https://example.com/review");
   });
 
-  it("flushes capture before restarting on DOM submit success", async () => {
+  it("keeps the active capture session running across successful DOM submits", async () => {
     const session: BrowseSession = {
       sessionId: "sess-1",
       tabId: "tab-1",
@@ -102,7 +108,6 @@ describe("browse submit", () => {
       harActive: true,
       domain: "example.com",
     };
-    const events: string[] = [];
     let urlReads = 0;
     let htmlReads = 0;
 
@@ -119,18 +124,15 @@ describe("browse submit", () => {
           },
         }),
         session,
-        flushCapture: async () => {
-          events.push("flush");
-          return {
-            indexed: true,
-            mode: "dom",
-            skill_id: "skill-2",
-            endpoint_count: 1,
-            request_count: 0,
-            background_publish_queued: true,
-          };
-        },
-        restartCapture: async () => { events.push("restart"); },
+        flushCapture: async () => ({
+          indexed: true,
+          mode: "dom",
+          skill_id: "skill-2",
+          endpoint_count: 1,
+          request_count: 0,
+          background_publish_queued: true,
+        }),
+        restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
       { timeoutMs: 20 },
@@ -138,15 +140,55 @@ describe("browse submit", () => {
 
     expect(result.ok).toBe(true);
     expect(result.mode).toBe("dom");
-    expect(result.capture_sync).toEqual({
-      indexed: true,
-      mode: "dom",
-      skill_id: "skill-2",
-      endpoint_count: 1,
-      request_count: 0,
-      background_publish_queued: true,
-    });
-    expect(events).toEqual(["flush", "restart"]);
+    expect(result.capture_sync).toBeNull();
+    expect(session.harActive).toBe(true);
+  });
+
+  it("does not treat same-page html churn as success when a URL wait hint is provided", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/step-1",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let htmlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            if (evalCount === 1) return JSON.stringify({ ok: true, submit_kind: "requestSubmit" });
+            return JSON.stringify({
+              ok: true,
+              status: 200,
+              url: "https://example.com/tickets-selection.html",
+              same_origin_html_rehydrated: true,
+              rehydrate: { attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] },
+            });
+          },
+          getCurrentUrl: async () => "https://example.com/step-1",
+          getPageHtml: async () => {
+            htmlReads += 1;
+            return htmlReads === 1
+              ? "<html><body>step-1</body></html>"
+              : "<html><body>filters updated but still step-1</body></html>";
+          },
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/tickets-selection.html" },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("same_origin_fetch");
+    expect(result.fallback_used).toBe(true);
+    expect(result.url).toBe("https://example.com/tickets-selection.html");
+    expect(session.url).toBe("https://example.com/tickets-selection.html");
   });
 
   it("retries once on recoverable submit failure and preserves updated session url", async () => {

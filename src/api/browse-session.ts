@@ -55,8 +55,8 @@ const RECOVERABLE_BROWSE_FAILURES = [
   "no such target",
 ];
 
-const LIVE_CHECK_RETRIES = 4;
-const LIVE_CHECK_RETRY_DELAY_MS = 150;
+const LIVE_CHECK_RETRIES = 8;
+const LIVE_CHECK_RETRY_DELAY_MS = 250;
 
 const sessionQueues = new Map<string, Promise<void>>();
 
@@ -132,6 +132,8 @@ function hasKnownBrowseUrl(value: string | undefined): boolean {
 }
 
 function resolveSessionClient(session: BrowseSession | undefined, fallback: BrowseSessionClient): BrowseSessionClient {
+  const fallbackPort = fallback.getPort?.();
+  if (session?.brokerPort !== undefined && fallbackPort === session.brokerPort) return fallback;
   return session?.client ?? fallback;
 }
 
@@ -222,6 +224,7 @@ async function adoptExistingBrowseTab(
   sessionId?: string,
 ): Promise<BrowseSession | null> {
   try {
+    await client.start();
     const tabs = await client.discoverTabs();
     if (!preferredUrl) return null;
     const reservedTabs = ownedTabIds(sessions, sessionId);
@@ -247,6 +250,33 @@ async function adoptExistingBrowseTab(
   }
 }
 
+export async function rebindBrowseSessionToMatchingTab(
+  sessions: Map<string, BrowseSession>,
+  client: BrowseSessionClient,
+  injectInterceptor: (tabId: string) => Promise<unknown>,
+  sessionId: string,
+  preferredUrl?: string,
+): Promise<BrowseSession | null> {
+  const existing = sessions.get(sessionId);
+  if (!existing) return null;
+  const rebound = await adoptExistingBrowseTab(
+    sessions,
+    resolveSessionClient(existing, client),
+    injectInterceptor,
+    preferredUrl ?? existing.url,
+    sessionId,
+  );
+  if (!rebound) return null;
+  existing.tabId = rebound.tabId;
+  existing.url = rebound.url;
+  existing.domain = rebound.domain;
+  existing.harActive = rebound.harActive;
+  existing.brokerPort = rebound.brokerPort;
+  existing.client = rebound.client;
+  sessions.set(sessionId, existing);
+  return existing;
+}
+
 async function dropBrowseSession(
   sessions: Map<string, BrowseSession>,
   client: BrowseSessionClient,
@@ -266,11 +296,32 @@ export async function isBrowseSessionLive(
   let tabSeen = false;
   let lastKnownUrl = session.url;
 
+  try {
+    await sessionClient.start();
+  } catch (error) {
+    if (isRecoverableBrowseFailure(error)) return false;
+    throw error;
+  }
+
   for (let attempt = 0; attempt < LIVE_CHECK_RETRIES; attempt += 1) {
     try {
       const tabs = await sessionClient.discoverTabs();
-      const liveTab = tabs.find((tab) => tab.id === session.tabId);
-      if (!liveTab) return false;
+      const liveTab = tabs.find((tab) => tab.id === session.tabId)
+        ?? tabs.find((tab) => matchesPreferredBrowseTab(tab.url, lastKnownUrl));
+      if (!liveTab) {
+        if (attempt < LIVE_CHECK_RETRIES - 1) {
+          await sleep(LIVE_CHECK_RETRY_DELAY_MS);
+          continue;
+        }
+        return false;
+      }
+      if (liveTab.id !== session.tabId) {
+        session.tabId = liveTab.id;
+        session.url = liveTab.url ?? session.url;
+        session.domain = extractDomain(session.url);
+        session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
+        session.client = sessionClient;
+      }
       tabSeen = true;
       if (hasKnownBrowseUrl(liveTab.url)) lastKnownUrl = liveTab.url!;
 
