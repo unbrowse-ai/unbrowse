@@ -7,6 +7,7 @@ import * as kuri from "../src/kuri/client.js";
 
 const originalKuriBin = process.env.KURI_BIN;
 const originalPackageRoot = process.env.UNBROWSE_PACKAGE_ROOT;
+const originalDisableCdpAttach = process.env.KURI_DISABLE_CDP_ATTACH;
 const tmpDirs: string[] = [];
 const originalFetch = globalThis.fetch;
 
@@ -36,6 +37,8 @@ afterEach(async () => {
   else process.env.KURI_BIN = originalKuriBin;
   if (originalPackageRoot === undefined) delete process.env.UNBROWSE_PACKAGE_ROOT;
   else process.env.UNBROWSE_PACKAGE_ROOT = originalPackageRoot;
+  if (originalDisableCdpAttach === undefined) delete process.env.KURI_DISABLE_CDP_ATTACH;
+  else process.env.KURI_DISABLE_CDP_ATTACH = originalDisableCdpAttach;
   kuri.setCdpPortForTests(null);
   while (tmpDirs.length > 0) {
     const dir = tmpDirs.pop();
@@ -48,7 +51,8 @@ describe("kuri client", () => {
   it("fails cleanly when the kuri binary is missing", async () => {
     await kuri.stop();
     process.env.KURI_BIN = "/tmp/definitely-missing-kuri-binary";
-    await expect(kuri.start(7799)).rejects.toThrow("Kuri binary not found");
+    process.env.KURI_DISABLE_CDP_ATTACH = "1";
+    await expect(kuri.start(43990 + (process.pid % 1000))).rejects.toThrow("Kuri binary not found");
   });
 
   it("prefers a packaged Kuri binary when present", () => {
@@ -283,6 +287,149 @@ exit 1
       { cdpPort: 9224, managedChrome: true },
       true,
     )).toBe(false);
+  });
+
+  it("recycles a healthy broker that has lost both CDP and tabs", async () => {
+    const seen: string[] = [];
+    const state = {
+      process: null,
+      port: 7700,
+      cdpPort: null,
+      managedChrome: false,
+      ready: false,
+      startPromise: null,
+      requestedPort: 7700,
+    };
+
+    const reused = await kuri.reuseHealthyBrokerIfPossible(
+      state as any,
+      { headless: false, attachToExistingChrome: true },
+      {
+        isHealthyPort: async () => true,
+        discoverCdpPort: async () => { seen.push("discover-cdp"); },
+        ensureUserChromeRunning: async () => { seen.push("ensure-user-chrome"); },
+        ensureTabsDiscovered: async () => { seen.push("discover-tabs"); },
+        listTabs: async () => [],
+        terminateBrokerOnPort: async () => { seen.push("terminate-broker"); },
+      },
+    );
+
+    expect(reused).toBe(false);
+    expect(state.ready).toBe(false);
+    expect(seen).toEqual([
+      "discover-cdp",
+      "ensure-user-chrome",
+      "discover-tabs",
+      "terminate-broker",
+    ]);
+  });
+
+  it("keeps a healthy broker when user Chrome is restored during reuse", async () => {
+    const state = {
+      process: null,
+      port: 7700,
+      cdpPort: null,
+      managedChrome: false,
+      ready: false,
+      startPromise: null,
+      requestedPort: 7700,
+    };
+
+    const reused = await kuri.reuseHealthyBrokerIfPossible(
+      state as any,
+      { headless: false, attachToExistingChrome: true },
+      {
+        isHealthyPort: async () => true,
+        isChromeCdpAvailable: async (port) => port === 9222,
+        discoverCdpPort: async () => {},
+        ensureUserChromeRunning: async (nextState) => {
+          nextState.cdpPort = 9222;
+        },
+        ensureTabsDiscovered: async () => {},
+        listTabs: async () => [],
+        terminateBrokerOnPort: async () => {
+          throw new Error("should not terminate a revived broker");
+        },
+      },
+    );
+
+    expect(reused).toBe(true);
+    expect(state.ready).toBe(true);
+    expect(state.cdpPort).toBe(9222);
+  });
+
+  it("recycles a healthy broker when only stale registered tabs remain and CDP is gone", async () => {
+    const seen: string[] = [];
+    const state = {
+      process: null,
+      port: 7700,
+      cdpPort: null,
+      managedChrome: false,
+      ready: false,
+      startPromise: null,
+      requestedPort: 7700,
+    };
+
+    const reused = await kuri.reuseHealthyBrokerIfPossible(
+      state as any,
+      { headless: false, attachToExistingChrome: true },
+      {
+        isHealthyPort: async () => true,
+        discoverCdpPort: async () => { seen.push("discover-cdp"); },
+        ensureUserChromeRunning: async () => { seen.push("ensure-user-chrome"); },
+        ensureTabsDiscovered: async () => { seen.push("discover-tabs"); },
+        listTabs: async () => [{ id: "stale-tab", url: "https://www.linkedin.com/feed/" }],
+        terminateBrokerOnPort: async () => { seen.push("terminate-broker"); },
+      },
+    );
+
+    expect(reused).toBe(false);
+    expect(state.ready).toBe(false);
+    expect(seen).toEqual([
+      "discover-cdp",
+      "ensure-user-chrome",
+      "discover-tabs",
+      "terminate-broker",
+    ]);
+  });
+
+  it("recycles a healthy broker when user Chrome launch leaves a non-responsive CDP port", async () => {
+    const seen: string[] = [];
+    const state = {
+      process: null,
+      port: 7700,
+      cdpPort: null,
+      managedChrome: false,
+      ready: false,
+      startPromise: null,
+      requestedPort: 7700,
+    };
+
+    const reused = await kuri.reuseHealthyBrokerIfPossible(
+      state as any,
+      { headless: false, attachToExistingChrome: true },
+      {
+        isHealthyPort: async () => true,
+        isChromeCdpAvailable: async () => false,
+        discoverCdpPort: async () => {},
+        ensureUserChromeRunning: async (nextState) => {
+          seen.push("ensure-user-chrome");
+          nextState.cdpPort = 9222;
+        },
+        ensureTabsDiscovered: async () => { seen.push("discover-tabs"); },
+        listTabs: async () => [],
+        terminateBrokerOnPort: async () => { seen.push("terminate-broker"); },
+      },
+    );
+
+    expect(reused).toBe(false);
+    expect(state.ready).toBe(false);
+    expect(state.cdpPort).toBe(null);
+    expect(seen).toEqual([
+      "ensure-user-chrome",
+      "discover-tabs",
+      "terminate-broker",
+    ]);
   });
 
   it("extracts plugin loaders from html datasets", () => {

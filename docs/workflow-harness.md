@@ -23,12 +23,15 @@ The workflow artifact stores:
 Current behavior:
 - live capture writes a workflow artifact for the learned skill
 - live capture also writes a sanitized workflow export for the same `skill_id`
+- explicit checkpoint commands (`sync`, `close`) queue the background `index -> publish` pipeline
+- local settings can disable auto-publish entirely or guard specific domains with blacklist/prompt-list rules
+- local `index` upgrades the export from `captured` to `indexed`
+- explicit/queued remote share upgrades the export from `indexed` to `published` (or `blocked-validation`)
 - execution loads the artifact by `skill_id`
 - if a recipe exists for the endpoint, execution tries the saved recipe first
 - token bindings are resolved from the freshest cookies/headers before replay
 - token/auth failure statuses (`401`, `403`, `419`, `422`) trigger one browser auth refresh and one retry through the same recipe
 - successful steps are promoted to the front of the recipe for warm runs
-- passive publish/background index upgrade the export from `captured` to `published` (or `blocked-validation`) so the local asset reflects marketplace state
 
 Local storage:
 - skill snapshots: `~/.unbrowse/skill-snapshots/`
@@ -41,7 +44,7 @@ The export stores:
 - token-binding maps without captured token values
 - mutation guard state
 - lightweight doc bullets for human review
-- publish status (`captured`, `blocked-validation`, `published`)
+- publish status (`captured`, `indexed`, `blocked-validation`, `published`)
 
 Artifact shape lives in [`src/types/skill.ts`](/Users/lekt9/.codex/worktrees/5f9a/unbrowse/src/types/skill.ts).
 Compile helpers live in [`src/workflow/compile.ts`](/Users/lekt9/.codex/worktrees/5f9a/unbrowse/src/workflow/compile.ts).

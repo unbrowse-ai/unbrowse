@@ -104,8 +104,7 @@ function seedWorkflowPublishArtifact(dir: string): void {
   writeFileSync(join(dir, "skill-checkout.json"), JSON.stringify({
     export_version: "1",
     generated_at: "2026-04-04T00:00:00.000Z",
-    publish_status: "published",
-    published_at: "2026-04-04T00:00:00.000Z",
+    publish_status: "indexed",
     skill_id: "skill-checkout",
     domain: "example.com",
     intent_signature: "complete checkout",
@@ -281,6 +280,8 @@ describe("MCP stdio", () => {
       expect(names).toContain("unbrowse_resolve");
       expect(names).toContain("unbrowse_execute");
       expect(names).toContain("unbrowse_feedback");
+      expect(names).toContain("unbrowse_index");
+      expect(names).toContain("unbrowse_settings");
       expect(names).toContain("unbrowse_health");
       expect(names).toContain("unbrowse_go");
       expect(names).toContain("unbrowse_snap");

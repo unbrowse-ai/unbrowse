@@ -135,12 +135,41 @@ Execute is the explicit replay surface. Traversal-time browser tools (`go`, `sna
 
 The MCP server now exposes read-only publish-time workflow metadata in addition to tool calls.
 
-- `workflow_publish://<skill>` — exported artifact summary for one skill
+- `workflow_publish://<skill>` — exported artifact summary for one indexed/published skill
 - `workflow_contract://<skill>/<endpoint>` — sanitized replay contract with typed params, enums, prerequisite specs, x402/payment requirements, provenance hints, and next-state validators
 - `workflow_dag://<skill>/<endpoint>` — dependency graph / common-var walk for one workflow edge
 - `plan_workflow_execution` — prompt that tells the host model to inspect the contract and DAG before deciding between browser traversal and explicit replay
 
 These MCP resources are publish-time outputs. They do not trigger live replay during browse traversal.
+
+## Capture pipeline verbs
+
+The checkpoint pipeline is explicit:
+
+- `sync` — checkpoint current capture, keep the tab open, queue background `index -> publish`
+- `close` — checkpoint current capture, queue background `index -> publish`, save auth, close tab
+- `index` — recompute local graph/contracts/export only; no remote share
+- `publish` — rerun local index, then perform explicit remote share/re-publish
+- `settings` — inspect or update local auto-publish policy, blacklist, and prompt-list domains
+
+Workflow exports now move through:
+
+- `captured` — raw local evidence exists
+- `indexed` — local graph/contracts/export compiled
+- `published` — remote share succeeded
+- `blocked-validation` — local compile succeeded but remote publish/share blocked
+
+Checkpoint and publish responses now also surface guidance fields:
+
+- `pipeline` — whether local `index` / remote `publish` were actually queued
+- `publish_policy` — why remote publish was allowed, blocked, or paused
+- `next_step` — concrete follow-up hint such as `close`, `index`, or explicit `publish --confirm-publish`
+
+Local publish policy lives in `~/.unbrowse/config.json` and is available over `GET/POST /v1/settings`.
+
+- `auto_publish_checkpoints` — enable/disable automatic remote publish after `sync` / `close`
+- `publish_domain_blacklist` — never auto-publish these domains; explicit `publish` requires confirmation
+- `publish_domain_promptlist` — pause auto-publish and require confirmation for explicit `publish`
 
 ## Browse-session dependency contract
 
@@ -150,7 +179,7 @@ For multi-step browser flows, downstream pages depend on upstream state. Treat `
 - Regular traversal is browser-native and thin by default. `assist_site_state` and `same_origin_fetch_fallback` must be explicitly enabled; passive API observation stays for publish/index analysis, not normal page walking.
 - Monitored requests discovered while traversing are not exposed as live replay steps yet. They become harness-visible only after publish/index compiles the workflow contract.
 - After `submit`, trust the returned `url`, `session_id`, and transition metadata. Do not guess deep links if the session has not actually unlocked them yet.
-- `sync` after important transitions so the route graph records the working request chain and future resolve/execute calls can inherit it.
+- `sync` after important transitions so the current capture is checkpointed and the background `index -> publish` pipeline records the working request chain for future resolve/execute calls.
 - If the server later returns `abandonedCart`, `session_expired`, or the wrong product/audience variant, restart from the last known good upstream step instead of forcing a downstream page.
 
 ## Mutations
