@@ -191,6 +191,8 @@ This makes future resolves immediately useful — agents see "Search court judgm
 **What to describe:**
 - What the endpoint returns (e.g. "timeline tweets with author, text, engagement metrics")
 - What the key parameters control (e.g. "SearchPhrase filters by keyword, Filter selects court level")
+- Any audience or eligibility constraints (e.g. resident vs non-resident, member-only, guest checkout caveats)
+- Any pricing or validity caveats that change how an agent should use it (e.g. discounted flow, 5-day pass, one-time entry)
 - The action type (search, list, detail, timeline, create)
 - The resource type (judgment, tweet, post, event, product)
 Resolve returns `available_endpoints` sorted by score. Each endpoint includes schema, sample values, and input params. Look at:

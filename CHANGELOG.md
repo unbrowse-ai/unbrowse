@@ -12,6 +12,7 @@
 * **cli/install**: remove the duplicate `recordAnalyticsSession` export that broke fresh npm-installed runtime startup under Node/tsx, and cover the packaged client build path with a regression test
 * **browse/session**: harden packaged Kuri tab recovery by accepting `/tab/new` ids across response shapes, falling back to reusable idle tabs when Kuri cannot create a fresh target, and preferring blank/new-tab recovery over hijacking unrelated tabs
 * **browse/session**: enforce one-tab-per-session recovery by only reattaching to same-domain tabs and reusing idle tabs before opening raw CDP fallbacks, so browse sessions stop leaking or hijacking stray tabs
+* **orchestrator/publish**: enrich local endpoint descriptions and review prompts with audience, eligibility, pricing, and validity constraints so captured skills keep caveats like resident vs non-resident bundle rules before publish
 * **cli/tests**: stop local server bootstrap from blocking `/health` on remote auto-registration, make API routes wait briefly for background registration instead of failing fast, isolate snapshot-heavy e2e fixtures from the user’s real `~/.unbrowse` cache, and skip wallet bootstrap in the packaged setup smoke
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
 * clean checked-in merge markers, restore the curl install script, and add a repo blog-publish helper so the stale frontend-history branch can be absorbed without dragging its generated junk forward
