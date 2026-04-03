@@ -166,6 +166,16 @@ async function cmdHealth(flags: Record<string, string | boolean>): Promise<void>
   output(await api("GET", "/health"), !!flags.pretty);
 }
 
+function telemetryDomainFromInput(domain?: string, url?: string): string | null {
+  if (domain?.trim()) return domain.trim().replace(/^www\./, "");
+  if (!url?.trim()) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
 async function cmdResolve(flags: Record<string, string | boolean>): Promise<void> {
   const intent = flags.intent as string;
   if (!intent) die("--intent is required");
@@ -181,6 +191,9 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
     hostType,
     properties: {
       command: "resolve",
+      intent,
+      domain: telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined),
+      url: typeof flags.url === "string" ? flags.url : null,
       has_url: typeof flags.url === "string",
       has_domain: typeof flags.domain === "string",
       auto_execute: !!flags.execute,
@@ -337,6 +350,9 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
         hostType,
         properties: {
           command: "resolve",
+          intent,
+          domain: telemetryDomainFromInput(domain, url),
+          url: url ?? null,
           source: result.source,
           auto_execute: autoExecute,
           explicit_endpoint: explicitEndpointId ?? null,
@@ -360,6 +376,9 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       hostType,
       properties: {
         command: "resolve",
+        intent,
+        domain: telemetryDomainFromInput(flags.domain as string | undefined, flags.url as string | undefined),
+        url: typeof flags.url === "string" ? flags.url : null,
         failure_stage: "resolve",
         failure_reason: message,
       },
@@ -470,6 +489,9 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     hostType,
     properties: {
       command: "execute",
+      intent: typeof flags.intent === "string" ? flags.intent : null,
+      domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
+      url: typeof flags.url === "string" ? flags.url : null,
       skill_id: skillId,
       endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
     },
@@ -503,6 +525,9 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
         hostType,
         properties: {
           command: "execute",
+          intent: typeof flags.intent === "string" ? flags.intent : null,
+          domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
+          url: typeof flags.url === "string" ? flags.url : null,
           skill_id: skillId,
           endpoint_id: typeof flags.endpoint === "string" ? flags.endpoint : null,
         },
@@ -575,6 +600,9 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
       hostType,
       properties: {
         command: "execute",
+        intent: typeof flags.intent === "string" ? flags.intent : null,
+        domain: telemetryDomainFromInput(undefined, flags.url as string | undefined),
+        url: typeof flags.url === "string" ? flags.url : null,
         skill_id: skillId,
         failure_stage: "execute",
         failure_reason: message,
@@ -649,7 +677,53 @@ async function cmdSearch(flags: Record<string, string | boolean>): Promise<void>
   const path = domain ? "/v1/search/domain" : "/v1/search";
   const body: Record<string, unknown> = { intent, k: Number(flags.k) || 5 };
   if (domain) body.domain = domain;
-  output(await api("POST", path, body), !!flags.pretty);
+  const hostType = detectTelemetryHostType();
+  await ensureCliInstallTracked(hostType);
+  await recordFunnelTelemetryEvent("cli_invoked", {
+    source: "cli",
+    hostType,
+    properties: { command: "search" },
+  });
+  await recordFunnelTelemetryEvent("search_started", {
+    source: "cli",
+    hostType,
+    properties: {
+      command: "search",
+      intent,
+      domain: domain ?? null,
+      k: body.k,
+    },
+  });
+  try {
+    const result = await api("POST", path, body) as Record<string, unknown>;
+    const results = Array.isArray(result.results) ? result.results : [];
+    await recordFunnelTelemetryEvent("search_completed", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "search",
+        intent,
+        domain: domain ?? null,
+        k: body.k,
+        result_count: results.length,
+      },
+    });
+    output(result, !!flags.pretty);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFunnelTelemetryEvent("search_failed", {
+      source: "cli",
+      hostType,
+      properties: {
+        command: "search",
+        intent,
+        domain: domain ?? null,
+        failure_stage: "search",
+        failure_reason: message,
+      },
+    });
+    throw error;
+  }
 }
 
 async function cmdSessions(flags: Record<string, string | boolean>): Promise<void> {

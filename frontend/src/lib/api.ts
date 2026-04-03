@@ -296,10 +296,35 @@ export interface NetworkStats {
   total_tokens_saved: number;
 }
 
+export interface MinerBounty {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  reward_multiplier: number;
+  difficulty: "easy" | "medium" | "hard";
+  category: string;
+  claimed: boolean;
+}
+
+export interface MinerQuest {
+  id: string;
+  title: string;
+  description: string;
+  target_domain?: string;
+  reward_multiplier: number;
+  type: "first-indexer" | "route-count" | "domain-sprint";
+  deadline: string;
+  progress?: number;
+  goal?: number;
+}
+
 export interface MinerStats {
   network: NetworkStats;
   domains: DomainCoverage[];
   leaderboard: LeaderboardEntry[];
+  bounties: MinerBounty[];
+  quests: MinerQuest[];
 }
 
 export async function getMinerStats(): Promise<MinerStats> {

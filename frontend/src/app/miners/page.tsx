@@ -25,158 +25,9 @@ import {
   type MinerStats,
   type LeaderboardEntry,
   type DomainCoverage,
+  type MinerBounty,
+  type MinerQuest,
 } from "@/lib/api";
-
-/* ------------------------------------------------------------------ */
-/*  Static data: bounties + quests                                     */
-/* ------------------------------------------------------------------ */
-
-interface Bounty {
-  id: string;
-  title: string;
-  domain: string;
-  description: string;
-  reward_multiplier: number;
-  difficulty: "easy" | "medium" | "hard";
-  category: string;
-  claimed: boolean;
-}
-
-const BOUNTIES: Bounty[] = [
-  {
-    id: "gh-auth",
-    title: "GitHub OAuth Flow",
-    domain: "github.com",
-    description: "Full OAuth authorization + token exchange endpoints for GitHub Apps",
-    reward_multiplier: 5,
-    difficulty: "hard",
-    category: "Auth Flows",
-    claimed: false,
-  },
-  {
-    id: "stripe-checkout",
-    title: "Stripe Checkout Session",
-    domain: "stripe.com",
-    description: "Create checkout session, retrieve payment intent, handle webhook confirmation",
-    reward_multiplier: 5,
-    difficulty: "hard",
-    category: "Payments",
-    claimed: false,
-  },
-  {
-    id: "reddit-search",
-    title: "Reddit Subreddit Search",
-    domain: "reddit.com",
-    description: "Search posts within subreddits, retrieve comments, user profiles",
-    reward_multiplier: 3,
-    difficulty: "medium",
-    category: "Social",
-    claimed: false,
-  },
-  {
-    id: "hn-items",
-    title: "Hacker News Stories + Comments",
-    domain: "news.ycombinator.com",
-    description: "Top/new/best stories, comment threads, user karma lookup",
-    reward_multiplier: 2,
-    difficulty: "easy",
-    category: "Developer",
-    claimed: false,
-  },
-  {
-    id: "npm-search",
-    title: "npm Package Search",
-    domain: "www.npmjs.com",
-    description: "Package search, version listing, download stats, dependency tree",
-    reward_multiplier: 3,
-    difficulty: "medium",
-    category: "Developer",
-    claimed: false,
-  },
-  {
-    id: "linkedin-profile",
-    title: "LinkedIn Profile Data",
-    domain: "linkedin.com",
-    description: "Public profile data, company pages, job listings via internal APIs",
-    reward_multiplier: 5,
-    difficulty: "hard",
-    category: "Professional",
-    claimed: false,
-  },
-  {
-    id: "yt-search",
-    title: "YouTube Video Search",
-    domain: "youtube.com",
-    description: "Video search, channel data, transcript extraction via internal APIs",
-    reward_multiplier: 4,
-    difficulty: "hard",
-    category: "Media",
-    claimed: false,
-  },
-  {
-    id: "so-questions",
-    title: "StackOverflow Q&A",
-    domain: "stackoverflow.com",
-    description: "Question search, answer retrieval, tag-based filtering",
-    reward_multiplier: 2,
-    difficulty: "easy",
-    category: "Developer",
-    claimed: false,
-  },
-];
-
-interface Quest {
-  id: string;
-  title: string;
-  description: string;
-  target_domain?: string;
-  reward_multiplier: number;
-  type: "first-indexer" | "route-count" | "domain-sprint";
-  deadline: string;
-  progress?: number;
-  goal?: number;
-}
-
-const WEEKLY_QUESTS: Quest[] = [
-  {
-    id: "wq-1",
-    title: "First to index Notion",
-    description: "Be the first miner to index 5+ routes on notion.so this week",
-    target_domain: "notion.so",
-    reward_multiplier: 5,
-    type: "first-indexer",
-    deadline: "Sunday 23:59 UTC",
-  },
-  {
-    id: "wq-2",
-    title: "Index 10 new domains",
-    description: "Contribute routes to 10 previously-uncovered domains",
-    reward_multiplier: 3,
-    type: "domain-sprint",
-    deadline: "Sunday 23:59 UTC",
-    progress: 0,
-    goal: 10,
-  },
-  {
-    id: "wq-3",
-    title: "50 routes in one session",
-    description: "Discover 50+ new routes in a single mining session",
-    reward_multiplier: 2,
-    type: "route-count",
-    deadline: "Sunday 23:59 UTC",
-    progress: 0,
-    goal: 50,
-  },
-  {
-    id: "wq-4",
-    title: "First to index Figma",
-    description: "Be the first to capture Figma's internal file/project APIs",
-    target_domain: "figma.com",
-    reward_multiplier: 5,
-    type: "first-indexer",
-    deadline: "Sunday 23:59 UTC",
-  },
-];
 
 /* High-value domains that agents query most, with "claimed" status based on live data */
 const TOP_DOMAINS = [
@@ -362,14 +213,14 @@ export default function MinersPage() {
           )}
           {activeTab === "bounties" && (
             <BountySection
-              bounties={BOUNTIES}
+              bounties={data?.bounties ?? []}
               expandedId={expandedBounty}
               onToggle={(id) => setExpandedBounty(expandedBounty === id ? null : id)}
               onCopy={copyCommand}
               copiedId={copiedId}
             />
           )}
-          {activeTab === "quests" && <QuestSection quests={WEEKLY_QUESTS} />}
+          {activeTab === "quests" && <QuestSection quests={data?.quests ?? []} />}
         </div>
 
         {/* CTA */}
@@ -720,7 +571,7 @@ function BountySection({
   onCopy,
   copiedId,
 }: {
-  bounties: Bounty[];
+  bounties: MinerBounty[];
   expandedId: string | null;
   onToggle: (id: string) => void;
   onCopy: (cmd: string, id: string) => void;
@@ -752,6 +603,11 @@ function BountySection({
       </p>
 
       <div className="mt-6 space-y-3">
+        {bounties.length === 0 && (
+          <div className="rounded-2xl border border-border/70 bg-surface-raised px-4 py-8 text-center text-sm text-text-muted">
+            Demand telemetry has not produced bounty candidates yet.
+          </div>
+        )}
         {bounties.map((bounty) => {
           const isExpanded = expandedId === bounty.id;
           return (
@@ -850,7 +706,7 @@ function BountySection({
 /*  4. Weekly Quests                                                   */
 /* ------------------------------------------------------------------ */
 
-function QuestSection({ quests }: { quests: Quest[] }) {
+function QuestSection({ quests }: { quests: MinerQuest[] }) {
   const typeIcon = {
     "first-indexer": <Trophy className="h-4 w-4" />,
     "route-count": <TrendingUp className="h-4 w-4" />,
@@ -882,6 +738,11 @@ function QuestSection({ quests }: { quests: Quest[] }) {
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        {quests.length === 0 && (
+          <div className="rounded-2xl border border-border bg-surface-raised p-5 text-sm text-text-muted sm:col-span-2">
+            Weekly quests will appear once enough demand telemetry lands.
+          </div>
+        )}
         {quests.map((quest) => (
           <div
             key={quest.id}
