@@ -40,6 +40,13 @@ Typical MCP host config:
 ## Quick start
 
 ```bash
+# One-line install from the latest GitHub release
+curl -fsSL https://unbrowse.ai/install.sh | sh
+```
+
+That installer now follows the Kuri pattern: detect platform, download the matching release tarball, install `unbrowse` into `~/.local/bin`, then run `unbrowse setup`.
+
+```bash
 # Deterministic setup from a repo clone
 git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
 cd ~/unbrowse && ./setup --host off

@@ -6,7 +6,6 @@ import { INTERCEPTOR_SCRIPT, collectInterceptedRequests, injectInterceptor, type
 import { queueBackgroundIndex } from "../indexer/index.js";
 import { nanoid } from "nanoid";
 import type { ExecutionTrace, OrchestrationTiming, ProjectionOptions, SkillManifest } from "../types/index.js";
-import { extractBrowserCookies } from "../auth/browser-cookies.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import { buildSkillOperationGraph } from "../graph/index.js";
 import { augmentEndpointsWithAgent } from "../graph/agent-augment.js";
@@ -17,7 +16,13 @@ import { TRACE_VERSION, CODE_HASH, GIT_SHA, PACKAGE_VERSION } from "../version.j
 import { promoteExplicitExecution, resolveAndExecute, type OrchestratorResult } from "../orchestrator/index.js";
 import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
-import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
+import {
+  extractBrowserAuth,
+  importBrowserCookiesIntoTab,
+  loginWithBrowserFallback,
+  loadAuthProfileBestEffort,
+  saveAuthProfileBestEffort,
+} from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
 import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
@@ -43,7 +48,6 @@ import {
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
 import { isUrlWaitHint, resolveSubmitWaitHint, submitBrowseForm } from "./browse-submit.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
-import { shouldImportBrowserCookies } from "../runtime/browser-auth.js";
 
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
@@ -116,7 +120,7 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
       // 1. Extract endpoints from captured traffic
       const rawEndpoints = extractEndpoints(requests, undefined, { pageUrl, finalUrl: pageUrl });
       if (rawEndpoints.length === 0) {
-        console.log(`[passive-index] ${domain}: 0 endpoints from ${requests.length} requests`);
+        console.error(`[passive-index] ${domain}: 0 endpoints from ${requests.length} requests`);
         return;
       }
 
@@ -134,7 +138,7 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
         : rawEndpoints;
       // Guard: if passive capture found fewer endpoints than what exists, keep the richer set
       if (existingSkill && mergedEndpoints.length < existingSkill.endpoints.length) {
-        console.log(`[passive-index] ${domain}: skipping — would reduce ${existingSkill.endpoints.length} → ${mergedEndpoints.length} endpoints`);
+        console.error(`[passive-index] ${domain}: skipping — would reduce ${existingSkill.endpoints.length} → ${mergedEndpoints.length} endpoints`);
         return;
       }
 
@@ -196,7 +200,7 @@ function passiveIndexFromRequests(requests: RawRequest[], pageUrl: string): void
       const cacheKey = `passive:${domain}:${Date.now()}`;
       queueBackgroundIndex({ skill, domain, intent, contextUrl: pageUrl, cacheKey });
 
-      console.log(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed from ${requests.length} requests`);
+      console.error(`[passive-index] ${domain}: ${enrichedEndpoints.length} endpoints indexed from ${requests.length} requests`);
     } catch (err) {
       console.error(`[passive-index] ${domain} failed: ${err instanceof Error ? err.message : err}`);
     }
@@ -763,10 +767,41 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // POST /v1/auth/login — interactive OAuth flow or direct browser cookie extraction
   app.post("/v1/auth/login", { config: { rateLimit: ROUTE_LIMITS["/v1/auth/login"] } }, async (req, reply) => {
-    const { url } = req.body as { url: string };
+    const {
+      url,
+      browser,
+      chrome_profile,
+      firefox_profile,
+      chromium_profile,
+      chromium_user_data_dir,
+      chromium_cookie_db_path,
+      safe_storage_service,
+      browser_name,
+    } = req.body as {
+      url: string;
+      browser?: "auto" | "firefox" | "chrome" | "chromium";
+      chrome_profile?: string;
+      firefox_profile?: string;
+      chromium_profile?: string;
+      chromium_user_data_dir?: string;
+      chromium_cookie_db_path?: string;
+      safe_storage_service?: string;
+      browser_name?: string;
+    };
     if (!url) return reply.code(400).send({ error: "url required" });
     try {
-      const result = await interactiveLogin(url);
+      const result = await loginWithBrowserFallback(url, {
+        browser,
+        chromeProfile: chrome_profile,
+        firefoxProfile: firefox_profile,
+        chromium: {
+          profile: chromium_profile,
+          userDataDir: chromium_user_data_dir,
+          cookieDbPath: chromium_cookie_db_path,
+          safeStorageService: safe_storage_service,
+          browserName: browser_name,
+        },
+      });
       return reply.send(result);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
@@ -1105,23 +1140,13 @@ export async function registerRoutes(app: FastifyInstance) {
           }
 
           if (session.domain && session.domain !== newDomain) {
-            await broker.authProfileSave(session.tabId, session.domain).catch(() => {});
+            await saveAuthProfileBestEffort(session.tabId, session.domain, "browse_go");
           }
 
           let cookiesInjected = 0;
           if (newDomain && newDomain !== session.domain) {
-            await broker.authProfileLoad(session.tabId, newDomain).catch(() => {});
-            if (shouldImportBrowserCookies()) {
-              try {
-                const { cookies: browserCookies } = extractBrowserCookies(newDomain);
-                if (browserCookies.length > 0) {
-                  for (const c of browserCookies) {
-                    await broker.setCookie(session.tabId, c).catch(() => {});
-                  }
-                  cookiesInjected = browserCookies.length;
-                }
-              } catch { /* non-fatal */ }
-            }
+            cookiesInjected = await importBrowserCookiesIntoTab(session.tabId, newDomain);
+            await loadAuthProfileBestEffort(session.tabId, newDomain, "browse_go");
           }
 
           await restartBrowseCapture(session);
@@ -1551,9 +1576,8 @@ export async function registerRoutes(app: FastifyInstance) {
         async (session) => {
           const broker = brokerForSession(session);
           if (session.domain) {
-            await broker.authProfileSave(session.tabId, session.domain).catch(() => {});
+            await saveAuthProfileBestEffort(session.tabId, session.domain, "browse_close");
           }
-
           const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
           await broker.closeTab(session.tabId).catch(() => {});
           removeBrowseSession(browseSessions, session.sessionId);

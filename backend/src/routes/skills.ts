@@ -1,7 +1,7 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Env } from "../types.js";
 import { bearerAuth } from "../middleware/auth.js";
-import { publishSkill, getSkill, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
+import { publishSkill, getSkill, listSkillCards, listSkills, updateEndpointScore, updateEndpointSchema, getEndpointSchema } from "../services/marketplace.js";
 import { listPopularSkills } from "../services/popularity.js";
 import { validateSkillManifest } from "../services/validator.js";
 import { addSkillDiscovered, getAgent, updateAgentWallet } from "../services/agents.js";
@@ -11,6 +11,16 @@ import { getStats } from "../services/scoring.js";
 import { x402Response, verifyX402Proof, buildSkillPaymentTerms, paymentsEnabled, x402UseTestnet } from "../middleware/x402-gate.js";
 import { skillsKV } from "../services/kv.js";
 import { getAgentWallet, mergeContributor, resolveSkillPaymentRecipient, syncSkillSplitConfig } from "../services/splits.js";
+import { getOrSetHttpCache } from "../services/http-cache.js";
+import { buildCacheControl, getEdgeCacheJson, putEdgeCacheJson } from "../services/edge-cache.js";
+
+function schedule(c: Context, task: Promise<unknown>): void {
+  try {
+    (c as Context & { executionCtx: ExecutionContext }).executionCtx.waitUntil(task);
+  } catch {
+    void task;
+  }
+}
 
 // Public read routes -- no auth required
 export const publicSkillRoutes = new Hono<{ Bindings: Env }>();
@@ -20,16 +30,51 @@ publicSkillRoutes.use("/skills", rateLimit({ limit: 60, window: 60, prefix: "ski
 
 // GET /v1/skills -- list all
 publicSkillRoutes.get("/skills", async (c) => {
+  const view = c.req.query("view");
+  if (view === "card") {
+    const limitRaw = c.req.query("limit");
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
+    const includeDeprecated = c.req.query("include_deprecated") === "1";
+    const normalizedLimit = Number.isFinite(limit) && (limit as number) > 0 ? limit : undefined;
+    const cacheKey = `skills:cards:${includeDeprecated ? "all" : "live"}:${normalizedLimit ?? "all"}`;
+    const ttlSeconds = 300;
+    const edgeCached = await getEdgeCacheJson<{ skills: Awaited<ReturnType<typeof listSkillCards>> }>(cacheKey);
+    if (edgeCached) {
+      c.header("Cache-Control", buildCacheControl(ttlSeconds));
+      return c.json(edgeCached);
+    }
+    const payload = await getOrSetHttpCache(c.env, cacheKey, ttlSeconds, async () => ({
+      skills: await listSkillCards(c.env, {
+        limit: normalizedLimit,
+        includeDeprecated,
+      }),
+    }));
+    c.header("Cache-Control", buildCacheControl(ttlSeconds));
+    schedule(c, putEdgeCacheJson(cacheKey, payload, ttlSeconds));
+    return c.json(payload);
+  }
+
   const skills = await listSkills(c.env);
   return c.json({ skills });
 });
 // GET /v1/skills/popular -- list top skills by observed executions
 publicSkillRoutes.get("/skills/popular", async (c) => {
   const limit = parseInt(c.req.query("limit") ?? "8", 10);
-  const skills = await listPopularSkills(c.env, limit);
-  c.header("Cache-Control", "public, max-age=60");
+  const cacheKey = `skills:popular:${limit}`;
+  const ttlSeconds = 300;
+  const edgeCached = await getEdgeCacheJson<{ skills: Awaited<ReturnType<typeof listPopularSkills>> }>(cacheKey);
+  if (edgeCached) {
+    c.header("Cache-Control", buildCacheControl(ttlSeconds));
+    c.header("Access-Control-Allow-Origin", "*");
+    return c.json(edgeCached);
+  }
+  const payload = await getOrSetHttpCache(c.env, cacheKey, ttlSeconds, async () => ({
+    skills: await listPopularSkills(c.env, limit),
+  }));
+  c.header("Cache-Control", buildCacheControl(ttlSeconds));
   c.header("Access-Control-Allow-Origin", "*");
-  return c.json({ skills });
+  schedule(c, putEdgeCacheJson(cacheKey, payload, ttlSeconds));
+  return c.json(payload);
 });
 // GET /v1/skills/:id -- get by ID (x402-gated for paid skills)
 publicSkillRoutes.get("/skills/:id", async (c) => {

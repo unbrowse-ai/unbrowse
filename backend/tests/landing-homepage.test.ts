@@ -3,6 +3,7 @@ import app from "../src/index.js";
 import type { Env } from "../src/types.js";
 import { statsKV } from "../src/services/kv.js";
 import {
+  getActiveLandingHomepageVariant,
   getLandingHomepageExperimentConfig,
   mintLandingHomepageToken,
   resolveLandingHomepageToken,
@@ -100,6 +101,16 @@ describe("landing homepage experiments", () => {
     expect(secondBody.assignment.experiment_id).toBe(firstBody.assignment.experiment_id);
     expect(secondBody.assignment.variant_id).toBe(firstBody.assignment.variant_id);
     expect(secondBody.assignment_cookie).toBe(firstBody.assignment_cookie);
+  });
+
+  it("serves the precomputed active landing copy without request-time assignment", async () => {
+    const res = await app.fetch(new Request("http://local.test/v1/landing/homepage/active"), env);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Awaited<ReturnType<typeof getActiveLandingHomepageVariant>>;
+    expect(["active", "canary"]).toContain(body.status);
+    expect(body.assignment.experiment_id).toBeTruthy();
+    expect(body.assignment.variant_id).toBeTruthy();
+    expect(body.content.hero_headline.length).toBeGreaterThan(0);
   });
 
   it("rejects tampered or expired landing tokens", async () => {

@@ -41,6 +41,31 @@ export interface EndpointDescriptor {
   response_schema?: unknown;
 }
 
+export interface SkillListEndpointPreview {
+  endpoint_id: string;
+  method: string;
+  verification_status: "verified" | "unverified" | "failed" | "pending" | "disabled";
+  reliability_score: number;
+}
+
+export interface SkillListItem {
+  skill_id: string;
+  version: string;
+  name: string;
+  intent_signature: string;
+  domain: string;
+  subdomain?: string;
+  description: string;
+  owner_type: "agent" | "marketplace" | "user";
+  execution_type: "http" | "browser-capture";
+  lifecycle: "active" | "deprecated" | "disabled";
+  created_at: string;
+  updated_at: string;
+  endpoint_count: number;
+  avg_reliability_score: number;
+  endpoints: SkillListEndpointPreview[];
+}
+
 export interface SearchResult {
   id: number;
   score: number;
@@ -287,8 +312,30 @@ export async function listSkills(): Promise<SkillManifest[]> {
   return data.skills;
 }
 
-export async function listPopularSkills(limit = 8): Promise<PopularSkillSummary[]> {
-  const data = await api<{ skills: PopularSkillSummary[] }>("GET", `/v1/skills/popular?limit=${limit}`);
+export async function listSkillCards(opts?: {
+  limit?: number;
+  includeDeprecated?: boolean;
+  revalidate?: number;
+}): Promise<SkillListItem[]> {
+  const params = new URLSearchParams({ view: "card" });
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  if (opts?.includeDeprecated) params.set("include_deprecated", "1");
+  const data = await request<{ skills: SkillListItem[] }>(
+    "GET",
+    `/v1/skills?${params.toString()}`,
+    undefined,
+    { revalidate: opts?.revalidate ?? 300 },
+  );
+  return data.skills;
+}
+
+export async function listPopularSkills(limit = 8, opts?: { revalidate?: number }): Promise<PopularSkillSummary[]> {
+  const data = await request<{ skills: PopularSkillSummary[] }>(
+    "GET",
+    `/v1/skills/popular?limit=${limit}`,
+    undefined,
+    { revalidate: opts?.revalidate ?? 300 },
+  );
   return data.skills;
 }
 

@@ -1,5 +1,3 @@
-import { headers } from "next/headers";
-
 export interface LandingVariantCopy {
   hero_headline: string;
   hero_emphasis: string;
@@ -46,20 +44,16 @@ const DEFAULT_ASSIGNMENT: LandingAssignmentEnvelope = {
   },
 };
 
-function decodeHeaderValue(raw: string): LandingAssignmentEnvelope | null {
-  try {
-    const padded = raw.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(raw.length / 4) * 4, "=");
-    const json = typeof atob === "function"
-      ? atob(padded)
-      : Buffer.from(padded, "base64").toString("utf8");
-    return JSON.parse(json) as LandingAssignmentEnvelope;
-  } catch {
-    return null;
-  }
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://beta-api.unbrowse.ai";
 
 export async function getHomepageLandingAssignment(): Promise<LandingAssignmentEnvelope> {
-  const requestHeaders = await headers();
-  const raw = requestHeaders.get("x-unbrowse-landing-assignment");
-  return decodeHeaderValue(raw ?? "") ?? DEFAULT_ASSIGNMENT;
+  try {
+    const response = await fetch(`${API_URL}/v1/landing/homepage/active`, {
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) return DEFAULT_ASSIGNMENT;
+    return await response.json() as LandingAssignmentEnvelope;
+  } catch {
+    return DEFAULT_ASSIGNMENT;
+  }
 }
