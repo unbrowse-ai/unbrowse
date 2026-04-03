@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { INSTALL_CMD_GENERIC, UPGRADE_CMD_GENERIC } from "@/lib/install-command";
+import { INSTALL_CMD_GENERIC, INSTALL_CMD_MCP, MCP_CONFIG_JSON, MCP_CONFIG_PATH, UPGRADE_CMD_GENERIC, UPGRADE_CMD_MCP } from "@/lib/install-command";
 
 const SKILL_MD = `---
 name: unbrowse
@@ -35,10 +35,25 @@ ${INSTALL_CMD_GENERIC}
 
 This path handles the full first-use flow: ToS acceptance, agent registration + API key caching, and wallet detection when present. If a wallet is configured, that address becomes the contributor/payment truth: it is synced onto your agent profile, used for contributor payouts when your routes earn, and used as the spending wallet for paid marketplace routes.
 
+For generic MCP hosts:
+
+\`\`\`bash
+${INSTALL_CMD_MCP}
+\`\`\`
+
+That path writes a ready-to-import config to \`${MCP_CONFIG_PATH}\`.
+
+Generic MCP template:
+
+\`\`\`json
+${MCP_CONFIG_JSON}
+\`\`\`
+
 Upgrade an existing clone in place:
 
 \`\`\`bash
 ${UPGRADE_CMD_GENERIC}
+${UPGRADE_CMD_MCP}
 \`\`\`
 
 If your host uses skills:

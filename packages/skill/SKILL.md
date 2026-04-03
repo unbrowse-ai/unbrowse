@@ -67,6 +67,15 @@ npm install -g unbrowse
 unbrowse setup
 ```
 
+For repo-clone installs targeting generic MCP hosts:
+
+```bash
+git clone --single-branch --depth 1 https://github.com/unbrowse-ai/unbrowse.git ~/unbrowse
+cd ~/unbrowse && ./setup --host mcp
+```
+
+That writes a ready-to-import config to `~/.config/unbrowse/mcp/unbrowse.json`. A generic template also lives at `https://www.unbrowse.ai/mcp.json`.
+
 If your agent host uses skills, add the Unbrowse skill too:
 
 ```bash

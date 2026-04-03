@@ -1059,23 +1059,6 @@ export async function recordOrchestrationPerf(timing: OrchestrationTiming): Prom
   await api("POST", "/v1/stats/perf", { ...timing, phase_totals_ms: phaseTotals });
 }
 
-// --- Analytics Sessions ---
-
-export async function recordAnalyticsSession(session: {
-  session_id: string;
-  started_at: string;
-  completed_at?: string;
-  trace_version?: string;
-  api_calls: number;
-  discovery_queries?: number;
-  cached_skill_calls?: number;
-  fresh_index_calls?: number;
-  browser_mode?: "default" | "replaced" | "manual" | "unknown";
-}): Promise<void> {
-  if (LOCAL_ONLY) return;
-  await api("POST", "/v1/analytics/sessions", session);
-}
-
 // --- Validation ---
 
 export async function validateManifest(manifest: unknown): Promise<ValidationResult> {

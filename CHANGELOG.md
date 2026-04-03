@@ -4,10 +4,17 @@
 
 ### Features
 
+* add a real `unbrowse mcp` stdio server with `initialize`, `tools/list`, `tools/call`, and core Unbrowse resolve/execute/browse tools
+* add a deterministic `./setup --host mcp` bootstrap that writes a ready MCP config file, plus a frontend MCP install option and downloadable `/mcp.json` template
 * **ci/frontend**: add GitHub Actions PR previews for the Cloudflare/OpenNext frontend with stable `pr-<number>` preview aliases, sticky PR comments, and staging-API wiring via `PREVIEW_API_URL`
+
+### Tests
+
+* add MCP stdio smoke coverage for initialize, tool listing, and health tool calls
 
 ### Bug Fixes
 
+* fix packaged MCP autostart by removing a duplicate `recordAnalyticsSession` export that broke the packaged local-server bootstrap path behind the installer-generated MCP command
 * **frontend/install**: simplify the landing-page install path around one clear command, reduce CTA clutter, trim install tabs, and make the copy action grab the primary command instead of the full block
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
 * clean checked-in merge markers, restore the curl install script, and add a repo blog-publish helper so the stale frontend-history branch can be absorbed without dragging its generated junk forward
