@@ -204,7 +204,7 @@ export async function recordPerf(env: Env, timing: OrchestrationTiming): Promise
 
   stats.last_updated_at = new Date().toISOString();
 
-  // Batch write: stats + recent window
+  // Keep the stats snapshot and recent window write together.
   await statsKV(env).putBatch([
     { key: PERF_KEY, value: JSON.stringify(stats) },
     { key: PERF_WINDOW_KEY, value: JSON.stringify(recent) },

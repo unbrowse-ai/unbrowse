@@ -2,11 +2,12 @@ import { neon } from "@neondatabase/serverless";
 
 const clientCache = new Map<string, any>();
 const initCache = new Map<string, Promise<void>>();
+let neonFactory = neon;
 
 function getClient(databaseUrl: string): any {
   const cached = clientCache.get(databaseUrl);
   if (cached) return cached;
-  const client = neon(databaseUrl);
+  const client = neonFactory(databaseUrl);
   clientCache.set(databaseUrl, client);
   return client;
 }
@@ -41,9 +42,24 @@ export async function getNeonClient(databaseUrl: string): Promise<any> {
 
   let init = initCache.get(trimmed);
   if (!init) {
-    init = initialize(trimmed);
+    init = initialize(trimmed).catch((error) => {
+      initCache.delete(trimmed);
+      throw error;
+    });
     initCache.set(trimmed, init);
   }
   await init;
   return getClient(trimmed);
+}
+
+export function __setNeonFactoryForTests(factory: typeof neon): void {
+  neonFactory = factory;
+  clientCache.clear();
+  initCache.clear();
+}
+
+export function __resetNeonForTests(): void {
+  neonFactory = neon;
+  clientCache.clear();
+  initCache.clear();
 }
