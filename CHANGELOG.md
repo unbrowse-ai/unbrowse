@@ -31,6 +31,7 @@
 ### Features
 
 - add tracked `docs/agent-memory.md` and require agents to read/write durable Lewis preferences there
+* **docs/skill**: rewrite the public `SKILL.md` around the real Kuri-first model, including browser-native traversal rules, Kuri-to-Unbrowse command mapping, publish-time contract compilation, and a direct-Kuri debug escape hatch for session drift
 * **docs/mcp**: document dependency-walk rules for JS-heavy multi-step sites so future agents treat successful browse submits as the prerequisite edge for downstream pages instead of guessing deep links
 * **workflow/publish**: export sanitized workflow assets beside raw workflow artifacts so mined routes now persist as publishable, documented, token-censored inventory with `captured`/`published` status
 * add a real `unbrowse mcp` stdio server with `initialize`, `tools/list`, `tools/call`, and core Unbrowse resolve/execute/browse tools
@@ -107,6 +108,7 @@
 * **browse/session**: harden packaged Kuri tab recovery by accepting `/tab/new` ids across response shapes, falling back to reusable idle tabs when Kuri cannot create a fresh target, and preferring blank/new-tab recovery over hijacking unrelated tabs
 * **browse/session**: enforce one-tab-per-session recovery by only reattaching to same-domain tabs and reusing idle tabs before opening raw CDP fallbacks, so browse sessions stop leaking or hijacking stray tabs
 * **browse/session**: keep explicit read-only session recovery pinned to the original route by only reattaching dead tabs when the last known URL pathname matches, and otherwise forcing a fresh owned tab instead of silently rewinding onto another same-domain page
+* **browse/session**: when the live tab swaps off-route, prefer the single meaningful same-domain replacement over a stale owned placeholder tab, close that stale blank tab after rebinding, and refresh click responses so multi-step sites like Mandai stop drifting onto `about:blank`
 * **browse/submit**: keep regular traversal browser-native by default, make same-origin fetch fallback explicit opt-in only, and update CLI/MCP guidance so passive API analysis no longer silently turns into live fetch replay during submit flows
 * **workflow/publish**: compile publish-safe replay contracts from passive traversal evidence, including typed params, enums, derived auth/token hints, prerequisites, next-state validators, and usage notes for explicit replay after publish
 * **orchestrator/publish**: enrich local endpoint descriptions and review prompts with audience, eligibility, pricing, and validity constraints so captured skills keep caveats like resident vs non-resident bundle rules before publish

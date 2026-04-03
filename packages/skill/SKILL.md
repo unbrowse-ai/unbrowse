@@ -13,22 +13,30 @@ user-invocable: true
 metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "npm", "kind": "node", "package": "unbrowse", "bins": ["unbrowse"]}], "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
 ---
 
-# Unbrowse — Agent Browser Powered by Kuri
+# Unbrowse — Kuri-Powered Agent Browser
 
-Kuri is the agent's browser — a 464 KB Zig-native CDP broker with ~3ms cold start. Unbrowse is the intelligence layer that runs on top: it watches what Kuri does, learns the internal APIs (shadow APIs) that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
+Kuri is the browser runtime. Unbrowse is the orchestration and publish layer on top.
 
-The clean category line is: Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents.
+Use this mental model:
 
-**How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
+- **Traversal**: browser-native. `go`, `snap`, `click`, `fill`, `select`, `eval`, `submit`, `close`. No hidden API replay while clicking around.
+- **Publish/index**: passive evidence gets compiled later into a workflow DAG, typed params, restrictions, enums, token/header hints, and replay contracts.
+- **Replay/execute**: explicit only. Use published contracts when you want a non-browser call.
+
+The clean category line is: Unbrowse is the agent-facing browser tool; Kuri is the primitive engine underneath.
+
+It is still the replacement layer for OpenClaw / `agent-browser` browser flows — just with a stricter split between browser traversal and post-publish replay.
+
+**How it works:** Unbrowse can still serve a fast cached route when one already exists, but live browsing should be treated as Kuri-first and browser-native. During traversal, requests are observed passively. At publish time, Unbrowse links DOM steps, hidden inputs, requests, and next-state transitions into reusable contracts.
 
 **Three execution paths:**
-1. **Skill cache** (Path 1) — instant, <200ms. Cached internal API route.
-2. **Shared route graph** (Path 2) — sub-second. Route discovered by another agent, served from the collectively maintained marketplace.
-3. **Kuri browser** (Path 3) — 20-80s. Full browser session via Kuri. Unbrowse captures and indexes traffic for future acceleration.
+1. **Skill cache** — instant, <200ms. Existing published route.
+2. **Shared route graph** — sub-second. Previously mined route from another agent.
+3. **Kuri browser** — full browser session. Source of truth for new traversal and proof of workflow edges.
 
-Every method except `goto()` proxies directly to Kuri — snapshots, ref-based actions, DOM queries, HAR recording, cookies, screenshots. The full Kuri API surface is available. Unbrowse is the second-class citizen here: it indexes in the background and provides a faster path when one exists.
+During live traversal, do not silently substitute API replay for browser steps. A successful browser submit proves an edge; publish/index turns that edge into an explicit replay contract later.
 
-**Performance:** On the API-native path, the product is positioned as roughly ~30x faster and ~90% cheaper than repeated browser execution. In the current published benchmark set, Unbrowse shows 3.6x mean speedup and 5.4x median over Playwright across 94 live domains, with 18 domains completing in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
+**Performance:** Published routes are still positioned as roughly 30x faster and 90% cheaper than repeated browser work, but traversal truth still comes from the browser path. In the current published benchmark set, Unbrowse shows 3.6x mean speedup and 5.4x median over Playwright across 94 live domains, with 18 domains completing in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
 
 **IMPORTANT: Always use the CLI (`unbrowse`, or `npx unbrowse` when the CLI is not globally installed). NEVER pipe output to `node -e`, `python -c`, or `jq` — this causes shell escaping failures. Use `--path`, `--extract`, and `--limit` flags instead.**
 
@@ -116,63 +124,81 @@ Use the skill for the core loop. Use the docs when you need product context or r
 
 ## Core Workflow
 
-### Step 1: Resolve — check if a cached skill exists
+### 1. Browser traversal first
+
+Use this when the site is not already published, the flow is JS-heavy, or you need product-truth proof.
+
+```bash
+unbrowse go https://example.com
+unbrowse snap --filter interactive
+unbrowse click e2
+unbrowse fill e5 "hello world"
+unbrowse submit --wait-for "/next-page.html"
+unbrowse close
+```
+
+The Kuri-style mapping is:
+
+- `kuri-agent tabs/use/go` -> `unbrowse go` + `--session`
+- `kuri-agent snap` -> `unbrowse snap`
+- `kuri-agent click/fill/select/eval` -> same `unbrowse` commands
+- `kuri-agent shot/text/cookies` -> `unbrowse screenshot/text/cookies`
+- form boundaries -> `unbrowse submit`
+
+Use one `session_id` through the whole flow. `snap` gives the live refs. `submit` is the important edge prover.
+
+### 2. Traversal rules
+
+- Browser-native by default. No hidden same-origin replay during ordinary page walking.
+- Successful `submit` proves a workflow edge.
+- Trust the actual page state:
+  - `form[action]`
+  - hidden inputs
+  - `next-pagePath`
+  - returned `url`
+- Do not guess downstream URLs when the page already tells you the next step.
+- If a step stalls, inspect with `snap`, `eval`, and hidden-field probes before retrying.
+- Use `close` when done so captured evidence can flush and index.
+
+### 3. Publish/index after traversal
+
+Traversal is discovery. Publish is compilation.
+
+At publish time, Unbrowse links:
+
+- DOM prerequisites
+- hidden fields
+- cookies / token sources
+- request fingerprints
+- next-state transitions
+- typed params, enums, restrictions, and usage notes
+
+That output becomes the machine-readable replay contract exposed to later agents.
+
+### 4. Resolve and execute published routes
+
+When a route is already known, use the explicit resolve/execute path.
 
 ```bash
 unbrowse resolve \
   --intent "get my X timeline" \
   --url "https://x.com/home" \
   --pretty
-```
 
-Resolve checks the local skill cache. If a skill exists for this domain, it returns `available_endpoints` with:
-- `description` — what the endpoint returns
-- `schema_summary` — nested response structure (3 levels deep)
-- `sample_values` — concrete leaf key→value pairs from captured data
-- `input_params` — required/optional parameters with types and examples
-- `example_fields` — dot-paths showing extractable fields
-
-**Got endpoints?** Pick one and go to Step 2.
-
-**Got `browse_session_open` or no endpoints?** The site hasn't been indexed yet. Go to Step 1b.
-
-### Step 1b: Browse to index — only when no cached skill exists
-
-When resolve has no cached data, browse the site to build the index:
-
-```bash
-unbrowse go https://www.example.com
-unbrowse snap                          # see what's on page
-unbrowse fill e3 "search query"        # fill a search box
-unbrowse press Enter                   # submit
-unbrowse snap                          # see results
-unbrowse close                         # indexes all captured traffic + page DOM
-```
-
-All traffic (API calls, page HTML, search forms) is passively captured. `close` triggers indexing — it creates skill endpoints from both intercepted API calls AND DOM extraction from the page HTML. Server-rendered sites (no JSON APIs) get DOM endpoints with templatized URLs so search params work on re-execute.
-
-After `close`, go back to Step 1 — resolve will now find the cached skill.
-
-### Step 2: Execute — call the endpoint with extraction
-
-```bash
 unbrowse execute \
   --skill {skill_id} \
   --endpoint {endpoint_id} \
   --path "data.items[]" \
   --extract "name,url,created_at" \
-  --limit 10 --pretty
+  --limit 10 \
+  --pretty
 ```
 
-Use `--path` to drill into nested response structures, `--extract` to pick fields (supports aliases: `alias:deep.path`), and `--limit` to cap results. Without these flags, large responses auto-wrap with `extraction_hints` showing the schema tree.
+Use `--path`, `--extract`, and `--limit` instead of shell post-processing. Execute is explicit replay, not ad-hoc traversal.
 
-### Step 3: Present results to the user
+### 5. Feedback, review, publish
 
-Show the user their data first. Do not block on feedback before returning information.
-
-### Step 4: Submit feedback (MANDATORY — but after presenting results)
-
-Submit feedback after you've shown the user their results. This can run in parallel with your response.
+After a successful execute or validated traversal:
 
 ```bash
 unbrowse feedback \
@@ -182,73 +208,52 @@ unbrowse feedback \
   --outcome success
 ```
 
-**Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
+Then improve the metadata:
 
-### Step 5: Review — augment endpoint descriptions (MANDATORY on first use)
+- what the endpoint really returns
+- what the params mean
+- restrictions, audience, pricing, validity, or eligibility caveats
+- correct `action_kind` / `resource_kind`
 
-After the first successful execute on a domain, read the returned data and push proper descriptions back. The heuristic-generated descriptions are generic ("Returns results with data, home"). You are the LLM — describe what each endpoint actually does and what each parameter means:
+Publish once the contract is good enough for reuse:
 
 ```bash
-unbrowse review --skill {skill_id} --endpoints '[{
-  "endpoint_id": "{endpoint_id}",
-  "description": "Search Singapore court judgments by keywords, filtered by court and year, sorted by relevance",
-  "action_kind": "search",
-  "resource_kind": "judgment"
-}]'
+unbrowse publish --skill {skill_id} --pretty
+unbrowse publish --skill {skill_id} --endpoints '[{...}]'
 ```
 
-This makes future resolves immediately useful — agents see "Search court judgments by keywords" instead of "Captured search form artifact for browse www.elitigation.sg".
+### 6. Picking the right endpoint from resolve
 
-**What to describe:**
-- What the endpoint returns (e.g. "timeline tweets with author, text, engagement metrics")
-- What the key parameters control (e.g. "SearchPhrase filters by keyword, Filter selects court level")
-- Any audience or eligibility constraints (e.g. resident vs non-resident, member-only, guest checkout caveats)
-- Any pricing or validity caveats that change how an agent should use it (e.g. discounted flow, 5-day pass, one-time entry)
-- The action type (search, list, detail, timeline, create)
-- The resource type (judgment, tweet, post, event, product)
-Resolve returns `available_endpoints` sorted by score. Each endpoint includes schema, sample values, and input params. Look at:
+Resolve returns `available_endpoints` sorted by score. Look at:
 
 | Field | What to check |
 |-------|---------------|
-| `description` | Human-readable summary of what the endpoint returns |
-| `schema_summary` | Nested response structure — shows what data is available at each level |
-| `sample_values` | Concrete example values from captured data — see actual field contents |
-| `input_params` | What parameters the endpoint needs (key, type, required, example) |
-| `example_fields` | Dot-paths you can use with `--path` and `--extract` |
-| `action_kind` | `timeline`, `list`, `detail`, `search` — match your intent |
-| `url` | The actual API URL — look for GraphQL operation names, REST paths |
-| `dom_extraction` | `true` = extracted from page HTML. `false` = real API call |
-| `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM |
+| `description` | Human-readable endpoint summary |
+| `schema_summary` | Nested response structure |
+| `sample_values` | Concrete example values |
+| `input_params` | Params, types, required flags, examples |
+| `example_fields` | Dot-paths for `--path` / `--extract` |
+| `action_kind` | `timeline`, `list`, `detail`, `search` |
+| `url` | GraphQL op name, REST path, or known backend route |
+| `dom_extraction` | `false` preferred for replay; `true` means DOM-derived artifact |
+| `score` | Ranking hint only — not stronger than obvious route truth |
 
+For simple sites with one clear endpoint, `resolve` may return direct data in `result`. Then skip `execute`.
 
-### Step 6: Publish — describe endpoints and publish to marketplace
+### 7. Direct Kuri escape hatch
 
-After you have used a skill, publish it so other agents can find and use it.
+If Unbrowse session bookkeeping looks wrong, separate product bugs:
 
-**If you already know what the endpoints do** (you just executed them and saw the data), publish directly:
-```bash
-unbrowse publish --skill {skill_id} --endpoints '[{
-  "endpoint_id": "{endpoint_id}",
-  "description": "Search Singapore court judgments by keywords, filtered by court and year",
-  "action_kind": "search",
-  "resource_kind": "judgment"
-}]'
-```
-This merges your descriptions into the skill, updates local caches, and publishes to the marketplace.
+- **Kuri bug**: broker/tab/CDP problem
+- **Unbrowse bug**: session registry, recovery, publish, or replay policy problem
 
-**If you need to inspect endpoints first** (unfamiliar skill, or you want to see schema/samples before describing):
-```bash
-unbrowse publish --skill {skill_id} --pretty
-```
-Returns each endpoint with `schema_summary`, `sample_values`, `input_params`, and a `_fill_description` placeholder. Read these, then call publish again with `--endpoints` to submit descriptions.
+Use direct Kuri-style inspection when needed:
 
-**When to publish:**
-- After the first successful execute + review cycle on a new domain
-- When you've improved endpoint descriptions based on actual usage
-- After discovering new endpoints via browse sessions
-### When resolve returns direct data
+- inspect tabs / live page url
+- inspect a11y snapshot on the real tab
+- verify the real page still exists before calling a session dead
 
-For simple sites with one clear endpoint, resolve may return data directly in `result` without a deferred list. In that case, skip Step 2 — the data is already there.
+That is a debug path only. Normal agent use should stay on the Unbrowse CLI surface.
 
 <!-- CLI_REFERENCE_START -->
 ## CLI Flags

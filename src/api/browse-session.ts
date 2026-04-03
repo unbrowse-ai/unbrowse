@@ -121,6 +121,13 @@ function matchesPreferredBrowseTab(tabUrl: string | undefined, preferredUrl: str
   return normalizeBrowsePathname(candidate.pathname) === normalizeBrowsePathname(preferred.pathname);
 }
 
+function matchesPreferredBrowseDomain(tabUrl: string | undefined, preferredUrl: string | undefined): boolean {
+  const candidate = normalizeBrowseUrl(tabUrl);
+  const preferred = normalizeBrowseUrl(preferredUrl);
+  if (!candidate || !preferred) return false;
+  return candidate.hostname.replace(/^www\./, "") === preferred.hostname.replace(/^www\./, "");
+}
+
 function isPlaceholderBrowseUrl(url: string | undefined): boolean {
   if (!url) return true;
   const normalized = url.trim().toLowerCase();
@@ -150,10 +157,29 @@ function pickLiveBrowseTab(
   });
   if (preferredReal) return preferredReal;
 
+  const sameDomainReal = tabs.filter((tab) => {
+    if (isPlaceholderBrowseUrl(tab.url)) return false;
+    return matchesPreferredBrowseDomain(tab.url, preferredUrl)
+      || matchesPreferredBrowseDomain(tab.url, fallbackUrl);
+  });
+  if (exact && isPlaceholderBrowseUrl(exact.url) && sameDomainReal.length === 1) {
+    return sameDomainReal[0];
+  }
+
   if (exact) return exact;
 
   return tabs.find((tab) => matchesPreferredBrowseTab(tab.url, preferredUrl)
     || matchesPreferredBrowseTab(tab.url, fallbackUrl));
+}
+
+async function closeStalePlaceholderBrowseTab(
+  client: BrowseSessionClient,
+  staleTab: BrowseTabRef | undefined,
+  activeTabId: string,
+): Promise<void> {
+  if (!staleTab?.id || staleTab.id === activeTabId) return;
+  if (!isPlaceholderBrowseUrl(staleTab.url)) return;
+  await client.closeTab(staleTab.id).catch(() => {});
 }
 
 function cleanupSessionQueue(sessionId: string): void {
@@ -343,6 +369,7 @@ export async function isBrowseSessionLive(
   for (let attempt = 0; attempt < LIVE_CHECK_RETRIES; attempt += 1) {
     try {
       const tabs = await sessionClient.discoverTabs();
+      const exactTab = tabs.find((tab) => tab.id === session.tabId);
       const liveTab = pickLiveBrowseTab(tabs, session.tabId, session.url, lastKnownUrl);
       if (!liveTab) {
         if (attempt < LIVE_CHECK_RETRIES - 1) {
@@ -357,6 +384,7 @@ export async function isBrowseSessionLive(
         session.domain = extractDomain(session.url);
         session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
         session.client = sessionClient;
+        await closeStalePlaceholderBrowseTab(sessionClient, exactTab, liveTab.id);
       }
       tabSeen = true;
       if (hasMeaningfulBrowseUrl(liveTab.url)) lastKnownUrl = liveTab.url!;

@@ -120,6 +120,58 @@ describe("browse session recovery", () => {
     expect(session.brokerPort).toBe(7835);
   });
 
+  it("rebinds onto a unique same-domain real tab when the exact tab is stuck on about:blank", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "stale-tab",
+      url: "https://www.mandai.com/en/ticketing/admission-and-rides/add-ons-selection.html",
+      harActive: true,
+      domain: "mandai.com",
+    };
+    const closed: string[] = [];
+
+    const live = await isBrowseSessionLive(session, makeClient({
+      closeTab: async (tabId) => { closed.push(tabId); },
+      discoverTabs: async () => [
+        { id: "stale-tab", url: "about:blank" },
+        { id: "details-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/details-information.html" },
+        { id: "idle-tab", url: "chrome://newtab/" },
+      ],
+      getCurrentUrl: async (tabId) => tabId === "details-tab"
+        ? "https://www.mandai.com/en/ticketing/admission-and-rides/details-information.html"
+        : "about:blank",
+      getPort: () => 7836,
+    }));
+
+    expect(live).toBe(true);
+    expect(session.tabId).toBe("details-tab");
+    expect(session.url).toBe("https://www.mandai.com/en/ticketing/admission-and-rides/details-information.html");
+    expect(closed).toEqual(["stale-tab"]);
+  });
+
+  it("does not guess between multiple same-domain real tabs when the exact tab is placeholder", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "stale-tab",
+      url: "https://www.mandai.com/en/ticketing/admission-and-rides/add-ons-selection.html",
+      harActive: true,
+      domain: "mandai.com",
+    };
+
+    const live = await isBrowseSessionLive(session, makeClient({
+      discoverTabs: async () => [
+        { id: "stale-tab", url: "about:blank" },
+        { id: "details-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/details-information.html" },
+        { id: "parks-tab", url: "https://www.mandai.com/en/ticketing/admission-and-rides/parks-selection.html" },
+      ],
+      getCurrentUrl: async () => "about:blank",
+    }));
+
+    expect(live).toBe(true);
+    expect(session.tabId).toBe("stale-tab");
+    expect(session.url).toBe("https://www.mandai.com/en/ticketing/admission-and-rides/add-ons-selection.html");
+  });
+
   it("waits through transient empty tab discovery before rebinding onto the replacement tab", async () => {
     const session: BrowseSession = {
       sessionId: "sess-1",
