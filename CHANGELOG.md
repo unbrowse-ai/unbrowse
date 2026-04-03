@@ -68,6 +68,7 @@
 
 ### Bug Fixes
 
+* **packaging/release**: pin Kuri submodule validation to `justrach/kuri#adding-extensions`, build and upload `dist/unbrowse-*` GitHub release assets in CI/CD, smoke-test the compiled single-binary packaging path, and select the embedded Kuri payload by runtime target instead of hardcoding `darwin-arm64`
 * **skills/install**: quote all `SKILL.md` descriptions as valid YAML block scalars so `npx skills add unbrowse-ai/unbrowse` discovers the published Unbrowse skill again instead of bailing out with "No valid skills found", and add a dedicated CI/release gate that runs `tests/skill-docs-sync.test.ts` before packaging/publish
 * **github/docs**: update PR helpers and validation docs to treat `main` as the canonical base branch after the branch rename, so release/merge instructions stop pointing at the dead `rach/restart-base` branch
 * **analytics/security**: stop advertising authenticated analytics responses as publicly cacheable, add `Vary: Authorization`, remove user-facing analytics docs links, and pin the private header contract in end-to-end coverage

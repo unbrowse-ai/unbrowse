@@ -15,4 +15,7 @@ echo "[packaged-kuri] npm pack dry run"
   npm pack --dry-run >/tmp/unbrowse-packaged-kuri-pack.log
 )
 
+echo "[packaged-kuri] single-binary smoke"
+bash scripts/build-binaries.sh
+
 echo "[packaged-kuri] ok"

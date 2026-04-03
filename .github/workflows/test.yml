@@ -13,7 +13,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
@@ -28,7 +28,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
@@ -43,7 +43,7 @@ jobs:
       GRAPH_TEST_API_KEY: ${{ secrets.UNBROWSE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
@@ -59,7 +59,7 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
         working-directory: .
       - uses: oven-sh/setup-bun@v2
         with:
@@ -73,7 +73,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -98,7 +98,7 @@ jobs:
       UNBROWSE_TOS_ACCEPTED: "1"
     steps:
       - uses: actions/checkout@v4
-      - run: git submodule update --init submodules/kuri
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"

@@ -4,3 +4,4 @@
 [submodule "submodules/kuri"]
 	path = submodules/kuri
 	url = https://github.com/justrach/kuri.git
+	branch = adding-extensions
