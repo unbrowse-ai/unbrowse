@@ -15,7 +15,7 @@ import {
 const ROOT = path.resolve(import.meta.dir, "..");
 
 describe("bootstrap install flow", () => {
-  it("publishes deterministic clone-and-setup commands", () => {
+  it("publishes deterministic install and upgrade commands", () => {
     expect(INSTALL_CMD_GENERIC).toContain("curl -fsSL");
     expect(INSTALL_CMD_GENERIC).toContain("install.sh");
     expect(INSTALL_CMD_MCP).toContain("./setup --host mcp");

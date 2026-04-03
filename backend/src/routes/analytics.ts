@@ -119,6 +119,13 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     cached_skill_calls?: number;
     fresh_index_calls?: number;
     browser_mode?: "default" | "replaced" | "manual" | "unknown";
+    success?: boolean;
+    source?: string;
+    time_saved_ms?: number;
+    time_saved_pct?: number;
+    tokens_saved?: number;
+    tokens_saved_pct?: number;
+    cost_saved_uc?: number;
   }>();
   if (!body.session_id || !body.started_at) {
     return c.json({ error: "session_id and started_at required" }, 400);
@@ -133,6 +140,13 @@ analyticsRoutes.post("/analytics/sessions", async (c) => {
     cached_skill_calls: body.cached_skill_calls,
     fresh_index_calls: body.fresh_index_calls,
     browser_mode: body.browser_mode,
+    success: body.success,
+    source: body.source,
+    time_saved_ms: body.time_saved_ms,
+    time_saved_pct: body.time_saved_pct,
+    tokens_saved: body.tokens_saved,
+    tokens_saved_pct: body.tokens_saved_pct,
+    cost_saved_uc: body.cost_saved_uc,
   });
   return c.json({ ok: true });
 });
