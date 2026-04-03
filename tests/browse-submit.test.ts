@@ -174,7 +174,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20, waitFor: "/add-ons-selection.html" },
+      { timeoutMs: 20, waitFor: "/add-ons-selection.html", assistSiteState: true },
     );
 
     expect(evalCount).toBe(2);
@@ -304,7 +304,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20, waitFor: "/tickets-selection.html" },
+      { timeoutMs: 20, waitFor: "/tickets-selection.html", assistSiteState: true },
     );
 
     expect(sawParkSubmitCompiler).toBe(true);
@@ -313,6 +313,67 @@ describe("browse submit", () => {
     expect(result.fallback_used).toBe(false);
     expect(result.url).toBe("https://example.com/tickets-selection.html");
     expect(result.submit_meta?.submit_kind).toBe("park_card_click_then_submit");
+  });
+
+  it("keeps traversal submit thin by default even when a site-specific assist path is available", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/parks-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let usedSpecialCompiler = false;
+    let urlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async (_tabId, expression) => {
+            evalCount += 1;
+            if (evalCount === 1) {
+              return JSON.stringify({
+                ok: true,
+                action: "/bin/wrs/product-selection",
+                step: "1",
+                ticketingType: "park",
+                hasActiveParkCard: true,
+                hasResidentGate: false,
+                hasQuantityControls: false,
+              });
+            }
+            usedSpecialCompiler = expression.includes("park_card_click_then_submit")
+              || expression.includes("li[data-block-content='#\" + cardPane.id + \"']");
+            return JSON.stringify({
+              ok: true,
+              form_action: "/bin/wrs/product-selection",
+              form_method: "POST",
+              submitter: "NEXT",
+              prereq_state: { patched: [], missing: [] },
+              submit_kind: "click",
+            });
+          },
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads === 1
+              ? "https://example.com/parks-selection.html"
+              : "https://example.com/tickets-selection.html";
+          },
+          getPageHtml: async () => urlReads <= 1
+            ? "<html><body>parks-selection</body></html>"
+            : "<html><body>tickets-selection</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/tickets-selection.html" },
+    );
+
+    expect(usedSpecialCompiler).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(result.submit_meta?.submit_kind).toBe("click");
   });
 
   it("uses the lightweight Mandai add-ons submit path when add-ons are optional", async () => {
@@ -365,7 +426,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20, waitFor: "/details-information.html" },
+      { timeoutMs: 20, waitFor: "/details-information.html", assistSiteState: true },
     );
 
     expect(result.ok).toBe(true);
@@ -430,7 +491,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20, waitFor: "/date-selection.html", formSelector: "form[action*=\"ticket-selection\"]" },
+      { timeoutMs: 20, waitFor: "/date-selection.html", formSelector: "form[action*=\"ticket-selection\"]", assistSiteState: true },
     );
 
     expect(sawTicketSubmitCompiler).toBe(true);

@@ -8,6 +8,7 @@ export interface BrowseSubmitOptions {
   waitFor?: string;
   sameOriginFetchFallback?: boolean;
   timeoutMs?: number;
+  assistSiteState?: boolean;
 }
 
 export interface BrowseSubmitClient {
@@ -996,35 +997,37 @@ export async function submitBrowseForm(
   }
 
   let domExpression = buildDomSubmitExpression(options);
-  if (pageProbe?.action && /\/bin\/wrs\/product-selection/i.test(pageProbe.action) && pageProbe.ticketingType === "park") {
-    domExpression = buildMandaiParkSubmitExpression(options);
-  } else if (
-    pageProbe?.action
-    && /\/bin\/wrs\/datestep\.json/i.test(pageProbe.action)
-    && pageProbe.step === "3"
-  ) {
-    domExpression = buildMandaiDateSubmitExpression(options);
-  } else if (
-    pageProbe?.action
-    && /\/bin\/wrs\/addon-selection/i.test(pageProbe.action)
-    && pageProbe.step === "5"
-  ) {
-    domExpression = buildMandaiAddonSubmitExpression(options);
-  } else if (
-    pageProbe?.action
-    && /\/bin\/wrs\/ticket-selection/i.test(pageProbe.action)
-    && pageProbe.step === "2"
-    && pageProbe.hasQuantityControls
-  ) {
-    domExpression = buildMandaiTicketQuantitySubmitExpression(options);
-  } else if (
-    pageProbe?.action
-    && /\/bin\/wrs\/ticket-selection/i.test(pageProbe.action)
-    && pageProbe.step === "2"
-    && pageProbe.hasResidentGate
-    && !pageProbe.hasQuantityControls
-  ) {
-    domExpression = buildMandaiResidentGateSubmitExpression(options);
+  if (options.assistSiteState) {
+    if (pageProbe?.action && /\/bin\/wrs\/product-selection/i.test(pageProbe.action) && pageProbe.ticketingType === "park") {
+      domExpression = buildMandaiParkSubmitExpression(options);
+    } else if (
+      pageProbe?.action
+      && /\/bin\/wrs\/datestep\.json/i.test(pageProbe.action)
+      && pageProbe.step === "3"
+    ) {
+      domExpression = buildMandaiDateSubmitExpression(options);
+    } else if (
+      pageProbe?.action
+      && /\/bin\/wrs\/addon-selection/i.test(pageProbe.action)
+      && pageProbe.step === "5"
+    ) {
+      domExpression = buildMandaiAddonSubmitExpression(options);
+    } else if (
+      pageProbe?.action
+      && /\/bin\/wrs\/ticket-selection/i.test(pageProbe.action)
+      && pageProbe.step === "2"
+      && pageProbe.hasQuantityControls
+    ) {
+      domExpression = buildMandaiTicketQuantitySubmitExpression(options);
+    } else if (
+      pageProbe?.action
+      && /\/bin\/wrs\/ticket-selection/i.test(pageProbe.action)
+      && pageProbe.step === "2"
+      && pageProbe.hasResidentGate
+      && !pageProbe.hasQuantityControls
+    ) {
+      domExpression = buildMandaiResidentGateSubmitExpression(options);
+    }
   }
   traceSubmit("page-probe", {
     before_url: beforeUrl || session.url,
