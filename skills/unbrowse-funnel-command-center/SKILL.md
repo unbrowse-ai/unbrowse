@@ -63,6 +63,10 @@ Workflow:
    - specialist skill to call
    - exact metric to move
    - this-week ship list
+6. Visualize when the payload is dense.
+   - push the joined analytics payload into the merjs session API
+   - use `POST /api/viz` for either arbitrary payloads or the built-in `analytics_snapshot`
+   - hand back the saved `viz_path` so Lewis can inspect it in browser or desktop app
 
 Load-bearing rules:
 
@@ -74,6 +78,7 @@ Load-bearing rules:
 - if activation is healthy but repeat is weak, stop changing onboarding and fix retention loops
 - if retention is healthy but paid is weak, stop changing acquisition and fix monetization
 - if the stage is unclear, diagnose first and do not guess
+- if the analytics payload is too wide for prose, move it into the merjs visual surface instead of flattening it into one giant text dump
 
 Default output:
 
