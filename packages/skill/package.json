@@ -7,7 +7,10 @@
     "unbrowse": "bin/unbrowse-wrapper.mjs"
   },
   "files": [
-    "bin/unbrowse-wrapper.mjs",
+    "bin",
+    "dist",
+    "runtime-src",
+    "vendor/kuri",
     "scripts/release-assets.mjs",
     "scripts/postinstall.mjs",
     "scripts/verify-release-assets.mjs",
@@ -17,7 +20,28 @@
   ],
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
-    "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs",
-    "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs"
+    "prepack": "bun ../../scripts/sync-skill-md.ts --check && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs",
+    "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@cascade-fyi/splits-sdk": "^0.11.1",
+    "@solana/kit": "^6.6.0",
+    "bs58": "^6.0.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.7.4",
+    "nanoid": "^5.1.6",
+    "tsx": "^4.20.6",
+    "ws": "^8.19.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.1"
   }
 }

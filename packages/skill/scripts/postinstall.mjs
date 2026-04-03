@@ -5,10 +5,9 @@
  *
  * The npm package is a thin wrapper. The real binary is a bun-compiled
  * single binary with kuri embedded. This mirrors Kuri's npm install flow:
- * fetch the matching GitHub release tarball, extract `unbrowse`, wire it
- * into `bin/`, and fall back to source mode if the release asset is missing.
+ * fetch the matching GitHub release asset, wire it into `bin/`, and fall
+ * back to the packaged runtime if the release asset is missing.
  */
-import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync, readFileSync } from "node:fs";
 import { existsSync, mkdirSync, chmodSync, copyFileSync, createWriteStream, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,9 +20,26 @@ const packageRoot = join(__dirname, "..");
 const binDir = join(packageRoot, "bin");
 const binaryPath = join(binDir, "unbrowse");
 const localBinaryPath = process.env.UNBROWSE_INSTALL_BINARY_PATH;
+const wrapperPath = join(binDir, "unbrowse-wrapper.mjs");
+const launcherPath = join(binDir, "unbrowse.js");
+
+function ensureExecutable(filePath) {
+  if (!existsSync(filePath)) return;
+  try {
+    chmodSync(filePath, 0o755);
+  } catch {
+    // Leave best-effort permission repair to the wrapper diagnostics.
+  }
+}
+
+ensureExecutable(wrapperPath);
+ensureExecutable(launcherPath);
 
 // Skip if binary already exists (re-install)
-if (existsSync(binaryPath)) process.exit(0);
+if (existsSync(binaryPath)) {
+  ensureExecutable(binaryPath);
+  process.exit(0);
+}
 
 if (localBinaryPath) {
   if (!existsSync(localBinaryPath)) {
@@ -43,11 +59,11 @@ const target = `${platform}-${arch}`;
 
 if (!SUPPORTED_TARGETS.includes(target)) {
   console.warn(`[unbrowse] No prebuilt binary for ${target}.`);
-  console.warn("[unbrowse] This package ships only the native binary wrapper.");
+  console.warn("[unbrowse] Falling back to source mode.");
   process.exit(0);
 }
 
-const { version, repo, tag, baseUrl } = getReleaseAssetConfig(packageRoot);
+const { repo, tag, baseUrl } = getReleaseAssetConfig(packageRoot);
 const assetName = `unbrowse-${target}`;
 const url = buildReleaseAssetUrl(baseUrl, tag, assetName);
 
@@ -84,7 +100,6 @@ try {
   console.log(`[unbrowse] Binary installed: ${binaryPath}`);
 } catch (err) {
   console.warn(`[unbrowse] Binary download failed: ${err.message}`);
-  console.warn(`[unbrowse] Install failed: native binary unavailable for ${repo} ${tag} (${target}).`);
+  console.warn(`[unbrowse] Falling back to source mode for ${repo} ${tag} (${target}).`);
   try { unlinkSync(binaryPath); } catch {}
-  process.exit(1);
 }
