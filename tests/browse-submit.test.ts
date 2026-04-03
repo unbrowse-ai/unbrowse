@@ -740,6 +740,45 @@ describe("browse submit", () => {
     expect(session.url).toBe("https://auth.example.com/login");
   });
 
+  it("avoids repeated html probing when a URL wait hint is enough to prove the transition", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/step-1",
+      harActive: true,
+      domain: "example.com",
+    };
+    let urlReads = 0;
+    let htmlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => JSON.stringify({ ok: true, submit_kind: "requestSubmit" }),
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads < 3 ? "https://example.com/step-1" : "https://example.com/review";
+          },
+          getPageHtml: async () => {
+            htmlReads += 1;
+            return htmlReads === 1
+              ? "<html><body>step-1</body></html>"
+              : "<html><body>review</body></html>";
+          },
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 900, waitFor: "/review" },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.url).toBe("https://example.com/review");
+    expect(htmlReads).toBeLessThanOrEqual(2);
+  });
+
   it("infers iso dates from Mandai-style month and day labels", () => {
     expect(inferCalendarIsoDate("Apr 2026", "4")).toBe("2026-04-04");
     expect(inferCalendarIsoDate("September 2026", "12")).toBe("2026-09-12");

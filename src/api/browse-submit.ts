@@ -892,6 +892,7 @@ async function settleSubmitDestination(
   tabId: string,
   url: string,
   html: string,
+  options: { preferUrlOnly?: boolean } = {},
 ): Promise<{ url: string; html: string }> {
   let settledUrl = url;
   let settledHtml = html;
@@ -900,9 +901,16 @@ async function settleSubmitDestination(
   while (Date.now() < deadline) {
     await sleep(Math.min(SUBMIT_POLL_INTERVAL_MS, Math.max(50, deadline - Date.now())));
     const nextUrl = await client.getCurrentUrl(tabId).catch(() => "");
-    const nextHtml = await client.getPageHtml(tabId).catch(() => "");
     if (nextUrl && !nextUrl.startsWith("about:blank")) settledUrl = nextUrl;
-    if (nextHtml) settledHtml = nextHtml;
+    if (!options.preferUrlOnly) {
+      const nextHtml = await client.getPageHtml(tabId).catch(() => "");
+      if (nextHtml) settledHtml = nextHtml;
+    }
+  }
+
+  if (options.preferUrlOnly) {
+    const finalHtml = await client.getPageHtml(tabId).catch(() => "");
+    if (finalHtml) settledHtml = finalHtml;
   }
 
   return { url: settledUrl, html: settledHtml };
@@ -919,6 +927,8 @@ async function waitForSubmitOutcome(
   const deadline = Date.now() + timeoutMs;
   const waitFor = options.waitFor?.trim();
   const requireUrlTransition = !!waitFor && isUrlWaitHint(waitFor);
+  let lastHtml = beforeHtml;
+  let lastHtmlPollAt = 0;
 
   if (waitFor && !isUrlWaitHint(waitFor)) {
     try {
@@ -935,17 +945,30 @@ async function waitForSubmitOutcome(
 
   while (Date.now() < deadline) {
     const url = await client.getCurrentUrl(tabId).catch(() => "");
-    const html = await client.getPageHtml(tabId).catch(() => "");
 
     if (waitFor && isUrlWaitHint(waitFor) && url.includes(waitFor)) {
-      return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
+      return {
+        ok: true,
+        ...await settleSubmitDestination(client, tabId, url, lastHtml, { preferUrlOnly: true }),
+      };
     }
     if (url && url !== beforeUrl && !url.startsWith("about:blank")) {
-      return { ok: true, ...await settleSubmitDestination(client, tabId, url, html) };
+      return {
+        ok: true,
+        ...await settleSubmitDestination(client, tabId, url, lastHtml, { preferUrlOnly: requireUrlTransition }),
+      };
     }
     if (requireUrlTransition) {
       await sleep(SUBMIT_POLL_INTERVAL_MS);
       continue;
+    }
+    const now = Date.now();
+    let html = lastHtml;
+    if (now - lastHtmlPollAt >= SUBMIT_POLL_INTERVAL_MS * 2) {
+      const nextHtml = await client.getPageHtml(tabId).catch(() => "");
+      if (nextHtml) html = nextHtml;
+      lastHtml = html;
+      lastHtmlPollAt = now;
     }
     if (hasMeaningfulPageChange(beforeHtml, html)) {
       return { ok: true, ...await settleSubmitDestination(client, tabId, url || beforeUrl, html) };
