@@ -15,6 +15,8 @@ const env: Env = {
   NEBIUS_API_KEY: "nebius",
   GITHUB_WEBHOOK_SECRET: "test-secret",
   GITHUB_PR_BOT_TOKEN: "gh-token",
+  GITHUB_PR_AGENT_WORKFLOW: "pr-agent.yml",
+  GITHUB_PR_AGENT_WORKFLOW_REF: "main",
   TELEGRAM_BOT_TOKEN: "tg-token",
   TELEGRAM_CHAT_ID: "1234",
   STATS_KV: {} as KVNamespace,
@@ -58,60 +60,44 @@ function createMockFetch(store: Map<string, string>) {
     if (url.hostname === "api.github.com") {
       if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/pulls/42" && (!init?.method || init.method === "GET")) {
         return Response.json({
-          node_id: "PR_kwDOtest",
           number: 42,
           title: "Test PR",
           html_url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/42",
           state: "open",
           draft: false,
-          mergeable_state: "dirty",
           labels: [{ name: "codex:auto-maintain" }],
           head: {
             sha: "abc123",
+            ref: "feature/test-pr",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
           base: {
+            ref: "main",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
-          auto_merge: null,
         });
       }
       if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/pulls/43" && (!init?.method || init.method === "GET")) {
         return Response.json({
-          node_id: "PR_kwDOclean",
           number: 43,
           title: "Clean PR",
           html_url: "https://github.com/unbrowse-ai/unbrowse-dev/pull/43",
           state: "open",
           draft: false,
-          mergeable_state: "clean",
           labels: [{ name: "codex:auto-maintain" }],
           head: {
             sha: "def456",
+            ref: "feature/clean-pr",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
           base: {
+            ref: "main",
             repo: { full_name: "unbrowse-ai/unbrowse-dev" },
           },
-          auto_merge: null,
         });
       }
-      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/issues/42/comments" && (!init?.method || init.method === "GET")) {
-        return Response.json([]);
-      }
-      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/issues/42/comments" && init?.method === "POST") {
-        return Response.json({ ok: true });
-      }
-      if (url.pathname === "/graphql" && init?.method === "POST") {
-        return Response.json({
-          data: {
-            enablePullRequestAutoMerge: {
-              pullRequest: {
-                number: 43,
-              },
-            },
-          },
-        });
+      if (url.pathname === "/repos/unbrowse-ai/unbrowse-dev/actions/workflows/pr-agent.yml/dispatches" && init?.method === "POST") {
+        return new Response(null, { status: 204 });
       }
     }
 
@@ -167,7 +153,7 @@ describe("github webhook automation", () => {
     expect(await response.json()).toMatchObject({ kind: "ping" });
   });
 
-  it("queues conflict notifications for dirty PRs", async () => {
+  it("dispatches the agent workflow for managed pull_request events", async () => {
     const body = JSON.stringify({
       action: "synchronize",
       repository: { full_name: "unbrowse-ai/unbrowse-dev" },
@@ -195,13 +181,10 @@ describe("github webhook automation", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(await response.json()).toMatchObject({ kind: "needs-human" });
-
-    const queued = await statsKV(env).listWithValues("gh-notify:");
-    expect(queued).toHaveLength(1);
+    expect(await response.json()).toMatchObject({ kind: "dispatched" });
   });
 
-  it("enables auto-merge for clean managed PRs", async () => {
+  it("dispatches the agent workflow for managed labeled PRs", async () => {
     const body = JSON.stringify({
       action: "labeled",
       repository: { full_name: "unbrowse-ai/unbrowse-dev" },
@@ -229,7 +212,39 @@ describe("github webhook automation", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(await response.json()).toMatchObject({ kind: "enabled-auto-merge" });
+    expect(await response.json()).toMatchObject({ kind: "dispatched" });
+  });
+
+  it("dispatches for failed check suites on the current PR head", async () => {
+    const body = JSON.stringify({
+      action: "completed",
+      repository: { full_name: "unbrowse-ai/unbrowse-dev" },
+      check_suite: {
+        status: "completed",
+        conclusion: "failure",
+        head_sha: "def456",
+        pull_requests: [{ number: 43 }],
+      },
+    });
+    const signature = await createSignature(env.GITHUB_WEBHOOK_SECRET!, body);
+
+    const response = await app.fetch(
+      new Request("http://local.test/v1/webhooks/github", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-GitHub-Event": "check_suite",
+          "X-GitHub-Delivery": "delivery-check-suite",
+          "X-Hub-Signature-256": signature,
+        },
+        body,
+      }),
+      env,
+      { waitUntil: () => {} } as ExecutionContext,
+    );
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ kind: "dispatched" });
   });
 
   it("flushes queued digest notifications to Telegram", async () => {

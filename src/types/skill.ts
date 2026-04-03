@@ -76,6 +76,12 @@ export interface EndpointSemanticDescriptor {
   auth_required?: boolean;
 }
 
+export interface EndpointPolicyDescriptor {
+  requires_third_party_terms_confirmation: boolean;
+  policy_domain: string;
+  reason: string;
+}
+
 export interface EndpointDescriptor {
   endpoint_id: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "WS";
@@ -121,6 +127,8 @@ export interface EndpointDescriptor {
    *  by filling a DOM form rather than a direct API call. Used by isStructuredSearchForm
    *  to gate search-form execution paths. */
   search_form?: import("../execution/search-forms.js").SearchFormSpec;
+  /** Optional third-party policy metadata surfaced to callers and enforced at execute time. */
+  policy?: EndpointPolicyDescriptor;
 }
 
 export type ExecutionType = "http" | "browser-capture";
@@ -326,6 +334,8 @@ export interface EndpointStats {
 
 export interface ExecutionOptions {
   confirm_unsafe?: boolean;
+  /** Explicit user confirmation for domains/actions that may violate third-party site terms. */
+  confirm_third_party_terms?: boolean;
   dry_run?: boolean;
   /** User's request intent — used for endpoint ranking instead of skill.intent_signature */
   intent?: string;

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "path";
@@ -7,6 +7,8 @@ import { getAuthCookies } from "../src/auth/index.js";
 
 const TESTS_DIR = dirname(new URL(import.meta.url).pathname);
 const ROOT = join(TESTS_DIR, "..");
+let baseUrl = process.env.UNBROWSE_URL ?? "http://localhost:6969";
+let sharedRunDir = process.env.UNBROWSE_RUN_DIR ?? "";
 
 let serverProc: Bun.Subprocess<"ignore", "pipe", "pipe"> | null = null;
 let ensureBaseServerPromise: Promise<void> | null = null;
@@ -16,9 +18,13 @@ let baseServerUrl: string | null = process.env.UNBROWSE_URL ?? null;
 // Do not replace these with raw captureSession/executeSkill plumbing tests.
 
 async function getBaseServerUrl(): Promise<string> {
-  if (baseServerUrl) return baseServerUrl;
+  if (baseServerUrl) {
+    baseUrl = baseServerUrl;
+    return baseServerUrl;
+  }
   const port = await getFreePort();
   baseServerUrl = `http://127.0.0.1:${port}`;
+  baseUrl = baseServerUrl;
   return baseServerUrl;
 }
 
@@ -52,6 +58,10 @@ async function waitForServerDown(timeoutMs = 10_000, baseUrl?: string): Promise<
   throw new Error(`server stayed healthy at ${effectiveBaseUrl} for ${timeoutMs}ms`);
 }
 
+function portForBaseUrl(targetBaseUrl: string): string {
+  return String(new URL(targetBaseUrl).port || "6969");
+}
+
 async function ensureBaseServer(): Promise<void> {
   const baseUrl = await getBaseServerUrl();
   if (await isServerUp(baseUrl)) return;
@@ -71,8 +81,9 @@ async function ensureBaseServer(): Promise<void> {
       env: {
         ...process.env,
         HOST: host,
-        PORT: port,
+        PORT: portForBaseUrl(baseUrl),
         UNBROWSE_URL: baseUrl,
+        UNBROWSE_RUN_DIR: sharedRunDir,
         UNBROWSE_NON_INTERACTIVE: "1",
         UNBROWSE_TOS_ACCEPTED: "1",
       },
@@ -99,7 +110,8 @@ async function runCli(args: string[], envOverrides: Record<string, string> = {})
     cwd: ROOT,
     env: {
       ...process.env,
-      UNBROWSE_URL: baseUrl,
+      UNBROWSE_URL: envOverrides.UNBROWSE_URL ?? baseUrl,
+      UNBROWSE_RUN_DIR: envOverrides.UNBROWSE_RUN_DIR ?? sharedRunDir,
       ...envOverrides,
     },
     stdout: "pipe",
@@ -128,7 +140,8 @@ async function runCliWithAutoStart(args: string[], envOverrides: Record<string, 
     cwd: ROOT,
     env: {
       ...process.env,
-      UNBROWSE_URL: baseUrl,
+      UNBROWSE_URL: envOverrides.UNBROWSE_URL ?? baseUrl,
+      UNBROWSE_RUN_DIR: envOverrides.UNBROWSE_RUN_DIR ?? sharedRunDir,
       ...envOverrides,
     },
     stdout: "pipe",
@@ -207,9 +220,25 @@ function hasData(body: any): boolean {
 
 afterAll(() => {
   serverProc?.kill();
+  if (!process.env.UNBROWSE_RUN_DIR && sharedRunDir) {
+    rmSync(sharedRunDir, { recursive: true, force: true });
+  }
 });
 
 describe("CLI end-to-end", () => {
+  beforeAll(async () => {
+    if (!process.env.UNBROWSE_URL) {
+      const port = await getFreePort();
+      baseUrl = `http://127.0.0.1:${port}`;
+      baseServerUrl = baseUrl;
+    } else {
+      baseServerUrl = baseUrl;
+    }
+    if (!sharedRunDir) {
+      sharedRunDir = mkdtempSync(join(tmpdir(), "unbrowse-cli-e2e-"));
+    }
+  });
+
   it("health auto-starts the local server on a custom URL", async () => {
     const port = await getFreePort();
     const baseUrl = `http://127.0.0.1:${port}`;
@@ -334,11 +363,12 @@ describe("CLI end-to-end", () => {
       console.log("SKIP: not logged into x.com in Chrome");
       return;
     }
+    const searchUrl = "https://x.com/search?q=openai&src=typed_query";
 
     const resolve = await runCli([
       "resolve",
       "--intent", "search tweets",
-      "--url", "https://x.com",
+      "--url", searchUrl,
     ]);
 
     expect(resolve.code).toBe(0);
