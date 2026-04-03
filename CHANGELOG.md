@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.12.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.0...v2.12.1) (2026-04-03)
+
+### Features
+
+* detect install-specific upgrade and repair commands during setup so global npm installs get the right guidance
+* smoke-test the packaged global CLI in CI and tag releases before publish
+
+### Bug Fixes
+
+* harden the npm wrapper so stale fallback installs fail with a precise reinstall command instead of silent runtime crashes
+* return the installed version from `unbrowse --version`
+* repair packaged wrapper execute bits during postinstall and fail fast on stale local-server version mismatches
+
+
 ## [2.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.11.0...v2.12.0) (2026-04-03)
 
 ### Bug Fixes
