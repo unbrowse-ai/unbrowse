@@ -91,6 +91,7 @@ describe("CLI input payload ingestion (integration)", () => {
       path: "/v1/intent/resolve",
       body: {
         intent: "search packages",
+        projection: { raw: true },
         params: {
           url: "https://npmjs.com/search?q=openai",
           page: 2,

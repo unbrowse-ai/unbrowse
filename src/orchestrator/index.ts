@@ -1,6 +1,14 @@
-import { cachePublishedSkill, getLocalWalletContext, isX402Error, searchIntentResolve, recordOrchestrationPerf } from "../client/index.js";
+import {
+  cachePublishedSkill,
+  getAgentId,
+  getLocalWalletContext,
+  isX402Error,
+  recordOrchestrationPerf,
+  recordRoutingTelemetry,
+  searchIntentResolve,
+} from "../client/index.js";
 import * as kuri from "../kuri/client.js";
-import { emitRouteTrace, recordFailure } from "../telemetry.js";
+import { emitRouteTrace, hashValue, recordFailure } from "../telemetry.js";
 import { publishSkill, getSkill } from "../marketplace/index.js";
 import { buildCanonicalDocumentEndpoint, deriveStructuredDataReplayTemplate, deriveStructuredDataReplayUrl, executeSkill, rankEndpoints } from "../execution/index.js";
 import { getSkillChunk, knownBindingsFromInputs, computeReachableEndpoints, ensureSkillOperationGraph } from "../graph/index.js";
@@ -34,6 +42,14 @@ import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from 
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveAuthPrerequisites, deriveAuthDependencies } from "../auth/runtime.js";
+import {
+  buildRoutingCandidateSnapshots,
+  buildRoutingContextBuckets,
+  createRoutingTelemetryCollector,
+  deriveRoutingStepArtifacts,
+  hashRoutingState,
+  sanitizeRoutingEventBatch,
+} from "../routing-telemetry.js";
 
 const CONFIDENCE_THRESHOLD = 0.3;
 const LIVE_CAPTURE_TIMEOUT_MS = Number(process.env.UNBROWSE_LIVE_CAPTURE_TIMEOUT_MS ?? "120000");
@@ -1895,6 +1911,25 @@ export async function resolveAndExecute(
         error: trace.error,
       });
     }
+    if (!routingCompleted) {
+      routingCompleted = true;
+      routingCollector.addDomain(skill?.domain ?? context?.domain ?? context?.url);
+      const finalOutcome =
+        trace?.success === false
+          ? "failure"
+          : trace?.endpoint_id
+            ? "success"
+            : "defer";
+      routingCollector.complete({
+        outcome: finalOutcome,
+        completedAt: new Date().toISOString(),
+        totalApiCalls: routingApiCalls,
+        retryCount: routingRetryCount,
+        userOverride: agentChoseEndpoint,
+        requiredRecovery: routingRequiredRecovery,
+      });
+      recordRoutingTelemetry(sanitizeRoutingEventBatch(routingCollector.toBatch())).catch(() => {});
+    }
     return timing;
   }
   /** Always defer to the agent — auto-exec is unreliable and picks wrong endpoints. */
@@ -1955,6 +1990,14 @@ export async function resolveAndExecute(
           : {}),
       })),
       extra: extraFields ?? null,
+    });
+    const deferStepIndex = recordRoutingCandidates(resolvedSkill, epRanked, source);
+    recordRoutingStep("defer", resolvedSkill, deferTrace, null, {
+      stepIndex: deferStepIndex,
+      candidateCount: epRanked.length,
+      userOverride: false,
+      didStepUnlockNextStep: false,
+      requiredRecovery: false,
     });
     return {
       result: {
@@ -2108,6 +2151,142 @@ export async function resolveAndExecute(
     } catch {
       // Trace retrieval must never block the resolve path
     }
+  }
+
+  const routingSessionId = nanoid();
+  const routingCollector = createRoutingTelemetryCollector({
+    sessionId: routingSessionId,
+    startedAt: new Date(t0).toISOString(),
+    intent,
+    traceVersion: TRACE_VERSION,
+    anonymizedAgentId: getAgentId() ? hashValue(getAgentId()!) : undefined,
+    runType: context?.url || forceCapture ? "long_running" : "single_shot",
+    contextBuckets: buildRoutingContextBuckets(
+      intent,
+      projection,
+      options,
+      !!priorSuccessEndpoints && priorSuccessEndpoints.size > 0,
+    ),
+    normalizedDomains: [
+      requestedDomainForTraces ?? context?.domain ?? (context?.url ? new URL(context.url).hostname : undefined),
+    ].filter((value): value is string => !!value),
+  });
+  let routingApiCalls = 0;
+  let routingRetryCount = 0;
+  let routingRequiredRecovery = false;
+  let routingCompleted = false;
+
+  function currentKnownBindings(): Record<string, unknown> {
+    return knownBindingsFromInputs(resolvedParams, context?.url);
+  }
+
+  function recordRoutingCandidates(
+    skill: SkillManifest,
+    ranked: RankedCandidate[],
+    source: import("../types/index.js").OrchestrationTiming["source"],
+    options?: {
+      selectedEndpointId?: string;
+      rejectionReasons?: Record<string, string | undefined>;
+      stepIndex?: number;
+    },
+  ): number {
+    routingCollector.addDomain(skill.domain);
+    const known = currentKnownBindings();
+    const reachableEndpointIds = computeReachableEndpoints(
+      ensureSkillOperationGraph(skill),
+      known,
+    );
+    const chunk = getSkillChunk(skill, {
+      intent: queryIntent,
+      known_bindings: known,
+      max_operations: 8,
+    });
+    return routingCollector.recordCandidates({
+      stepIndex: options?.stepIndex,
+      source: source === "dom-fallback" ? "live-capture" : source === "first-pass" ? "browser-action" : source,
+      stateHashBefore: hashRoutingState(known),
+      candidateCount: ranked.length,
+      reachableOperationCount: reachableEndpointIds.size || undefined,
+      availableBindingCount: Object.keys(known).length,
+      missingBindingCount: chunk.missing_bindings.length,
+      selectedEndpointId: options?.selectedEndpointId,
+      selectedOperationId:
+        skill.operation_graph?.operations.find(
+          (operation) => operation.endpoint_id === options?.selectedEndpointId,
+        )?.operation_id,
+      candidates: buildRoutingCandidateSnapshots(skill, ranked, {
+        reachableEndpointIds: reachableEndpointIds.size > 0 ? reachableEndpointIds : undefined,
+        selectedEndpointId: options?.selectedEndpointId,
+        rejectionReasons: options?.rejectionReasons,
+      }),
+    });
+  }
+
+  function recordRoutingStep(
+    source: import("../types/index.js").OrchestrationTiming["source"] | "defer",
+    skill: SkillManifest | undefined,
+    trace: ExecutionTrace,
+    result: unknown,
+    options?: {
+      stepIndex?: number;
+      selectedEndpointId?: string;
+      candidateCount?: number;
+      retryCount?: number;
+      userOverride?: boolean;
+      didStepUnlockNextStep?: boolean;
+      requiredRecovery?: boolean;
+    },
+  ): number {
+    const known = currentKnownBindings();
+    const selectedEndpointId = options?.selectedEndpointId ?? trace.endpoint_id ?? undefined;
+    const derived = deriveRoutingStepArtifacts({
+      result,
+      skill,
+      selectedEndpointId,
+      source: source === "defer" ? "marketplace" : source,
+      bindingsBefore: known,
+      bindingsAfter: {
+        ...known,
+        _selected_endpoint_id: selectedEndpointId ?? "",
+        _response_hash: result == null ? "" : JSON.stringify(result).length.toString(),
+      },
+    });
+    const stepIndex = routingCollector.recordStep({
+      stepIndex: options?.stepIndex,
+      source,
+      stateHashBefore: derived.stateHashBefore,
+      stateHashAfter: derived.stateHashAfter,
+      selectedSkillId: skill?.skill_id,
+      selectedEndpointId,
+      selectedOperationId: derived.selectedOperationId,
+      reachableOperationCount: trace.reachable_operation_count,
+      availableBindingCount: Object.keys(known).length,
+      missingBindingCount: 0,
+      candidateCount: options?.candidateCount ?? trace.candidate_count ?? (selectedEndpointId ? 1 : 0),
+      executionLatencyMs: trace.completed_at && trace.started_at
+        ? Math.max(0, Date.parse(trace.completed_at) - Date.parse(trace.started_at))
+        : undefined,
+      statusCode: trace.status_code,
+      success: source === "defer" ? undefined : trace.success,
+      failureReason: trace.error,
+      schemaFingerprint: derived.schemaFingerprint,
+      responseHash: derived.responseHash,
+      crossDomainTransition: false,
+      retryCount: options?.retryCount ?? 0,
+      userOverride: options?.userOverride ?? agentChoseEndpoint,
+      didStepUnlockNextStep: options?.didStepUnlockNextStep ?? !!derived.responseHash,
+      requiredRecovery: options?.requiredRecovery ?? !trace.success,
+    });
+    trace.session_id = routingSessionId;
+    trace.step_index = stepIndex;
+    trace.state_hash = derived.stateHashAfter;
+    trace.candidate_count = options?.candidateCount ?? trace.candidate_count;
+    trace.selected_operation_id = derived.selectedOperationId;
+    trace.api_call_count = source === "defer" ? 0 : Math.max(trace.api_call_count ?? 0, selectedEndpointId ? 1 : 0);
+    if (source !== "defer" && selectedEndpointId) routingApiCalls += 1;
+    routingRetryCount += options?.retryCount ?? 0;
+    routingRequiredRecovery ||= options?.requiredRecovery ?? !trace.success;
+    return stepIndex;
   }
   /**
    * Try to auto-select and execute the best endpoint when the agent hasn't chosen one.
@@ -2491,6 +2670,27 @@ export async function resolveAndExecute(
             skill_id: skill.skill_id,
             selected_endpoint_id: candidate.endpoint.endpoint_id,
           });
+          const rejectionReasons = Object.fromEntries(
+            (decisionTrace.autoexec_attempts as Array<{ endpoint_id: string; judge?: string; local_reason?: string; error?: string }>)
+              .map((attempt) => [
+                attempt.endpoint_id,
+                attempt.endpoint_id === candidate.endpoint.endpoint_id
+                  ? undefined
+                  : attempt.local_reason ?? attempt.judge ?? attempt.error ?? "rejected",
+              ]),
+          );
+          const autoexecStepIndex = recordRoutingCandidates(skill, epRanked, source, {
+            selectedEndpointId: candidate.endpoint.endpoint_id,
+            rejectionReasons,
+          });
+          recordRoutingStep(source, skill, execOut.trace, execOut.result, {
+            stepIndex: autoexecStepIndex,
+            selectedEndpointId: candidate.endpoint.endpoint_id,
+            candidateCount: epRanked.length,
+            retryCount: i,
+            userOverride: false,
+            requiredRecovery: i > 0,
+          });
           promoteResultSnapshot(
             cacheKey,
             skill,
@@ -2620,6 +2820,33 @@ export async function resolveAndExecute(
       source,
       skill_id: skill.skill_id,
     });
+    const rejectionReasons = Object.fromEntries(
+      (decisionTrace.autoexec_attempts as Array<{ endpoint_id: string; judge?: string; local_reason?: string; error?: string }>)
+        .map((attempt) => [
+          attempt.endpoint_id,
+          attempt.local_reason ?? attempt.judge ?? attempt.error ?? "failed",
+        ]),
+    );
+    const failedTrace: ExecutionTrace = {
+      trace_id: nanoid(),
+      skill_id: skill.skill_id,
+      endpoint_id: "",
+      started_at: new Date(t0).toISOString(),
+      completed_at: new Date().toISOString(),
+      success: false,
+      error: "autoexec_failed_all",
+    };
+    const failedStepIndex = recordRoutingCandidates(skill, epRanked, source, {
+      rejectionReasons,
+    });
+    recordRoutingStep(source, skill, failedTrace, null, {
+      stepIndex: failedStepIndex,
+      candidateCount: epRanked.length,
+      retryCount: (decisionTrace.autoexec_attempts as unknown[]).length,
+      userOverride: false,
+      didStepUnlockNextStep: false,
+      requiredRecovery: true,
+    });
     // --- Store failed execution trace for future RAG retrieval ---
     try {
       const endpointSeq = (decisionTrace.autoexec_attempts as { endpoint_id: string }[])
@@ -2659,6 +2886,24 @@ export async function resolveAndExecute(
           source: "route-cache",
           skill_id: cachedResult.skill.skill_id,
           selected_endpoint_id: cachedResult.endpointId ?? cachedResult.trace.endpoint_id,
+        });
+        const routeCacheStepIndex = recordRoutingCandidates(
+          cachedResult.skill,
+          [{
+            endpoint: cachedResult.skill.endpoints.find(
+              (endpoint) => endpoint.endpoint_id === (cachedResult.endpointId ?? cachedResult.trace.endpoint_id),
+            ) ?? cachedResult.skill.endpoints[0],
+            score: 1,
+          }],
+          "route-cache",
+          { selectedEndpointId: cachedResult.endpointId ?? cachedResult.trace.endpoint_id },
+        );
+        recordRoutingStep("route-cache", cachedResult.skill, cachedResult.trace, cachedResult.result, {
+          stepIndex: routeCacheStepIndex,
+          selectedEndpointId: cachedResult.endpointId ?? cachedResult.trace.endpoint_id,
+          candidateCount: 1,
+          userOverride: false,
+          requiredRecovery: false,
         });
         return buildCachedResultResponse(
           cachedResult,
@@ -2816,6 +3061,26 @@ export async function resolveAndExecute(
           timing.execute_ms = Date.now() - te0;
           if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
               timing.cache_hit = true;
+            const routeCacheExecStep = recordRoutingCandidates(
+              skill,
+              [{
+                endpoint: skill.endpoints.find(
+                  (endpoint) => endpoint.endpoint_id === (params.endpoint_id ?? cached.entry.endpointId ?? execOut.trace.endpoint_id),
+                ) ?? skill.endpoints[0],
+                score: 1,
+              }],
+              "route-cache",
+              {
+                selectedEndpointId: params.endpoint_id ?? cached.entry.endpointId ?? execOut.trace.endpoint_id,
+              },
+            );
+            recordRoutingStep("route-cache", skill, execOut.trace, execOut.result, {
+              stepIndex: routeCacheExecStep,
+              selectedEndpointId: params.endpoint_id ?? cached.entry.endpointId ?? execOut.trace.endpoint_id,
+              candidateCount: 1,
+              userOverride: !!params.endpoint_id,
+              requiredRecovery: false,
+            });
             promoteResultSnapshot(
               cacheKey,
               skill,
@@ -3149,6 +3414,25 @@ export async function resolveAndExecute(
             winner.candidate.skill,
             winner.trace.endpoint_id,
           );
+          const raceStepIndex = recordRoutingCandidates(
+            winner.candidate.skill,
+            viable.map((entry) => ({
+              endpoint:
+                entry.skill.endpoints.find(
+                  (endpoint) => endpoint.endpoint_id === (entry.endpointId ?? params.endpoint_id ?? winner.trace.endpoint_id),
+                ) ?? entry.skill.endpoints[0],
+              score: entry.composite,
+            })),
+            "marketplace",
+            { selectedEndpointId: winner.trace.endpoint_id },
+          );
+          recordRoutingStep("marketplace", winner.candidate.skill, winner.trace, winner.result, {
+            stepIndex: raceStepIndex,
+            selectedEndpointId: winner.trace.endpoint_id,
+            candidateCount: viable.length,
+            userOverride: true,
+            requiredRecovery: false,
+          });
           promoteResultSnapshot(
             cacheKey,
             winner.candidate.skill,
@@ -3351,6 +3635,25 @@ export async function resolveAndExecute(
           { ...options, intent: queryIntent, contextUrl: context?.url },
         );
         if (execOut.trace.success && isAcceptableIntentResult(execOut.result, queryIntent)) {
+          const cachedDomainStep = recordRoutingCandidates(
+            domainHit.skill,
+            [{
+              endpoint:
+                domainHit.skill.endpoints.find(
+                  (endpoint) => endpoint.endpoint_id === (params.endpoint_id ?? domainHit.endpointId ?? execOut.trace.endpoint_id),
+                ) ?? domainHit.skill.endpoints[0],
+              score: 1,
+            }],
+            "marketplace",
+            { selectedEndpointId: params.endpoint_id ?? domainHit.endpointId ?? execOut.trace.endpoint_id },
+          );
+          recordRoutingStep("marketplace", domainHit.skill, execOut.trace, execOut.result, {
+            stepIndex: cachedDomainStep,
+            selectedEndpointId: params.endpoint_id ?? domainHit.endpointId ?? execOut.trace.endpoint_id,
+            candidateCount: 1,
+            userOverride: true,
+            requiredRecovery: false,
+          });
           promoteResultSnapshot(
             cacheKey,
             domainHit.skill,
@@ -3406,6 +3709,12 @@ export async function resolveAndExecute(
       const parityBaseline = waited.parity_baseline;
       timing.execute_ms = 0;
       if (!learned_skill && !trace.success) {
+        recordRoutingStep("live-capture", undefined, trace, result, {
+          candidateCount: 0,
+          didStepUnlockNextStep: false,
+          userOverride: false,
+          requiredRecovery: true,
+        });
         return {
           result,
           trace,
@@ -3597,6 +3906,12 @@ export async function resolveAndExecute(
 
   // Auth-gated or no data: pass through error
   if (!learned_skill && !trace.success) {
+    recordRoutingStep("live-capture", captureSkill, trace, result, {
+      candidateCount: 0,
+      didStepUnlockNextStep: false,
+      userOverride: false,
+      requiredRecovery: true,
+    });
     return {
       result,
       trace,
@@ -3626,6 +3941,18 @@ export async function resolveAndExecute(
     )
   ) {
     if (learned_skill) {
+      recordRoutingStep(
+        directExtractionSource === "html-embedded" ? "live-capture" : "dom-fallback",
+        learned_skill,
+        trace,
+        result,
+        {
+          candidateCount: trace.endpoint_id ? 1 : 0,
+          selectedEndpointId: trace.endpoint_id,
+          userOverride: false,
+          requiredRecovery: !trace.success,
+        },
+      );
       const direct: OrchestratorResult = {
         result,
         trace,
@@ -3642,6 +3969,12 @@ export async function resolveAndExecute(
       queuePassivePublishIfExecuted(learned_skill, direct, parityBaseline);
       return direct;
     }
+    recordRoutingStep("dom-fallback", captureSkill, trace, result, {
+      candidateCount: trace.endpoint_id ? 1 : 0,
+      selectedEndpointId: trace.endpoint_id,
+      userOverride: false,
+      requiredRecovery: !trace.success,
+    });
     return {
       result,
       trace,
@@ -3652,6 +3985,12 @@ export async function resolveAndExecute(
   }
 
   if (!learned_skill) {
+    recordRoutingStep("live-capture", captureSkill, trace, result, {
+      candidateCount: trace.endpoint_id ? 1 : 0,
+      selectedEndpointId: trace.endpoint_id,
+      userOverride: false,
+      requiredRecovery: !trace.success,
+    });
     return {
       result,
       trace,
@@ -3700,6 +4039,24 @@ export async function resolveAndExecute(
         execOut.trace,
       );
     }
+    const chosenStepIndex = recordRoutingCandidates(
+      learned_skill,
+      [{
+        endpoint:
+          learned_skill.endpoints.find((endpoint) => endpoint.endpoint_id === execOut.trace.endpoint_id) ??
+          learned_skill.endpoints[0],
+        score: 1,
+      }],
+      "live-capture",
+      { selectedEndpointId: execOut.trace.endpoint_id },
+    );
+    recordRoutingStep("live-capture", learned_skill, execOut.trace, execOut.result, {
+      stepIndex: chosenStepIndex,
+      selectedEndpointId: execOut.trace.endpoint_id,
+      candidateCount: 1,
+      userOverride: true,
+      requiredRecovery: !execOut.trace.success,
+    });
     return {
       result: execOut.result,
       trace: execOut.trace,

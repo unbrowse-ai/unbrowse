@@ -23,6 +23,7 @@ import {
   saveRevenuePricing,
 } from "../services/metrics.js";
 import { bearerAuth } from "../middleware/auth.js";
+import { getRoutingTelemetrySummary as getRoutingSummary } from "../services/routing-telemetry.js";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { agent_id: string } }>();
 
@@ -83,6 +84,13 @@ analyticsRoutes.get("/analytics/economics", async (c) => {
   const metrics = await getUnitEconomicsMetrics(c.env);
   setAnalyticsHeaders(c);
   return c.json(metrics);
+});
+
+analyticsRoutes.get("/analytics/routing", async (c) => {
+  const days = Math.min(parseInt(c.req.query("days") ?? "30", 10), 180);
+  const summary = await getRoutingSummary(c.env, days);
+  setAnalyticsHeaders(c);
+  return c.json(summary);
 });
 
 analyticsRoutes.get("/analytics/agents", async (c) => {
