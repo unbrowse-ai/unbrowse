@@ -10,7 +10,7 @@
  * ~/.unbrowse/bin/kuri and reused from there.
  */
 
-import { existsSync, mkdirSync, writeFileSync, chmodSync, readFileSync, copyFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, chmodSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir, platform, arch } from "node:os";
 import { execSync } from "node:child_process";
@@ -19,12 +19,30 @@ import { execSync } from "node:child_process";
 // Embed the platform-appropriate kuri binary at compile time.
 // Bun's compiled binaries can read files from the virtual /$bunfs/ filesystem
 // when they are imported/required at bundle time.
-import kuriBinaryPath from "../packages/skill/vendor/kuri/darwin-arm64/kuri" with { type: "file" };
+import kuriDarwinArm64Path from "../packages/skill/vendor/kuri/darwin-arm64/kuri" with { type: "file" };
+import kuriDarwinX64Path from "../packages/skill/vendor/kuri/darwin-x64/kuri" with { type: "file" };
+import kuriLinuxArm64Path from "../packages/skill/vendor/kuri/linux-arm64/kuri" with { type: "file" };
+import kuriLinuxX64Path from "../packages/skill/vendor/kuri/linux-x64/kuri" with { type: "file" };
 
 const UNBROWSE_HOME = join(homedir(), ".unbrowse");
 const KURI_CACHE = join(UNBROWSE_HOME, "bin", "kuri");
+const EMBEDDED_KURI_BY_TARGET: Record<string, string> = {
+  "darwin-arm64": kuriDarwinArm64Path,
+  "darwin-x64": kuriDarwinX64Path,
+  "linux-arm64": kuriLinuxArm64Path,
+  "linux-x64": kuriLinuxX64Path,
+};
+
+function currentKuriTarget(): string {
+  return `${platform()}-${arch()}`;
+}
 
 function extractEmbeddedKuri(): string | null {
+  const kuriBinaryPath = EMBEDDED_KURI_BY_TARGET[currentKuriTarget()];
+  if (!kuriBinaryPath) {
+    console.warn(`[unbrowse] no embedded kuri available for ${currentKuriTarget()}`);
+    return null;
+  }
   try {
     const data = readFileSync(kuriBinaryPath);
     mkdirSync(dirname(KURI_CACHE), { recursive: true });
