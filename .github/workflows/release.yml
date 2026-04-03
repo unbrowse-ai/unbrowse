@@ -23,6 +23,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.1"
+      - name: Install GitHub CLI
+        run: |
+          if command -v gh >/dev/null 2>&1; then
+            gh --version
+            exit 0
+          fi
+          GH_VERSION=2.70.0
+          curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/gh.tgz -C /tmp
+          echo "/tmp/gh_${GH_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bash scripts/build-binaries.sh --all
         env:
@@ -269,6 +279,16 @@ jobs:
     if: needs.sync-skill.result == 'success'
     steps:
       - uses: actions/checkout@v4
+      - name: Install GitHub CLI
+        run: |
+          if command -v gh >/dev/null 2>&1; then
+            gh --version
+            exit 0
+          fi
+          GH_VERSION=2.70.0
+          curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/gh.tgz -C /tmp
+          echo "/tmp/gh_${GH_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
 
       - name: Resolve skill repo token
         id: skill-auth

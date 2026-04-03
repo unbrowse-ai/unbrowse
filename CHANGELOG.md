@@ -73,6 +73,7 @@
 
 ### Bug Fixes
 
+- **release**: install `gh` inside self-hosted release jobs so asset uploads and skill-repo GitHub releases no longer fail after npm publish/deploy succeed
 * **browse/kuri**: disable ambient CDP attach during explicit clean-room runs like `UNBROWSE_IMPORT_BROWSER_COOKIES=0` or local-only staging loops, so packaged and staging Mandai repros use isolated managed Chrome instead of crashing on stray local browser sessions
 * **browse/sessions**: stop strict browse sessions from dying after successful submits or transient post-navigation CDP churn by retrying liveness checks, only expiring sessions when the tab is truly gone, and surfacing recoverable follow-up browser errors as retryable failures instead of fake `session_expired` drops
 * **browse/sessions**: rebind successful submit flows onto replacement tabs that already reached the hinted next-step pathname, so packaged staging runs keep the same session alive when Mandai swaps the underlying browser target between steps
