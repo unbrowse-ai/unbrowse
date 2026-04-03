@@ -47,6 +47,8 @@ cd ~/unbrowse && ./setup --host off
 
 If a wallet is configured, that wallet address becomes the contributor/payment truth: Unbrowse syncs it onto your agent profile, uses it as the destination for contributor payouts, and uses it for paid-route spending proof.
 
+Recommended for new installs: set up Crossmint `lobster.cash` during bootstrap. `unbrowse setup` now encourages it, and when the tooling is already present it will try `npx @crossmint/lobster-cli setup` automatically.
+
 For agent-host installs:
 
 ```bash

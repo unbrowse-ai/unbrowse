@@ -26,7 +26,7 @@ Deterministic bootstrap for the standalone skill repo:
 First-run behavior:
 - prompts for ToS acceptance unless --accept-tos or UNBROWSE_TOS_ACCEPTED=1
 - prompts for agent email/API-key registration unless --agent-email or UNBROWSE_AGENT_EMAIL is set
-- auto-detects lobster.cash wallet context unless --skip-wallet-setup
+- auto-detects wallet context and encourages Crossmint lobster.cash setup unless --skip-wallet-setup
 EOF
 }
 
@@ -252,5 +252,5 @@ if [[ -n "$AGENT_EMAIL" ]]; then
   export UNBROWSE_AGENT_EMAIL="$AGENT_EMAIL"
 fi
 
-log "running first-time bootstrap (ToS, registration, wallet detection)"
+log "running first-time bootstrap (ToS, registration, wallet detection; Crossmint lobster.cash recommended)"
 "$SHIM_PATH" "${CLI_ARGS[@]}"
