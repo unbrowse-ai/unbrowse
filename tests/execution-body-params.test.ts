@@ -131,6 +131,8 @@ describe("execution body param defaults", () => {
           replay_contract: {
             explicit_replay_only: true,
             exposure_stage: "publish",
+            dependency_bindings: [],
+            search_terms: [],
             parameter_specs: [
               {
                 name: "audience",
@@ -147,6 +149,11 @@ describe("execution body param defaults", () => {
             ],
             prerequisite_specs: [],
             next_state: [{ kind: "response_schema", value: "title", description: "Observed response shape summary for replay validation." }],
+            payment_requirement: {
+              status: "free",
+              wallet_required: false,
+              reason: "No x402 payment requirement was recorded for this replay contract at publish time.",
+            },
           },
         },
       ],

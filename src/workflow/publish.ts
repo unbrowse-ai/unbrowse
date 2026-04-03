@@ -104,6 +104,14 @@ function usageNotesForRecipe(recipe: WorkflowArtifact["recipes"][number]): strin
   if (prereqs.length > 0) {
     notes.push(`prereqs: ${prereqs.slice(0, 4).join(", ")}`);
   }
+  const payment = recipe.replay_contract.payment_requirement;
+  if (payment.status === "x402_required") {
+    notes.push(`payment: x402 ${payment.price_usd ?? "dynamic"} ${payment.currency ?? "USDC"}`);
+  } else if (payment.status === "x402_optional") {
+    notes.push("payment: x402 may apply when marketplace pricing is configured");
+  } else {
+    notes.push("payment: free");
+  }
   notes.push("replay: explicit only; traversal stays browser-native");
   return notes;
 }

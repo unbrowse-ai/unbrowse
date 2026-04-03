@@ -377,7 +377,7 @@ function listWorkflowResources(): ResourceDefinition[] {
       resources.push({
         uri: contractUri,
         name: `Workflow Contract: ${artifact.skill_id}/${recipe.endpoint_id}`,
-        description: `Typed replay contract, restrictions, and usage notes for ${recipe.endpoint_id}.`,
+        description: `Typed replay contract, x402/payment requirements, restrictions, and usage notes for ${recipe.endpoint_id}.`,
         mimeType: "application/json",
         read: () => summarizeWorkflowRecipe(artifact, recipe),
       });
@@ -464,6 +464,7 @@ function workflowPromptMessages(args: Record<string, unknown>): { description: s
             "- traversal stays browser-native and thin by default",
             "- only opt into assist_site_state when thin submit is insufficient",
             "- trust prerequisite_specs, dependency_bindings, and next_state before deeper calls",
+            "- inspect payment_requirement before explicit replay; x402_required means wallet/payment planning first",
             "- do not invent params outside parameter_specs",
             "",
             `Contract resource: workflow_contract://${artifact.skill_id}/${recipe.endpoint_id}`,

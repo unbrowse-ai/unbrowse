@@ -204,7 +204,7 @@ This resolve/execute pair is the router/meta surface for published contracts:
 
 On the MCP surface, agents can also inspect published contract state before choosing tools:
 
-- resource `workflow_contract://<skill>/<endpoint>`
+- resource `workflow_contract://<skill>/<endpoint>` (typed params, restrictions, x402/payment requirements)
 - resource `workflow_dag://<skill>/<endpoint>`
 - prompt `plan_workflow_execution`
 

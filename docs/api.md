@@ -136,7 +136,7 @@ Execute is the explicit replay surface. Traversal-time browser tools (`go`, `sna
 The MCP server now exposes read-only publish-time workflow metadata in addition to tool calls.
 
 - `workflow_publish://<skill>` — exported artifact summary for one skill
-- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract with typed params, enums, prerequisite specs, provenance hints, and next-state validators
+- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract with typed params, enums, prerequisite specs, x402/payment requirements, provenance hints, and next-state validators
 - `workflow_dag://<skill>/<endpoint>` — dependency graph / common-var walk for one workflow edge
 - `plan_workflow_execution` — prompt that tells the host model to inspect the contract and DAG before deciding between browser traversal and explicit replay
 
