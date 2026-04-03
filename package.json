@@ -47,6 +47,7 @@
     "preset:clear": "bun scripts/profile.ts clear",
     "blog:publish": "bun scripts/publish-blog.ts",
     "optimize:landing-funnel": "bun scripts/landing-funnel-optimize.ts",
+    "landing:publish": "bun scripts/publish-landing-variant.ts",
     "check:skill-docs": "bun test tests/skill-docs-sync.test.ts",
     "sync:skill-md": "bun scripts/sync-skill-md.ts",
     "check:skill-md": "bun scripts/sync-skill-md.ts --check",

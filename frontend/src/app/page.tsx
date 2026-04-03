@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import { ChatDemo } from "@/components/chat-demo";
 import { AcquisitionTracker } from "@/components/acquisition-tracker";
 import { InstallInstructions } from "@/components/install-instructions";
+import { LandingAssignmentSync } from "@/components/landing-assignment-sync";
 import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { HeroCTA } from "@/components/hero-cta";
+import { IcpPaths } from "@/components/icp-paths";
 import { getHomepageLandingAssignment, type LandingVariantCopy } from "@/lib/landing-experiment";
 import { FirstTaskPath } from "@/components/first-task-path";
 import {
@@ -122,7 +124,13 @@ export default async function Home() {
   const trustBarItems = landing.content.trust_bar_order.map((item) => TRUST_BAR_ITEMS[item]);
 
   return (
-    <div className="relative selection:bg-orange-500/30 overflow-x-hidden">
+    <div
+      id="landing-page-root"
+      data-landing-variant-id={landing.assignment.variant_id}
+      data-landing-experiment-id={landing.assignment.experiment_id}
+      className="relative selection:bg-orange-500/30 overflow-x-hidden"
+    >
+      <LandingAssignmentSync />
       <AcquisitionTracker
         experimentId={landing.assignment.experiment_id}
         variantId={landing.assignment.variant_id}
@@ -204,6 +212,8 @@ export default async function Home() {
                 {landing.content.definition_body}
               </p>
             </div>
+
+            <IcpPaths />
 
             <div id="install" className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-4xl text-left">
               <div className="rounded-2xl border border-border bg-surface shadow-sm overflow-hidden">
@@ -449,6 +459,8 @@ export default async function Home() {
 
        {/* ═══ First Task ═══ */}
        <section id="first-task" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
+       {/* ═══ First Task ═══ */}
+       <section id="first-task" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
          <div className="relative max-w-4xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-500/20 text-orange-600 text-xs font-mono font-medium uppercase tracking-widest mb-6">
@@ -550,7 +562,7 @@ export default async function Home() {
        </section>
 
        {/* ═══ Learn More — Blog & Comparison Links ═══ */}
-       <section className="relative py-12 sm:py-16 border-t border-border bg-surface-sunken">
+       <section id="go-deeper" className="relative py-12 sm:py-16 border-t border-border bg-surface-sunken">
          <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-8 text-text-primary">Go Deeper</h2>
            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
