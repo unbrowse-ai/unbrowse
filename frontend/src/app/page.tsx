@@ -34,7 +34,7 @@ const faqJsonLd = {
       name: "How does Unbrowse work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.",
+        text: "Unbrowse is a drop-in replacement for browser automation in agent stacks. It can use a real browser on the first pass to learn the request flow behind a site, then reuse that learned route as a skill on later runs. You keep browser-backed auth when needed, but repeated work stops depending on the DOM.",
       },
     },
     {
@@ -58,7 +58,7 @@ const faqJsonLd = {
       name: "What websites does Unbrowse support?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse works with any website that uses internal APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.",
+        text: "Unbrowse works best on sites where browser automation would normally be the fallback: sites with real workflows but no clean public API. Most modern web apps already have internal request flows behind the UI. When Unbrowse cannot learn a good route, it falls back to standard browser automation.",
       },
     },
     {
@@ -82,7 +82,7 @@ const faqJsonLd = {
       name: "What is the skill registry?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The skill registry is a shared marketplace of reverse-engineered API skills. When one agent discovers how to interact with a website's API, that knowledge is published to the registry so every other agent can use it instantly — no need to re-discover the same endpoints.",
+        text: "The skill registry is shared memory for learned website routes. When one agent figures out a reusable path through a site, that route can be published so later agents do not have to rediscover the same browser workflow from scratch.",
       },
     },
     {
@@ -90,7 +90,7 @@ const faqJsonLd = {
       name: "What if the website's API changes?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Unbrowse handles API changes automatically. When a cached skill fails, Unbrowse re-browses the site, re-discovers the updated endpoints, and publishes a new version to the registry. Your agent code doesn't need to change — the skill layer absorbs the breakage. This is fundamentally more resilient than Playwright or Puppeteer scripts, which break on any DOM change and require manual selector updates.",
+        text: "Unbrowse handles route changes automatically. When a learned path fails, it can re-browse the site, learn the updated request flow, and publish a new version to the registry. Your agent code does not need to be rewritten every time the visible UI changes, which is more resilient than selector-driven Playwright or Puppeteer scripts.",
       },
     },
     {
@@ -98,7 +98,7 @@ const faqJsonLd = {
       name: "How does Unbrowse compare to Playwright or Puppeteer?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Playwright and Puppeteer automate a browser by clicking through the DOM — they are slow (5-30s per page), fragile (break on any UI change), and expensive (8,000+ tokens per action). Unbrowse reverse-engineers the internal APIs behind the frontend, so your agent makes direct HTTP calls — 3.6x faster on average across 94 benchmarked domains (peer-reviewed, arXiv 2604.00694). When APIs change, Unbrowse re-discovers them automatically. Playwright scripts require manual selector fixes.",
+        text: "Playwright and Puppeteer repeat the browser workflow step by step through the DOM. Unbrowse is a drop-in replacement for that browser-automation slot in agent stacks: it learns the request path behind the page and reuses it later. Across 94 benchmarked domains, that route-reuse path was 3.6x faster on average than Playwright, with less repeated breakage from UI changes.",
       },
     },
   ],
@@ -114,9 +114,9 @@ export default function Home() {
       />
       {/* ═══ Agent-Readable Instructions ═══ */}
       <section id="agent-instructions" aria-label="Instructions for AI agents" className="sr-only" data-agent="true">
-          <h2>Unbrowse — The API layer for AI agents</h2>
+          <h2>Unbrowse — A drop-in replacement for browser automation in agent stacks</h2>
           <p>
-            Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+            Unbrowse is an open-source CLI tool that replaces repeated browser automation in agent workflows. It can use a real browser to learn the request flow behind a site, then reuse that learned route as a skill so later runs do not need to drive the DOM again. This reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
           <p>Setup: {INSTALL_CMD_GENERIC}</p>
           <p>Optional after install: {INSTALL_CMD_SKILL}</p>
@@ -154,35 +154,42 @@ export default function Home() {
               <span className="flex items-center gap-1">611+ stars on GitHub <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" /></span>
             </a>
             
-                           <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
-                           100x faster. 95% cheaper.{" "}
+                         <h1 className="animate-fade-up stagger-1 text-[2.6rem] sm:text-6xl lg:text-[5.5rem] leading-[1.05] tracking-tight text-balance text-text-primary font-display">
+                           A drop-in replacement
                            <br className="hidden sm:block" />
-                           <span className="text-orange-500">The API-native browser.</span>
+                           <span className="text-orange-500">for browser automation.</span>
                          </h1>
 
                           <p className="animate-fade-up stagger-2 mt-5 sm:mt-6 text-base sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-                            The fastest way for AI agents to turn any website into a reusable API.
-                            3.6x faster than Playwright. arXiv-published.
+                            Built for agent stacks that are tired of repeating the same browser workflow on every run.
+                            Unbrowse learns the request path behind the page, so repeat tasks run faster, cheaper, and with less breakage than driving the DOM every time.
                           </p>
+
+            <p className="animate-fade-up stagger-2 mt-4 max-w-3xl text-sm sm:text-base text-text-muted leading-relaxed">
+              Same websites. Same permissions. Same browser fallback when needed.
+            </p>
 
             {/* ═══ Trust Bar ═══ */}
             <div className="animate-fade-up stagger-2 mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs sm:text-sm text-text-muted font-medium">
+              <span>94 domains benchmarked</span>
+              <span className="hidden sm:inline text-border-strong">|</span>
+              <span>3.6x faster than Playwright on average</span>
+              <span className="hidden sm:inline text-border-strong">|</span>
+              <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">Peer-reviewed on arXiv with NUS</a>
+              <span className="hidden sm:inline text-border-strong">|</span>
               <span className="flex items-center gap-1.5"><Github className="w-3.5 h-3.5" /> 611+ GitHub stars</span>
               <span className="hidden sm:inline text-border-strong">|</span>
               <span>5.4K npm downloads</span>
-              <span className="hidden sm:inline text-border-strong">|</span>
-              <a href={WHITEPAPER_URL} target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">arXiv paper with NUS</a>
-              <span className="hidden sm:inline text-border-strong">|</span>
-              <span>94 domains benchmarked</span>
-              <span className="hidden sm:inline text-border-strong">|</span>
-              <a href="https://www.nvidia.com/en-us/startups/" target="_blank" rel="noopener" className="hover:text-text-primary transition-colors">NVIDIA Inception</a>
             </div>
 
             {/* ═══ What is Unbrowse — Definition Block (moved above install) ═══ */}
             <div className="animate-fade-up stagger-3 mt-10 sm:mt-12 w-full max-w-3xl text-center">
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-text-primary">What is Unbrowse?</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4 text-text-primary">The browser slot stays. The execution path changes.</h2>
               <p className="text-text-secondary text-base sm:text-lg leading-relaxed">
-                Unbrowse is an open-source drop-in replacement for browser automation when you want API-native access to the web. It reverse-engineers the internal APIs behind any website so AI agents can make direct API calls instead of driving headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
+                Unbrowse is a drop-in replacement for browser automation in agent stacks.
+                On the first pass it can use a real browser to capture the site&apos;s request flow.
+                On later runs it reuses that learned route as a skill.
+                The browser stays available for auth and hard cases, but repeated browser work becomes reusable infrastructure instead of repeated cost.
               </p>
             </div>
 
@@ -193,11 +200,11 @@ export default function Home() {
                     <div>
                       <p className="text-xs font-mono font-medium uppercase tracking-[0.2em] text-orange-600">Install First</p>
                       <h2 className="mt-1 text-xl sm:text-2xl font-semibold tracking-tight text-text-primary">
-                        One command. Start in 30 seconds.
+                        Install once. Use it on the next task.
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      One real install. Optional skill shortcut after that. Set up Crossmint lobster.cash during bootstrap if you want mined-route payouts. MCP and OpenClaw have dedicated tabs when you need them.
+                      Local runtime first. Host shortcuts second. MCP and OpenClaw have dedicated tabs when you need them.
                     </p>
                   </div>
                 </div>
@@ -219,10 +226,10 @@ export default function Home() {
             <div className="animate-fade-up stagger-4 flex flex-col items-center gap-6 mt-10 w-full">
               <div className="text-center">
                 <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-600">
-                  Install Fast
+                  Replace The Browser
                 </p>
                 <p className="mt-2 text-sm sm:text-base text-text-secondary">
-                  Install Unbrowse first. Then optionally add the skill in hosts that support it.
+                  Install the runtime, then replace repeated browser automation with learned routes your agent can reuse.
                 </p>
               </div>
               <HeroCTA />
@@ -250,7 +257,7 @@ export default function Home() {
 
               {/* Supported Agents */}
               <div className="animate-fade-up stagger-5 mt-14 sm:mt-20 pt-8 w-full flex flex-col items-center">
-                <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-5">Works with</p>
+                <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-5">Built for agent stacks</p>
                 <div className="flex flex-wrap justify-center items-center gap-5 sm:gap-12 opacity-80 transition-opacity hover:opacity-100">
                   <span className="text-base sm:text-lg font-medium tracking-tight">Claude Code</span>
                   <span className="text-base sm:text-lg font-medium tracking-tight">Cursor</span>
@@ -274,7 +281,7 @@ export default function Home() {
                 After You Install
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 text-balance text-text-primary">
-                Bypass the DOM completely.
+                When no public API exists, use the one behind the UI.
               </h2>
             </div>
           
@@ -289,9 +296,10 @@ export default function Home() {
                   <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-500/20 flex items-center justify-center mb-6">
                     <Zap className="w-5 h-5 text-orange-500" />
                   </div>
-                  <h3 className="text-xl sm:text-2xl font-semibold mb-3 tracking-tight">Skip the rendering engine</h3>
+                  <h3 className="text-xl sm:text-2xl font-semibold mb-3 tracking-tight">Stop driving the DOM</h3>
                   <p className="text-text-secondary text-base leading-relaxed max-w-md">
-                    Headless browsers are slow and flaky. Unbrowse taps directly into the hidden internal APIs that power the frontend, returning data instantly.
+                    Browser automation is slow because it repeats the human path.
+                    Unbrowse uses the internal request path the site already depends on.
                   </p>
                 </div>
                 <div className="relative z-10 w-full md:w-auto md:flex-1 bg-surface border border-border rounded-xl p-6 sm:p-8 flex flex-col items-center justify-center shadow-sm">
@@ -316,9 +324,10 @@ export default function Home() {
                   <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-500/20 flex items-center justify-center mb-6">
                     <Coins className="w-5 h-5 text-orange-500" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-3 tracking-tight">40x fewer tokens</h3>
-                  <p className="text-text-secondary text-base leading-relaxed mb-8 flex-1">
-                    Why burn context on 8,000 tokens of HTML? Your agent gets the exact JSON data it needs to take the next action — nothing else.
+                <h3 className="text-xl font-semibold mb-3 tracking-tight">Return data, not markup</h3>
+                <p className="text-text-secondary text-base leading-relaxed mb-8 flex-1">
+                    Your agent gets the structured response it needs for the next step,
+                    not a pile of rendered HTML that has to be parsed back into data.
                   </p>
                   <div className="bg-surface border border-border rounded-xl p-4 sm:p-5 shadow-sm mt-auto">
                     <div className="flex justify-between items-center text-xs sm:text-sm font-mono mb-3">
@@ -342,13 +351,14 @@ export default function Home() {
                 <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-500/20 flex items-center justify-center mb-6">
                   <Globe className="w-5 h-5 text-orange-500" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 tracking-tight">Auto-discovers APIs</h3>
+                <h3 className="text-xl font-semibold mb-3 tracking-tight">Capture once. Reuse later.</h3>
                 <p className="text-text-secondary text-base leading-relaxed mb-8 flex-1">
-                  Your agent types <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</code>. We instantly map the site's undocumented endpoints for immediate use.
+                  Your agent runs <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">unbrowse resolve --intent &quot;...&quot; --url &quot;...&quot;</code>.
+                  Unbrowse learns the useful endpoints, then packages them as a reusable skill.
                 </p>
                 <div className="mt-auto pt-5 border-t border-border space-y-3">
                   <div className="flex items-center gap-2.5 text-sm text-text-secondary">
-                    <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">No endpoint config needed</span>
+                    <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">No endpoint mapping by hand</span>
                   </div>
                   <div className="flex items-center gap-2.5 text-sm text-text-secondary">
                     <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" /> <span className="truncate">Shared skill registry</span>
@@ -366,9 +376,10 @@ export default function Home() {
                 <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-500/20 flex items-center justify-center mb-6">
                   <Shield className="w-5 h-5 text-orange-500" />
                 </div>
-                <h3 className="text-xl sm:text-2xl font-semibold mb-3 tracking-tight">Integrate with anything. Behind auth.</h3>
+                <h3 className="text-xl sm:text-2xl font-semibold mb-3 tracking-tight">Keep browser auth. Lose browser overhead.</h3>
                 <p className="text-text-secondary text-base leading-relaxed max-w-md">
-                  No cloud proxies, no expensive credits. Unbrowse runs locally, leveraging your actual browser sessions to securely access <strong className="text-orange-600 font-medium">auth-protected content</strong>.
+                  No cloud proxy in the middle. Unbrowse runs locally and reuses your real browser session,
+                  so agents can reach <strong className="text-orange-600 font-medium">auth-protected workflows</strong> without shipping cookies off-box.
                 </p>
               </div>
               <div className="relative z-10 w-full md:w-auto md:flex-1 bg-surface border border-border rounded-xl p-5 sm:p-6 font-mono text-xs sm:text-sm shadow-sm">
@@ -403,12 +414,12 @@ export default function Home() {
                 <Activity className="w-3.5 h-3.5" />
                 See It In Action
               </div>
-              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-balance text-text-primary">
-                Example: <span className="text-orange-500">airbnb.com</span>
-              </h2>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 mb-6 text-balance text-text-primary">
+              Example: <span className="text-orange-500">airbnb.com</span>
+            </h2>
                 <p className="text-text-secondary text-lg max-w-2xl mx-auto leading-relaxed text-balance">
-                  One agent browses Airbnb. Every agent on the network
-                  can now search listings, check availability, and book — instantly, no browser.
+                  One agent learns Airbnb once. After that, other agents can search listings,
+                  check availability, and act through the learned skill instead of replaying the browser flow.
                 </p>
             </div>
 
@@ -483,7 +494,7 @@ export default function Home() {
            <div className="space-y-8">
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How does Unbrowse work?</h3>
-               <p className="text-text-secondary leading-relaxed">Unbrowse is a drop-in replacement for browser automation when you want API-native access to the web. It opens a local browser, captures network traffic as you interact with a site, and reverse-engineers the internal API endpoints that power the frontend. Once discovered, these endpoints are stored as reusable skills so your agent can call them directly — no browser required.</p>
+               <p className="text-text-secondary leading-relaxed">Unbrowse is a drop-in replacement for the browser in AI agent workflows. Instead of making the agent drive the DOM step by step, it learns the site&apos;s internal request flow and reuses that path as a skill. You keep browser-backed auth when needed, but most repeat work stops depending on the visible UI.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How much faster is Unbrowse than headless browser automation?</h3>
@@ -495,7 +506,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What websites does Unbrowse support?</h3>
-               <p className="text-text-secondary leading-relaxed">Unbrowse works with any website that uses internal APIs to power its frontend — which includes most modern web applications. Sites like Airbnb, LinkedIn, and hundreds of others have been successfully mapped. When a site cannot be reverse-engineered, Unbrowse falls back to standard browser automation.</p>
+               <p className="text-text-secondary leading-relaxed">Unbrowse works on sites that already use internal APIs to power their UI, which covers most modern web apps. It is especially useful when there is no official API but the site clearly has structured requests behind the frontend. When a site cannot be learned cleanly, Unbrowse falls back to standard browser automation.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">Is Unbrowse secure? Do my credentials leave my machine?</h3>

@@ -23,10 +23,10 @@ export function HeroCTA() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-orange-700">
-                Install Unbrowse
+                Install The Runtime
               </p>
               <p className="mt-1 text-sm text-text-secondary">
-                Full runtime. CLI + skill + setup.
+                Local CLI, capture engine, and setup flow.
               </p>
             </div>
             {copied === INSTALL_CMD_GENERIC ? (
@@ -48,10 +48,10 @@ export function HeroCTA() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-mono uppercase tracking-[0.22em] text-text-muted">
-                Optional Skill Shortcut
+                Optional Host Shortcut
               </p>
               <p className="mt-1 text-sm text-text-secondary">
-                After install. Adds slash-command or host discovery where skills are supported.
+                After install. Adds slash-command or host discovery in skill-aware tools.
               </p>
             </div>
             <button
