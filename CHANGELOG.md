@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.11.0...v2.12.0) (2026-04-03)
+
+### Bug Fixes
+
+* auto-queue browse submit publish and document public repo ([9905005](https://github.com/unbrowse-ai/unbrowse-dev/commit/9905005afa86402ac75d521381e6ca2eec1ab184))
+* preserve backend kv binding during CI release deploys ([#282](https://github.com/unbrowse-ai/unbrowse-dev/issues/282)) ([47e0c72](https://github.com/unbrowse-ai/unbrowse-dev/commit/47e0c7223a24f68e84f8ebec4b4892acb635f217))
+* restore skills.sh discovery gate ([#285](https://github.com/unbrowse-ai/unbrowse-dev/issues/285)) ([e5299f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5299f480ec2b19ca85981f6706d0edf155aaed2))
+* ship standalone repo setup and main-base docs ([#281](https://github.com/unbrowse-ai/unbrowse-dev/issues/281)) ([2c66398](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c663989fd7b31aa3a87b5fed29b71c22c088f8e))
+* simplify install setup path ([#294](https://github.com/unbrowse-ai/unbrowse-dev/issues/294)) ([98d97d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/98d97d30beaa737511f02926e5c43f3f648600b5))
+* simplify install setup path ([#295](https://github.com/unbrowse-ai/unbrowse-dev/issues/295)) ([a4c7fa9](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4c7fa94d90a412042eda4184fd66c83705aa676))
+
 ## Unreleased
 
 ### Features
@@ -21,6 +32,7 @@
 
 ### Bug Fixes
 
+* **docs/mcp**: make the public README surfaces explicitly describe Unbrowse as a stdio MCP server, document `initialize` / `tools/list` / `tools/call`, enumerate the shipped MCP tool groups, and clarify that `localhost:6969` is the runtime behind the MCP surface rather than a custom host protocol
 * **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
 * **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
 * **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
