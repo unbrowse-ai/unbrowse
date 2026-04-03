@@ -10,6 +10,8 @@ export interface Env {
   GITHUB_PR_BOT_LABEL?: string;
   GITHUB_PR_BOT_MERGE_METHOD?: string;
   GITHUB_WEBHOOK_ALLOWED_REPOS?: string;
+  GITHUB_PR_AGENT_WORKFLOW?: string;
+  GITHUB_PR_AGENT_WORKFLOW_REF?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
   STATS_KV: KVNamespace;
