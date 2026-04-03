@@ -40,6 +40,14 @@ interface ValuedEntry { name: string; value: string }
 // Per-namespace merged index cache — lives for the lifetime of the Worker isolate
 const _cache = new Map<string, { entries: IdxEntry[]; expires: number }>();
 
+export function clearKVCacheForTests(namespace?: string): void {
+  if (namespace) {
+    _cache.delete(namespace);
+    return;
+  }
+  _cache.clear();
+}
+
 export class EdbKV {
   private h: Record<string, string>;
   private ns: string;

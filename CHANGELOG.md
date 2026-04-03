@@ -1,38 +1,87 @@
 # Changelog
 
+## [2.12.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.0...v2.12.1) (2026-04-03)
+
+### Features
+
+* detect install-specific upgrade and repair commands during setup so global npm installs get the right guidance
+* smoke-test the packaged global CLI in CI and tag releases before publish
+
+### Bug Fixes
+
+* harden the npm wrapper so stale fallback installs fail with a precise reinstall command instead of silent runtime crashes
+* return the installed version from `unbrowse --version`
+* repair packaged wrapper execute bits during postinstall and fail fast on stale local-server version mismatches
+
+
+## [2.12.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.11.0...v2.12.0) (2026-04-03)
+
+### Bug Fixes
+
+* auto-queue browse submit publish and document public repo ([9905005](https://github.com/unbrowse-ai/unbrowse-dev/commit/9905005afa86402ac75d521381e6ca2eec1ab184))
+* preserve backend kv binding during CI release deploys ([#282](https://github.com/unbrowse-ai/unbrowse-dev/issues/282)) ([47e0c72](https://github.com/unbrowse-ai/unbrowse-dev/commit/47e0c7223a24f68e84f8ebec4b4892acb635f217))
+* restore skills.sh discovery gate ([#285](https://github.com/unbrowse-ai/unbrowse-dev/issues/285)) ([e5299f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5299f480ec2b19ca85981f6706d0edf155aaed2))
+* ship standalone repo setup and main-base docs ([#281](https://github.com/unbrowse-ai/unbrowse-dev/issues/281)) ([2c66398](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c663989fd7b31aa3a87b5fed29b71c22c088f8e))
+* simplify install setup path ([#294](https://github.com/unbrowse-ai/unbrowse-dev/issues/294)) ([98d97d3](https://github.com/unbrowse-ai/unbrowse-dev/commit/98d97d30beaa737511f02926e5c43f3f648600b5))
+* simplify install setup path ([#295](https://github.com/unbrowse-ai/unbrowse-dev/issues/295)) ([a4c7fa9](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4c7fa94d90a412042eda4184fd66c83705aa676))
+
 ## Unreleased
 
 ### Features
 
+- add tracked `docs/agent-memory.md` and require agents to read/write durable Lewis preferences there
 * add a real `unbrowse mcp` stdio server with `initialize`, `tools/list`, `tools/call`, and core Unbrowse resolve/execute/browse tools
 * add a deterministic `./setup --host mcp` bootstrap that writes a ready MCP config file, plus a frontend MCP install option and downloadable `/mcp.json` template
+* **setup/upgrade**: add `unbrowse upgrade`, persist install metadata so clone installs get the right upgrade command, and register GSD-style session-start update hints for Codex and Claude during setup
 * **backend/github**: add a real GitHub webhook receiver for opt-in PR maintenance, with `X-Hub-Signature-256` verification, branch update/auto-merge actions, conflict comments, and 6-hour Telegram digests from the backend worker cron
+* **backend/github**: add a real GitHub webhook receiver for opt-in PR agent runs, with `X-Hub-Signature-256` verification, workflow dispatch on PR/check-suite events, a self-hosted `pr-agent.yml` Codex repair runner, and 6-hour Telegram digesting for failed dispatches
 * add root `glama.json` metadata so Glama can discover and attribute the Unbrowse MCP server to `@lekt9`
 * add a root `smithery.yaml` registry manifest so Smithery can classify and install Unbrowse as a stdio MCP server
 * **ci/frontend**: add GitHub Actions PR previews for the Cloudflare/OpenNext frontend with stable `pr-<number>` preview aliases, sticky PR comments, and staging-API wiring via `PREVIEW_API_URL`
 * **cli/analytics**: surface machine-readable per-run impact (`time_saved`, `tokens_saved`, `browser_avoided`) plus likely next actions in resolve/execute responses, and persist richer session telemetry so the canonical funnel can reason over success and savings instead of only coarse counters
+* **routing telemetry**: add a sanitized `POST /v1/telemetry/routing` ingest path, shared routing event types, orchestrator-side session/step/candidate/outcome emission, and a derived `/v1/analytics/routing` summary for future long-running agent router training
+* **routing analytics**: enrich `/v1/analytics/routing` with source-level speed/success stats plus top intents/domains so we can see what agents use most and which routing paths are actually fastest
 * **frontend/miners**: replace the hardcoded miners bounty board and weekly quests with demand-driven backend data aggregated from recent CLI search/resolve telemetry, so the board now tracks what agents are actually asking for
 * **setup/wallets**: encourage Crossmint `lobster.cash` during new-install bootstrap, surface it in setup status/docs, and point walletless installs at `npx @crossmint/lobster-cli setup`
+* **growth/landing**: add sticky SSR homepage experiments, landing-token install attribution, variant-level landing funnel analytics, an ops landing-funnel panel, and a daily optimizer workflow that rebalances live weights while only generating shadow variants inside approved messaging slots
+* **frontend/funnel**: re-center the homepage on first success after install with a copyable verification + resolve path, and extend acquisition analytics to measure install-copy to first-task-copy conversion
 
 ### Tests
 
 * add MCP stdio smoke coverage for initialize, tool listing, and health tool calls
+* add routing telemetry sanitizer, idempotent backend ingest, and routing analytics regression coverage
+* add live landing-funnel end-to-end coverage for signed token attribution, CLI telemetry propagation, analytics rollup, and daily optimizer reweighting
 
 ### Bug Fixes
 
 * **cli/cache**: add a `cleanup-stale` sweep that re-verifies active skills, evicts stale local cache entries, and now rotates through periodic server-side batches so dead marketplace endpoints stop getting replayed
+* **kuri/tests**: stop the Kuri live e2e suite from hijacking a visible Chrome session by honoring headless launch flags and running the fixture-browser tests in headless managed mode
+* **github/pr-agent**: split webhook dispatch into `repair` vs `merge` operations, ignore agent-self-failure loops, isolate runner `CODEX_HOME`, and let Codex make the merge recommendation before a final non-vibes safety gate executes the merge
+* **ci/tests**: isolate CLI end-to-end runs on a per-suite local-server port and clear backend KV index caches in popularity tests so self-hosted runners stop leaking state across jobs
+* **ci/backend-tests**: keep live beta-api backend smoke suites opt-in so required CI stops failing on external network and deployment flakiness
+* **ci/package-cli**: run the packaged CLI smoke on a per-run port and pre-accept ToS in non-interactive mode so self-hosted runners stop talking to stale local servers
+* **policy/execute**: add per-endpoint third-party-terms policy flags for sensitive domains like X, block autonomous mutation execution until callers pass explicit `confirm_third_party_terms`, and surface the policy requirement through resolve/CLI/MCP/SDK
+* **legal/terms**: clarify that users bear responsibility for third-party website and API terms, disclaim liability for third-party ToS violations to the maximum extent permitted by law, expand indemnity coverage for third-party claims, and fix the company name in ToS copy
+* **backend/payments**: split discovery from paid manifest access with `X402_SEARCH_ENABLED`, so `/v1/search*` can stay free while paid `/v1/skills/:id` detail remains x402-gated
+* **docs/whitepaper**: sync the companion docs with the shipped x402 and Crossmint wallet flow so payment gates, wallet-linked payout routing, and current settlement behavior stop reading as “coming soon”
+* **docs/mcp**: make the public README surfaces explicitly describe Unbrowse as a stdio MCP server, document `initialize` / `tools/list` / `tools/call`, enumerate the shipped MCP tool groups, and clarify that `localhost:6969` is the runtime behind the MCP surface rather than a custom host protocol
 * **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
 * **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
 * **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
+* **frontend/registry**: stop stale search-index hits from linking to dead registry skill detail pages, and label them as index-only until the live registry has a backing skill page
+* **frontend/registry**: swap the homepage registry showcase from recent linked cards to list-only popular skills backed by observed execution counts
 * fix packaged MCP autostart by removing a duplicate `recordAnalyticsSession` export that broke the packaged local-server bootstrap path behind the installer-generated MCP command
 * **frontend/install**: simplify the landing-page install path around one clear command, reduce CTA clutter, trim install tabs, and make the copy action grab the primary command instead of the full block
 * **analytics**: stop labeling cached execute paths as manual browser usage, and derive canonical funnel activation/aha/repeat from successful session telemetry
+* **cli/install**: bake global-install diagnostics into the npm wrapper, add a real `unbrowse --version`, repair wrapper/launcher execute bits during postinstall, and fail loudly when a stale local server on `:6969` is serving a different package version than the installed CLI
 * **linkedin/replay**: keep unrelated infrastructure path prefixes like LinkedIn `litms` literal during capture, and bypass robots gating for authenticated session-backed execution so captured private feed endpoints can replay through the user session
 * preserve the production backend KV binding during CI deploys so release runs stop re-requesting KV write scope
 * clean checked-in merge markers, restore the curl install script, and add a repo blog-publish helper so the stale frontend-history branch can be absorbed without dragging its generated junk forward
 * **backend/storage**: make Neon-backed worker KV writes transactional, clear poisoned init-cache entries after transient Neon bootstrap failures, and add regression coverage for both paths
 * split `main` deploys from tag releases so ordinary `main` pushes stop surfacing a no-op npm publish path when the current CLI version is already on npm
 * simplify the homepage install story around `curl -fsSL https://unbrowse.ai/install.sh | bash`, add `npx skills add unbrowse-ai/unbrowse` as the skills-host shortcut, and demote repo-clone setup to fallback copy
+* **cli/browser-capture**: preserve top-level resolve errors in slim CLI output, return structured browser-capture failures instead of raw 500s, and isolate CLI E2E runs onto their own local server so live auth paths stop binding to stale ambient state
+* **cli/auth**: surface blocked auth-gated captures as structured auth prompts instead of opaque empty resolve output, stabilize the X CLI auth smoke on a real search URL, and restore clean backend typecheck on the miner-demand board
 
 ## [2.11.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.10.2...v2.11.0) (2026-04-02)
 

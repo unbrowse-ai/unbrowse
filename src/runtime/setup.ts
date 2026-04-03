@@ -7,6 +7,7 @@ import { findKuriBinary, getKuriSourceCandidates } from "../kuri/client.js";
 import { detectHostEnvironment, type HostEnvironment } from "./browser-host.js";
 import { log } from "../logger.js";
 import { checkWalletConfigured, type WalletCheckResult } from "../payments/wallet.js";
+import { configureUpdateHintHooks, saveInstallSource, type UpdateHookStatus } from "./update-hints.js";
 
 export type SetupScope = "auto" | "global" | "project" | "off";
 
@@ -33,6 +34,7 @@ export type SetupReport = {
     action: "installed" | "updated" | "skipped" | "not-detected";
     scope: "global" | "project" | "off";
   };
+  update_hints: UpdateHookStatus[];
   wallet: WalletCheckResult & {
     message: string;
   };
@@ -185,6 +187,7 @@ export async function runSetup(options?: {
   installBrowser?: boolean;
 }): Promise<SetupReport> {
   const cwd = options?.cwd || process.cwd();
+  const installSource = saveInstallSource(import.meta.url);
 
   const hostEnv = detectHostEnvironment();
   log("setup", `detected host environment: ${hostEnv}`);
@@ -242,6 +245,7 @@ export async function runSetup(options?: {
     package_managers: detectPackageManagers(),
     browser_engine: browser,
     opencode: writeOpenCodeCommand(options?.opencode ?? "auto", cwd),
+    update_hints: configureUpdateHintHooks(import.meta.url, installSource),
     wallet,
   };
 }

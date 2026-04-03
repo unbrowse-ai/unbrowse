@@ -139,6 +139,7 @@ export interface ResolveInput {
   };
   projection?: ProjectionOptions;
   confirmUnsafe?: boolean;
+  confirmThirdPartyTerms?: boolean;
   dryRun?: boolean;
   forceCapture?: boolean;
 }
@@ -148,6 +149,7 @@ export interface ExecuteInput {
   params?: Record<string, unknown>;
   projection?: ProjectionOptions;
   confirmUnsafe?: boolean;
+  confirmThirdPartyTerms?: boolean;
   dryRun?: boolean;
   intent?: string;
   contextUrl?: string;
@@ -207,6 +209,9 @@ export interface AvailableEndpoint {
     required?: boolean;
     example_value?: string;
   }>;
+  requires_third_party_terms_confirmation?: boolean;
+  third_party_terms_policy_domain?: string;
+  third_party_terms_policy_reason?: string;
   [key: string]: unknown;
 }
 

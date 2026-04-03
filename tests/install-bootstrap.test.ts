@@ -46,6 +46,9 @@ describe("bootstrap install flow", () => {
     expect(script).toContain("UNBROWSE_TOS_ACCEPTED=1");
     expect(script).toContain("UNBROWSE_AGENT_EMAIL");
     expect(script).toContain("UNBROWSE_SKIP_WALLET_SETUP=1");
+    expect(script).toContain('UNBROWSE_SETUP_METHOD="repo-clone"');
+    expect(script).toContain('UNBROWSE_SETUP_HOST="$TARGET_HOST"');
+    expect(script).toContain('UNBROWSE_SETUP_ROOT="$ROOT_DIR"');
     expect(script).toContain("Crossmint lobster.cash recommended");
   });
 
@@ -65,6 +68,9 @@ describe("bootstrap install flow", () => {
     expect(script).toContain("UNBROWSE_TOS_ACCEPTED=1");
     expect(script).toContain("UNBROWSE_AGENT_EMAIL");
     expect(script).toContain("UNBROWSE_SKIP_WALLET_SETUP=1");
+    expect(script).toContain('UNBROWSE_SETUP_METHOD="repo-clone"');
+    expect(script).toContain('UNBROWSE_SETUP_HOST="$TARGET_HOST"');
+    expect(script).toContain('UNBROWSE_SETUP_ROOT="$ROOT_DIR"');
     expect(script).toContain("Crossmint lobster.cash recommended");
   });
 
