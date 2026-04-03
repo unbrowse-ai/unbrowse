@@ -98,6 +98,16 @@ The synced skill repo also carries the longer-form docs set:
 - [For Investors](./docs/whitepaper/for-investors.md)
 - [Analytics API](./docs/analytics-api.md)
 
+## Bundled Skills
+
+This repo also carries shareable workflow skills under `./skills/`:
+
+- `history-skill-miner` — mine repeated local Codex workflows into first-principles skills
+- `p2p-skill-share` — export those skills and share them over Cloudflare quick or named tunnels
+- `docs-release-sync` — keep README, changelog, and release docs aligned
+- `skill-surface-ship` — keep the public skill/install/publish surface in sync
+- `main-actions-triage` — inspect blockers on `main` GitHub Actions runs
+
 ## How it works
 
 When an agent asks for something, Unbrowse first searches the marketplace for an existing skill. If one exists with enough confidence, it executes immediately. If not, Unbrowse captures the site, learns the APIs behind it, publishes a reusable skill, and executes that instead.
