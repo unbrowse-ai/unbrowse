@@ -160,15 +160,26 @@ skillRoutes.post("/skills", bearerAuth, async (c) => {
     return c.json({ error: "Validation failed", details: validation.hardErrors }, 422);
   }
   let skill;
+  const agentId = c.get("agent_id");
   try {
-    skill = await publishSkill(c.env, body as Parameters<typeof publishSkill>[1]);
+    skill = await publishSkill(c.env, body as Parameters<typeof publishSkill>[1], {
+      submitter_agent_id: agentId,
+      client_trace_version: c.req.header("X-Unbrowse-Trace-Version") ?? undefined,
+      client_code_hash: c.req.header("X-Unbrowse-Code-Hash") ?? undefined,
+      client_git_sha: c.req.header("X-Unbrowse-Git-Sha") ?? undefined,
+      client_release_manifest: c.req.header("X-Unbrowse-Release-Manifest") ?? undefined,
+      client_release_signature: c.req.header("X-Unbrowse-Release-Signature") ?? undefined,
+      transport: "cli",
+    });
   } catch (err) {
+    if ((err as Error).message.startsWith("release_manifest_")) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
     console.error("[publish] error:", (err as Error).message, (err as Error).stack);
     return c.json({ error: "Failed to publish skill" }, 500);
   }
 
   // Track agent contribution and merge into contributors list
-  const agentId = c.get("agent_id");
   if (agentId) {
     try {
       c.executionCtx.waitUntil(addSkillDiscovered(c.env, agentId, skill.skill_id));

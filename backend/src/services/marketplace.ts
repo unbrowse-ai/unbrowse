@@ -1,9 +1,10 @@
 import { nanoid } from "nanoid";
-import type { Env, SkillListItem, SkillManifest, EndpointDescriptor } from "../types.js";
+import type { Env, SkillListItem, SkillManifest, EndpointDescriptor, EndpointCorroboration } from "../types.js";
 import { indexEndpoints, removeSkillFromIndex, removeEndpointsFromIndex } from "./discovery.js";
 import { generateDescriptions } from "./descriptions.js";
 import { upsertEdges, type GraphEdge, type GraphNode } from "./graph.js";
 import { skillsKV } from "./kv.js";
+import { verifyReleaseManifest } from "./release-manifest.js";
 
 function kvKey(skillId: string): string {
   return `skill:${skillId}`;
@@ -112,15 +113,62 @@ export async function publishSkill(
   draft: Omit<SkillManifest, "skill_id" | "created_at" | "updated_at" | "version"> & {
     skill_id?: string;
     version?: string;
-  }
+  },
+  context?: {
+    submitter_agent_id?: string;
+    client_trace_version?: string;
+    client_code_hash?: string;
+    client_git_sha?: string;
+    client_release_manifest?: string;
+    client_release_signature?: string;
+    transport?: string;
+  },
 ): Promise<SkillManifest & { index_status: string }> {
   const existing = await findExistingByDomain(env, draft.domain);
   const now = new Date().toISOString();
+  const releaseVerification = await verifyReleaseManifest(
+    env,
+    context?.client_release_manifest,
+    context?.client_release_signature,
+    {
+      trace_version: context?.client_trace_version,
+      code_hash: context?.client_code_hash,
+      git_sha: context?.client_git_sha,
+    },
+  );
+  if (
+    releaseVerification.provided
+    && !releaseVerification.verified
+    && releaseVerification.reason !== "verification_unconfigured"
+  ) {
+    throw new Error(`release_manifest_${releaseVerification.reason}`);
+  }
+  const provenanceEvent = {
+    submitted_at: now,
+    submitter_agent_id: context?.submitter_agent_id,
+    client_trace_version: context?.client_trace_version,
+    client_code_hash: context?.client_code_hash,
+    client_git_sha: context?.client_git_sha,
+    transport: context?.transport ?? "unknown",
+    release_manifest_version: releaseVerification.manifest?.release_version,
+    release_manifest_verified: releaseVerification.verified,
+    release_manifest_reason: releaseVerification.reason,
+  };
   let skill: SkillManifest;
 
   if (existing) {
     const newVersion = bumpMinor(existing.version);
-    const mergedEndpoints = mergeEndpoints(existing.endpoints, draft.endpoints);
+    const existingVisibility = existing.trust?.graph_visibility ?? "public";
+    const mergedEndpoints = mergeEndpointsWithVisibility(
+      existing.endpoints,
+      draft.endpoints,
+      existingVisibility,
+      {
+        submitted_at: now,
+        submitter_agent_id: context?.submitter_agent_id,
+        release_manifest_verified: releaseVerification.verified,
+      },
+    );
     // Track which intents contributed endpoints
     const intents = new Set(existing.intents ?? []);
     if (draft.intent_signature && draft.intent_signature !== draft.domain) {
@@ -134,8 +182,12 @@ export async function publishSkill(
       prev_version: existing.version,
       name: draft.domain,
       intent_signature: draft.domain,
+      owner_type: context?.submitter_agent_id && context.submitter_agent_id !== "__admin__"
+        ? "agent"
+        : draft.owner_type,
       endpoints: mergedEndpoints,
       intents: Array.from(intents),
+      provenance_events: [...(existing.provenance_events ?? []), provenanceEvent],
       updated_at: now,
       created_at: existing.created_at,
     };
@@ -147,11 +199,33 @@ export async function publishSkill(
       schema_version: "1",
       name: draft.domain,
       intent_signature: draft.domain,
+      owner_type: context?.submitter_agent_id && context.submitter_agent_id !== "__admin__"
+        ? "agent"
+        : draft.owner_type,
       lifecycle: "active",
+      provenance_events: [provenanceEvent],
+      endpoints: draft.endpoints.map((endpoint) => ({
+        ...endpoint,
+        graph_visibility: endpoint.graph_visibility ?? "shadow",
+        corroboration: applySubmissionToCorroboration(
+          undefined,
+          now,
+          context?.submitter_agent_id,
+          releaseVerification.verified,
+        ),
+      })),
       created_at: now,
       updated_at: now,
     } as SkillManifest;
   }
+
+  const trust = computeSkillTrust(
+    skill,
+    context?.submitter_agent_id,
+    (existing?.trust?.graph_visibility ?? "public") === "public" && existing != null,
+  );
+  applyEndpointVisibility(skill, trust.graph_visibility, trust.promotion_reason);
+  skill.trust = trust;
 
   // Generate LLM descriptions for endpoints that lack them (non-blocking on failure)
   if (skill.endpoints.some((ep) => !ep.description)) {
@@ -169,12 +243,13 @@ export async function publishSkill(
     { key: domainKey(skill.domain), value: skill.skill_id },
   ]);
 
-  const reliabilities = skill.endpoints.map((e) => e.reliability_score);
+  const publicEndpoints = getPublicEndpoints(skill.endpoints);
+  const reliabilities = publicEndpoints.map((e) => e.reliability_score);
   const avgReliability = reliabilities.length > 0
     ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
     : 0.5;
-  const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
-  const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
+  const verifiedCount = publicEndpoints.filter((e) => e.verification_status === "verified").length;
+  const verifiedRatio = publicEndpoints.length > 0 ? verifiedCount / publicEndpoints.length : 0;
 
   // Remove old endpoint vectors that were replaced during merge (if any)
   if (existing) {
@@ -188,16 +263,20 @@ export async function publishSkill(
 
   let index_status: string;
   try {
-    await indexEndpoints(env, skill.skill_id, skill.endpoints, {
-      domain: skill.domain,
-      subdomain: skill.subdomain,
-      name: skill.name,
-      description: skill.description,
-      avg_reliability: avgReliability,
-      verified_ratio: verifiedRatio,
-      updated_at: skill.updated_at,
-    });
-    index_status = "ok";
+    if (publicEndpoints.length > 0) {
+      await indexEndpoints(env, skill.skill_id, publicEndpoints, {
+        domain: skill.domain,
+        subdomain: skill.subdomain,
+        name: skill.name,
+        description: skill.description,
+        avg_reliability: avgReliability,
+        verified_ratio: verifiedRatio,
+        updated_at: skill.updated_at,
+      });
+      index_status = "ok";
+    } else {
+      index_status = `shadow:${trust.promotion_reason}`;
+    }
   } catch (err) {
     index_status = (err as Error).message;
     console.error(`[indexEndpoints] failed for ${skill.skill_id}:`, index_status);
@@ -205,7 +284,7 @@ export async function publishSkill(
 
   // Infer DAG edges from endpoint URL templates and upsert them
   try {
-    for (const ep of skill.endpoints) {
+    for (const ep of publicEndpoints) {
       let path: string;
       try { path = new URL(ep.url_template).pathname; } catch { path = ep.url_template; }
 
@@ -269,9 +348,36 @@ export async function updateEndpointScore(
   if (!endpoint) return;
   endpoint.reliability_score = score;
   if (status) endpoint.verification_status = status;
+  if (endpoint.verification_status === "verified") {
+    endpoint.graph_visibility = "public";
+  }
+  const trust = computeSkillTrust(skill);
+  applyEndpointVisibility(skill, trust.graph_visibility, trust.promotion_reason);
+  skill.trust = trust;
   skill.updated_at = new Date().toISOString();
   await skillsKV(env).put(kvKey(skillId), JSON.stringify(skill));
   await invalidateSkillListCaches(env);
+
+  if (trust.graph_visibility === "public") {
+    const publicEndpoints = getPublicEndpoints(skill.endpoints);
+    if (publicEndpoints.length > 0) {
+      const reliabilities = publicEndpoints.map((e) => e.reliability_score);
+      const avgReliability = reliabilities.length > 0
+        ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
+        : 0.5;
+      const verifiedCount = publicEndpoints.filter((e) => e.verification_status === "verified").length;
+      const verifiedRatio = publicEndpoints.length > 0 ? verifiedCount / publicEndpoints.length : 0;
+      await indexEndpoints(env, skill.skill_id, publicEndpoints, {
+        domain: skill.domain,
+        subdomain: skill.subdomain,
+        name: skill.name,
+        description: skill.description,
+        avg_reliability: avgReliability,
+        verified_ratio: verifiedRatio,
+        updated_at: skill.updated_at,
+      }).catch(() => {});
+    }
+  }
 
   if (status === "disabled" || status === "failed") {
     const allDead = skill.endpoints.every(
@@ -383,4 +489,260 @@ function isRicher(a: EndpointDescriptor, b: EndpointDescriptor): boolean {
 
 export function normalizeTemplate(t: string): string {
   return t.replace(/\{[^}]+\}/g, "{}").toLowerCase();
+}
+
+function mergeEndpointsWithVisibility(
+  existing: EndpointDescriptor[],
+  incoming: EndpointDescriptor[],
+  existingSkillVisibility: "shadow" | "public",
+  submission: {
+    submitted_at: string;
+    submitter_agent_id?: string;
+    release_manifest_verified: boolean;
+  },
+): EndpointDescriptor[] {
+  const merged = existing.map((endpoint) => ({
+    ...endpoint,
+    graph_visibility: endpoint.graph_visibility ?? existingSkillVisibility,
+    corroboration: normalizeEndpointCorroboration(
+      endpoint.corroboration,
+      submission.submitted_at,
+      endpoint.graph_visibility ?? existingSkillVisibility,
+    ),
+  }));
+
+  for (const ep of incoming) {
+    const dupeIdx = merged.findIndex(
+      (e) =>
+        e.method === ep.method &&
+        normalizeTemplate(e.url_template) === normalizeTemplate(ep.url_template),
+    );
+    if (dupeIdx === -1) {
+      merged.push({
+        ...ep,
+        graph_visibility: ep.graph_visibility ?? "shadow",
+        corroboration: applySubmissionToCorroboration(
+          undefined,
+          submission.submitted_at,
+          submission.submitter_agent_id,
+          submission.release_manifest_verified,
+        ),
+      });
+    } else if (isRicher(ep, merged[dupeIdx])) {
+      merged[dupeIdx] = {
+        ...ep,
+        endpoint_id: merged[dupeIdx].endpoint_id,
+        graph_visibility: merged[dupeIdx].graph_visibility ?? existingSkillVisibility,
+        corroboration: applySubmissionToCorroboration(
+          merged[dupeIdx].corroboration,
+          submission.submitted_at,
+          submission.submitter_agent_id,
+          submission.release_manifest_verified,
+        ),
+      };
+    } else {
+      merged[dupeIdx] = {
+        ...merged[dupeIdx],
+        corroboration: applySubmissionToCorroboration(
+          merged[dupeIdx].corroboration,
+          submission.submitted_at,
+          submission.submitter_agent_id,
+          submission.release_manifest_verified,
+        ),
+      };
+    }
+  }
+  return merged;
+}
+
+function getPublicEndpoints(endpoints: EndpointDescriptor[]): EndpointDescriptor[] {
+  return endpoints.filter((endpoint) => (endpoint.graph_visibility ?? "public") === "public");
+}
+
+function computeVerifiedRatio(endpoints: EndpointDescriptor[]): number {
+  if (endpoints.length === 0) return 0;
+  const verified = endpoints.filter((endpoint) => endpoint.verification_status === "verified").length;
+  return verified / endpoints.length;
+}
+
+function countUniqueSubmitters(events: SkillManifest["provenance_events"]): number {
+  return new Set((events ?? []).map((event) => event.submitter_agent_id).filter(Boolean)).size;
+}
+
+function countVerifiedReleaseSubmissions(events: SkillManifest["provenance_events"]): number {
+  return (events ?? []).filter((event) => event.release_manifest_verified).length;
+}
+
+function countUniqueVerifiedSubmitters(events: SkillManifest["provenance_events"]): number {
+  return new Set(
+    (events ?? [])
+      .filter((event) => event.release_manifest_verified)
+      .map((event) => event.submitter_agent_id)
+      .filter(Boolean),
+  ).size;
+}
+
+function computeSkillTrust(
+  skill: SkillManifest,
+  currentSubmitterAgentId?: string,
+  existingWasPublic = false,
+): SkillManifest["trust"] {
+  const submissionCount = skill.provenance_events?.length ?? 0;
+  const uniqueSubmitters = countUniqueSubmitters(skill.provenance_events);
+  const verifiedReleaseSubmissions = countVerifiedReleaseSubmissions(skill.provenance_events);
+  const uniqueVerifiedSubmitters = countUniqueVerifiedSubmitters(skill.provenance_events);
+  const verifiedRatio = computeVerifiedRatio(skill.endpoints);
+  const alreadyPublic = existingWasPublic || skill.trust?.graph_visibility === "public";
+  const trustedSystemPublisher = !currentSubmitterAgentId && skill.owner_type === "marketplace";
+  const adminPublisher = currentSubmitterAgentId === "__admin__";
+
+  if (alreadyPublic) {
+    return {
+      graph_visibility: "public",
+      promotion_reason: existingWasPublic ? "already_public" : skill.trust?.promotion_reason ?? "already_public",
+      submission_count: submissionCount,
+      unique_submitters: uniqueSubmitters,
+      verified_release_submissions: verifiedReleaseSubmissions,
+      unique_verified_submitters: uniqueVerifiedSubmitters,
+      verified_ratio: verifiedRatio,
+      last_submission_at: skill.updated_at,
+    };
+  }
+
+  let graphVisibility: "shadow" | "public" = "shadow";
+  let promotionReason = "awaiting_verification";
+  if (verifiedRatio > 0) {
+    graphVisibility = "public";
+    promotionReason = "verified_endpoint";
+  } else if (uniqueVerifiedSubmitters >= 2) {
+    graphVisibility = "public";
+    promotionReason = "multi_submitter_verified_release";
+  } else if (uniqueSubmitters >= 2) {
+    graphVisibility = "public";
+    promotionReason = "multi_submitter";
+  } else if (trustedSystemPublisher || adminPublisher) {
+    graphVisibility = "public";
+    promotionReason = "trusted_system_publisher";
+  }
+
+  return {
+    graph_visibility: graphVisibility,
+    promotion_reason: promotionReason,
+    submission_count: submissionCount,
+    unique_submitters: uniqueSubmitters,
+    verified_release_submissions: verifiedReleaseSubmissions,
+    unique_verified_submitters: uniqueVerifiedSubmitters,
+    verified_ratio: verifiedRatio,
+    last_submission_at: skill.updated_at,
+  };
+}
+
+function applyEndpointVisibility(
+  skill: SkillManifest,
+  graphVisibility: "shadow" | "public",
+  promotionReason: string,
+): void {
+  for (const endpoint of skill.endpoints) {
+    const existingVisibility = endpoint.graph_visibility;
+    if (endpoint.verification_status === "verified" || isEndpointCorroborated(endpoint)) {
+      endpoint.graph_visibility = "public";
+      continue;
+    }
+    if (graphVisibility === "public") {
+      endpoint.graph_visibility = promotionReason === "already_public"
+        ? existingVisibility === "public" ? "public" : "shadow"
+        : "public";
+      continue;
+    }
+    endpoint.graph_visibility = existingVisibility === "public" ? "public" : "shadow";
+  }
+}
+
+function normalizeEndpointCorroboration(
+  corroboration: EndpointCorroboration | undefined,
+  submittedAt: string,
+  existingVisibility: "shadow" | "public",
+): EndpointCorroboration {
+  if (!corroboration) {
+    return {
+      submission_count: 1,
+      unique_submitters: existingVisibility === "public" ? 1 : 1,
+      verified_release_submissions: 0,
+      unique_verified_submitters: 0,
+      last_submission_at: submittedAt,
+    };
+  }
+  const submitterIds = Array.from(new Set(corroboration.submitter_agent_ids ?? []));
+  const verifiedSubmitterIds = Array.from(new Set(corroboration.verified_release_submitter_ids ?? []));
+  return {
+    ...corroboration,
+    unique_submitters: Math.max(corroboration.unique_submitters, submitterIds.length),
+    unique_verified_submitters: Math.max(corroboration.unique_verified_submitters, verifiedSubmitterIds.length),
+    last_submission_at: corroboration.last_submission_at || submittedAt,
+    submitter_agent_ids: submitterIds.length > 0 ? submitterIds : undefined,
+    verified_release_submitter_ids: verifiedSubmitterIds.length > 0 ? verifiedSubmitterIds : undefined,
+  };
+}
+
+function applySubmissionToCorroboration(
+  corroboration: EndpointCorroboration | undefined,
+  submittedAt: string,
+  submitterAgentId: string | undefined,
+  releaseManifestVerified: boolean,
+): EndpointCorroboration {
+  const base = corroboration
+    ? normalizeEndpointCorroboration(corroboration, submittedAt, "shadow")
+    : {
+      submission_count: 0,
+      unique_submitters: 0,
+      verified_release_submissions: 0,
+      unique_verified_submitters: 0,
+      last_submission_at: submittedAt,
+      submitter_agent_ids: undefined,
+      verified_release_submitter_ids: undefined,
+    };
+  const submitterIds = Array.from(new Set(base.submitter_agent_ids ?? []));
+  const hadSubmitter = submitterAgentId ? submitterIds.includes(submitterAgentId) : false;
+  if (submitterAgentId && !hadSubmitter) submitterIds.push(submitterAgentId);
+
+  const verifiedSubmitterIds = Array.from(new Set(base.verified_release_submitter_ids ?? []));
+  const hadVerifiedSubmitter = submitterAgentId ? verifiedSubmitterIds.includes(submitterAgentId) : false;
+  if (submitterAgentId && releaseManifestVerified && !hadVerifiedSubmitter) {
+    verifiedSubmitterIds.push(submitterAgentId);
+  }
+
+  const trackedSubmitterIds = base.submitter_agent_ids?.length ?? 0;
+  const trackedVerifiedSubmitterIds = base.verified_release_submitter_ids?.length ?? 0;
+
+  return {
+    submission_count: base.submission_count + 1,
+    unique_submitters: submitterAgentId
+      ? base.unique_submitters === 0
+        ? Math.max(1, submitterIds.length)
+        : hadSubmitter
+          ? Math.max(base.unique_submitters, submitterIds.length)
+          : trackedSubmitterIds > 0
+            ? Math.max(base.unique_submitters + 1, submitterIds.length)
+            : Math.max(base.unique_submitters, submitterIds.length)
+      : base.unique_submitters,
+    verified_release_submissions: base.verified_release_submissions + (releaseManifestVerified ? 1 : 0),
+    unique_verified_submitters: submitterAgentId && releaseManifestVerified
+      ? base.unique_verified_submitters === 0
+        ? Math.max(1, verifiedSubmitterIds.length)
+        : hadVerifiedSubmitter
+          ? Math.max(base.unique_verified_submitters, verifiedSubmitterIds.length)
+          : trackedVerifiedSubmitterIds > 0
+            ? Math.max(base.unique_verified_submitters + 1, verifiedSubmitterIds.length)
+            : Math.max(base.unique_verified_submitters, verifiedSubmitterIds.length)
+      : base.unique_verified_submitters,
+    last_submission_at: submittedAt,
+    submitter_agent_ids: submitterIds.length > 0 ? submitterIds : undefined,
+    verified_release_submitter_ids: verifiedSubmitterIds.length > 0 ? verifiedSubmitterIds : undefined,
+  };
+}
+
+function isEndpointCorroborated(endpoint: EndpointDescriptor): boolean {
+  const corroboration = endpoint.corroboration;
+  if (!corroboration) return false;
+  return corroboration.unique_verified_submitters >= 2 || corroboration.unique_submitters >= 2;
 }

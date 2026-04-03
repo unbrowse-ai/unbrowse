@@ -15,6 +15,7 @@ export interface Env {
   GITHUB_PR_AGENT_WORKFLOW_REF?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
+  RELEASE_MANIFEST_SIGNING_SECRET?: string;
   STATS_KV: KVNamespace;
   ENVIRONMENT?: string; // "production" | "staging"
   PAYMENTS_ENABLED?: string;
@@ -55,6 +56,40 @@ export type SkillLifecycle = "active" | "deprecated" | "disabled";
 export type OwnerType = "agent" | "marketplace" | "user";
 export type Idempotency = "safe" | "unsafe";
 export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
+export type GraphVisibility = "shadow" | "public";
+
+export interface SkillSubmissionProvenance {
+  submitted_at: string;
+  submitter_agent_id?: string;
+  client_trace_version?: string;
+  client_code_hash?: string;
+  client_git_sha?: string;
+  transport?: string;
+  release_manifest_version?: string;
+  release_manifest_verified?: boolean;
+  release_manifest_reason?: string;
+}
+
+export interface SkillTrustMetadata {
+  graph_visibility: GraphVisibility;
+  promotion_reason: string;
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  verified_ratio: number;
+  last_submission_at: string;
+}
+
+export interface EndpointCorroboration {
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  last_submission_at: string;
+  submitter_agent_ids?: string[];
+  verified_release_submitter_ids?: string[];
+}
 
 export interface AuthProfile {
   oauth_type?: string;
@@ -123,6 +158,8 @@ export interface EndpointDescriptor {
   signature?: string;
   response_schema?: ResponseSchema;
   trigger_url?: string;
+  graph_visibility?: GraphVisibility;
+  corroboration?: EndpointCorroboration;
 }
 
 export interface DiscoveryCost {
@@ -174,6 +211,10 @@ export interface SkillManifest {
    * If unset, the platform default base price applies.
    */
   base_price_usd?: number;
+  /** Server-owned submission provenance for staged promotion and abuse analysis. */
+  provenance_events?: SkillSubmissionProvenance[];
+  /** Server-owned graph trust state. */
+  trust?: SkillTrustMetadata;
 }
 
 export interface SkillListEndpointPreview {

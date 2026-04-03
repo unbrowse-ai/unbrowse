@@ -2,6 +2,40 @@ export type SkillLifecycle = "active" | "deprecated" | "disabled";
 export type OwnerType = "agent" | "marketplace" | "user";
 export type Idempotency = "safe" | "unsafe";
 export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
+export type GraphVisibility = "shadow" | "public";
+
+export interface SkillSubmissionProvenance {
+  submitted_at: string;
+  submitter_agent_id?: string;
+  client_trace_version?: string;
+  client_code_hash?: string;
+  client_git_sha?: string;
+  transport?: string;
+  release_manifest_version?: string;
+  release_manifest_verified?: boolean;
+  release_manifest_reason?: string;
+}
+
+export interface SkillTrustMetadata {
+  graph_visibility: GraphVisibility;
+  promotion_reason: string;
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  verified_ratio: number;
+  last_submission_at: string;
+}
+
+export interface EndpointCorroboration {
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  last_submission_at: string;
+  submitter_agent_ids?: string[];
+  verified_release_submitter_ids?: string[];
+}
 
 export interface AuthProfile {
   oauth_type?: string;
@@ -118,6 +152,10 @@ export interface EndpointDescriptor {
   /** Learned execution strategy — set after first successful execution.
    *  Skips doomed server-fetch on sites that need browser execution (e.g. LinkedIn). */
   exec_strategy?: "server" | "trigger-intercept" | "browser";
+  /** Server-owned graph visibility. Shadow endpoints are persisted but not indexed. */
+  graph_visibility?: GraphVisibility;
+  /** Server-owned corroboration counters used for staged promotion. */
+  corroboration?: EndpointCorroboration;
   /** Semantic v2 metadata for endpoint-level retrieval and DAG planning */
   semantic?: EndpointSemanticDescriptor;
   /** Path template inferred by batch mining (passive captures without a context page URL).
@@ -252,6 +290,10 @@ export interface SkillManifest {
   base_price_usd?: number;
   /** Whether the skill owner has opted into compensation */
   owner_compensation_opt_in?: boolean;
+  /** Server-owned submission provenance for staged promotion and abuse analysis. */
+  provenance_events?: SkillSubmissionProvenance[];
+  /** Server-owned graph trust state. */
+  trust?: SkillTrustMetadata;
 }
 
 export interface ExecutionTrace {

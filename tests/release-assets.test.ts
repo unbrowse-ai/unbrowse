@@ -22,9 +22,12 @@ describe("release asset wiring", () => {
     const buildScript = readFileSync(BUILD_SCRIPT, "utf8");
 
     expect(workflow).toContain("name: Upload CLI Release Assets");
+    expect(workflow).toContain("name: Verify CLI Release Assets");
     expect(workflow).toContain("bash scripts/build-binaries.sh --all");
-    expect(workflow).toContain("UNBROWSE_RELEASE_TAG: ${{ github.ref_name }}");
-    expect(workflow).toContain("gh release upload \"$TAG\" dist/unbrowse-* --clobber");
+    expect(workflow).toContain("gh release upload \"$TAG\" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber");
+    expect(workflow).toContain("run: node scripts/verify-release-assets.mjs");
+    expect(workflow).toContain("needs: verify-release-assets");
+    expect(workflow).toContain("UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}");
     expect(workflow).toContain("bash scripts/ensure-submodules.sh submodules/kuri");
     expect(buildScript).toContain('VERSION_TAG="${UNBROWSE_RELEASE_TAG:-v$(grep -m1');
     expect(buildScript).toContain('local archive="$DIST_DIR/unbrowse-$VERSION_TAG-$target.tar.gz"');
