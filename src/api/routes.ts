@@ -529,7 +529,8 @@ export async function registerRoutes(app: FastifyInstance) {
         example: b.example_value,
       })) ?? [],
       dom_extraction: !!r.endpoint.dom_extraction,
-      _fill_description: "DESCRIBE THIS ENDPOINT — what it returns, key params, action type",
+      _fill_description:
+        "DESCRIBE THIS ENDPOINT — what it returns, key params, action type, and any audience/eligibility/pricing/validity constraints",
     }));
 
     return reply.send({
@@ -537,7 +538,8 @@ export async function registerRoutes(app: FastifyInstance) {
       domain: skill.domain,
       endpoint_count: skill.endpoints.length,
       endpoints_to_describe,
-      _next_step: `Fill each endpoint's description, then call: unbrowse publish --skill ${skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
+      _next_step:
+        `Fill each endpoint's description with what it returns plus any audience/eligibility/pricing/validity caveats, then call: unbrowse publish --skill ${skill.skill_id} --endpoints '[{endpoint_id, description, action_kind, resource_kind}]'`,
     });
   });
   // POST /v1/skills/:skill_id/chunk — dynamic subgraph load for the current intent/bindings
