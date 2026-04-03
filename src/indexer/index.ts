@@ -336,6 +336,10 @@ export function findAndMergeDomainSnapshot(
   };
 }
 const indexInFlight = new Map<string, Promise<void>>();
+const pendingIndexJobs = new Map<string, BackgroundIndexJob>();
+
+type BackgroundIndexProcessor = (job: BackgroundIndexJob) => Promise<void>;
+let backgroundIndexProcessor: BackgroundIndexProcessor = processIndexJob;
 
 export interface BackgroundIndexJob {
   skill: SkillManifest;
@@ -349,23 +353,67 @@ export interface BackgroundIndexJob {
 /**
  * Queue a skill for background processing: graph building, marketplace
  * validation, and publishing. Non-blocking — returns immediately.
- * Per-domain dedup: only one job per domain runs at a time.
+ * Per-domain coalescing: only one job per domain runs at a time, while the
+ * latest pending work for that domain is merged and replayed after the active
+ * job completes.
  */
 export function queueBackgroundIndex(job: BackgroundIndexJob): void {
   const key = job.domain;
   if (indexInFlight.has(key)) {
-    console.log(`[background-index] skipped for ${key}: already in flight`);
+    const pending = pendingIndexJobs.get(key);
+    pendingIndexJobs.set(key, pending ? mergeBackgroundIndexJobs(pending, job) : job);
+    console.error(`[background-index] coalesced pending job for ${key}: already in flight`);
     return;
   }
 
-  const work = processIndexJob(job)
+  const work = backgroundIndexProcessor(job)
     .catch(err =>
       console.error(`[background-index] failed for ${key}: ${(err as Error).message}`)
     )
-    .finally(() => indexInFlight.delete(key));
+    .finally(() => {
+      indexInFlight.delete(key);
+      const pending = pendingIndexJobs.get(key);
+      if (pending) {
+        pendingIndexJobs.delete(key);
+        console.error(`[background-index] replaying coalesced job for ${key}`);
+        queueBackgroundIndex(pending);
+      }
+    });
 
   indexInFlight.set(key, work);
-  console.log(`[background-index] queued for ${key}`);
+  console.error(`[background-index] queued for ${key}`);
+}
+
+export function mergeBackgroundIndexJobs(
+  current: BackgroundIndexJob,
+  incoming: BackgroundIndexJob,
+): BackgroundIndexJob {
+  const mergedSkill: SkillManifest = {
+    ...current.skill,
+    ...incoming.skill,
+    endpoints: mergeEndpoints(current.skill.endpoints, incoming.skill.endpoints),
+    intents: Array.from(new Set([
+      ...(current.skill.intents ?? []),
+      ...(incoming.skill.intents ?? []),
+      current.skill.intent_signature,
+      incoming.skill.intent_signature,
+    ].filter(Boolean))),
+    updated_at: incoming.skill.updated_at ?? new Date().toISOString(),
+    ...(incoming.skill.auth_profile_ref || current.skill.auth_profile_ref
+      ? { auth_profile_ref: incoming.skill.auth_profile_ref ?? current.skill.auth_profile_ref }
+      : {}),
+  };
+
+  return {
+    ...current,
+    ...incoming,
+    skill: mergedSkill,
+    domain: incoming.domain,
+    intent: incoming.intent,
+    contextUrl: incoming.contextUrl ?? current.contextUrl,
+    clientScope: incoming.clientScope ?? current.clientScope,
+    cacheKey: incoming.cacheKey,
+  };
 }
 
 async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
@@ -376,7 +424,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   // 0. Merge with existing domain snapshot (accumulate endpoints across captures)
   const merged = findAndMergeDomainSnapshot(SKILL_SNAPSHOT_DIR, domain, skill);
   if (merged) {
-    console.log(`[background-index] merged ${skill.endpoints.length} new endpoint(s) into existing ${merged.endpoints.length - skill.endpoints.length} for ${domain}`);
+    console.error(`[background-index] merged ${skill.endpoints.length} new endpoint(s) into existing ${merged.endpoints.length - skill.endpoints.length} for ${domain}`);
     skill = merged;
   }
 
@@ -395,12 +443,12 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   // 4. Sanitize + validate + publish to marketplace (remote, ~1.5s total)
   const selection = selectMarketplacePublishEndpoints(skill);
   if (selection.endpoints.length === 0) {
-    console.log(
+    console.error(
       `[background-index] no publishable endpoints for ${domain} (${formatMarketplacePublishSelection(selection)})`,
     );
     return;
   }
-  console.log(
+  console.error(
     `[background-index] publishing ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${domain} (${formatMarketplacePublishSelection(selection)})`,
   );
 
@@ -421,7 +469,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   const publishStart = Date.now();
   const published = await publishSkill(draft);
   const publishMs = Date.now() - publishStart;
-  console.log(`[background-index] publish latency: ${publishMs}ms for ${domain}`);
+  console.error(`[background-index] publish latency: ${publishMs}ms for ${domain}`);
 
   const publishedSkill: SkillManifest = {
     ...published,
@@ -467,7 +515,7 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
     persistDomainCache();
   }
 
-  console.log(`[background-index] completed for ${domain} -> ${published.skill_id}`);
+  console.error(`[background-index] completed for ${domain} -> ${published.skill_id}`);
 }
 
 /** Check if a domain has an indexing job running. */
@@ -477,13 +525,24 @@ export function isIndexingInFlight(domain: string): boolean {
 
 /** Await all in-flight background index jobs. Call before process exit. */
 export async function drainPendingIndexJobs(): Promise<void> {
-  const pending = [...indexInFlight.values()];
-  if (pending.length === 0) return;
-  console.log(`[background-index] draining ${pending.length} pending job(s)...`);
-  await Promise.allSettled(pending);
-  console.log(`[background-index] all jobs drained`);
+  let logged = false;
+  while (indexInFlight.size > 0) {
+    const pending = [...indexInFlight.values()];
+    if (!logged) {
+      console.error(`[background-index] draining ${pending.length} pending job(s)...`);
+      logged = true;
+    }
+    await Promise.allSettled(pending);
+  }
+  console.error(`[background-index] all jobs drained`);
 }
 
 export function resetIndexQueueForTests(): void {
   indexInFlight.clear();
+  pendingIndexJobs.clear();
+  backgroundIndexProcessor = processIndexJob;
+}
+
+export function setBackgroundIndexProcessorForTests(processor: BackgroundIndexProcessor | null): void {
+  backgroundIndexProcessor = processor ?? processIndexJob;
 }

@@ -5,6 +5,9 @@ import path from "node:path";
 const ROOT = path.join(import.meta.dir, "..");
 const GITMODULES = path.join(ROOT, ".gitmodules");
 const RELEASE_WORKFLOW = path.join(ROOT, ".github", "workflows", "release.yml");
+const BUILD_SCRIPT = path.join(ROOT, "scripts", "build-binaries.sh");
+const ROOT_INSTALLER = path.join(ROOT, "install.sh");
+const PUBLIC_INSTALLER = path.join(ROOT, "frontend", "public", "install.sh");
 
 describe("release asset wiring", () => {
   it("tracks the Kuri submodule against the adding-extensions branch", () => {
@@ -16,10 +19,29 @@ describe("release asset wiring", () => {
 
   it("uploads compiled CLI binaries to the GitHub release", () => {
     const workflow = readFileSync(RELEASE_WORKFLOW, "utf8");
+    const buildScript = readFileSync(BUILD_SCRIPT, "utf8");
 
     expect(workflow).toContain("name: Upload CLI Release Assets");
     expect(workflow).toContain("bash scripts/build-binaries.sh --all");
+    expect(workflow).toContain("UNBROWSE_RELEASE_TAG: ${{ github.ref_name }}");
     expect(workflow).toContain("gh release upload \"$TAG\" dist/unbrowse-* --clobber");
     expect(workflow).toContain("bash scripts/ensure-submodules.sh submodules/kuri");
+    expect(buildScript).toContain('VERSION_TAG="${UNBROWSE_RELEASE_TAG:-v$(grep -m1');
+    expect(buildScript).toContain('local archive="$DIST_DIR/unbrowse-$VERSION_TAG-$target.tar.gz"');
+  });
+
+  it("keeps the repo and public installers on the release-tarball flow", () => {
+    const rootInstaller = readFileSync(ROOT_INSTALLER, "utf8");
+    const publicInstaller = readFileSync(PUBLIC_INSTALLER, "utf8");
+
+    expect(rootInstaller).toBe(publicInstaller);
+    expect(rootInstaller).toContain('https://api.github.com/repos/${REPO}/releases/latest');
+    expect(rootInstaller).toContain('unbrowse-${VERSION}-${TARGET}.tar.gz');
+    expect(rootInstaller).toContain('SETUP_ARGS="$SETUP_ARGS --non-interactive --skip-wallet-setup"');
+    expect(rootInstaller).toContain('SETUP_ARGS="$SETUP_ARGS --accept-tos"');
+    expect(rootInstaller).toContain('SETUP_ARGS="$SETUP_ARGS --agent-email $UNBROWSE_AGENT_EMAIL"');
+    expect(rootInstaller).toContain('Skipping interactive setup: non-interactive install requires UNBROWSE_TOS_ACCEPTED=1.');
+    expect(rootInstaller).toContain('npx -y skills add unbrowse-ai/unbrowse --yes');
+    expect(rootInstaller).toContain('UNBROWSE_SKIP_SKILLS_REGISTRY');
   });
 });

@@ -3,6 +3,7 @@ import { updateEndpointScore } from "../marketplace/index.js";
 import { listSkills, getSkill } from "../marketplace/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { computeVerificationCoverage, INITIAL_MATRIX } from "./matrix.js";
+import { isAuthGatedEndpoint } from "./auth-gate.js";
 import type { VerificationMatrix } from "./matrix.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
 import { selectVerificationCandidates } from "./candidates.js";
@@ -111,6 +112,7 @@ export function schedulePeriodicVerification(): ReturnType<typeof setInterval> {
         limit: VERIFY_ENDPOINT_BATCH_SIZE,
       });
       for (const endpoint of endpoints) {
+        if (isAuthGatedEndpoint(skill, endpoint)) continue;
         await verifyEndpoint(skill, endpoint).catch(() => {});
       }
     }
