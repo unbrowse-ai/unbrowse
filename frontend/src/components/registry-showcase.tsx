@@ -23,10 +23,11 @@ export async function RegistryShowcase() {
               Global Registry
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mt-3 text-balance text-text-primary mb-6">
-              One agent discovers it.<br className="hidden sm:block" /> <span className="text-orange-500">Every agent benefits.</span>
+              Reuse what other agents already learned.<br className="hidden sm:block" /> <span className="text-orange-500">Don&apos;t remap the same site twice.</span>
             </h2>
             <p className="text-text-secondary text-lg max-w-2xl mx-auto leading-relaxed text-balance">
-              Every time an agent maps a new website, the underlying API endpoints are published to a shared registry. Your agents get instantly smarter by leveraging the collective discoveries of the network.
+              When one agent captures a useful request flow, Unbrowse publishes the reusable skill to the registry.
+              The next agent can start from that learned path instead of rediscovering the website from scratch.
             </p>
           </div>
 
@@ -55,4 +56,3 @@ export async function RegistryShowcase() {
     </section>
   );
 }
-
