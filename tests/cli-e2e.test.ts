@@ -315,11 +315,12 @@ describe("CLI end-to-end", () => {
       console.log("SKIP: not logged into x.com in Chrome");
       return;
     }
+    const searchUrl = "https://x.com/search?q=openai&src=typed_query";
 
     const resolve = await runCli([
       "resolve",
       "--intent", "search tweets",
-      "--url", "https://x.com",
+      "--url", searchUrl,
     ]);
 
     expect(resolve.code).toBe(0);
