@@ -27,6 +27,17 @@ function makeSkill(overrides: Partial<SkillManifest> = {}): SkillManifest {
         idempotency: "safe",
         verification_status: "verified",
         reliability_score: 0.9,
+        response_schema: {
+          type: "object",
+          properties: {
+            items: { type: "array" },
+          },
+        },
+        semantic: {
+          action_kind: "search",
+          resource_kind: "widget",
+          example_fields: ["items[].id"],
+        },
       },
     ],
     lifecycle: { status: "active" },
@@ -243,6 +254,12 @@ describe("#233 passive skill publish", () => {
           idempotency: "safe",
           verification_status: "verified",
           reliability_score: 0.9,
+          response_schema: {
+            type: "object",
+            properties: {
+              data: { type: "array" },
+            },
+          },
         },
         {
           endpoint_id: "ep-ws",

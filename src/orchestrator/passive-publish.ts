@@ -1,4 +1,8 @@
 import { cachePublishedSkill, validateManifest, publishGraphEdges } from "../client/index.js";
+import {
+  formatMarketplacePublishSelection,
+  selectMarketplacePublishEndpoints,
+} from "../publish-admission.js";
 import { attributeLifecycle, type LifecycleEvent } from "../runtime/lifecycle.js";
 import { publishSkill } from "../marketplace/index.js";
 import type { SkillManifest } from "../types/index.js";
@@ -66,13 +70,18 @@ export function queuePassiveSkillPublish(
       return;
     }
 
-    const publishableEndpoints = skill.endpoints.filter((endpoint) => endpoint.method !== "WS");
-    if (publishableEndpoints.length === 0) return;
+    const selection = selectMarketplacePublishEndpoints(skill);
+    if (selection.endpoints.length === 0) {
+      console.warn(
+        `[publish] passive publish skipped for ${skill.skill_id}: no admitted endpoints (${formatMarketplacePublishSelection(selection)})`,
+      );
+      return;
+    }
 
     const { operation_graph: _graph, ...publishBase } = skill;
     const publishDraft: SkillManifest = {
       ...publishBase,
-      endpoints: publishableEndpoints,
+      endpoints: selection.endpoints,
     };
 
     const validation = await deps.validateManifest({ ...publishDraft, skill_id: "__validate__" });
@@ -94,6 +103,9 @@ export function queuePassiveSkillPublish(
     const publishStart = Date.now();
     const published = await deps.publishSkill(publishDraft);
     const publishMs = Date.now() - publishStart;
+    console.log(
+      `[publish] passive publish admitted ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${skill.skill_id} (${formatMarketplacePublishSelection(selection)})`,
+    );
     deps.cachePublishedSkill({
       ...skill,
       ...published,

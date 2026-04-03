@@ -19,14 +19,24 @@ import { getSkill } from "../marketplace/index.js";
 import { executeSkill, rankEndpoints } from "../execution/index.js";
 import { interactiveLogin, extractBrowserAuth } from "../auth/index.js";
 import { publishSkill } from "../marketplace/index.js";
-import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, waitForBackgroundRegistration, type AnalyticsSessionPayload } from "../client/index.js";
+import { recordFeedback, recordDiagnostics, recordExecution, getApiKey, getRecentLocalSkill, recordAnalyticsSession, type AnalyticsSessionPayload } from "../client/index.js";
 import { ROUTE_LIMITS } from "../ratelimit/index.js";
 import { getSkillChunk, toAgentSkillChunkView } from "../graph/index.js";
 import { listRecentSessionsForDomain } from "../session-logs.js";
 import { mergeAgentReview } from "../indexer/index.js";
+import { attachAgentOutcomeHints } from "../agent-outcome.js";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
-import { type BrowseSession, getOrCreateBrowseSession, isRecoverableBrowseFailure, withRecoveredBrowseSession } from "./browse-session.js";
+import {
+  BrowseSessionError,
+  createRegisteredBrowseSession,
+  getOrCreateNavigateBrowseSession,
+  isRecoverableBrowseFailure,
+  type BrowseSession,
+  withSerializedRecoveredBrowseSession,
+  withSerializedStrictBrowseSession,
+  removeBrowseSession,
+} from "./browse-session.js";
 import { cacheBrowseRequests, harEntriesToRawRequests, mergeBrowseRequests } from "./browse-index.js";
 import { submitBrowseForm } from "./browse-submit.js";
 import { cleanupStaleSkills } from "../stale-cleanup-runner.js";
@@ -35,6 +45,8 @@ import { shouldImportBrowserCookies } from "../runtime/browser-auth.js";
 const BETA_API_URL = process.env.UNBROWSE_BACKEND_URL || "https://beta-api.unbrowse.ai";
 
 const TRACES_DIR = process.env.TRACES_DIR ?? join(process.cwd(), "traces");
+const BROWSE_BROKER_MAX = Math.max(1, Number(process.env.KURI_MULTI_BROKER_MAX ?? "2"));
+const BROWSE_BROKER_BASE_PORT = Number(process.env.KURI_PORT ?? "7700");
 
 type AnalyticsSessionResult = {
   trace: Pick<ExecutionTrace, "trace_id" | "started_at" | "completed_at" | "endpoint_id" | "trace_version" | "success" | "tokens_saved" | "tokens_saved_pct" | "api_call_count">;
@@ -195,9 +207,41 @@ function passiveIndexHar(entries: KuriHarEntry[], pageUrl: string): void {
 // ── Browse session state (module-level so orchestrator can register sessions) ──
 const browseSessions = new Map<string, BrowseSession>();
 
+function browseBrokerPorts(): number[] {
+  return Array.from({ length: BROWSE_BROKER_MAX }, (_, index) => BROWSE_BROKER_BASE_PORT + index);
+}
+
+function brokerForSession(session: BrowseSession | undefined): kuri.KuriClient {
+  if (session?.brokerPort !== undefined) return kuri.getKuriClient(session.brokerPort);
+  return kuri.getKuriClient();
+}
+
+function selectBrowseBrokerClient(requestedSessionId?: string): kuri.KuriClient {
+  if (requestedSessionId) {
+    const existing = browseSessions.get(requestedSessionId);
+    if (existing) return brokerForSession(existing);
+  }
+
+  const loads = new Map<number, number>(browseBrokerPorts().map((port) => [port, 0]));
+  for (const session of browseSessions.values()) {
+    const port = session.brokerPort ?? BROWSE_BROKER_BASE_PORT;
+    loads.set(port, (loads.get(port) ?? 0) + 1);
+  }
+  const [selectedPort] = [...loads.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [BROWSE_BROKER_BASE_PORT, 0];
+  return kuri.getKuriClient(selectedPort);
+}
+
 /** Register a browse session from the orchestrator (Phase 4 handoff) */
-export function registerBrowseSession(tabId: string, url: string, domain: string): void {
-  browseSessions.set("default", { tabId, url, harActive: true, domain });
+export function registerBrowseSession(tabId: string, url: string, domain: string): BrowseSession {
+  const client = kuri.getKuriClient();
+  return createRegisteredBrowseSession(browseSessions, {
+    tabId,
+    url,
+    harActive: true,
+    domain,
+    brokerPort: client.getPort(),
+    client,
+  });
 }
 
 // ── /v1/stats cache ──────────────────────────────────────────────────
@@ -329,11 +373,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (req, reply) => {
     if (req.url === "/health" || req.url === "/v1/stats") return;
 
-    let key = getApiKey();
-    if (!key) {
-      await waitForBackgroundRegistration(15_000);
-      key = getApiKey();
-    }
+    const key = getApiKey();
     if (!key) {
       return reply.code(401).send({
         error: "api_key_required",
@@ -346,21 +386,26 @@ export async function registerRoutes(app: FastifyInstance) {
   // POST /v1/intent/resolve
   app.post("/v1/intent/resolve", { config: { rateLimit: ROUTE_LIMITS["/v1/intent/resolve"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
-    const { intent, params, context, projection, confirm_unsafe, dry_run, force_capture } = req.body as {
+    const { intent, params, context, projection, confirm_unsafe, confirm_third_party_terms, dry_run, force_capture } = req.body as {
       intent: string;
       params?: Record<string, unknown>;
       context?: { url?: string; domain?: string };
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
+      confirm_third_party_terms?: boolean;
       dry_run?: boolean;
       force_capture?: boolean;
     };
     if (!intent) return reply.code(400).send({ error: "intent required" });
     try {
-      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, dry_run, force_capture, client_scope: clientScope });
+      const result = await resolveAndExecute(intent, params ?? {}, context, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, force_capture, client_scope: clientScope });
 
       // Surface timing breakdown
-      const res = result as unknown as Record<string, unknown>;
+      const res = attachAgentOutcomeHints({ ...result } as Record<string, unknown>, {
+        skill: result.skill,
+        endpointId: result.trace.endpoint_id,
+        timing: result.timing,
+      });
       if (result.timing) {
         res.timing = result.timing;
       }
@@ -373,11 +418,10 @@ export async function registerRoutes(app: FastifyInstance) {
       }
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(result, {
-        browser_mode: "replaced",
         discovery_queries: 1,
       })).catch(() => {});
 
-      return reply.send(result);
+      return reply.send(res);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
@@ -580,10 +624,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/v1/skills/:skill_id/execute", { config: { rateLimit: ROUTE_LIMITS["/v1/skills/:skill_id/execute"] } }, async (req, reply) => {
     const clientScope = clientScopeFor(req);
     const { skill_id } = req.params as { skill_id: string };
-    const { params, projection, confirm_unsafe, dry_run, intent, context_url } = req.body as {
+    const { params, projection, confirm_unsafe, confirm_third_party_terms, dry_run, intent, context_url } = req.body as {
       params?: Record<string, unknown>;
       projection?: ProjectionOptions;
       confirm_unsafe?: boolean;
+      confirm_third_party_terms?: boolean;
       dry_run?: boolean;
       intent?: string;
       context_url?: string;
@@ -609,7 +654,7 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(context_url && typeof params?.url !== "string" ? { url: context_url } : {}),
     };
     try {
-      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
+      const execResult = await executeSkill(skill, execParams, projection, { confirm_unsafe, confirm_third_party_terms, dry_run, intent, contextUrl: context_url, client_scope: clientScope });
       saveTrace(execResult.trace);
       if (execResult.trace.endpoint_id) {
         recordExecution(skill.skill_id, execResult.trace.endpoint_id, execResult.trace, skill).catch(() => {});
@@ -643,23 +688,29 @@ export async function registerRoutes(app: FastifyInstance) {
             { ...execParams, url: recoveryUrl },
             { url: recoveryUrl },
             projection,
-            { confirm_unsafe, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
+            { confirm_unsafe, confirm_third_party_terms, dry_run, intent: intent || skill.intent_signature, client_scope: clientScope }
           );
           saveTrace(freshResult.trace);
           if (freshResult.trace?.skill_id && freshResult.trace?.endpoint_id) {
             recordExecution(freshResult.trace.skill_id, freshResult.trace.endpoint_id, freshResult.trace, skill).catch(() => {});
           }
           await recordAnalyticsSession(buildAnalyticsSessionPayload(freshResult, {
-            browser_mode: "manual",
             discovery_queries: 1,
           })).catch(() => {});
-          return reply.send({
+          const recovered = attachAgentOutcomeHints({
             ...freshResult,
             _recovery: {
               reason: "stale_endpoint_404",
               original_skill_id: skill_id,
               message: "Original endpoint returned 404. Auto-recovered with fresh capture.",
             },
+          } as Record<string, unknown>, {
+            skill: freshResult.skill ?? skill,
+            endpointId: freshResult.trace.endpoint_id,
+            timing: freshResult.timing,
+          });
+          return reply.send({
+            ...recovered,
           });
         } catch {
           // Recovery failed — return original 404 with guidance
@@ -667,13 +718,14 @@ export async function registerRoutes(app: FastifyInstance) {
       }
 
       await recordAnalyticsSession(buildAnalyticsSessionPayload(execResult, {
-        browser_mode: "manual",
         discovery_queries: 0,
-        cached_skill_calls: execResult.trace.endpoint_id ? 1 : 0,
-        fresh_index_calls: 0,
       })).catch(() => {});
 
-      return reply.send(execResult);
+      const response = attachAgentOutcomeHints({ ...execResult } as Record<string, unknown>, {
+        skill,
+        endpointId: execResult.trace.endpoint_id,
+      });
+      return reply.send(response);
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message });
     }
@@ -889,299 +941,55 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // browseSessions is module-level (shared with orchestrator via registerBrowseSession)
 
+  function requestedSessionId(req: { body?: unknown; query?: unknown }): string | undefined {
+    const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : null;
+    if (typeof body?.session_id === "string" && body.session_id.trim()) return body.session_id;
+    const query = req.query && typeof req.query === "object" ? req.query as Record<string, unknown> : null;
+    if (typeof query?.session_id === "string" && query.session_id.trim()) return query.session_id;
+    return undefined;
+  }
+
+  function sendBrowseSessionError(reply: { code: (statusCode: number) => { send: (body: unknown) => unknown } }, error: unknown): unknown {
+    if (error instanceof BrowseSessionError) {
+      return reply.code(error.statusCode).send({ error: error.code });
+    }
+    throw error;
+  }
+
   /** Extract registrable domain for auth profile naming */
   function profileName(url: string): string {
     try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "unknown"; }
   }
 
   async function restartBrowseCapture(session: BrowseSession): Promise<void> {
-    await kuri.networkEnable(session.tabId).catch(() => {});
-    await kuri.harStart(session.tabId).catch(() => {});
-    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
+    const broker = brokerForSession(session);
+    await broker.networkEnable(session.tabId).catch(() => {});
+    await broker.harStart(session.tabId).catch(() => {});
+    await broker.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
     session.harActive = true;
     await injectInterceptor(session.tabId).catch(() => {});
   }
-
-  // POST /v1/browse/go — navigate to URL
-  app.post("/v1/browse/go", async (req, reply) => {
-    const { url } = req.body as { url: string };
-    if (!url) return reply.code(400).send({ error: "url required" });
-    const { session, result } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => {
-        const newDomain = profileName(url);
-
-        // Flush prior HAR entries before navigating
-        if (session.harActive && session.url !== "about:blank") {
-          try {
-            const { entries } = await kuri.harStop(session.tabId);
-            passiveIndexHar(entries, session.url);
-          } catch { /* non-fatal */ }
-          session.harActive = false;
-        }
-
-        // Auto-save auth profile for the old domain before leaving
-        if (session.domain && session.domain !== newDomain) {
-          await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
-        }
-
-        // Inject cookies: try Kuri auth profile first, fall back to Chrome SQLite extraction
-        let cookiesInjected = 0;
-        if (newDomain && newDomain !== session.domain) {
-          await kuri.authProfileLoad(session.tabId, newDomain).catch(() => {});
-
-          // Also inject cookies from the user's real Chrome/Firefox browser
-          if (shouldImportBrowserCookies()) {
-            try {
-              const { cookies: browserCookies } = extractBrowserCookies(newDomain);
-              if (browserCookies.length > 0) {
-                for (const c of browserCookies) {
-                  await kuri.setCookie(session.tabId, c).catch(() => {});
-                }
-                cookiesInjected = browserCookies.length;
-              }
-            } catch { /* non-fatal */ }
-          }
-        }
-
-        // Start capture BEFORE navigation so all initial API calls are recorded
-        await restartBrowseCapture(session);
-
-        await kuri.navigate(session.tabId, url);
-        const finalUrl = await kuri.getCurrentUrl(session.tabId).catch(() => url);
-        session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
-        session.domain = profileName(session.url);
-
-        await injectInterceptor(session.tabId);
-
-        return { cookiesInjected };
-      },
-      (result) => isRecoverableBrowseFailure(result),
-    );
-
-    return reply.send({
-      ok: true,
-      url: session.url,
-      tab_id: session.tabId,
-      auth_profile: session.domain,
-      ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
-    });
-  });
-
-  // POST /v1/browse/submit — submit active form, fall back to same-origin fetch+rehydrate
-  app.post("/v1/browse/submit", async (req, reply) => {
-    const {
-      form_selector: formSelector,
-      submit_selector: submitSelector,
-      wait_for: waitFor,
-      same_origin_fetch_fallback: sameOriginFetchFallback,
-      timeout_ms: timeoutMs,
-    } = (req.body as {
-      form_selector?: string;
-      submit_selector?: string;
-      wait_for?: string;
-      same_origin_fetch_fallback?: boolean;
-      timeout_ms?: number;
-    }) ?? {};
-
-    const { session, result, recovered } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => submitBrowseForm(
-        {
-          client: kuri,
-          session,
-          restartCapture: restartBrowseCapture,
-          rehydratePlugins: kuri.bestEffortRehydratePlugins,
-        },
-        {
-          formSelector,
-          submitSelector,
-          waitFor,
-          sameOriginFetchFallback,
-          timeoutMs,
-        },
-      ),
-      (result) => !result.ok && result.recoverable === true,
-    );
-
-    session.url = result.url || await kuri.getCurrentUrl(session.tabId).catch(() => session.url);
-    session.domain = profileName(session.url);
-
-    const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
-    return reply.code(statusCode).send({
-      ...result,
-      recovered,
-      tab_id: session.tabId,
-      url: session.url,
-    });
-  });
-
-  // POST /v1/browse/snap — a11y snapshot
-  app.post("/v1/browse/snap", async (req, reply) => {
-    const { filter } = (req.body as { filter?: string }) ?? {};
-    const { session, result: snapshot } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.snapshot(session.tabId, filter),
-      (snapshot) => typeof snapshot !== "string" || snapshot.trim().length === 0,
-    );
-    return reply.send({ snapshot, tab_id: session.tabId });
-  });
-
-  // POST /v1/browse/click — click by ref
-  app.post("/v1/browse/click", async (req, reply) => {
-    const { ref } = req.body as { ref: string };
-    if (!ref) return reply.code(400).send({ error: "ref required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.click(session.tabId, ref);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // POST /v1/browse/fill — fill input by ref
-  app.post("/v1/browse/fill", async (req, reply) => {
-    const { ref, value } = req.body as { ref: string; value: string };
-    if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.fill(session.tabId, ref, value);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // POST /v1/browse/type — keyboard type
-  app.post("/v1/browse/type", async (req, reply) => {
-    const { text } = req.body as { text: string };
-    if (!text) return reply.code(400).send({ error: "text required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.keyboardType(session.tabId, text);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // POST /v1/browse/press — press key
-  app.post("/v1/browse/press", async (req, reply) => {
-    const { key } = req.body as { key: string };
-    if (!key) return reply.code(400).send({ error: "key required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.press(session.tabId, key);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // POST /v1/browse/select — select option by ref
-  app.post("/v1/browse/select", async (req, reply) => {
-    const { ref, value } = req.body as { ref: string; value: string };
-    if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.select(session.tabId, ref, value);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // POST /v1/browse/scroll — scroll
-  app.post("/v1/browse/scroll", async (req, reply) => {
-    const { direction, amount } = (req.body as { direction?: string; amount?: number }) ?? {};
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.scroll(session.tabId, (direction as any) ?? "down", amount);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // GET /v1/browse/screenshot — capture screenshot
-  app.get("/v1/browse/screenshot", async (_req, reply) => {
-    const { session, result: data } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.screenshot(session.tabId),
-      (data) => typeof data !== "string" || data.trim().length === 0,
-    );
-    return reply.send({ screenshot: data, tab_id: session.tabId });
-  });
-
-  // GET /v1/browse/text — page text
-  app.get("/v1/browse/text", async (_req, reply) => {
-    const { result: text } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.getText(session.tabId),
-      (text) => typeof text !== "string",
-    );
-    return reply.send({ text });
-  });
-
-  // GET /v1/browse/markdown — page as markdown
-  app.get("/v1/browse/markdown", async (_req, reply) => {
-    const { result: markdown } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.getMarkdown(session.tabId),
-      (markdown) => typeof markdown !== "string",
-    );
-    return reply.send({ markdown });
-  });
-
-  // GET /v1/browse/cookies — page cookies
-  app.get("/v1/browse/cookies", async (_req, reply) => {
-    const { result: cookies } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.getCookies(session.tabId),
-    );
-    return reply.send({ cookies });
-  });
-
-  // POST /v1/browse/eval — evaluate JS
-  app.post("/v1/browse/eval", async (req, reply) => {
-    const { expression } = req.body as { expression: string };
-    if (!expression) return reply.code(400).send({ error: "expression required" });
-    const { result } = await withRecoveredBrowseSession(
-      browseSessions,
-      kuri,
-      injectInterceptor,
-      async (session) => kuri.evaluate(session.tabId, expression),
-      (result) => isRecoverableBrowseFailure(result),
-    );
-    return reply.send({ result });
-  });
-
-  // POST /v1/browse/back — navigate back
-  app.post("/v1/browse/back", async (_req, reply) => {
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.goBack(session.tabId);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // POST /v1/browse/forward — navigate forward
-  app.post("/v1/browse/forward", async (_req, reply) => {
-    await withRecoveredBrowseSession(browseSessions, kuri, injectInterceptor, async (session) => {
-      await kuri.goForward(session.tabId);
-      return true;
-    });
-    return reply.send({ ok: true });
-  });
-
-  // POST /v1/browse/sync — flush captured traffic into local skill cache without closing tab
-  app.post("/v1/browse/sync", async (_req, reply) => {
-    const session = browseSessions.get("default");
-    if (!session) return reply.send({ ok: false, error: "no active session" });
-
+  async function flushBrowseCapture(
+    session: BrowseSession,
+    options: { queueBackgroundPublish?: boolean } = {},
+  ): Promise<{
+    indexed: boolean;
+    mode: "http" | "dom" | "none";
+    domain: string;
+    skill_id: string | null;
+    endpoint_count: number;
+    endpoints: Array<{
+      endpoint_id: string;
+      method: string;
+      url_template: string;
+      description?: string;
+      trigger_url?: string;
+      action_kind?: string;
+      resource_kind?: string;
+    }>;
+    request_count: number;
+    background_publish_queued: boolean;
+  }> {
     let intercepted: RawRequest[] = [];
     try {
       const raw = await collectInterceptedRequests(session.tabId);
@@ -1200,7 +1008,7 @@ export async function registerRoutes(app: FastifyInstance) {
     let harEntries: KuriHarEntry[] = [];
     if (session.harActive) {
       try {
-        const { entries } = await kuri.harStop(session.tabId);
+        const { entries } = await brokerForSession(session).harStop(session.tabId);
         harEntries = entries;
       } catch { /* non-fatal */ }
     }
@@ -1211,18 +1019,26 @@ export async function registerRoutes(app: FastifyInstance) {
       sessionUrl: session.url,
       sessionDomain: session.domain,
       requests: allRequests,
-      getPageHtml: () => kuri.getPageHtml(session.tabId),
+      getPageHtml: () => brokerForSession(session).getPageHtml(session.tabId),
     });
 
-    await kuri.networkEnable(session.tabId).catch(() => {});
-    await kuri.harStart(session.tabId).catch(() => {});
-    await kuri.scriptInject(session.tabId, INTERCEPTOR_SCRIPT).catch(() => {});
-    session.harActive = true;
-    await injectInterceptor(session.tabId).catch(() => {});
-
-    return reply.send({
-      ok: true,
-      tab_id: session.tabId,
+    let backgroundPublishQueued = false;
+    if (options.queueBackgroundPublish) {
+      if (allRequests.length > 0) {
+        passiveIndexFromRequests(allRequests, session.url);
+        backgroundPublishQueued = true;
+      } else if (syncResult.skill) {
+        queueBackgroundIndex({
+          skill: { ...syncResult.skill },
+          domain: syncResult.domain,
+          intent: syncResult.skill.intent_signature || `browse ${syncResult.domain}`,
+          contextUrl: session.url,
+          cacheKey: `browse-submit:${syncResult.domain}:${Date.now()}`,
+        });
+        backgroundPublishQueued = true;
+      }
+    }
+    return {
       indexed: syncResult.indexed,
       mode: syncResult.mode,
       domain: syncResult.domain,
@@ -1237,63 +1053,486 @@ export async function registerRoutes(app: FastifyInstance) {
         action_kind: endpoint.semantic?.action_kind,
         resource_kind: endpoint.semantic?.resource_kind,
       })),
-    });
+      request_count: allRequests.length,
+      background_publish_queued: backgroundPublishQueued,
+    };
+  }
+
+  // POST /v1/browse/go — navigate to URL
+  app.post("/v1/browse/go", async (req, reply) => {
+    const { url } = req.body as { url: string };
+    if (!url) return reply.code(400).send({ error: "url required" });
+    try {
+      const sessionId = requestedSessionId(req);
+      const browseClient = selectBrowseBrokerClient(sessionId);
+      const targetSession = await getOrCreateNavigateBrowseSession(
+        browseSessions,
+        browseClient,
+        injectInterceptor,
+        sessionId,
+      );
+      const { session, result } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        targetSession.sessionId,
+        async (session) => {
+          const broker = brokerForSession(session);
+          const newDomain = profileName(url);
+
+          if (session.harActive && session.url !== "about:blank") {
+            try {
+              const { entries } = await broker.harStop(session.tabId);
+              passiveIndexHar(entries, session.url);
+            } catch { /* non-fatal */ }
+            session.harActive = false;
+          }
+
+          if (session.domain && session.domain !== newDomain) {
+            await broker.authProfileSave(session.tabId, session.domain).catch(() => {});
+          }
+
+          let cookiesInjected = 0;
+          if (newDomain && newDomain !== session.domain) {
+            await broker.authProfileLoad(session.tabId, newDomain).catch(() => {});
+            if (shouldImportBrowserCookies()) {
+              try {
+                const { cookies: browserCookies } = extractBrowserCookies(newDomain);
+                if (browserCookies.length > 0) {
+                  for (const c of browserCookies) {
+                    await broker.setCookie(session.tabId, c).catch(() => {});
+                  }
+                  cookiesInjected = browserCookies.length;
+                }
+              } catch { /* non-fatal */ }
+            }
+          }
+
+          await restartBrowseCapture(session);
+
+          await broker.navigate(session.tabId, url);
+          const finalUrl = await broker.getCurrentUrl(session.tabId).catch(() => url);
+          session.url = typeof finalUrl === "string" && finalUrl.startsWith("http") ? finalUrl : url;
+          session.domain = profileName(session.url);
+          await injectInterceptor(session.tabId);
+
+          return { cookiesInjected };
+        },
+      );
+
+      return reply.send({
+        ok: true,
+        session_id: session.sessionId,
+        url: session.url,
+        tab_id: session.tabId,
+        auth_profile: session.domain,
+        ...(result.cookiesInjected > 0 ? { cookies_injected: result.cookiesInjected } : {}),
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/submit — submit active form, fall back to same-origin fetch+rehydrate
+  app.post("/v1/browse/submit", async (req, reply) => {
+    const {
+      form_selector: formSelector,
+      submit_selector: submitSelector,
+      wait_for: waitFor,
+      same_origin_fetch_fallback: sameOriginFetchFallback,
+      timeout_ms: timeoutMs,
+    } = (req.body as {
+      form_selector?: string;
+      submit_selector?: string;
+      wait_for?: string;
+      same_origin_fetch_fallback?: boolean;
+      timeout_ms?: number;
+    }) ?? {};
+
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => submitBrowseForm(
+          {
+            client: brokerForSession(session),
+            session,
+            flushCapture: async (session) => await flushBrowseCapture(session, { queueBackgroundPublish: true }),
+            restartCapture: restartBrowseCapture,
+            rehydratePlugins: (tabId) => brokerForSession(session).bestEffortRehydratePlugins(tabId),
+          },
+          {
+            formSelector,
+            submitSelector,
+            waitFor,
+            sameOriginFetchFallback,
+            timeoutMs,
+          },
+        ),
+        (result) => !result.ok && result.recoverable === true,
+      );
+
+      session.url = result.url || await brokerForSession(session).getCurrentUrl(session.tabId).catch(() => session.url);
+      session.domain = profileName(session.url);
+
+      const statusCode = result.ok ? 200 : (result.recoverable ? 502 : 400);
+      const sessionHint = `--session ${session.sessionId}`;
+      const nextStep = result.ok
+        ? (result.capture_sync?.background_publish_queued
+            ? `Background publish queued for this step. Continue the flow, then run \`unbrowse close ${sessionHint}\` when you're done to save auth and finalize any remaining capture.`
+            : `If more UI steps remain, continue the flow. Run \`unbrowse close ${sessionHint}\` when you're done to save auth and finalize capture.`)
+        : `Inspect the page state with \`unbrowse snap ${sessionHint} --filter interactive\`, then retry submit with selectors or a wait hint if needed.`;
+      return reply.code(statusCode).send({
+        ...result,
+        session_id: session.sessionId,
+        next_step: nextStep,
+        recovered: false,
+        tab_id: session.tabId,
+        url: session.url,
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/snap — a11y snapshot
+  app.post("/v1/browse/snap", async (req, reply) => {
+    const { filter } = (req.body as { filter?: string; session_id?: string }) ?? {};
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result: snapshot } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        browseClient,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => brokerForSession(session).snapshot(session.tabId, filter),
+        (snapshot) => typeof snapshot !== "string" || snapshot.trim().length === 0,
+      );
+      return reply.send({ snapshot, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/click — click by ref
+  app.post("/v1/browse/click", async (req, reply) => {
+    const { ref } = req.body as { ref: string; session_id?: string };
+    if (!ref) return reply.code(400).send({ error: "ref required" });
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).click(session.tabId, ref);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/fill — fill input by ref
+  app.post("/v1/browse/fill", async (req, reply) => {
+    const { ref, value } = req.body as { ref: string; value: string; session_id?: string };
+    if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).fill(session.tabId, ref, value);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/type — keyboard type
+  app.post("/v1/browse/type", async (req, reply) => {
+    const { text } = req.body as { text: string; session_id?: string };
+    if (!text) return reply.code(400).send({ error: "text required" });
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).keyboardType(session.tabId, text);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/press — press key
+  app.post("/v1/browse/press", async (req, reply) => {
+    const { key } = req.body as { key: string; session_id?: string };
+    if (!key) return reply.code(400).send({ error: "key required" });
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).press(session.tabId, key);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/select — select option by ref
+  app.post("/v1/browse/select", async (req, reply) => {
+    const { ref, value } = req.body as { ref: string; value: string; session_id?: string };
+    if (!ref || value === undefined) return reply.code(400).send({ error: "ref and value required" });
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).select(session.tabId, ref, value);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/scroll — scroll
+  app.post("/v1/browse/scroll", async (req, reply) => {
+    const { direction, amount } = (req.body as { direction?: string; amount?: number; session_id?: string }) ?? {};
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).scroll(session.tabId, (direction as any) ?? "down", amount);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // GET /v1/browse/screenshot — capture screenshot
+  app.get("/v1/browse/screenshot", async (req, reply) => {
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result: data } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        browseClient,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => brokerForSession(session).screenshot(session.tabId),
+        (data) => typeof data !== "string" || data.trim().length === 0,
+      );
+      return reply.send({ screenshot: data, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // GET /v1/browse/text — page text
+  app.get("/v1/browse/text", async (req, reply) => {
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result: text } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        browseClient,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => brokerForSession(session).getText(session.tabId),
+        (text) => typeof text !== "string",
+      );
+      return reply.send({ text, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // GET /v1/browse/markdown — page as markdown
+  app.get("/v1/browse/markdown", async (req, reply) => {
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result: markdown } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        browseClient,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => brokerForSession(session).getMarkdown(session.tabId),
+        (markdown) => typeof markdown !== "string",
+      );
+      return reply.send({ markdown, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // GET /v1/browse/cookies — page cookies
+  app.get("/v1/browse/cookies", async (req, reply) => {
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result: cookies } = await withSerializedRecoveredBrowseSession(
+        browseSessions,
+        browseClient,
+        injectInterceptor,
+        requestedSessionId(req),
+        async (session) => brokerForSession(session).getCookies(session.tabId),
+      );
+      return reply.send({ cookies, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/eval — evaluate JS
+  app.post("/v1/browse/eval", async (req, reply) => {
+    const { expression } = req.body as { expression: string; session_id?: string };
+    if (!expression) return reply.code(400).send({ error: "expression required" });
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => brokerForSession(session).evaluate(session.tabId, expression),
+        (result) => isRecoverableBrowseFailure(result),
+      );
+      return reply.send({ result, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/back — navigate back
+  app.post("/v1/browse/back", async (req, reply) => {
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).goBack(session.tabId);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/forward — navigate forward
+  app.post("/v1/browse/forward", async (req, reply) => {
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          await brokerForSession(session).goForward(session.tabId);
+          return true;
+        },
+      );
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
+  });
+
+  // POST /v1/browse/sync — flush captured traffic into local skill cache without closing tab
+  app.post("/v1/browse/sync", async (req, reply) => {
+    try {
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result: syncResult } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          const syncResult = await flushBrowseCapture(session);
+          await restartBrowseCapture(session);
+          return syncResult;
+        },
+      );
+
+      return reply.send({
+        ok: true,
+        session_id: session.sessionId,
+        tab_id: session.tabId,
+        indexed: syncResult.indexed,
+        mode: syncResult.mode,
+        domain: syncResult.domain,
+        skill_id: syncResult.skill_id,
+        endpoint_count: syncResult.endpoint_count,
+        endpoints: syncResult.endpoints,
+        request_count: syncResult.request_count,
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
+    }
   });
 
   // POST /v1/browse/close — close session, flush HAR, index, save auth
-  app.post("/v1/browse/close", async (_req, reply) => {
-    const session = browseSessions.get("default");
-    if (!session) return reply.send({ ok: true, message: "no active session" });
-
-    // Save auth profile for the current domain before closing
-    if (session.domain) {
-      await kuri.authProfileSave(session.tabId, session.domain).catch(() => {});
-    }
-
-    // Collect intercepted fetch/XHR requests (has response bodies HAR misses)
-    let intercepted: RawRequest[] = [];
+  app.post("/v1/browse/close", async (req, reply) => {
     try {
-      const raw = await collectInterceptedRequests(session.tabId);
-      intercepted = raw.map(r => ({
-        url: r.url,
-        method: r.method,
-        request_headers: r.request_headers ?? {},
-        request_body: r.request_body,
-        response_status: r.response_status,
-        response_headers: r.response_headers ?? {},
-        response_body: r.response_body,
-        timestamp: r.timestamp,
-      }));
-    } catch { /* non-fatal */ }
+      const browseClient = selectBrowseBrokerClient(requestedSessionId(req));
+      const { session, result: syncResult } = await withSerializedStrictBrowseSession(
+        browseSessions,
+        browseClient,
+        requestedSessionId(req),
+        async (session) => {
+          const broker = brokerForSession(session);
+          if (session.domain) {
+            await broker.authProfileSave(session.tabId, session.domain).catch(() => {});
+          }
 
-    // Also collect HAR entries
-    let harEntries: KuriHarEntry[] = [];
-    if (session.harActive) {
-      try {
-        const { entries } = await kuri.harStop(session.tabId);
-        harEntries = entries;
-      } catch { /* non-fatal */ }
+          const syncResult = await flushBrowseCapture(session, { queueBackgroundPublish: true });
+          await broker.closeTab(session.tabId).catch(() => {});
+          removeBrowseSession(browseSessions, session.sessionId);
+          return syncResult;
+        },
+      );
+      return reply.send({
+        ok: true,
+        session_id: session.sessionId,
+        indexed: syncResult.indexed,
+        mode: syncResult.mode,
+        endpoint_count: syncResult.endpoint_count,
+        request_count: syncResult.request_count,
+        background_publish_queued: syncResult.background_publish_queued,
+        auth_saved: session.domain || null,
+      });
+    } catch (error) {
+      return sendBrowseSessionError(reply, error);
     }
-
-    const allRequests = mergeBrowseRequests(intercepted, harEntries, session.url);
-    const syncResult = await cacheBrowseRequests({
-      sessionUrl: session.url,
-      sessionDomain: session.domain,
-      requests: allRequests,
-      getPageHtml: () => kuri.getPageHtml(session.tabId),
-    });
-
-    // Run full async enrichment pipeline (agent augmentation, graph, marketplace publish)
-    passiveIndexFromRequests(allRequests, session.url);
-    await kuri.closeTab(session.tabId).catch(() => {});
-    browseSessions.delete("default");
-    return reply.send({
-      ok: true,
-      indexed: syncResult.indexed,
-      mode: syncResult.mode,
-      endpoint_count: syncResult.skill?.endpoints.length ?? 0,
-      auth_saved: session.domain || null,
-    });
   });
 }
 
