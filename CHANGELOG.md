@@ -1,5 +1,376 @@
 # Changelog
 
+## [2.12.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-04-03)
+
+### Features
+
+* **#100:** implement robots.txt directive checking before route execution ([b319f75](https://github.com/unbrowse-ai/unbrowse-dev/commit/b319f750ee1737c1c958af3350e1e0d78f7383ce)), closes [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100) [#100](https://github.com/unbrowse-ai/unbrowse-dev/issues/100)
+* **#103:** add composite search scoring to backend ([#196](https://github.com/unbrowse-ai/unbrowse-dev/issues/196)) ([202af76](https://github.com/unbrowse-ai/unbrowse-dev/commit/202af768f8c9d8cf1e1c6e888ad3cf6bbad607eb)), closes [#103](https://github.com/unbrowse-ai/unbrowse-dev/issues/103)
+* **#115:** add DAG advisory execution planner ([0923565](https://github.com/unbrowse-ai/unbrowse-dev/commit/09235655d934e24ce05882b87b0e3b1eda28e487)), closes [#115](https://github.com/unbrowse-ai/unbrowse-dev/issues/115) [#115](https://github.com/unbrowse-ai/unbrowse-dev/issues/115)
+* **#116:** add auth dependency runtime with LocalAuthRuntime ([#186](https://github.com/unbrowse-ai/unbrowse-dev/issues/186)) ([c2e9158](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2e9158ea353bea353fad9eabdfc61ceecd13522)), closes [#116](https://github.com/unbrowse-ai/unbrowse-dev/issues/116)
+* **#117:** add telemetry-driven issue filing with repro bundles ([#187](https://github.com/unbrowse-ai/unbrowse-dev/issues/187)) ([f237060](https://github.com/unbrowse-ai/unbrowse-dev/commit/f2370608aa1daa9b257f5a579ab3dfd721cb1f1a)), closes [#117](https://github.com/unbrowse-ai/unbrowse-dev/issues/117)
+* **#117:** add telemetry-driven issue filing with repro bundles ([#197](https://github.com/unbrowse-ai/unbrowse-dev/issues/197)) ([0b5c641](https://github.com/unbrowse-ai/unbrowse-dev/commit/0b5c6417d2753af374491f30b098ed74af42492c)), closes [#117](https://github.com/unbrowse-ai/unbrowse-dev/issues/117)
+* **#121:** browser host path for OpenAI/native ([#191](https://github.com/unbrowse-ai/unbrowse-dev/issues/191)) ([69c18d5](https://github.com/unbrowse-ai/unbrowse-dev/commit/69c18d5c33e87a5eaff4529d9e90563cb963fff8)), closes [#121](https://github.com/unbrowse-ai/unbrowse-dev/issues/121) [#121](https://github.com/unbrowse-ai/unbrowse-dev/issues/121) [#91](https://github.com/unbrowse-ai/unbrowse-dev/issues/91) [#112](https://github.com/unbrowse-ai/unbrowse-dev/issues/112) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90)
+* **#123:** analytics bottleneck metrics ([#198](https://github.com/unbrowse-ai/unbrowse-dev/issues/198)) ([99c848e](https://github.com/unbrowse-ai/unbrowse-dev/commit/99c848e8e9e1360331c8812946210662a63506b8)), closes [#123](https://github.com/unbrowse-ai/unbrowse-dev/issues/123) [#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32) [#34](https://github.com/unbrowse-ai/unbrowse-dev/issues/34) [#70](https://github.com/unbrowse-ai/unbrowse-dev/issues/70) [#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32) [#34](https://github.com/unbrowse-ai/unbrowse-dev/issues/34) [#70](https://github.com/unbrowse-ai/unbrowse-dev/issues/70) [#125](https://github.com/unbrowse-ai/unbrowse-dev/issues/125) [#123](https://github.com/unbrowse-ai/unbrowse-dev/issues/123)
+* **#144:** add batch path template mining for passive captures ([9c30cd7](https://github.com/unbrowse-ai/unbrowse-dev/commit/9c30cd722665c54fb7e18d54bef4b0288c09b3e4)), closes [#144](https://github.com/unbrowse-ai/unbrowse-dev/issues/144) [#144](https://github.com/unbrowse-ai/unbrowse-dev/issues/144)
+* **#144:** batch path template mining for captures without context URLs ([#204](https://github.com/unbrowse-ai/unbrowse-dev/issues/204)) ([07d3461](https://github.com/unbrowse-ai/unbrowse-dev/commit/07d3461f5f46217991fa52cd78dccca600d78171)), closes [#144](https://github.com/unbrowse-ai/unbrowse-dev/issues/144)
+* **#155:** add BM25 lexical search with RRF fusion ([fc0ce39](https://github.com/unbrowse-ai/unbrowse-dev/commit/fc0ce39a4707bb414f9c075dd39f06061697aa89)), closes [#155](https://github.com/unbrowse-ai/unbrowse-dev/issues/155)
+* **#155:** add BM25 lexical search with RRF fusion ([#202](https://github.com/unbrowse-ai/unbrowse-dev/issues/202)) ([a68b84a](https://github.com/unbrowse-ai/unbrowse-dev/commit/a68b84a711d6def5fadbeed31de2381db9a5b309)), closes [#155](https://github.com/unbrowse-ai/unbrowse-dev/issues/155)
+* **#165:** ground LLM descriptions in params and responses ([#189](https://github.com/unbrowse-ai/unbrowse-dev/issues/189)) ([0558c6c](https://github.com/unbrowse-ai/unbrowse-dev/commit/0558c6cfb12df655f6be922d284548b27443bfeb)), closes [#165](https://github.com/unbrowse-ai/unbrowse-dev/issues/165) [#165](https://github.com/unbrowse-ai/unbrowse-dev/issues/165) [#103](https://github.com/unbrowse-ai/unbrowse-dev/issues/103)
+* **#175:** RSC wire format support in capture ([#188](https://github.com/unbrowse-ai/unbrowse-dev/issues/188)) ([0956633](https://github.com/unbrowse-ai/unbrowse-dev/commit/0956633ac7a344fa53d6d7cf5c329dfe3fe5b898)), closes [#175](https://github.com/unbrowse-ai/unbrowse-dev/issues/175) [#103](https://github.com/unbrowse-ai/unbrowse-dev/issues/103) [#165](https://github.com/unbrowse-ai/unbrowse-dev/issues/165)
+* **#213,#90,#214:** domain/task CLI, server supervisor, action provenance ([#215](https://github.com/unbrowse-ai/unbrowse-dev/issues/215)) ([a9bec5c](https://github.com/unbrowse-ai/unbrowse-dev/commit/a9bec5c83030fc006b5ca23e2b3d41a20a04fa5b)), closes [#213](https://github.com/unbrowse-ai/unbrowse-dev/issues/213) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90) [#214](https://github.com/unbrowse-ai/unbrowse-dev/issues/214) [#213](https://github.com/unbrowse-ai/unbrowse-dev/issues/213) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90)
+* **#218:** wire runtime DAG to backend EmergentDB graph ([5035a82](https://github.com/unbrowse-ai/unbrowse-dev/commit/5035a8209fca45e1eed3d35d4bbb69f31564c93f)), closes [#218](https://github.com/unbrowse-ai/unbrowse-dev/issues/218)
+* **#28:** anonymized route trace telemetry pipeline ([#206](https://github.com/unbrowse-ai/unbrowse-dev/issues/206)) ([624ec47](https://github.com/unbrowse-ai/unbrowse-dev/commit/624ec4793ff2f40753efd982ca19b8f946308698)), closes [#28](https://github.com/unbrowse-ai/unbrowse-dev/issues/28)
+* **#32,#33:** lobster.cash-compatible payment integration ([#216](https://github.com/unbrowse-ai/unbrowse-dev/issues/216)) ([b38deba](https://github.com/unbrowse-ai/unbrowse-dev/commit/b38deba9df342906b6ad209d6efbc01e7417ff98)), closes [#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32) [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#33:** add x402 payment lane stub with PaymentGate interface ([#184](https://github.com/unbrowse-ai/unbrowse-dev/issues/184)) ([c50e973](https://github.com/unbrowse-ai/unbrowse-dev/commit/c50e973204b4475a26676f7752404d676a854459)), closes [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#33:** wire payment gate into runtime orchestrator ([08a3bf7](https://github.com/unbrowse-ai/unbrowse-dev/commit/08a3bf7674f8dc9929a57de89f4028a368332a90)), closes [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#33:** wire x402 payment gating and fee recording into backend routes ([3bce394](https://github.com/unbrowse-ai/unbrowse-dev/commit/3bce3941c1295799807ba4aa3a8bc1f3f38f6b15)), closes [#33](https://github.com/unbrowse-ai/unbrowse-dev/issues/33)
+* **#40:** dynamic route pricing and site-owner opt-in compensation ([#210](https://github.com/unbrowse-ai/unbrowse-dev/issues/210)) ([1a50d5f](https://github.com/unbrowse-ai/unbrowse-dev/commit/1a50d5f8145ea2fa8d360779f637451cf47708a3)), closes [#40](https://github.com/unbrowse-ai/unbrowse-dev/issues/40)
+* **#87:** wire unsafe action score gate into auto-execution ([#199](https://github.com/unbrowse-ai/unbrowse-dev/issues/199)) ([30885dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/30885dd54ee1ebd16cd72e20bd6ccf9019814061)), closes [#87](https://github.com/unbrowse-ai/unbrowse-dev/issues/87)
+* **#87:** wire unsafe action score gate into canAutoExecuteEndpoint ([#182](https://github.com/unbrowse-ai/unbrowse-dev/issues/182)) ([d5bbf64](https://github.com/unbrowse-ai/unbrowse-dev/commit/d5bbf647c6ace8b5af79337e3ba1c55bb229b64e)), closes [#87](https://github.com/unbrowse-ai/unbrowse-dev/issues/87)
+* **#91,#112,#90:** add host integrations, login UX config, runtime supervisor ([#195](https://github.com/unbrowse-ai/unbrowse-dev/issues/195)) ([966ec32](https://github.com/unbrowse-ai/unbrowse-dev/commit/966ec3249b81ef8b03e62e67ccde843d8c81ac61)), closes [#91](https://github.com/unbrowse-ai/unbrowse-dev/issues/91) [#112](https://github.com/unbrowse-ai/unbrowse-dev/issues/112) [#90](https://github.com/unbrowse-ai/unbrowse-dev/issues/90)
+* **#92,#93,#95,#96:** search forms, eval types, lifecycle attribution ([#194](https://github.com/unbrowse-ai/unbrowse-dev/issues/194)) ([b394ea2](https://github.com/unbrowse-ai/unbrowse-dev/commit/b394ea240a178ff0236dfad227323743c01c91ab)), closes [#92](https://github.com/unbrowse-ai/unbrowse-dev/issues/92) [#93](https://github.com/unbrowse-ai/unbrowse-dev/issues/93) [#95](https://github.com/unbrowse-ai/unbrowse-dev/issues/95) [#96](https://github.com/unbrowse-ai/unbrowse-dev/issues/96) [#92](https://github.com/unbrowse-ai/unbrowse-dev/issues/92) [#93](https://github.com/unbrowse-ai/unbrowse-dev/issues/93) [#95](https://github.com/unbrowse-ai/unbrowse-dev/issues/95)
+* **#98:** delta-based contribution attribution for Tier 1 fee splits ([#209](https://github.com/unbrowse-ai/unbrowse-dev/issues/209)) ([92aa403](https://github.com/unbrowse-ai/unbrowse-dev/commit/92aa4032c28964d0f0f19589364f7ba7ea9cb597)), closes [#98](https://github.com/unbrowse-ai/unbrowse-dev/issues/98)
+* **#99,#101:** wire consecutive failures and schema drift to auto-deprecation ([#192](https://github.com/unbrowse-ai/unbrowse-dev/issues/192)) ([129e8e4](https://github.com/unbrowse-ai/unbrowse-dev/commit/129e8e47b0901645b0c6ad1168d16e2861063140)), closes [#99](https://github.com/unbrowse-ai/unbrowse-dev/issues/99) [#101](https://github.com/unbrowse-ai/unbrowse-dev/issues/101)
+* add curl-based install script served from unbrowse.ai ([adbc3f1](https://github.com/unbrowse-ai/unbrowse-dev/commit/adbc3f13d6671f08940118a95ee93cf893121e78))
+* add GraphSession for passive request indexing against operation graph ([20bd110](https://github.com/unbrowse-ai/unbrowse-dev/commit/20bd110186507016de4c286965759b02fe3a1d54))
+* add gstack-style ./setup script for one-liner installation ([8223b8b](https://github.com/unbrowse-ai/unbrowse-dev/commit/8223b8b769e521ee4946aaa6f7fd339d89b92926))
+* add P0/P1 automated regression testing framework ([2993299](https://github.com/unbrowse-ai/unbrowse-dev/commit/299329931f6688baca7ef29c9da543e12ae7c6eb))
+* add routing analytics summaries ([1c22fc7](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c22fc733ce34f0fa5e653c1e71a460ae85c6d0d))
+* add routing telemetry and harden cli flows ([973b62e](https://github.com/unbrowse-ai/unbrowse-dev/commit/973b62edd5acab3907ded95845e4d043401a7e17))
+* add routing telemetry prep ([#330](https://github.com/unbrowse-ai/unbrowse-dev/issues/330)) ([ad05e6f](https://github.com/unbrowse-ai/unbrowse-dev/commit/ad05e6f12daf27dbd2cf4027406aac8c0f8334a4))
+* add X campaign feedback operator bundle ([b65530e](https://github.com/unbrowse-ai/unbrowse-dev/commit/b65530eef987b4fae9bc91367f9ff9e5671050b1))
+* **auth:** add Comet browser support for cookie extraction and login ([cda5bc8](https://github.com/unbrowse-ai/unbrowse-dev/commit/cda5bc83085808cf098f81cc54ddf7ad9ace6850))
+* extend CaptureResult with optional graph_session field ([a88dd27](https://github.com/unbrowse-ai/unbrowse-dev/commit/a88dd27ce42a80f473337fd06fbb5e639a3a8a83))
+* feature flag out extra plugins, keep skill + one-shot + manual ([01e411a](https://github.com/unbrowse-ai/unbrowse-dev/commit/01e411a682be30392c4b8ba819740b72aa0c53df))
+* **frontend:** enable Cloudflare image optimization and fix build ([b1de15f](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1de15fafe815383c009ecee04b93ab5ac7cb4fd))
+* gate policy-sensitive site mutations ([#328](https://github.com/unbrowse-ai/unbrowse-dev/issues/328)) ([8e0c7b1](https://github.com/unbrowse-ai/unbrowse-dev/commit/8e0c7b1de95fe6513de73ea2a5ccbc8b9d6885c9))
+* **kuri:** add browser action primitive wrappers ([57ecc46](https://github.com/unbrowse-ai/unbrowse-dev/commit/57ecc4650a94bb2f8cc8cc2ee7c473bd9e5eabdf))
+* restore paper landing page as "Internal APIs Are All You Need" ([ccdbbb9](https://github.com/unbrowse-ai/unbrowse-dev/commit/ccdbbb95a599307a156ba69a50bb7f5ec9990d33))
+* verify release manifests and gate endpoints by corroboration ([15eccd1](https://github.com/unbrowse-ai/unbrowse-dev/commit/15eccd14123131bf111a8c000d1663b207032aec))
+* wire Kuri v0.3 action primitives into browser-action floor ([c0e43a6](https://github.com/unbrowse-ai/unbrowse-dev/commit/c0e43a60a75af9630d44d71324721a99db95ad8f)), closes [#86](https://github.com/unbrowse-ai/unbrowse-dev/issues/86) [#75](https://github.com/unbrowse-ai/unbrowse-dev/issues/75) [#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3) [#88](https://github.com/unbrowse-ai/unbrowse-dev/issues/88) [#85](https://github.com/unbrowse-ai/unbrowse-dev/issues/85)
+
+### Bug Fixes
+
+* **#104:** call recordExecution after skill execute to report stats to backend ([ec09a5f](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec09a5f32e5a27874da9e60b2fad2ed066b76a56)), closes [#104](https://github.com/unbrowse-ai/unbrowse-dev/issues/104)
+* **#108:** wire first-pass browser action fallback into no-route resolve path ([#179](https://github.com/unbrowse-ai/unbrowse-dev/issues/179)) ([30f5737](https://github.com/unbrowse-ai/unbrowse-dev/commit/30f57372eda9442ae3dd150e2a2f432f546e2cfc))
+* **#109:** spawn failure on LinkedIn — add retry logic to kuri start ([c8ef8e1](https://github.com/unbrowse-ai/unbrowse-dev/commit/c8ef8e13d5f5a1e7ce1055bb066bfc8621e89199)), closes [#109](https://github.com/unbrowse-ai/unbrowse-dev/issues/109)
+* **#113:** abort hanging CDP phases via AbortSignal when capture timeout fires ([e5e64c6](https://github.com/unbrowse-ai/unbrowse-dev/commit/e5e64c65c2feb7b7543ff3fb369ddb0c0434244f)), closes [#113](https://github.com/unbrowse-ai/unbrowse-dev/issues/113)
+* **#114:** add query hook bridge for UI event → network provenance ([#200](https://github.com/unbrowse-ai/unbrowse-dev/issues/200)) ([1afd13e](https://github.com/unbrowse-ai/unbrowse-dev/commit/1afd13eec520a9123b0ba126b9f7913023c4de4c)), closes [#114](https://github.com/unbrowse-ai/unbrowse-dev/issues/114)
+* **#118:** wire passive reverse-engineered artifacts into graph growth and marketplace ([#177](https://github.com/unbrowse-ai/unbrowse-dev/issues/177)) ([626462b](https://github.com/unbrowse-ai/unbrowse-dev/commit/626462bd1ab2b31863f61062598ab53ab960e08c)), closes [#118](https://github.com/unbrowse-ai/unbrowse-dev/issues/118)
+* **#152:** prefer richer endpoint when merging duplicates ([1b9b07f](https://github.com/unbrowse-ai/unbrowse-dev/commit/1b9b07f74a2f231b29f6cd37f3519d3aedd98e4a)), closes [#152](https://github.com/unbrowse-ai/unbrowse-dev/issues/152)
+* **#152:** prefer richer endpoint when merging duplicates ([#203](https://github.com/unbrowse-ai/unbrowse-dev/issues/203)) ([0b37423](https://github.com/unbrowse-ai/unbrowse-dev/commit/0b37423641b4f0bd34af73aebd92f5bee8ff30a1)), closes [#152](https://github.com/unbrowse-ai/unbrowse-dev/issues/152)
+* **#218:** rewrite tests to hit real backend, never mock fetch ([cc09d11](https://github.com/unbrowse-ai/unbrowse-dev/commit/cc09d1174e906df3907742a8d4b38613ccaca75c)), closes [#218](https://github.com/unbrowse-ai/unbrowse-dev/issues/218)
+* **#220:** wire computeBottleneckMetrics into backend analytics route ([e97d675](https://github.com/unbrowse-ai/unbrowse-dev/commit/e97d67581745fe4297a0c7a1489ce0f69e8de94a)), closes [#220](https://github.com/unbrowse-ai/unbrowse-dev/issues/220)
+* **#221:** wire computeCompositeSearchScore into search/resolve path ([4812ef0](https://github.com/unbrowse-ai/unbrowse-dev/commit/4812ef0509e9285ab64d50a1970f0f2d8356510d))
+* **#221:** wire computeCompositeSearchScore into search/resolve path ([040cd8b](https://github.com/unbrowse-ai/unbrowse-dev/commit/040cd8bc3fccbea3286dd98655ed932a78245a8d))
+* **#222:** wire SUPPORTED_HOSTS, LocalSupervisor, getDefaultLoginConfig to production ([2c120c6](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c120c66ca33177db04217e252a6fa6a3367a535)), closes [#222](https://github.com/unbrowse-ai/unbrowse-dev/issues/222)
+* **#223:** wire isStructuredSearchForm and attributeLifecycle into execution paths ([2352b9e](https://github.com/unbrowse-ai/unbrowse-dev/commit/2352b9edc921508abfa50c7e476ab4578f553aad)), closes [#223](https://github.com/unbrowse-ai/unbrowse-dev/issues/223)
+* **#224:** wire BrowserAccessConfig and computeVerificationCoverage to production ([54548f0](https://github.com/unbrowse-ai/unbrowse-dev/commit/54548f03be051229e39e8190060fbb044c5191e2)), closes [#224](https://github.com/unbrowse-ai/unbrowse-dev/issues/224)
+* **#225:** wire detectHostEnvironment and getBrowserConfig into kuri launch ([5362e5c](https://github.com/unbrowse-ai/unbrowse-dev/commit/5362e5c6781340e6b081f0c82d026fb5f6e2e0a1)), closes [#225](https://github.com/unbrowse-ai/unbrowse-dev/issues/225)
+* **#226:** wire buildDescriptionPrompt into reverse-engineer pipeline ([a80273a](https://github.com/unbrowse-ai/unbrowse-dev/commit/a80273a4c8ead1c9ecbea25ab87f6c082e5202b4)), closes [#226](https://github.com/unbrowse-ai/unbrowse-dev/issues/226)
+* **#227:** wire RSC wire format parser into capture pipeline ([988c6ab](https://github.com/unbrowse-ai/unbrowse-dev/commit/988c6ab8a34604166d9c616e47ca63c529c8a2d1)), closes [#227](https://github.com/unbrowse-ai/unbrowse-dev/issues/227)
+* **#228:** wire telemetry-driven auto issue filing pipeline ([4e4e660](https://github.com/unbrowse-ai/unbrowse-dev/commit/4e4e660c008baca7476880558e792712373357dc)), closes [#228](https://github.com/unbrowse-ai/unbrowse-dev/issues/228)
+* **#229:** implement tryFirstPassBrowserAction with HAR-based interception ([09f5118](https://github.com/unbrowse-ai/unbrowse-dev/commit/09f5118148494bfc9644bd39a7f7cbb91a8eb0fd)), closes [#229](https://github.com/unbrowse-ai/unbrowse-dev/issues/229)
+* **#229:** implement tryFirstPassBrowserAction with HAR-based interception ([30d3170](https://github.com/unbrowse-ai/unbrowse-dev/commit/30d3170334d07ae2e43aa6cf6d95203f1c800381)), closes [#229](https://github.com/unbrowse-ai/unbrowse-dev/issues/229)
+* **#230:** wire auth dependency runtime into login flow ([1329188](https://github.com/unbrowse-ai/unbrowse-dev/commit/1329188a6ec84c1f3630e05afb3277e530ee5d1a)), closes [#230](https://github.com/unbrowse-ai/unbrowse-dev/issues/230) [#230](https://github.com/unbrowse-ai/unbrowse-dev/issues/230)
+* **#231:** wire route pricing endpoint into payment flow ([da39ab0](https://github.com/unbrowse-ai/unbrowse-dev/commit/da39ab081337e6a65cdfa382abd8944651aa19f9)), closes [#231](https://github.com/unbrowse-ai/unbrowse-dev/issues/231)
+* **#232:** wire delta attribution client-side so indexer_id is sent ([f072750](https://github.com/unbrowse-ai/unbrowse-dev/commit/f0727502ee532ca77db8845eb7749ccffb8c32de)), closes [#232](https://github.com/unbrowse-ai/unbrowse-dev/issues/232)
+* **#233:** wire queuePassiveSkillPublish to actually publish skills ([bb720ed](https://github.com/unbrowse-ai/unbrowse-dev/commit/bb720ed2d779cd2ecec9aa8e1789b10d077b2efa)), closes [#233](https://github.com/unbrowse-ai/unbrowse-dev/issues/233)
+* **#233:** wire queuePassiveSkillPublish to actually publish skills ([f6b9b53](https://github.com/unbrowse-ai/unbrowse-dev/commit/f6b9b53d4e912afa0bb167ac9d81faa239646643)), closes [#233](https://github.com/unbrowse-ai/unbrowse-dev/issues/233)
+* **#48:** use pathToFileURL for tsx loader path to support Windows ([d95bab9](https://github.com/unbrowse-ai/unbrowse-dev/commit/d95bab91c9b6b9574966a5a482d70289be816a45)), closes [#48](https://github.com/unbrowse-ai/unbrowse-dev/issues/48)
+* **#51:** export DEPRECATION_THRESHOLD and add auto_deprecated_at to EndpointStats ([8033996](https://github.com/unbrowse-ai/unbrowse-dev/commit/8033996141f1345481636a563c44d4673bdd040b)), closes [#51](https://github.com/unbrowse-ai/unbrowse-dev/issues/51)
+* **#54:** add install warning audit smoke tests for OpenClaw plugin ([#180](https://github.com/unbrowse-ai/unbrowse-dev/issues/180)) ([b75d396](https://github.com/unbrowse-ai/unbrowse-dev/commit/b75d3963cd51f88b09123edc0832d50760adcc5a)), closes [#54](https://github.com/unbrowse-ai/unbrowse-dev/issues/54)
+* **#54:** add install warning audit smoke tests for OpenClaw plugin ([#180](https://github.com/unbrowse-ai/unbrowse-dev/issues/180)) ([#193](https://github.com/unbrowse-ai/unbrowse-dev/issues/193)) ([e0a6a75](https://github.com/unbrowse-ai/unbrowse-dev/commit/e0a6a7545974db4de35c7948e89cb4914fb623df)), closes [#54](https://github.com/unbrowse-ai/unbrowse-dev/issues/54)
+* **#89:** promote deferred skills to cache, guard mutable DOM auto-exec, restore resolvedParams IIFE ([cd8f9da](https://github.com/unbrowse-ai/unbrowse-dev/commit/cd8f9da6f05748ec3969835e58a651ed4c75a846)), closes [#89](https://github.com/unbrowse-ai/unbrowse-dev/issues/89)
+* **#89:** promote deferred skills to cache, guard mutable DOM auto-exec, restore resolvedParams IIFE ([#201](https://github.com/unbrowse-ai/unbrowse-dev/issues/201)) ([894f89c](https://github.com/unbrowse-ai/unbrowse-dev/commit/894f89c1bc8d8ede2a77423147c8de6f04a45e9a)), closes [#89](https://github.com/unbrowse-ai/unbrowse-dev/issues/89)
+* auto-extract browser cookies for gated sites, guard HAR entry iteration ([955564d](https://github.com/unbrowse-ai/unbrowse-dev/commit/955564debad2150f04a087da5aa1a2eb0a4486b0))
+* auto-queue browse submit publish and document public repo ([9905005](https://github.com/unbrowse-ai/unbrowse-dev/commit/9905005afa86402ac75d521381e6ca2eec1ab184))
+* bound frontend build api fetches ([f74bf7c](https://github.com/unbrowse-ai/unbrowse-dev/commit/f74bf7c3fe97c7f0444b8878f34d7282b8809d92))
+* bound stale endpoint verification batches ([e98d95c](https://github.com/unbrowse-ai/unbrowse-dev/commit/e98d95c4fc75d581c78bcbc0427cb146ee4a6dd9))
+* bundle vendored kuri and enforce package checks ([c165046](https://github.com/unbrowse-ai/unbrowse-dev/commit/c165046a89e5eecb24182c04fb67443120b3f850))
+* capture API bodies via Performance API + sync XHR replay ([b88f98d](https://github.com/unbrowse-ai/unbrowse-dev/commit/b88f98dfb32f32f635e7cc031cd96dc3150c4811))
+* **capture:** add live DOM extraction and improve interactive stimulus ([253112c](https://github.com/unbrowse-ai/unbrowse-dev/commit/253112c9471a44a7f0f9afe630198868a3b43a0b))
+* **capture:** improve interceptor timing and add Performance API replay ([5f0d503](https://github.com/unbrowse-ai/unbrowse-dev/commit/5f0d503361fd3eb8f2d64ca9600fa69f5644c242))
+* **capture:** wire live DOM extraction data through orchestrator to user ([664a637](https://github.com/unbrowse-ai/unbrowse-dev/commit/664a6371e783e389cc1217c2315cea7ff8991a04))
+* disable local npm release handling ([6dd2ce1](https://github.com/unbrowse-ai/unbrowse-dev/commit/6dd2ce19b24dfff96cbe724b0e9ed57f0ef1319a))
+* harden global install fallback and server version guards ([#323](https://github.com/unbrowse-ai/unbrowse-dev/issues/323)) ([ee91923](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee9192312766d8756b0691c5e45a2beec639085f))
+* harden packaged kuri recovery ([16e89b5](https://github.com/unbrowse-ai/unbrowse-dev/commit/16e89b52c6eced2010327e7d2d2bae96aa5ff0d5))
+* increase graph-api test timeout to 60s for rate-limit retries ([991d13a](https://github.com/unbrowse-ai/unbrowse-dev/commit/991d13a6da42671e4274254f3f3a0baf66c6f252))
+* install unbrowse shim in stable user bins ([#326](https://github.com/unbrowse-ai/unbrowse-dev/issues/326)) ([6a69c66](https://github.com/unbrowse-ai/unbrowse-dev/commit/6a69c665659bfd67b72f64b9d807e19f11877d97))
+* install.sh falls back to health if setup not available yet ([2c28268](https://github.com/unbrowse-ai/unbrowse-dev/commit/2c28268527b3dd6b4a4ecb77bbde54b54b77d3bd))
+* install.sh use --yes flag and drop setup command ([c293572](https://github.com/unbrowse-ai/unbrowse-dev/commit/c2935726646fe928fe1c4782d2043055f0ab1cb8))
+* install.sh uses npm install instead of git clone ([6a13bf5](https://github.com/unbrowse-ai/unbrowse-dev/commit/6a13bf56ff53f9d01c81ba786244dced8d76351b))
+* isolate browse sessions under parallel load ([3194c8e](https://github.com/unbrowse-ai/unbrowse-dev/commit/3194c8e79536e0cac53dcad4328d507f3bd7efae))
+* isolate main CI local server and KV cache ([#325](https://github.com/unbrowse-ai/unbrowse-dev/issues/325)) ([c58711b](https://github.com/unbrowse-ai/unbrowse-dev/commit/c58711b72c428a7d9ceb518f6027cf222ebc7e37))
+* **kuri:** correct press() and scroll() signatures to require ref param ([40cbcb8](https://github.com/unbrowse-ai/unbrowse-dev/commit/40cbcb893745bad61795cadb29c91b24d257036c))
+* link homepage whitepaper button to paper landing page ([68b84f2](https://github.com/unbrowse-ai/unbrowse-dev/commit/68b84f2b8f3db6689ffaa78baf544874ee763119))
+* make marketplace search free before paid skill detail ([#327](https://github.com/unbrowse-ai/unbrowse-dev/issues/327)) ([e9e1e7f](https://github.com/unbrowse-ai/unbrowse-dev/commit/e9e1e7f9287ad13c56dbf494c468a5072db334cc))
+* **openclaw:** surface endpoint details in deferred resolve responses ([e964725](https://github.com/unbrowse-ai/unbrowse-dev/commit/e964725fb3241b93c4dcd935c4b3d637fadca532))
+* resolve all 21 backend test failures (19 fail + 2 errors) ([8074d14](https://github.com/unbrowse-ai/unbrowse-dev/commit/8074d14ed3c27cfb96a5bdae649a7a6e269fc669))
+* restore auth fallback and harden indexing ([1a30053](https://github.com/unbrowse-ai/unbrowse-dev/commit/1a3005306f892e785c53efc760207b06ae78939e))
+* restore fee routes and x402 CORS headers after merge conflict ([a634f25](https://github.com/unbrowse-ai/unbrowse-dev/commit/a634f2506b313cfcda8677960936f5c89ec98281))
+* restore gh in release workflow ([d1861f4](https://github.com/unbrowse-ai/unbrowse-dev/commit/d1861f40af17d613abffb859c5a34797b0c526f7))
+* restore packaged cli staging path ([bec02dd](https://github.com/unbrowse-ai/unbrowse-dev/commit/bec02dde63b91d15a8e5cd37718025e5142d551c))
+* retarget docs and PR helpers to main ([0c4c5d1](https://github.com/unbrowse-ai/unbrowse-dev/commit/0c4c5d1874066b93968de7aa72e803717562a8e0))
+* revert to unoptimized images, fix package.json and next.config syntax ([2352069](https://github.com/unbrowse-ai/unbrowse-dev/commit/2352069c2f7642604add1bc75928f0f08ae90195))
+* simplify install setup path ([3c31214](https://github.com/unbrowse-ai/unbrowse-dev/commit/3c3121463836421b68187985dc5f29d761350911))
+* skip pre-push P0/P1 suite when no analyses exist ([427c58d](https://github.com/unbrowse-ai/unbrowse-dev/commit/427c58de07cc18a9e5f6d47591d14c01e2608591))
+* stabilize browse submit recovery ([c586d5e](https://github.com/unbrowse-ai/unbrowse-dev/commit/c586d5e53ee34e7c3b6b051f38f9722f5ee7dadf))
+* unblock cli bootstrap and e2e smoke ([9cf533b](https://github.com/unbrowse-ai/unbrowse-dev/commit/9cf533bfe632c555b9abad87ffb063a53d61bb1e))
+* unblock cli wallet setup and auth e2e ([c92f39f](https://github.com/unbrowse-ai/unbrowse-dev/commit/c92f39f679966507686306dca57510ded95f0c55))
+* unblock main ci checks ([72f7cd9](https://github.com/unbrowse-ai/unbrowse-dev/commit/72f7cd9e4b640453b20cc96db421b6ac799a16de))
+* update kuri submodule — CDP async network event capture for HAR ([0976d55](https://github.com/unbrowse-ai/unbrowse-dev/commit/0976d550f446306ef3389801c6224d9db7a329a4))
+* update kuri submodule — HAR recorder now returns entries correctly ([1f8d194](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f8d194efbca0cd0502071529ece96344f07eded))
+* use unbrowse health instead of setup in install.sh ([557911c](https://github.com/unbrowse-ai/unbrowse-dev/commit/557911ce5aa6049efa8510d14843252b058aee85))
+
+### Refactoring
+
+* simplify install.sh — use npx skills add for registration ([78f280b](https://github.com/unbrowse-ai/unbrowse-dev/commit/78f280bfcbe683746335432c462fa6f2eea96c26))
+* simplify setup script — delegate to CLI for runtime bootstrap ([8848b52](https://github.com/unbrowse-ai/unbrowse-dev/commit/8848b52103760d6fbe544787fb4590e1ee734c74))
+
+## [2.1.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-24)
+
+### Bug Fixes
+
+* keep structured search skills on the resolve path ([1de509d](https://github.com/unbrowse-ai/unbrowse-dev/commit/1de509dda5746f8074fcec555e0e4a7c3f1e2f10))
+* rebuild canonical retrieval hydration from domain index ([#72](https://github.com/unbrowse-ai/unbrowse-dev/issues/72)) ([35e6de9](https://github.com/unbrowse-ai/unbrowse-dev/commit/35e6de9d732a84f553bdf0f2d574b97fab846485))
+* recover LawNet search form execution ([25a4e17](https://github.com/unbrowse-ai/unbrowse-dev/commit/25a4e172da849e57ad68cc6c41044c552785f7d8))
+
+## [2.1.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-24)
+
+## [2.1.4](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* harden LawNet search execution ([c42852c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c42852c7c08664d54d1eff342b060f30da04b711))
+
+## [2.1.3](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* stabilize warm retrieval cache ([ee3a2ac](https://github.com/unbrowse-ai/unbrowse-dev/commit/ee3a2ac43ccc87004c25e061c3acb497e3831e3a))
+
+## [2.1.2](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* harden LawNet search recovery ([8eb5d04](https://github.com/unbrowse-ai/unbrowse-dev/commit/8eb5d048fda6da402a31d241088dc7285ec9f6da))
+
+## [2.1.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* restore packaged cli self-healing ([5b6b921](https://github.com/unbrowse-ai/unbrowse-dev/commit/5b6b92111c0f24636e5c79c516134c1891321722))
+
+## [2.1.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Features
+
+* improve capture resilience and align kuri upstream ([4607822](https://github.com/unbrowse-ai/unbrowse-dev/commit/46078224f8fafda4de7b9a2a9df04f37fd9a5b71))
+
+## [2.0.23](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* sharpen mcp routing defaults ([3e1b355](https://github.com/unbrowse-ai/unbrowse-dev/commit/3e1b35591c7ba7231061bcea5bfd927133013f99))
+
+## [2.0.22](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* stabilize installed linkedin force-capture ([f381f48](https://github.com/unbrowse-ai/unbrowse-dev/commit/f381f48dbf5d344f37b9a69141fd219579f7cdff))
+
+## [2.0.21](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* harden auth capture and Hermes install docs ([8ecd63e](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ecd63ebf2cc2fd52ea9a77e1b74200b84cb5eeb))
+
+## [2.0.16](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-23)
+
+### Bug Fixes
+
+* disable release-it npm bump step ([6dbda71](https://github.com/unbrowse-ai/unbrowse-dev/commit/6dbda71e368c84e8f3962f572e99a06a772f7d66))
+* disable release-it npm bump step ([#69](https://github.com/unbrowse-ai/unbrowse-dev/issues/69)) ([bff1753](https://github.com/unbrowse-ai/unbrowse-dev/commit/bff1753d4b8ad98256e70230ac0b2cca7bd5dab5))
+* restore retrieval gate coverage ([781e660](https://github.com/unbrowse-ai/unbrowse-dev/commit/781e660dc8f49949e6026b71581c0730911c175b))
+* stabilize webarena adapted evals ([8afd22d](https://github.com/unbrowse-ai/unbrowse-dev/commit/8afd22de3ffece143b2ae63d26f1a6a1f9263347))
+
+## [2.0.15](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* align frontend deploy path and install docs ([#25](https://github.com/unbrowse-ai/unbrowse-dev/issues/25)) ([1f20a33](https://github.com/unbrowse-ai/unbrowse-dev/commit/1f20a33c485676124044854f1325085dbe5bab88))
+* pin deploys to maintained kuri fork ([3055bcf](https://github.com/unbrowse-ai/unbrowse-dev/commit/3055bcfc57151d032c55cd93e0a43d59a1a2c012))
+
+## [2.0.14](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* seed staging browser eval auth ([#24](https://github.com/unbrowse-ai/unbrowse-dev/issues/24)) ([9caa74d](https://github.com/unbrowse-ai/unbrowse-dev/commit/9caa74d769aca1a61b17d962753bb17ae629578d))
+
+## [2.0.13](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+## [2.0.12](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* bypass staging eval search cache ([b1b2038](https://github.com/unbrowse-ai/unbrowse-dev/commit/b1b2038291e2536599ff0cf3fb3b51487e1654e6))
+
+## [2.0.11](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* exempt staging eval token from search throttles ([1c29770](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c29770752cea8143eb9f4f654bd84bac3f53096))
+
+## [2.0.10](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* stop staging live eval from assuming seeded search ([#20](https://github.com/unbrowse-ai/unbrowse-dev/issues/20)) ([e6b4c2b](https://github.com/unbrowse-ai/unbrowse-dev/commit/e6b4c2b2740e852a744a489e5e77e2d860717729))
+
+## [2.0.9](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* separate public search rate limits for authed evals ([#19](https://github.com/unbrowse-ai/unbrowse-dev/issues/19)) ([8ea11ce](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ea11ce4b4b4c40e1a45f3c539b7a13edcd1665d))
+
+## [2.0.8](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* normalize skill sync newlines on windows ([#15](https://github.com/unbrowse-ai/unbrowse-dev/issues/15)) ([f511e7e](https://github.com/unbrowse-ai/unbrowse-dev/commit/f511e7e32c9539214b5b18ddda04db4225c0f8ce))
+* publish npm packages on self-hosted runners ([#16](https://github.com/unbrowse-ai/unbrowse-dev/issues/16)) ([7d6f81d](https://github.com/unbrowse-ai/unbrowse-dev/commit/7d6f81df521d74cd3be8e425e848c19e1de77f5e))
+* restore mcp package build ([#17](https://github.com/unbrowse-ai/unbrowse-dev/issues/17)) ([442922f](https://github.com/unbrowse-ai/unbrowse-dev/commit/442922f46f11595308f6fa8688fa91fbdfc61220))
+* skip live graph api tests by default ([#14](https://github.com/unbrowse-ai/unbrowse-dev/issues/14)) ([a4d69d7](https://github.com/unbrowse-ai/unbrowse-dev/commit/a4d69d72eb562b248e8d51770e8143e5cb37c5c3))
+* unblock release packaging gates ([#18](https://github.com/unbrowse-ai/unbrowse-dev/issues/18)) ([d142996](https://github.com/unbrowse-ai/unbrowse-dev/commit/d142996cbd6487289c062ad63c34d4598d0cdb4c))
+
+## [2.0.7](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-22)
+
+### Bug Fixes
+
+* simplify api key auto-registration ([#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)) ([198a6d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/198a6d299bc5e4f0a8529901dbdc757b3432746b))
+* simplify one-command install flow ([#11](https://github.com/unbrowse-ai/unbrowse-dev/issues/11)) ([2d4bbe5](https://github.com/unbrowse-ai/unbrowse-dev/commit/2d4bbe52299ac82e039568969317fa124efa616f))
+* track windows kuri binary for npm pack ([#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)) ([bc6b39a](https://github.com/unbrowse-ai/unbrowse-dev/commit/bc6b39afa6973c8fbe5b261ea61646228c2cf6fe))
+
+## [2.0.6](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-21)
+
+### Features
+
+* add ElizaOS plugin for unbrowse integration ([5134ac5](https://github.com/unbrowse-ai/unbrowse-dev/commit/5134ac56828bd077d2e44d31c99d2c0192dcc9ea))
+* add LangChain integration (unbrowse-langchain) ([c064902](https://github.com/unbrowse-ai/unbrowse-dev/commit/c064902e091d01393d43388d70f06e0f7dbb7019))
+* add MCP server integration for universal AI client support ([baa460c](https://github.com/unbrowse-ai/unbrowse-dev/commit/baa460c35d18ad297a1c544918be57081dbe9f24))
+* add unbrowse-hermes plugin for Hermes Agent framework ([c010d88](https://github.com/unbrowse-ai/unbrowse-dev/commit/c010d88e075d01aa6291d9fc873bdcd247b22e65))
+
+### Bug Fixes
+
+* add stealth patches + restore origin pre-navigation for authed captures ([14e5c56](https://github.com/unbrowse-ai/unbrowse-dev/commit/14e5c5618cf736737313a289b0ced64738fb01f5))
+* check vendor binaries first, skip zig build when present ([5f25866](https://github.com/unbrowse-ai/unbrowse-dev/commit/5f2586651ff9582b4ee834e0d3192c1b343e1e49))
+* CSRF detection via DAG-based value matching + JSESSIONID/csrf-token support ([c91894c](https://github.com/unbrowse-ai/unbrowse-dev/commit/c91894c96966e5b907b2b7467b421587527163f4))
+* login opens user's default browser + auto-discover all Chromium/Firefox browsers ([680d877](https://github.com/unbrowse-ai/unbrowse-dev/commit/680d87759d368a44fe9a76ce80886553279bcc3c))
+* refresh lockfile and spa extraction fallback ([4054a8a](https://github.com/unbrowse-ai/unbrowse-dev/commit/4054a8a99cbcba80ad648128e46c60573cfc2396))
+* resolve Invalid URL crashes and capture failures on heavy SPAs (v2.0.2) ([7a4344d](https://github.com/unbrowse-ai/unbrowse-dev/commit/7a4344d89504ff611fb269a8ee4d01f2d80a2706))
+* security hardening — leaked keys, injection, auth gaps, timing attacks ([9d5e468](https://github.com/unbrowse-ai/unbrowse-dev/commit/9d5e4680d18c1e04816919fca1ef124dfd62ccd9)), closes [#51](https://github.com/unbrowse-ai/unbrowse-dev/issues/51) [#52](https://github.com/unbrowse-ai/unbrowse-dev/issues/52) [#53](https://github.com/unbrowse-ai/unbrowse-dev/issues/53) [#54](https://github.com/unbrowse-ai/unbrowse-dev/issues/54) [#55](https://github.com/unbrowse-ai/unbrowse-dev/issues/55) [#56](https://github.com/unbrowse-ai/unbrowse-dev/issues/56)
+* skip kuri zig cache during skill sync ([eb1d883](https://github.com/unbrowse-ai/unbrowse-dev/commit/eb1d88354fb6181339846a964a77d93714eec9e2))
+* SSR fallback for bot-detected sites + relax quality gate for DOM extraction ([df89a34](https://github.com/unbrowse-ai/unbrowse-dev/commit/df89a342771419758355da3199bcd4862c03374b))
+* stealth patches, origin pre-nav, discover after newTab, kuri evaluate double-escape ([cde0d93](https://github.com/unbrowse-ai/unbrowse-dev/commit/cde0d93db0a6c3e8d83613f0e83b9e031666754c))
+* update vendored Kuri binaries with 5-bug capture fix (v2.0.5) ([ca9b641](https://github.com/unbrowse-ai/unbrowse-dev/commit/ca9b641616d908b5ad34c5390b5e6a9e6d5261a9))
+
+## [2.0.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-15)
+
+### Features
+
+* migrate backend to EmergentDB Graph API ([#85](https://github.com/unbrowse-ai/unbrowse-dev/issues/85)) ([fabfe87](https://github.com/unbrowse-ai/unbrowse-dev/commit/fabfe87ce21d4b66cfc918ea383a90ff772e6f32))
+* sharpen landing hero value prop ([56b6035](https://github.com/unbrowse-ai/unbrowse-dev/commit/56b60356a24984e1f785ae3dc2f160979576b6ee))
+
+### Bug Fixes
+
+* bundle kuri runtime in cli releases ([4353f3e](https://github.com/unbrowse-ai/unbrowse-dev/commit/4353f3ecb574aa9c8dc67855318d29624d3d87d3))
+* stabilize frontend deploy fonts ([a51c4e2](https://github.com/unbrowse-ai/unbrowse-dev/commit/a51c4e29a75f233c62147a48029ece978b8af281))
+
+## [2.0.0](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-14)
+
+### Features
+
+* auto-execute + SSR fast-path (15s → 3.6s) ([318c10f](https://github.com/unbrowse-ai/unbrowse-dev/commit/318c10f243543857a945b34488ce0214780094c8))
+* auto-execute DOM extraction endpoints with LLM param inference ([b03b0d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/b03b0d25e403b86f930f49575b2f182fbfeb0859))
+* auto-execute, SSR fast-path, route/domain caching, evals, backend improvements ([0fd9346](https://github.com/unbrowse-ai/unbrowse-dev/commit/0fd93468102e62364e1a31697cf8e6ea9e3b1a12))
+* domain-level skill cache for cross-intent reuse ([1aa8361](https://github.com/unbrowse-ai/unbrowse-dev/commit/1aa8361f671bf91f3f31e1320e3caa9c6df965e1))
+* expand public eval corpus and prep v2.0.0 ([b75f8d2](https://github.com/unbrowse-ai/unbrowse-dev/commit/b75f8d2f73e49bc9b96e38feadf3c2a0135c88a4))
+* persist route cache to disk (survives restarts) ([a6a5eae](https://github.com/unbrowse-ai/unbrowse-dev/commit/a6a5eaeac33a264bfe099e07465e02e4f71f26d6))
+* replace agent-browser with Kuri — CLI-first Zig-native browser automation ([6053014](https://github.com/unbrowse-ai/unbrowse-dev/commit/6053014c7c05411cac5988dd62ec2fa5ff417169)), closes [#71](https://github.com/unbrowse-ai/unbrowse-dev/issues/71) [#71](https://github.com/unbrowse-ai/unbrowse-dev/issues/71)
+
+### Bug Fixes
+
+* catch 'setPassword is not a function' keytar errors and fall back to encrypted file vault ([71a53af](https://github.com/unbrowse-ai/unbrowse-dev/commit/71a53af4ff20e01e570cd7b51e3c2c21a63497e4))
+* stale route cache + domain cache persistence ([55bc5a4](https://github.com/unbrowse-ai/unbrowse-dev/commit/55bc5a4a272972b20e24446ad3e2c8e5b860c59a))
+
+## [1.1.5](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.1...v2.12.3) (2026-03-11)
+
+### Features
+
+* add full-pipeline retrieval tests to eval harness ([6405d83](https://github.com/unbrowse-ai/unbrowse-dev/commit/6405d83cda446a98be77c1259fee1c99f1657142))
+* add pre-commit perf eval harness + 10x faster skill execution ([bcf30bb](https://github.com/unbrowse-ai/unbrowse-dev/commit/bcf30bb18b9ea68d575610a67224cf31e3000acf))
+* append leftover params as query string on GET requests ([6ad6b42](https://github.com/unbrowse-ai/unbrowse-dev/commit/6ad6b425451a7623374c0a8d2209fcd108f8c56e))
+* browser cookies, agent-first selection, URN params, discovery cost (no KV migration) ([#27](https://github.com/unbrowse-ai/unbrowse-dev/issues/27)) ([4c945f7](https://github.com/unbrowse-ai/unbrowse-dev/commit/4c945f7d420b4dc7674aee38b65e4251c58394f8))
+* expand eval suite to 6 endpoints across 3 code paths ([fec1b4a](https://github.com/unbrowse-ai/unbrowse-dev/commit/fec1b4a8f6f4f0645284d2226bbff45676423a7a))
+* expand eval suite to 9 endpoints across 5 domains ([59b2171](https://github.com/unbrowse-ai/unbrowse-dev/commit/59b217163497b928a601c51cdbddef8b6af35a5f))
+* release pipeline + auto-suggest extraction ([#41](https://github.com/unbrowse-ai/unbrowse-dev/issues/41)) ([2b17422](https://github.com/unbrowse-ai/unbrowse-dev/commit/2b17422bb2554f4cf7f742cc01a3630752de11c0))
+* replace Cloudflare KV with EmergentDB qdkv ([#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)) ([48cd8f2](https://github.com/unbrowse-ai/unbrowse-dev/commit/48cd8f2daaf1f07b9ce24a734103ad891b003160))
+* require ToS acceptance for agent signup, block unauthenticated access ([cd4bb4e](https://github.com/unbrowse-ai/unbrowse-dev/commit/cd4bb4ef686a23034e0e97c4f91864f651ff4ba2))
+* surface auth_recommended hint when capture returns no data endpoints ([3d72726](https://github.com/unbrowse-ai/unbrowse-dev/commit/3d72726a701f0d7cb9b818b497c869a1ebe599e9))
+* tighten agent evals and public replay resolution ([#50](https://github.com/unbrowse-ai/unbrowse-dev/issues/50)) ([5dabe10](https://github.com/unbrowse-ai/unbrowse-dev/commit/5dabe1096c7e1e1abd346b606acd2a9a9e83a681))
+* zero-config setup with agent-mediated ToS consent ([#6](https://github.com/unbrowse-ai/unbrowse-dev/issues/6)) ([62fb5fd](https://github.com/unbrowse-ai/unbrowse-dev/commit/62fb5fd07064488738a53285c764ddf3fcef77ec))
+
+### Bug Fixes
+
+* 2-step endpoint selection + 14x faster execution ([0fa6f98](https://github.com/unbrowse-ai/unbrowse-dev/commit/0fa6f980d8d3eea9a8d595690908dfc8a5e17154))
+* 3 eval data quality issues found by harness ([b382709](https://github.com/unbrowse-ai/unbrowse-dev/commit/b382709e7bf995729e8de4d2cd212ee60c815c8c))
+* add apex domain route for unbrowse.ai ([#32](https://github.com/unbrowse-ai/unbrowse-dev/issues/32)) ([373f95b](https://github.com/unbrowse-ai/unbrowse-dev/commit/373f95b22a5b1ea2c433114d6ed6ff7eab3ca8c3))
+* always send auth header when API key exists ([#8](https://github.com/unbrowse-ai/unbrowse-dev/issues/8)) ([4700858](https://github.com/unbrowse-ai/unbrowse-dev/commit/47008589f41211b891b54febbdb800a521a7157c))
+* auto-install browser engine + auto-recover stale 404 endpoints ([4323ce9](https://github.com/unbrowse-ai/unbrowse-dev/commit/4323ce9e151ea2b0bd6dd1662eaba44a3f67fc43))
+* BUG-001 too many subrequests + BUG-002 intent/resolve parse error ([6d9b4f6](https://github.com/unbrowse-ai/unbrowse-dev/commit/6d9b4f6d4f9d36754d06049890c4181e87a3a047))
+* **BUG-006:** parameterize dynamic path segments instead of hardcoding ([#20](https://github.com/unbrowse-ai/unbrowse-dev/issues/20)) ([f93684a](https://github.com/unbrowse-ai/unbrowse-dev/commit/f93684a16ba5e3fd5741b981c1e242784e1d93d0))
+* bun/CF Brotli hang + sync working tree ([#42](https://github.com/unbrowse-ai/unbrowse-dev/issues/42)) ([88897cc](https://github.com/unbrowse-ai/unbrowse-dev/commit/88897cc47381f6e6b19612cde4c1898f3e31ec8d))
+* cache skills locally before remote publish to prevent post-resolve 404s ([4f7d4ad](https://github.com/unbrowse-ai/unbrowse-dev/commit/4f7d4ad828095527aa52658a0a05c090d9926d43)), closes [#34](https://github.com/unbrowse-ai/unbrowse-dev/issues/34)
+* eliminate read-after-write race in skill publishing ([#10](https://github.com/unbrowse-ai/unbrowse-dev/issues/10)) ([1c7054e](https://github.com/unbrowse-ai/unbrowse-dev/commit/1c7054ee4e3b7d950fc10c2be894653282da53e5)), closes [#9](https://github.com/unbrowse-ai/unbrowse-dev/issues/9)
+* graceful browser shutdown + orphan cleanup (fixes [#4](https://github.com/unbrowse-ai/unbrowse-dev/issues/4)) ([#28](https://github.com/unbrowse-ai/unbrowse-dev/issues/28)) ([59013ed](https://github.com/unbrowse-ai/unbrowse-dev/commit/59013edfc8e02e403251e947e00518c86e28209c))
+* guard against empty/malformed index values ([e99c7b6](https://github.com/unbrowse-ai/unbrowse-dev/commit/e99c7b68e99e897373ea15dd3551688d7c216d16))
+* harden search pipeline — error handling, batched reindex, await indexing ([#7](https://github.com/unbrowse-ai/unbrowse-dev/issues/7)) ([cd4d09d](https://github.com/unbrowse-ai/unbrowse-dev/commit/cd4d09dd587c38ec50d9d6d060d08cee5ca97049))
+* improve endpoint ranking with noise filtering and data-relevance scoring ([#17](https://github.com/unbrowse-ai/unbrowse-dev/issues/17)) ([7c38f8f](https://github.com/unbrowse-ai/unbrowse-dev/commit/7c38f8fd87e07656e2e102f37207626f239c9af2))
+* **issue-15:** wrong endpoint, broken params, repeated captures ([#19](https://github.com/unbrowse-ai/unbrowse-dev/issues/19)) ([c7d13d0](https://github.com/unbrowse-ai/unbrowse-dev/commit/c7d13d0a0b8a67fb152d029063393cf1586b8bf7)), closes [#16](https://github.com/unbrowse-ai/unbrowse-dev/issues/16)
+* KV _idx exceeds EmergentDB size limit — store keys only ([15daacb](https://github.com/unbrowse-ai/unbrowse-dev/commit/15daacb2823662b4ae3010aafe5461fd70ef5388))
+* make frontend mobile responsive ([#31](https://github.com/unbrowse-ai/unbrowse-dev/issues/31)) ([0e031f9](https://github.com/unbrowse-ai/unbrowse-dev/commit/0e031f92952ec661c1cde116e46f763e1e7b5a46))
+* marketplace recall, BM25 ranking, route cache, perf telemetry ([#18](https://github.com/unbrowse-ai/unbrowse-dev/issues/18)) ([152715c](https://github.com/unbrowse-ai/unbrowse-dev/commit/152715ce1d92ad3c9b6ee3d0c23d51cf1e1994bf))
+* migrate old string[] index format to {k,v}[] on first read ([37b8f91](https://github.com/unbrowse-ai/unbrowse-dev/commit/37b8f9130a6b386dcb1186a50804f2183f1076a4))
+* missing closing brace and duplicate return in skills route ([#21](https://github.com/unbrowse-ai/unbrowse-dev/issues/21)) ([3744068](https://github.com/unbrowse-ai/unbrowse-dev/commit/3744068cfd0701be995a7ad96a338fcb35a136bf))
+* prevent garbage DOM extractions from polluting marketplace ([df0545a](https://github.com/unbrowse-ai/unbrowse-dev/commit/df0545a5bf21497051657783460163ccc6b4a1ae))
+* query params execution, intent threading, publish race, kv cache ([#16](https://github.com/unbrowse-ai/unbrowse-dev/issues/16)) ([8ed7026](https://github.com/unbrowse-ai/unbrowse-dev/commit/8ed70262beffaa42f34dd4ed2f2a07ca0b4dba89))
+* remove duplicate function bodies from squash merge artifact ([37cfffc](https://github.com/unbrowse-ai/unbrowse-dev/commit/37cfffc2a7611b147a45b40224910f0f16a75ebb)), closes [#1](https://github.com/unbrowse-ai/unbrowse-dev/issues/1)
+* remove duplicate old kvFallbackSearch body (squash artifact) ([ac24ceb](https://github.com/unbrowse-ai/unbrowse-dev/commit/ac24ceb062b2e72bf6c738cbdc1e6533f9b25845))
+* repair search index — filter null metadata, log index failures, add reindex endpoint ([04aeef2](https://github.com/unbrowse-ai/unbrowse-dev/commit/04aeef2762c4e67a939aed6ff58e9ac7208062df))
+* replace broken SKILLS_KV fallback search with qdkv cache ([dfc4ff0](https://github.com/unbrowse-ai/unbrowse-dev/commit/dfc4ff0475a7199eebb35ed6210c26f4b1e42635))
+* resolve URN references when inline fields are null ([#62](https://github.com/unbrowse-ai/unbrowse-dev/issues/62)) ([3500164](https://github.com/unbrowse-ai/unbrowse-dev/commit/3500164ac804b3783350b49b57da5cafede6860e))
+* restore vector namespace to unbrowse--global ([07e38a9](https://github.com/unbrowse-ai/unbrowse-dev/commit/07e38a9a9b5f778b7e036c1a051710fcea983992))
+* restore vector search namespace, remove kv fallback ([#3](https://github.com/unbrowse-ai/unbrowse-dev/issues/3)) ([15cb8a3](https://github.com/unbrowse-ai/unbrowse-dev/commit/15cb8a3fd01fcb6357c6767ce704f4f3e8b79d32))
+* search 20x faster, auth reliability, CI tests ([#36](https://github.com/unbrowse-ai/unbrowse-dev/issues/36)) ([02a47f5](https://github.com/unbrowse-ai/unbrowse-dev/commit/02a47f5ddfa10b7ed5a6c71a2607b2fc3e81c31b))
+* sec-ch-ua headless leak + token savings baseline ([#29](https://github.com/unbrowse-ai/unbrowse-dev/issues/29)) ([6ae0f76](https://github.com/unbrowse-ai/unbrowse-dev/commit/6ae0f7617a81f948ca417b3a3bdf93c1b3d64f87))
+* shell injection in sqliteQuery + sanitize auth_hint endpoint leak ([8bea854](https://github.com/unbrowse-ai/unbrowse-dev/commit/8bea8544c07023ddef2f128834a5211e96ff0405))
+* store KV index values inline to eliminate subrequest explosion ([#22](https://github.com/unbrowse-ai/unbrowse-dev/issues/22)) ([85607f6](https://github.com/unbrowse-ai/unbrowse-dev/commit/85607f6d0da3496182bd3b961bb5a0305dc1b68b))
+
+### Performance
+
+* add per-query result cache for search via qdkv ([219cd46](https://github.com/unbrowse-ai/unbrowse-dev/commit/219cd46843d3847a91cf93194e88061d32663576))
+* combine 3 ops requests into single /v1/ops endpoint ([485beca](https://github.com/unbrowse-ai/unbrowse-dev/commit/485beca10f13c8a13563d4b8882726907b94b5b4))
+* eliminate N+1 EmergentDB fetches with listWithValues + index cache ([#2](https://github.com/unbrowse-ai/unbrowse-dev/issues/2)) ([0585512](https://github.com/unbrowse-ai/unbrowse-dev/commit/0585512ed837dc55d1f7995b86461334f5bd3adb))
+* fetch-first for all safe GETs including DOM + cookie support ([ec7bfab](https://github.com/unbrowse-ai/unbrowse-dev/commit/ec7bfabdc9e900a99a21d50a8e0f7187548aaf1e))
+* parallelize kv.put writes and fire-and-forget indexSkill on publish ([7aad29a](https://github.com/unbrowse-ai/unbrowse-dev/commit/7aad29a064794827df1ce2ca5d7110ed392911d5))
+* replace EmergentDB-backed rate limiter with in-memory store ([062b14d](https://github.com/unbrowse-ai/unbrowse-dev/commit/062b14d05fd74453aeb86968c9fe91f4b8d04497))
+
+### Refactoring
+
+* replace brittle assertions with data snapshots for LLM review ([269ae4f](https://github.com/unbrowse-ai/unbrowse-dev/commit/269ae4ff5ac6a04a639d540d95218f7f8af839f4))
+
 ## [2.12.1](https://github.com/unbrowse-ai/unbrowse-dev/compare/v2.12.0...v2.12.1) (2026-04-03)
 
 ### Features
