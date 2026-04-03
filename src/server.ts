@@ -6,7 +6,7 @@ import cors from "@fastify/cors";
 import { registerRoutes } from "./api/routes.js";
 import { registerRateLimiter } from "./ratelimit/index.js";
 import { schedulePeriodicVerification } from "./verification/index.js";
-import { ensureRegistered } from "./client/index.js";
+import { startBackgroundRegistration } from "./client/index.js";
 import { shutdownAllBrowsers } from "./capture/index.js";
 import * as kuri from "./kuri/client.js";
 
@@ -63,8 +63,9 @@ export async function startUnbrowseServer(options: StartServerOptions = {}): Pro
 
   // Kuri starts on demand when browse/capture commands need it.
   // No eager start — avoids launching Chrome on every server restart.
-
-  await ensureRegistered();
+  // Registration is allowed to finish in the background so /health is not
+  // blocked by remote Worker latency during server bootstrap.
+  void startBackgroundRegistration();
 
   const app = Fastify({ logger: options.logger ?? true });
   await app.register(cors, { origin: true });

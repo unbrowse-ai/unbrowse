@@ -18,7 +18,6 @@ import { tryFirstPassBrowserAction } from "./first-pass-action.js";
 import { DEFAULT_CAPTURE_TOKENS, computeTimingEconomics } from "./timing-economics.js";
 import { checkPaymentRequirement } from "../payments/index.js";
 import { checkWalletConfigured } from "../payments/wallet.js";
-import { annotateEndpointPolicy, endpointRequiresThirdPartyTermsConfirmation, getEndpointPolicy } from "../site-policy.js";
 import type {
   ExecutionOptions,
   ExecutionTrace,
@@ -129,7 +128,8 @@ const skillRouteCache = new Map<
   { skillId: string; domain: string; endpointId?: string; localSkillPath?: string; ts: number }
 >();
 const ROUTE_CACHE_FILE = join(process.env.HOME ?? "/tmp", ".unbrowse", "route-cache.json");
-const SKILL_SNAPSHOT_DIR = join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
+const SKILL_SNAPSHOT_DIR = process.env.UNBROWSE_SKILL_SNAPSHOT_DIR
+  ?? join(process.env.HOME ?? "/tmp", ".unbrowse", "skill-snapshots");
 
 // Domain-level skill cache: maps domain → best skillId (independent of intent/URL)
 // This enables cross-intent reuse: "find keyboards" seeds cache, "find monitors" reuses it
@@ -1897,6 +1897,59 @@ export async function resolveAndExecute(
     }
     return timing;
   }
+
+  async function openBrowseSessionHandoff(url: string, tabId?: string): Promise<OrchestratorResult | null> {
+    const handoffTabId = tabId ?? await kuri.newTab(url).catch(() => "");
+    if (!handoffTabId) return null;
+
+    const domain = new URL(url).hostname.replace(/^www\./, "");
+    try {
+      const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
+      const { cookies } = extractBrowserCookies(domain);
+      for (const cookie of cookies) await kuri.setCookie(handoffTabId, cookie).catch(() => {});
+    } catch { /* non-fatal */ }
+    await kuri.evaluate(handoffTabId, (await import("../capture/index.js")).INTERCEPTOR_SCRIPT).catch(() => {});
+    await kuri.harStart(handoffTabId).catch(() => {});
+    try {
+      const routesModule = await import("../api/routes.js");
+      if (typeof routesModule.registerBrowseSession === "function") {
+        routesModule.registerBrowseSession(handoffTabId, url, domain);
+      }
+    } catch { /* routes module may not expose this yet */ }
+
+    const now = new Date().toISOString();
+    const trace: ExecutionTrace = {
+      trace_id: nanoid(),
+      skill_id: "browse-session",
+      endpoint_id: "",
+      started_at: now,
+      completed_at: now,
+      success: true,
+    };
+    return {
+      result: {
+        status: "browse_session_open",
+        tab_id: handoffTabId,
+        url,
+        domain,
+        message: `No cached API for this intent. Browser session open with auth on ${domain}. Use unbrowse snap/click/fill to achieve your intent. All traffic is being passively captured and indexed — run unbrowse close when done.`,
+        next_step: "unbrowse snap --filter interactive",
+        commands: [
+          "unbrowse snap --filter interactive",
+          "unbrowse click <ref>",
+          "unbrowse fill <ref> <value>",
+          "unbrowse press Enter",
+          "unbrowse scroll",
+          "unbrowse text",
+          "unbrowse close",
+        ],
+      },
+      trace,
+      source: "browse-session" as any,
+      skill: undefined as any,
+      timing: finalize("browse-session" as any, null, "browse-session", undefined as any, trace),
+    };
+  }
   /** Always defer to the agent — auto-exec is unreliable and picks wrong endpoints. */
   async function buildDeferralWithAutoExec(
     skill: SkillManifest,
@@ -1947,12 +2000,6 @@ export async function resolveAndExecute(
         score: Math.round(r.score * 10) / 10,
         description: r.endpoint.description,
         url: r.endpoint.url_template,
-        ...(endpointRequiresThirdPartyTermsConfirmation(annotateEndpointPolicy(r.endpoint))
-          ? {
-              requires_third_party_terms_confirmation: true,
-              third_party_terms_policy_domain: getEndpointPolicy(annotateEndpointPolicy(r.endpoint))?.policy_domain,
-            }
-          : {}),
       })),
       extra: extraFields ?? null,
     });
@@ -1960,7 +2007,6 @@ export async function resolveAndExecute(
       result: {
         message: `Found ${epRanked.length} endpoint(s). Pick one and call POST /v1/skills/${resolvedSkill.skill_id}/execute with params.endpoint_id.`,
         skill_id: resolvedSkill.skill_id,
-        suggested_next_operation_id: chunk.available_operation_ids[0],
         available_operations: chunk.operations.map((operation) => ({
           operation_id: operation.operation_id,
           endpoint_id: operation.endpoint_id,
@@ -1996,13 +2042,6 @@ export async function resolveAndExecute(
           dom_extraction: !!r.endpoint.dom_extraction,
           trigger_url: r.endpoint.trigger_url,
           needs_params: r.endpoint.semantic?.requires?.some((b) => b.required) ?? false,
-          ...(endpointRequiresThirdPartyTermsConfirmation(annotateEndpointPolicy(r.endpoint))
-            ? {
-                requires_third_party_terms_confirmation: true,
-                third_party_terms_policy_domain: getEndpointPolicy(annotateEndpointPolicy(r.endpoint))?.policy_domain,
-                third_party_terms_policy_reason: getEndpointPolicy(annotateEndpointPolicy(r.endpoint))?.reason,
-              }
-            : {}),
         })),
         ...extraFields,
       },
@@ -2044,7 +2083,6 @@ export async function resolveAndExecute(
 
 
   function canAutoExecuteEndpoint(endpoint: SkillManifest["endpoints"][number]): boolean {
-    endpoint = annotateEndpointPolicy(endpoint);
     const endpointParams = resolveEndpointTemplateBindings(endpoint, resolvedParams, context?.url);
     const missing = missingTemplateParams(endpoint, endpointParams);
     // For params that inferDefaultParam can't resolve synchronously, check if LLM
@@ -2059,9 +2097,6 @@ export async function resolveAndExecute(
       if (unresolvedBySync.length > 4) return false;
     }
     if (endpoint.dom_extraction) return true;
-    if (endpointRequiresThirdPartyTermsConfirmation(endpoint) && !options?.confirm_third_party_terms) {
-      return false;
-    }
     if (endpoint.method !== "GET" && endpoint.idempotency !== "safe") {
       // Block high-risk non-safe endpoints unless caller has confirmed
       const unsafeScore = computeUnsafeActionScore(endpoint);
@@ -2920,49 +2955,8 @@ export async function resolveAndExecute(
 
     // Browse session handoff — agent drives with snap/click/fill/close
     if (firstPassResult.tabId && context.url) {
-      const tabId = firstPassResult.tabId;
-      const domain = new URL(context.url).hostname.replace(/^www\./, "");
-      try {
-        const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
-        const { cookies } = extractBrowserCookies(domain);
-        for (const c of cookies) await kuri.setCookie(tabId, c).catch(() => {});
-      } catch { /* non-fatal */ }
-      await kuri.evaluate(tabId, (await import("../capture/index.js")).INTERCEPTOR_SCRIPT).catch(() => {});
-      await kuri.harStart(tabId).catch(() => {});
-      try {
-        const routesModule = await import("../api/routes.js");
-        if (typeof routesModule.registerBrowseSession === "function") {
-          routesModule.registerBrowseSession(tabId, context.url, domain);
-        }
-      } catch { /* routes module may not expose this yet */ }
-      const fpNow = new Date().toISOString();
-      const trace: ExecutionTrace = {
-        trace_id: nanoid(),
-        skill_id: "browse-session",
-        endpoint_id: "",
-        started_at: fpNow,
-        completed_at: fpNow,
-        success: true,
-      };
-      return {
-        result: {
-          status: "browse_session_open",
-          tab_id: tabId,
-          url: context.url,
-          domain,
-          next_step: "unbrowse snap",
-          commands: [
-            "unbrowse snap --filter interactive",
-            "unbrowse click <ref>",
-            "unbrowse fill <ref> <value>",
-            "unbrowse close",
-          ],
-        },
-        trace,
-        source: "browser-action" as any,
-        skill: undefined as any,
-        timing: finalize("browser-action" as any, null, "browse-session", undefined as any, trace),
-      };
+      const browseSession = await openBrowseSessionHandoff(context.url, firstPassResult.tabId);
+      if (browseSession) return browseSession;
     }
   }
 
@@ -3272,60 +3266,8 @@ export async function resolveAndExecute(
     // interceptor, and HAR, then tell the calling agent to drive it.
     // The agent uses snap/click/fill/close. All traffic is passively indexed.
     if (firstPassResult.tabId && context?.url) {
-      const tabId = firstPassResult.tabId;
-      const domain = new URL(context.url).hostname.replace(/^www\./, "");
-
-      // Inject cookies from user Chrome + interceptor for full capture
-      try {
-        const { extractBrowserCookies } = await import("../auth/browser-cookies.js");
-        const { cookies } = extractBrowserCookies(domain);
-        for (const c of cookies) await kuri.setCookie(tabId, c).catch(() => {});
-      } catch { /* non-fatal */ }
-      await kuri.evaluate(tabId, (await import("../capture/index.js")).INTERCEPTOR_SCRIPT).catch(() => {});
-      await kuri.harStart(tabId).catch(() => {});
-
-      // Register this as an active browse session on the server
-      // so snap/click/fill/close commands work against it
-      try {
-        const routesModule = await import("../api/routes.js");
-        if (typeof routesModule.registerBrowseSession === "function") {
-          routesModule.registerBrowseSession(tabId, context.url, domain);
-        }
-      } catch { /* routes module may not expose this yet */ }
-
-      const fpNow = new Date().toISOString();
-      const trace: ExecutionTrace = {
-        trace_id: nanoid(),
-        skill_id: "browse-session",
-        endpoint_id: "",
-        started_at: fpNow,
-        completed_at: fpNow,
-        success: true,
-      };
-      const t = finalize("browse-session", null, "browse-session", undefined as any, trace);
-      return {
-        result: {
-          status: "browse_session_open",
-          tab_id: tabId,
-          url: context.url,
-          domain,
-          message: `No cached API for this intent. Browser session open with auth on ${domain}. Use unbrowse snap/click/fill to achieve your intent. All traffic is being passively captured and indexed — run unbrowse close when done.`,
-          next_step: "unbrowse snap --filter interactive",
-          commands: [
-            "unbrowse snap --filter interactive",
-            "unbrowse click <ref>",
-            "unbrowse fill <ref> <value>",
-            "unbrowse press Enter",
-            "unbrowse scroll",
-            "unbrowse text",
-            "unbrowse close",
-          ],
-        },
-        trace,
-        source: "browse-session" as any,
-        skill: undefined as any,
-        timing: t,
-      };
+      const browseSession = await openBrowseSessionHandoff(context.url, firstPassResult.tabId);
+      if (browseSession) return browseSession;
     }
   }
   // 2. No match (or force_capture) — invoke browser-capture skill
@@ -3444,26 +3386,9 @@ export async function resolveAndExecute(
   let parityBaseline: unknown;
   let captureSkill: SkillManifest;
   const te0 = Date.now();
-  if (bypassLiveCaptureQueue) {
-    captureSkill = await getOrCreateBrowserCaptureSkill();
-    const out = await withAbortableOpTimeout(
-      "live_capture_execute",
-      LIVE_CAPTURE_TIMEOUT_MS,
-      (signal) =>
-        executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
-          ...options,
-          intent,
-          contextUrl: context?.url,
-          signal,
-        }),
-    );
-    trace = out.trace;
-    result = out.result;
-    learned_skill = out.learned_skill;
-    parityBaseline = out.parity_baseline;
-  } else {
-    const capturePromise = withDomainCaptureLock(captureDomain, async () => {
-      const captureSkill = await getOrCreateBrowserCaptureSkill();
+  try {
+    if (bypassLiveCaptureQueue) {
+      captureSkill = await getOrCreateBrowserCaptureSkill();
       const out = await withAbortableOpTimeout(
         "live_capture_execute",
         LIVE_CAPTURE_TIMEOUT_MS,
@@ -3475,24 +3400,51 @@ export async function resolveAndExecute(
             signal,
           }),
       );
-      return {
-        trace: out.trace,
-        result: out.result,
-        learned_skill: out.learned_skill,
-        parity_baseline: out.parity_baseline,
-      };
-    });
-    captureInFlight.set(captureLockKey, capturePromise);
-    try {
-      captureSkill = await getOrCreateBrowserCaptureSkill();
-      const out = await capturePromise;
       trace = out.trace;
       result = out.result;
       learned_skill = out.learned_skill;
       parityBaseline = out.parity_baseline;
-    } finally {
-      captureInFlight.delete(captureLockKey);
+    } else {
+      const capturePromise = withDomainCaptureLock(captureDomain, async () => {
+        const captureSkill = await getOrCreateBrowserCaptureSkill();
+        const out = await withAbortableOpTimeout(
+          "live_capture_execute",
+          LIVE_CAPTURE_TIMEOUT_MS,
+          (signal) =>
+            executeSkill(captureSkill, { ...params, url: context.url, intent }, undefined, {
+              ...options,
+              intent,
+              contextUrl: context?.url,
+              signal,
+            }),
+        );
+        return {
+          trace: out.trace,
+          result: out.result,
+          learned_skill: out.learned_skill,
+          parity_baseline: out.parity_baseline,
+        };
+      });
+      captureInFlight.set(captureLockKey, capturePromise);
+      try {
+        captureSkill = await getOrCreateBrowserCaptureSkill();
+        const out = await capturePromise;
+        trace = out.trace;
+        result = out.result;
+        learned_skill = out.learned_skill;
+        parityBaseline = out.parity_baseline;
+      } finally {
+        captureInFlight.delete(captureLockKey);
+      }
     }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/Unable to connect|timed out|timeout/i.test(message)) {
+      console.warn(`[capture] live capture unavailable (${message}) — falling back to browse session`);
+      const browseSession = await openBrowseSessionHandoff(context.url);
+      if (browseSession) return browseSession;
+    }
+    throw error;
   }
   timing.execute_ms = Date.now() - te0;
   const captureResult = result as Record<string, unknown> | null;
