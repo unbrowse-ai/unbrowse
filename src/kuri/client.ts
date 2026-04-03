@@ -82,11 +82,29 @@ export interface KuriPluginRehydrateResult {
   config_loaded?: boolean;
 }
 
+export interface KuriLaunchConfig {
+  headless: boolean;
+  attachToExistingChrome: boolean;
+}
+
 let kuriProcess: ChildProcess | null = null;
 let kuriPort = KURI_DEFAULT_PORT;
 let kuriCdpPort: number | null = null;
 let kuriReady = false;
 let kuriStartPromise: Promise<void> | null = null;
+
+function envFlag(value: string | undefined): boolean {
+  return value === "1" || value?.toLowerCase() === "true";
+}
+
+export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): KuriLaunchConfig {
+  const headless = envFlag(env.KURI_HEADLESS ?? env.HEADLESS);
+  const disableCdpAttach = envFlag(env.KURI_DISABLE_CDP_ATTACH);
+  return {
+    headless,
+    attachToExistingChrome: !headless && !disableCdpAttach,
+  };
+}
 
 function kuriBinaryName(): string {
   return process.platform === "win32" ? "kuri.exe" : "kuri";
@@ -345,6 +363,7 @@ export async function start(port?: number): Promise<void> {
   if (kuriStartPromise) return kuriStartPromise;
 
   const startPromise = (async () => {
+    const launchConfig = resolveKuriLaunchConfig();
     const requestedPort = port ?? Number(process.env.KURI_PORT || KURI_DEFAULT_PORT);
     kuriPort = await resolveKuriPort(requestedPort);
     if (kuriPort !== requestedPort) {
@@ -366,18 +385,24 @@ export async function start(port?: number): Promise<void> {
       throw new Error(`Kuri binary not found at ${binary}`);
     }
 
-    // Discover existing Chrome CDP if available
-    await discoverCdpPort();
+    if (launchConfig.attachToExistingChrome) {
+      // Discover existing Chrome CDP if available
+      await discoverCdpPort();
+    } else {
+      kuriCdpPort = null;
+    }
 
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
       PORT: String(kuriPort),
       HOST: "127.0.0.1",
-      HEADLESS: "false",  // Use visible Chrome so extensions (stealth) load + user-data-dir is used
+      HEADLESS: launchConfig.headless ? "true" : "false",
     };
-    if (kuriCdpPort) {
+    if (kuriCdpPort && launchConfig.attachToExistingChrome) {
       env.CDP_URL = `ws://127.0.0.1:${kuriCdpPort}`;
       log("kuri", `connecting to existing Chrome on port ${kuriCdpPort}`);
+    } else if (launchConfig.headless) {
+      log("kuri", "starting in headless mode with managed Chrome");
     } else {
       log("kuri", "no existing Chrome found — Kuri will launch managed Chrome");
     }

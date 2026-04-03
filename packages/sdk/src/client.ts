@@ -158,6 +158,7 @@ export class Unbrowse {
     }
     if (input.projection) body.projection = input.projection;
     if (input.confirmUnsafe !== undefined) body.confirm_unsafe = input.confirmUnsafe;
+    if (input.confirmThirdPartyTerms !== undefined) body.confirm_third_party_terms = input.confirmThirdPartyTerms;
     if (input.dryRun !== undefined) body.dry_run = input.dryRun;
     if (input.forceCapture !== undefined) body.force_capture = input.forceCapture;
     return this.request<ResolveResponse>("POST", "/v1/intent/resolve", body, options);
@@ -170,6 +171,7 @@ export class Unbrowse {
     if (bodyInput.params) body.params = bodyInput.params;
     if (bodyInput.projection) body.projection = bodyInput.projection;
     if (bodyInput.confirmUnsafe !== undefined) body.confirm_unsafe = bodyInput.confirmUnsafe;
+    if (bodyInput.confirmThirdPartyTerms !== undefined) body.confirm_third_party_terms = bodyInput.confirmThirdPartyTerms;
     if (bodyInput.dryRun !== undefined) body.dry_run = bodyInput.dryRun;
     if (bodyInput.intent) body.intent = bodyInput.intent;
     if (bodyInput.contextUrl) body.context_url = bodyInput.contextUrl;

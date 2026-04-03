@@ -1,18 +1,37 @@
 import Link from "next/link";
 import { ArrowRight, Database, Globe2 } from "lucide-react";
-import { listSkills } from "@/lib/api";
-import { SkillCard } from "@/components/skill-card";
+import { listPopularSkills, listSkills, type PopularSkillSummary } from "@/lib/api";
+import { PopularSkillCard } from "@/components/popular-skill-card";
 
 export async function RegistryShowcase() {
-  let skills: any[] = [];
+  let skills: PopularSkillSummary[] = [];
   try {
-    skills = await listSkills();
+    skills = await listPopularSkills(8);
   } catch (e) {
-    // silently fail and show empty or ignore
+    try {
+      const fallback = await listSkills();
+      skills = fallback
+        .filter((skill) => skill.lifecycle === "active")
+        .slice(0, 8)
+        .map((skill) => ({
+          skill_id: skill.skill_id,
+          name: skill.name,
+          domain: skill.domain,
+          description: skill.description,
+          version: skill.version,
+          execution_type: skill.execution_type,
+          endpoint_count: skill.endpoints.length,
+          total_executions: 0,
+          successful_executions: 0,
+          avg_reliability_score: skill.endpoints.length > 0
+            ? skill.endpoints.reduce((sum, endpoint) => sum + endpoint.reliability_score, 0) / skill.endpoints.length
+            : 0,
+          updated_at: skill.updated_at,
+        }));
+    } catch {
+      // Ignore and show empty state.
+    }
   }
-
-  // Pick top 8 skills to showcase (based on something like highest reliability or just first 8), ignoring deprecated
-  const displaySkills = skills.filter((s) => s.lifecycle !== "deprecated").slice(0, 8);
 
   return (
       <section id="registry" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
@@ -34,22 +53,22 @@ export async function RegistryShowcase() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <h3 className="text-xl font-bold flex items-center gap-2">
               <Globe2 className="w-5 h-5 text-orange-500 shrink-0" />
-              Recently Indexed Skills
+              Most Popular Skills
             </h3>
             <Link href="/search" className="text-sm font-medium text-orange-600 hover:text-orange-500 transition-colors flex items-center gap-1 group whitespace-nowrap">
               View full registry <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
-        {displaySkills.length > 0 ? (
+        {skills.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {displaySkills.map(skill => (
-              <SkillCard key={skill.skill_id} skill={skill} />
+            {skills.map((skill, index) => (
+              <PopularSkillCard key={skill.skill_id} rank={index + 1} skill={skill} />
             ))}
           </div>
         ) : (
           <div className="text-center py-12 bg-surface border border-border rounded-xl">
-            <p className="text-text-muted">Loading registry skills...</p>
+            <p className="text-text-muted">Popular skills unavailable right now.</p>
           </div>
         )}
       </div>

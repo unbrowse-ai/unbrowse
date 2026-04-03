@@ -14,6 +14,8 @@ import {
 } from "../src/services/scoring.js";
 import { rescoreWithComposite } from "../src/services/discovery.js";
 
+const liveIt = process.env.BACKEND_LIVE_TEST_RUN === "1" ? it : it.skip;
+
 function isPaidSearchResponse(status: number, data: Record<string, unknown>): boolean {
   return status === 402 && data.error === "Payment Required";
 }
@@ -90,7 +92,7 @@ describe("#221 composite search score wiring", () => {
   });
 
   // Integration: hit the live search API and verify results have composite scores
-  it("live search returns composite-scored results", async () => {
+  liveIt("live search returns composite-scored results", async () => {
     const res = await fetch("https://beta-api.unbrowse.ai/v1/search/domain", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

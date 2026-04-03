@@ -13,13 +13,27 @@ type PidState = {
   restart_count?: number;
 };
 
-async function isServerHealthy(baseUrl: string, timeoutMs = 2_000): Promise<boolean> {
+type ServerHealth = {
+  status?: string;
+  package_version?: string;
+};
+
+export function isServerVersionMismatch(runningVersion: string | undefined, installedVersion: string): boolean {
+  return !!runningVersion && runningVersion !== installedVersion;
+}
+
+async function fetchServerHealth(baseUrl: string, timeoutMs = 2_000): Promise<ServerHealth | null> {
   try {
     const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(timeoutMs) });
-    return res.ok;
+    if (!res.ok) return null;
+    return await res.json() as ServerHealth;
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function isServerHealthy(baseUrl: string, timeoutMs = 2_000): Promise<boolean> {
+  return !!(await fetchServerHealth(baseUrl, timeoutMs));
 }
 
 async function waitForHealthy(baseUrl: string, timeoutMs: number): Promise<boolean> {
@@ -128,10 +142,25 @@ const supervisor = new LocalSupervisor();
 export { supervisor };
 
 export async function ensureLocalServer(baseUrl: string, noAutoStart: boolean, metaUrl: string): Promise<void> {
-  if (await isServerHealthy(baseUrl)) {
+  const installedVersion = getVersion(metaUrl);
+  const initialHealth = await fetchServerHealth(baseUrl);
+  if (initialHealth) {
+    const runningVersion = initialHealth.package_version;
+    if (isServerVersionMismatch(runningVersion, installedVersion)) {
+      const versionInfo = checkServerVersion(baseUrl, metaUrl);
+      if (versionInfo?.needs_restart) {
+        stopServer(baseUrl);
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      } else {
+        throw new Error(
+          `Server version mismatch on ${baseUrl}: running ${runningVersion}, installed ${installedVersion}. Run "unbrowse restart" or stop the stale server bound to that port.`,
+        );
+      }
+    } else {
     // Server already healthy — ensure supervisor state reflects this
-    if (!supervisor.isRunning()) await supervisor.start();
-    return;
+      if (!supervisor.isRunning()) await supervisor.start();
+      return;
+    }
   }
 
   const pidFile = getServerPidFile(baseUrl);

@@ -6,6 +6,7 @@ import { executeActionSequence } from "../src/capture/index.js";
 import * as kuri from "../src/kuri/client.js";
 
 const KURI_PORT = 7796;
+const originalHeadless = process.env.HEADLESS;
 
 let server: ReturnType<typeof createServer> | null = null;
 let baseUrl = "";
@@ -208,12 +209,15 @@ function findRef(snapshot: string, matcher: RegExp): string {
 
 beforeAll(async () => {
   baseUrl = await startFixtureServer();
+  process.env.HEADLESS = "true";
   await kuri.stop();
   await kuri.start(KURI_PORT);
 });
 
 afterAll(async () => {
   await kuri.stop();
+  if (originalHeadless === undefined) delete process.env.HEADLESS;
+  else process.env.HEADLESS = originalHeadless;
   if (server?.listening) {
     await new Promise<void>((resolve, reject) => server?.close((err) => err ? reject(err) : resolve()));
   }

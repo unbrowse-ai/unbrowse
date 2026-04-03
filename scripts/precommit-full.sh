@@ -47,7 +47,7 @@ if ! curl -fsS "${health_url}" >/dev/null 2>&1; then
   curl -fsS "${health_url}" >/dev/null
 fi
 
-artifact_path="$(mktemp /tmp/unbrowse-codex-precommit.XXXXXX.json)"
+artifact_path="$(mktemp -t unbrowse-codex-precommit)"
 bun evals/codex-harness.ts \
   --intent "search repositories" \
   --url "https://github.com/search?q=openai&type=repositories" \
