@@ -84,6 +84,8 @@ interface InstallTelemetryState {
   install_id: string;
   first_seen_at: string;
   cli_first_seen_reported_at?: string;
+  landing_token?: string;
+  landing_token_seen_at?: string;
 }
 
 type TelemetryHostType = "cli" | "codex" | "openclaw" | "mcp" | "native" | "unknown";
@@ -141,10 +143,18 @@ function createInstallTelemetryState(): InstallTelemetryState {
 
 function getOrCreateInstallTelemetryState(): InstallTelemetryState {
   const existing = loadInstallTelemetryState();
-  if (existing?.install_id) return existing;
-  const created = createInstallTelemetryState();
-  saveInstallTelemetryState(created);
-  return created;
+  const state = existing?.install_id ? existing : createInstallTelemetryState();
+  const landingToken = process.env.UNBROWSE_LANDING_TOKEN?.trim();
+  if (landingToken && state.landing_token !== landingToken) {
+    state.landing_token = landingToken;
+    state.landing_token_seen_at = new Date().toISOString();
+    saveInstallTelemetryState(state);
+    return state;
+  }
+  if (!existing?.install_id) {
+    saveInstallTelemetryState(state);
+  }
+  return state;
 }
 
 export function getInstallId(): string {
@@ -194,6 +204,7 @@ export async function ensureCliInstallTracked(hostType = detectTelemetryHostType
   const createdAt = new Date().toISOString();
   const ok = await postTelemetry("/v1/telemetry/install", {
     install_id: state.install_id,
+    landing_token: state.landing_token,
     source: "cli-first-seen",
     host_type: hostType,
     skill: "unbrowse",
@@ -224,6 +235,7 @@ export async function recordInstallTelemetryEvent(
   const createdAt = options?.createdAt ?? new Date().toISOString();
   await postTelemetry("/v1/telemetry/install", {
     install_id: getInstallId(),
+    landing_token: getOrCreateInstallTelemetryState().landing_token,
     source,
     host_type: options?.hostType ?? detectTelemetryHostType(),
     skill: options?.skill ?? "unbrowse",
@@ -248,6 +260,7 @@ export async function recordFunnelTelemetryEvent(
   await postTelemetry("/v1/telemetry/events", {
     install_id: getInstallId(),
     session_id: options?.sessionId,
+    landing_token: getOrCreateInstallTelemetryState().landing_token,
     name,
     source: options?.source ?? "cli",
     host_type: options?.hostType ?? detectTelemetryHostType(),
