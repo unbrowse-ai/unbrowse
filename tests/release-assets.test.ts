@@ -24,7 +24,9 @@ describe("release asset wiring", () => {
     expect(workflow).toContain("name: Upload CLI Release Assets");
     expect(workflow).toContain("name: Verify CLI Release Assets");
     expect(workflow).toContain("bash scripts/build-binaries.sh --all");
-    expect(workflow).toContain("gh release upload \"$TAG\" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber");
+    expect(workflow).toContain("TARGET_REPO=\"unbrowse-ai/unbrowse\"");
+    expect(workflow).toContain("gh release upload \"$TAG\" --repo \"$TARGET_REPO\" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber");
+    expect(workflow).toContain("UNBROWSE_RELEASE_REPO: unbrowse-ai/unbrowse");
     expect(workflow).toContain("run: node scripts/verify-release-assets.mjs");
     expect(workflow).toContain("needs: verify-release-assets");
     expect(workflow).toContain("UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}");

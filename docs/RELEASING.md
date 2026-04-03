@@ -40,10 +40,11 @@ Pushing to `main` runs `.github/workflows/deploy.yml`, which:
 Tag pushes run `.github/workflows/release.yml`, which:
 
 1. Publishes the CLI from `packages/skill/` to npm.
-2. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
-3. Deploys the frontend.
-4. Syncs the external skill repo.
-5. Creates or reuses the matching tag + GitHub Release in `unbrowse-ai/unbrowse`.
+2. Uploads the packaged CLI release assets to the public `unbrowse-ai/unbrowse` GitHub release that the installer and npm fallback runtime download from.
+3. Deploys the backend worker via `backend/wrangler.ci.toml`, preserving the existing `STATS_KV` binding.
+4. Deploys the frontend.
+5. Syncs the external skill repo.
+6. Creates or reuses the matching tag + GitHub Release in `unbrowse-ai/unbrowse`.
 
 The npm publish step is idempotent. If the tagged version is already on npm, the workflow skips publish instead of failing on reruns.
 

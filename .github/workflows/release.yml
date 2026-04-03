@@ -33,19 +33,35 @@ jobs:
           curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz"
           tar -xzf /tmp/gh.tgz -C /tmp
           echo "/tmp/gh_${GH_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
+      - name: Resolve public release repo token
+        env:
+          GH_TOKEN_INPUT: ${{ github.token }}
+          SKILL_REPO_TOKEN: ${{ secrets.SKILL_REPO_TOKEN }}
+        run: |
+          TARGET_REPO="unbrowse-ai/unbrowse"
+          TOKEN="$GH_TOKEN_INPUT"
+          if [ "$GITHUB_REPOSITORY" != "$TARGET_REPO" ]; then
+            TOKEN="${SKILL_REPO_TOKEN:-}"
+            if [ -z "$TOKEN" ]; then
+              echo "::error::Missing SKILL_REPO_TOKEN for public release assets in ${TARGET_REPO}."
+              exit 1
+            fi
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "GH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "UNBROWSE_RELEASE_REPO=$TARGET_REPO" >> "$GITHUB_ENV"
       - run: bun install --frozen-lockfile
       - run: bash scripts/build-binaries.sh --all
         env:
           UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
       - name: Create or update GitHub release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber
+          TARGET_REPO="${UNBROWSE_RELEASE_REPO}"
+          if gh release view "$TAG" --repo "$TARGET_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$TARGET_REPO" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --clobber
           else
-            gh release create "$TAG" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --title "$TAG" --notes "Release ${TAG}"
+            gh release create "$TAG" --repo "$TARGET_REPO" dist/unbrowse-* dist/release-manifest.json dist/release-manifest.sig --title "$TAG" --notes "Release ${TAG}"
           fi
 
   verify-release-assets:
@@ -62,6 +78,7 @@ jobs:
       - name: Verify release assets are reachable
         working-directory: packages/skill
         env:
+          UNBROWSE_RELEASE_REPO: unbrowse-ai/unbrowse
           UNBROWSE_RELEASE_TAG: ${{ github.ref_name }}
         run: node scripts/verify-release-assets.mjs
 
