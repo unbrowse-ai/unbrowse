@@ -30,6 +30,7 @@
 ### Features
 
 - add tracked `docs/agent-memory.md` and require agents to read/write durable Lewis preferences there
+* **workflow/publish**: export sanitized workflow assets beside raw workflow artifacts so mined routes now persist as publishable, documented, token-censored inventory with `captured`/`published` status
 * add a real `unbrowse mcp` stdio server with `initialize`, `tools/list`, `tools/call`, and core Unbrowse resolve/execute/browse tools
 * add a deterministic `./setup --host mcp` bootstrap that writes a ready MCP config file, plus a frontend MCP install option and downloadable `/mcp.json` template
 * **setup/upgrade**: add `unbrowse upgrade`, persist install metadata so clone installs get the right upgrade command, and register GSD-style session-start update hints for Codex and Claude during setup
