@@ -30,6 +30,7 @@ import { join } from "path";
 import {
   BrowseSessionError,
   createRegisteredBrowseSession,
+  extractBrowseFailureMessage,
   getOrCreateNavigateBrowseSession,
   isRecoverableBrowseFailure,
   type BrowseSession,
@@ -952,6 +953,13 @@ export async function registerRoutes(app: FastifyInstance) {
   function sendBrowseSessionError(reply: { code: (statusCode: number) => { send: (body: unknown) => unknown } }, error: unknown): unknown {
     if (error instanceof BrowseSessionError) {
       return reply.code(error.statusCode).send({ error: error.code });
+    }
+    if (isRecoverableBrowseFailure(error)) {
+      return reply.code(502).send({
+        error: "recoverable_browse_failure",
+        message: extractBrowseFailureMessage(error) ?? "recoverable_browse_failure",
+        recoverable: true,
+      });
     }
     throw error;
   }
