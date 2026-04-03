@@ -121,6 +121,67 @@ function matchesPreferredBrowseTab(tabUrl: string | undefined, preferredUrl: str
   return normalizeBrowsePathname(candidate.pathname) === normalizeBrowsePathname(preferred.pathname);
 }
 
+function matchesPreferredBrowseDomain(tabUrl: string | undefined, preferredUrl: string | undefined): boolean {
+  const candidate = normalizeBrowseUrl(tabUrl);
+  const preferred = normalizeBrowseUrl(preferredUrl);
+  if (!candidate || !preferred) return false;
+  return candidate.hostname.replace(/^www\./, "") === preferred.hostname.replace(/^www\./, "");
+}
+
+function isPlaceholderBrowseUrl(url: string | undefined): boolean {
+  if (!url) return true;
+  const normalized = url.trim().toLowerCase();
+  return normalized === "about:blank"
+    || normalized.startsWith("chrome://newtab")
+    || normalized.startsWith("chrome://new-tab-page")
+    || normalized.startsWith("edge://newtab");
+}
+
+function hasMeaningfulBrowseUrl(url: string | undefined): boolean {
+  return hasKnownBrowseUrl(url) && !isPlaceholderBrowseUrl(url);
+}
+
+function pickLiveBrowseTab(
+  tabs: BrowseTabRef[],
+  sessionTabId: string,
+  preferredUrl: string | undefined,
+  fallbackUrl: string | undefined,
+): BrowseTabRef | undefined {
+  const exact = tabs.find((tab) => tab.id === sessionTabId);
+  if (exact && !isPlaceholderBrowseUrl(exact.url)) return exact;
+
+  const preferredReal = tabs.find((tab) => {
+    if (isPlaceholderBrowseUrl(tab.url)) return false;
+    return matchesPreferredBrowseTab(tab.url, preferredUrl)
+      || matchesPreferredBrowseTab(tab.url, fallbackUrl);
+  });
+  if (preferredReal) return preferredReal;
+
+  const sameDomainReal = tabs.filter((tab) => {
+    if (isPlaceholderBrowseUrl(tab.url)) return false;
+    return matchesPreferredBrowseDomain(tab.url, preferredUrl)
+      || matchesPreferredBrowseDomain(tab.url, fallbackUrl);
+  });
+  if (exact && isPlaceholderBrowseUrl(exact.url) && sameDomainReal.length === 1) {
+    return sameDomainReal[0];
+  }
+
+  if (exact) return exact;
+
+  return tabs.find((tab) => matchesPreferredBrowseTab(tab.url, preferredUrl)
+    || matchesPreferredBrowseTab(tab.url, fallbackUrl));
+}
+
+async function closeStalePlaceholderBrowseTab(
+  client: BrowseSessionClient,
+  staleTab: BrowseTabRef | undefined,
+  activeTabId: string,
+): Promise<void> {
+  if (!staleTab?.id || staleTab.id === activeTabId) return;
+  if (!isPlaceholderBrowseUrl(staleTab.url)) return;
+  await client.closeTab(staleTab.id).catch(() => {});
+}
+
 function cleanupSessionQueue(sessionId: string): void {
   sessionQueues.delete(sessionId);
 }
@@ -308,8 +369,8 @@ export async function isBrowseSessionLive(
   for (let attempt = 0; attempt < LIVE_CHECK_RETRIES; attempt += 1) {
     try {
       const tabs = await sessionClient.discoverTabs();
-      const liveTab = tabs.find((tab) => tab.id === session.tabId)
-        ?? tabs.find((tab) => matchesPreferredBrowseTab(tab.url, lastKnownUrl));
+      const exactTab = tabs.find((tab) => tab.id === session.tabId);
+      const liveTab = pickLiveBrowseTab(tabs, session.tabId, session.url, lastKnownUrl);
       if (!liveTab) {
         if (attempt < LIVE_CHECK_RETRIES - 1) {
           await sleep(LIVE_CHECK_RETRY_DELAY_MS);
@@ -323,18 +384,43 @@ export async function isBrowseSessionLive(
         session.domain = extractDomain(session.url);
         session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
         session.client = sessionClient;
+        await closeStalePlaceholderBrowseTab(sessionClient, exactTab, liveTab.id);
       }
       tabSeen = true;
-      if (hasKnownBrowseUrl(liveTab.url)) lastKnownUrl = liveTab.url!;
+      if (hasMeaningfulBrowseUrl(liveTab.url)) lastKnownUrl = liveTab.url!;
 
       try {
         const currentUrl = await sessionClient.getCurrentUrl(session.tabId);
-        if (hasKnownBrowseUrl(currentUrl)) return true;
+        if (hasMeaningfulBrowseUrl(currentUrl)) {
+          session.url = currentUrl;
+          session.domain = extractDomain(currentUrl);
+          session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
+          session.client = sessionClient;
+          return true;
+        }
+        if (
+          liveTab.id === session.tabId
+          && isPlaceholderBrowseUrl(currentUrl)
+          && isPlaceholderBrowseUrl(liveTab.url)
+          && isPlaceholderBrowseUrl(session.url)
+        ) {
+          session.url = currentUrl || liveTab.url || session.url;
+          session.domain = extractDomain(session.url);
+          session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
+          session.client = sessionClient;
+          return true;
+        }
       } catch (error) {
         if (!isRecoverableBrowseFailure(error)) return false;
       }
 
-      if (hasKnownBrowseUrl(lastKnownUrl)) return true;
+      if (hasMeaningfulBrowseUrl(lastKnownUrl)) {
+        session.url = lastKnownUrl;
+        session.domain = extractDomain(lastKnownUrl);
+        session.brokerPort = sessionClient.getPort?.() ?? session.brokerPort;
+        session.client = sessionClient;
+        return true;
+      }
     } catch (error) {
       if (!isRecoverableBrowseFailure(error)) return false;
     }
@@ -342,7 +428,7 @@ export async function isBrowseSessionLive(
     if (attempt < LIVE_CHECK_RETRIES - 1) await sleep(LIVE_CHECK_RETRY_DELAY_MS);
   }
 
-  return tabSeen && hasKnownBrowseUrl(lastKnownUrl);
+  return tabSeen && hasMeaningfulBrowseUrl(lastKnownUrl);
 }
 
 async function listLiveBrowseSessions(

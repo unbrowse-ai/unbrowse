@@ -16,7 +16,7 @@ import { log } from "../logger.js";
 import { getPackageRoot } from "../runtime/paths.js";
 
 const KURI_DEFAULT_PORT = 7700;
-const KURI_STARTUP_TIMEOUT_MS = 10_000;
+const KURI_STARTUP_TIMEOUT_MS = 60_000;
 const KURI_REQUEST_TIMEOUT_MS = 30_000;
 const KURI_SPAWN_RETRIES = 3;
 const KURI_SPAWN_RETRY_DELAY_MS = 1_000;
@@ -209,12 +209,20 @@ function envFlag(value: string | undefined): boolean {
   return value === "1" || value?.toLowerCase() === "true";
 }
 
+function falseyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "0" || normalized === "false" || normalized === "no" || normalized === "off";
+}
+
 export function resolveKuriLaunchConfig(env: NodeJS.ProcessEnv = process.env): KuriLaunchConfig {
   const headless = envFlag(env.KURI_HEADLESS ?? env.HEADLESS);
+  const cleanRoom = envFlag(env.UNBROWSE_LOCAL_ONLY) || envFlag(env.KURI_CLEAN_ROOM);
+  const browserCookieOptOut = falseyEnv(env.UNBROWSE_IMPORT_BROWSER_COOKIES);
   const disableCdpAttach = envFlag(env.KURI_DISABLE_CDP_ATTACH);
   return {
     headless,
-    attachToExistingChrome: !headless && !disableCdpAttach,
+    attachToExistingChrome: !headless && !disableCdpAttach && !cleanRoom && !browserCookieOptOut,
   };
 }
 
@@ -453,8 +461,14 @@ function kuriUrl(state: BrokerState, path: string, params?: Record<string, strin
   if (!params || Object.keys(params).length === 0) return base;
   // Build query string manually — URLSearchParams encodes values which breaks
   // URL parameters (Kuri's getQueryParam doesn't decode percent-encoding).
-  // We must still encode # and & in values to avoid breaking URL structure.
-  const parts = Object.entries(params).map(([k, v]) => `${k}=${v.replace(/#/g, "%23").replace(/&/g, "%26")}`);
+  // We must still encode reserved separators that otherwise corrupt JS expressions
+  // or URL structure when Kuri reads the raw query string.
+  const parts = Object.entries(params).map(([k, v]) => `${k}=${
+    v
+      .replace(/#/g, "%23")
+      .replace(/&/g, "%26")
+      .replace(/\+/g, "%2B")
+  }`);
   return `${base}?${parts.join("&")}`;
 }
 

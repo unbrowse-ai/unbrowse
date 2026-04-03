@@ -123,17 +123,32 @@ Useful post-processing flags supported by the current CLI:
 - `--confirm-third-party-terms` — required for policy-sensitive mutations on flagged domains such as X write endpoints, in addition to `--confirm-unsafe`
 - `--limit N` — cap array results
 
+Execute is the explicit replay surface. Traversal-time browser tools (`go`, `snap`, `click`, `fill`, `submit`) only gather passive evidence. Linked replay contracts, parameter restrictions, enums, and derived auth/token hints are compiled and exposed later through publish/index artifacts.
+
 ## Auth
 
 `POST /v1/auth/login` is the user-facing login path. It opens a visible browser flow, stores session state under `~/.unbrowse/profiles/<domain>/`, and lets later calls reuse that auth locally.
 
 `POST /v1/auth/steal` is the lower-level cookie import path for browser/Electron stores. Use it when you need custom cookie DB or user-data-dir input instead of the normal interactive login flow.
 
+## MCP contract inspection surface
+
+The MCP server now exposes read-only publish-time workflow metadata in addition to tool calls.
+
+- `workflow_publish://<skill>` — exported artifact summary for one skill
+- `workflow_contract://<skill>/<endpoint>` — sanitized replay contract with typed params, enums, prerequisite specs, x402/payment requirements, provenance hints, and next-state validators
+- `workflow_dag://<skill>/<endpoint>` — dependency graph / common-var walk for one workflow edge
+- `plan_workflow_execution` — prompt that tells the host model to inspect the contract and DAG before deciding between browser traversal and explicit replay
+
+These MCP resources are publish-time outputs. They do not trigger live replay during browse traversal.
+
 ## Browse-session dependency contract
 
 For multi-step browser flows, downstream pages depend on upstream state. Treat `POST /v1/browse/submit` as the boundary that proves the dependency edge.
 
 - Call `go`, `snap`, action tools, then `submit` for the real page transition.
+- Regular traversal is browser-native and thin by default. `assist_site_state` and `same_origin_fetch_fallback` must be explicitly enabled; passive API observation stays for publish/index analysis, not normal page walking.
+- Monitored requests discovered while traversing are not exposed as live replay steps yet. They become harness-visible only after publish/index compiles the workflow contract.
 - After `submit`, trust the returned `url`, `session_id`, and transition metadata. Do not guess deep links if the session has not actually unlocked them yet.
 - `sync` after important transitions so the route graph records the working request chain and future resolve/execute calls can inherit it.
 - If the server later returns `abandonedCart`, `session_expired`, or the wrong product/audience variant, restart from the last known good upstream step instead of forcing a downstream page.

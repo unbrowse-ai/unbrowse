@@ -1,6 +1,7 @@
 import type {
   TokenBinding,
   WorkflowArtifact,
+  WorkflowParameterSpec,
   WorkflowRecipe,
   WorkflowStep,
   WorkflowStepStrategy,
@@ -17,6 +18,12 @@ export interface ResolvedWorkflowBindings {
   extraHeaders: Record<string, string>;
   bodyOverride?: unknown;
   selectedBindings: Array<{ target_name: string; source_kind: string; source_name: string }>;
+}
+
+export interface WorkflowParamValidationError {
+  name: string;
+  reason: string;
+  allowed_values?: Array<string | number | boolean>;
 }
 
 function cloneBody(body: unknown): unknown {
@@ -84,6 +91,84 @@ export function resolveWorkflowBindings(
   }
 
   return { extraHeaders, bodyOverride, selectedBindings };
+}
+
+function valueForSpec(
+  spec: WorkflowParameterSpec,
+  params: Record<string, unknown>,
+): unknown {
+  const value = params[spec.name];
+  return value === undefined ? spec.default_value : value;
+}
+
+function matchesSpecType(spec: WorkflowParameterSpec, value: unknown): boolean {
+  if (value == null) return true;
+  switch (spec.type) {
+    case "boolean":
+      return typeof value === "boolean" || value === "true" || value === "false";
+    case "integer":
+      return typeof value === "number"
+        ? Number.isInteger(value)
+        : typeof value === "string" && /^-?\d+$/.test(value);
+    case "number":
+      return typeof value === "number"
+        ? Number.isFinite(value)
+        : typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value);
+    case "array":
+      return Array.isArray(value);
+    case "object":
+      return typeof value === "object" && value !== null && !Array.isArray(value);
+    case "string":
+    default:
+      return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+  }
+}
+
+function matchesSpecFormat(spec: WorkflowParameterSpec, value: unknown): boolean {
+  if (value == null || spec.format == null) return true;
+  const sample = String(value);
+  switch (spec.format) {
+    case "date":
+      return /^\d{4}-\d{2}-\d{2}$/.test(sample);
+    case "url":
+      return /^https?:\/\//i.test(sample);
+    case "email":
+      return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(sample);
+    default:
+      return true;
+  }
+}
+
+export function validateWorkflowReplayParams(
+  recipe: WorkflowRecipe,
+  params: Record<string, unknown>,
+): WorkflowParamValidationError[] {
+  const errors: WorkflowParamValidationError[] = [];
+  for (const spec of recipe.replay_contract.parameter_specs) {
+    if (!spec.user_supplied) continue;
+    const value = valueForSpec(spec, params);
+    if (spec.required && (value == null || value === "")) {
+      errors.push({ name: spec.name, reason: "required" });
+      continue;
+    }
+    if (value == null || value === "") continue;
+    if (spec.enum_values?.length && !spec.enum_values.some((candidate) => String(candidate) === String(value))) {
+      errors.push({
+        name: spec.name,
+        reason: "invalid_enum",
+        allowed_values: spec.enum_values,
+      });
+      continue;
+    }
+    if (!matchesSpecType(spec, value)) {
+      errors.push({ name: spec.name, reason: `expected_${spec.type}` });
+      continue;
+    }
+    if (!matchesSpecFormat(spec, value)) {
+      errors.push({ name: spec.name, reason: `expected_format_${spec.format}` });
+    }
+  }
+  return errors;
 }
 
 export function needsWorkflowTokenRefresh(status: number): boolean {

@@ -1174,7 +1174,7 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /v1/browse/submit — submit active form, fall back to same-origin fetch+rehydrate
+  // POST /v1/browse/submit — submit active form; same-origin fetch+rehydrate is explicit opt-in
   app.post("/v1/browse/submit", async (req, reply) => {
     const {
       form_selector: formSelector,
@@ -1182,12 +1182,14 @@ export async function registerRoutes(app: FastifyInstance) {
       wait_for: waitFor,
       same_origin_fetch_fallback: sameOriginFetchFallback,
       timeout_ms: timeoutMs,
+      assist_site_state: assistSiteState,
     } = (req.body as {
       form_selector?: string;
       submit_selector?: string;
       wait_for?: string;
       same_origin_fetch_fallback?: boolean;
       timeout_ms?: number;
+      assist_site_state?: boolean;
     }) ?? {};
 
     try {
@@ -1210,6 +1212,7 @@ export async function registerRoutes(app: FastifyInstance) {
             waitFor,
             sameOriginFetchFallback,
             timeoutMs,
+            assistSiteState,
           },
         ),
         (result) => !result.ok && result.recoverable === true,
@@ -1295,7 +1298,8 @@ export async function registerRoutes(app: FastifyInstance) {
           return true;
         },
       );
-      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId });
+      await isBrowseSessionLive(session, browseClient).catch(() => false);
+      return reply.send({ ok: true, session_id: session.sessionId, tab_id: session.tabId, url: session.url });
     } catch (error) {
       return sendBrowseSessionError(reply, error);
     }

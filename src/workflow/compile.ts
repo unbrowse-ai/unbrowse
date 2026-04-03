@@ -9,7 +9,15 @@ import type {
   WorkflowArtifact,
   WorkflowBootstrapHint,
   WorkflowDomFieldHint,
+  WorkflowDomOptionHint,
   WorkflowMetaHint,
+  WorkflowNextStateSpec,
+  WorkflowPaymentRequirementSpec,
+  WorkflowParameterConstraint,
+  WorkflowParameterSourceHint,
+  WorkflowParameterSpec,
+  WorkflowPrerequisiteSpec,
+  WorkflowReplayContract,
   WorkflowRecipe,
   WorkflowStep,
   WorkflowStepStrategy,
@@ -78,14 +86,26 @@ function collectPrimitivePaths(
 
 export interface HtmlWorkflowHints {
   dom_form_hints: WorkflowDomFieldHint[];
+  dom_option_hints: WorkflowDomOptionHint[];
   meta_hints: WorkflowMetaHint[];
   bootstrap_hints: WorkflowBootstrapHint[];
 }
 
+function domSelectorForField(
+  tagName: string,
+  fieldName?: string,
+  fieldId?: string,
+): string | undefined {
+  if (fieldId) return `#${fieldId}`;
+  if (fieldName) return `${tagName}[name="${fieldName}"]`;
+  return undefined;
+}
+
 export function extractHtmlWorkflowHints(html?: string): HtmlWorkflowHints {
-  if (!html) return { dom_form_hints: [], meta_hints: [], bootstrap_hints: [] };
+  if (!html) return { dom_form_hints: [], dom_option_hints: [], meta_hints: [], bootstrap_hints: [] };
   const $ = load(html);
   const dom_form_hints: WorkflowDomFieldHint[] = [];
+  const dom_option_hints: WorkflowDomOptionHint[] = [];
   const meta_hints: WorkflowMetaHint[] = [];
   const bootstrap_hints: WorkflowBootstrapHint[] = [];
 
@@ -100,8 +120,50 @@ export function extractHtmlWorkflowHints(html?: string): HtmlWorkflowHints {
       field_name,
       value: $(el).attr("value") ?? undefined,
       field_type: $(el).attr("type") ?? undefined,
+      selector: domSelectorForField(
+        el.tagName?.toLowerCase?.() ?? "input",
+        field_name,
+        $(el).attr("id") ?? undefined,
+      ),
+      required: $(el).attr("required") != null,
+      pattern: $(el).attr("pattern") ?? undefined,
+      min: $(el).attr("min") ?? undefined,
+      max: $(el).attr("max") ?? undefined,
     });
   });
+
+  const optionMap = new Map<string, WorkflowDomOptionHint>();
+  $("select[name], input[type='radio'][name], input[type='checkbox'][name]").each((_, el) => {
+    const field_name = ($(el).attr("name") || "").trim();
+    if (!field_name) return;
+    const form_selector = $(el).closest("form").attr("id")
+      ? `form#${$(el).closest("form").attr("id")}`
+      : undefined;
+    const key = `${form_selector ?? ""}::${field_name}`;
+    const existing = optionMap.get(key) ?? {
+      form_selector,
+      field_name,
+      values: [],
+      labels: [],
+      field_type: $(el).attr("type") ?? (el.tagName?.toLowerCase?.() === "select" ? "select" : undefined),
+    };
+    if (el.tagName?.toLowerCase?.() === "select") {
+      $(el).find("option").each((_, optionEl) => {
+        const value = ($(optionEl).attr("value") || $(optionEl).text() || "").trim();
+        if (!value) return;
+        if (!existing.values.includes(value)) existing.values.push(value);
+        const label = $(optionEl).text().trim();
+        if (label && !existing.labels?.includes(label)) existing.labels?.push(label);
+      });
+    } else {
+      const value = ($(el).attr("value") || "").trim();
+      if (value && !existing.values.includes(value)) existing.values.push(value);
+      const label = $(el).closest("label").text().trim();
+      if (label && !existing.labels?.includes(label)) existing.labels?.push(label);
+    }
+    optionMap.set(key, existing);
+  });
+  dom_option_hints.push(...optionMap.values().filter((hint) => hint.values.length > 0));
 
   $("meta[name], meta[property]").each((_, el) => {
     const key = ($(el).attr("name") || $(el).attr("property") || "").trim();
@@ -126,7 +188,7 @@ export function extractHtmlWorkflowHints(html?: string): HtmlWorkflowHints {
     bootstrap_hints.push({ path: match[1], value: match[2] });
   }
 
-  return { dom_form_hints, meta_hints, bootstrap_hints };
+  return { dom_form_hints, dom_option_hints, meta_hints, bootstrap_hints };
 }
 
 function stripTemplate(urlTemplate: string): string {
@@ -204,6 +266,406 @@ function inferTokenBindingsForRequest(
   }).filter((binding) => binding.candidates.length > 0);
 }
 
+function isSensitiveWorkflowField(name: string): boolean {
+  return TOKEN_NAME_RE.test(name);
+}
+
+function inferValueType(value: unknown): WorkflowParameterSpec["type"] {
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "number") return Number.isInteger(value) ? "integer" : "number";
+  if (Array.isArray(value)) return "array";
+  if (value && typeof value === "object") return "object";
+  if (typeof value === "string") {
+    if (/^(true|false)$/i.test(value)) return "boolean";
+    if (/^-?\d+$/.test(value)) return "integer";
+    if (/^-?\d+\.\d+$/.test(value)) return "number";
+  }
+  return "string";
+}
+
+function inferValueFormat(name: string, value: unknown): string | undefined {
+  const sample = typeof value === "string" ? value : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(sample)) return "date";
+  if (sample && /^https?:\/\//i.test(sample)) return "url";
+  if (sample && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(sample)) return "email";
+  if (/date/i.test(name) && /^\d{4}-\d{2}-\d{2}$/.test(sample)) return "date";
+  return undefined;
+}
+
+function summarizeResponseSchema(endpoint: EndpointDescriptor): string | undefined {
+  const objectKeys = Object.keys(endpoint.response_schema?.properties ?? {});
+  if (objectKeys.length > 0) return objectKeys.slice(0, 8).join(", ");
+  const arrayKeys = Object.keys(endpoint.response_schema?.items?.properties ?? {});
+  if (arrayKeys.length > 0) return arrayKeys.slice(0, 8).join(", ");
+  return endpoint.response_schema ? endpoint.response_schema.type : undefined;
+}
+
+function templatePathParamNames(urlTemplate: string): string[] {
+  return [...urlTemplate.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+}
+
+function inferQuerySamples(matchedRequests: RawRequest[]): Map<string, unknown> {
+  const samples = new Map<string, unknown>();
+  for (const req of matchedRequests) {
+    try {
+      const url = new URL(req.url);
+      for (const [key, value] of url.searchParams.entries()) {
+        if (!samples.has(key)) samples.set(key, value);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return samples;
+}
+
+function parameterDescription(
+  endpoint: EndpointDescriptor,
+  name: string,
+  location: WorkflowParameterSpec["location"],
+  userSupplied: boolean,
+  derivedFrom: string[],
+): string {
+  const semantic = endpoint.semantic?.requires?.find((binding) => binding.key === name)?.description;
+  if (semantic) return semantic;
+  if (!userSupplied && derivedFrom.length > 0) {
+    return `Derived ${location} parameter populated from ${derivedFrom.join(", ")}.`;
+  }
+  return `Observed ${location} parameter for ${endpoint.method} ${endpoint.url_template}.`;
+}
+
+function uniquePrimitiveValues(values: unknown[]): Array<string | number | boolean> {
+  const out: Array<string | number | boolean> = [];
+  for (const value of values) {
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") continue;
+    if (!out.includes(value)) out.push(value);
+  }
+  return out;
+}
+
+function buildParameterSpecs(
+  endpoint: EndpointDescriptor,
+  matchedRequests: RawRequest[],
+  htmlHints: HtmlWorkflowHints,
+  tokenBindings: TokenBinding[],
+): WorkflowParameterSpec[] {
+  type ParamAccumulator = {
+    name: string;
+    location: WorkflowParameterSpec["location"];
+    values: unknown[];
+    defaultValue?: unknown;
+    required: boolean;
+    userSupplied: boolean;
+    derivedFrom: string[];
+    constraints: WorkflowParameterConstraint[];
+    sourceHints: WorkflowParameterSourceHint[];
+  };
+  const acc = new Map<string, ParamAccumulator>();
+  const getKey = (location: WorkflowParameterSpec["location"], name: string) => `${location}:${name}`;
+  const ensure = (location: WorkflowParameterSpec["location"], name: string): ParamAccumulator => {
+    const key = getKey(location, name);
+    const existing = acc.get(key);
+    if (existing) return existing;
+    const created: ParamAccumulator = {
+      name,
+      location,
+      values: [],
+      required: false,
+      userSupplied: !isSensitiveWorkflowField(name),
+      derivedFrom: [],
+      constraints: [],
+      sourceHints: [],
+    };
+    acc.set(key, created);
+    return created;
+  };
+  const pushConstraint = (target: ParamAccumulator, constraint: WorkflowParameterConstraint): void => {
+    if (target.constraints.some((entry) => entry.kind === constraint.kind && entry.value === constraint.value && entry.description === constraint.description)) return;
+    target.constraints.push(constraint);
+  };
+  const pushSourceHint = (target: ParamAccumulator, hint: WorkflowParameterSourceHint): void => {
+    if (target.sourceHints.some((entry) => entry.source_kind === hint.source_kind && entry.source_name === hint.source_name && entry.source_path === hint.source_path)) return;
+    target.sourceHints.push(hint);
+  };
+  const querySamples = inferQuerySamples(matchedRequests);
+
+  for (const name of templatePathParamNames(endpoint.url_template)) {
+    const target = ensure("path", name);
+    target.required = true;
+    target.defaultValue = endpoint.path_params?.[name];
+    if (endpoint.path_params?.[name] != null) target.values.push(endpoint.path_params[name]);
+    pushSourceHint(target, { source_kind: "path_template", source_name: name, confidence: 0.99 });
+  }
+
+  for (const [name, value] of Object.entries(endpoint.query ?? {})) {
+    const target = ensure("query", name);
+    target.defaultValue = value;
+    target.values.push(value);
+    pushSourceHint(target, { source_kind: "query_default", source_name: name, confidence: 0.9 });
+  }
+  for (const [name, value] of querySamples.entries()) {
+    const target = ensure("query", name);
+    target.values.push(value);
+    pushSourceHint(target, { source_kind: "observed_query", source_name: name, confidence: 0.99 });
+  }
+
+  for (const [name, value] of Object.entries(endpoint.body_params ?? {})) {
+    const target = ensure("body", name);
+    target.defaultValue = value;
+    target.values.push(value);
+    target.required = true;
+    pushSourceHint(target, { source_kind: "body_default", source_name: name, confidence: 0.95 });
+  }
+  for (const [name, value] of Object.entries(endpoint.body ?? {})) {
+    const target = ensure("body", name);
+    target.values.push(value);
+    target.required = true;
+    pushSourceHint(target, { source_kind: "body_default", source_name: name, confidence: 0.8 });
+  }
+  for (const req of matchedRequests) {
+    for (const [name, value] of Object.entries(parseRequestBody(req.request_body) ?? {})) {
+      const target = ensure("body", name);
+      target.values.push(value);
+      target.required = true;
+      pushSourceHint(target, { source_kind: "observed_body", source_name: name, confidence: 0.99 });
+    }
+  }
+
+  for (const binding of tokenBindings) {
+    const location = binding.target_location === "header" ? "header" : "body";
+    const target = ensure(location, binding.target_name);
+    target.required = true;
+    target.userSupplied = false;
+    for (const candidate of binding.candidates) {
+      pushSourceHint(target, {
+        source_kind: candidate.source_kind,
+        source_name: candidate.source_name,
+        source_path: candidate.source_path,
+        confidence: candidate.confidence,
+      });
+      const derivedLabel = candidate.source_path ? `${candidate.source_kind}:${candidate.source_path}` : `${candidate.source_kind}:${candidate.source_name}`;
+      if (!target.derivedFrom.includes(derivedLabel)) target.derivedFrom.push(derivedLabel);
+    }
+  }
+
+  for (const hint of htmlHints.dom_form_hints) {
+    const bodyTarget = acc.get(getKey("body", hint.field_name));
+    if (!bodyTarget) continue;
+    if (hint.pattern) pushConstraint(bodyTarget, { kind: "pattern", value: hint.pattern });
+    if (hint.min) pushConstraint(bodyTarget, { kind: "min", value: hint.min });
+    if (hint.max) pushConstraint(bodyTarget, { kind: "max", value: hint.max });
+    if (hint.required) bodyTarget.required = true;
+    if (hint.selector) {
+      if (!bodyTarget.derivedFrom.includes(`dom:${hint.selector}`)) bodyTarget.derivedFrom.push(`dom:${hint.selector}`);
+    }
+  }
+
+  for (const optionHint of htmlHints.dom_option_hints) {
+    const target = acc.get(getKey("body", optionHint.field_name)) ?? acc.get(getKey("query", optionHint.field_name));
+    if (!target) continue;
+    const values = uniquePrimitiveValues(optionHint.values);
+    if (values.length > 0) pushConstraint(target, { kind: "enum", description: `Allowed values observed for ${optionHint.field_name}.` });
+    target.values.push(...values);
+  }
+
+  for (const binding of endpoint.semantic?.requires ?? []) {
+    const target = acc.get(getKey("path", binding.key))
+      ?? acc.get(getKey("query", binding.key))
+      ?? acc.get(getKey("body", binding.key))
+      ?? acc.get(getKey("header", binding.key));
+    if (!target) continue;
+    if (binding.required) target.required = true;
+    if (binding.example_value != null) target.values.push(binding.example_value);
+    pushSourceHint(target, { source_kind: "semantic_requires", source_name: binding.key, confidence: 0.7 });
+  }
+
+  return Array.from(acc.values()).map((entry) => {
+    const sampleValue = entry.values.find((value) => value != null);
+    const format = inferValueFormat(entry.name, sampleValue);
+    const enumValues = uniquePrimitiveValues(entry.values).slice(0, 12);
+    const type = inferValueType(sampleValue);
+    const sensitive = isSensitiveWorkflowField(entry.name);
+    const constraints = [...entry.constraints];
+    if (format) constraints.push({ kind: "format", value: format });
+    if (enumValues.length > 1) constraints.push({ kind: "enum", description: `Allowed values observed for ${entry.name}.` });
+    return {
+      name: entry.name,
+      location: entry.location,
+      description: parameterDescription(endpoint, entry.name, entry.location, entry.userSupplied, entry.derivedFrom),
+      type,
+      required: entry.required,
+      user_supplied: entry.userSupplied,
+      ...(sensitive ? {} : entry.defaultValue !== undefined ? { default_value: entry.defaultValue } : {}),
+      ...(sensitive ? {} : sampleValue !== undefined ? { example_value: sampleValue } : {}),
+      ...(format ? { format } : {}),
+      ...(enumValues.length > 1 ? { enum_values: enumValues } : {}),
+      ...(entry.derivedFrom.length > 0 ? { derived_from: entry.derivedFrom } : {}),
+      ...(constraints.length > 0 ? { constraints } : {}),
+      source_hints: entry.sourceHints,
+    };
+  }).sort((lhs, rhs) => {
+    const order = ["path", "query", "body", "header"];
+    return order.indexOf(lhs.location) - order.indexOf(rhs.location) || lhs.name.localeCompare(rhs.name);
+  });
+}
+
+function buildPrerequisiteSpecs(
+  skill: SkillManifest,
+  endpoint: EndpointDescriptor,
+  htmlHints: HtmlWorkflowHints,
+  tokenBindings: TokenBinding[],
+  actionSequence?: WorkflowActionStep[],
+): WorkflowPrerequisiteSpec[] {
+  const prerequisites: WorkflowPrerequisiteSpec[] = [];
+  if (skill.auth_profile_ref || endpoint.semantic?.auth_required) {
+    prerequisites.push({
+      prerequisite_id: nanoid(),
+      kind: "authenticated-session",
+      name: "authenticated_session",
+      description: "Requires authenticated browser or stored auth state before replay.",
+      required: true,
+      derived_from: skill.auth_profile_ref,
+    });
+  }
+  if (endpoint.trigger_url) {
+    prerequisites.push({
+      prerequisite_id: nanoid(),
+      kind: "page-context",
+      name: "trigger_url",
+      description: "Observed from a specific page context during traversal.",
+      required: true,
+      derived_from: endpoint.trigger_url,
+    });
+  }
+  for (const binding of tokenBindings) {
+    const top = binding.candidates[0];
+    prerequisites.push({
+      prerequisite_id: nanoid(),
+      kind: "token-binding",
+      name: binding.target_name,
+      description: `Replay derives ${binding.target_name} from observed ${top?.source_kind ?? "token"} state.`,
+      required: true,
+      source_kind: top?.source_kind,
+      source_name: top?.source_name,
+      derived_from: top?.source_path,
+    });
+  }
+  for (const hint of htmlHints.dom_form_hints.filter((entry) => entry.required || !!entry.pattern || !!entry.min || !!entry.max)) {
+    prerequisites.push({
+      prerequisite_id: nanoid(),
+      kind: "hidden-field",
+      name: hint.field_name,
+      description: "Observed DOM field constraint recorded during traversal.",
+      required: !!hint.required,
+      selector: hint.selector,
+      derived_from: hint.form_selector,
+    });
+  }
+  if (actionSequence && actionSequence.length > 0) {
+    prerequisites.push({
+      prerequisite_id: nanoid(),
+      kind: "browser-action",
+      name: "action_sequence",
+      description: `Observed ${actionSequence.length} browser action${actionSequence.length === 1 ? "" : "s"} before request.`,
+      required: false,
+    });
+  }
+  return prerequisites;
+}
+
+function buildNextStateSpecs(
+  endpoint: EndpointDescriptor,
+  finalUrl: string,
+): WorkflowNextStateSpec[] {
+  const nextState: WorkflowNextStateSpec[] = [];
+  if (finalUrl) {
+    nextState.push({
+      kind: "page_url",
+      value: finalUrl,
+      description: "Observed page destination after successful traversal.",
+    });
+  }
+  const schemaSummary = summarizeResponseSchema(endpoint);
+  if (schemaSummary) {
+    nextState.push({
+      kind: "response_schema",
+      value: schemaSummary,
+      description: "Observed response shape summary for replay validation.",
+    });
+  }
+  return nextState;
+}
+
+function buildPaymentRequirement(
+  skill: SkillManifest,
+  endpoint: EndpointDescriptor,
+): WorkflowPaymentRequirementSpec {
+  const priceUsd = typeof skill.base_price_usd === "number" && skill.base_price_usd > 0
+    ? String(skill.base_price_usd)
+    : undefined;
+  if (priceUsd) {
+    return {
+      status: "x402_required",
+      price_usd: priceUsd,
+      currency: "USDC",
+      wallet_required: true,
+      provider_hint: "lobster.cash-compatible x402 wallet",
+      confirmation_field: "payment_verified",
+      reason: `Published replay for ${skill.skill_id}/${endpoint.endpoint_id} is priced through the marketplace payment lane.`,
+    };
+  }
+  if (skill.owner_compensation_opt_in) {
+    return {
+      status: "x402_optional",
+      wallet_required: false,
+      provider_hint: "lobster.cash-compatible x402 wallet",
+      confirmation_field: "payment_verified",
+      reason: `This skill owner has opted into compensation, so marketplace x402 pricing may apply when this replay is published.`,
+    };
+  }
+  return {
+    status: "free",
+    wallet_required: false,
+    reason: "No x402 payment requirement was recorded for this replay contract at publish time.",
+  };
+}
+
+function buildReplayContract(
+  skill: SkillManifest,
+  endpoint: EndpointDescriptor,
+  matchedRequests: RawRequest[],
+  htmlHints: HtmlWorkflowHints,
+  tokenBindings: TokenBinding[],
+  finalUrl: string,
+  actionSequence?: WorkflowActionStep[],
+): WorkflowReplayContract {
+  const dependencyBindings = Array.from(new Set([
+    ...templatePathParamNames(endpoint.url_template),
+    ...Object.keys(endpoint.query ?? {}).map((key) => key),
+    ...Object.keys(endpoint.body_params ?? {}).map((key) => key),
+    ...Object.keys(endpoint.body ?? {}).map((key) => key),
+    ...(endpoint.semantic?.requires ?? []).map((binding) => binding.key),
+    ...(endpoint.semantic?.provides ?? []).map((binding) => binding.key),
+    ...tokenBindings.map((binding) => binding.target_name),
+  ].filter(Boolean))).sort();
+  const searchTerms = Array.from(new Set([
+    endpoint.method.toLowerCase(),
+    ...endpoint.url_template.toLowerCase().split(/[^a-z0-9{}._-]+/).filter((token) => token.length >= 2),
+    ...dependencyBindings.map((binding) => binding.toLowerCase()),
+    ...(endpoint.semantic?.example_fields ?? []).map((field) => field.toLowerCase()),
+  ])).slice(0, 48);
+  return {
+    explicit_replay_only: true,
+    exposure_stage: "publish",
+    dependency_bindings: dependencyBindings,
+    search_terms: searchTerms,
+    parameter_specs: buildParameterSpecs(endpoint, matchedRequests, htmlHints, tokenBindings),
+    prerequisite_specs: buildPrerequisiteSpecs(skill, endpoint, htmlHints, tokenBindings, actionSequence),
+    next_state: buildNextStateSpecs(endpoint, finalUrl),
+    payment_requirement: buildPaymentRequirement(skill, endpoint),
+  };
+}
+
 function deriveActionSequence(
   matchedRequests: RawRequest[],
   endpoint: EndpointDescriptor,
@@ -275,18 +737,21 @@ function buildRecipe(
   endpoint: EndpointDescriptor,
   matchedRequests: RawRequest[],
   htmlHints: HtmlWorkflowHints,
+  finalUrl: string,
 ): WorkflowRecipe {
   const token_bindings = endpoint.method === "GET" ? [] : matchedRequests.flatMap((req) => inferTokenBindingsForRequest(req, htmlHints));
   const provenance_backed = matchedRequests.length > 0 || !!endpoint.trigger_url || !!endpoint.search_form || !!endpoint.dom_extraction;
   const auth_required = !!skill.auth_profile_ref || !!endpoint.semantic?.auth_required || token_bindings.length > 0;
   const parameter_mapping = parameterMappingConfident(endpoint);
+  const steps = deriveWorkflowSteps(endpoint, matchedRequests);
+  const actionSequence = steps.find((step) => step.strategy === "browser-action")?.action_sequence;
   return {
     recipe_id: nanoid(),
     endpoint_id: endpoint.endpoint_id,
     operation_id: operationIdForEndpoint(skill, endpoint.endpoint_id),
     preferred: false,
     provenance_backed,
-    steps: deriveWorkflowSteps(endpoint, matchedRequests),
+    steps,
     token_bindings,
     mutation_guard: {
       confirm_unsafe_required: endpoint.method !== "GET" && endpoint.idempotency === "unsafe",
@@ -295,6 +760,7 @@ function buildRecipe(
       parameter_mapping_confident: parameter_mapping,
       ...(!provenance_backed && endpoint.method !== "GET" ? { block_reason: "mutation requires provenance-backed workflow recipe" } : {}),
     },
+    replay_contract: buildReplayContract(skill, endpoint, matchedRequests, htmlHints, token_bindings, finalUrl, actionSequence),
   };
 }
 
@@ -309,6 +775,7 @@ export function buildWorkflowArtifactFromCapture(
     endpoint,
     capture.requests.filter((req) => requestMatchesEndpoint(req, endpoint)),
     htmlHints,
+    capture.final_url,
   ));
   if (recipes.length > 0) recipes[0].preferred = true;
 
@@ -332,6 +799,7 @@ export function buildWorkflowArtifactFromCapture(
       trigger_urls: Array.from(new Set(skill.endpoints.map((endpoint) => endpoint.trigger_url).filter((value): value is string => !!value))),
       js_bundle_urls: capture.js_bundles ? Array.from(capture.js_bundles.keys()).slice(0, 40) : [],
       dom_form_hints: htmlHints.dom_form_hints,
+      dom_option_hints: htmlHints.dom_option_hints,
       meta_hints: htmlHints.meta_hints,
       bootstrap_hints: htmlHints.bootstrap_hints,
     },

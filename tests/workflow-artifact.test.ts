@@ -6,7 +6,7 @@ import type { CaptureResult } from "../src/capture/index.js";
 import type { SkillManifest } from "../src/types/index.js";
 import { mergeWorkflowArtifacts, readWorkflowArtifact, recordWorkflowRecipeOutcome, writeWorkflowArtifact } from "../src/workflow/artifact.js";
 import { buildWorkflowArtifactFromCapture } from "../src/workflow/compile.js";
-import { needsWorkflowTokenRefresh, pickWorkflowRecipe, resolveWorkflowBindings } from "../src/workflow/runtime.js";
+import { needsWorkflowTokenRefresh, pickWorkflowRecipe, resolveWorkflowBindings, validateWorkflowReplayParams } from "../src/workflow/runtime.js";
 
 function makeSkill(): SkillManifest {
   const now = new Date().toISOString();
@@ -122,6 +122,12 @@ describe("workflow artifact compile/runtime", () => {
     expect(formBinding?.candidates.some((candidate) => candidate.source_kind === "hidden_input" && candidate.source_name === "authenticity_token")).toBe(true);
     expect(artifact.evidence.meta_hints.some((hint) => hint.key === "csrf-token")).toBe(true);
     expect(artifact.evidence.bootstrap_hints.some((hint) => hint.path.includes("csrfToken"))).toBe(true);
+    expect(recipe.replay_contract.explicit_replay_only).toBe(true);
+    expect(recipe.replay_contract.dependency_bindings).toContain("item_id");
+    expect(recipe.replay_contract.search_terms).toContain("checkout");
+    expect(recipe.replay_contract.parameter_specs.some((param) => param.name === "item_id" && param.user_supplied)).toBe(true);
+    expect(recipe.replay_contract.parameter_specs.some((param) => param.name === "authenticity_token" && !param.user_supplied)).toBe(true);
+    expect(recipe.replay_contract.prerequisite_specs.some((prereq) => prereq.kind === "token-binding")).toBe(true);
   });
 
   it("builds provenance-backed browser-action recipes from observed action traces", () => {
@@ -180,5 +186,24 @@ describe("workflow artifact compile/runtime", () => {
     expect(needsWorkflowTokenRefresh(419)).toBe(true);
     expect(needsWorkflowTokenRefresh(422)).toBe(true);
     expect(needsWorkflowTokenRefresh(500)).toBe(false);
+  });
+
+  it("validates explicit replay params against the compiled contract", () => {
+    const artifact = buildWorkflowArtifactFromCapture(makeSkill(), makeCapture());
+    const recipe = artifact.recipes[0];
+    expect(validateWorkflowReplayParams(recipe, { item_id: "sku_1" })).toEqual([]);
+    expect(validateWorkflowReplayParams(recipe, {})).toEqual([]);
+    const constrainedRecipe = {
+      ...recipe,
+      replay_contract: {
+        ...recipe.replay_contract,
+        parameter_specs: recipe.replay_contract.parameter_specs.map((spec) => spec.name === "item_id"
+          ? { ...spec, enum_values: ["sku_1", "sku_2"] }
+          : spec),
+      },
+    };
+    expect(validateWorkflowReplayParams(constrainedRecipe, { item_id: "sku_999" })).toEqual([
+      { name: "item_id", reason: "invalid_enum", allowed_values: ["sku_1", "sku_2"] },
+    ]);
   });
 });

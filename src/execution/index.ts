@@ -52,6 +52,7 @@ import {
   pickWorkflowRecipe,
   resolveWorkflowBindings,
   translateWorkflowStrategy,
+  validateWorkflowReplayParams,
 } from "../workflow/runtime.js";
 import { buildWorkflowPublishArtifact, writeWorkflowPublishArtifact } from "../workflow/publish.js";
 /** Stamp every trace with the code version hash for telemetry tracking */
@@ -2047,6 +2048,29 @@ export async function executeEndpoint(
   }
   let url = interpolate(urlTemplate, mergedParams);
   let body = endpoint.body ? interpolateObj(endpoint.body, mergedParams) : undefined;
+
+  if (workflowRecipe) {
+    const validationErrors = validateWorkflowReplayParams(workflowRecipe, mergedParams);
+    if (validationErrors.length > 0) {
+      return {
+        trace: stampTrace({
+          trace_id: nanoid(),
+          skill_id: skill.skill_id,
+          endpoint_id: endpoint.endpoint_id,
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+          success: false,
+          error: "invalid_replay_params",
+        }),
+        result: {
+          error: "invalid_replay_params",
+          message: "Replay parameters did not satisfy the published workflow contract.",
+          validation_errors: validationErrors,
+          replay_contract: workflowRecipe.replay_contract,
+        },
+      };
+    }
+  }
 
   const isSafe = endpoint.method === "GET";
   let workflowBindings = workflowRecipe && workflowArtifact

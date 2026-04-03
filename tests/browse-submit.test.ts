@@ -89,7 +89,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => ({ attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] }),
       },
-      { timeoutMs: 20 },
+      { timeoutMs: 20, sameOriginFetchFallback: true },
     );
 
     expect(result.ok).toBe(true);
@@ -174,10 +174,10 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20, waitFor: "/add-ons-selection.html" },
+      { timeoutMs: 20, waitFor: "/add-ons-selection.html", assistSiteState: true },
     );
 
-    expect(evalCount).toBe(1);
+    expect(evalCount).toBe(2);
     expect(result.ok).toBe(false);
     expect(result.mode).toBe("noop");
     expect(result.fallback_used).toBe(false);
@@ -186,6 +186,320 @@ describe("browse submit", () => {
       patched: ["input[name='selectedDate']"],
       missing: ["a.btn-proceed:not(.disabled)"],
     });
+  });
+
+  it("uses the lightweight Mandai date-step submit path when selectedDate is already present", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/date-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let urlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            if (evalCount === 1) {
+              return JSON.stringify({
+                ok: true,
+                action: "/bin/wrs/datestep.json",
+                step: "3",
+                ticketingType: "date",
+                hasActiveParkCard: false,
+                hasResidentGate: false,
+                hasQuantityControls: true,
+              });
+            }
+            return JSON.stringify({
+              ok: true,
+              form_action: "/bin/wrs/datestep.json",
+              form_method: "POST",
+              submitter: "NEXT",
+              prereq_state: { patched: [], missing: [] },
+              submit_kind: "click",
+            });
+          },
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads === 1
+              ? "https://example.com/date-selection.html"
+              : "https://example.com/add-ons-selection.html";
+          },
+          getPageHtml: async () => urlReads <= 1
+            ? "<html><body>date-selection</body></html>"
+            : "<html><body>add-ons-selection</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/add-ons-selection.html" },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.fallback_used).toBe(false);
+    expect(result.url).toBe("https://example.com/add-ons-selection.html");
+    expect(result.submit_meta?.submit_kind).toBe("click");
+  });
+
+  it("uses the lightweight Mandai park-step submit path and advances with NEXT after selecting the active card", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/parks-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let sawParkSubmitCompiler = false;
+    let urlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async (_tabId, expression) => {
+            evalCount += 1;
+            if (evalCount === 1) {
+              return JSON.stringify({
+                ok: true,
+                action: "/bin/wrs/product-selection",
+                step: "1",
+                ticketingType: "park",
+                hasActiveParkCard: true,
+                hasResidentGate: false,
+                hasQuantityControls: false,
+              });
+            }
+            sawParkSubmitCompiler = expression.includes("park_card_click_then_submit")
+              && expression.includes("setTimeout(function()")
+              && expression.includes("li[data-block-content='#\" + cardPane.id + \"']")
+              && expression.includes("meta.prereq_state.patched.push(\"#\" + cardPane.id)")
+              && expression.includes("submitter.click()");
+            return JSON.stringify({
+              ok: true,
+              form_action: "/bin/wrs/product-selection",
+              form_method: "POST",
+              submitter: "NEXT",
+              prereq_state: { patched: [], missing: [] },
+              submit_kind: "park_card_click_then_submit",
+            });
+          },
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads === 1
+              ? "https://example.com/parks-selection.html"
+              : "https://example.com/tickets-selection.html";
+          },
+          getPageHtml: async () => urlReads <= 1
+            ? "<html><body>parks-selection</body></html>"
+            : "<html><body>tickets-selection</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/tickets-selection.html", assistSiteState: true },
+    );
+
+    expect(sawParkSubmitCompiler).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.fallback_used).toBe(false);
+    expect(result.url).toBe("https://example.com/tickets-selection.html");
+    expect(result.submit_meta?.submit_kind).toBe("park_card_click_then_submit");
+  });
+
+  it("keeps traversal submit thin by default even when a site-specific assist path is available", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/parks-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let usedSpecialCompiler = false;
+    let urlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async (_tabId, expression) => {
+            evalCount += 1;
+            if (evalCount === 1) {
+              return JSON.stringify({
+                ok: true,
+                action: "/bin/wrs/product-selection",
+                step: "1",
+                ticketingType: "park",
+                hasActiveParkCard: true,
+                hasResidentGate: false,
+                hasQuantityControls: false,
+              });
+            }
+            usedSpecialCompiler = expression.includes("park_card_click_then_submit")
+              || expression.includes("li[data-block-content='#\" + cardPane.id + \"']");
+            return JSON.stringify({
+              ok: true,
+              form_action: "/bin/wrs/product-selection",
+              form_method: "POST",
+              submitter: "NEXT",
+              prereq_state: { patched: [], missing: [] },
+              submit_kind: "click",
+            });
+          },
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads === 1
+              ? "https://example.com/parks-selection.html"
+              : "https://example.com/tickets-selection.html";
+          },
+          getPageHtml: async () => urlReads <= 1
+            ? "<html><body>parks-selection</body></html>"
+            : "<html><body>tickets-selection</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/tickets-selection.html" },
+    );
+
+    expect(usedSpecialCompiler).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(result.submit_meta?.submit_kind).toBe("click");
+  });
+
+  it("uses the lightweight Mandai add-ons submit path when add-ons are optional", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/add-ons-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let urlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            if (evalCount === 1) {
+              return JSON.stringify({
+                ok: true,
+                action: "/bin/wrs/addon-selection",
+                step: "5",
+                ticketingType: "addon",
+                hasActiveParkCard: false,
+                hasResidentGate: false,
+                hasQuantityControls: true,
+              });
+            }
+            return JSON.stringify({
+              ok: true,
+              form_action: "/bin/wrs/addon-selection",
+              form_method: "POST",
+              submitter: "NEXT",
+              prereq_state: { patched: [], missing: [] },
+              submit_kind: "click",
+            });
+          },
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads === 1
+              ? "https://example.com/add-ons-selection.html"
+              : "https://example.com/details-information.html";
+          },
+          getPageHtml: async () => urlReads <= 1
+            ? "<html><body>add-ons-selection</body></html>"
+            : "<html><body>details-information</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/details-information.html", assistSiteState: true },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.fallback_used).toBe(false);
+    expect(result.url).toBe("https://example.com/details-information.html");
+    expect(result.submit_meta?.submit_kind).toBe("click");
+  });
+
+  it("uses the lightweight Mandai ticket-step submit path for resident quantities outside the enabled tourist branch", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/tickets-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+    let sawTicketSubmitCompiler = false;
+    let urlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async (_tabId, expression) => {
+            evalCount += 1;
+            if (evalCount === 1) {
+              return JSON.stringify({
+                ok: true,
+                action: "/bin/wrs/ticket-selection",
+                step: "2",
+                ticketingType: "ticket",
+                hasActiveParkCard: false,
+                hasResidentGate: true,
+                hasQuantityControls: true,
+              });
+            }
+            sawTicketSubmitCompiler = expression.includes("isLocalResidentQuantity")
+              && expression.includes("document.querySelector(\"[data-submit-next], a.btn-proceed, .btn-proceed")
+              && expression.includes("form.submit();")
+              && expression.includes("meta.submit_kind = \"native_submit\"");
+            return JSON.stringify({
+              ok: true,
+              form_action: "/bin/wrs/ticket-selection",
+              form_method: "POST",
+              submitter: "NEXT",
+              prereq_state: { patched: ["#2854_4_4597"], missing: [] },
+              submit_kind: "native_submit",
+            });
+          },
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads === 1
+              ? "https://example.com/tickets-selection.html"
+              : "https://example.com/date-selection.html";
+          },
+          getPageHtml: async () => urlReads <= 1
+            ? "<html><body>tickets-selection</body></html>"
+            : "<html><body>date-selection</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/date-selection.html", formSelector: "form[action*=\"ticket-selection\"]", assistSiteState: true },
+    );
+
+    expect(sawTicketSubmitCompiler).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.fallback_used).toBe(false);
+    expect(result.url).toBe("https://example.com/date-selection.html");
+    expect(result.submit_meta?.submit_kind).toBe("native_submit");
   });
 
   it("does not treat same-page html churn as success when a URL wait hint is provided", async () => {
@@ -225,7 +539,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20, waitFor: "/tickets-selection.html" },
+      { timeoutMs: 20, waitFor: "/tickets-selection.html", sameOriginFetchFallback: true },
     );
 
     expect(result.ok).toBe(true);
@@ -272,7 +586,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20 },
+      { timeoutMs: 20, sameOriginFetchFallback: true },
     );
 
     expect(result.ok).toBe(true);
@@ -312,12 +626,18 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20 },
+      { timeoutMs: 20, sameOriginFetchFallback: true },
     );
 
     expect(result.ok).toBe(true);
     expect(result.mode).toBe("same_origin_fetch");
-    expect(result.submit_meta).toBeNull();
+    expect(result.submit_meta).toEqual({
+      ok: true,
+      status: 200,
+      url: "https://example.com/date-selection.html",
+      same_origin_html_rehydrated: true,
+      rehydrate: { attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] },
+    });
     expect(result.url).toBe("https://example.com/date-selection.html");
   });
 
@@ -348,7 +668,7 @@ describe("browse submit", () => {
         restartCapture: async () => {},
         rehydratePlugins: async () => null,
       },
-      { timeoutMs: 20 },
+      { timeoutMs: 20, sameOriginFetchFallback: true },
     );
 
     expect(result.ok).toBe(false);
@@ -397,7 +717,7 @@ describe("browse submit", () => {
           restartCapture: async () => {},
           rehydratePlugins: async () => ({ attempted: false, loaded: false, nooped: true, reason: "missing_wrs_require", modules: [] }),
         },
-        { timeoutMs: 20 },
+        { timeoutMs: 20, sameOriginFetchFallback: true },
       ),
       (result) => !result.ok && result.recoverable === true,
     );
@@ -406,6 +726,45 @@ describe("browse submit", () => {
     expect(result.ok).toBe(true);
     expect(result.mode).toBe("same_origin_fetch");
     expect(session.url).toBe("https://example.com/review");
+  });
+
+  it("stays browser-native by default when DOM submit stalls", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/step-1",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            if (evalCount === 1) return JSON.stringify({ ok: true, submit_kind: "requestSubmit" });
+            return JSON.stringify({
+              ok: true,
+              status: 200,
+              url: "https://example.com/review",
+              same_origin_html_rehydrated: true,
+            });
+          },
+          getCurrentUrl: async () => "https://example.com/step-1",
+          getPageHtml: async () => "<html><body>step-1</body></html>",
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20 },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.mode).toBe("noop");
+    expect(result.fallback_used).toBe(false);
+    expect(result.url).toBe("https://example.com/step-1");
   });
 
   it("keeps the settled destination after redirect chains", async () => {
@@ -440,6 +799,45 @@ describe("browse submit", () => {
     expect(result.mode).toBe("dom");
     expect(result.url).toBe("https://auth.example.com/login");
     expect(session.url).toBe("https://auth.example.com/login");
+  });
+
+  it("avoids repeated html probing when a URL wait hint is enough to prove the transition", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/step-1",
+      harActive: true,
+      domain: "example.com",
+    };
+    let urlReads = 0;
+    let htmlReads = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => JSON.stringify({ ok: true, submit_kind: "requestSubmit" }),
+          getCurrentUrl: async () => {
+            urlReads += 1;
+            return urlReads < 3 ? "https://example.com/step-1" : "https://example.com/review";
+          },
+          getPageHtml: async () => {
+            htmlReads += 1;
+            return htmlReads === 1
+              ? "<html><body>step-1</body></html>"
+              : "<html><body>review</body></html>";
+          },
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 900, waitFor: "/review" },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("dom");
+    expect(result.url).toBe("https://example.com/review");
+    expect(htmlReads).toBeLessThanOrEqual(2);
   });
 
   it("infers iso dates from Mandai-style month and day labels", () => {

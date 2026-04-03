@@ -13,22 +13,30 @@ user-invocable: true
 metadata: {"openclaw": {"requires": {"bins": ["unbrowse"]}, "install": [{"id": "npm", "kind": "node", "package": "unbrowse", "bins": ["unbrowse"]}], "emoji": "🔍", "homepage": "https://github.com/unbrowse-ai/unbrowse"}}
 ---
 
-# Unbrowse — Agent Browser Powered by Kuri
+# Unbrowse — Kuri-Powered Agent Browser
 
-Kuri is the agent's browser — a 464 KB Zig-native CDP broker with ~3ms cold start. Unbrowse is the intelligence layer that runs on top: it watches what Kuri does, learns the internal APIs (shadow APIs) that every website exposes behind its UI, and progressively replaces browser calls with direct API calls.
+Kuri is the browser runtime. Unbrowse is the orchestration and publish layer on top.
 
-The clean category line is: Unbrowse is a drop-in replacement for OpenClaw / `agent-browser` browser flows for agents.
+Use this mental model:
 
-**How it works:** Agents use `Browser.launch()` and `page.goto()` like Playwright. Under the hood, `goto()` checks the skill cache first — if a cached internal API route exists, it returns structured data in <200ms without opening a browser tab. On cache miss, Kuri navigates normally while Unbrowse captures traffic in the background, reverse-engineers the APIs, and publishes learned routes for future reuse by all agents.
+- **Traversal**: browser-native. `go`, `snap`, `click`, `fill`, `select`, `eval`, `submit`, `close`. No hidden API replay while clicking around.
+- **Publish/index**: passive evidence gets compiled later into a workflow DAG, typed params, restrictions, enums, token/header hints, and replay contracts.
+- **Replay/execute**: explicit only. Use published contracts when you want a non-browser call.
+
+The clean category line is: Unbrowse is the agent-facing browser tool; Kuri is the primitive engine underneath.
+
+It is still the replacement layer for OpenClaw / `agent-browser` browser flows — just with a stricter split between browser traversal and post-publish replay.
+
+**How it works:** Unbrowse can still serve a fast cached route when one already exists, but live browsing should be treated as Kuri-first and browser-native. During traversal, requests are observed passively. At publish time, Unbrowse links DOM steps, hidden inputs, requests, and next-state transitions into reusable contracts.
 
 **Three execution paths:**
-1. **Skill cache** (Path 1) — instant, <200ms. Cached internal API route.
-2. **Shared route graph** (Path 2) — sub-second. Route discovered by another agent, served from the collectively maintained marketplace.
-3. **Kuri browser** (Path 3) — 20-80s. Full browser session via Kuri. Unbrowse captures and indexes traffic for future acceleration.
+1. **Skill cache** — instant, <200ms. Existing published route.
+2. **Shared route graph** — sub-second. Previously mined route from another agent.
+3. **Kuri browser** — full browser session. Source of truth for new traversal and proof of workflow edges.
 
-Every method except `goto()` proxies directly to Kuri — snapshots, ref-based actions, DOM queries, HAR recording, cookies, screenshots. The full Kuri API surface is available. Unbrowse is the second-class citizen here: it indexes in the background and provides a faster path when one exists.
+During live traversal, do not silently substitute API replay for browser steps. A successful browser submit proves an edge; publish/index turns that edge into an explicit replay contract later.
 
-**Performance:** On the API-native path, the product is positioned as roughly ~30x faster and ~90% cheaper than repeated browser execution. In the current published benchmark set, Unbrowse shows 3.6x mean speedup and 5.4x median over Playwright across 94 live domains, with 18 domains completing in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
+**Performance:** Published routes are still positioned as roughly 30x faster and 90% cheaper than repeated browser work, but traversal truth still comes from the browser path. In the current published benchmark set, Unbrowse shows 3.6x mean speedup and 5.4x median over Playwright across 94 live domains, with 18 domains completing in <100ms. See the whitepaper: [*Internal APIs Are All You Need*](https://unbrowse.ai/whitepaper) (Tham, Garcia & Hahn, 2026).
 
 **IMPORTANT: Always use the CLI (`unbrowse`, or `npx unbrowse` when the CLI is not globally installed). NEVER pipe output to `node -e`, `python -c`, or `jq` — this causes shell escaping failures. Use `--path`, `--extract`, and `--limit` flags instead.**
 
@@ -115,22 +123,70 @@ Use the skill for the core loop. Use the docs when you need product context or r
 
 ## Core Workflow
 
-### Step 1: Resolve — find what endpoints exist
+### 1. Browser traversal first
+
+Use this when the site is not already published, the flow is JS-heavy, or you need product-truth proof.
+
+```bash
+unbrowse go https://example.com
+unbrowse snap --filter interactive
+unbrowse click e2
+unbrowse fill e5 "hello world"
+unbrowse submit --wait-for "/next-page.html"
+# only when you explicitly want browser-side prereq help:
+unbrowse submit --assist-site-state --wait-for "/next-page.html"
+unbrowse close
+```
+
+The Kuri-style mapping is:
+
+- `kuri-agent tabs/use/go` -> `unbrowse go` + `--session`
+- `kuri-agent snap` -> `unbrowse snap`
+- `kuri-agent click/fill/select/eval` -> same `unbrowse` commands
+- `kuri-agent shot/text/cookies` -> `unbrowse screenshot/text/cookies`
+- form boundaries -> `unbrowse submit`
+
+Use one `session_id` through the whole flow. `snap` gives the live refs. `submit` is the important edge prover.
+
+### 2. Traversal rules
+
+- Browser-native by default. No hidden same-origin replay during ordinary page walking.
+- `submit` is a thin browser-native proxy by default. Only opt into `--assist-site-state` or fetch fallback when you explicitly want extra recovery/help.
+- Successful `submit` proves a workflow edge.
+- Trust the actual page state:
+  - `form[action]`
+  - hidden inputs
+  - `next-pagePath`
+  - returned `url`
+- Do not guess downstream URLs when the page already tells you the next step.
+- If a step stalls, inspect with `snap`, `eval`, and hidden-field probes before retrying.
+- Use `close` when done so captured evidence can flush and index.
+
+### 3. Publish/index after traversal
+
+Traversal is discovery. Publish is compilation.
+
+At publish time, Unbrowse links:
+
+- DOM prerequisites
+- hidden fields
+- cookies / token sources
+- request fingerprints
+- next-state transitions
+- typed params, enums, restrictions, and usage notes
+
+That output becomes the machine-readable replay contract exposed to later agents.
+
+### 4. Resolve and execute published routes
+
+When a route is already known, use the explicit resolve/execute path.
 
 ```bash
 unbrowse resolve \
   --intent "get my X timeline" \
   --url "https://x.com/home" \
   --pretty
-```
 
-Resolve searches the skill cache, shared route graph, and (on miss) captures live traffic. It returns a ranked list of `available_endpoints` with descriptions, URLs, and scores. Pick the right one by matching `action_kind`, `description`, or URL pattern.
-
-**For multi-endpoint domains (X, LinkedIn, Reddit, etc.), resolve always returns a deferred list.** You must pick an endpoint and execute separately.
-
-### Step 2: Execute — call the endpoint
-
-```bash
 unbrowse execute \
   --skill {skill_id} \
   --endpoint {endpoint_id} \
@@ -138,15 +194,23 @@ unbrowse execute \
   --pretty
 ```
 
-Pass the `skill_id` and `endpoint_id` from the resolve response. The `--intent` is optional but helps with parameter binding.
+Resolve finds candidate endpoints. Execute is explicit replay, not ad-hoc traversal.
 
-### Step 3: Present results to the user
+This resolve/execute pair is the router/meta surface for published contracts:
 
-Show the user their data first. Do not block on feedback before returning information.
+- `resolve` searches the published contract graph
+- `execute` runs one explicit replay contract
+- `skill` / `skills` let you inspect the published contract inventory
 
-### Step 4: Submit feedback (MANDATORY — but after presenting results)
+On the MCP surface, agents can also inspect published contract state before choosing tools:
 
-Submit feedback after you've shown the user their results. This can run in parallel with your response.
+- resource `workflow_contract://<skill>/<endpoint>` (typed params, restrictions, x402/payment requirements)
+- resource `workflow_dag://<skill>/<endpoint>`
+- prompt `plan_workflow_execution`
+
+### 5. Review, feedback, publish
+
+After a successful execute or validated traversal:
 
 ```bash
 unbrowse feedback \
@@ -156,30 +220,42 @@ unbrowse feedback \
   --outcome success
 ```
 
-**Rating:** 5=right+fast, 4=right+slow(>5s), 3=incomplete, 2=wrong endpoint, 1=useless.
+Then improve the metadata:
 
-### Picking the right endpoint from resolve
+- describe what the endpoint actually does
+- label important params
+- note restrictions, audience, pricing, validity, or eligibility caveats
 
-Resolve returns `available_endpoints` sorted by score. Look at these fields to pick:
+Publish once the contract is good enough for reuse.
+
+### 6. Picking the right endpoint from resolve
+
+Resolve returns `available_endpoints` sorted by score. Look at:
 
 | Field | What to check |
 |-------|---------------|
-| `action_kind` | `timeline`, `list`, `detail`, `search` — match your intent |
-| `description` | Human-readable summary of what the endpoint returns |
-| `url` | The actual API URL — look for GraphQL operation names, REST paths |
-| `dom_extraction` | `true` = scraped from page HTML (slower, less reliable). `false` = real API call |
-| `score` | Higher is better, but prefer API endpoints (`dom_extraction: false`) over DOM scrapes |
+| `action_kind` | `timeline`, `list`, `detail`, `search` — match intent |
+| `description` | Human-readable endpoint summary |
+| `url` | GraphQL op name, REST path, or known backend route |
+| `dom_extraction` | `false` preferred for replay; `true` means DOM-derived artifact |
+| `score` | Ranking hint only — do not override obvious route truth |
 
-**Example: X timeline.** Resolve for `x.com/home` returns ~7 endpoints. The right one is:
-- `action_kind: "timeline"`, `resource_kind: "post"`
-- URL contains `HomeTimeline`
-- `dom_extraction: false` (real GraphQL API, not a page scrape)
+For simple sites with one clear endpoint, `resolve` may return direct data in `result`. Then skip `execute`.
 
-Ignore the DOM extraction endpoint even if it has a higher score — it's a stale page artifact, not your live timeline.
+### 7. Direct Kuri escape hatch
 
-### When resolve returns direct data
+If Unbrowse session bookkeeping looks wrong, separate product bugs:
 
-For simple sites with one clear endpoint, resolve may return data directly in `result` without a deferred list. In that case, skip Step 2 — the data is already there.
+- **Kuri bug**: broker/tab/CDP problem
+- **Unbrowse bug**: session registry, recovery, publish, or replay policy problem
+
+Use direct Kuri-style inspection when needed:
+
+- inspect tabs / live page url
+- inspect a11y snapshot on the real tab
+- verify the real page still exists before calling a session dead
+
+That is a debug path only. Normal agent use should stay on the Unbrowse CLI surface.
 
 <!-- CLI_REFERENCE_START -->
 ## CLI Flags
@@ -198,7 +274,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
 | `review` | `--skill ID --endpoints '[...]'` | Push reviewed descriptions/metadata back to skill |
-| `publish` | `--skill ID [--endpoints '[...]']` | Describe + publish skill to marketplace (two-phase) |
+| `publish` | `--skill ID [--endpoints '[...]']` | Describe + publish skill to marketplace; compile linked replay contracts from passive capture evidence |
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
@@ -206,7 +282,7 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
 | `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows |
+| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint] [--assist-site-state]` | Submit current form. Thin browser-native proxy by default; site-state assist and same-origin rehydrate are explicit opt-ins |
 | `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
 | `fill` | `[--session id] <ref> <value>` | Fill input by ref |
@@ -296,6 +372,7 @@ unbrowse eval 'document.querySelector("input[name=selectedDate]").value'
 
 # 4. submit the actual page form
 unbrowse submit --wait-for "/time-selection.html"
+unbrowse submit --assist-site-state --wait-for "/time-selection.html"
 
 # 5. persist the captured step without closing the tab
 unbrowse sync
@@ -325,7 +402,7 @@ Preferred order:
 
 - Prefer real page clicks for date and time pickers before trying to patch hidden fields.
 - If the UI is flaky, inspect hidden inputs, cookies, or selected values with `eval`, then submit the real form.
-- Use `submit` instead of hand-rolled fetches first. It already prefers DOM submit and falls back to same-origin HTML rehydrate when navigation stalls.
+- Use `submit` instead of hand-rolled fetches first. Regular traversal stays browser-native; only opt into same-origin fetch fallback when you are explicitly debugging replay or recovery behavior.
 - Use `sync` after important transitions so the route graph learns the working request chain before the tab is closed.
 - Do not switch to external browser tools or raw HTTP unless the user explicitly authorizes fallback.
 
@@ -364,7 +441,8 @@ unbrowse skill {id}                                # Get skill details
 unbrowse search --intent "..." --domain "..."      # Search marketplace
 unbrowse sessions --domain "linkedin.com"          # Debug session logs
 unbrowse go "https://example.com/form"             # Open a live capture tab
-unbrowse submit --wait-for "/next-step"            # Submit current form with recovery and auto-queue publish for that step
+unbrowse submit --wait-for "/next-step"            # Thin browser-native submit
+unbrowse submit --assist-site-state --wait-for "/next-step"  # Explicit site-state assist for JS-heavy steps
 unbrowse sync                                      # Flush any extra captured routes into the route cache
 unbrowse health                                    # Server health check
 ```
