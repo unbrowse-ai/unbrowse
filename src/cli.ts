@@ -265,11 +265,21 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       body.params = { ...(body.params as Record<string, unknown> ?? {}), ...extraParams };
     }
     if (flags["dry-run"]) body.dry_run = true;
+    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     if (flags["force-capture"]) body.force_capture = true;
     body.projection = { raw: true };
 
     function execBody(endpointId: string): Record<string, unknown> {
-      return { params: { endpoint_id: endpointId, ...extraParams }, intent, projection: { raw: true } };
+      return {
+        params: { endpoint_id: endpointId, ...extraParams },
+        intent,
+        projection: { raw: true },
+        ...(flags["confirm-third-party-terms"] ? { confirm_third_party_terms: true } : {}),
+      };
+    }
+
+    function endpointNeedsThirdPartyTermsConfirmation(endpoint: Record<string, unknown>): boolean {
+      return endpoint.requires_third_party_terms_confirmation === true;
     }
 
     function resolveSkillId(): string | undefined {
@@ -354,6 +364,15 @@ async function cmdResolve(flags: Record<string, string | boolean>): Promise<void
       const skillId = resolveSkillId();
       if (skillId && endpoints.length > 0) {
         const bestEndpoint = endpoints[0];
+        if (endpointNeedsThirdPartyTermsConfirmation(bestEndpoint) && !flags["confirm-third-party-terms"]) {
+          info(
+            `Auto-execute skipped: ${bestEndpoint.description ?? bestEndpoint.endpoint_id} requires explicit third-party terms confirmation`
+            + (typeof bestEndpoint.third_party_terms_policy_domain === "string" ? ` for ${bestEndpoint.third_party_terms_policy_domain}` : "")
+            + ". Re-run with --confirm-third-party-terms only after the user explicitly confirms.",
+          );
+          output(result, !!flags.pretty);
+          return;
+        }
         info(`Auto-executing endpoint: ${bestEndpoint.description ?? bestEndpoint.endpoint_id}`);
         result = await withPendingNotice(
           api("POST", `/v1/skills/${skillId}/execute`, execBody(bestEndpoint.endpoint_id as string)) as Promise<Record<string, unknown>>,
@@ -557,6 +576,7 @@ async function cmdExecute(flags: Record<string, string | boolean>): Promise<void
     if (flags.intent) body.intent = flags.intent;
     if (flags["dry-run"]) body.dry_run = true;
     if (flags["confirm-unsafe"]) body.confirm_unsafe = true;
+    if (flags["confirm-third-party-terms"]) body.confirm_third_party_terms = true;
     body.projection = { raw: true };
 
     let result = await withPendingNotice(

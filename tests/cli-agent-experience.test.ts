@@ -204,4 +204,42 @@ describe("cli agent experience", () => {
       expect(out.stderr).toContain("Opening browser for login");
     });
   });
+
+  it("does not auto-execute policy-gated endpoints without explicit third-party terms confirmation", async () => {
+    await withStubServer(async (req) => {
+      const path = new URL(req.url).pathname;
+      if (path === "/v1/intent/resolve") {
+        return Response.json({
+          trace: { trace_id: "t2", skill_id: "x-skill", endpoint_id: "", success: true },
+          result: null,
+          available_endpoints: [{
+            endpoint_id: "post-tweet",
+            score: 10,
+            method: "POST",
+            description: "Create post on X",
+            requires_third_party_terms_confirmation: true,
+            third_party_terms_policy_domain: "x.com",
+          }],
+          skill: { skill_id: "x-skill" },
+          source: "live-capture",
+        });
+      }
+      if (path === "/health") return Response.json({ status: "ok" });
+      if (path === "/v1/skills/x-skill/execute") {
+        return Response.json({ error: "should_not_execute" }, { status: 500 });
+      }
+      return new Response("not found", { status: 404 });
+    }, async (baseUrl, requests) => {
+      const out = await runCli(baseUrl, [
+        "resolve",
+        "--intent", "post tweet",
+        "--url", "https://x.com/compose/post",
+        "--execute",
+      ]);
+
+      expect(out.code).toBe(0);
+      expect(requests.filter((req) => req.path === "/v1/skills/x-skill/execute")).toHaveLength(0);
+      expect(out.stderr).toContain("requires explicit third-party terms confirmation");
+    });
+  });
 });

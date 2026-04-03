@@ -120,6 +120,7 @@ Useful post-processing flags supported by the current CLI:
 - `--schema` — show schema/extraction hints without data
 - `--path "data.items[]"` — drill into a nested path first
 - `--extract "name,url,alias:deep.path"` — project fields without `jq`
+- `--confirm-third-party-terms` — required for policy-sensitive mutations on flagged domains such as X write endpoints, in addition to `--confirm-unsafe`
 - `--limit N` — cap array results
 
 ## Auth
