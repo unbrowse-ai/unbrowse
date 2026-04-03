@@ -22,6 +22,12 @@ type GithubCheckSuitePayload = {
   pull_requests?: Array<{ number?: number }>;
 };
 
+type GithubCheckRun = {
+  name: string;
+  status: string;
+  conclusion: string | null;
+};
+
 type GithubWebhookPayload = {
   action?: string;
   repository?: GithubRepoRef;
@@ -59,9 +65,11 @@ type NotifyEntry = {
 };
 
 type DispatchSource = "pull_request" | "check_suite";
+type DispatchOperation = "repair" | "merge";
 
 type PrDispatchPlan = {
   source: DispatchSource;
+  operation: DispatchOperation;
   repo: string;
   prNumber: number;
   headSha: string;
@@ -84,6 +92,8 @@ const DIGEST_TTL_SECONDS = 60 * 60 * 24 * 7;
 const DEFAULT_LABEL = "codex:auto-maintain";
 const DEFAULT_WORKFLOW = "pr-agent.yml";
 const DEFAULT_WORKFLOW_REF = "main";
+const AGENT_CHECK_NAMES = new Set(["PR Agent", "Review And Repair PR"]);
+const SUCCESSFUL_CHECK_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
 
 function parseAllowedRepos(value: string | undefined): Set<string> | null {
   const items = (value ?? "")
@@ -168,6 +178,35 @@ async function fetchCurrentPr(repo: string, number: number, token: string): Prom
   return await githubRest<GithubApiPullRequest>(token, `/repos/${owner}/${repoName}/pulls/${number}`);
 }
 
+async function fetchCheckRuns(repo: string, headSha: string, token: string): Promise<GithubCheckRun[]> {
+  const [owner, repoName] = repo.split("/");
+  if (!owner || !repoName) throw new Error(`Invalid repo name: ${repo}`);
+  const payload = await githubRest<{ check_runs?: GithubCheckRun[] }>(
+    token,
+    `/repos/${owner}/${repoName}/commits/${headSha}/check-runs`,
+  );
+  return payload.check_runs ?? [];
+}
+
+function isAgentCheckName(name: string): boolean {
+  return AGENT_CHECK_NAMES.has(name.trim());
+}
+
+function summarizeCheckRuns(checkRuns: GithubCheckRun[]): {
+  hasExternalChecks: boolean;
+  pending: string[];
+  failing: string[];
+} {
+  const externalChecks = checkRuns.filter((check) => check.name.trim().length > 0 && !isAgentCheckName(check.name));
+  return {
+    hasExternalChecks: externalChecks.length > 0,
+    pending: externalChecks.filter((check) => check.status !== "completed").map((check) => check.name),
+    failing: externalChecks
+      .filter((check) => check.status === "completed" && check.conclusion != null && !SUCCESSFUL_CHECK_CONCLUSIONS.has(check.conclusion))
+      .map((check) => check.name),
+  };
+}
+
 function shouldManagePr(pr: GithubApiPullRequest, env: Env): { manage: boolean; reason: string } {
   const managedLabel = labelName(env);
   const labels = pr.labels.map((label) => label.name).filter((value): value is string => Boolean(value));
@@ -180,20 +219,28 @@ function shouldManagePr(pr: GithubApiPullRequest, env: Env): { manage: boolean; 
   return { manage: true, reason: "managed" };
 }
 
-function dispatchKey(source: DispatchSource, repo: string, prNumber: number, sha: string): string {
-  return `gh-dispatch:${source}:${repo}:${prNumber}:${sha}`;
+function dispatchKey(operation: DispatchOperation, source: DispatchSource, repo: string, prNumber: number, sha: string): string {
+  return `gh-dispatch:${operation}:${source}:${repo}:${prNumber}:${sha}`;
 }
 
-async function wasDispatchSeen(env: Env, source: DispatchSource, repo: string, prNumber: number, sha: string): Promise<boolean> {
-  return await statsKV(env).get(dispatchKey(source, repo, prNumber, sha)) != null;
+async function wasDispatchSeen(
+  env: Env,
+  operation: DispatchOperation,
+  source: DispatchSource,
+  repo: string,
+  prNumber: number,
+  sha: string,
+): Promise<boolean> {
+  return await statsKV(env).get(dispatchKey(operation, source, repo, prNumber, sha)) != null;
 }
 
 async function markDispatchSeen(env: Env, plan: PrDispatchPlan): Promise<void> {
   await statsKV(env).put(
-    dispatchKey(plan.source, plan.repo, plan.prNumber, plan.headSha),
+    dispatchKey(plan.operation, plan.source, plan.repo, plan.prNumber, plan.headSha),
     JSON.stringify({
       seen_at: new Date().toISOString(),
       trigger: plan.trigger,
+      operation: plan.operation,
     }),
   );
 }
@@ -255,6 +302,7 @@ async function dispatchPrAgentWorkflow(env: Env, token: string, plan: PrDispatch
       head_sha: plan.headSha,
       trigger_source: plan.source,
       trigger_reason: plan.trigger,
+      operation: plan.operation,
     },
   };
   await githubRest(
@@ -274,6 +322,7 @@ async function planPullRequestDispatch(env: Env, repo: string, prNumber: number,
   if (!management.manage) return null;
   return {
     source: "pull_request",
+    operation: "repair",
     repo,
     prNumber,
     headSha: currentPr.head.sha,
@@ -287,16 +336,20 @@ async function planCheckSuiteDispatch(env: Env, repo: string, payload: GithubChe
   if (!env.GITHUB_PR_BOT_TOKEN?.trim()) throw new Error("Missing GITHUB_PR_BOT_TOKEN.");
   const prNumber = payload.pull_requests?.[0]?.number;
   const headSha = payload.head_sha?.trim();
-  const conclusion = payload.conclusion?.trim().toLowerCase();
   if (!prNumber || !headSha) return null;
   if (payload.status !== "completed") return null;
-  if (!conclusion || !["failure", "timed_out", "cancelled", "startup_failure", "stale"].includes(conclusion)) return null;
   const currentPr = await fetchCurrentPr(repo, prNumber, env.GITHUB_PR_BOT_TOKEN);
   const management = shouldManagePr(currentPr, env);
   if (!management.manage) return null;
   if (currentPr.head.sha !== headSha) return null;
+  const checkRuns = await fetchCheckRuns(repo, headSha, env.GITHUB_PR_BOT_TOKEN);
+  const summary = summarizeCheckRuns(checkRuns);
+  if (!summary.hasExternalChecks) return null;
+  if (summary.pending.length > 0) return null;
+  const operation: DispatchOperation = summary.failing.length > 0 ? "repair" : "merge";
   return {
     source: "check_suite",
+    operation,
     repo,
     prNumber,
     headSha,
@@ -427,14 +480,14 @@ export async function processGithubWebhook(
       return result;
     }
 
-    if (await wasDispatchSeen(env, plan.source, plan.repo, plan.prNumber, plan.headSha)) {
+    if (await wasDispatchSeen(env, plan.operation, plan.source, plan.repo, plan.prNumber, plan.headSha)) {
       const result = {
         ok: true,
         status: 200,
         kind: "duplicate" as const,
         repo: plan.repo,
         pr_number: plan.prNumber,
-        note: `dispatch already requested for ${plan.source} ${plan.headSha.slice(0, 7)}`,
+        note: `${plan.operation} dispatch already requested for ${plan.source} ${plan.headSha.slice(0, 7)}`,
       };
       await markDeliveryProcessed(env, deliveryId, result);
       return result;
@@ -448,7 +501,7 @@ export async function processGithubWebhook(
       kind: "dispatched" as const,
       repo: plan.repo,
       pr_number: plan.prNumber,
-      note: `dispatched ${workflowFile(env)} for ${plan.source} ${plan.headSha.slice(0, 7)}`,
+      note: `dispatched ${workflowFile(env)} ${plan.operation} for ${plan.source} ${plan.headSha.slice(0, 7)}`,
     };
     await markDeliveryProcessed(env, deliveryId, result);
     return result;
