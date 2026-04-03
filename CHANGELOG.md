@@ -106,6 +106,7 @@
 * **docs/whitepaper**: sync the companion docs with the shipped x402 and Crossmint wallet flow so payment gates, wallet-linked payout routing, and current settlement behavior stop reading as “coming soon”
 * **docs/mcp**: make the public README surfaces explicitly describe Unbrowse as a stdio MCP server, document `initialize` / `tools/list` / `tools/call`, enumerate the shipped MCP tool groups, and clarify that `localhost:6969` is the runtime behind the MCP surface rather than a custom host protocol
 * **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
+* **cli/release**: make the binary-only npm installer fail fast when the matching release asset is missing, gate npm publish on a live GitHub release-asset reachability check, and fix compiled `unbrowse setup` autostart so packaged installs exit cleanly after bootstrapping the local server
 * **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
 * **frontend/homepage**: add explicit ICP paths for agent builders, OpenClaw users, and MCP hosts so each buyer can pattern-match to the right value prop and install path faster
 * **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
@@ -1395,6 +1396,9 @@ When no API endpoints are discovered (SSR sites, static pages, JS-rendered conte
 
 # Unreleased
 
+- feat: add server-owned skill provenance and staged graph promotion so first unverified publishes stay shadow-only until independently corroborated or verified
+- feat: verify signed release manifests on publish, stamp release-attestation provenance server-side, and require endpoint-level corroboration before brand-new endpoints on public skills enter the shared graph
+- build: make the npm CLI package binary-only, sync only `SKILL.md` to the standalone skill repo, and publish release assets before npm so installs can fetch the tagged native binary immediately
 - fix: materialize under-specified root eval cases into real-world intent URLs before strict judged agent-phase runs
 - fix: reuse learned skills by domain plus compatible intent instead of merging unrelated captures into one polluted skill
 - fix: strip self-referential page URL params before minting replayable page-artifact endpoints

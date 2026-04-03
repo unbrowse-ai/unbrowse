@@ -27,7 +27,17 @@ const app = new Hono<{ Bindings: Env }>();
 app.use("*", cors({
   origin: "*",
   allowMethods: ["GET", "POST", "PUT", "PATCH", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "PAYMENT-SIGNATURE", "X-Payment-Proof"],
+  allowHeaders: [
+    "Content-Type",
+    "Authorization",
+    "PAYMENT-SIGNATURE",
+    "X-Payment-Proof",
+    "X-Unbrowse-Trace-Version",
+    "X-Unbrowse-Code-Hash",
+    "X-Unbrowse-Git-Sha",
+    "X-Unbrowse-Release-Manifest",
+    "X-Unbrowse-Release-Signature",
+  ],
   exposeHeaders: ["PAYMENT-REQUIRED", "PAYMENT-RESPONSE", "X-Payment-Required"],
   maxAge: 86400,
 }));

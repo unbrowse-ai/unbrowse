@@ -2,6 +2,40 @@ export type SkillLifecycle = "active" | "deprecated" | "disabled";
 export type OwnerType = "agent" | "marketplace" | "user";
 export type Idempotency = "safe" | "unsafe";
 export type VerificationStatus = "verified" | "unverified" | "failed" | "pending" | "disabled";
+export type GraphVisibility = "shadow" | "public";
+
+export interface SkillSubmissionProvenance {
+  submitted_at: string;
+  submitter_agent_id?: string;
+  client_trace_version?: string;
+  client_code_hash?: string;
+  client_git_sha?: string;
+  transport?: string;
+  release_manifest_version?: string;
+  release_manifest_verified?: boolean;
+  release_manifest_reason?: string;
+}
+
+export interface SkillTrustMetadata {
+  graph_visibility: GraphVisibility;
+  promotion_reason: string;
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  verified_ratio: number;
+  last_submission_at: string;
+}
+
+export interface EndpointCorroboration {
+  submission_count: number;
+  unique_submitters: number;
+  verified_release_submissions: number;
+  unique_verified_submitters: number;
+  last_submission_at: string;
+  submitter_agent_ids?: string[];
+  verified_release_submitter_ids?: string[];
+}
 
 export interface ResponseSchema {
   type: string;
@@ -36,6 +70,8 @@ export interface EndpointDescriptor {
   response_schema?: ResponseSchema;
   trigger_url?: string;
   exec_strategy?: "server" | "trigger-intercept" | "browser";
+  graph_visibility?: GraphVisibility;
+  corroboration?: EndpointCorroboration;
 }
 
 export interface SkillManifest {
@@ -57,6 +93,8 @@ export interface SkillManifest {
   intents?: string[];
   base_price_usd?: number;
   owner_compensation_opt_in?: boolean;
+  provenance_events?: SkillSubmissionProvenance[];
+  trust?: SkillTrustMetadata;
 }
 
 export interface ExecutionTrace {

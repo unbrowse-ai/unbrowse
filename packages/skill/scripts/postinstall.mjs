@@ -8,35 +8,32 @@
  * fetch the matching GitHub release tarball, extract `unbrowse`, wire it
  * into `bin/`, and fall back to source mode if the release asset is missing.
  */
-
 import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, chmodSync, copyFileSync, createWriteStream, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import http from "node:http";
 import https from "node:https";
+import { SUPPORTED_TARGETS, buildReleaseAssetUrl, getReleaseAssetConfig } from "./release-assets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "..");
 const binDir = join(packageRoot, "bin");
 const binaryPath = join(binDir, "unbrowse");
-const wrapperPath = join(binDir, "unbrowse-wrapper.mjs");
-const launcherPath = join(binDir, "unbrowse.js");
-
-function ensureExecutable(filePath) {
-  if (!existsSync(filePath)) return;
-  try {
-    chmodSync(filePath, 0o755);
-  } catch {
-    // Leave best-effort permission repair to the wrapper diagnostics.
-  }
-}
-
-ensureExecutable(wrapperPath);
-ensureExecutable(launcherPath);
+const localBinaryPath = process.env.UNBROWSE_INSTALL_BINARY_PATH;
 
 // Skip if binary already exists (re-install)
-if (existsSync(binaryPath)) {
-  ensureExecutable(binaryPath);
+if (existsSync(binaryPath)) process.exit(0);
+
+if (localBinaryPath) {
+  if (!existsSync(localBinaryPath)) {
+    console.warn(`[unbrowse] Local binary override not found: ${localBinaryPath}`);
+    process.exit(1);
+  }
+  mkdirSync(binDir, { recursive: true });
+  copyFileSync(localBinaryPath, binaryPath);
+  chmodSync(binaryPath, 0o755);
+  console.log(`[unbrowse] Installed local binary override: ${binaryPath}`);
   process.exit(0);
 }
 
@@ -44,26 +41,24 @@ const platform = process.platform; // darwin, linux
 const arch = process.arch; // arm64, x64
 const target = `${platform}-${arch}`;
 
-const SUPPORTED = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"];
-if (!SUPPORTED.includes(target)) {
-  console.warn(`[unbrowse] No prebuilt binary for ${target}. Falling back to source mode.`);
+if (!SUPPORTED_TARGETS.includes(target)) {
+  console.warn(`[unbrowse] No prebuilt binary for ${target}.`);
+  console.warn("[unbrowse] This package ships only the native binary wrapper.");
   process.exit(0);
 }
 
-// Read version from package.json
-const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf-8"));
-const version = pkg.version;
-const repo = "unbrowse-ai/unbrowse";
-const assetName = `unbrowse-v${version}-${target}.tar.gz`;
-const url = `https://github.com/${repo}/releases/download/v${version}/${assetName}`;
+const { version, repo, tag, baseUrl } = getReleaseAssetConfig(packageRoot);
+const assetName = `unbrowse-${target}`;
+const url = buildReleaseAssetUrl(baseUrl, tag, assetName);
 
-console.log(`[unbrowse] Downloading binary for ${target} (v${version})...`);
+console.log(`[unbrowse] Downloading binary for ${target} (${tag})...`);
 
 function download(url, dest) {
   return new Promise((resolve, reject) => {
     const follow = (url, redirects = 0) => {
       if (redirects > 5) return reject(new Error("Too many redirects"));
-      https.get(url, { headers: { "User-Agent": "unbrowse-postinstall" } }, (res) => {
+      const client = url.startsWith("http://") ? http : https;
+      client.get(url, { headers: { "User-Agent": "unbrowse-postinstall" } }, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           return follow(res.headers.location, redirects + 1);
         }
@@ -85,21 +80,11 @@ function download(url, dest) {
 }
 
 try {
-  const tmpArchive = join(binDir, `${assetName}.${process.pid}.tmp`);
-  await download(url, tmpArchive);
-  execFileSync("tar", ["-xzf", tmpArchive, "-C", binDir, "unbrowse"]);
-  chmodSync(binaryPath, 0o755);
-  unlinkSync(tmpArchive);
-  if (process.platform === "darwin") {
-    try {
-      execFileSync("xattr", ["-d", "com.apple.quarantine", binaryPath]);
-    } catch {}
-  }
+  await download(url, binaryPath);
   console.log(`[unbrowse] Binary installed: ${binaryPath}`);
 } catch (err) {
   console.warn(`[unbrowse] Binary download failed: ${err.message}`);
-  console.warn(`[unbrowse] Falling back to source mode (requires bun or node+tsx).`);
-  // Clean up partial download
+  console.warn(`[unbrowse] Install failed: native binary unavailable for ${repo} ${tag} (${target}).`);
   try { unlinkSync(binaryPath); } catch {}
-  try { unlinkSync(join(binDir, `${assetName}.${process.pid}.tmp`)); } catch {}
+  process.exit(1);
 }

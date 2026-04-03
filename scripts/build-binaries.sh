@@ -16,6 +16,7 @@ DIST_DIR="$ROOT_DIR/dist"
 VERSION_TAG="${UNBROWSE_RELEASE_TAG:-v$(grep -m1 '"version"' "$ROOT_DIR/package.json" | sed -E 's/.*"version": "([^"]+)".*/\1/')}"
 
 mkdir -p "$DIST_DIR"
+eval "$(bun "$ROOT_DIR/scripts/build-release-manifest.ts" --shell-env)"
 
 build_target() {
   local target="$1" # e.g. darwin-arm64
@@ -26,6 +27,7 @@ build_target() {
   echo "[build] $target -> $outfile"
   bun build "$ROOT_DIR/src/single-binary.ts" \
     --compile \
+    --minify \
     --target="bun-$target" \
     --outfile "$outfile" 2>&1
 
