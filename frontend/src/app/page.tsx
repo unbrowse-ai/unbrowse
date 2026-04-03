@@ -8,14 +8,21 @@ import { ThreePanelVisual } from "@/components/three-panel-visual";
 import { WorksWith } from "@/components/works-with";
 import { RegistryShowcase } from "@/components/registry-showcase";
 import { HeroCTA } from "@/components/hero-cta";
-import { INSTALL_CMD_GENERIC, INSTALL_CMD_MCP, MCP_CONFIG_PATH, UPGRADE_CMD_GENERIC, UPGRADE_CMD_MCP } from "@/lib/install-command";
+import {
+  INSTALL_CMD_GENERIC,
+  INSTALL_CMD_MCP,
+  INSTALL_CMD_SKILL,
+  MCP_CONFIG_PATH,
+  UPGRADE_CMD_GENERIC,
+  UPGRADE_CMD_MCP,
+} from "@/lib/install-command";
 import { Github, Zap, Coins, Globe, Shield, Activity, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const WHITEPAPER_URL = "https://arxiv.org/abs/2604.00694";
 const SHOW_ALL_INSTALL_OPTIONS = true;
 const INSTALL_ANSWER = SHOW_ALL_INSTALL_OPTIONS
-  ? `For CLI-first hosts, start with ${INSTALL_CMD_GENERIC}. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH} and the generic template lives at https://www.unbrowse.ai/mcp.json. Both clone-and-setup paths are deterministic and do not depend on npm release assets being healthy. They also handle the real first-run flow: ToS acceptance, agent registration plus API-key caching, and lobster.cash wallet detection when present. Pairing a wallet is how you turn browsing into earnings: that address is synced onto your profile, used for contributor payouts when your routes earn, and used for paid-route spending. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Cursor, Windsurf, Claude Code, Claude Desktop, Codex, OpenClaw, and generic MCP hosts all have direct wiring paths.`
-  : `Start with ${INSTALL_CMD_GENERIC} for the CLI host path or ${INSTALL_CMD_MCP} for generic MCP hosts. Both handle ToS, registration, and wallet detection. Pair a wallet if you want contributor payouts to land at your address. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
+  ? `Start with ${INSTALL_CMD_GENERIC}. That script installs the CLI, runs setup, and finishes the real first-run flow: ToS acceptance, agent registration plus API-key caching, and wallet detection when present. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL} for slash-command or host discovery. For generic MCP hosts, run ${INSTALL_CMD_MCP}; that writes a ready-to-import config to ${MCP_CONFIG_PATH}, and the generic template lives at https://www.unbrowse.ai/mcp.json. Upgrade CLI installs with ${UPGRADE_CMD_GENERIC} and MCP installs with ${UPGRADE_CMD_MCP}. For OpenClaw, install the published browser-replacement plugin with npx unbrowse-openclaw install --restart. Older OpenClaw builds may ask once to trust the plugin.`
+  : `Start with ${INSTALL_CMD_GENERIC}. After install, hosts with skills support can also use ${INSTALL_CMD_SKILL}. Generic MCP hosts can use ${INSTALL_CMD_MCP}. Upgrade with ${UPGRADE_CMD_GENERIC} or ${UPGRADE_CMD_MCP}. OpenClaw uses the separate unbrowse-openclaw package for strict browser replacement.`;
 const DOCS_URL = "https://docs.unbrowse.ai";
 
 const faqJsonLd = {
@@ -112,6 +119,7 @@ export default function Home() {
             Unbrowse is an open-source CLI tool that reverse-engineers the internal APIs behind any website, allowing AI agents to make direct API calls instead of automating headless browsers. It reduces page interaction time from 5-30 seconds to 50-200 milliseconds and cuts token usage from ~8,000 to ~200 tokens per action. Skills discovered by one agent are shared in a public registry for all agents to reuse.
           </p>
           <p>Setup: {INSTALL_CMD_GENERIC}</p>
+          <p>Optional after install: {INSTALL_CMD_SKILL}</p>
           <p>MCP setup: {INSTALL_CMD_MCP}</p>
           <p>Upgrade existing installs: {UPGRADE_CMD_GENERIC}</p>
           <p>MCP config template: https://www.unbrowse.ai/mcp.json</p>
@@ -188,7 +196,7 @@ export default function Home() {
                       </h2>
                     </div>
                     <p className="max-w-sm text-sm leading-relaxed text-text-secondary">
-                      Run the command below. MCP and OpenClaw have dedicated tabs when you need them.
+                      One real install. Optional skill shortcut after that. MCP and OpenClaw have dedicated tabs when you need them.
                     </p>
                   </div>
                 </div>
@@ -202,10 +210,18 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CTA — Single dominant action */}
-            <div className="animate-fade-up stagger-4 flex flex-col items-center gap-6 mt-10">
+            {/* CTA — install first, skill second */}
+            <div className="animate-fade-up stagger-4 flex flex-col items-center gap-6 mt-10 w-full">
+              <div className="text-center">
+                <p className="text-xs font-mono uppercase tracking-[0.22em] text-orange-600">
+                  Install Fast
+                </p>
+                <p className="mt-2 text-sm sm:text-base text-text-secondary">
+                  Install Unbrowse first. Then optionally add the skill in hosts that support it.
+                </p>
+              </div>
+              <HeroCTA />
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                <HeroCTA />
                 <Link
                   href="#demo"
                   className="flex items-center justify-center gap-2 px-6 py-3.5
@@ -482,7 +498,7 @@ export default function Home() {
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">How do I install Unbrowse?</h3>
-               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_GENERIC}</code> for the deterministic CLI path, or <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_MCP}</code> for generic MCP hosts. The MCP path writes a ready config to <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{MCP_CONFIG_PATH}</code>, and a generic template is available at <a href="/mcp.json" className="underline hover:text-text-primary">/mcp.json</a>. If Unbrowse is already installed from a repo clone, upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_GENERIC}</code> or <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_MCP}</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>.</p>
+               <p className="text-text-secondary leading-relaxed">Run <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_GENERIC}</code> to install the actual runtime and setup flow. After that, hosts with skills support can also use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_SKILL}</code> for slash-command or host discovery. Generic MCP hosts can use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{INSTALL_CMD_MCP}</code>; that path writes a ready config to <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{MCP_CONFIG_PATH}</code>, and a generic template is available at <a href="/mcp.json" className="underline hover:text-text-primary">/mcp.json</a>. Upgrade with <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_GENERIC}</code> or <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">{UPGRADE_CMD_MCP}</code>. For OpenClaw, use <code className="text-orange-600 font-medium bg-orange-50 border border-orange-500/20 px-1.5 py-0.5 rounded text-sm">npx unbrowse-openclaw install --restart</code>.</p>
              </div>
              <div>
                <h3 className="text-lg font-semibold mb-2 text-text-primary">What is the skill registry?</h3>

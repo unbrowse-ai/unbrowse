@@ -551,7 +551,7 @@ export default function BenchmarkDeepDivePage() {
           <p className="text-sm text-text-secondary text-center">
             Install:{" "}
             <code className="bg-surface-sunken px-2 py-1 rounded text-orange-500 font-mono text-xs">
-              npm install -g unbrowse
+              curl -fsSL https://unbrowse.ai/install.sh | bash
             </code>
           </p>
         </section>

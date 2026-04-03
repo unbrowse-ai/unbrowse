@@ -383,7 +383,7 @@ export default function MinersPage() {
           </p>
           <div className="mt-6 inline-flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 font-mono text-sm">
             <span className="text-text-muted">$</span>
-            <span className="text-text-primary">npm install -g unbrowse</span>
+            <span className="text-text-primary">curl -fsSL https://unbrowse.ai/install.sh | bash</span>
           </div>
         </section>
       </div>

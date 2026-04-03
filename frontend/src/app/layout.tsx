@@ -215,7 +215,7 @@ export default function RootLayout({
                   name: "Which AI coding agents work with Unbrowse?",
                   acceptedAnswer: {
                     "@type": "Answer",
-                    text: "Unbrowse works with all major AI coding agents including Claude Code, Cursor, OpenClaw, and Windsurf. It installs as a single npm package and integrates via a CLI that any agent can call.",
+                    text: "Unbrowse works with all major AI coding agents including Claude Code, Cursor, OpenClaw, and Windsurf. The simplest full install path is curl -fsSL https://unbrowse.ai/install.sh | bash. After install, hosts with skills support can also use npx skills add unbrowse-ai/unbrowse.",
                   },
                 },
                 {
@@ -223,7 +223,7 @@ export default function RootLayout({
                   name: "Is Unbrowse free to use?",
                   acceptedAnswer: {
                     "@type": "Answer",
-                    text: "Yes, Unbrowse is free and open-source. Install it with 'npm install -g unbrowse' and start discovering APIs immediately. The shared skill marketplace lets you benefit from APIs discovered by the community.",
+                    text: "Yes, Unbrowse is free and open-source. Install it with curl -fsSL https://unbrowse.ai/install.sh | bash and start discovering APIs immediately. After install, hosts with skills support can also use npx skills add unbrowse-ai/unbrowse. The shared skill marketplace lets you benefit from APIs discovered by the community.",
                   },
                 },
               ],

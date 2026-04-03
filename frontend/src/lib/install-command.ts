@@ -1,10 +1,11 @@
 export const REPO_CLONE_URL = "https://github.com/unbrowse-ai/unbrowse.git";
+export const INSTALL_SCRIPT_URL = "https://unbrowse.ai/install.sh";
 
-export const INSTALL_CMD_GENERIC =
-  `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse && cd ~/unbrowse && ./setup --host off`;
+export const INSTALL_CMD_GENERIC = `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`;
+export const INSTALL_CMD_SKILL = "npx skills add unbrowse-ai/unbrowse";
+export const INSTALL_CMD_NPM = "npm install -g unbrowse && unbrowse setup";
 
-export const UPGRADE_CMD_GENERIC =
-  "cd ~/unbrowse && git pull --ff-only && ./setup --host off";
+export const UPGRADE_CMD_GENERIC = INSTALL_CMD_GENERIC;
 
 export const INSTALL_CMD_MCP =
   `git clone --single-branch --depth 1 ${REPO_CLONE_URL} ~/unbrowse && cd ~/unbrowse && ./setup --host mcp`;
