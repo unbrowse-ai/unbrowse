@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { BrowseSession, BrowseSessionClient } from "../src/api/browse-session.js";
 import { withRecoveredBrowseSession } from "../src/api/browse-session.js";
 import { hasMeaningfulPageChange, resolveSubmitWaitHint, submitBrowseForm, type BrowseSubmitClient } from "../src/api/browse-submit.js";
+import { inferCalendarIsoDate } from "../src/api/browse-submit-prereqs.js";
 
 function makeSubmitClient(overrides: Partial<BrowseSubmitClient> = {}): BrowseSubmitClient {
   return {
@@ -144,6 +145,49 @@ describe("browse submit", () => {
     expect(session.harActive).toBe(true);
   });
 
+  it("does not fall back when submit prerequisites are incomplete", async () => {
+    const session: BrowseSession = {
+      sessionId: "sess-1",
+      tabId: "tab-1",
+      url: "https://example.com/date-selection.html",
+      harActive: true,
+      domain: "example.com",
+    };
+    let evalCount = 0;
+
+    const result = await submitBrowseForm(
+      {
+        client: makeSubmitClient({
+          evaluate: async () => {
+            evalCount += 1;
+            return JSON.stringify({
+              ok: false,
+              reason: "prereq_state_incomplete",
+              prereq_state: {
+                patched: ["input[name='selectedDate']"],
+                missing: ["a.btn-proceed:not(.disabled)"],
+              },
+            });
+          },
+        }),
+        session,
+        restartCapture: async () => {},
+        rehydratePlugins: async () => null,
+      },
+      { timeoutMs: 20, waitFor: "/add-ons-selection.html" },
+    );
+
+    expect(evalCount).toBe(1);
+    expect(result.ok).toBe(false);
+    expect(result.mode).toBe("noop");
+    expect(result.fallback_used).toBe(false);
+    expect(result.reason).toBe("prereq_state_incomplete");
+    expect(result.submit_meta?.prereq_state).toEqual({
+      patched: ["input[name='selectedDate']"],
+      missing: ["a.btn-proceed:not(.disabled)"],
+    });
+  });
+
   it("does not treat same-page html churn as success when a URL wait hint is provided", async () => {
     const session: BrowseSession = {
       sessionId: "sess-1",
@@ -273,5 +317,11 @@ describe("browse submit", () => {
     expect(result.mode).toBe("dom");
     expect(result.url).toBe("https://auth.example.com/login");
     expect(session.url).toBe("https://auth.example.com/login");
+  });
+
+  it("infers iso dates from Mandai-style month and day labels", () => {
+    expect(inferCalendarIsoDate("Apr 2026", "4")).toBe("2026-04-04");
+    expect(inferCalendarIsoDate("September 2026", "12")).toBe("2026-09-12");
+    expect(inferCalendarIsoDate("unknown", "4")).toBeNull();
   });
 });
