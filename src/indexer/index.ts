@@ -2,6 +2,10 @@ import { buildSkillOperationGraph } from "../graph/index.js";
 import { validateManifest, publishSkill, cachePublishedSkill, publishGraphEdges } from "../client/index.js";
 import { mergeEndpoints } from "../marketplace/index.js";
 import {
+  selectMarketplacePublishEndpoints,
+  formatMarketplacePublishSelection,
+} from "../publish-admission.js";
+import {
   writeSkillSnapshot,
   domainSkillCache,
   persistDomainCache,
@@ -389,15 +393,20 @@ async function processIndexJob(job: BackgroundIndexJob): Promise<void> {
   // 3. Update local snapshot with merged skill + graph + descriptions
 
   // 4. Sanitize + validate + publish to marketplace (remote, ~1.5s total)
-  const publishable = skill.endpoints.filter(ep => ep.method !== "WS");
-  if (publishable.length === 0) {
-    console.log(`[background-index] no publishable endpoints for ${domain}`);
+  const selection = selectMarketplacePublishEndpoints(skill);
+  if (selection.endpoints.length === 0) {
+    console.log(
+      `[background-index] no publishable endpoints for ${domain} (${formatMarketplacePublishSelection(selection)})`,
+    );
     return;
   }
+  console.log(
+    `[background-index] publishing ${selection.endpoints.length}/${selection.stats.total} endpoint(s) for ${domain} (${formatMarketplacePublishSelection(selection)})`,
+  );
 
   // Deterministic PII sanitization — secrets redacted, values replaced with synthetic placeholders.
   // The calling agent can later POST to /v1/skills/:id/review with better descriptions and examples.
-  const sanitized = sanitizeForPublish(publishable);
+  const sanitized = sanitizeForPublish(selection.endpoints);
 
   const { operation_graph: _g, ...base } = skill;
   const draft: SkillManifest = { ...base, endpoints: sanitized, indexer_id: getLocalAgentId() };
