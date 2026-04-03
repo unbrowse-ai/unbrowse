@@ -20,7 +20,8 @@
 
 ### Bug Fixes
 
-* **browse/registry**: auto-flush and queue background publish after successful `unbrowse submit` steps, return explicit next-step hints for browser-submit flows, and document `unbrowse-ai/unbrowse` as the canonical public repo for external registry submissions
+* **browse/indexing**: stop `unbrowse submit` from queueing intermediate background publishes, coalesce later same-domain index jobs instead of dropping them, and keep final publish on `unbrowse close` so richer end-of-flow captures win
+* **auth/linkedin**: restore keychain/browser-cookie fallback for explicit login flows before interactive auth, prefer live browser-cookie import before saved auth-profile restore during browse navigation, use the discovered CDP port for secure cookie injection, tighten interactive-login success detection around real auth cookies like LinkedIn `li_at`, and skip periodic cold verification for auth-gated endpoints
 * **frontend/homepage**: sharpen homepage positioning around AI agent builders, clarify the browser-automation replacement story, and reduce copy clutter across the hero, install, and registry sections
 * **frontend/copy**: normalize the public role name to `contributor` across leaderboard and economics pages while keeping mining as the campaign verb
 * fix packaged MCP autostart by removing a duplicate `recordAnalyticsSession` export that broke the packaged local-server bootstrap path behind the installer-generated MCP command

@@ -649,6 +649,32 @@ async function setCookieViaCDP(wsUrl: string, cookie: {
   });
 }
 
+async function resolveCdpDebuggerUrlForTab(tabId: string): Promise<string | null> {
+  const portsToTry = Array.from(new Set(
+    [kuriCdpPort, 9222, 9223, 9224, 9225].filter((port): port is number => typeof port === "number"),
+  ));
+
+  for (const port of portsToTry) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(1000) });
+      if (!res.ok) continue;
+      const pages = await res.json() as Array<{ id: string; webSocketDebuggerUrl?: string }>;
+      const page = pages.find((candidate) => candidate.id === tabId);
+      if (page?.webSocketDebuggerUrl) {
+        if (kuriCdpPort !== port) {
+          kuriCdpPort = port;
+          log("kuri", `updated CDP port from tab discovery: ${port}`);
+        }
+        return page.webSocketDebuggerUrl;
+      }
+    } catch {
+      // Try the next candidate port.
+    }
+  }
+
+  return null;
+}
+
 /** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
  *  Falls back to Kuri's /cookies endpoint if CDP is unavailable. */
 /** Set a single cookie via raw CDP (Chrome debug port) for full attribute support.
@@ -661,23 +687,22 @@ export async function setCookie(tabId: string, cookie: KuriCookie): Promise<void
   // which causes auth failures on sites like LinkedIn that require secure cookies.
   if (cookie.secure || cookie.httpOnly) {
     try {
-      const res = await fetch("http://127.0.0.1:9222/json", { signal: AbortSignal.timeout(1000) }).catch(() => null);
-      if (res?.ok) {
-        const pages = await res.json() as Array<{ id: string; webSocketDebuggerUrl?: string }>;
-        const page = pages.find(p => p.id === tabId);
-        if (page?.webSocketDebuggerUrl) {
-          const success = await setCookieViaCDP(page.webSocketDebuggerUrl, {
-            name: cookie.name,
-            value,
-            domain: cookie.domain,
-            path: cookie.path || "/",
-            secure: cookie.secure ?? false,
-            httpOnly: cookie.httpOnly ?? false,
-            sameSite: cookie.sameSite || "Lax",
-            ...(cookie.expires && cookie.expires > 0 ? { expires: cookie.expires } : {}),
-          });
-          if (success) return;
-        }
+      const debuggerUrl = await resolveCdpDebuggerUrlForTab(tabId);
+      if (debuggerUrl) {
+        const success = await setCookieViaCDP(debuggerUrl, {
+          name: cookie.name,
+          value,
+          domain: cookie.domain,
+          path: cookie.path || "/",
+          secure: cookie.secure ?? false,
+          httpOnly: cookie.httpOnly ?? false,
+          sameSite: cookie.sameSite || "Lax",
+          ...(cookie.expires && cookie.expires > 0 ? { expires: cookie.expires } : {}),
+        });
+        if (success) return;
+        log("kuri", `CDP cookie set failed for ${cookie.name} on ${cookie.domain}; falling back to /cookies`);
+      } else {
+        log("kuri", `no CDP websocket for tab ${tabId}; falling back to /cookies for secure cookie ${cookie.name}`);
       }
     } catch { /* CDP unavailable, fall through to Kuri */ }
   }
@@ -968,6 +993,14 @@ export async function health(): Promise<{ ok: boolean; tabs?: number }> {
 /** Get the currently configured port. */
 export function getPort(): number {
   return kuriPort;
+}
+
+export function getCdpPort(): number | null {
+  return kuriCdpPort;
+}
+
+export function setCdpPortForTests(port: number | null): void {
+  kuriCdpPort = port;
 }
 
 /** Check if kuri is ready. */

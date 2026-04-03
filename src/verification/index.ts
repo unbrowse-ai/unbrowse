@@ -3,6 +3,7 @@ import { updateEndpointScore } from "../marketplace/index.js";
 import { listSkills, getSkill } from "../marketplace/index.js";
 import { detectSchemaDrift } from "../transform/drift.js";
 import { computeVerificationCoverage, INITIAL_MATRIX } from "./matrix.js";
+import { isAuthGatedEndpoint } from "./auth-gate.js";
 import type { VerificationMatrix } from "./matrix.js";
 import type { EndpointDescriptor, SkillManifest, VerificationStatus } from "../types/index.js";
 
@@ -101,6 +102,7 @@ export function schedulePeriodicVerification(): ReturnType<typeof setInterval> {
       if (skill.lifecycle !== "active") continue;
       for (const endpoint of skill.endpoints) {
         if (endpoint.method !== "GET") continue;
+        if (isAuthGatedEndpoint(skill, endpoint)) continue;
         const isDisabled = endpoint.verification_status === "disabled";
         const lastVerified = endpoint.last_verified_at
           ? new Date(endpoint.last_verified_at).getTime()
