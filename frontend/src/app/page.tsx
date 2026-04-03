@@ -459,8 +459,6 @@ export default async function Home() {
 
        {/* ═══ First Task ═══ */}
        <section id="first-task" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
-       {/* ═══ First Task ═══ */}
-       <section id="first-task" className="relative py-16 sm:py-24 border-t border-border bg-surface-sunken">
          <div className="relative max-w-4xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-500/20 text-orange-600 text-xs font-mono font-medium uppercase tracking-widest mb-6">
