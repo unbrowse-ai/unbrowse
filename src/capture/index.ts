@@ -216,7 +216,7 @@ export function isBlockedAppShell(html?: string): boolean {
 
 function shouldRetryEphemeralProfileError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed/i.test(message);
+  return /persistentcontext|target page, context or browser has been closed|browser has been closed|page has been closed|fetch failed|econnrefused|connection refused/i.test(message);
 }
 
 /**

@@ -191,7 +191,9 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `health` |  | Server health check |
+| `mcp` | `[--no-auto-start]` | Run the stdio MCP server |
 | `setup` | `[--opencode auto|global|project|off] [--no-start]` | Bootstrap browser deps + Open Code command |
+| `upgrade` |  | Check latest release and print the right upgrade command |
 | `resolve` | `--intent "..." --url "..." [opts]` | Resolve intent → search/capture/execute |
 | `execute` | `--skill ID --endpoint ID [opts]` | Execute a specific endpoint |
 | `feedback` | `--skill ID --endpoint ID --rating N` | Submit feedback (mandatory after resolve) |
@@ -200,10 +202,11 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `login` | `--url "..."` | Interactive browser login |
 | `skills` |  | List all skills |
 | `skill` | `<id>` | Get skill details |
+| `cleanup-stale` | `[--skill ID] [--domain host] [--limit N]` | Verify skills and evict stale cached endpoints |
 | `search` | `--intent "..." [--domain "..."]` | Search marketplace |
 | `sessions` | `--domain "..." [--limit N]` | Debug session logs |
-| `go` | `<url>` | Open a live Kuri browser tab for capture-first workflows |
-| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form with DOM-first + same-origin rehydrate fallback for JS-heavy flows |
+| `go` | `<url> [--session id]` | Open a live Kuri browser tab for capture-first workflows |
+| `submit` | `[--session id] [--form-selector sel] [--submit-selector sel] [--wait-for hint]` | Submit current form, auto-flush current capture, and fall back to same-origin rehydrate for JS-heavy flows |
 | `snap` | `[--session id] [--filter interactive]` | A11y snapshot with @eN refs |
 | `click` | `[--session id] <ref>` | Click element by ref (e.g. e5) |
 | `fill` | `[--session id] <ref> <value>` | Fill input by ref |
@@ -211,15 +214,15 @@ For simple sites with one clear endpoint, resolve may return data directly in `r
 | `press` | `<key>` | Press key (Enter, Tab, Escape) |
 | `select` | `<ref> <value>` | Select option by ref |
 | `scroll` | `[up|down|left|right]` | Scroll the page |
-| `screenshot` |  | Capture screenshot (base64 PNG) |
-| `text` |  | Get page text content |
-| `markdown` |  | Get page as Markdown |
-| `cookies` |  | Get page cookies |
-| `eval` | `<expression>` | Evaluate JavaScript |
-| `back` |  | Navigate back |
-| `forward` |  | Navigate forward |
-| `sync` |  | Flush the current step's captured traffic into route cache without closing tab |
-| `close` |  | Close browse session, flush + index traffic |
+| `screenshot` | `[--session id]` | Capture screenshot (base64 PNG) |
+| `text` | `[--session id]` | Get page text content |
+| `markdown` | `[--session id]` | Get page as Markdown |
+| `cookies` | `[--session id]` | Get page cookies |
+| `eval` | `[--session id] <expression>` | Evaluate JavaScript |
+| `back` | `[--session id]` | Navigate back |
+| `forward` | `[--session id]` | Navigate forward |
+| `sync` | `[--session id]` | Flush the current step's captured traffic into route cache without closing tab |
+| `close` | `[--session id]` | Close browse session, flush + index traffic |
 
 ### Global flags
 

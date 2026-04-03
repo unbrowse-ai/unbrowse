@@ -1948,7 +1948,16 @@ export async function resolveAndExecute(
   }
 
   async function openBrowseSessionHandoff(url: string, tabId?: string): Promise<OrchestratorResult | null> {
-    const handoffTabId = tabId ?? await kuri.newTab(url).catch(() => "");
+    await kuri.start().catch(() => {});
+
+    let handoffTabId = tabId ?? "";
+    if (handoffTabId) {
+      const currentUrl = await kuri.getCurrentUrl(handoffTabId).catch(() => "");
+      if (!currentUrl) handoffTabId = "";
+    }
+    if (!handoffTabId) {
+      handoffTabId = await kuri.newTab(url).catch(() => "");
+    }
     if (!handoffTabId) return null;
 
     const domain = new URL(url).hostname.replace(/^www\./, "");

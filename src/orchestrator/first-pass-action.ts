@@ -335,6 +335,14 @@ export async function tryFirstPassBrowserAction(
       miniSkill = synthesizeSkillFromIntercepted(jsonEntries, domain, intent);
     }
 
+    let reusableTabId = hit ? undefined : tabId;
+    if (!hit && reusableTabId) {
+      const kuriHealth = await kuri.health().catch(() => ({ ok: false }));
+      if (!kuriHealth.ok) {
+        reusableTabId = undefined;
+      }
+    }
+
     return {
       hit,
       result,
@@ -343,7 +351,7 @@ export async function tryFirstPassBrowserAction(
       actionTaken,
       intentClass,
       timeMs: Date.now() - t0,
-      tabId: hit ? undefined : tabId, // keep tab alive on miss
+      tabId: reusableTabId, // keep tab alive on miss only while Kuri still owns it
     };
   } catch (err) {
     // On any error, cleanup and return miss — never throw

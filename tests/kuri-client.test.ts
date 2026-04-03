@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import * as kuri from "../src/kuri/client.js";
@@ -7,8 +8,30 @@ import * as kuri from "../src/kuri/client.js";
 const originalKuriBin = process.env.KURI_BIN;
 const originalPackageRoot = process.env.UNBROWSE_PACKAGE_ROOT;
 const tmpDirs: string[] = [];
+const originalFetch = globalThis.fetch;
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function waitForPortDown(port: number, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(100) });
+    } catch {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`port ${port} stayed up after ${timeoutMs}ms`);
+}
 
 afterEach(async () => {
+  globalThis.fetch = originalFetch;
   if (originalKuriBin === undefined) delete process.env.KURI_BIN;
   else process.env.KURI_BIN = originalKuriBin;
   if (originalPackageRoot === undefined) delete process.env.UNBROWSE_PACKAGE_ROOT;
@@ -90,6 +113,71 @@ exit 1
     expect(results.every((result) => result.status === "rejected")).toBe(true);
     expect(Number(readFileSync(counterFile, "utf8").trim())).toBe(4);
   }, 30_000);
+
+  it("rechecks health when cached ready state points at a dead kuri port", async () => {
+    const fakeHealthServer = createServer((req, res) => {
+      if (req.url === "/health") {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+      res.statusCode = 404;
+      res.end("not found");
+    });
+
+    await new Promise<void>((resolve) => fakeHealthServer.listen(7795, "127.0.0.1", () => resolve()));
+
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), "unbrowse-kuri-stale-"));
+    tmpDirs.push(tmpDir);
+    const fakeBin = path.join(tmpDir, "kuri");
+    writeFileSync(fakeBin, "#!/bin/sh\nexit 1\n");
+    chmodSync(fakeBin, 0o755);
+    process.env.KURI_BIN = fakeBin;
+
+    await kuri.start(7795);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await new Promise<void>((resolve, reject) => fakeHealthServer.close((err) => err ? reject(err) : resolve()));
+    await waitForPortDown(7795);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await expect(kuri.start(7795)).rejects.toThrow(/failed to start after 4 attempts/i);
+  }, 30_000);
+
+  it("falls back to raw Chrome CDP tab creation when /tab/new fails", async () => {
+    let cdpCreated = false;
+
+    globalThis.fetch = (async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url === "http://127.0.0.1:7794/health") {
+        return jsonResponse({ ok: true, tabs: cdpCreated ? 1 : 0 });
+      }
+      if (url === "http://127.0.0.1:9222/json/version") {
+        return jsonResponse({ webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/browser/test" });
+      }
+      if (url.startsWith("http://127.0.0.1:7794/discover")) {
+        return jsonResponse({ ok: true });
+      }
+      if (url === "http://127.0.0.1:7794/tabs") {
+        return jsonResponse(cdpCreated ? [{ id: "cdp-tab", url: "about:blank" }] : []);
+      }
+      if (url.startsWith("http://127.0.0.1:7794/tab/new")) {
+        return jsonResponse({ error: "Target.createTarget failed" });
+      }
+      if (url === "http://127.0.0.1:9222/json/new?about:blank") {
+        expect(init?.method).toBe("PUT");
+        cdpCreated = true;
+        return jsonResponse({ id: "cdp-tab" });
+      }
+
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    await kuri.start(7794);
+    await expect(kuri.newTab("about:blank")).resolves.toBe("cdp-tab");
+  });
 
   it("derives launch mode from env flags", () => {
     expect(kuri.resolveKuriLaunchConfig({
