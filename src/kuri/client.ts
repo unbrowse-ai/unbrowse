@@ -818,8 +818,9 @@ export async function evaluate(tabId: string, expression: string, state: BrokerS
     result?: { result?: { type?: string; value?: unknown; description?: string }; exceptionDetails?: unknown };
   };
   if (expression.length > 2000) {
-    // Use POST with raw text body for large expressions to avoid URL length limits
-    const url = kuriUrl(state, "/evaluate", { tab_id: tabId });
+    // Kuri's /evaluate handler still reads expression from the query string.
+    // Keep the param in the URL even on POST so large submit scripts work.
+    const url = kuriUrl(state, "/evaluate", { tab_id: tabId, expression });
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), KURI_REQUEST_TIMEOUT_MS);
     try {
